@@ -1,0 +1,28 @@
+stop_id,stop_name,stop_lat,stop_lon,wheelchair_boarding                                                                                               
+17000,Madrid-Chamartín-Clara Campoamor,40.4711789,-3.6829524,1                                                                                        
+18000,Madrid-Atocha Cercanías,40.4066191,-3.6894391,1                                                                                                 
+18001,Madrid-Recoletos,40.4233731,-3.6909310,1                                                                                                        
+18002,Madrid-Nuevos Ministerios,40.4466271,-3.6923468,1                                                                                               
+71600,Sant Vicenç de Calders,41.1862102,1.52480358,1                                                                                                  
+71601,Calafell,41.1896703,1.57500937,1                                                                                                                
+71602,Segur de Calafell,41.1925787,1.60643599,1                                                                                                       
+71603,Cunit,41.1950415,1.63194242,1                                                                                                                   
+71604,Cubelles,41.2043246,1.67597720,1                                                                                                                
+71700,Vilanova i la Geltrú,41.2203207,1.73077249,1                                                                                                    
+71701,Sitges,41.2391315,1.80969184,1                                                                                                                  
+71705,Castelldefels,41.2790474,1.97915126,1                                                                                                           
+71706,Gavà,41.3034722,2.01053111,1                                                                                                                    
+71709,Viladecans,41.3095086,2.02741857,1                                                                                                              
+71801,Barcelona-Sants,41.3798632,2.14101688,1                                                                                                         
+71802,Barcelona-Passeig de Gràcia,41.3920862,2.16533862,1                                                                                             
+72503,Cerdanyola Universitat,41.4969904,2.11537770,1                                                                                                  
+77102,La Garriga,41.6846272,2.28879559,1                                                                                                              
+78706,Cerdanyola del Vallès,41.4925608,2.14752164,1                                                                                                   
+78707,Montcada i Reixac-Santa Maria,41.4811409,2.16698683,1                                                                                           
+78708,Montcada i Reixac-Manresa,41.4839402,2.18540420,2                                                                                               
+78800,Montcada-Bifurcació,41.4698402,2.18001578,2                                                                                                     
+78802,Barcelona Fabra i Puig,41.4303481,2.18332907,2                                                                                                  
+79400,Barcelona Estació de França,41.3844866,2.18534785,1                                                                                             
+98003,Fuente de la Mora,40.4847200,-3.6630608,1                                                                                                       
+98304,Valdebebas,40.4821016,-3.6162874,1                                                                                                              
+98305,Madrid-Aeropuerto T4,40.4924023,-3.5932297,1                                                                                                    

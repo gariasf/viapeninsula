@@ -1,0 +1,10 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "viapeninsula",
+  "compatibility_date": "2026-09-24",
+  // The site is static: Vite's build served as Workers static assets.
+  "assets": { "directory": "./dist" },
+  "routes": [{ "pattern": "viapeninsula.gariasf.com", "custom_domain": true }],
+  "workers_dev": false,
+  "preview_urls": false
+}

@@ -1,0 +1,5 @@
+route_id,route_short_name,route_long_name,route_type,route_color,route_text_color                                                                     
+10T0001C1  ,C1  ,Principe Pio                            -Aeropuerto-T4                           ,2,75B6E0,FFFFFF                                    
+51T0007R2S ,R2S ,Sant Vicenc de Calders                  -Barcelona-Estació de França             ,2,146520,FFFFFF                                    
+51T0029R7  ,R7  ,Barcelona-Fabra i Puig                  -Cerdanyola-Universitat                  ,2,24A842,FFFFFF                                    
+51T0187R3  ,R3  ,Granollers-Canovelles                   -Barcelona-Fabra i Puig                  ,3,E54A3C,FFFFFF                                    

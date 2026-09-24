@@ -1,0 +1,5 @@
+route_id,service_id,trip_id,trip_headsign,wheelchair_accessible,block_id,shape_id                                                                     
+10T0001C1,1065J,1065J19799C1,       ,1,1065J19799,10_C1                                                                                               
+51T0007R2S,5165J,5165J25478R2S ,     ,1,5165J25478,51_R2S                                                                                             
+51T0029R7,5165J,5165J77801R7,       ,1,5165J77801,51_R7                                                                                               
+51T0187R3,5165J,5165J87316R3,       ,2,5165J87316,51_R3                                                                                               
