@@ -1,13 +1,31 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
+import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { MapLibreMap, setWorkerUrl } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { LIVE_URL, madridDate, type Bundle, type Manifest } from '../bundle.ts';
+import { along, LIVE_URL, madridDate, type Bundle, type Manifest } from '../bundle.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
 setWorkerUrl(workerUrl);
 
 const FONT = ['Noto Sans Regular'];
+const NAME_SIZE = 12;
+
+/** A Line's width, in pixels at each zoom. */
+const WIDTH: [zoom: number, px: number][] = [[7, 1.5], [14, 4]];
+/**
+ * How far apart Lines that share track are drawn, in pixels at each zoom: a line width apart zoomed
+ * out, as on a transit map, and back on the rails zoomed right in, where people follow a Train.
+ */
+const APART: [zoom: number, px: number][] = [...WIDTH, [15, 0]];
+
+/** An expression that takes `value` at each of these zooms, and goes smoothly from one to the next. */
+const byZoom = (stops: [zoom: number, px: number][], value: (px: number, zoom: number) => number | ExpressionSpecification): ExpressionSpecification => [
+  'interpolate',
+  ['linear'],
+  ['zoom'],
+  ...stops.flatMap(([zoom, px]) => [zoom, value(px, zoom)]),
+];
 
 const map = new MapLibreMap({
   container: 'map',
@@ -21,22 +39,28 @@ const map = new MapLibreMap({
 });
 
 const [bundle] = await Promise.all([loadBundle(), map.once('load')]);
-const coords = new Map(bundle.shapes.map((s) => [s.id, s.coords]));
+const lines = new Map(bundle.lines.map((l) => [l.id, l]));
+const shapes = new Map(bundle.shapes.map((s) => [s.id, s]));
 
 map.addSource('lines', {
   type: 'geojson',
   attribution: 'Rodalies: <a href="https://data.renfe.com/" target="_blank">Renfe</a>, CC BY 4.0',
   data: {
     type: 'FeatureCollection',
-    features: bundle.lines.flatMap((line) =>
-      line.shapes.flatMap((id): GeoJSON.Feature[] => {
-        const coordinates = coords.get(id);
-        if (!coordinates) return [];
-        // Where Lines share track, Barcelona's commuter lines (R1–R8) are drawn over the regional ones.
-        const properties = { name: line.name, colour: line.colour, above: /^R\d[NS]?$/.test(line.name) ? 1 : 0 };
-        return [{ type: 'Feature', properties, geometry: { type: 'LineString', coordinates } }];
-      }),
-    ),
+    features: bundle.strokes.flatMap(({ line: id, shape: shapeId, from, to, side }): GeoJSON.Feature[] => {
+      const [line, shape] = [lines.get(id), shapes.get(shapeId)];
+      if (!line || !shape) return [];
+      const properties = {
+        name: line.name,
+        colour: line.colour,
+        // Zoomed right in, where Lines share track, Barcelona's commuter lines (R1–R8) are drawn over the regional ones.
+        above: /^R\d[NS]?$/.test(line.name) ? 1 : 0,
+        side,
+        // Each Line's name goes on its own stroke: text-offset is in ems.
+        ...Object.fromEntries(APART.map(([zoom, px]) => [`textOffset${zoom}`, [0, (side * px) / NAME_SIZE]])),
+      };
+      return [{ type: 'Feature', properties, geometry: { type: 'LineString', coordinates: along(shape, from, to) } }];
+    }),
   },
 });
 map.addSource('stations', {
@@ -59,7 +83,11 @@ map.addLayer(
     type: 'line',
     source: 'lines',
     layout: { 'line-cap': 'round', 'line-join': 'round', 'line-sort-key': ['get', 'above'] },
-    paint: { 'line-color': ['get', 'colour'], 'line-width': ['interpolate', ['linear'], ['zoom'], 7, 1.5, 14, 4] },
+    paint: {
+      'line-color': ['get', 'colour'],
+      'line-width': byZoom(WIDTH, (px) => px),
+      'line-offset': byZoom(APART, (px) => ['*', ['get', 'side'], px]),
+    },
   },
   firstLabel,
 );
@@ -67,8 +95,20 @@ map.addLayer({
   id: 'line-names',
   type: 'symbol',
   source: 'lines',
-  layout: { 'symbol-placement': 'line', 'text-field': ['get', 'name'], 'text-font': FONT, 'text-size': 12 },
-  paint: { 'text-color': ['get', 'colour'], 'text-halo-color': '#fff', 'text-halo-width': 2 },
+  layout: {
+    'symbol-placement': 'line',
+    'text-field': ['get', 'name'],
+    'text-font': FONT,
+    'text-size': NAME_SIZE,
+    'text-offset': byZoom(APART, (_, zoom) => ['array', 'number', 2, ['get', `textOffset${zoom}`]]),
+  },
+  paint: {
+    'text-color': ['get', 'colour'],
+    'text-halo-color': '#fff',
+    'text-halo-width': 2,
+    // MapLibre offsets names by whole zoom levels, so while the Lines slide onto the rails, names hide.
+    'text-opacity': ['interpolate', ['linear'], ['zoom'], 14, 1, 14.1, 0, 14.9, 0, 15, 1],
+  },
 });
 map.addLayer({
   id: 'stations',

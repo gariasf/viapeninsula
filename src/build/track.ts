@@ -1,6 +1,6 @@
 // The track each Line's Trains run on, traced along OpenStreetMap's rails (ADR-0004).
 
-import type { Shape, Station } from '../bundle.ts';
+import { along, type Shape, type Station } from '../bundle.ts';
 import type { OsmWay } from './osm.ts';
 
 /** A shape as the feed draws it, and the Stations its Trips serve. */
@@ -10,11 +10,11 @@ export interface FeedShape {
   stations: string[];
 }
 
-type Point = [lon: number, lat: number];
+export type Point = [lon: number, lat: number];
 
 /** The Earth's mean radius, and the length of a degree of latitude, in metres. */
 const EARTH = 6_371_008.8;
-const DEGREE = (EARTH * Math.PI) / 180;
+export const DEGREE = (EARTH * Math.PI) / 180;
 
 /**
  * A Station is on the rails that pass within 50 m of its nearest one, if that is within 200 m. Renfe's
@@ -382,7 +382,7 @@ function heap() {
 }
 
 /** Where a line comes closest to a point: segment i, a fraction t along it, the distance along the line, and how far away. */
-function nearest(polyline: Point[], p: Point): { i: number; t: number; along: number; metres: number } {
+export function nearest(polyline: Point[], p: Point): { i: number; t: number; along: number; metres: number } {
   // Flat metres around p find the closest point; distances along the line are great-circle, as in piece().
   const kx = DEGREE * Math.cos((p[1] * Math.PI) / 180);
   const along = distances(polyline);
@@ -402,16 +402,7 @@ function nearest(polyline: Point[], p: Point): { i: number; t: number; along: nu
 
 /** The part of a line from one distance along it to another. */
 function piece(polyline: Point[], from: number, to: number): Point[] {
-  const along = distances(polyline);
-  const at = (d: number): Point => {
-    const i = along.findIndex((x) => x >= d);
-    const [a, b] = [polyline[i - 1], polyline[i]];
-    if (!b) return polyline.at(-1) ?? [NaN, NaN]; // at or beyond the end, give or take rounding
-    if (!a) return b;
-    const [start = 0, end = 0] = [along[i - 1], along[i]];
-    return lerp(a, b, end > start ? (d - start) / (end - start) : 0);
-  };
-  return [at(from), ...polyline.filter((_, i) => (along[i] ?? 0) > from && (along[i] ?? 0) < to), at(to)];
+  return along({ coords: polyline, dist: distances(polyline) }, from, to);
 }
 
 /** A Shape from its points, with the distance along it at each. */

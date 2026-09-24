@@ -15,6 +15,8 @@ export interface Bundle {
   lines: Line[];
   stations: Station[];
   shapes: Shape[];
+  /** How the map draws the Lines: each Line's track once, beside the other Lines on it. */
+  strokes: Stroke[];
 }
 
 export interface Network {
@@ -30,6 +32,18 @@ export interface Line {
   shapes: string[];
 }
 
+/**
+ * Part of one of a Line's shapes, from one distance along it to another in metres, drawn `side`
+ * line widths to the right of its track, or to the left where negative.
+ */
+export interface Stroke {
+  line: string;
+  shape: string;
+  from: number;
+  to: number;
+  side: number;
+}
+
 /** Identified by whoever runs it: `adif:<code>` for Renfe's Stations. */
 export interface Station {
   id: string;
@@ -43,6 +57,20 @@ export interface Shape {
   id: string;
   coords: [lon: number, lat: number][];
   dist: number[];
+}
+
+/** A line's points from one distance along it to another, where `dist` gives the distance at each point. */
+export function along({ coords, dist }: Pick<Shape, 'coords' | 'dist'>, from: number, to: number): Shape['coords'] {
+  const at = (d: number): [lon: number, lat: number] => {
+    const i = dist.findIndex((x) => x >= d);
+    const [a, b] = [coords[i - 1], coords[i]];
+    if (!b) return coords.at(-1) ?? [NaN, NaN]; // at or beyond the end, give or take rounding
+    if (!a) return b;
+    const [start = 0, end = 0] = [dist[i - 1], dist[i]];
+    const t = end > start ? (d - start) / (end - start) : 0;
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+  };
+  return [at(from), ...coords.filter((_, i) => (dist[i] ?? 0) > from && (dist[i] ?? 0) < to), at(to)];
 }
 
 /** The date in Spain, as YYYY-MM-DD. */
