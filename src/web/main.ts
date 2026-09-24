@@ -29,6 +29,15 @@ const byZoom = (stops: [zoom: number, px: number][], value: (px: number, zoom: n
   ...stops.flatMap(([zoom, px]) => [zoom, value(px, zoom)]),
 ];
 
+/**
+ * Whether the basemap names a feature in the viewer's language, where the tiles have it: countries,
+ * regions, seas, rivers and airports, which are the features with an IATA code. Everything else it
+ * labels, from towns and their districts to streets, goes by its own name, as its signs and Stations
+ * have it: the tiles' Spanish names for Catalan towns are mostly old Castilian ones, such as Lérida
+ * and Sardañola del Vallés.
+ */
+const TRANSLATED: ExpressionSpecification = ['any', ['in', ['get', 'class'], ['literal', ['country', 'state', 'ocean', 'sea', 'river']]], ['has', 'iata']];
+
 const map = new MapLibreMap({
   container: 'map',
   center: [2.17, 41.39], // Barcelona, with the rest of Catalonia a zoom away
@@ -36,13 +45,24 @@ const map = new MapLibreMap({
   attributionControl: false,
 });
 map.setStyle('https://tiles.openfreemap.org/styles/positron', {
-  // OpenFreeMap's credit ends "Data from OpenStreetMap", in English, and the ODbL asks for the
-  // contributors, so showLanguage() credits the basemap itself, in the viewer's language.
   transformStyle: (_, style) => {
+    // OpenFreeMap's credit ends "Data from OpenStreetMap", in English, and the ODbL asks for the
+    // contributors, so showLanguage() credits the basemap itself, in the viewer's language.
     if (style.sources.openmaptiles) Object.assign(style.sources.openmaptiles, { attribution: '' });
+    // Its labels give each feature's English name, where the tiles have one. They give its own
+    // instead, or where it's TRANSLATED, its name in the language showLanguage() sets.
+    style.state = { language: { default: language() } };
+    for (const layer of style.layers) {
+      if (layer.type !== 'symbol' || !layer.layout) continue;
+      const text = JSON.stringify(layer.layout['text-field']);
+      if (!text?.includes('"name_en"')) continue;
+      const own = JSON.parse(text.replaceAll('"name_en"', '"name"'));
+      layer.layout['text-field'] = ['case', TRANSLATED, ['coalesce', ['get', ['concat', 'name:', ['global-state', 'language']]], own], own];
+    }
     return style;
   },
 });
+const styleLoaded = map.once('style.load');
 
 // The language switch, with each language named in itself.
 const languageSwitch = document.createElement('select');
@@ -192,6 +212,8 @@ function showLanguage() {
   // parts it builds from now on read these, the canvas is relabelled, and the credits built afresh.
   Object.assign(map._locale, { 'Map.Title': t('map'), 'AttributionControl.ToggleAttribution': t('showCredits') });
   map.getCanvas().setAttribute('aria-label', t('map'));
+  // The basemap can relabel itself once its style has loaded, and loads in the language set by then.
+  styleLoaded.then(() => map.setGlobalStateProperty('language', language()));
   if (credits) map.removeControl(credits);
   credits = new AttributionControl({
     customAttribution:
