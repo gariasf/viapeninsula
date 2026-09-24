@@ -36,10 +36,11 @@ interface Step {
   to: number;
 }
 
-/** A Line on or beside a piece: how far left of it, in metres (right if negative), whether alongside it, and which way it runs. */
+/** A Line on or beside a piece: how far left of it, in metres (right if negative), whether on it or alongside it, and which way it runs. */
 interface Neighbour {
   line: number;
   left: number;
+  on: boolean;
   alongside: boolean;
   way: number;
 }
@@ -53,8 +54,8 @@ export function sideBySide(lines: Line[], shapes: Shape[]): Stroke[] {
   const { pieces, runs } = walk(lines, shapes);
   const cells = grid(pieces);
   const nearby = pieces.map((p) => neighbours(p, pieces, cells));
-  const beside = nearby.map(cluster);
-  const turned = turn(lines.length, pieces, beside);
+  const turned = turn(lines.length, pieces, nearby.map((n) => cluster(n)));
+  const beside = nearby.map((n) => cluster(n, turned));
   const left = sides(lines.length, pieces, nearby, turned);
   const place = rank(left);
   return runs.flatMap((run) => {
@@ -154,7 +155,7 @@ function cell(x: number, y: number): string {
 
 /** The Lines on a piece and beside it within WIDE, from its right to its left. */
 function neighbours(p: Piece, pieces: Piece[], cells: Map<string, number[]>): Neighbour[] {
-  const found = [...p.on].map(([line, way]) => ({ line, left: 0, alongside: true, way }));
+  const found = [...p.on].map(([line, way]) => ({ line, left: 0, on: true, alongside: true, way }));
   for (let i = -1; i <= 1; i++) {
     for (let j = -1; j <= 1; j++) {
       for (const k of cells.get(cell(p.x + i * WIDE, p.y + j * WIDE)) ?? []) {
@@ -166,17 +167,24 @@ function neighbours(p: Piece, pieces: Piece[], cells: Map<string, number[]>): Ne
         const left = p.ux * dy - p.uy * dx;
         if (Math.abs(dx * p.ux + dy * p.uy) > STEP / 2 || Math.abs(left) > WIDE) continue;
         const cos = p.ux * o.ux + p.uy * o.uy;
-        for (const [line, way] of o.on) found.push({ line, left, alongside: Math.abs(cos) >= PARALLEL, way: way * Math.sign(cos) });
+        for (const [line, way] of o.on) found.push({ line, left, on: false, alongside: Math.abs(cos) >= PARALLEL, way: way * Math.sign(cos) });
       }
     }
   }
   return found.sort((a, b) => a.left - b.left);
 }
 
-/** The Lines beside a piece: on it, alongside it NEAR it, or NEAR those; each where it's nearest the piece. */
-function cluster(nearby: Neighbour[]): Map<number, Neighbour> {
-  const found = nearby.filter((n) => n.alongside);
-  let [from, to] = [found.findIndex((n) => n.left === 0), found.findLastIndex((n) => n.left === 0)];
+/**
+ * The Lines beside a piece: on it, alongside it NEAR it, or NEAR those; each where it's nearest the
+ * piece. Once Lines are `turned`, those on another track that run the other way to the piece's own
+ * aren't beside it: that's another line of route passing by, as R1 and R4 pass the Lines for
+ * Estació de França, and moving either over for the other only makes them jump.
+ */
+function cluster(nearby: Neighbour[], turned?: number[]): Map<number, Neighbour> {
+  const way = (n: Neighbour) => n.way * (turned?.[n.line] ?? 1);
+  const ahead = Math.sign(nearby.reduce((sum, n) => sum + (n.on ? way(n) : 0), 0)) || 1;
+  const found = nearby.filter((n) => n.alongside && (n.on || !turned || way(n) === ahead));
+  let [from, to] = [found.findIndex((n) => n.on), found.findLastIndex((n) => n.on)];
   while (from > 0 && (found[from]?.left ?? 0) - (found[from - 1]?.left ?? 0) <= NEAR) from--;
   while (to >= 0 && (found[to + 1]?.left ?? Infinity) - (found[to]?.left ?? 0) <= NEAR) to++;
   const lines = new Map<number, Neighbour>();

@@ -143,10 +143,11 @@ test('keeps Lines on their sides along a long straight, whichever way each runs 
   expect(Math.sign((north('R2', 100) ?? NaN) - (north('R11', 100) ?? NaN))).toBe(Math.sign((north('R2', 1100) ?? NaN) - (north('R11', 1100) ?? NaN)));
 });
 
-test('keeps the order of Lines that another runs past the other way, as R4 runs past the Lines for Estació de França', () => {
+test('keeps Lines where they are while another runs past them the other way, and sides it with them where it joins their track', () => {
   // R4 shares R2S's and R14's track east for 4 km, turns off north and loops round. It comes back
-  // west along a track 20 m north of theirs, then joins their track to its terminus, as R13 does into
-  // Lleida: less than 4 km in all, so it runs the other way to them there.
+  // west along a track of its own 20 m north of theirs, as R1 and R4 run past the Lines for Estació
+  // de França, then joins their track to its terminus, as R13 does into Lleida: under 4 km in all,
+  // so there it runs the other way to them.
   const { north } = draw(
     [line('R4', 'R4'), line('R2S', 'R2S'), line('R14', 'R14')],
     [
@@ -155,11 +156,10 @@ test('keeps the order of Lines that another runs past the other way, as R4 runs 
       shape('R4', [0, 0], [4000, 0], [5000, 1000], [11000, 1000], [10000, 20], [9000, 20], [8800, 0], [7000, 0]),
     ],
   );
+  // Passing on its own track, R4 keeps to it and R2S and R14 keep their places.
+  expect([north('R4', 9500, 20), north('R2S', 9500), north('R14', 9500)]).toEqual([0, north('R2S', 11500), north('R14', 11500)]);
+  // On their track, it goes on the side it came from, and they keep their order.
   const order = (x: number) => Math.sign((north('R2S', x) ?? NaN) - (north('R14', x) ?? NaN));
-  expect(Math.abs(order(11500))).toBe(1);
-  expect([order(2000), order(9500), order(8000)]).toEqual([order(11500), order(11500), order(11500)]);
-  // R4 goes on the side its track is on, and stays there on theirs.
-  for (const [x, y] of [[9500, 20], [8000, 0]] as const) {
-    expect(north('R4', x, y), `at ${x} m`).toBeGreaterThan(Math.max(north('R2S', x) ?? NaN, north('R14', x) ?? NaN));
-  }
+  expect([order(2000), order(8000)]).toEqual([order(11500), order(11500)]);
+  expect(north('R4', 8000)).toBeGreaterThan(Math.max(north('R2S', 8000) ?? NaN, north('R14', 8000) ?? NaN));
 });
