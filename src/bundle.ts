@@ -29,6 +29,8 @@ export interface Network {
   id: string;
   name: string;
   profile: SpeedProfile;
+  /** The day its operator last updated its timetable (YYYY-MM-DD), where their terms ask the map to show it. */
+  updated?: string;
 }
 
 /** How a Network's Trains run between Stations, in metres and seconds. */

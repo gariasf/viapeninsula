@@ -1,10 +1,22 @@
 import { execFileSync, spawn } from 'node:child_process';
 import { createReadStream, existsSync } from 'node:fs';
+import { writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 
 /** Yields the lines of one file of a GTFS feed, or nothing if the feed hasn't got that file. */
 export type Source = (file: string) => AsyncIterable<string> | undefined;
+
+/** Downloads a GTFS zip as `name` into the system's temporary folder, to read from there. */
+export async function download(url: string, name: string): Promise<Source> {
+  const res = await fetch(url);
+  // Never print a query string: TMB's holds its key.
+  if (!res.ok) throw new Error(`${url.split('?')[0]}: HTTP ${res.status}`);
+  const file = join(tmpdir(), name);
+  await writeFile(file, Buffer.from(await res.arrayBuffer()));
+  return zipSource(file);
+}
 
 /** Streams files straight out of a GTFS zip: Renfe's stop_times alone is 240 MB unzipped. */
 export function zipSource(zip: string): Source {
@@ -51,14 +63,14 @@ export function parseLine(line: string): string[] {
 }
 
 /**
- * Yields each row of a GTFS file with the given columns, failing if the file lacks one. A file the
- * feed hasn't got fails too, unless it's optional.
+ * Yields each row of a GTFS file with the given columns, failing if the file lacks one, unless it may
+ * be `blank`, read as empty. A file the feed hasn't got fails too, unless it's optional.
  */
 export async function* rows<K extends string>(
   source: Source,
   file: string,
   columns: readonly K[],
-  { optional = false } = {},
+  { optional = false, blank = [] as readonly K[] } = {},
 ): AsyncGenerator<Record<K, string>> {
   const lines = source(file);
   if (!lines && !optional) throw new Error(`The feed has no ${file}`);
@@ -72,7 +84,7 @@ export async function* rows<K extends string>(
       continue;
     }
     at = columns.map((c) => fields.indexOf(c));
-    const missing = columns.filter((c) => !fields.includes(c));
+    const missing = columns.filter((c) => !fields.includes(c) && !blank.includes(c));
     if (missing.length) throw new Error(`${file} has no ${missing.join(', ')} column`);
   }
 }
@@ -96,6 +108,15 @@ export async function serviceIdsOn(source: Source, day: string): Promise<Set<str
     if (d.exception_type === '2') running.delete(d.service_id);
   }
   return running;
+}
+
+/** The day a feed's timetable starts (YYYY-MM-DD), from its feed_info.txt. */
+export async function feedStart(source: Source): Promise<string> {
+  let start = '';
+  for await (const f of rows(source, 'feed_info.txt', ['feed_start_date'])) start ||= f.feed_start_date;
+  const [, year, month, day] = /^(\d{4})(\d{2})(\d{2})$/.exec(start) ?? [];
+  if (!day) throw new Error(`feed_info.txt starts on "${start}", not a date`);
+  return `${year}-${month}-${day}`;
 }
 
 /** A GTFS time, such as 25:10:00 for 01:10 the next morning, in seconds into the service day. */

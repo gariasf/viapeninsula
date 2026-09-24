@@ -60,7 +60,11 @@ export function traceShapes(shapes: FeedShape[], stations: Station[], rails: Osm
       const [total, km, feedKm] = [shape.dist.at(-1) ?? 0, length.traced, length.feed].map((m) => (m / 1000).toFixed(1));
       const off = `${length.traced >= length.feed ? '+' : ''}${((length.traced / length.feed - 1) * 100).toFixed(1)}%`;
       log(`${feed.id}: ${total} km long. Where the feed has the track: ${km} km traced against its ${feedKm} km (${off})`);
-      if (Math.abs(length.traced / length.feed - 1) > 0.05) wrong.push(`${feed.id}'s traced track is ${km} km against the feed's ${feedKm} km (${off})`);
+      // Each end of a trace can stop anywhere on its Station's rails, up to BAND off the feed's: on a
+      // shape less than 2 km long, as funiculars are, that's more than 5%.
+      if (Math.abs(length.traced - length.feed) > Math.max(0.05 * length.feed, 2 * BAND)) {
+        wrong.push(`${feed.id}'s traced track is ${km} km against the feed's ${feedKm} km (${off})`);
+      }
     }
     return shape;
   });

@@ -3,7 +3,7 @@ import './style.css';
 import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { AttributionControl, MapLibreMap, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { along, LIVE_URL, madridDate, type Bundle, type Manifest } from '../bundle.ts';
+import { along, LIVE_URL, madridDate, type Bundle, type Manifest, type Network } from '../bundle.ts';
 import { trainsAt } from '../engine.ts';
 import { language, LANGUAGES, setLanguage, t, type Language } from './i18n.ts';
 
@@ -37,6 +37,19 @@ const byZoom = (stops: [zoom: number, px: number][], value: (px: number, zoom: n
  * and Sardañola del Vallés.
  */
 const TRANSLATED: ExpressionSpecification = ['any', ['in', ['get', 'class'], ['literal', ['country', 'state', 'ocean', 'sea', 'river']]], ['has', 'iata']];
+
+/**
+ * Each Network's credit, as the terms for its data ask: Renfe's and FGC's are CC BY 4.0, TRAM's asks
+ * for its own words and a link, and TMB's for the day its data was last updated.
+ */
+const CREDITS: Record<string, (network: Network) => string> = {
+  rodalies: () => 'Rodalies: <a href="https://data.renfe.com/" target="_blank">Renfe</a>, CC BY 4.0',
+  fgc: () => '<a href="https://dadesobertes.fgc.cat/" target="_blank">FGC</a>, CC BY 4.0',
+  tram: () => '<a href="https://www.tram.cat/" target="_blank">Powered by TRAM Barcelona</a>',
+  metro: ({ updated }) =>
+    `Metro: <a href="https://www.tmb.cat/" target="_blank">TMB</a>` +
+    (updated ? `, ${t('updated')} ${new Intl.DateTimeFormat(language(), { dateStyle: 'medium', timeZone: 'UTC' }).format(Date.parse(updated))}` : ''),
+};
 
 const map = new MapLibreMap({
   container: 'map',
@@ -78,15 +91,18 @@ languageSwitch.addEventListener('change', () => {
 });
 map.addControl({ onAdd: () => languageSwitch, onRemove: () => languageSwitch.remove() }, 'top-right');
 let credits: AttributionControl | undefined;
+/** The Networks on the map, whose data the credits name. */
+let credited: Network[] = [];
 showLanguage();
 
 const [bundle] = await Promise.all([loadBundle(), map.once('load')]);
+credited = bundle.networks;
+showCredits();
 const lines = new Map(bundle.lines.map((l) => [l.id, l]));
 const shapes = new Map(bundle.shapes.map((s) => [s.id, s]));
 
 map.addSource('lines', {
   type: 'geojson',
-  attribution: 'Rodalies: <a href="https://data.renfe.com/" target="_blank">Renfe</a>, CC BY 4.0',
   data: {
     type: 'FeatureCollection',
     features: bundle.strokes.flatMap(({ line: id, shape: shapeId, from, to, side }): GeoJSON.Feature[] => {
@@ -214,12 +230,20 @@ function showLanguage() {
   map.getCanvas().setAttribute('aria-label', t('map'));
   // The basemap can relabel itself once its style has loaded, and loads in the language set by then.
   styleLoaded.then(() => map.setGlobalStateProperty('language', language()));
+  showCredits();
+}
+
+/** Credits the basemap and each Network's data, in the viewer's language, building the credits afresh. */
+function showCredits() {
   if (credits) map.removeControl(credits);
   credits = new AttributionControl({
-    customAttribution:
+    customAttribution: [
       '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> ' +
-      '<a href="https://www.openmaptiles.org/" target="_blank">© OpenMapTiles</a> ' +
-      `<a href="https://www.openstreetmap.org/copyright" target="_blank">${t('osmContributors')}</a>`,
+        '<a href="https://www.openmaptiles.org/" target="_blank">© OpenMapTiles</a> ' +
+        `<a href="https://www.openstreetmap.org/copyright" target="_blank">${t('osmContributors')}</a>`,
+      // A Network with no credit of its own here still gets its name.
+      ...credited.map((network) => CREDITS[network.id]?.(network) ?? network.name),
+    ],
   });
   map.addControl(credits);
 }

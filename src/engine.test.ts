@@ -67,6 +67,15 @@ const TRIPS: Record<string, { line: string; calls: Row[] }> = {
       ['B', '12:01:30', '12:02:00', 3000, 2.036, 41.5],
     ],
   },
+  // Not a real Trip either: 555 m in 45 s, as FGC's timetable has Gràcia to Sant Gervasi, too quick
+  // for 1 m/s² and too short to reach top speed in.
+  'short and quick': {
+    line: 'R2S',
+    calls: [
+      ['A', '12:00:00', '12:00:00', 0, 2, 41.5],
+      ['B', '12:00:45', '12:01:15', 555, 2.00666, 41.5],
+    ],
+  },
 };
 
 const seconds = (time: string) => time.split(':').reduce((sum, part) => sum * 60 + Number(part), 0);
@@ -166,7 +175,7 @@ function speeds(trip: string, from: string, to: string): number[] {
 }
 
 test('accelerates out of each Station and brakes into the next, within the profile', () => {
-  for (const [trip, { calls }] of Object.entries(TRIPS).filter(([t]) => t !== 'too quick')) {
+  for (const [trip, { calls }] of Object.entries(TRIPS).filter(([t]) => !['too quick', 'short and quick'].includes(t))) {
     const all = speeds(trip, calls[0]?.[1] ?? '', calls.at(-1)?.[2] ?? '');
     expect(Math.max(...all)).toBeLessThanOrEqual(PROFILE.topSpeed + ROUNDING);
     // Its speed changes by no more than the profile's acceleration or braking each second.
@@ -191,6 +200,12 @@ test('keeps to the timetable on a stretch quicker than the profile allows, braki
   expect(where('too quick', at('12:00:00'))).toBe(0);
   expect(where('too quick', at('12:01:30'))).toBe(3000);
   expect(Math.max(...speeds('too quick', '12:00:00', '12:01:30'))).toBeLessThanOrEqual(PROFILE.topSpeed + ROUNDING);
+});
+
+test("never runs back on a stretch too short to reach top speed in the time it has, braking and accelerating harder instead", () => {
+  const each = Array.from({ length: 91 }, (_, i) => where('short and quick', at('12:00:00', i / 2)) ?? NaN);
+  expect([each[0], each.at(-1)]).toEqual([0, 555]);
+  expect(each).toEqual([...each].sort((a, b) => a - b));
 });
 
 test('runs its track whichever way its Trip does, and turns back where it does', () => {

@@ -1,0 +1,4 @@
+route_id,route_short_name,route_long_name,route_type,route_url,route_color,route_text_color
+1.11.1,L11,Trinitat Nova - Can Cuiàs,1,https://www.tmb.cat/ca/barcelona/metro/-/lineametro/L11,89B94C,FFFFFF
+1.99.1,FM,Paral·lel - Parc de Montjuïc,7,https://www.tmb.cat/ca/barcelona/metro/-/lineametro/FM,004C38,FFFFFF
+2.13.2833,13,Mercat Sant Antoni / Parc de Montjuïc,3,https://www.tmb.cat/ca/barcelona/autobusos/-/lineabus/13,DA291C,FFFFFF

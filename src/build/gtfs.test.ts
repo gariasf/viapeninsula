@@ -1,6 +1,10 @@
 import { fileURLToPath } from 'node:url';
-import { expect, test } from 'vitest';
-import { dirSource, noonMinus12h, parseLine, rows, serviceIdsOn, type Source } from './gtfs.ts';
+import { afterEach, expect, test, vi } from 'vitest';
+import { dirSource, download, feedStart, noonMinus12h, parseLine, rows, serviceIdsOn, type Source } from './gtfs.ts';
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 const renfe = dirSource(fileURLToPath(new URL('fixtures/rodalies', import.meta.url)));
 
@@ -63,6 +67,14 @@ test("reads rows by header name, with Renfe's padded headers and IDs trimmed", a
   expect(routes).toContainEqual({ route_id: '51T0007R2S', route_text_color: 'FFFFFF' });
 });
 
+test("reads a column the file may lack as blank, as TRAM's trips.txt lacks trip_headsign", async () => {
+  // A row cut verbatim from TRAM's Trambaix feed of 2026-09-24.
+  const tram = feed({ 'trips.txt': ['route_id,service_id,trip_id,block_id,shape_id', '2,2555,2555_0194,LT01,1'] });
+  const trips = [];
+  for await (const t of rows(tram, 'trips.txt', ['trip_id', 'trip_headsign'], { blank: ['trip_headsign'] })) trips.push(t);
+  expect(trips).toEqual([{ trip_id: '2555_0194', trip_headsign: '' }]);
+});
+
 test('fails on a missing column instead of reading empty values', async () => {
   const read = async () => {
     for await (const _ of rows(renfe, 'trips.txt', ['trip_id', 'direction_id'])) void _;
@@ -73,4 +85,15 @@ test('fails on a missing column instead of reading empty values', async () => {
 test("starts a service day's clock at noon less 12 hours, which is an hour off midnight on the night the clocks go back", () => {
   expect(new Date(noonMinus12h('2026-09-24')).toISOString()).toBe('2026-09-23T22:00:00.000Z'); // midnight in Barcelona
   expect(new Date(noonMinus12h('2026-10-25')).toISOString()).toBe('2026-10-24T23:00:00.000Z'); // 01:00, still summer time
+});
+
+test("reads the day a feed's timetable starts from feed_info.txt", async () => {
+  // TMB's feed of 2026-09-21, which TMB publishes each week.
+  expect(await feedStart(dirSource(fileURLToPath(new URL('fixtures/tmb', import.meta.url))))).toBe('2026-09-21');
+});
+
+test("fails a download without printing its query string, where TMB's key goes", async () => {
+  vi.stubGlobal('fetch', async () => new Response('Authentication failed', { status: 401 }));
+  const error = await download('https://api.tmb.cat/v1/static/datasets/gtfs.zip?app_id=ID&app_key=KEY', 'tmb.zip').catch((e: unknown) => e);
+  expect(String(error)).toBe('Error: https://api.tmb.cat/v1/static/datasets/gtfs.zip: HTTP 401');
 });

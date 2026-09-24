@@ -15,6 +15,8 @@ const STRINGS = {
   showCredits: { ca: 'Mostra o amaga els crèdits', es: 'Mostrar u ocultar los créditos', en: 'Show or hide the credits' },
   // As OpenStreetMap's own site words it.
   osmContributors: { ca: "© Els col·laboradors de l'OpenStreetMap", es: '© Colaboradores de OpenStreetMap', en: '© OpenStreetMap contributors' },
+  // Before the day an operator last updated its data, in the credits.
+  updated: { ca: 'actualitzat el', es: 'actualizado el', en: 'updated' },
 } satisfies Record<string, Record<Language, string>>;
 
 /** What the viewer's choice is kept under on their device, in local storage, which takes no cookie. */
