@@ -11,3 +11,5 @@ One Cloudflare Durable Object fetches every live feed about every 20 seconds and
 
 - The snapshot records each feed's freshness; that is what turns Trains Scheduled and raises the "live data unavailable" banner.
 - It needs a domain on Cloudflare: R2's `r2.dev` URLs aren't cached and are rate-limited.
+- It runs on Workers Paid ($5/month): a fetcher run measured about 12 ms of CPU, over the free plan's 10 ms. Viewer traffic never reaches a Worker, so usage stays inside the plan's included amounts.
+- The Durable Object is evicted between alarms, so its throttles, tokens and last-good feed bodies live in its storage, not in memory (measured in the Cloudflare spike, see `docs/research/live-data-sources.md`).

@@ -2,7 +2,7 @@
 
 Research for **Via Península** (working title): a map of trains, metros and trams running on real track in Spain, in the style of railisland.tw (軌島, [siriushsu/taiwan-rail-live](https://github.com/siriushsu/taiwan-rail-live)). Catalonia first.
 
-- **Date:** 2026-09-24, a Thursday. Samples taken 06:55–07:15 CEST, the start of the morning peak.
+- **Date:** 2026-09-24, a Thursday. Samples taken 06:55–07:15 CEST, the start of the morning peak. It was also La Mercè, a Barcelona public holiday, so TMB and TRAM ran their Sunday timetables: their figures below are holiday figures (see Scale).
 - **Method:** every endpoint below was requested directly unless marked *(docs)* or *(second-hand)*. Counts come from those samples. They are snapshots, not averages.
 
 ## TL;DR
@@ -30,8 +30,8 @@ From its [README](https://github.com/siriushsu/taiwan-rail-live):
 | Rodalies + all Renfe Cercanías | daily zip | yes, dense | GTFS-RT positions + delays + alerts | GPS while moving; station coords when stopped or arriving | ~20 s | none / no CORS | CC-BY 4.0 |
 | Renfe AVE/LD/MD/Regional | daily zip | **no** → OSM | GTFS-RT positions + delays; web visor JSON | GPS | 15–30 s (fix ~45 s old) | none / no CORS | CC-BY 4.0 (visor not in catalog) |
 | FGC | zip + Opendatasoft | yes | GTFS-RT positions/predictions/alerts + Geotren (occupancy per car) | GPS-like | ~120 s (data 2–4 min old) | none, 5000 req/day/IP / CORS `*` | CC-BY 4.0 |
-| TRAM (Trambaix, Trambesòs) | 2 zips | yes | REST `activevehicles` + GTFS-RT trip updates | metres past last stop + delay | TU header 10–15 s old | OAuth2 (free signup) / no CORS | TRAM terms |
-| TMB Metro | zip (key) | yes | iMetro arrivals, whole network in one call *(second-hand)* | inferred from predictions | unknown | app_id/app_key / echoes Origin | TMB terms (not read) |
+| TRAM (Trambaix, Trambesòs) | 2 zips | yes | REST `activevehicles` + GTFS-RT trip updates | metres since trip origin (0 at stops) + delay | TU header 10–15 s old | OAuth2 (free signup) / no CORS | TRAM terms |
+| TMB Metro | zip (key) | yes | iTransit arrivals, whole network in one call (L1–L5, L11) | inferred from per-train countdowns | on request | app_id/app_key / echoes Origin | TMB terms: cite TMB and update date, don't alter |
 | TMB Bus | zip (key) | yes | iBus, per stop | — | — | key | — |
 | Ouigo | national access point *(second-hand)* | no | none | — | — | — | — |
 | Iryo | none (only an ATM stub) | — | none | — | — | — | — |
@@ -113,7 +113,7 @@ From its [README](https://github.com/siriushsu/taiwan-rail-live):
 - **Fetching:** the GTFS-RT files are attachments. Fetch `.../catalog/datasets/<id>/records?limit=1`, take `results[0].file.url`, then download the protobuf from it. The file ID can change, so resolve it every time.
 - **Access:** CORS `*` on both the API and the files. Anonymous quota is **5000 requests/day per IP** (`x-ratelimit-*` headers, resets 00:00 UTC).
 - **Refresh:** about every 120 s. Data was 131–237 s old when fetched.
-- **Positions:** 50 vehicles at ~07:00, with `occupancyStatus`, `currentStatus` and `stopId`. `route_id` is empty.
+- **Positions:** 50 vehicles at ~07:00, with `occupancyStatus`, `currentStatus` and `stopId`. `route_id` is empty. At 09:05 the same day the file was empty (0 bytes, several tries over a minute) while Geotren listed 60 trains, so don't rely on it alone.
 - **Trip updates:** predicted arrival and departure times per stop, 58 trips.
 - **Alerts:** 186. Many are per-trip notes, e.g. bus connections.
 - **Joins:** positions 50/50, trip updates 58/58.
@@ -126,7 +126,7 @@ From its [README](https://github.com/siriushsu/taiwan-rail-live):
 
 ### TRAM Barcelona (Trambaix T1–T3, Trambesòs T4–T6)
 
-**Static:** `https://opendata.tram.cat/GTFS/zip/TBX.zip` and `TBS.zip`, no key. Shapes included. Thursday: 319 trips (TBX) + 465 (TBS). That looks low for the published frequencies; check before relying on it.
+**Static:** `https://opendata.tram.cat/GTFS/zip/TBX.zip` and `TBS.zip`, no key. Shapes included. Thursday 24 Sep: 319 trips (TBX) + 465 (TBS), the Sunday timetable because of La Mercè; a normal Thursday (1 Oct) has 468 + 741.
 
 **Real time:** the TRAM Open Data API ([manual](https://opendata.tram.cat/manual_en.pdf), 2017).
 
@@ -137,7 +137,7 @@ From its [README](https://github.com/siriushsu/taiwan-rail-live):
 - **Networks:** `1` TRAMBAIX, `2` TRAMBESÒS.
 - **`GET /api/v1/activevehicles?networkId=`**, per vehicle:
   - `lineName`, `originStopCode/Name`, `nextStopCode/Name`
-  - `vehiclePosition`: **metres travelled since the origin stop**
+  - `vehiclePosition`: **metres travelled since the trip's origin stop** while moving (`vehicleStatus: LIGN`), and `0` while standing at a stop (`TARR`, `inStop: true`). `originStopCode` → `nextStopCode` is the segment the tram is on. *(Verified 2026-09-24 with OAuth credentials.)*
   - `inStop`, `delay` (s, negative = early)
   - `destinationStopName`, `courseDirection`, `vehicleStatus`
   - Out-of-service vehicles show `lineName: "0"`. Around 07:05: 10 of 22 in service on TBX, 8 of 22 on TBS.
@@ -158,11 +158,13 @@ From its [README](https://github.com/siriushsu/taiwan-rail-live):
 - **Static:** `https://api.tmb.cat/v1/static/datasets/gtfs.zip`, updated weekly. A keyless mirror for inspection is [Mobility Database mdb-2359](https://files.mobilitydatabase.org/mdb-2359/latest.zip).
   - Metro: L1–L5, L9N, L9S, L10N, L10S, L11, plus FM (Montjuïc funicular).
   - Shapes on all 29,319 metro trips; `frequencies.txt` and `pathways.txt` included.
-  - Thursday: 3,270 metro trips, 7,446 bus trips.
-- **Metro live** *(second-hand, from [MiniBarcelona3D's plan](https://github.com/FabianUB/minibarcelona3d/blob/main/specs/007-tmb-realtime-integration/plan.md))*:
-  - `GET /v1/itransit/metro/estacions` returns the whole network in one call, ~482 arrivals over 249 station/direction pairs.
-  - Fields: `codi_servei` (train ID), `temps_arribada` (epoch ms), `codi_estacio`, `id_sentit`, `desti_trajecte`.
-  - Positions have to be inferred between stations. Verify once we have a key.
+  - Thursday 24 Sep (La Mercè, Sunday timetable): 3,270 metro trips, 7,446 bus trips. A normal Thursday (1 Oct) has 4,193 metro trips.
+  - No `block_id` on metro trips, and no metro `frequencies.txt`.
+- **Metro live** *(verified 2026-09-24 with a key; first described in [MiniBarcelona3D's plan](https://github.com/FabianUB/minibarcelona3d/blob/main/specs/007-tmb-realtime-integration/plan.md))*:
+  - `GET /v1/itransit/metro/estacions` returns the whole network in one call (~97 KB JSON): for every station and direction, the next 2 trains. 472 arrivals at 08:50.
+  - Fields: `codi_servei` (train number; it persists across turnarounds, so it names a block, not a trip), `temps_arribada` (epoch ms, to the second), `codi_estacio`, `id_sentit`, `codi_via`, `desti_trajecte`, and a top-level `timestamp`.
+  - Generated on request: `timestamp` is 0.3–3 s after the call. Over 3 minutes of 15 s polls, ~60% of predictions moved by a few seconds each time; countdowns track real time and pause while a train dwells. No quota headers.
+  - Predictions exist for L1–L5 and L11 only. L9, L10 and the Montjuïc funicular have none.
 - **Bus live:** `/v1/ibus/stops/{code}` or `/v1/itransit/bus/parades/{code}`, one stop per call, ~2,600 stops. Out of scope.
 - **Quotas:** not published.
 - Several public repos embed TMB keys. Don't use them.
@@ -196,8 +198,8 @@ From its [README](https://github.com/siriushsu/taiwan-rail-live):
 | Renfe LD visor | 15–30 s | median 45 s | GPS | 2.5% >330 km/h |
 | Renfe LD positions | 13–30 s | unknown (no timestamps) | GPS | not measured |
 | FGC positions / Geotren | ~120 s | 2–4 min | GPS-like | none |
-| TRAM activevehicles | not sampled | — | metres since last stop | — |
-| TMB iMetro | — | — | predictions | — |
+| TRAM activevehicles | ~10 s | — | metres since trip origin; 0 at stops | small backward jitter (2–30 m) |
+| TMB iTransit metro | on request | 0.3–3 s | per-train countdown to each upcoming station | none seen |
 
 ## Implications for the build
 
@@ -221,6 +223,18 @@ From its [README](https://github.com/siriushsu/taiwan-rail-live):
 
 - **Trips per day:** Rodalies 1,312 · Cercanías nationwide 4,907 · AVE/LD/MD/Regional 1,588 · FGC 1,820 · TMB metro 3,270 · TRAM 784.
 - **Live vehicles around 07:00:** Renfe Cercanías 339 (Rodalies 50), Renfe LD 111–140, FGC 50, TRAM 18.
+- **La Mercè:** 24 Sep was a Barcelona public holiday, so the TMB and TRAM numbers above are Sunday-timetable numbers. A normal Thursday (1 Oct) has 4,193 metro and 1,209 TRAM trips; the metro ran 7–8 minutes apart at 08:50 that day.
+
+## Cloudflare spike (measured)
+
+On 2026-09-24, 09:18–09:24 CEST, a throwaway Durable Object fetched every Catalan feed every 20 s (17 runs) and wrote a snapshot to R2 behind `tram-live.gariasf.com`. It was deleted afterwards.
+
+- **Feed access:** every feed answered 200 from Cloudflare: Renfe, FGC, TRAM (OAuth) and TMB. FGC's anonymous quota counter started at 4,999 of 5,000 and fell by about 3 per run, so that outgoing IP wasn't shared with other FGC users that morning.
+- **CPU:** 8–23 ms per run (median 12 ms; 15 of 17 runs over 10 ms), decoding every feed with protobufjs on every run. The free plan's documented limit is 10 ms, but no run was cut off. Wall time 1.0–2.2 s.
+- **The Durable Object doesn't stay in memory between 20 s alarms.** It was rebuilt on every run, so in-memory throttles, the TRAM token and last-good bodies were lost each time, and FGC got fetched every run instead of every 2 minutes.
+- **CDN cache:** with a Cache Rule (hostname `tram-live.gariasf.com`, eligible for cache, edge TTL from `Cache-Control`) and `Cache-Control: public, max-age=15` on the object, Cloudflare served cache hits for 15 s and then refetched (`EXPIRED`, or `REVALIDATED` when unchanged). Query strings didn't bypass the cache. As served, the snapshot was 15–25 s old, about 35 s at worst.
+- **Snapshot size:** about 15 KB of JSON for about 190 trains (Rodalies 62, FGC 55 from Geotren, TRAM 16, Metro 54), 2.2 KB gzipped.
+- FGC's GTFS-RT vehicle-positions file stayed empty (0 bytes) for the whole run.
 
 ## Prior art
 

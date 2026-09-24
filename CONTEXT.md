@@ -22,6 +22,10 @@ _Avoid_: Train ID, service code
 A physical piece of rolling stock. One Train can run as several coupled Units.
 _Avoid_: Vehicle, trainset, consist
 
+**Block**:
+The chain of Trips one Unit runs through a service day, like a metro train shuttling back and forth along its Line. The Metro's live data names each train by its Block, not its Trip.
+_Avoid_: Run, service, working, diagram
+
 ### Network
 
 **Network**:
