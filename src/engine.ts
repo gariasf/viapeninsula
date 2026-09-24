@@ -1,41 +1,81 @@
 // Where each Train is. The timetable drives motion (ADR-0002); the browser and the tests share this.
 
-import { pointAt, type Bundle, type Call, type SpeedProfile, type Trip } from './bundle.ts';
+import { pointAt, type Bundle, type Call, type Snapshot, type SpeedProfile, type Trip } from './bundle.ts';
 
-/** A Train on the map: its Trip, how far along the Trip's shape it is, in metres, and where that is. */
+/**
+ * A Train on the map: its Trip, how far along the Trip's shape it is, in metres, and where that is.
+ * It's Live where the latest snapshot reports where it is, and Scheduled where not.
+ */
 export interface Train {
   trip: Trip;
   dist: number;
   lon: number;
   lat: number;
+  live: boolean;
+}
+
+/** A snapshot of live data, and when it arrived by the device's clock, in ms since 1970. */
+export interface Received {
+  snapshot: Snapshot;
+  at: number;
 }
 
 /**
- * Every Train on the map at a moment (ms since 1970), where its Trip's timetable puts it. Between
- * Stations it accelerates, cruises and brakes, as its Network's speed profile has it, so that it
- * leaves and arrives exactly on time.
+ * The oldest a snapshot can be when it arrives, in ms: the fetcher writes one about every 20 s, and
+ * the CDN and then the browser can each keep it for 15 s.
  */
-export function trainsAt(bundle: Bundle, at: number): Train[] {
-  const now = (at - bundle.noonMinus12h) / 1000;
+const MAX_AGE = 60_000;
+
+/**
+ * Every Train on the map at a moment by the device's clock (ms since 1970), given the snapshots
+ * received by then, where its Trip's timetable puts it, as late or early as its operator last said.
+ * Between Stations it accelerates, cruises and brakes, as its Network's speed profile has it, so
+ * that it leaves and arrives exactly on time. A Train its operator has cancelled leaves the map.
+ */
+export function trainsAt(bundle: Bundle, at: number, received: Received[] = []): Train[] {
+  const now = (at + behind(received) - bundle.noonMinus12h) / 1000;
   const shapes = new Map(bundle.shapes.map((s) => [s.id, s]));
   const profiles = new Map(bundle.networks.map((n) => [n.id, n.profile]));
   const lines = new Map(bundle.lines.map((l) => [l.id, profiles.get(l.network)]));
+  // What the latest snapshot reports about each Trip. A report that matches no Trip is dropped.
+  const reports = new Map(received.at(-1)?.snapshot.reports.map((r) => [r.trip, r]));
   return bundle.trips.flatMap((trip): Train[] => {
+    const report = reports.get(trip.id);
+    if (report?.cancelled) return [];
+    // A Train running late is where its timetable had it that long ago.
+    const time = now - (report?.delay ?? 0);
     const [profile, shape, first, last] = [lines.get(trip.line), shapes.get(trip.shape), trip.calls[0], trip.calls.at(-1)];
     // Most Trips aren't on the map at any one moment, whatever their dwell: skip those first.
-    if (!profile || !shape || !first || !last || now < first.arrival - profile.dwell || now > last.departure + profile.dwell) return [];
+    if (!profile || !shape || !first || !last || time < first.arrival - profile.dwell || time > last.departure + profile.dwell) return [];
     const calls = withDwell(trip, profile);
-    const i = calls.findLastIndex((c) => c.arrival <= now);
+    const i = calls.findLastIndex((c) => c.arrival <= time);
     const [call, next] = [calls[i], calls[i + 1]];
-    if (!call || (!next && now > call.departure)) return [];
+    if (!call || (!next && time > call.departure)) return [];
     let dist = call.dist;
-    if (next && now > call.departure) {
+    if (next && time > call.departure) {
       const length = next.dist - call.dist;
-      dist += Math.sign(length) * covered(Math.abs(length), next.arrival - call.departure, now - call.departure, profile);
+      dist += Math.sign(length) * covered(Math.abs(length), next.arrival - call.departure, time - call.departure, profile);
     }
     const [lon, lat] = pointAt(shape, dist);
-    return [{ trip, dist, lon, lat }];
+    return [{ trip, dist, lon, lat, live: report?.position !== undefined }];
   });
+}
+
+/**
+ * How far the device's clock is behind the fetcher's, in ms, going by when each snapshot was
+ * written and when it arrived. By a clock that's right, each arrives after it was written, and at
+ * most MAX_AGE after. A clock that's off is off by at least what the freshest snapshot shows.
+ */
+function behind(received: Received[]): number {
+  // How far each snapshot's writing is ahead of its arrival, by the two clocks.
+  const ahead = received.map((r) => r.snapshot.generated - r.at);
+  const freshest = Math.max(...ahead);
+  // A snapshot written after it arrived means the device's clock is behind.
+  if (freshest > 0) return freshest;
+  // One that arrived long after it was written means the clock is ahead, or else that the fetcher
+  // has stopped: only a second snapshot, written since, says which.
+  const written = new Set(received.map((r) => r.snapshot.generated));
+  return written.size > 1 && freshest < -MAX_AGE ? freshest : 0;
 }
 
 /**

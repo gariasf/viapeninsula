@@ -1,0 +1,16 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  // The fetcher runs in a Worker of its own, without routes, so viewers never reach its code (ADR-0003).
+  "name": "viapeninsula-fetcher",
+  "main": "worker.ts",
+  "compatibility_date": "2026-09-24",
+  "workers_dev": false,
+  "preview_urls": false,
+  "durable_objects": { "bindings": [{ "name": "FETCHER", "class_name": "Fetcher" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Fetcher"] }],
+  "r2_buckets": [{ "binding": "LIVE", "bucket_name": "viapeninsula-live" }],
+  // Every minute, which starts the fetcher's runs after a deploy and restarts them if they ever stop.
+  "triggers": { "crons": ["* * * * *"] },
+  // A run takes about 12 ms of CPU, so a bug can't cost more than a second of it each run.
+  "limits": { "cpu_ms": 1000 }
+}

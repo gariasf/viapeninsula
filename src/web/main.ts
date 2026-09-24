@@ -3,8 +3,8 @@ import './style.css';
 import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { AttributionControl, MapLibreMap, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { along, LIVE_URL, madridDate, type Bundle, type Manifest, type Network } from '../bundle.ts';
-import { trainsAt } from '../engine.ts';
+import { along, LIVE_URL, madridDate, type Bundle, type Manifest, type Network, type Snapshot } from '../bundle.ts';
+import { trainsAt, type Received } from '../engine.ts';
 import { language, LANGUAGES, setLanguage, t, type Language } from './i18n.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
@@ -27,6 +27,14 @@ const byZoom = (stops: [zoom: number, px: number][], value: (px: number, zoom: n
   ['linear'],
   ['zoom'],
   ...stops.flatMap(([zoom, px]) => [zoom, value(px, zoom)]),
+];
+
+/** An expression that takes one value for a Live Train and another for a Scheduled one. */
+const byLive = (live: string | number | ExpressionSpecification, scheduled: string | number | ExpressionSpecification): ExpressionSpecification => [
+  'case',
+  ['get', 'live'],
+  live,
+  scheduled,
 ];
 
 /**
@@ -90,10 +98,22 @@ languageSwitch.addEventListener('change', () => {
   showLanguage();
 });
 map.addControl({ onAdd: () => languageSwitch, onRemove: () => languageSwitch.remove() }, 'top-right');
+// The legend, which showLanguage() fills: what the Live and Scheduled markers mean.
+const legend = document.createElement('div');
+legend.className = 'maplibregl-ctrl maplibregl-ctrl-group legend';
+// Top left, where the credits never cover it.
+map.addControl({ onAdd: () => legend, onRemove: () => legend.remove() }, 'top-left');
 let credits: AttributionControl | undefined;
 /** The Networks on the map, whose data the credits name. */
 let credited: Network[] = [];
 showLanguage();
+
+// Live data: the fetcher's snapshot, about every 20 s while the tab is visible (ADR-0003). The
+// engine corrects the device's clock from the last half hour of them.
+let received: Received[] = [];
+let nextPoll: ReturnType<typeof setTimeout> | undefined;
+document.addEventListener('visibilitychange', () => (document.hidden ? clearTimeout(nextPoll) : poll()));
+if (!document.hidden) poll();
 
 const [bundle] = await Promise.all([loadBundle(), map.once('load')]);
 credited = bundle.networks;
@@ -185,11 +205,12 @@ map.addLayer({
   id: 'trains',
   type: 'circle',
   source: 'trains',
+  // A Live Train is filled with its Line's colour; a Scheduled one is only ringed with it.
   paint: {
     'circle-radius': ['interpolate', ['linear'], ['zoom'], 7, 2.5, 14, 6],
-    'circle-color': ['get', 'colour'],
-    'circle-stroke-color': '#fff',
-    'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 7, 0.5, 14, 1.5],
+    'circle-color': byLive(['get', 'colour'], '#fff'),
+    'circle-stroke-color': byLive('#fff', ['get', 'colour']),
+    'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 7, byLive(0.5, 1.5), 14, byLive(1.5, 3)],
   },
 });
 map.addLayer({
@@ -208,13 +229,13 @@ requestAnimationFrame(function move() {
   requestAnimationFrame(move);
 });
 
-/** Every Train on the map now, in its Line's colour. */
+/** Every Train on the map now, in its Line's colour, Live or Scheduled. */
 function trains(): GeoJSON.FeatureCollection {
   return {
     type: 'FeatureCollection',
-    features: trainsAt(bundle, Date.now()).map((train) => ({
+    features: trainsAt(bundle, Date.now(), received).map((train) => ({
       type: 'Feature',
-      properties: { colour: lines.get(train.trip.line)?.colour },
+      properties: { colour: lines.get(train.trip.line)?.colour, live: train.live },
       geometry: { type: 'Point', coordinates: [train.lon, train.lat] },
     })),
   };
@@ -230,6 +251,14 @@ function showLanguage() {
   map.getCanvas().setAttribute('aria-label', t('map'));
   // The basemap can relabel itself once its style has loaded, and loads in the language set by then.
   styleLoaded.then(() => map.setGlobalStateProperty('language', language()));
+  legend.replaceChildren(
+    ...(['live', 'scheduled'] as const).map((kind) => {
+      const row = document.createElement('div');
+      const marker = Object.assign(document.createElement('span'), { className: `marker ${kind}` });
+      row.append(marker, Object.assign(document.createElement('b'), { textContent: t(kind) }), `: ${t(`${kind}Means`)}`);
+      return row;
+    }),
+  );
   showCredits();
 }
 
@@ -254,6 +283,20 @@ async function loadBundle(): Promise<Bundle> {
   const day = manifest.days.find((d) => d.date === today) ?? manifest.days.at(-1);
   if (!day) throw new Error('The manifest names no service day');
   return getJson<Bundle>(`${LIVE_URL}/${day.bundle}`);
+}
+
+/** Fetches the live snapshot, and again 20 s later if the tab is still visible. */
+async function poll() {
+  try {
+    const snapshot = await getJson<Snapshot>(`${LIVE_URL}/snapshot.json`);
+    const at = Date.now();
+    received = [...received.filter((r) => r.at > at - 30 * 60_000), { snapshot, at }];
+  } catch (error) {
+    // The Trains keep to the last snapshot until the next one comes.
+    console.warn(error);
+  }
+  clearTimeout(nextPoll);
+  if (!document.hidden) nextPoll = setTimeout(poll, 20_000);
 }
 
 async function getJson<T>(url: string): Promise<T> {

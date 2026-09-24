@@ -10,15 +10,16 @@
     "dev": "vite",
     "build": "vite build",
     "test": "vitest run",
-    "check": "tsc",
+    "check": "tsc && tsc -p src/fetcher",
     "daily": "node --env-file-if-exists=.env.local src/build/daily.ts",
-    "deploy": "tsc && vite build && wrangler deploy",
+    "deploy": "npm run check && vite build && wrangler deploy && wrangler deploy -c src/fetcher/wrangler.jsonc",
     "cors": "wrangler r2 bucket cors set viapeninsula-live --file r2-cors.json --force"
   },
   "dependencies": {
     "maplibre-gl": "^6.11.1"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260924.1",
     "@types/node": "^26.6.2",
     "typescript": "^7.0.2",
     "vite": "^8.3.0",

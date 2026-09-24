@@ -5,6 +5,29 @@ body,
   margin: 0;
 }
 
+/* The legend, with its markers drawn as the map draws Trains: Live ones filled, Scheduled ones ringed. */
+.legend {
+  /* Clear of the language switch, top right, on a phone. */
+  max-width: calc(100vw - 150px);
+  padding: 4px 8px;
+  font: 12px/1.6 sans-serif;
+}
+
+.legend .marker {
+  display: inline-block;
+  box-sizing: border-box;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border: 2px solid #555;
+  border-radius: 50%;
+  vertical-align: -1px;
+}
+
+.legend .live {
+  background: #555;
+}
+
 /* The language switch, as tall as MapLibre's buttons. 16px text keeps iOS from zooming in on it. */
 .language {
   height: 29px;
