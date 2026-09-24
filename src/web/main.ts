@@ -1,9 +1,10 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
 import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
-import { MapLibreMap, setWorkerUrl } from 'maplibre-gl';
+import { MapLibreMap, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { along, LIVE_URL, madridDate, type Bundle, type Manifest } from '../bundle.ts';
+import { trainsAt } from '../engine.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
 setWorkerUrl(workerUrl);
@@ -121,6 +122,19 @@ map.addLayer({
     'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 7, 0.5, 14, 1.5],
   },
 });
+// Trains go over the Stations they stand at, under the Stations' names.
+map.addSource('trains', { type: 'geojson', data: trains() });
+map.addLayer({
+  id: 'trains',
+  type: 'circle',
+  source: 'trains',
+  paint: {
+    'circle-radius': ['interpolate', ['linear'], ['zoom'], 7, 2.5, 14, 6],
+    'circle-color': ['get', 'colour'],
+    'circle-stroke-color': '#fff',
+    'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 7, 0.5, 14, 1.5],
+  },
+});
 map.addLayer({
   id: 'station-names',
   type: 'symbol',
@@ -129,6 +143,25 @@ map.addLayer({
   layout: { 'text-field': ['get', 'name'], 'text-font': FONT, 'text-size': 11, 'text-anchor': 'top', 'text-offset': [0, 0.7] },
   paint: { 'text-color': '#333', 'text-halo-color': '#fff', 'text-halo-width': 1.5 },
 });
+
+// Moves the Trains every frame. The browser stops asking while the tab is hidden.
+const trainSource = map.getSource<GeoJSONSource>('trains');
+requestAnimationFrame(function move() {
+  trainSource?.setData(trains());
+  requestAnimationFrame(move);
+});
+
+/** Every Train on the map now, in its Line's colour. */
+function trains(): GeoJSON.FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: trainsAt(bundle, Date.now()).map((t) => ({
+      type: 'Feature',
+      properties: { colour: lines.get(t.trip.line)?.colour },
+      geometry: { type: 'Point', coordinates: [t.lon, t.lat] },
+    })),
+  };
+}
 
 async function loadBundle(): Promise<Bundle> {
   const manifest = await getJson<Manifest>(`${LIVE_URL}/manifest.json`);

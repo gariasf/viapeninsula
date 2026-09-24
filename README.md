@@ -18,7 +18,7 @@ npm run daily                # build it and publish it to R2
 npm run deploy               # build the site and deploy it
 ```
 
-The daily build traces each Line along OpenStreetMap's rails (ADR-0004). It keeps the rails it downloads from Overpass in `.cache/` for a week, and fails if a traced shape's length strays more than 5% from Renfe's.
+The daily build traces each Line along OpenStreetMap's rails (ADR-0004). It keeps the rails it downloads from Overpass in `.cache/` for a week, and fails if a traced shape's length strays more than 5% from Renfe's. It then places each of the day's Trips on its track, and reports and leaves out any it can't: one calling at a Station off its track, or one that would have to run faster than its Network's top speed.
 
 ## Cloudflare setup
 

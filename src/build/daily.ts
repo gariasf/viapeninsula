@@ -7,27 +7,32 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { madridDate, type Bundle, type Manifest } from '../bundle.ts';
-import { zipSource } from './gtfs.ts';
+import { noonMinus12h, zipSource } from './gtfs.ts';
 import { osmRails } from './osm.ts';
 import { buildRodalies, onRodaliesRails, RODALIES } from './rodalies.ts';
 import { sideBySide } from './sideBySide.ts';
 import { traceShapes } from './track.ts';
+import { placeTrips } from './trips.ts';
 
 const RENFE_CERCANIAS = 'https://ssl.renfe.com/ftransit/Fichero_CER_FOMENTO/fomento_transit.zip';
 const BUCKET = 'viapeninsula-live';
 
 const serviceDay = madridDate(new Date());
-const rodalies = await buildRodalies(zipSource(await download(RENFE_CERCANIAS, 'renfe-cercanias.zip')));
+const rodalies = await buildRodalies(zipSource(await download(RENFE_CERCANIAS, 'renfe-cercanias.zip')), serviceDay);
+// No Trips at all means a broken download or a changed feed, not a day without Trains.
+if (!rodalies.trips.length) throw new Error(`Renfe's timetable has no Rodalies Trips on ${serviceDay}`);
 const rails = await osmRails(['rail']);
 // Each Network's track follows OpenStreetMap's rails of its own kind (ADR-0004).
 const shapes = traceShapes(rodalies.shapes, rodalies.stations, rails.filter(onRodaliesRails));
 const bundle: Bundle = {
   serviceDay,
+  noonMinus12h: noonMinus12h(serviceDay),
   networks: [RODALIES],
   lines: rodalies.lines,
   stations: rodalies.stations,
   shapes,
   strokes: sideBySide(rodalies.lines, shapes),
+  trips: placeTrips(rodalies.trips, rodalies.lines, shapes, rodalies.stations, RODALIES.profile.topSpeed),
 };
 
 // Named by content, so the bundle can be cached for good and a rebuild never serves a stale copy.
@@ -39,7 +44,7 @@ await mkdir('out/days', { recursive: true });
 await writeFile(join('out', key), json);
 await writeFile('out/manifest.json', JSON.stringify(manifest));
 console.log(
-  `${key}: ${bundle.lines.length} Lines, ${bundle.stations.length} Stations, ${bundle.shapes.length} shapes, ${Math.round(json.length / 1024)} KB`,
+  `${key}: ${bundle.lines.length} Lines, ${bundle.stations.length} Stations, ${bundle.shapes.length} shapes, ${bundle.trips.length} Trips, ${Math.round(json.length / 1024)} KB`,
 );
 
 if (!process.argv.includes('--dry-run')) {

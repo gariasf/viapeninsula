@@ -1,0 +1,5 @@
+service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date                                                               
+1065J,0,0,0,1,0,0,0,20260924,20260924                                                                                                                 
+5165J,0,0,0,1,0,0,0,20260924,20260924                                                                                                                 
+5166V,0,0,0,0,1,0,0,20260925,20260925                                                                                                                 
+5176 ,0,0,0,0,0,0,0,20261005,20261005                                                                                                                 

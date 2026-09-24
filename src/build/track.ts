@@ -139,11 +139,17 @@ function inOrder(feed: FeedShape, stations: Station[]): Waypoint[] {
   return stations
     .map((station) => {
       const n = nearest(feed.coords, [station.lon, station.lat]);
-      // Trips can run beyond the feed's shape: order those Stations by how far beyond its end they are.
-      const beyond = n.i === 0 && n.t === 0 ? -n.metres : n.i === feed.coords.length - 2 && n.t === 1 ? n.metres : 0;
-      return { station, along: n.along, metres: n.metres, order: n.along + beyond };
+      return { station, along: n.along, metres: n.metres, order: orderAlong(feed.coords, n) };
     })
     .sort((a, b) => a.order - b.order);
+}
+
+/**
+ * Where a point comes along a line, given where nearest() found it closest. Trips can run beyond a
+ * shape, so a point beyond either end comes by how far beyond that end it is.
+ */
+export function orderAlong(polyline: Point[], n: ReturnType<typeof nearest>): number {
+  return n.along + (n.i === 0 && n.t === 0 ? -n.metres : n.i === polyline.length - 2 && n.t === 1 ? n.metres : 0);
 }
 
 /** One way a trace can reach a vertex beside a waypoint: by which edge (-1 where it starts), at what cost, and from where. */
@@ -390,14 +396,19 @@ export function nearest(polyline: Point[], p: Point): { i: number; t: number; al
   for (const [i, b] of polyline.entries()) {
     const a = polyline[i - 1];
     if (!a) continue;
-    const [ax, ay] = [(a[0] - p[0]) * kx, (a[1] - p[1]) * DEGREE];
-    const [dx, dy] = [(b[0] - a[0]) * kx, (b[1] - a[1]) * DEGREE];
-    const t = dx || dy ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / (dx * dx + dy * dy))) : 0;
-    const d = Math.hypot(ax + t * dx, ay + t * dy);
+    const [t, d] = closestOnSegment(a, b, p, kx);
     const [start = 0, end = 0] = [along[i - 1], along[i]];
     if (d < best.metres) best = { i: i - 1, t, along: start + t * (end - start), metres: d };
   }
   return best;
+}
+
+/** Where the segment from a to b comes closest to p: a fraction t along it, and how far away, in metres flat around p, where a degree of longitude is kx metres. */
+export function closestOnSegment(a: Point, b: Point, p: Point, kx: number): [t: number, metres: number] {
+  const [ax, ay] = [(a[0] - p[0]) * kx, (a[1] - p[1]) * DEGREE];
+  const [dx, dy] = [(b[0] - a[0]) * kx, (b[1] - a[1]) * DEGREE];
+  const t = dx || dy ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / (dx * dx + dy * dy))) : 0;
+  return [t, Math.hypot(ax + t * dx, ay + t * dy)];
 }
 
 /** The part of a line from one distance along it to another. */

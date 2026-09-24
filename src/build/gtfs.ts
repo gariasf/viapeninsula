@@ -1,24 +1,27 @@
-import { spawn } from 'node:child_process';
-import { createReadStream } from 'node:fs';
+import { execFileSync, spawn } from 'node:child_process';
+import { createReadStream, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 
-/** Yields the lines of one file of a GTFS feed. */
-export type Source = (file: string) => AsyncIterable<string>;
+/** Yields the lines of one file of a GTFS feed, or nothing if the feed hasn't got that file. */
+export type Source = (file: string) => AsyncIterable<string> | undefined;
 
 /** Streams files straight out of a GTFS zip: Renfe's stop_times alone is 240 MB unzipped. */
 export function zipSource(zip: string): Source {
-  return async function* (file) {
-    const unzip = spawn('unzip', ['-p', zip, file], { stdio: ['ignore', 'pipe', 'inherit'] });
-    const exit = new Promise<number | null>((resolve) => unzip.on('close', resolve));
-    yield* createInterface({ input: unzip.stdout, crlfDelay: Infinity });
-    if ((await exit) !== 0) throw new Error(`Couldn't read ${file} from ${zip}`);
-  };
+  const files = new Set(execFileSync('unzip', ['-Z1', zip], { encoding: 'utf8' }).split('\n'));
+  return (file) => (files.has(file) ? unzipped(zip, file) : undefined);
+}
+
+async function* unzipped(zip: string, file: string) {
+  const unzip = spawn('unzip', ['-p', zip, file], { stdio: ['ignore', 'pipe', 'inherit'] });
+  const exit = new Promise<number | null>((resolve) => unzip.on('close', resolve));
+  yield* createInterface({ input: unzip.stdout, crlfDelay: Infinity });
+  if ((await exit) !== 0) throw new Error(`Couldn't read ${file} from ${zip}`);
 }
 
 /** Reads an unzipped feed, such as a test fixture. */
 export function dirSource(dir: string): Source {
-  return (file) => createInterface({ input: createReadStream(join(dir, file)), crlfDelay: Infinity });
+  return (file) => (existsSync(join(dir, file)) ? createInterface({ input: createReadStream(join(dir, file)), crlfDelay: Infinity }) : undefined);
 }
 
 /**
@@ -47,14 +50,20 @@ export function parseLine(line: string): string[] {
   return fields;
 }
 
-/** Yields each row of a GTFS file with the given columns, failing if the file lacks one. */
+/**
+ * Yields each row of a GTFS file with the given columns, failing if the file lacks one. A file the
+ * feed hasn't got fails too, unless it's optional.
+ */
 export async function* rows<K extends string>(
   source: Source,
   file: string,
   columns: readonly K[],
+  { optional = false } = {},
 ): AsyncGenerator<Record<K, string>> {
+  const lines = source(file);
+  if (!lines && !optional) throw new Error(`The feed has no ${file}`);
   let at: number[] | undefined;
-  for await (const line of source(file)) {
+  for await (const line of lines ?? []) {
     if (!line.trim()) continue;
     const fields = parseLine(line);
     if (at) {
@@ -66,4 +75,42 @@ export async function* rows<K extends string>(
     const missing = columns.filter((c) => !fields.includes(c));
     if (missing.length) throw new Error(`${file} has no ${missing.join(', ')} column`);
   }
+}
+
+const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const;
+
+/**
+ * The service_ids that run on a day (YYYY-MM-DD): those calendar.txt runs that weekday, less the ones
+ * calendar_dates.txt removes that day, plus the ones it adds. A feed may have either file alone.
+ */
+export async function serviceIdsOn(source: Source, day: string): Promise<Set<string>> {
+  const date = day.replaceAll('-', '');
+  const weekday = WEEKDAYS[new Date(`${day}T12:00:00Z`).getUTCDay()] ?? 'sunday';
+  const running = new Set<string>();
+  for await (const c of rows(source, 'calendar.txt', ['service_id', weekday, 'start_date', 'end_date'], { optional: true })) {
+    if (c[weekday] === '1' && c.start_date <= date && date <= c.end_date) running.add(c.service_id);
+  }
+  for await (const d of rows(source, 'calendar_dates.txt', ['service_id', 'date', 'exception_type'], { optional: true })) {
+    if (d.date !== date) continue;
+    if (d.exception_type === '1') running.add(d.service_id);
+    if (d.exception_type === '2') running.delete(d.service_id);
+  }
+  return running;
+}
+
+/** A GTFS time, such as 25:10:00 for 01:10 the next morning, in seconds into the service day. */
+export function seconds(time: string): number {
+  const [h = NaN, m = NaN, s = NaN] = time.split(':').map(Number);
+  return h * 3600 + m * 60 + s;
+}
+
+/**
+ * When a service day's timetable reads 00:00:00, in ms since 1970: noon less 12 hours in Spain, as
+ * GTFS has it, so that times past midnight and on the nights the clocks change come out right.
+ */
+export function noonMinus12h(day: string): number {
+  const noon = Date.parse(`${day}T12:00:00Z`);
+  // Spain's clocks run this far ahead of UTC then.
+  const ahead = Date.parse(`${new Date(noon).toLocaleString('sv-SE', { timeZone: 'Europe/Madrid' }).replace(' ', 'T')}Z`) - noon;
+  return noon - ahead - 12 * 3600_000;
 }
