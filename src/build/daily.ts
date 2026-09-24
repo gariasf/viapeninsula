@@ -1,6 +1,7 @@
 // The daily build: turns the operators' timetables into today's bundle and publishes it to R2.
 // `npm run daily` publishes; `npm run daily -- --dry-run` only writes the files to out/. TMB's
-// timetable needs TMB_APP_ID and TMB_APP_KEY in the environment.
+// timetable needs TMB_APP_ID and TMB_APP_KEY in the environment, which `npm run daily` loads from
+// .env.local.
 
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';

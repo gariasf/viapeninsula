@@ -6,7 +6,7 @@ The domain language is in [CONTEXT.md](CONTEXT.md), the decisions in [docs/adr](
 
 ## Working on it
 
-You need Node 24 or later and the `unzip` command. The daily build reads TMB's timetable with TMB's key, from `TMB_APP_ID` and `TMB_APP_KEY` in its environment.
+You need Node 24 or later and the `unzip` command. The daily build reads TMB's timetable with TMB's key: copy `.env.example` to `.env.local` and fill in `TMB_APP_ID` and `TMB_APP_KEY`, which `npm run daily` loads from there.
 
 ```sh
 npm install

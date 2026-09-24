@@ -91,7 +91,7 @@ export function onMetroRails(way: OsmWay): boolean {
 /**
  * TMB's feed, whose metro and funicular are the Metro's. Its Stations are TMB's stops, one for each
  * Line calling there: the stations TMB groups them in can hold Lines 270 m apart, as at Passeig de
- * Gràcia, too far from some of their rails for one place to stand for them all.
+ * Gràcia, too far from some of their rails for one place to stand for them all (ADR-0005).
  */
 export const METRO_FEED: Feed = { network: METRO, prefix: 'metro', operator: 'tmb' };
 
