@@ -8,16 +8,23 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { madridDate, type Bundle, type Manifest } from '../bundle.ts';
 import { zipSource } from './gtfs.ts';
-import { buildRodalies, RODALIES } from './rodalies.ts';
+import { osmRails } from './osm.ts';
+import { buildRodalies, onRodaliesRails, RODALIES } from './rodalies.ts';
+import { traceShapes } from './track.ts';
 
 const RENFE_CERCANIAS = 'https://ssl.renfe.com/ftransit/Fichero_CER_FOMENTO/fomento_transit.zip';
 const BUCKET = 'viapeninsula-live';
 
 const serviceDay = madridDate(new Date());
+const rodalies = await buildRodalies(zipSource(await download(RENFE_CERCANIAS, 'renfe-cercanias.zip')));
+const rails = await osmRails(['rail']);
 const bundle: Bundle = {
   serviceDay,
   networks: [RODALIES],
-  ...(await buildRodalies(zipSource(await download(RENFE_CERCANIAS, 'renfe-cercanias.zip')))),
+  lines: rodalies.lines,
+  stations: rodalies.stations,
+  // Each Network's track follows OpenStreetMap's rails of its own kind (ADR-0004).
+  shapes: traceShapes(rodalies.shapes, rodalies.stations, rails.filter(onRodaliesRails)),
 };
 
 // Named by content, so the bundle can be cached for good and a rebuild never serves a stale copy.

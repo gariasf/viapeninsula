@@ -18,6 +18,8 @@ npm run daily                # build it and publish it to R2
 npm run deploy               # build the site and deploy it
 ```
 
+The daily build traces each Line along OpenStreetMap's rails (ADR-0004). It keeps the rails it downloads from Overpass in `.cache/` for a week, and fails if a traced shape's length strays more than 5% from Renfe's.
+
 ## Cloudflare setup
 
 Done once. The R2 bucket that serves the data, its custom domain and its CORS policy:
@@ -32,4 +34,4 @@ A Cache Rule in the dashboard caches viapeninsula-live.gariasf.com at the edge f
 
 ## Licence
 
-The code is AGPL-3.0. Timetables come from Renfe under CC BY 4.0, and the basemap from OpenFreeMap, © OpenStreetMap contributors.
+The code is AGPL-3.0. Timetables come from Renfe under CC BY 4.0. The track follows OpenStreetMap's rails and the basemap comes from OpenFreeMap, both © OpenStreetMap contributors under the ODbL.
