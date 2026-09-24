@@ -208,7 +208,7 @@ From its [README](https://github.com/siriushsu/taiwan-rail-live):
    - Apply delays (Renfe trip updates / visor `ultRetraso`, FGC trip updates, TRAM `delay`) to shift the timetable.
    - Project GPS onto the trip's shape to get a distance along the track. Only let it move trains forward, and ease toward it.
    - Treat Renfe `STOPPED_AT` / `INCOMING_AT` as "at or near station X", not as coordinates.
-3. **One Cloudflare Worker:**
+3. **One Cloudflare Worker** *(superseded by ADR-0003: a Durable Object writes a snapshot to R2, served by the CDN)*:
    - fetches upstream feeds: Renfe protobuf, the visor, FGC, TRAM (with OAuth), TMB (with key)
    - caches 15–20 s at the edge
    - decodes, dedupes, and returns one compact JSON
@@ -218,6 +218,13 @@ From its [README](https://github.com/siriushsu/taiwan-rail-live):
    - Strip Renfe's padding.
    - Build LD shapes from OSM.
 5. **Dedupe** regionals across the two Renfe feeds by train number.
+6. **FGC request budget.** The anonymous quota is 5,000 requests a day per IP, shared with anyone else on the same Cloudflare IP:
+   - Fetch every 2 minutes (FGC's own refresh rate), keeping the last-fetch time in Durable Object storage.
+   - Take positions from Geotren, not the GTFS-RT vehicle-positions file, which was often empty.
+   - Keep the trip-updates file URL, and look it up again only when the download fails or its header timestamp stops advancing.
+   - That's 2 requests per refresh (Geotren and trip updates): about 1,440 a day, 29% of the quota.
+   - Watch `x-ratelimit-remaining`. Below 1,000, slow FGC to every 5 minutes; at 0, FGC Trains turn Scheduled and the banner says so until the reset at 00:00 UTC.
+   - An FGC account API key may come with its own quota. Still pending: the portal's login was broken on 2026-09-24.
 
 ## Scale (Thursday 24 Sep 2026)
 
