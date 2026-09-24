@@ -11,7 +11,7 @@
     "build": "vite build",
     "test": "vitest run",
     "check": "tsc",
-    "daily": "node src/build/daily.ts",
+    "daily": "node --env-file-if-exists=.env.local src/build/daily.ts",
     "deploy": "tsc && vite build && wrangler deploy",
     "cors": "wrangler r2 bucket cors set viapeninsula-live --file r2-cors.json --force"
   },

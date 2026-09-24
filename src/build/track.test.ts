@@ -228,6 +228,17 @@ test("reports each traced shape's length against the feed's, and fails when one 
   expect(detour).toThrow("line's traced track is 3.9 km against the feed's 3.0 km (+29.6%)");
 });
 
+test("doesn't fail a short shape for stopping at the near side of a Station's rails, as the Montjuïc funicular does", () => {
+  // Q's rails spread over 40 m, and the trace stops at the first of them it reaches, 5.7% short on a
+  // 700 m line.
+  const { log } = trace(
+    rails({ a: [0, 0], b: [660, 0], c: [720, 0] }, 'a b', 'b c'),
+    [station('P', 0, 10), station('Q', 700, 0)],
+    { id: 'line', feed: [[0, 1], [720, 1]], stations: 'P Q' },
+  );
+  expect(log).toEqual(['line: 0.7 km long. Where the feed has the track: 0.7 km traced against its 0.7 km (-5.7%)']);
+});
+
 test('stays on one track of a double track instead of zig-zagging across the crossovers', () => {
   const { ways, crossovers } = doubleTrack();
   const { shape } = trace(

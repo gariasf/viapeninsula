@@ -1,0 +1,15 @@
+stop_lat,stop_lon,stop_name,stop_id,wheelchair_boarding,location_type,parent_station,platform_code
+41.39849938,2.125574875,Sarrià,SR,0,1,,
+41.39849938,2.125574875,Sarrià,SR4,0,0,SR,4
+41.39874599,2.118932325,Reina Elisenda,RE,0,1,,
+41.39874599,2.118932325,Reina Elisenda,RE1,0,0,RE,1
+41.414111713828,2.1058163381683,Vallvidrera Superior,VS,0,1,,
+41.414111713828,2.1058163381683,Vallvidrera Superior,VS1,0,0,VS,1
+41.6103596,1.84919403,Monistrol de Montserrat,MO,0,1,,
+41.6103596,1.84919403,Monistrol de Montserrat,MO4,0,0,MO,4
+41.61562791,1.843723316,Monistrol-Vila,MP,0,1,,
+41.61562791,1.843723316,Monistrol-Vila,MP2,0,0,MP,2
+41.59225373,1.836497527,Montserrat,MM,0,1,,
+41.59225373,1.836497527,Montserrat,MM2,0,0,MM,2
+41.409328,2.111263,Vallvidrera Inferior,VR,0,1,,
+41.409328,2.111263,Vallvidrera Inferior,VR1,0,0,VR,1

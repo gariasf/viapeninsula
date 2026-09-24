@@ -37,7 +37,7 @@ A line as the public knows it, such as R2 Sud, S1, L3 or T4.
 _Avoid_: Route
 
 **Station**:
-A place where Trains stop for passengers, as published by whoever runs it (Adif for Renfe, FGC, TMB, TRAM). Tram stops are Stations too, and a metro station next to a railway station is a separate Station.
+A place where Trains stop for passengers, as published by whoever runs it (Adif for Renfe, FGC, TMB, TRAM). Tram stops are Stations too; a metro station next to a railway station is a separate Station, and one served by several Lines is a Station for each.
 _Avoid_: Stop, halt
 
 ### Live data

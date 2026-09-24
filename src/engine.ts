@@ -64,7 +64,8 @@ function quickest(length: number, { acceleration, braking, topSpeed }: SpeedProf
 /**
  * How far a Train has gone t seconds into a stretch of `length` metres that its timetable gives
  * `time` seconds, cruising at the lowest speed that arrives on time. On a stretch quicker than the
- * profile allows, it cruises at top speed and accelerates and brakes harder instead.
+ * profile allows, it accelerates and brakes harder instead, cruising at top speed, or where the
+ * stretch is too short to reach it, braking as soon as it has accelerated.
  */
 function covered(length: number, time: number, t: number, profile: SpeedProfile): number {
   if (t >= time) return length;
@@ -73,7 +74,8 @@ function covered(length: number, time: number, t: number, profile: SpeedProfile)
   const k = 1 / (2 * acceleration) + 1 / (2 * braking);
   let [v, harder] = [(time - Math.sqrt(Math.max(0, time * time - 4 * k * length))) / (2 * k), 1];
   if (time < quickest(length, profile)) {
-    v = Math.max(topSpeed, length / time);
+    // Braking as soon as it has accelerated, it peaks at twice its average speed.
+    v = Math.max(length / time, Math.min(topSpeed, (2 * length) / time));
     harder = (k * v * v) / (v * time - length);
   }
   const [a, b] = [acceleration * harder, braking * harder];

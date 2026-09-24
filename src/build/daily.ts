@@ -1,38 +1,62 @@
 // The daily build: turns the operators' timetables into today's bundle and publishes it to R2.
-// `npm run daily` publishes; `npm run daily -- --dry-run` only writes the files to out/.
+// `npm run daily` publishes; `npm run daily -- --dry-run` only writes the files to out/. TMB's
+// timetable needs TMB_APP_ID and TMB_APP_KEY in the environment, which `npm run daily` loads from
+// .env.local.
 
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { madridDate, type Bundle, type Manifest } from '../bundle.ts';
-import { noonMinus12h, zipSource } from './gtfs.ts';
-import { osmRails } from './osm.ts';
-import { buildRodalies, onRodaliesRails, RODALIES } from './rodalies.ts';
+import { madridDate, type Bundle, type Manifest, type Network } from '../bundle.ts';
+import { download, feedStart, noonMinus12h, type Source } from './gtfs.ts';
+import {
+  FGC_FEED,
+  METRO_FEED,
+  onFgcRails,
+  onMetroRails,
+  onRodaliesRails,
+  onTramRails,
+  readFeed,
+  RODALIES_FEED,
+  TRAMBAIX_FEED,
+  TRAMBESOS_FEED,
+  type Feed,
+} from './networks.ts';
+import { osmRails, type OsmWay } from './osm.ts';
 import { sideBySide } from './sideBySide.ts';
 import { traceShapes } from './track.ts';
 import { placeTrips } from './trips.ts';
 
-const RENFE_CERCANIAS = 'https://ssl.renfe.com/ftransit/Fichero_CER_FOMENTO/fomento_transit.zip';
 const BUCKET = 'viapeninsula-live';
 
 const serviceDay = madridDate(new Date());
-const rodalies = await buildRodalies(zipSource(await download(RENFE_CERCANIAS, 'renfe-cercanias.zip')), serviceDay);
-// No Trips at all means a broken download or a changed feed, not a day without Trains.
-if (!rodalies.trips.length) throw new Error(`Renfe's timetable has no Rodalies Trips on ${serviceDay}`);
-const rails = await osmRails(['rail']);
-// Each Network's track follows OpenStreetMap's rails of its own kind (ADR-0004).
-const shapes = traceShapes(rodalies.shapes, rodalies.stations, rails.filter(onRodaliesRails));
+const [renfe, fgc, trambaix, trambesos, tmb] = await Promise.all([
+  download('https://ssl.renfe.com/ftransit/Fichero_CER_FOMENTO/fomento_transit.zip', 'renfe-cercanias.zip'),
+  download('https://www.fgc.cat/google/google_transit.zip', 'fgc.zip'),
+  download('https://opendata.tram.cat/GTFS/zip/TBX.zip', 'tram-tbx.zip'),
+  download('https://opendata.tram.cat/GTFS/zip/TBS.zip', 'tram-tbs.zip'),
+  download(`https://api.tmb.cat/v1/static/datasets/gtfs.zip?${new URLSearchParams({ app_id: secret('TMB_APP_ID'), app_key: secret('TMB_APP_KEY') })}`, 'tmb.zip'),
+]);
+// TMB's terms ask for the day its data was last updated to be shown. Its feed starts the day TMB
+// publishes it, and it can't have been published after today.
+const published = await feedStart(tmb);
+const rails = await osmRails(['rail', 'narrow_gauge', 'subway', 'tram', 'funicular']);
+const networks = [
+  await build([[RODALIES_FEED, renfe]], onRodaliesRails),
+  await build([[FGC_FEED, fgc]], onFgcRails),
+  await build([[TRAMBAIX_FEED, trambaix], [TRAMBESOS_FEED, trambesos]], onTramRails),
+  await build([[METRO_FEED, tmb]], onMetroRails, { updated: published < serviceDay ? published : serviceDay }),
+];
+const [lines, shapes] = [networks.flatMap((n) => n.lines), networks.flatMap((n) => n.shapes)];
 const bundle: Bundle = {
   serviceDay,
   noonMinus12h: noonMinus12h(serviceDay),
-  networks: [RODALIES],
-  lines: rodalies.lines,
-  stations: rodalies.stations,
+  networks: networks.map((n) => n.network),
+  lines,
+  stations: networks.flatMap((n) => n.stations),
   shapes,
-  strokes: sideBySide(rodalies.lines, shapes),
-  trips: placeTrips(rodalies.trips, rodalies.lines, shapes, rodalies.stations, RODALIES.profile.topSpeed),
+  strokes: sideBySide(lines, shapes),
+  trips: networks.flatMap((n) => n.trips),
 };
 
 // Named by content, so the bundle can be cached for good and a rebuild never serves a stale copy.
@@ -53,12 +77,26 @@ if (!process.argv.includes('--dry-run')) {
   publish('manifest.json', 'public, max-age=60');
 }
 
-async function download(url: string, name: string): Promise<string> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
-  const file = join(tmpdir(), name);
-  await writeFile(file, Buffer.from(await res.arrayBuffer()));
-  return file;
+/**
+ * A Network from its operator's feeds, with the day they were last updated where its terms ask the
+ * map to show it: its Lines, Stations and Trips, and its track traced along OpenStreetMap's rails of
+ * its own kind (ADR-0004).
+ */
+async function build(feeds: [[Feed, Source], ...[Feed, Source][]], onRails: (way: OsmWay) => boolean, extra: Pick<Network, 'updated'> = {}) {
+  const network: Network = { ...feeds[0][0].network, ...extra };
+  const parts = await Promise.all(feeds.map(([feed, gtfs]) => readFeed(gtfs, serviceDay, feed)));
+  const [lines, stations, trips] = [parts.flatMap((p) => p.lines), parts.flatMap((p) => p.stations), parts.flatMap((p) => p.trips)];
+  // No Trips at all means a broken download or a changed feed, not a day without Trains.
+  if (!trips.length) throw new Error(`${network.name}'s timetable has no Trips on ${serviceDay}`);
+  const shapes = traceShapes(parts.flatMap((p) => p.shapes), stations, rails.filter(onRails));
+  return { network, lines, stations, shapes, trips: placeTrips(trips, lines, shapes, stations, network.profile.topSpeed) };
+}
+
+/** A secret from the environment, which must never be printed. */
+function secret(name: string): string {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} isn't set`);
+  return value;
 }
 
 function publish(key: string, cacheControl: string) {
