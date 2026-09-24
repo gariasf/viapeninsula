@@ -15,10 +15,12 @@ npm test
 npm run check                # typecheck
 npm run daily -- --dry-run   # build today's bundle into out/ without publishing it
 npm run daily                # build it and publish it to R2
-npm run deploy               # build the site and deploy it
+npm run deploy               # typecheck, build the site and deploy it
 ```
 
 The daily build traces each Line along OpenStreetMap's rails (ADR-0004). It keeps the rails it downloads from Overpass in `.cache/` for a week, and fails if a traced shape's length strays more than 5% from Renfe's. It then places each of the day's Trips on its track, and reports and leaves out any it can't: one calling at a Station off its track, or one that would have to run faster than its Network's top speed.
+
+The site speaks Catalan, Spanish and English. Every string it shows is in `src/web/i18n.ts`, in all three, except names: Stations and Lines are shown as the operators publish them, and the credits name their sources as those sources do. The basemap names countries, regions, seas, rivers and airports in the viewer's language, and everything else, from towns to streets, as its signs do.
 
 ## Cloudflare setup
 

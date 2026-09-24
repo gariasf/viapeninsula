@@ -4,3 +4,12 @@ body,
   height: 100%;
   margin: 0;
 }
+
+/* The language switch, as tall as MapLibre's buttons. 16px text keeps iOS from zooming in on it. */
+.language {
+  height: 29px;
+  padding: 0 4px;
+  border: 0;
+  font: 16px sans-serif;
+  cursor: pointer;
+}

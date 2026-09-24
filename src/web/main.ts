@@ -1,10 +1,11 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
 import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
-import { MapLibreMap, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
+import { AttributionControl, MapLibreMap, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { along, LIVE_URL, madridDate, type Bundle, type Manifest } from '../bundle.ts';
 import { trainsAt } from '../engine.ts';
+import { language, LANGUAGES, setLanguage, t, type Language } from './i18n.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
 setWorkerUrl(workerUrl);
@@ -28,16 +29,56 @@ const byZoom = (stops: [zoom: number, px: number][], value: (px: number, zoom: n
   ...stops.flatMap(([zoom, px]) => [zoom, value(px, zoom)]),
 ];
 
+/**
+ * Whether the basemap names a feature in the viewer's language, where the tiles have it: countries,
+ * regions, seas, rivers and airports, which are the features with an IATA code. Everything else it
+ * labels, from towns and their districts to streets, goes by its own name, as its signs and Stations
+ * have it: the tiles' Spanish names for Catalan towns are mostly old Castilian ones, such as Lérida
+ * and Sardañola del Vallés.
+ */
+const TRANSLATED: ExpressionSpecification = ['any', ['in', ['get', 'class'], ['literal', ['country', 'state', 'ocean', 'sea', 'river']]], ['has', 'iata']];
+
 const map = new MapLibreMap({
   container: 'map',
-  style: 'https://tiles.openfreemap.org/styles/positron',
   center: [2.17, 41.39], // Barcelona, with the rest of Catalonia a zoom away
   zoom: 11,
-  attributionControl: {
-    // OpenFreeMap's own credit says "Data from OpenStreetMap"; the ODbL asks for the contributors.
-    customAttribution: '<a href="https://www.openstreetmap.org/copyright" target="_blank">© OpenStreetMap contributors</a>',
+  attributionControl: false,
+});
+map.setStyle('https://tiles.openfreemap.org/styles/positron', {
+  transformStyle: (_, style) => {
+    // OpenFreeMap's credit ends "Data from OpenStreetMap", in English, and the ODbL asks for the
+    // contributors, so showLanguage() credits the basemap itself, in the viewer's language.
+    if (style.sources.openmaptiles) Object.assign(style.sources.openmaptiles, { attribution: '' });
+    // Its labels give each feature's English name, where the tiles have one. They give its own
+    // instead, or where it's TRANSLATED, its name in the language showLanguage() sets.
+    style.state = { language: { default: language() } };
+    for (const layer of style.layers) {
+      if (layer.type !== 'symbol' || !layer.layout) continue;
+      const text = JSON.stringify(layer.layout['text-field']);
+      if (!text?.includes('"name_en"')) continue;
+      const own = JSON.parse(text.replaceAll('"name_en"', '"name"'));
+      layer.layout['text-field'] = ['case', TRANSLATED, ['coalesce', ['get', ['concat', 'name:', ['global-state', 'language']]], own], own];
+    }
+    return style;
   },
 });
+const styleLoaded = map.once('style.load');
+
+// The language switch, with each language named in itself.
+const languageSwitch = document.createElement('select');
+languageSwitch.className = 'maplibregl-ctrl maplibregl-ctrl-group language';
+for (const [code, name] of Object.entries(LANGUAGES)) {
+  const option = new Option(name, code, false, code === language());
+  option.lang = code;
+  languageSwitch.add(option);
+}
+languageSwitch.addEventListener('change', () => {
+  setLanguage(languageSwitch.value as Language);
+  showLanguage();
+});
+map.addControl({ onAdd: () => languageSwitch, onRemove: () => languageSwitch.remove() }, 'top-right');
+let credits: AttributionControl | undefined;
+showLanguage();
 
 const [bundle] = await Promise.all([loadBundle(), map.once('load')]);
 const lines = new Map(bundle.lines.map((l) => [l.id, l]));
@@ -155,12 +196,32 @@ requestAnimationFrame(function move() {
 function trains(): GeoJSON.FeatureCollection {
   return {
     type: 'FeatureCollection',
-    features: trainsAt(bundle, Date.now()).map((t) => ({
+    features: trainsAt(bundle, Date.now()).map((train) => ({
       type: 'Feature',
-      properties: { colour: lines.get(t.trip.line)?.colour },
-      geometry: { type: 'Point', coordinates: [t.lon, t.lat] },
+      properties: { colour: lines.get(train.trip.line)?.colour },
+      geometry: { type: 'Point', coordinates: [train.lon, train.lat] },
     })),
   };
+}
+
+/** Shows the interface in the viewer's language: on start, and again each time they switch it. */
+function showLanguage() {
+  document.documentElement.lang = language();
+  languageSwitch.title = t('language');
+  // MapLibre reads its own strings as it builds each part, and has no way to change them after: the
+  // parts it builds from now on read these, the canvas is relabelled, and the credits built afresh.
+  Object.assign(map._locale, { 'Map.Title': t('map'), 'AttributionControl.ToggleAttribution': t('showCredits') });
+  map.getCanvas().setAttribute('aria-label', t('map'));
+  // The basemap can relabel itself once its style has loaded, and loads in the language set by then.
+  styleLoaded.then(() => map.setGlobalStateProperty('language', language()));
+  if (credits) map.removeControl(credits);
+  credits = new AttributionControl({
+    customAttribution:
+      '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> ' +
+      '<a href="https://www.openmaptiles.org/" target="_blank">© OpenMapTiles</a> ' +
+      `<a href="https://www.openstreetmap.org/copyright" target="_blank">${t('osmContributors')}</a>`,
+  });
+  map.addControl(credits);
 }
 
 async function loadBundle(): Promise<Bundle> {
