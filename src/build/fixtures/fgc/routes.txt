@@ -2,3 +2,4 @@ route_id,route_short_name,route_long_name,route_type,route_url,route_color,route
 L12,L12,Sarrià - Reina Elisenda,1,http://fgc.cat/cat/barcelona-valles.asp?linia=L12,b2aed3,FFFFFF
 MM,MM,Cremallera Montserrat,7,,000000,FFFFFF
 FV,FV,Funicular de Vallvidrera,7,http://www.fgc.cat/cat/barcelona-valles.asp,0A57A3,FFFFFF
+R53,R53,Barcelona Pl. Espanya - Manresa,2,http://www.fgc.cat/cat/llobregat-anoia.asp?linia=R5,3dbfc3,FFFFFF

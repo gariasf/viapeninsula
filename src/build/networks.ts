@@ -53,7 +53,16 @@ function isFgc(way: OsmWay): boolean {
 }
 
 /** FGC's feed makes each platform a stop of its own; its Stations go by FGC's codes. */
-export const FGC_FEED: Feed = { network: FGC, prefix: 'fgc', operator: 'fgc', parents: true };
+export const FGC_FEED: Feed = {
+  network: FGC,
+  prefix: 'fgc',
+  operator: 'fgc',
+  parents: true,
+  // R53 and R63 are FGC's names for R5's and R6's late Trips, which call at every Station: Martorell
+  // Vila and Colònia Güell too, and Santa Coloma de Cervelló on R53. The public knows them as R5 and
+  // R6: their route URLs point to R5's and R6's pages (seen 2026-09-25).
+  names: { R53: 'R5', R63: 'R6' },
+};
 
 const TRAM: Network = {
   id: 'tram',
@@ -108,8 +117,10 @@ export interface Feed {
   routes?: (routeId: string) => boolean;
   /** A Trip's Train number, where the operator publishes one. */
   number?: (trip: { trip_id: string; service_id: string }) => string | undefined;
-  /** Colours for the Lines the feed gets wrong, by name. */
+  /** Colours for the Lines the feed gets wrong, by the Line's name. */
   colours?: Record<string, string>;
+  /** The Line each route runs on, by the route's name, where the feed names some of a Line's Trips apart. */
+  names?: Record<string, string>;
 }
 
 /** The route types that run Trains: tram, metro, rail and funicular. Buses (3) and cable cars (6) don't. */
@@ -129,7 +140,7 @@ export async function readFeed(
   const routes = new Map<string, { name: string; colour: string }>();
   for await (const r of rows(gtfs, 'routes.txt', ['route_id', 'route_short_name', 'route_type', 'route_color'])) {
     if (RAIL.has(r.route_type) && (feed.routes?.(r.route_id) ?? true)) {
-      routes.set(r.route_id, { name: r.route_short_name, colour: r.route_color });
+      routes.set(r.route_id, { name: feed.names?.[r.route_short_name] ?? r.route_short_name, colour: r.route_color });
     }
   }
 

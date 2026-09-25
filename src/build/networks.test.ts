@@ -81,7 +81,8 @@ test('leaves out the Trips of other days, but not the Lines and Stations they se
 });
 
 // Rows cut verbatim from FGC's feed of 2026-09-16: two L12 Trips, one on a normal Thursday and one
-// on La Mercè, and a Vallvidrera funicular and a Montserrat rack railway Trip on the Thursday.
+// on La Mercè, and a Vallvidrera funicular and a Montserrat rack railway Trip on the Thursday. And,
+// from its feed of 2026-09-25, an R53 Trip on Sunday 4 October, without its calls or shape.
 const fgc = dirSource(fileURLToPath(new URL('fixtures/fgc', import.meta.url)));
 
 test("reads FGC's service days from calendar_dates.txt alone, as its feed has no calendar.txt", async () => {
@@ -101,7 +102,15 @@ test('keeps the Vallvidrera funicular and the Montserrat rack railway, in their 
     { name: 'L12', colour: '#b2aed3' },
     { name: 'MM', colour: '#000000' },
     { name: 'FV', colour: '#0A57A3' },
+    { name: 'R5', colour: '#3dbfc3' },
   ]);
+});
+
+test("runs R53's Trips on R5, the Line the public knows, since R53 is only FGC's name for R5's late Trips", async () => {
+  const { lines, trips } = await readFeed(fgc, '2026-10-04', FGC_FEED);
+  expect(lines.map((l) => l.id)).toContain('fgc:R5');
+  expect(lines.map((l) => l.id)).not.toContain('fgc:R53');
+  expect(trips.find((t) => t.id === 'fgc:625cdae602743e|602dc4e006')?.line).toBe('fgc:R5');
 });
 
 test("gives FGC's Stations FGC's codes, with their platforms rolled into them", async () => {

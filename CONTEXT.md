@@ -33,7 +33,7 @@ A set of Lines under one public brand: Rodalies (including its regional lines), 
 _Avoid_: System
 
 **Line**:
-A line as the public knows it, such as R2 Sud, S1, L3 or T4.
+A line as the public knows it, such as R2 Sud, S1, L3 or T4. An operator's internal variants of a Line join the Line the public knows, as FGC's R53 and R63 join R5 and R6.
 _Avoid_: Route
 
 **Station**:
