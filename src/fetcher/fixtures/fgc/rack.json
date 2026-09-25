@@ -1,0 +1,49 @@
+{
+  "total_count": 4,
+  "results": [
+    {
+      "id": "6c4bdae202757640fd55c1|6a2dc6e000",
+      "lin": "S1",
+      "geo_point_2d": {
+        "lon": 2.156261350012263,
+        "lat": 41.394589224776816
+      },
+      "estacionat_a": null,
+      "tipus_unitat": "112",
+      "record_timestamp": "2026-09-25T12:46:02.024000+00:00"
+    },
+    {
+      "id": "6d4fdaec|652dc7e702",
+      "lin": "M2",
+      "geo_point_2d": {
+        "lon": 1.83433,
+        "lat": 41.610634
+      },
+      "estacionat_a": null,
+      "tipus_unitat": "AM",
+      "record_timestamp": "2026-09-25T12:46:02.024000+00:00"
+    },
+    {
+      "id": "6d4fdaec|652dc7e703",
+      "lin": "M2",
+      "geo_point_2d": {
+        "lon": 1.836561,
+        "lat": 41.601166
+      },
+      "estacionat_a": null,
+      "tipus_unitat": "AMx2",
+      "record_timestamp": "2026-09-25T12:46:02.024000+00:00"
+    },
+    {
+      "id": "6d4fdaec|652dc7e701",
+      "lin": "M1",
+      "geo_point_2d": {
+        "lon": 1.849158,
+        "lat": 41.610403
+      },
+      "estacionat_a": "MO",
+      "tipus_unitat": null,
+      "record_timestamp": "2026-09-25T12:46:02.024000+00:00"
+    }
+  ]
+}

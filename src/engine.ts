@@ -276,7 +276,10 @@ function reportsByTrip(bundle: Bundle, snapshot: Snapshot): Map<string, Report> 
   }
   for (const report of snapshot.reports) {
     const { block, headsign, position } = report;
-    const trip = report.trip && closest(named.get(report.trip) ?? [], (report.at - bundle.noonMinus12h) / 1000);
+    // One named by a Trip the bundle doesn't have, on a Line it names, runs the Line's Trip whose trip_id ends as its does.
+    const end = report.line && report.trip?.split('|')[1];
+    const candidates = end ? bundle.trips.filter((t) => t.line === report.line && t.id.endsWith(`|${end}`)) : report.trip ? (named.get(report.trip) ?? []) : [];
+    const trip = closest(candidates, (report.at - bundle.noonMinus12h) / 1000);
     if (trip) reports.set(trip.id, report);
     if (!block || !position || !('next' in position)) continue;
     let [found, off]: [string | undefined, number] = [undefined, MATCH];
