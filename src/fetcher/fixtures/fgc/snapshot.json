@@ -1,0 +1,728 @@
+{
+  "generated": 1790325075000,
+  "feeds": {
+    "fgc": {
+      "lastSuccess": 1790325075000,
+      "lastAttempt": 1790325075000,
+      "status": "ok",
+      "every": 120000
+    }
+  },
+  "reports": [
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|6c2dc7e507",
+      "at": 1790324889000,
+      "expected": {
+        "station": "fgc:TB",
+        "at": 1790324910000
+      }
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|6f2dc7e101",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:SG",
+        "at": 1790324972000
+      },
+      "position": {
+        "lon": 2.146408525104547,
+        "lat": 41.400835257351034
+      },
+      "unitType": "113"
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|622dc7e404",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:RE",
+        "at": 1790325120000
+      },
+      "position": {
+        "near": "fgc:RE"
+      },
+      "unitType": "113"
+    },
+    {
+      "trip": "fgc:625cdae21f726b1bb950|632dc7e205",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:PA",
+        "at": 1790324975000
+      },
+      "position": {
+        "near": "fgc:PA"
+      },
+      "unitType": "213"
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|6a2dc7eb00",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:TT",
+        "at": 1790324958000
+      },
+      "position": {
+        "lon": 2.132468926825956,
+        "lat": 41.39774564210343
+      },
+      "unitType": "113"
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|6a2dc7e407",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:TR",
+        "at": 1790325062000
+      },
+      "position": {
+        "lon": 2.011906460738562,
+        "lat": 41.54767245946712
+      },
+      "unitType": "113"
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|6a2dc7eb06",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:VL",
+        "at": 1790324970000
+      },
+      "position": {
+        "near": "fgc:VL"
+      },
+      "unitType": "115"
+    },
+    {
+      "trip": "fgc:625cdae21f726b1bb950|602dc3e100",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:AE",
+        "at": 1790324819000
+      },
+      "position": {
+        "lon": 1.864645176968442,
+        "lat": 41.574839202406984
+      },
+      "unitType": "213"
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|6c2dc7e402",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:TB",
+        "at": 1790325180000
+      },
+      "position": {
+        "near": "fgc:TB"
+      },
+      "unitType": "114"
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|6f2dc7e103",
+      "at": 1790324780000,
+      "expected": {
+        "station": "fgc:SR",
+        "at": 1790324780000
+      }
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|6a2dc7eb04",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:SC",
+        "at": 1790325046000
+      },
+      "position": {
+        "lon": 2.077861018505166,
+        "lat": 41.46896577721299
+      },
+      "unitType": "115"
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|6a2dc7eb01",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:TT",
+        "at": 1790325092000
+      },
+      "position": {
+        "lon": 2.133463415863753,
+        "lat": 41.397799067169736
+      },
+      "unitType": "115"
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|682dc7e407",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:NO",
+        "at": 1790325061000
+      },
+      "position": {
+        "lon": 2.096962768086574,
+        "lat": 41.560090180427345
+      },
+      "unitType": "113"
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|682dc7eb02",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:PR",
+        "at": 1790324922000
+      },
+      "position": {
+        "lon": 2.163173777118256,
+        "lat": 41.38887905638782
+      },
+      "unitType": "113"
+    },
+    {
+      "trip": "fgc:625cdae21f726b1bb950|7e2dc3e20a",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:EU",
+        "at": 1790325053000
+      },
+      "position": {
+        "near": "fgc:EU"
+      },
+      "unitType": "213"
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|682dc7e40b",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:SJ",
+        "at": 1790325000000
+      },
+      "position": {
+        "near": "fgc:SJ"
+      },
+      "unitType": "115"
+    },
+    {
+      "trip": "fgc:625cdae21f726b1bb950|612dc7e205",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:CR",
+        "at": 1790325054000
+      },
+      "position": {
+        "lon": 2.006840792684048,
+        "lat": 41.396962695297496
+      },
+      "unitType": "213"
+    },
+    {
+      "trip": "fgc:625cdae21f726b1bb950|632dc7e207",
+      "at": 1790324817000,
+      "expected": {
+        "station": "fgc:ME",
+        "at": 1790324830000
+      }
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|682dc7eb06",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:LP",
+        "at": 1790325036000
+      },
+      "position": {
+        "lon": 2.090201335046374,
+        "lat": 41.42916303616917
+      },
+      "unitType": "112"
+    },
+    {
+      "trip": "fgc:625cdae21f726b1bb950|782dc7e107",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:PE",
+        "at": 1790325060000
+      },
+      "position": {
+        "near": "fgc:PE"
+      },
+      "unitType": "213"
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|6f2dc7e102",
+      "at": 1790324763000,
+      "expected": {
+        "station": "fgc:PC",
+        "at": 1790324763000
+      }
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|682dc7eb03",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:LF",
+        "at": 1790325057000
+      },
+      "position": {
+        "lon": 2.080977619618935,
+        "lat": 41.43259522217611
+      },
+      "unitType": "115"
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|6a2dc7ea02",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:VP",
+        "at": 1790324971000
+      },
+      "position": {
+        "near": "fgc:VP"
+      },
+      "unitType": "113"
+    },
+    {
+      "trip": "fgc:625cdae21f726b1bb950|602dc3e207",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:OL",
+        "at": 1790324950000
+      },
+      "position": {
+        "near": "fgc:OL"
+      },
+      "unitType": "213x2"
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|682dc7eb04",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:VO",
+        "at": 1790324977000
+      },
+      "position": {
+        "near": "fgc:VO"
+      },
+      "unitType": "115"
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|6c2dc7e50a",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:GR",
+        "at": 1790324970000
+      },
+      "position": {
+        "lon": 2.155513851977283,
+        "lat": 41.39589629607617
+      },
+      "unitType": "114"
+    },
+    {
+      "trip": "fgc:625cdae21f726b1bb950|602dc3e205",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:PE",
+        "at": 1790325360000
+      },
+      "position": {
+        "near": "fgc:PE"
+      },
+      "unitType": "213x2"
+    },
+    {
+      "trip": "fgc:625cdae21f726b1bb950|632dc7e20b",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:ML",
+        "at": 1790324984000
+      },
+      "position": {
+        "near": "fgc:ML"
+      },
+      "unitType": "213"
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|622dc7e407",
+      "at": 1790324910000,
+      "expected": {
+        "station": "fgc:RE",
+        "at": 1790324925000
+      }
+    },
+    {
+      "trip": "fgc:625cdae21f726b1bb950|612dc7e102",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:QC",
+        "at": 1790325045000
+      },
+      "position": {
+        "near": "fgc:QC"
+      },
+      "unitType": "213"
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|6a2dc7e40b",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:VD",
+        "at": 1790324994000
+      },
+      "position": {
+        "near": "fgc:VD"
+      },
+      "unitType": "113"
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|682dc7e401",
+      "at": 1790324795000,
+      "expected": {
+        "station": "fgc:PN",
+        "at": 1790324795000
+      }
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|6a2dc7eb07",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:PC",
+        "at": 1790325000000
+      },
+      "position": {
+        "near": "fgc:PC"
+      },
+      "unitType": "112"
+    },
+    {
+      "trip": "fgc:625cdae21f726b1bb950|632dc7e101",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:IC",
+        "at": 1790325060000
+      },
+      "position": {
+        "lon": 2.131509793119744,
+        "lat": 41.36201509592763
+      },
+      "unitType": "213x2"
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|6a2dc7e405",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:HG",
+        "at": 1790324946000
+      },
+      "position": {
+        "lon": 2.040946602398787,
+        "lat": 41.47887517255413
+      },
+      "unitType": "115"
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|682dc7e405",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:SQ",
+        "at": 1790325053000
+      },
+      "position": {
+        "lon": 2.092520501189556,
+        "lat": 41.51621996015674
+      },
+      "unitType": "115"
+    },
+    {
+      "trip": "fgc:625cdae21f726b1bb950|602dc3e102",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:BO",
+        "at": 1790324879000
+      },
+      "position": {
+        "lon": 2.061581577771516,
+        "lat": 41.35207587046362
+      },
+      "unitType": "213x2"
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|6f2dc7e100",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:SG",
+        "at": 1790325021000
+      },
+      "position": {
+        "near": "fgc:SG"
+      },
+      "unitType": "112"
+    },
+    {
+      "trip": "fgc:625cdae21f726b1bb950|782dc7e100",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:AL",
+        "at": 1790324974000
+      },
+      "position": {
+        "near": "fgc:AL"
+      },
+      "unitType": "213"
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|6c2dc7e505",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:GR",
+        "at": 1790324994000
+      },
+      "position": {
+        "near": "fgc:GR"
+      },
+      "unitType": "114"
+    },
+    {
+      "trip": "fgc:625cdae21f726b1bb950|7e2dc3e207",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:CO",
+        "at": 1790325060000
+      },
+      "position": {
+        "lon": 2.074990093405249,
+        "lat": 41.35169407993693
+      },
+      "unitType": "213"
+    },
+    {
+      "trip": "fgc:625cdae21f726b1bb950|632dc7e103",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:SP",
+        "at": 1790324970000
+      },
+      "position": {
+        "near": "fgc:SP"
+      },
+      "unitType": "213"
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|682dc7ea02",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:CT",
+        "at": 1790325047000
+      },
+      "position": {
+        "near": "fgc:CT"
+      },
+      "unitType": "112"
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|6a2dc7eb0a",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:RB",
+        "at": 1790325060000
+      },
+      "position": {
+        "lon": 2.025880668236568,
+        "lat": 41.495278843080534
+      },
+      "unitType": "113"
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|682dc7eb00",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:SR",
+        "at": 1790324977000
+      },
+      "position": {
+        "near": "fgc:SR"
+      },
+      "unitType": "112"
+    },
+    {
+      "trip": "fgc:625cdae21f726b1bb950|602dc3e20a",
+      "at": 1790324731000,
+      "expected": {
+        "station": "fgc:PE",
+        "at": 1790324740000
+      }
+    },
+    {
+      "trip": "fgc:625cdae21f726b1bb950|7e2dc3e102",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:SE",
+        "at": 1790324790000
+      },
+      "position": {
+        "lon": 1.903594281139483,
+        "lat": 41.487199470044224
+      },
+      "unitType": "213"
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|6c2dc7e504",
+      "at": 1790324848000,
+      "expected": {
+        "station": "fgc:PC",
+        "at": 1790324880000
+      }
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|682dc7eb07",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:PR",
+        "at": 1790325057000
+      },
+      "position": {
+        "lon": 2.160769324665827,
+        "lat": 41.390744229794535
+      },
+      "unitType": "112"
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|6a2dc7e401",
+      "at": 1790324994000,
+      "expected": {
+        "station": "fgc:NA",
+        "at": 1790325000000
+      }
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|6a2dc7eb03",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:VL",
+        "at": 1790324959000
+      },
+      "position": {
+        "near": "fgc:VL"
+      },
+      "unitType": "112"
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|682dc7eb01",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:SR",
+        "at": 1790324953000
+      },
+      "position": {
+        "near": "fgc:SR"
+      },
+      "unitType": "112"
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|6a2dc7eb02",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:PC",
+        "at": 1790325061000
+      },
+      "position": {
+        "lon": 2.167769780884024,
+        "lat": 41.385793761631476
+      },
+      "unitType": "113"
+    },
+    {
+      "trip": "fgc:625cdae21f726b1bb950|7e2dc3e201",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:PI",
+        "at": 1790324590000
+      },
+      "position": {
+        "lon": 1.743627032939649,
+        "lat": 41.53496582228306
+      },
+      "unitType": "213"
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|682dc7eb0a",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:SQ",
+        "at": 1790324887000
+      },
+      "position": {
+        "lon": 2.092453012445959,
+        "lat": 41.51643571819458
+      },
+      "unitType": "112"
+    },
+    {
+      "trip": "fgc:625cdae21f726b1bb950|7e2dc3e100",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:PI",
+        "at": 1790324931000
+      },
+      "position": {
+        "lon": 1.769283942955058,
+        "lat": 41.51264915601448
+      },
+      "unitType": "213x2"
+    },
+    {
+      "trip": "fgc:625cdae21f726b1bb950|602dc3e106",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:SV",
+        "at": 1790325062000
+      },
+      "position": {
+        "lon": 1.856119206367194,
+        "lat": 41.67491981079841
+      },
+      "unitType": "213"
+    },
+    {
+      "trip": "fgc:6c4bdae202757640fd55c1|6c2dc7e50b",
+      "at": 1790325011284,
+      "expected": {
+        "station": "fgc:PC",
+        "at": 1790325180000
+      },
+      "position": {
+        "near": "fgc:PC"
+      },
+      "unitType": "114"
+    },
+    {
+      "trip": "fgc:624ddab200727613a612|1f28c4e306",
+      "at": 1790325011284,
+      "position": {
+        "lon": 0.73823,
+        "lat": 41.692527
+      }
+    },
+    {
+      "trip": "fgc:6d4fdaec|652dc7e206",
+      "at": 1790325011284,
+      "position": {
+        "near": "fgc:MP"
+      },
+      "unitType": "AMx2"
+    },
+    {
+      "trip": "fgc:6d4fdaec|652dc7e204",
+      "at": 1790325011284,
+      "position": {
+        "near": "fgc:MM"
+      }
+    },
+    {
+      "trip": "fgc:6d4fdaec|652dc7e205",
+      "at": 1790325011284,
+      "position": {
+        "near": "fgc:MP"
+      }
+    }
+  ]
+}

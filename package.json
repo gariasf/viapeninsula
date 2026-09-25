@@ -16,7 +16,8 @@
     "cors": "wrangler r2 bucket cors set viapeninsula-live --file r2-cors.json --force"
   },
   "dependencies": {
-    "maplibre-gl": "^6.11.1"
+    "maplibre-gl": "^6.11.1",
+    "pbf": "^5.1.2"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260924.1",

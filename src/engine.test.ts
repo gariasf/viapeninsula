@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
-import { pointAt, type Bundle, type Snapshot } from './bundle.ts';
+import { pointAt, type Bundle, type Network, type Report, type Snapshot } from './bundle.ts';
 import { KEEP, trainsAt, unavailable, type Received } from './engine.ts';
 
 /** A speed profile like Rodalies', in metres and seconds, which the times below are worked out from. */
@@ -102,27 +102,32 @@ const TRIPS: Record<string, { line: string; calls: Row[] }> = {
 
 const seconds = (time: string) => time.split(':').reduce((sum, part) => sum * 60 + Number(part), 0);
 
-const BUNDLE: Bundle = {
-  serviceDay: '2026-09-24',
-  // Midnight in Barcelona, which is noon less 12 hours on any day the clocks don't change.
-  noonMinus12h: Date.parse('2026-09-24T00:00:00+02:00'),
-  networks: [{ id: 'rodalies', name: 'Rodalies de Catalunya', profile: PROFILE }],
-  lines: [...new Set(Object.values(TRIPS).map((t) => t.line))].map((name) => ({ id: name, network: 'rodalies', name, colour: '#000', shapes: [] })),
-  stations: [],
-  shapes: Object.entries(TRIPS).map(([id, { calls }]) => {
-    const points = [...new Map(calls.map((c) => [c[3], c])).values()].sort((a, b) => a[3] - b[3]);
-    return { id, coords: points.map((c): [number, number] => [c[4], c[5]]), dist: points.map((c) => c[3]) };
-  }),
-  strokes: [],
-  trips: Object.entries(TRIPS).map(([id, { line, calls }]) => ({
-    id,
-    line,
-    shape: id,
-    direction: 0,
-    headsign: calls.at(-1)?.[0] ?? '',
-    calls: calls.map(([station, arrival, departure, dist]) => ({ station, arrival: seconds(arrival), departure: seconds(departure), dist })),
-  })),
-};
+/** A service day's bundle of these Trips, on one Network, each on a track of its own. */
+function bundleOf(serviceDay: string, network: Network, trips: Record<string, { line: string; calls: Row[] }>): Bundle {
+  return {
+    serviceDay,
+    // Midnight in Barcelona, which is noon less 12 hours on any day the clocks don't change.
+    noonMinus12h: Date.parse(`${serviceDay}T00:00:00+02:00`),
+    networks: [network],
+    lines: [...new Set(Object.values(trips).map((t) => t.line))].map((name) => ({ id: name, network: network.id, name, colour: '#000', shapes: [] })),
+    stations: [],
+    shapes: Object.entries(trips).map(([id, { calls }]) => {
+      const points = [...new Map(calls.map((c) => [c[3], c])).values()].sort((a, b) => a[3] - b[3]);
+      return { id, coords: points.map((c): [number, number] => [c[4], c[5]]), dist: points.map((c) => c[3]) };
+    }),
+    strokes: [],
+    trips: Object.entries(trips).map(([id, { line, calls }]) => ({
+      id,
+      line,
+      shape: id,
+      direction: 0,
+      headsign: calls.at(-1)?.[0] ?? '',
+      calls: calls.map(([station, arrival, departure, dist]) => ({ station, arrival: seconds(arrival), departure: seconds(departure), dist })),
+    })),
+  };
+}
+
+const BUNDLE = bundleOf('2026-09-24', { id: 'rodalies', name: 'Rodalies de Catalunya', profile: PROFILE }, TRIPS);
 
 /** A moment on 24 September 2026, by the clock in Barcelona, and so many seconds on. */
 const at = (time: string, plus = 0) => Date.parse(`2026-09-24T${time}+02:00`) + plus * 1000;
@@ -325,6 +330,19 @@ test('a Train Renfe gives a Delay for but no position stays Scheduled, and runs 
   expect(where(R2N, at('21:39:30'))).toBeGreaterThan(50838);
 });
 
+test('a Train whose operator says when it expects it at a Station, rather than how late it is, runs that late', () => {
+  // Made up: the R2N expected at Mollet-Sant Fost at 21:39, 2 minutes after its timetable has it arrive.
+  // It stands there from 21:39 to 21:40 rather than from 21:37 to 21:38: Scheduled with no position,
+  // and Live where it's reported standing there, as FGC's are.
+  const expected = { station: 'Mollet-Sant Fost', at: at('21:39:00') };
+  const reported = (report: Partial<Report>): Received[] => [{ snapshot: { ...written(at('21:39:00')), reports: [{ trip: R2N, at: at('21:38:50'), expected, ...report }] }, at: at('21:39:05') }];
+  expect(train(R2N, at('21:39:30'), reported({}))).toMatchObject({ live: false, dist: 50838 });
+  expect(train(R2N, at('21:39:30'), reported({ position: { near: 'Mollet-Sant Fost' } }))).toMatchObject({ live: true, dist: 50838 });
+  expect(where(R2N, at('21:39:30'))).toBeGreaterThan(50838);
+  // Its operator's own Delay, where it gives one, comes first.
+  expect(where(R2N, at('21:39:30'), reported({ delay: 0 }))).toBeGreaterThan(50838);
+});
+
 /** A snapshot, received as it's written, in which Renfe's GPS has a Trip's Train so far along its track, and Renfe's own figure a Delay. */
 function gps(trip: string, dist: number, moment: number, delay?: number): Received {
   const shape = BUNDLE.shapes.find((s) => s.id === trip);
@@ -507,4 +525,32 @@ test('never runs back when its last Delay runs out, among the snapshots the map 
   const kept = (moment: number) => received.filter((r) => r.at > moment - KEEP);
   const each = Array.from({ length: 181 }, (_, s) => where(R2S, at('22:29:00', s), kept(at('22:29:00', s))) ?? NaN);
   expect(each).toEqual([...each].sort((a, b) => a - b));
+});
+
+// FGC's live data as the fetcher made it into a snapshot at 10:31:15 on Friday 25 September 2026,
+// from Geotren and the trip updates as recorded then, received as it was written, and a stretch of
+// an S2 that day as the daily build placed it, towards Sabadell Parc del Nord.
+const FGC_LIVE: Snapshot = JSON.parse(readFileSync(new URL('fetcher/fixtures/fgc/snapshot.json', import.meta.url), 'utf8'));
+const S2 = 'fgc:6c4bdae202757640fd55c1|682dc7e40b';
+const FGC: Bundle = bundleOf('2026-09-25', { id: 'fgc', name: 'FGC', profile: { ...PROFILE, topSpeed: 120 / 3.6 } }, {
+  [S2]: {
+    line: 'fgc:S2',
+    calls: [
+      ['fgc:SC', '10:23:00', '10:24:00', 15184, 2.078203288, 41.46791038], // Sant Cugat Centre
+      ['fgc:VO', '10:25:30', '10:26:00', 16747, 2.072928, 41.481248], // Volpelleres
+      ['fgc:SJ', '10:27:00', '10:28:00', 17875, 2.076498641, 41.49015388], // Sant Joan
+      ['fgc:BT', '10:29:30', '10:30:00', 19597, 2.090556583, 41.50085844], // Bellaterra
+      ['fgc:UN', '10:32:00', '10:33:00', 20863, 2.102510441, 41.50285282], // Universitat Autònoma
+    ],
+  },
+});
+
+test("an FGC Train Geotren has standing at a Station is Live, running as late as FGC's trip update expects it there", () => {
+  // Geotren has the S2 standing at Sant Joan at 10:30:11. The trip updates expect it there at 10:30,
+  // 3 minutes after its timetable has it arrive, so it leaves at 10:31, and its trip update and its
+  // Station go by the same codes as the timetable's.
+  const moment = Date.parse('2026-09-25T10:31:20+02:00');
+  const s2 = (received: Received[]) => trainsAt(FGC, moment, received).find((t) => t.trip.id === S2);
+  expect(s2([{ snapshot: FGC_LIVE, at: FGC_LIVE.generated }])).toMatchObject({ live: true });
+  expect(s2([{ snapshot: FGC_LIVE, at: FGC_LIVE.generated }])?.dist).toBeCloseTo(trainsAt(FGC, moment - 180_000).find((t) => t.trip.id === S2)?.dist ?? NaN, 3);
 });
