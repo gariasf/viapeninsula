@@ -199,7 +199,7 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
       dwelt.set(id, calls);
       // A Train live data stops reporting keeps its last Delay until that's CARRY old.
       const said = recent(heard.get(id), upTo);
-      const delay = said ? delayOf(trip, calls, shape, profile, said.report, bundle.noonMinus12h) : 0;
+      const delay = said ? delayOf(trip, calls, shape, network, said.report, bundle.noonMinus12h) : 0;
       // Until live data first shifts it, a Train runs on its timetable.
       const drawn = ease ? eased(calls, profile, ease, arrived) : arrived;
       const [there, dist] = [arrived - delay, (time: number) => place(calls, profile, time) ?? NaN];
@@ -330,10 +330,10 @@ const delays = new WeakMap<Report, { trip: Trip; delay: number }>();
  * puts it on its Trip's track, or how far along it TRAM has it, and otherwise, standing at or pinned
  * to a Station or with no position, its operator's figure, or how late it is where its operator
  * expects it at a Station, as TMB does at the one each of the Metro's comes to next, though never
- * so late that it's drawn short of the Station before that, nor, standing at a Station with no
- * figure, so that it's drawn anywhere else when it was reported.
+ * so late that it's drawn short of the Station before that. One standing at a Station, but for
+ * Renfe's, is drawn there when it was reported.
  */
-function delayOf(trip: Trip, calls: Call[], shape: Shape, profile: SpeedProfile, report: Report, noonMinus12h: number): number {
+function delayOf(trip: Trip, calls: Call[], shape: Shape, { id, profile }: Network, report: Report, noonMinus12h: number): number {
   const known = delays.get(report);
   if (known?.trip === trip) return known.delay;
   const [reported, { position }] = [(report.at - noonMinus12h) / 1000, report];
@@ -346,9 +346,9 @@ function delayOf(trip: Trip, calls: Call[], shape: Shape, profile: SpeedProfile,
     const before = calls[i - 1];
     if (before && i > 1) delay = Math.min(delay, reported - before.arrival);
   }
-  if (position && 'near' in position && report.delay === undefined) {
+  if (position && 'near' in position && id !== 'rodalies') {
     // Standing at a Station, as Geotren has FGC's, it's there when it was reported, however long ago
-    // the trip updates have it leave. An operator's own Delay stands: Renfe's pinned Stations are stale.
+    // the trip updates have it leave. Not Renfe's: it pins Trains coming into a Station too, and late.
     // At its Trip's first Station it can stand long before it leaves, off the map.
     const i = calls.findIndex((c) => c.station === position.near);
     const call = calls[i];

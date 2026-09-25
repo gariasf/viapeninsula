@@ -583,11 +583,16 @@ test("an FGC Train Geotren has standing at a Station stays there, where FGC's tr
   const s2 = (received: Received[]) => trainsAt(FGC, moment, received).find((t) => t.trip.id === S2);
   const late = (seconds: number) => trainsAt(FGC, moment - seconds * 1000).find((t) => t.trip.id === S2)?.dist ?? NaN;
   expect(s2(standing({}))?.dist).toBeCloseTo(late(131), 3);
-  // An operator's own Delay, as Renfe gives for the Trains it pins to a Station, isn't held.
-  expect(s2(standing({ delay: 90 }))?.dist).toBeCloseTo(late(90), 3);
   // At its Trip's first Station it can stand long before it leaves, off the map: here at Sant Cugat
   // Centre, expected there at 10:32, 9 minutes after its timetable has it arrive.
   expect(s2(standing({ position: { near: 'fgc:SC' }, expected: { station: 'fgc:SC', at: Date.parse('2026-09-25T10:32:00+02:00') } }))).toBeUndefined();
+});
+
+test("a Train Renfe pins to a Station isn't held there: Renfe's pinned Stations are stale", () => {
+  // Made up: Renfe pins the R2N to Mollet-Sant Fost at 21:39:30, with no Delay, though its timetable
+  // has it leave at 21:38. It runs on its timetable.
+  const snapshot: Snapshot = { ...written(at('21:39:35')), reports: [{ trip: R2N, at: at('21:39:30'), position: { near: 'Mollet-Sant Fost' } }] };
+  expect(where(R2N, at('21:39:40'), [{ snapshot, at: at('21:39:35') }])).toBeCloseTo(where(R2N, at('21:39:40')) ?? NaN, 3);
 });
 
 // TRAM's live data as the fetcher made it into a snapshot at 11:44:50 on Friday 25 September 2026,
