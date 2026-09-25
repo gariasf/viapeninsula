@@ -3,7 +3,7 @@
 // thin glue around the fetcher step.
 
 import { DurableObject } from 'cloudflare:workers';
-import { accessToken, address, EVERY, START, step, TIMEOUT, type Fetched, type Responses, type Stored } from './step.ts';
+import { accessToken, address, EVERY, START, step, TIMEOUT, UNSET, type Fetched, type Responses, type Stored } from './step.ts';
 
 /** Renfe's Cercanías live data, as JSON: Rodalies' is in it. */
 const RENFE = {
@@ -87,7 +87,7 @@ async function fetchFgc(file: string | undefined): Promise<Responses['fgc']> {
 /** TRAM's live data for both its halves, with the access token the step keeps, or where it keeps none, a new one. */
 async function fetchTram({ TRAM_CLIENT_ID: id, TRAM_CLIENT_SECRET: secret }: Env, kept: string | undefined): Promise<Responses['tram']> {
   const body = new URLSearchParams({ grant_type: 'client_credentials', client_id: id ?? '', client_secret: secret ?? '' });
-  const token = kept ? undefined : id && secret ? await get(`${TRAM_API}/connect/token`, text, { method: 'POST', body }) : { error: 'its credentials are not set' };
+  const token = kept ? undefined : id && secret ? await get(`${TRAM_API}/connect/token`, text, { method: 'POST', body }) : { error: UNSET };
   const bearer = token ? accessToken(token) : kept;
   const half = async (networkId: number): Promise<NonNullable<Responses['tram']>['TBX']> => {
     if (!bearer) return { positions: { error: 'no access token' }, updates: { error: 'no access token' } };
@@ -104,7 +104,7 @@ async function fetchTram({ TRAM_CLIENT_ID: id, TRAM_CLIENT_SECRET: secret }: Env
  * error, which the snapshot's status repeats; the step never sees the URL.
  */
 async function fetchMetro({ TMB_APP_ID: id, TMB_APP_KEY: key }: Env): Promise<Responses['metro']> {
-  if (!id || !key) return { error: 'its credentials are not set' };
+  if (!id || !key) return { error: UNSET };
   const fetched = await get(`${TMB}?${new URLSearchParams({ app_id: id, app_key: key })}`, text);
   return 'error' in fetched ? { error: fetched.error.replaceAll(key, '…').replaceAll(id, '…') } : fetched;
 }

@@ -21,6 +21,12 @@ const [FGC_EVERY, FGC_SLOW, FGC_FEW] = [120_000, 300_000, 1000];
 /** How often the Metro is fetched, in ms: every other run, as often as keeps to the one request every 30 s declared to TMB. */
 const METRO_EVERY = 2 * EVERY;
 
+/** The longest the fetcher waits to ask TRAM for an access token again after a request for one fails, in ms. */
+const TRAM_WAIT_MAX = 1_800_000;
+
+/** Why a feed wasn't fetched, where the Worker has no credentials for its API: it asks it for nothing. */
+export const UNSET = 'its credentials are not set';
+
 /** A day in ms. FGC's API counts its requests by day in UTC. */
 const DAY = 86_400_000;
 
@@ -71,6 +77,11 @@ export interface State {
   };
   /** TRAM's access token, and when it runs out, in ms since 1970, until a run has to ask for another. */
   tram?: { token: string; expires: number };
+  /**
+   * After a request for TRAM's access token fails: when it did, in ms since 1970, and how long the
+   * fetcher waits from then before it asks again, which doubles with each failed request in a row.
+   */
+  tramBackoff?: { failed: number; wait: number };
 }
 
 /** What the fetcher stores between runs: the step's state, and the feeds due on the next run. */
@@ -141,26 +152,45 @@ export function step(state: State, responses: Responses, now: number): Stored & 
     });
     if (remaining === 0) freshness.status = 'no requests left until 00:00 UTC';
   }
-  // A token the run asked for replaces the last, or where TRAM didn't issue one, the next run asks again.
-  let tram = responses.tram?.token ? undefined : state.tram;
+  // A token the run asked for replaces the last, or where TRAM didn't issue one, a later run asks again.
+  let [tram, tramBackoff] = [responses.tram?.token ? undefined : state.tram, state.tramBackoff];
   if (responses.tram) {
     const { token, ...halves } = responses.tram;
-    refresh('tram', EVERY, (said) => {
-      if (token) tram = issued(token, now);
+    const freshness = refresh('tram', EVERY, (said) => {
+      if (token) {
+        try {
+          tram = issued(token, now);
+          tramBackoff = undefined;
+        } catch (error) {
+          // A request that fails waits 20 s before the next, then twice as long each time. Without
+          // credentials none was made, and the run once they're set asks at once.
+          const unset = 'error' in token && token.error === UNSET;
+          tramBackoff = unset ? undefined : { failed: now, wait: Math.min(2 * (state.tramBackoff?.wait ?? EVERY / 2), TRAM_WAIT_MAX) };
+          throw error;
+        }
+      }
       return HALVES.flatMap((half) => tramReports(half, halves[half], now, said));
     });
+    if (tramBackoff?.failed === now) freshness.status += `; backing off, next try at ${clock(now + tramBackoff.wait)}`;
     // The token is kept for as long as it lasts through the next run's answers, and TRAM accepts it.
     const refused = HALVES.some((half) => [halves[half].positions, halves[half].updates].some((f) => 'status' in f && f.status === 401));
     if (refused || (tram && tram.expires < now + EVERY + TIMEOUT)) tram = undefined;
   }
   const { metro } = responses;
   if (metro) refresh('metro', METRO_EVERY, () => metroReports(read('itransit', metro)));
-  const next: State = { feeds, reports, updated, fgc, tram };
-  const due: Feed[] = ['rodalies', 'tram'];
+  const next: State = { feeds, reports, updated, fgc, tram, tramBackoff };
+  const due: Feed[] = ['rodalies'];
+  if (tramDue(next, now + EVERY)) due.push('tram');
   if (fgcDue(next, now + EVERY)) due.push('fgc');
   // Every other run, however long TMB takes to answer, so two requests are never less than 30 s apart.
   if (!metro) due.push('metro');
   return { snapshot: { generated: now, feeds, reports: Object.values(reports).flat() }, state: next, due };
+}
+
+/** Whether TRAM is due on the run at a moment: on every run, but after a request for its access token fails, not until its wait is over. */
+function tramDue({ tramBackoff: backoff }: State, at: number): boolean {
+  // On the run nearest its time, as with FGC.
+  return !backoff || at > backoff.failed + backoff.wait - EVERY / 2;
 }
 
 /**
