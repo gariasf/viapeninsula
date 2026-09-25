@@ -3,6 +3,7 @@
 // day's bundle cut down to the Trips they name. `npm run record -- <dir> [minutes]` writes to <dir>:
 //
 // - vehicle_positions.json and trip_updates.json, as Renfe served them;
+// - bundle.json, that day's whole bundle, which the tests cut their Trips from;
 // - replay.json.gz, `{ bundle, received }` gzipped, what `jumps()` and `trainsAt()` take: the shapes alone are megabytes.
 //
 // It needs no key: Renfe's feeds, the bundles and the snapshot are all public.
@@ -32,7 +33,9 @@ console.log(`Renfe's feeds recorded at ${new Date().toISOString()}`);
 const today = madridDate(new Date());
 const day = (JSON.parse(await get(`${LIVE_URL}/manifest.json`)) as Manifest).days.find((d) => d.date === today);
 if (!day) throw new Error(`The manifest has no bundle for ${today}: publish it with \`npm run daily\` first`);
-const bundle: Bundle = JSON.parse(await get(`${LIVE_URL}/${day.bundle}`));
+const json = await get(`${LIVE_URL}/${day.bundle}`);
+await writeFile(join(dir, 'bundle.json'), json);
+const bundle: Bundle = JSON.parse(json);
 
 // As the map does: each look for live data records the snapshot got, or where none came, the last one.
 const received: Received[] = [];
