@@ -150,8 +150,8 @@ const [JUMP_TIME, JUMP_DIST] = [60, 1000];
 /**
  * The last replay, which the map asks for again every frame until its next snapshot arrives.
  * ponytail: every snapshot kept (KEEP) is replayed each time one arrives, which took about 8 ms on a
- * laptop for half an hour of Rodalies' 80 Live Trains, and 12 ms with FGC's 50 more. Fold each new
- * one into the last replay as TRAM and the Metro go Live, or if phones stutter.
+ * laptop for half an hour of Rodalies' 80 Live Trains, and 12 ms with FGC's 50 more. TRAM's 25 add
+ * about a fifth. Fold each new one into the last replay as TRAM and the Metro go Live, or if phones stutter.
  */
 let last: { bundle: Bundle; received: Received[]; eases: Map<string, Ease>; heard: Map<string, Heard> } | undefined;
 
@@ -264,17 +264,21 @@ const delays = new WeakMap<Report, { trip: Trip; delay: number }>();
 
 /**
  * A report's Delay for its Train, in seconds: while it runs between Stations, from where its GPS
- * puts it on its Trip's track, and otherwise, standing at or pinned to a Station or with no
- * position, its operator's figure, or how late it is where its operator expects it at a Station.
+ * puts it on its Trip's track, or how far along it TRAM has it, and otherwise, standing at or pinned
+ * to a Station or with no position, its operator's figure, or how late it is where its operator
+ * expects it at a Station.
  */
 function delayOf(trip: Trip, calls: Call[], shape: Shape, profile: SpeedProfile, report: Report, noonMinus12h: number): number {
   const known = delays.get(report);
   if (known?.trip === trip) return known.delay;
   const [reported, { position }] = [(report.at - noonMinus12h) / 1000, report];
   let delay = report.delay ?? expectedDelay(trip, report.expected, noonMinus12h) ?? 0;
-  if (position && 'lon' in position) {
+  if (position && !('near' in position)) {
     const dists = calls.map((c) => c.dist);
-    const passed = passing(calls, profile, nearest(shape, Math.min(...dists), Math.max(...dists), position), reported - delay);
+    // TRAM counts from a Trip's first Station, whichever way along its track the Trip runs.
+    const [first = 0, last = 0] = [dists[0], dists.at(-1)];
+    const d = 'lon' in position ? nearest(shape, Math.min(...dists), Math.max(...dists), position) : first + Math.sign(last - first) * position.along;
+    const passed = passing(calls, profile, d, reported - delay);
     if (passed !== undefined) delay = reported - passed;
   }
   delays.set(report, { trip, delay });

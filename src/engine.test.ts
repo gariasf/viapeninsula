@@ -554,3 +554,60 @@ test("an FGC Train Geotren has standing at a Station is Live, running as late as
   expect(s2([{ snapshot: FGC_LIVE, at: FGC_LIVE.generated }])).toMatchObject({ live: true });
   expect(s2([{ snapshot: FGC_LIVE, at: FGC_LIVE.generated }])?.dist).toBeCloseTo(trainsAt(FGC, moment - 180_000).find((t) => t.trip.id === S2)?.dist ?? NaN, 3);
 });
+
+// TRAM's live data as the fetcher made it into a snapshot at 11:44:50 on Friday 25 September 2026,
+// from where TRAM had its Units and its trip updates as recorded then, received as it was written,
+// and stretches of three of its Trips that day from their first Station, as the daily build placed them.
+const TRAM_LIVE: Snapshot = JSON.parse(readFileSync(new URL('fetcher/fixtures/tram/snapshot.json', import.meta.url), 'utf8'));
+const TRAM_RECEIVED: Received[] = [{ snapshot: TRAM_LIVE, at: TRAM_LIVE.generated }];
+const [T1, T2, T5] = ['tram:TBX:2579_0094', 'tram:TBX:2579_0198', 'tram:TBS:1947_0758'];
+const TRAM: Bundle = bundleOf('2026-09-25', { id: 'tram', name: 'TRAM', profile: { acceleration: 1.2, braking: 1.2, topSpeed: 70 / 3.6, dwell: 10 } }, {
+  // A Trambaix T1 towards Bon Viatge.
+  [T1]: {
+    line: 'tram:T1',
+    calls: [
+      ['tram:ST-172', '11:24:00', '11:24:00', 0, 2.143135, 41.3922223], // Francesc Macià
+      ['tram:ST-186', '11:43:00', '11:43:10', 5508, 2.0886101, 41.3768574], // Pont d'Esplugues
+      ['tram:ST-187', '11:44:30', '11:44:40', 6105, 2.0839786, 41.372794], // La Sardana
+      ['tram:ST-188', '11:46:00', '11:46:10', 6537, 2.0809029, 41.3696737], // Montesa
+    ],
+  },
+  // A Trambaix T2 towards Llevant-Les Planes.
+  [T2]: {
+    line: 'tram:T2',
+    calls: [
+      ['tram:ST-172', '11:18:00', '11:18:00', 0, 2.143135, 41.3922223], // Francesc Macià
+      ['tram:ST-190', '11:43:30', '11:43:40', 7700, 2.0726635, 41.361256], // Ignasi Iglésias
+      ['tram:ST-191', '11:45:00', '11:45:10', 8151, 2.0701988, 41.3576808], // Cornellà Centre
+      ['tram:ST-192', '11:47:00', '11:47:10', 8563, 2.0660992, 41.3566671], // Les Aigües
+    ],
+  },
+  // A Trambesòs T5 towards Ciutadella.
+  [T5]: {
+    line: 'tram:T5',
+    calls: [
+      ['tram:ST-206', '11:40:00', '11:40:00', 0, 2.1874347, 41.4025373], // Glòries
+      ['tram:ST-204', '11:43:30', '11:43:40', 962, 2.1869395, 41.3940691], // Marina
+      ['tram:ST-203', '11:45:30', '11:45:40', 1450, 2.1885747, 41.3901689], // Wellington|UPF
+    ],
+  },
+});
+
+/** A TRAM Trip's Train at 11:44:50 on 25 September 2026, if it's on the map, with the live data received by then. */
+const tram = (trip: string, received: Received[] = [], plus = 0) => trainsAt(TRAM, Date.parse('2026-09-25T11:44:50+02:00') + plus * 1000, received).find((t) => t.trip.id === trip);
+
+test("a TRAM Train between Stations is Live, where its distance since its Trip's first Station puts it, whatever TRAM's Delay says", () => {
+  // TRAM has the T1 6,120 m from Francesc Macià, 15 m past La Sardana, which its timetable has it
+  // leave at 11:44:40. TRAM's own figure, 10 s late, would have it just leaving.
+  expect(tram(T1, TRAM_RECEIVED)).toMatchObject({ live: true });
+  expect(tram(T1, TRAM_RECEIVED)?.dist).toBeCloseTo(6120, 3);
+  // It has the T5 992 m from Glòries, 30 m past Marina, where its own figure, 68 s late, would have it 2 m past.
+  expect(tram(T5, TRAM_RECEIVED)).toMatchObject({ live: true });
+  expect(tram(T5, TRAM_RECEIVED)?.dist).toBeCloseTo(992, 3);
+});
+
+test("a TRAM Train standing at a Station, where TRAM's distance reads 0, is Live, running as late or early as TRAM says", () => {
+  // TRAM has the T2 standing at Cornellà Centre, 82 s early: where its timetable has it 82 s later.
+  expect(tram(T2, TRAM_RECEIVED)).toMatchObject({ live: true });
+  expect(tram(T2, TRAM_RECEIVED)?.dist).toBeCloseTo(tram(T2, [], 82)?.dist ?? NaN, 3);
+});

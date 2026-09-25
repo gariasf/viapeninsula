@@ -3,7 +3,7 @@
 // thin glue around the fetcher step.
 
 import { DurableObject } from 'cloudflare:workers';
-import { address, EVERY, START, step, type Fetched, type Responses, type Stored } from './step.ts';
+import { accessToken, address, EVERY, START, step, TIMEOUT, type Fetched, type Responses, type Stored } from './step.ts';
 
 /** Renfe's Cercanías live data, as JSON: Rodalies' is in it. */
 const RENFE = {
@@ -22,9 +22,15 @@ const FGC = {
   lookup: `${FGC_API}/trip-updates-gtfs_realtime/records?limit=1`,
 };
 
+/** TRAM's open data, whose API numbers Trambaix 1 and Trambesòs 2, and issues access tokens for an hour. */
+const TRAM_API = 'https://opendata.tram.cat';
+
 interface Env {
   FETCHER: DurableObjectNamespace<Fetcher>;
   LIVE: R2Bucket;
+  /** TRAM's credentials for its API, as Worker secrets. */
+  TRAM_CLIENT_ID?: string;
+  TRAM_CLIENT_SECRET?: string;
 }
 
 export class Fetcher extends DurableObject<Env> {
@@ -38,8 +44,12 @@ export class Fetcher extends DurableObject<Env> {
     // The next run is set first, so that a failed run never stops them.
     await this.ctx.storage.setAlarm(Date.now() + EVERY);
     const { state, due } = (await this.ctx.storage.get<Stored>('stored')) ?? START;
-    const [rodalies, fgc] = await Promise.all([due.includes('rodalies') ? fetchRodalies() : undefined, due.includes('fgc') ? fetchFgc(state.fgc?.file) : undefined]);
-    const run = step(state, { rodalies, fgc } satisfies Responses, Date.now());
+    const [rodalies, fgc, tram] = await Promise.all([
+      due.includes('rodalies') ? fetchRodalies() : undefined,
+      due.includes('fgc') ? fetchFgc(state.fgc?.file) : undefined,
+      due.includes('tram') ? fetchTram(this.env, state.tram?.token) : undefined,
+    ]);
+    const run = step(state, { rodalies, fgc, tram } satisfies Responses, Date.now());
     await this.ctx.storage.put('stored', { state: run.state, due: run.due } satisfies Stored);
     await this.env.LIVE.put('snapshot.json', JSON.stringify(run.snapshot), {
       httpMetadata: { contentType: 'application/json', cacheControl: 'public, max-age=15' },
@@ -67,16 +77,31 @@ async function fetchFgc(file: string | undefined): Promise<Responses['fgc']> {
   return { positions, updates, lookup };
 }
 
+/** TRAM's live data for both its halves, with the access token the step keeps, or where it keeps none, a new one. */
+async function fetchTram({ TRAM_CLIENT_ID: id, TRAM_CLIENT_SECRET: secret }: Env, kept: string | undefined): Promise<Responses['tram']> {
+  const body = new URLSearchParams({ grant_type: 'client_credentials', client_id: id ?? '', client_secret: secret ?? '' });
+  const token = kept ? undefined : id && secret ? await get(`${TRAM_API}/connect/token`, text, { method: 'POST', body }) : { error: 'its credentials are not set' };
+  const bearer = token ? accessToken(token) : kept;
+  const half = async (networkId: number): Promise<NonNullable<Responses['tram']>['TBX']> => {
+    if (!bearer) return { positions: { error: 'no access token' }, updates: { error: 'no access token' } };
+    const init = { headers: { authorization: `Bearer ${bearer}` } };
+    const [positions, updates] = await Promise.all([get(`${TRAM_API}/api/v1/activevehicles?networkId=${networkId}`, text, init), get(`${TRAM_API}/api/v1/gtfsrealtime?networkId=${networkId}`, bytes, init)]);
+    return { positions, updates };
+  };
+  const [TBX, TBS] = await Promise.all([half(1), half(2)]);
+  return { token, TBX, TBS };
+}
+
 /**
  * One request, as a raw response for the step, with how many requests its API has left today where
- * it says. A request that hangs gives up after 10 s, well before the next run. The timer is cleared
- * as soon as it's answered, since a pending one keeps the run going.
+ * it says. A request that hangs gives up after TIMEOUT, well before the next run. The timer is
+ * cleared as soon as it's answered, since a pending one keeps the run going.
  */
-async function get<Body>(url: string, read: (res: Response) => Promise<Body>): Promise<Fetched<Body>> {
+async function get<Body>(url: string, read: (res: Response) => Promise<Body>, init: RequestInit = {}): Promise<Fetched<Body>> {
   const abort = new AbortController();
-  const timer = setTimeout(() => abort.abort(new Error('no answer in 10 s')), 10_000);
+  const timer = setTimeout(() => abort.abort(new Error(`no answer in ${TIMEOUT / 1000} s`)), TIMEOUT);
   try {
-    const res = await fetch(url, { signal: abort.signal });
+    const res = await fetch(url, { ...init, signal: abort.signal });
     const remaining = res.headers.get('x-ratelimit-remaining');
     return { status: res.status, body: await read(res), remaining: remaining === null ? undefined : Number(remaining) };
   } catch (error) {

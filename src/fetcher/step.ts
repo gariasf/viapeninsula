@@ -8,6 +8,9 @@ import type { Freshness, Report, Snapshot } from '../bundle.ts';
 /** How often the fetcher runs, in ms. */
 export const EVERY = 20_000;
 
+/** How long the Worker waits for an answer to a request before it gives up, in ms. */
+export const TIMEOUT = 10_000;
+
 /**
  * How often FGC is fetched, in ms: every 2 minutes, about as often as FGC updates its live data, or
  * every 5 while its API has fewer than 1,000 requests left today. The API allows 5,000 a day to each
@@ -19,7 +22,11 @@ const [FGC_EVERY, FGC_SLOW, FGC_FEW] = [120_000, 300_000, 1000];
 const DAY = 86_400_000;
 
 /** A live feed, by the Network whose Trains it reports. */
-export type Feed = 'rodalies' | 'fgc';
+export type Feed = 'rodalies' | 'fgc' | 'tram';
+
+/** TRAM's two halves, Trambaix and Trambesòs, as its timetable's feeds name them. */
+const HALVES = ['TBX', 'TBS'] as const;
+type Half = (typeof HALVES)[number];
 
 /** What one request got back: its HTTP status, its body, and how many requests its API has left today where it says; or why it got nothing. */
 export type Fetched<Body = string> = { status: number; body: Body; remaining?: number } | { error: string };
@@ -30,9 +37,14 @@ export interface Responses {
   rodalies?: { positions: Fetched; updates: Fetched };
   /** FGC's positions from Geotren, as JSON, and its trip updates, as GTFS-RT; and where the run looked up the trip-updates file, if it had to. */
   fgc?: { positions: Fetched; updates: Fetched<Uint8Array>; lookup?: Fetched };
+  /**
+   * For each of TRAM's halves, where its Units are, from activevehicles, as JSON, and its trip updates,
+   * as GTFS-RT, which name the Trip each Unit runs; and the access token the run asked for, if it had to.
+   */
+  tram?: { token?: Fetched } & Record<Half, { positions: Fetched; updates: Fetched<Uint8Array> }>;
 }
 
-/** What the step keeps between runs: each feed's freshness, its reports from the last run it worked, and what fetching FGC needs. */
+/** What the step keeps between runs: each feed's freshness, its reports from the last run it worked, and what fetching FGC and TRAM needs. */
 export interface State {
   feeds: Record<string, Freshness>;
   reports: Record<string, Report[]>;
@@ -46,6 +58,8 @@ export interface State {
     /** How many requests its API had left today, as its last answers said. */
     remaining?: number;
   };
+  /** TRAM's access token, and when it runs out, in ms since 1970, until a run has to ask for another. */
+  tram?: { token: string; expires: number };
 }
 
 /** What the fetcher stores between runs: the step's state, and the feeds due on the next run. */
@@ -55,7 +69,7 @@ export interface Stored {
 }
 
 /** What the fetcher starts from. */
-export const START: Stored = { state: { feeds: {}, reports: {} }, due: ['rodalies', 'fgc'] };
+export const START: Stored = { state: { feeds: {}, reports: {} }, due: ['rodalies', 'fgc', 'tram'] };
 
 /**
  * One run: the stored state, this run's raw responses and the time now (ms since 1970) go in; the
@@ -64,15 +78,21 @@ export const START: Stored = { state: { feeds: {}, reports: {} }, due: ['rodalie
 export function step(state: State, responses: Responses, now: number): Stored & { snapshot: Snapshot } {
   // A response that fails never replaces the last good one: that feed's reports stay as they were.
   const [feeds, reports] = [{ ...state.feeds }, { ...state.reports }];
+  /** Reads a feed's reports from this run's responses where they can be, and gives its freshness after this try. */
+  const refresh = (feed: Feed, every: number, reported: () => Report[]): Freshness => {
+    let freshness: Freshness;
+    try {
+      reports[feed] = reported();
+      freshness = { lastSuccess: now, lastAttempt: now, status: 'ok', every };
+    } catch (error) {
+      freshness = { ...feeds[feed], lastAttempt: now, status: (error as Error).message, every };
+    }
+    return (feeds[feed] = freshness);
+  };
   let fgc = state.fgc;
   if (responses.rodalies) {
-    try {
-      const { positions, updates } = responses.rodalies;
-      reports.rodalies = rodalies(read('vehicle_positions', positions), read('trip_updates', updates));
-      feeds.rodalies = { lastSuccess: now, lastAttempt: now, status: 'ok', every: EVERY };
-    } catch (error) {
-      feeds.rodalies = { ...feeds.rodalies, lastAttempt: now, status: (error as Error).message, every: EVERY };
-    }
+    const { positions, updates } = responses.rodalies;
+    refresh('rodalies', EVERY, () => rodalies(read('vehicle_positions', positions), read('trip_updates', updates)));
   }
   if (responses.fgc) {
     const { positions, updates, lookup } = responses.fgc;
@@ -82,18 +102,27 @@ export function step(state: State, responses: Responses, now: number): Stored & 
     fgc = { ...tripUpdates.fgc, remaining };
     // With none left, its Trains were last placed as often as before, and it isn't tried again.
     const every = remaining === 0 ? (state.feeds.fgc?.every ?? FGC_EVERY) : fgcEvery(remaining);
-    try {
+    const freshness = refresh('fgc', every, () => {
       const trains = read<Geotren>('geotren', positions);
       if (!tripUpdates.feed) throw tripUpdates.error;
-      reports.fgc = fgcReports(trains, tripUpdates.feed);
-      feeds.fgc = { lastSuccess: now, lastAttempt: now, status: 'ok', every };
-    } catch (error) {
-      feeds.fgc = { ...feeds.fgc, lastAttempt: now, status: (error as Error).message, every };
-    }
-    if (remaining === 0) feeds.fgc.status = 'no requests left until 00:00 UTC';
+      return fgcReports(trains, tripUpdates.feed);
+    });
+    if (remaining === 0) freshness.status = 'no requests left until 00:00 UTC';
   }
-  const next: State = { feeds, reports, fgc };
-  const due: Feed[] = ['rodalies'];
+  // A token the run asked for replaces the last, or where TRAM didn't issue one, the next run asks again.
+  let tram = responses.tram?.token ? undefined : state.tram;
+  if (responses.tram) {
+    const { token, ...halves } = responses.tram;
+    refresh('tram', EVERY, () => {
+      if (token) tram = issued(token, now);
+      return HALVES.flatMap((half) => tramReports(half, halves[half], now));
+    });
+    // The token is kept for as long as it lasts through the next run's answers, and TRAM accepts it.
+    const refused = HALVES.some((half) => [halves[half].positions, halves[half].updates].some((f) => 'status' in f && f.status === 401));
+    if (refused || (tram && tram.expires < now + EVERY + TIMEOUT)) tram = undefined;
+  }
+  const next: State = { feeds, reports, fgc, tram };
+  const due: Feed[] = ['rodalies', 'tram'];
   if (fgcDue(next, now + EVERY)) due.push('fgc');
   return { snapshot: { generated: now, feeds, reports: Object.values(reports).flat() }, state: next, due };
 }
@@ -199,12 +228,13 @@ interface Geotren {
 }
 
 /**
- * FGC's trip updates: when FGC wrote them, in seconds since 1970, and for each Trip, when FGC updated
- * it, and the first stop it gives a time for, by its platform, such as PC1, with when FGC expects it there.
+ * A feed of trip updates, as FGC and TRAM publish them: when it was written, in seconds since 1970,
+ * and for each Trip, when it was updated, the Unit running it where it says, and the first stop it
+ * gives a time for, by its platform, such as FGC's PC1, with when the Train is expected there.
  */
 interface TripUpdates {
   written: number;
-  trips: { id: string; updated?: number; platform?: string; expected?: number }[];
+  trips: { id: string; updated?: number; unit?: string; platform?: string; expected?: number }[];
 }
 
 /**
@@ -238,7 +268,7 @@ function fgcReports(positions: Geotren, updates: TripUpdates): Report[] {
 function readTripUpdates(fgc: State['fgc'] = {}, updates: Fetched<Uint8Array>, lookup: Fetched | undefined): { fgc: NonNullable<State['fgc']>; feed?: TripUpdates; error?: unknown } {
   let feed: TripUpdates;
   try {
-    feed = gtfsRt(body('trip_updates', updates));
+    feed = gtfsRt('trip_updates', updates);
   } catch (error) {
     return { fgc: { ...fgc, file: undefined }, error };
   }
@@ -257,15 +287,63 @@ export function address(lookup: Fetched): string | undefined {
   }
 }
 
+/** The access token TRAM issued in answer to a request for one, if it did. */
+export function accessToken(answer: Fetched): string | undefined {
+  try {
+    return issued(answer, 0).token;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The access token TRAM issued a run that asked for one, and when it runs out, in ms since 1970, or an error that says why there's none. */
+function issued(answer: Fetched, now: number): NonNullable<State['tram']> {
+  const { access_token: token, expires_in: lasts } = read<{ access_token?: string; expires_in?: number } | null>('token', answer) ?? {};
+  if (!token || !lasts) throw new Error('token: none issued');
+  return { token, expires: now + lasts * 1000 };
+}
+
 /**
- * The parts of a GTFS-RT feed of trip updates the step reads, from its protocol buffers: its header's
- * time, and each trip update's Trip, time and first stop with a time (field numbers as GTFS-RT's).
+ * One of TRAM's Units, as its activevehicles has it: the parts the step reads. Its line is 0 while
+ * it's out of service. Its position is how far its Train has come since its Trip's first Station, in
+ * metres, and 0 while it stands at a Station: the one it's at or has just left, by TRAM's number for
+ * the platform. Its delay is in seconds, early where it's negative.
  */
-function gtfsRt(bytes: Uint8Array): TripUpdates {
+interface ActiveVehicle {
+  vehicleId: number;
+  lineName: string;
+  originStopCode: number;
+  vehiclePosition: number;
+  delay: number;
+}
+
+/**
+ * The Trains one of TRAM's halves has in service, from where it has its Units and its trip updates,
+ * which name the Trip each Unit runs. A Train whose Trip they don't name, as before it starts, gets
+ * no report. Each report is as of the run, since TRAM's figures carry no time of their own.
+ */
+function tramReports(half: Half, { positions, updates }: NonNullable<Responses['tram']>[Half], now: number): Report[] {
+  const trips = new Map(gtfsRt(`${half} gtfsrealtime`, updates).trips.map((t) => [t.unit, t.id]));
+  const units = read<ActiveVehicle[]>(`${half} activevehicles`, positions);
+  if (!Array.isArray(units)) throw new Error(`${half} activevehicles: not a list`);
+  return units.flatMap(({ vehicleId, lineName, originStopCode, vehiclePosition, delay }) => {
+    const trip = trips.get(String(vehicleId));
+    const position = vehiclePosition ? { along: vehiclePosition } : { near: `tram:${originStopCode}` };
+    return trip && lineName !== '0' ? [{ trip: `tram:${half}:${trip}`, at: now, position, delay }] : [];
+  });
+}
+
+/**
+ * The parts of a GTFS-RT feed of trip updates the step reads, from its protocol buffers in a response:
+ * its header's time, and each trip update's Trip, time, Unit and first stop with a time (field
+ * numbers as GTFS-RT's). Or an error that says why it can't be read.
+ */
+function gtfsRt(file: string, fetched: Fetched<Uint8Array>): TripUpdates {
+  const bytes = body(file, fetched);
   try {
     return new PbfReader(bytes).readFields(feedMessage, { written: 0, trips: [] });
   } catch {
-    throw new Error('trip_updates: not GTFS-RT');
+    throw new Error(`${file}: not GTFS-RT`);
   }
 }
 
@@ -283,6 +361,9 @@ function tripUpdate(field: number, update: TripUpdates['trips'][number], pbf: Pb
     if (field === 1) trip.id = pbf.readString();
   }, { id: '' }).id;
   if (field === 4) update.updated = pbf.readVarint();
+  if (field === 3) update.unit = pbf.readMessage((field, vehicle: { id?: string }) => {
+    if (field === 1) vehicle.id = pbf.readString();
+  }, {}).id;
   if (field === 2 && !update.expected) {
     const stop = pbf.readMessage<Stop>(stopTimeUpdate, {});
     if (stop.time) [update.platform, update.expected] = [stop.platform, stop.time];

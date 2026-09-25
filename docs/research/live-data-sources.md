@@ -150,6 +150,15 @@ From its [README](https://github.com/siriushsu/taiwan-rail-live):
 - **`GET /api/v1/gtfsrealtime?networkId=`**: GTFS-RT protobuf. Only trip updates were observed (7 TBX, 5 TBS). The manual says Trambesòs also has vehicle positions, but none were seen. Trip updates match static at 100%.
 - **Also documented:** alerts, occupancy by network/vehicle, timetables, trips.
 - **Open door:** on 2026-09-24 these endpoints answered **without a token**. The terms still require registration for "dynamic data", so don't build on that.
+- **Measured again on Friday 25 September 2026, 11:44–11:55, for #11** (30 fetches of both networks, 20 s apart, with one token):
+  - `activevehicles` names no Trip: `vehicleId` is the Unit. The GTFS-RT trip updates name each Trip's `trip_id` and its Unit's `vehicle.id`, which is `vehicleId`. That joined 711 of 796 readings of trams in service. Their Line agreed in all 711, and every Trip was in that day's timetable. Most of the rest stood where their next Trip starts, such as Francesc Macià, Glòries or Verdaguer, before the trip updates listed them, and a few went missing for a fetch or two mid-Trip. The trip updates also listed 8 Trips whose Unit `activevehicles` didn't have in service.
+  - `vehiclePosition` counts metres from the Trip's first stop, such as 6,120 m for a T1 between La Sardana and Montesa. `originStopCode` is the stop the tram stands at or last left. The position reads 0 while the tram stands, sometimes between stops, and while it waits at its first stop (`LIGN`, not `inStop`). It moves in steps: that T1 read 6,120 m twice, 20 s apart.
+  - The bundle's distances along each TRAM Trip matched TRAM's `shape_dist_traveled` within 26 m (median 1 m), so a Trip's first stop plus `vehiclePosition` lands on its traced track.
+  - The Delay a moving tram's `vehiclePosition` gives, taken as of the fetch, agreed with TRAM's `delay` to a median of −2 s (10th–90th percentile −14 to +11 s). As of the trip updates' header, 6 s older, it was −7 s.
+  - For a tram standing at a Station, TRAM's `delay` put it a median of 42 s past that Station on its timetable (quartiles 23 s and 68 s), and 162 of 464 readings more than a minute past.
+  - The stop codes aren't always TRAM's timetable's. On T4 by Glòries, `activevehicles` named 2003 Monumental, and a few minutes later Ca l'Aranyó, and 2203 Glòries. The timetable has 2003 as Glòries' platform A. The names were right.
+  - Out-of-service trams (`lineName` "0") were `TDEP`, with every other field 0 or empty: 7 of 23 on Trambaix, 8 of 20 on Trambesòs.
+  - A token lasts 3,599 s. The API sent no rate-limit headers, and answered in about 125 ms.
 - No CORS headers.
 - **Terms** ([PDF](https://opendata.tram.cat/assets/pdf/condicions_en.pdf)):
   - attribution "Powered by TRAM Barcelona", with a link to tram.cat
