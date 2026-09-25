@@ -182,11 +182,11 @@ test('reports an FGC Train only the trip updates cover as FGC last updated it, w
   });
 });
 
-test('writes a snapshot of a few kilobytes with Rodalies and FGC, as the CDN compresses it', () => {
-  // These 108 Trains take 2,319 bytes.
-  const both = step(run().state, { fgc: FGC }, NOW + 20_000).snapshot;
-  expect(both.reports).toHaveLength(46 + 62);
-  expect(gzipSync(JSON.stringify(both)).length).toBeLessThan(3000);
+test('writes a snapshot of a few kilobytes with Rodalies, FGC and TRAM, as the CDN compresses it', () => {
+  // These 132 Trains take 2,654 bytes.
+  const all = step(step(run().state, { fgc: FGC }, NOW + 20_000).state, { tram: { token: TOKEN, ...TRAM } }, NOW + 40_000).snapshot;
+  expect(all.reports).toHaveLength(46 + 62 + 24);
+  expect(gzipSync(JSON.stringify(all)).length).toBeLessThan(3000);
 });
 
 /** A trip-updates file that FGC wrote at a moment, listing no Trains. */
@@ -310,4 +310,146 @@ test("keeps where the trip-updates file is, and looks it up again only when its 
 test('stays within about 1,440 FGC requests a day, under a third of the 5,000 its API allows each IP', () => {
   const { made } = refreshes(Date.parse('2026-09-25T00:00:00Z'), 24 * 60, () => ({ remaining: 4000 }));
   expect(made.flatMap((m) => m.requests)).toHaveLength(1 + 720 * 2);
+});
+
+// TRAM's live data as recorded at 11:44:50 on Friday 25 September 2026: where the Units of
+// Trambaix (TBX) and Trambesòs (TBS) were, and their trip updates, which name each Unit's Trip.
+const tramRecorded = (file: string) => readFileSync(new URL(`fixtures/tram/${file}`, import.meta.url));
+const TRAM = {
+  TBX: { positions: { status: 200, body: tramRecorded('vehicles-tbx.json').toString() }, updates: { status: 200, body: new Uint8Array(tramRecorded('updates-tbx.pb')) } },
+  TBS: { positions: { status: 200, body: tramRecorded('vehicles-tbs.json').toString() }, updates: { status: 200, body: new Uint8Array(tramRecorded('updates-tbs.pb')) } },
+};
+
+/** An access token, made up, as TRAM issues one for an hour. */
+const TOKEN = { status: 200, body: JSON.stringify({ resource: 'resource_server', access_token: 'made-up token', token_type: 'Bearer', expires_in: 3599 }) };
+
+/** When the run fetched them. */
+const TRAM_NOW = Date.parse('2026-09-25T11:44:50+02:00');
+
+/** The fetcher's first run, fetching TRAM, for which it asks for an access token. */
+const tramRun = (tram: Responses['tram'] = { token: TOKEN, ...TRAM }) => step(START.state, { tram }, TRAM_NOW);
+
+test('makes one report for each Train TRAM has in service whose trip update names its Trip', () => {
+  // Trambaix has 16 Units in service and Trambesòs 12. The trip updates name the Trips of 15 and 9:
+  // the other 4 stand where their next Trip starts, before it does.
+  const trips = tramRun().snapshot.reports.map((r) => r.trip);
+  expect(trips.filter((t) => t.startsWith('tram:TBX:'))).toHaveLength(15);
+  expect(trips.filter((t) => t.startsWith('tram:TBS:'))).toHaveLength(9);
+  expect(new Set(trips).size).toBe(trips.length);
+});
+
+/** What the run reports about a TRAM Trip. */
+const tramReport = (trip: string) => tramRun().snapshot.reports.find((r) => r.trip === `tram:${trip}`);
+
+test("gives a moving TRAM Train its distance since its Trip's first Station, and one standing at a Station, where that reads 0, that Station, each with TRAM's Delay", () => {
+  // A T1 towards Bon Viatge, 6,120 m from Francesc Macià, between La Sardana and Montesa, 10 s late.
+  expect(tramReport('TBX:2579_0094')).toEqual({ trip: 'tram:TBX:2579_0094', at: TRAM_NOW, position: { along: 6120 }, delay: 10 });
+  // A T2 towards Llevant-Les Planes standing at Cornellà Centre, at the platform TRAM numbers 1019, 82 s early.
+  expect(tramReport('TBX:2579_0198')).toEqual({ trip: 'tram:TBX:2579_0198', at: TRAM_NOW, position: { near: 'tram:1019' }, delay: -82 });
+  // Of the 24 Trains, 6 are between Stations.
+  const positions = tramRun().snapshot.reports.map((r) => r.position);
+  expect(positions.filter((p) => p && 'along' in p)).toHaveLength(6);
+  expect(positions.filter((p) => p && 'near' in p)).toHaveLength(18);
+});
+
+test('never reports a Unit out of service, which TRAM puts on line 0, even where a trip update names its Trip', () => {
+  // TRAM has 7 of Trambaix's Units on line 0 and 8 of Trambesòs', none of them in its trip updates.
+  // Made up: the T1 between La Sardana and Montesa taken out of service, with its trip update left.
+  const units = JSON.parse(TRAM.TBX.positions.body).map((v: { vehicleId: number }) => (v.vehicleId === 7 ? { ...v, lineId: 0, lineName: '0' } : v));
+  const { reports } = tramRun({ token: TOKEN, ...TRAM, TBX: { ...TRAM.TBX, positions: { status: 200, body: JSON.stringify(units) } } }).snapshot;
+  expect(reports.map((r) => r.trip)).not.toContain('tram:TBX:2579_0094');
+  expect(reports).toHaveLength(23);
+});
+
+/** Some of what TRAM answers a run with. */
+type TramAnswer = Partial<NonNullable<Responses['tram']>>;
+
+test("records when TRAM was last tried and last read, how the last try went, and how often it's tried", () => {
+  const fine = { lastSuccess: TRAM_NOW, lastAttempt: TRAM_NOW, status: 'ok', every: 20_000 };
+  expect(tramRun().snapshot.feeds).toEqual({ tram: fine });
+
+  // Each run after, 20 s apart, finds one of the responses down, garbled or empty.
+  const failures: [TramAnswer, string][] = [
+    [{ TBX: { ...TRAM.TBX, positions: { status: 503, body: '' } } }, 'TBX activevehicles: HTTP 503'],
+    [{ TBS: { ...TRAM.TBS, positions: { status: 200, body: '<html>' } } }, 'TBS activevehicles: not JSON'],
+    [{ TBS: { ...TRAM.TBS, positions: { status: 200, body: '{"message": "An error has occurred."}' } } }, 'TBS activevehicles: not a list'],
+    [{ TBX: { ...TRAM.TBX, updates: { error: 'Error: no answer in 10 s' } } }, 'TBX gtfsrealtime: Error: no answer in 10 s'],
+    [{ TBX: { ...TRAM.TBX, updates: { status: 200, body: new TextEncoder().encode('<html>') } } }, 'TBX gtfsrealtime: not GTFS-RT'],
+    [{ TBS: { ...TRAM.TBS, updates: { status: 200, body: new Uint8Array() } } }, 'TBS gtfsrealtime: empty'],
+  ];
+  let state = tramRun().state;
+  for (const [i, [answer, status]] of failures.entries()) {
+    const later = TRAM_NOW + (i + 1) * 20_000;
+    const failed = step(state, { tram: { ...TRAM, ...answer } }, later);
+    expect(failed.snapshot.feeds).toEqual({ tram: { lastSuccess: TRAM_NOW, lastAttempt: later, status, every: 20_000 } });
+    state = failed.state;
+  }
+});
+
+test("keeps TRAM's last good reports through runs whose responses fail, for both halves where one does", () => {
+  const good = tramRun();
+  const failures: TramAnswer[] = [{ TBS: { ...TRAM.TBS, positions: { status: 503, body: '' } } }, { TBX: { ...TRAM.TBX, updates: { error: 'Error: no answer in 10 s' } } }];
+  let state = good.state;
+  for (const [i, answer] of failures.entries()) {
+    const failed = step(state, { tram: { ...TRAM, ...answer } }, TRAM_NOW + (i + 1) * 20_000);
+    expect(failed.snapshot.reports).toEqual(good.snapshot.reports);
+    state = failed.state;
+  }
+});
+
+test('fetches TRAM on every run', () => {
+  expect(START.due).toContain('tram');
+  expect(tramRun().due).toContain('tram');
+  expect(run().due).toContain('tram');
+});
+
+/**
+ * The fetcher's runs every 20 s from a moment, for so many minutes, each fetching TRAM where it's
+ * due, as the Worker does: asking for an access token first where the step keeps none. TRAM answers
+ * as recorded, and issues each token for an hour, unless it answers otherwise. Gives the runs that
+ * asked for a token, and what the fetcher stores at the end.
+ */
+function tramRuns(from: number, minutes: number, answer: (moment: number) => TramAnswer = () => ({}), stored: Stored = START) {
+  const asked: { at: number }[] = [];
+  for (let t = from; t < from + minutes * 60_000; t += 20_000) {
+    const token = stored.state.tram?.token ? undefined : TOKEN;
+    if (token && stored.due.includes('tram')) asked.push({ at: t });
+    stored = step(stored.state, stored.due.includes('tram') ? { tram: { token, ...TRAM, ...answer(t) } } : {}, t);
+  }
+  return { asked, stored };
+}
+
+test('asks for an access token once an hour, keeping it in stored state for every run it lasts', () => {
+  expect(seconds(TRAM_NOW, tramRuns(TRAM_NOW, 60).asked)).toEqual([0]);
+  // TRAM's tokens last 3,599 s: long enough for the run 3,580 s after the one that asked, but not the next.
+  expect(seconds(TRAM_NOW, tramRuns(TRAM_NOW, 180).asked)).toEqual([0, 3600, 7200]);
+});
+
+test('asks for another access token as soon as TRAM refuses the one it has', () => {
+  // TRAM turns the third run away as unauthorized, as it would a token it had stopped accepting.
+  const refused = { status: 401, body: '' };
+  const { asked } = tramRuns(TRAM_NOW, 2, (t) => (t === TRAM_NOW + 40_000 ? { TBS: { ...TRAM.TBS, updates: { ...refused, body: new Uint8Array() } } } : {}));
+  expect(seconds(TRAM_NOW, asked)).toEqual([0, 60]);
+});
+
+test('says why where TRAM issues no access token, and asks for one again on the next run', () => {
+  // Without a token, the Worker doesn't ask TRAM for its data.
+  const none = { error: 'no access token' };
+  const unissued: [Fetched, string][] = [
+    [{ status: 401, body: '{"error": "invalid_client"}' }, 'token: HTTP 401'],
+    [{ error: 'Error: no answer in 10 s' }, 'token: Error: no answer in 10 s'],
+    [{ status: 200, body: '{"error": "server_error"}' }, 'token: none issued'],
+  ];
+  for (const [token, status] of unissued) {
+    const failed = step(START.state, { tram: { token, TBX: { positions: none, updates: none }, TBS: { positions: none, updates: none } } }, TRAM_NOW);
+    expect(failed.snapshot.feeds).toEqual({ tram: { lastAttempt: TRAM_NOW, status, every: 20_000 } });
+  }
+  const { asked } = tramRuns(TRAM_NOW, 1, (t) => (t === TRAM_NOW ? { token: unissued[0]?.[0] } : {}));
+  expect(seconds(TRAM_NOW, asked)).toEqual([0, 20]);
+});
+
+test('never writes the access token into the snapshot', () => {
+  const { stored } = tramRuns(TRAM_NOW, 1);
+  expect(stored.state.tram?.token).toBe('made-up token');
+  expect(JSON.stringify(step(stored.state, { tram: TRAM }, TRAM_NOW + 60_000).snapshot)).not.toContain('made-up token');
 });

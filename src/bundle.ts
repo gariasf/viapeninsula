@@ -29,8 +29,12 @@ export interface Report {
   trip: string;
   /** When the operator reported it, in ms since 1970. */
   at: number;
-  /** Where it is, in the feed's own terms: its coordinates, or at or near a Station. */
-  position?: { lon: number; lat: number } | { near: string };
+  /**
+   * Where it is, in the feed's own terms: its coordinates; at or near a Station, or for TRAM at one,
+   * by TRAM's number for its platform, which isn't the bundle's; or how far it has come along its
+   * Trip since its first Station, in metres, as TRAM counts them.
+   */
+  position?: { lon: number; lat: number } | { near: string } | { along: number };
   /** How late it's running, in seconds, as its operator has it: early where it's negative. */
   delay?: number;
   /** Where its operator gives no Delay, when it expects it at a Station, in ms since 1970, as FGC does. */

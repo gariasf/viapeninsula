@@ -1,0 +1,205 @@
+{
+  "generated": 1790329490000,
+  "feeds": {
+    "tram": {
+      "lastSuccess": 1790329490000,
+      "lastAttempt": 1790329490000,
+      "status": "ok",
+      "every": 20000
+    }
+  },
+  "reports": [
+    {
+      "trip": "tram:TBX:2579_0219",
+      "at": 1790329490000,
+      "position": {
+        "near": "tram:1101"
+      },
+      "delay": -18
+    },
+    {
+      "trip": "tram:TBX:2579_0241",
+      "at": 1790329490000,
+      "position": {
+        "near": "tram:1111"
+      },
+      "delay": 59
+    },
+    {
+      "trip": "tram:TBX:2579_0198",
+      "at": 1790329490000,
+      "position": {
+        "near": "tram:1019"
+      },
+      "delay": -82
+    },
+    {
+      "trip": "tram:TBX:2579_0173",
+      "at": 1790329490000,
+      "position": {
+        "near": "tram:1109"
+      },
+      "delay": 44
+    },
+    {
+      "trip": "tram:TBX:2579_0094",
+      "at": 1790329490000,
+      "position": {
+        "along": 6120
+      },
+      "delay": 10
+    },
+    {
+      "trip": "tram:TBX:2579_0275",
+      "at": 1790329490000,
+      "position": {
+        "near": "tram:1129"
+      },
+      "delay": -35
+    },
+    {
+      "trip": "tram:TBX:2579_0058",
+      "at": 1790329490000,
+      "position": {
+        "near": "tram:1122"
+      },
+      "delay": -61
+    },
+    {
+      "trip": "tram:TBX:2579_0286",
+      "at": 1790329490000,
+      "position": {
+        "near": "tram:1013"
+      },
+      "delay": -20
+    },
+    {
+      "trip": "tram:TBX:2579_0185",
+      "at": 1790329490000,
+      "position": {
+        "along": 506
+      },
+      "delay": -12
+    },
+    {
+      "trip": "tram:TBX:2579_0114",
+      "at": 1790329490000,
+      "position": {
+        "near": "tram:1117"
+      },
+      "delay": 24
+    },
+    {
+      "trip": "tram:TBX:2579_0256",
+      "at": 1790329490000,
+      "position": {
+        "near": "tram:1031"
+      },
+      "delay": -42
+    },
+    {
+      "trip": "tram:TBX:2579_0026",
+      "at": 1790329490000,
+      "position": {
+        "near": "tram:1103"
+      },
+      "delay": -25
+    },
+    {
+      "trip": "tram:TBX:2579_0160",
+      "at": 1790329490000,
+      "position": {
+        "near": "tram:1011"
+      },
+      "delay": -96
+    },
+    {
+      "trip": "tram:TBX:2579_0084",
+      "at": 1790329490000,
+      "position": {
+        "near": "tram:1008"
+      },
+      "delay": -96
+    },
+    {
+      "trip": "tram:TBX:2579_0042",
+      "at": 1790329490000,
+      "position": {
+        "near": "tram:1114"
+      },
+      "delay": 76
+    },
+    {
+      "trip": "tram:TBS:1947_0053",
+      "at": 1790329490000,
+      "position": {
+        "near": "tram:2103"
+      },
+      "delay": 84
+    },
+    {
+      "trip": "tram:TBS:1947_0222",
+      "at": 1790329490000,
+      "position": {
+        "near": "tram:2108"
+      },
+      "delay": 41
+    },
+    {
+      "trip": "tram:TBS:1947_0510",
+      "at": 1790329490000,
+      "position": {
+        "near": "tram:2128"
+      },
+      "delay": -5
+    },
+    {
+      "trip": "tram:TBS:1947_0640",
+      "at": 1790329490000,
+      "position": {
+        "along": 4049
+      },
+      "delay": -108
+    },
+    {
+      "trip": "tram:TBS:1947_0016",
+      "at": 1790329490000,
+      "position": {
+        "near": "tram:2033"
+      },
+      "delay": 106
+    },
+    {
+      "trip": "tram:TBS:1947_0124",
+      "at": 1790329490000,
+      "position": {
+        "along": 2807
+      },
+      "delay": 98
+    },
+    {
+      "trip": "tram:TBS:1947_0091",
+      "at": 1790329490000,
+      "position": {
+        "near": "tram:2030"
+      },
+      "delay": 12
+    },
+    {
+      "trip": "tram:TBS:1947_0268",
+      "at": 1790329490000,
+      "position": {
+        "along": 5665
+      },
+      "delay": 44
+    },
+    {
+      "trip": "tram:TBS:1947_0758",
+      "at": 1790329490000,
+      "position": {
+        "along": 992
+      },
+      "delay": 68
+    }
+  ]
+}
