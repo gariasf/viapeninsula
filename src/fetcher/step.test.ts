@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { PbfWriter } from 'pbf';
 import { expect, test } from 'vitest';
-import { START, step, type Fetched, type Responses, type Stored } from './step.ts';
+import { START, step, TIMEOUT, type Fetched, type Responses, type Stored } from './step.ts';
 
 // Renfe's Cercanías feeds as recorded at 21:37 on Thursday 24 September 2026, cut down to Rodalies'
 // Trains and a few of other núcleos'.
@@ -19,7 +19,7 @@ test("makes one report for each Rodalies Train in Renfe's feeds, and none for ot
   const trips = run().snapshot.reports.map((r) => r.trip);
   expect(trips).toHaveLength(46);
   expect(new Set(trips).size).toBe(trips.length);
-  expect(trips.filter((t) => !t.startsWith('rodalies:51'))).toEqual([]);
+  expect(trips.filter((t) => !t?.startsWith('rodalies:51'))).toEqual([]);
 });
 
 /** What the run reports about a Trip. */
@@ -138,7 +138,7 @@ test("makes one report for each FGC Train in Geotren or FGC's trip updates, by i
   const trips = fgcRun().snapshot.reports.map((r) => r.trip);
   expect(trips).toHaveLength(62);
   expect(new Set(trips).size).toBe(trips.length);
-  expect(trips.filter((t) => !t.startsWith('fgc:'))).toEqual([]);
+  expect(trips.filter((t) => !t?.startsWith('fgc:'))).toEqual([]);
 });
 
 test('gives an FGC Train running between Stations its coordinates, and one standing at a Station only that Station', () => {
@@ -182,11 +182,12 @@ test('reports an FGC Train only the trip updates cover as FGC last updated it, w
   });
 });
 
-test('writes a snapshot of a few kilobytes with Rodalies, FGC and TRAM, as the CDN compresses it', () => {
-  // These 132 Trains take 2,654 bytes.
-  const all = step(step(run().state, { fgc: FGC }, NOW + 20_000).state, { tram: { token: TOKEN, ...TRAM } }, NOW + 40_000).snapshot;
-  expect(all.reports).toHaveLength(46 + 62 + 24);
-  expect(gzipSync(JSON.stringify(all)).length).toBeLessThan(3000);
+test('writes a snapshot of a few kilobytes with every Network, as the CDN compresses it', () => {
+  // These 174 Trains take 3,216 bytes. With all 104 of the Metro's that morning, 236 took 3,934.
+  const three = step(step(run().state, { fgc: FGC }, NOW + 20_000).state, { tram: { token: TOKEN, ...TRAM } }, NOW + 40_000);
+  const all = step(three.state, { metro: METRO }, NOW + 60_000).snapshot;
+  expect(all.reports).toHaveLength(46 + 62 + 24 + 42);
+  expect(gzipSync(JSON.stringify(all)).length).toBeLessThan(4000);
 });
 
 /** A trip-updates file that FGC wrote at a moment, listing no Trains. */
@@ -333,8 +334,8 @@ test('makes one report for each Train TRAM has in service whose trip update name
   // Trambaix has 16 Units in service and Trambesòs 12. The trip updates name the Trips of 15 and 9:
   // the other 4 stand where their next Trip starts, before it does.
   const trips = tramRun().snapshot.reports.map((r) => r.trip);
-  expect(trips.filter((t) => t.startsWith('tram:TBX:'))).toHaveLength(15);
-  expect(trips.filter((t) => t.startsWith('tram:TBS:'))).toHaveLength(9);
+  expect(trips.filter((t) => t?.startsWith('tram:TBX:'))).toHaveLength(15);
+  expect(trips.filter((t) => t?.startsWith('tram:TBS:'))).toHaveLength(9);
   expect(new Set(trips).size).toBe(trips.length);
 });
 
@@ -452,4 +453,103 @@ test('never writes the access token into the snapshot', () => {
   const { stored } = tramRuns(TRAM_NOW, 1);
   expect(stored.state.tram?.token).toBe('made-up token');
   expect(JSON.stringify(step(stored.state, { tram: TRAM }, TRAM_NOW + 60_000).snapshot)).not.toContain('made-up token');
+});
+
+// TMB's predictions for the Metro as recorded at 13:14:09 on Friday 25 September 2026: the next two
+// trains each way at every Station of L1, L4, L11 and L9S, which has none, and the Montjuïc
+// funicular, which has no Stations in them. And L1's again at 13:15:40.
+const metroRecorded = (file: string) => ({ status: 200, body: readFileSync(new URL(`fixtures/metro/${file}`, import.meta.url), 'utf8') });
+const METRO = metroRecorded('estacions.json');
+
+/** When the run fetched them. */
+const METRO_NOW = Date.parse('2026-09-25T13:14:09+02:00');
+
+/** The fetcher's first run, fetching the Metro. */
+const metroRun = (metro: Fetched = METRO) => step(START.state, { metro }, METRO_NOW);
+
+test("makes one report for each Block TMB's predictions name, by its Line and TMB's number for it, which another Line's can share", () => {
+  // L1 has 24 trains in its predictions, L4 16 and L11 2. L4 and L11 both have a 401 and a 402.
+  const blocks = metroRun().snapshot.reports.map((r) => `${r.block?.line} ${r.block?.number}`);
+  expect(blocks).toHaveLength(42);
+  expect(new Set(blocks).size).toBe(42);
+  expect(blocks).toEqual(expect.arrayContaining(['metro:L4 401', 'metro:L11 401', 'metro:L4 402', 'metro:L11 402']));
+  // TMB predicts no trains for L9S or the funicular, so their Trains stay Scheduled.
+  expect(new Set(blocks.map((b) => b.split(' ')[0]))).toEqual(new Set(['metro:L1', 'metro:L4', 'metro:L11']));
+});
+
+/** What the run reports about a Block, by its Line and TMB's number for it. */
+const metroReport = (line: string, number: string, run = metroRun()) => run.snapshot.reports.find((r) => r.block?.line === `metro:${line}` && r.block.number === number);
+
+test('gives each Block the Station it comes to next and when TMB expects it there, from its earliest prediction, as of when TMB made them', () => {
+  // L1's 112 comes into Fondo, the end of the Line, at 13:15:38. TMB also expects it back at Santa Coloma at 13:17:31.
+  expect(metroReport('L1', '112')).toMatchObject({ at: Date.parse('2026-09-25T13:14:09.532+02:00'), position: { next: { station: 'tmb:1.140', at: Date.parse('2026-09-25T13:15:38+02:00') } } });
+  // L11's 401 comes to Ciutat Meridiana at 13:14:50, on its way to Can Cuiàs.
+  expect(metroReport('L11', '401')?.position).toEqual({ next: { station: 'tmb:1.1139', at: Date.parse('2026-09-25T13:14:50+02:00') } });
+});
+
+test("heads each Block the way it runs along its Line, even coming into the Line's end, where TMB lists it under its next Trip's headsign", () => {
+  // L1's 130 comes into Hospital de Bellvitge at 13:15:26, where TMB lists it for Fondo, and its 112 into Fondo, listed for Hospital de Bellvitge.
+  expect(metroReport('L1', '130')?.headsign).toBe('Hospital de Bellvitge');
+  expect(metroReport('L1', '112')?.headsign).toBe('Fondo');
+  expect(metroReport('L11', '401')?.headsign).toBe('Can Cuiàs');
+});
+
+test('heads a Block back the other way once it has come to the end of its Line, from where TMB next expects it', () => {
+  // By 13:15:40 L1's 112 has come into Fondo, and TMB expects it back at Santa Coloma at 13:17:31.
+  const later = step(metroRun().state, { metro: metroRecorded('estacions-1315.json') }, Date.parse('2026-09-25T13:15:41+02:00'));
+  expect(metroReport('L1', '112', later)).toMatchObject({ headsign: 'Hospital de Bellvitge', position: { next: { station: 'tmb:1.139', at: Date.parse('2026-09-25T13:17:31+02:00') } } });
+});
+
+test("records when the Metro was last tried and last read, how the last try went, and how often it's tried", () => {
+  const fine = { lastSuccess: METRO_NOW, lastAttempt: METRO_NOW, status: 'ok', every: 40_000 };
+  expect(metroRun().snapshot.feeds).toEqual({ metro: fine });
+
+  // Each run after, 40 s apart, finds TMB's answer refused, garbled, empty or missing.
+  const failures: [Fetched, string][] = [
+    [{ status: 401, body: 'Authentication failed. Authentication parameters missing' }, 'itransit: HTTP 401'],
+    [{ status: 200, body: '<html>' }, 'itransit: not JSON'],
+    [{ status: 200, body: '{"message": "An error has occurred."}' }, 'itransit: no Lines'],
+    [{ status: 200, body: '' }, 'itransit: empty'],
+    [{ error: 'Error: no answer in 10 s' }, 'itransit: Error: no answer in 10 s'],
+  ];
+  let state = metroRun().state;
+  for (const [i, [metro, status]] of failures.entries()) {
+    const later = METRO_NOW + (i + 1) * 40_000;
+    const failed = step(state, { metro }, later);
+    expect(failed.snapshot.feeds).toEqual({ metro: { lastSuccess: METRO_NOW, lastAttempt: later, status, every: 40_000 } });
+    state = failed.state;
+  }
+});
+
+test("keeps the Metro's last good reports through runs whose responses fail", () => {
+  const good = metroRun();
+  const failures: Fetched[] = [{ status: 503, body: '' }, { error: 'Error: no answer in 10 s' }, { status: 200, body: '' }];
+  let state = good.state;
+  for (const [i, metro] of failures.entries()) {
+    const failed = step(state, { metro }, METRO_NOW + (i + 1) * 40_000);
+    expect(failed.snapshot.reports).toEqual(good.snapshot.reports);
+    state = failed.state;
+  }
+});
+
+/**
+ * The fetcher's runs every 20 s from a moment, for so many minutes, each fetching the Metro where
+ * it's due, as the Worker does, and ending so many ms after it starts where it does. Gives the runs
+ * that fetched it.
+ */
+function metroRuns(from: number, minutes: number, taking = 0) {
+  const fetched: { at: number }[] = [];
+  let stored = START;
+  for (let t = from; t < from + minutes * 60_000; t += 20_000) {
+    const due = stored.due.includes('metro');
+    if (due) fetched.push({ at: t });
+    stored = step(stored.state, due ? { metro: METRO } : {}, due ? t + taking : t);
+  }
+  return fetched;
+}
+
+test('fetches the Metro no more often than every 30 s, the rate declared to TMB: every other run, from its first', () => {
+  expect(seconds(METRO_NOW, metroRuns(METRO_NOW, 3))).toEqual([0, 40, 80, 120, 160]);
+  // TMB took up to 16 s to answer when recorded, and the Worker waits for 10 at most, so a run fetching it can end much later than the runs without.
+  expect(seconds(METRO_NOW, metroRuns(METRO_NOW, 3, TIMEOUT))).toEqual([0, 40, 80, 120, 160]);
 });

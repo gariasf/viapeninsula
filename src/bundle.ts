@@ -25,16 +25,21 @@ export interface Freshness {
 
 /** What an operator reports about one Train. */
 export interface Report {
-  /** Its Trip, as the bundle names it. */
-  trip: string;
+  /** Its Trip, as the bundle names it, or for the Metro, whose timetable names no Blocks, none: the engine matches its Block to one. */
+  trip?: string;
+  /** For the Metro, which names each Train by its Block: its Line, as the bundle names it, and TMB's number for it, which another Line's can share. */
+  block?: { line: string; number: string };
+  /** For the Metro, where it's headed, as its Trip's headsign has it. */
+  headsign?: string;
   /** When the operator reported it, in ms since 1970. */
   at: number;
   /**
    * Where it is, in the feed's own terms: its coordinates; at or near a Station, or for TRAM at one,
-   * by TRAM's number for its platform, which isn't the bundle's; or how far it has come along its
-   * Trip since its first Station, in metres, as TRAM counts them.
+   * by TRAM's number for its platform, which isn't the bundle's; how far it has come along its Trip
+   * since its first Station, in metres, as TRAM counts them; or for the Metro, the Station it comes
+   * to next, and when it's expected there, in ms since 1970.
    */
-  position?: { lon: number; lat: number } | { near: string } | { along: number };
+  position?: { lon: number; lat: number } | { near: string } | { along: number } | { next: { station: string; at: number } };
   /** How late it's running, in seconds, as its operator has it: early where it's negative. */
   delay?: number;
   /** Where its operator gives no Delay, when it expects it at a Station, in ms since 1970, as FGC does. */

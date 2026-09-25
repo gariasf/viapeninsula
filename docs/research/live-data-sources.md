@@ -180,6 +180,18 @@ From its [README](https://github.com/siriushsu/taiwan-rail-live):
   - Fields: `codi_servei` (train number; it persists across turnarounds, so it names a block, not a trip), `temps_arribada` (epoch ms, to the second), `codi_estacio`, `id_sentit`, `codi_via`, `desti_trajecte`, and a top-level `timestamp`.
   - Generated on request: `timestamp` is 0.3–3 s after the call. Over 3 minutes of 15 s polls, ~60% of predictions moved by a few seconds each time; countdowns track real time and pause while a train dwells. No quota headers.
   - Predictions exist for L1–L5 and L11 only. L9, L10 and the Montjuïc funicular have none.
+  - **Measured again on Friday 25 September 2026, 13:14–13:34, for #12** (40 fetches, 30 s apart):
+    - Shape: `linies[]`, each with `estacions[]`, one for each Station and way, with `id_sentit` (1 or 2), `codi_via` (the same number) and `codi_estacio`; each has `linies_trajectes[]`, each journey's `nom_linia`, `codi_trajecte` and `desti_trajecte`, and its next two trains as `propers_trens[]`, `codi_servei` and `temps_arribada`. The funicular lists no Stations.
+    - `codi_estacio` is the stop's `stop_code`: TMB's stop is `1.<codi_estacio>`, and every one was a Station of that day's bundle.
+    - `codi_servei` is only unique within a Line: L4 and L11 both had a 401 and a 402. At 13:14 there were 104 trains: L1 24, L2 15, L3 19, L4 16, L5 28, L11 2.
+    - A train's predictions run on past the end of its Line. Coming into it, TMB lists it under the way it arrives, but for the journey it goes on to: at Hospital de Bellvitge, L1's arriving trains read "Fondo". One that comes in at the other platform is listed only under the way it leaves, at when it leaves. While a train waits there, the time at its next Station moves on.
+    - The earliest prediction for a train was never more than 1 s past.
+    - Both ways call at the same `codi_estacio`: matched by closest time alone, 1,000 of 1,664 trains would have gone to a Trip running the other way.
+    - Each way's headsign, as most of its Stations name it, is its Trips' `trip_headsign`: all 4,160 readings of a train found Trips of that day's timetable by Line, headsign and next Station.
+    - The day's daytime timetable was a normal weekday's: 1,278 Metro Trips start between 10:00 and 16:00, as on Friday 2 October. Only its night differs, with 233 Trips starting after 02:00 for La Mercè, against 20.
+    - Against that day's timetable, trains ran a median of 52 s late on L1 and 94 s on L3, where they're 4 minutes 51 apart, so a train can be closer in time to the Trip after its own. In 12% of readings two trains came closest to one Trip, mostly bunched near a Line's end.
+    - Trains held outside a Line's end wait there: L1's 115 took four minutes from Santa Coloma to Fondo, a run the timetable gives 1 minute 23.
+    - TMB answered in 0.1–15.9 s, a median of 1.2 s; 2 answers of 40 took over 10 s. `timestamp` was 0.1–15.8 s after the request. No rate-limit headers.
 - **Bus live:** `/v1/ibus/stops/{code}` or `/v1/itransit/bus/parades/{code}`, one stop per call, ~2,600 stops. Out of scope.
 - **Quotas:** not published.
 - Several public repos embed TMB keys. Don't use them.

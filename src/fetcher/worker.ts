@@ -25,12 +25,18 @@ const FGC = {
 /** TRAM's open data, whose API numbers Trambaix 1 and Trambesòs 2, and issues access tokens for an hour. */
 const TRAM_API = 'https://opendata.tram.cat';
 
+/** TMB's predictions for every Station of the Metro, from iTransit, in one call. */
+const TMB = 'https://api.tmb.cat/v1/itransit/metro/estacions';
+
 interface Env {
   FETCHER: DurableObjectNamespace<Fetcher>;
   LIVE: R2Bucket;
   /** TRAM's credentials for its API, as Worker secrets. */
   TRAM_CLIENT_ID?: string;
   TRAM_CLIENT_SECRET?: string;
+  /** TMB's app ID and key for its API, as Worker secrets. */
+  TMB_APP_ID?: string;
+  TMB_APP_KEY?: string;
 }
 
 export class Fetcher extends DurableObject<Env> {
@@ -44,12 +50,13 @@ export class Fetcher extends DurableObject<Env> {
     // The next run is set first, so that a failed run never stops them.
     await this.ctx.storage.setAlarm(Date.now() + EVERY);
     const { state, due } = (await this.ctx.storage.get<Stored>('stored')) ?? START;
-    const [rodalies, fgc, tram] = await Promise.all([
+    const [rodalies, fgc, tram, metro] = await Promise.all([
       due.includes('rodalies') ? fetchRodalies() : undefined,
       due.includes('fgc') ? fetchFgc(state.fgc?.file) : undefined,
       due.includes('tram') ? fetchTram(this.env, state.tram?.token) : undefined,
+      due.includes('metro') ? fetchMetro(this.env) : undefined,
     ]);
-    const run = step(state, { rodalies, fgc, tram } satisfies Responses, Date.now());
+    const run = step(state, { rodalies, fgc, tram, metro } satisfies Responses, Date.now());
     await this.ctx.storage.put('stored', { state: run.state, due: run.due } satisfies Stored);
     await this.env.LIVE.put('snapshot.json', JSON.stringify(run.snapshot), {
       httpMetadata: { contentType: 'application/json', cacheControl: 'public, max-age=15' },
@@ -90,6 +97,16 @@ async function fetchTram({ TRAM_CLIENT_ID: id, TRAM_CLIENT_SECRET: secret }: Env
   };
   const [TBX, TBS] = await Promise.all([half(1), half(2)]);
   return { token, TBX, TBS };
+}
+
+/**
+ * TMB's predictions for the Metro. Its key goes in the query string, so it's taken out of any
+ * error, which the snapshot's status repeats; the step never sees the URL.
+ */
+async function fetchMetro({ TMB_APP_ID: id, TMB_APP_KEY: key }: Env): Promise<Responses['metro']> {
+  if (!id || !key) return { error: 'its credentials are not set' };
+  const fetched = await get(`${TMB}?${new URLSearchParams({ app_id: id, app_key: key })}`, text);
+  return 'error' in fetched ? { error: fetched.error.replaceAll(key, '…').replaceAll(id, '…') } : fetched;
 }
 
 /**

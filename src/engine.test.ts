@@ -102,8 +102,8 @@ const TRIPS: Record<string, { line: string; calls: Row[] }> = {
 
 const seconds = (time: string) => time.split(':').reduce((sum, part) => sum * 60 + Number(part), 0);
 
-/** A service day's bundle of these Trips, on one Network, each on a track of its own. */
-function bundleOf(serviceDay: string, network: Network, trips: Record<string, { line: string; calls: Row[] }>): Bundle {
+/** A service day's bundle of these Trips, on one Network, each on a track of its own, headed for its last Station unless it says. */
+function bundleOf(serviceDay: string, network: Network, trips: Record<string, { line: string; headsign?: string; calls: Row[] }>): Bundle {
   return {
     serviceDay,
     // Midnight in Barcelona, which is noon less 12 hours on any day the clocks don't change.
@@ -116,12 +116,12 @@ function bundleOf(serviceDay: string, network: Network, trips: Record<string, { 
       return { id, coords: points.map((c): [number, number] => [c[4], c[5]]), dist: points.map((c) => c[3]) };
     }),
     strokes: [],
-    trips: Object.entries(trips).map(([id, { line, calls }]) => ({
+    trips: Object.entries(trips).map(([id, { line, headsign, calls }]) => ({
       id,
       line,
       shape: id,
       direction: 0,
-      headsign: calls.at(-1)?.[0] ?? '',
+      headsign: headsign ?? calls.at(-1)?.[0] ?? '',
       calls: calls.map(([station, arrival, departure, dist]) => ({ station, arrival: seconds(arrival), departure: seconds(departure), dist })),
     })),
   };
@@ -610,4 +610,106 @@ test("a TRAM Train standing at a Station, where TRAM's distance reads 0, is Live
   // TRAM has the T2 standing at Cornellà Centre, 82 s early: where its timetable has it 82 s later.
   expect(tram(T2, TRAM_RECEIVED)).toMatchObject({ live: true });
   expect(tram(T2, TRAM_RECEIVED)?.dist).toBeCloseTo(tram(T2, [], 82)?.dist ?? NaN, 3);
+});
+
+// TMB's predictions for the Metro as the fetcher made them into snapshots at 13:14:10 and 13:15:41
+// on Friday 25 September 2026, from iTransit as recorded then, received as they were written, and
+// the ends of four L1 Trips that day at Fondo, where L1 ends, as the daily build placed them.
+const METRO_LIVE: Received[] = ['snapshot.json', 'snapshot-1315.json'].map((file) => {
+  const snapshot: Snapshot = JSON.parse(readFileSync(new URL(`fetcher/fixtures/metro/${file}`, import.meta.url), 'utf8'));
+  return { snapshot, at: snapshot.generated };
+});
+const [INTO_FONDO, NEXT_INTO_FONDO, OUT_OF_FONDO, NEXT_OUT_OF_FONDO] = ['metro:1.1.11929288', 'metro:1.1.11929315', 'metro:1.1.11929237', 'metro:1.1.11929265'];
+const METRO: Bundle = bundleOf('2026-09-25', { id: 'metro', name: 'Metro de Barcelona', profile: { acceleration: 1.3, braking: 1.3, topSpeed: 80 / 3.6, dwell: 20 } }, {
+  // Two of L1's Trips into Fondo, 4 minutes 17 apart.
+  [INTO_FONDO]: {
+    line: 'metro:L1',
+    headsign: 'Fondo',
+    calls: [
+      ['tmb:1.137', '13:11:09', '13:11:28', 17896, 2.193837, 41.448956], // Trinitat Vella
+      ['tmb:1.138', '13:12:36', '13:12:55', 18427, 2.199563, 41.449936], // Baró de Viver
+      ['tmb:1.139', '13:14:15', '13:14:37', 19161, 2.207969, 41.451067], // Santa Coloma
+      ['tmb:1.140', '13:16:00', '13:16:00', 20055, 2.218435, 41.451583], // Fondo
+    ],
+  },
+  [NEXT_INTO_FONDO]: {
+    line: 'metro:L1',
+    headsign: 'Fondo',
+    calls: [
+      ['tmb:1.137', '13:15:26', '13:15:45', 17896, 2.193837, 41.448956], // Trinitat Vella
+      ['tmb:1.138', '13:16:53', '13:17:12', 18427, 2.199563, 41.449936], // Baró de Viver
+      ['tmb:1.139', '13:18:32', '13:18:54', 19161, 2.207969, 41.451067], // Santa Coloma
+      ['tmb:1.140', '13:20:17', '13:20:17', 20055, 2.218435, 41.451583], // Fondo
+    ],
+  },
+  // Two of its Trips out of Fondo, back towards Hospital de Bellvitge.
+  [OUT_OF_FONDO]: {
+    line: 'metro:L1',
+    headsign: 'Hospital de Bellvitge',
+    calls: [
+      ['tmb:1.140', '13:12:56', '13:12:56', 0, 2.218435, 41.451583], // Fondo
+      ['tmb:1.139', '13:14:23', '13:14:45', 894, 2.207969, 41.451067], // Santa Coloma
+      ['tmb:1.138', '13:16:09', '13:16:28', 1629, 2.199563, 41.449936], // Baró de Viver
+    ],
+  },
+  [NEXT_OUT_OF_FONDO]: {
+    line: 'metro:L1',
+    headsign: 'Hospital de Bellvitge',
+    calls: [
+      ['tmb:1.140', '13:17:13', '13:17:13', 0, 2.218435, 41.451583], // Fondo
+      ['tmb:1.139', '13:18:40', '13:19:02', 894, 2.207969, 41.451067], // Santa Coloma
+      ['tmb:1.138', '13:20:26', '13:20:45', 1629, 2.199563, 41.449936], // Baró de Viver
+    ],
+  },
+});
+
+/** A Metro Trip's Train at a moment on 25 September 2026, by the clock in Barcelona, and so many seconds on, if it's on the map, with the live data received by then. */
+const metro = (trip: string, time: string, received: Received[] = [], plus = 0) => {
+  const moment = Date.parse(`2026-09-25T${time}+02:00`) + plus * 1000;
+  return trainsAt(METRO, moment, by(received, moment)).find((t) => t.trip.id === trip);
+};
+
+test("a Metro Train is Live where TMB expects it: its Block runs the Trip on its Line headed its way whose timetable has it at the Station it comes to next closest to when TMB expects it there", () => {
+  // At 13:14:09 TMB expects L1's 112 at Fondo at 13:15:38, 22 s before the Trip into Fondo at 13:16:00.
+  expect(metro(INTO_FONDO, '13:14:20', METRO_LIVE)).toMatchObject({ live: true });
+  expect(metro(INTO_FONDO, '13:14:20', METRO_LIVE)?.dist).toBeCloseTo(metro(INTO_FONDO, '13:14:20', [], 22)?.dist ?? NaN, 3);
+});
+
+/** The first Metro snapshot with only some of L1's Blocks' reports, by TMB's numbers for them, in that order. */
+const onlyL1 = (...numbers: string[]): Received[] => {
+  const [{ snapshot, at }] = METRO_LIVE as [Received];
+  return [{ snapshot: { ...snapshot, reports: numbers.flatMap((n) => snapshot.reports.filter((r) => r.block?.line === 'metro:L1' && r.block.number === n)) }, at }];
+};
+
+test('never matches a Block to a Trip running the other way, however close its time there', () => {
+  // TMB expects L1's 113 at Santa Coloma at 13:14:58, on its way into Fondo. The Trip out of Fondo
+  // calls there at 13:14:23, 35 s off, and the one into Fondo at 13:14:15, 43 s off.
+  expect(metro(OUT_OF_FONDO, '13:14:20', onlyL1('113'))).toMatchObject({ live: false });
+  expect(metro(INTO_FONDO, '13:14:20', onlyL1('113'))).toMatchObject({ live: true });
+});
+
+test('where two Blocks come closest to the same Trip, the one TMB expects nearer its time runs it, whichever TMB lists last', () => {
+  // At 13:14:09 TMB expects L1's 112 at Fondo 22 s before the Trip into Fondo is due there, and its
+  // 113 at Santa Coloma 43 s after that Trip is due there. The next into Fondo is 3½ minutes further off.
+  expect(metro(INTO_FONDO, '13:14:20', onlyL1('112', '113'))?.dist).toBeCloseTo(metro(INTO_FONDO, '13:14:20', [], 22)?.dist ?? NaN, 3);
+});
+
+test("a Block that no Trip headed its way reaches within half an hour of when TMB expects it runs none of them", () => {
+  // Made up: at 13:47:50 TMB expects L1's 112 at Fondo 30¼ minutes after the last Trip into Fondo is due there, at 13:20:17.
+  const expecting = (time: string): Received[] => {
+    const generated = Date.parse('2026-09-25T13:47:50+02:00');
+    const report: Report = { block: { line: 'metro:L1', number: '112' }, headsign: 'Fondo', at: generated, position: { next: { station: 'tmb:1.140', at: Date.parse(`2026-09-25T${time}+02:00`) } } };
+    return [{ snapshot: { generated, feeds: { metro: { lastSuccess: generated, lastAttempt: generated, status: 'ok', every: 40_000 } }, reports: [report] }, at: generated }];
+  };
+  const live = (received: Received[]) => trainsAt(METRO, Date.parse('2026-09-25T13:48:00+02:00'), received).filter((t) => t.live).map((t) => t.trip.id);
+  expect(live(expecting('13:50:32'))).toEqual([]);
+  // 29¾ minutes after, it runs that Trip, 29¾ minutes late.
+  expect(live(expecting('13:50:02'))).toEqual([NEXT_INTO_FONDO]);
+});
+
+test('a Block that turns back at the end of its Line runs the Trip back from there', () => {
+  // At 13:15:40 TMB has L1's 112 in at Fondo, which it reached at 13:15:38 as the Trip into Fondo,
+  // and expects it back at Santa Coloma at 13:17:31: 69 s before the next Trip out of Fondo is due there.
+  expect(metro(NEXT_OUT_OF_FONDO, '13:15:50', METRO_LIVE)).toMatchObject({ live: true, dist: 0 });
+  expect(metro(NEXT_OUT_OF_FONDO, '13:15:50', METRO_LIVE, 60)?.dist).toBeCloseTo(metro(NEXT_OUT_OF_FONDO, '13:15:50', [], 60 + 69)?.dist ?? NaN, 3);
 });

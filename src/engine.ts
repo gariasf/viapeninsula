@@ -151,7 +151,8 @@ const [JUMP_TIME, JUMP_DIST] = [60, 1000];
  * The last replay, which the map asks for again every frame until its next snapshot arrives.
  * ponytail: every snapshot kept (KEEP) is replayed each time one arrives, which took about 8 ms on a
  * laptop for half an hour of Rodalies' 80 Live Trains, and 12 ms with FGC's 50 more. TRAM's 25 add
- * about a fifth. Fold each new one into the last replay as TRAM and the Metro go Live, or if phones stutter.
+ * about a fifth, and the Metro's 90 about a quarter: 9 ms against 7 with 12 minutes of all four
+ * kept. Fold each new one into the last replay if phones stutter (#40).
  */
 let last: { bundle: Bundle; received: Received[]; eases: Map<string, Ease>; heard: Map<string, Heard> } | undefined;
 
@@ -166,7 +167,7 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
   const [eases, heard, dwelt] = [new Map<string, Ease>(), new Map<string, Heard>(), new Map<string, Call[]>()];
   for (const [i, { snapshot, at }] of received.entries()) {
     const [arrived, upTo] = [(at + clock - bundle.noonMinus12h) / 1000, heardTo(received.slice(0, i + 1), at + clock)];
-    const reports = new Map(snapshot.reports.map((r) => [r.trip, r]));
+    const reports = reportsByTrip(bundle, snapshot);
     for (const id of new Set([...eases.keys(), ...reports.keys()])) {
       const [trip, report, ease] = [trips.get(id), reports.get(id), eases.get(id)];
       const [network, shape] = [trip && lines.get(trip.line), trip && shapes.get(trip.shape)];
@@ -191,6 +192,51 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
   }
   last = { bundle, received: [...received], eases, heard };
   return last;
+}
+
+/** Each snapshot's reports by the Trip each is about, worked out once for each bundle: matching the Metro's Blocks to Trips is slow. */
+const matched = new WeakMap<Snapshot, { bundle: Bundle; reports: Map<string, Report> }>();
+
+/**
+ * How far apart when TMB expects a Block at its next Station and when a Trip's timetable has it there
+ * can be for the Block to be running that Trip, in seconds: half an hour, well over half the longest
+ * the Metro's timetable leaves between two Trains, 19 minutes. A Block further from every Trip, such
+ * as one still running the night before, runs none of the day's.
+ */
+const MATCH = 30 * 60;
+
+/**
+ * A snapshot's reports by the Trip each is about. TMB's timetable names no Blocks, so each of the
+ * Metro's runs the Trip on its Line headed its way whose timetable has it at the Block's next
+ * Station closest to when TMB expects it there, within MATCH, and where two Blocks come closest to
+ * one Trip, the closer runs it. A report that matches no Trip is dropped.
+ */
+function reportsByTrip(bundle: Bundle, snapshot: Snapshot): Map<string, Report> {
+  const known = matched.get(snapshot);
+  if (known?.bundle === bundle) return known.reports;
+  const [reports, offs, headed] = [new Map<string, Report>(), new Map<string, number>(), new Map<string, Trip[]>()];
+  for (const trip of bundle.trips) {
+    const key = `${trip.line} ${trip.headsign}`;
+    const trips = headed.get(key) ?? [];
+    trips.push(trip);
+    headed.set(key, trips);
+  }
+  for (const report of snapshot.reports) {
+    const { block, headsign, position } = report;
+    if (report.trip) reports.set(report.trip, report);
+    if (!block || !position || !('next' in position)) continue;
+    let [found, off]: [string | undefined, number] = [undefined, MATCH];
+    for (const trip of headed.get(`${block.line} ${headsign}`) ?? []) {
+      const late = Math.abs(expectedDelay(trip, position.next, bundle.noonMinus12h) ?? Infinity);
+      if (late < off) [found, off] = [trip.id, late];
+    }
+    if (found && off < (offs.get(found) ?? Infinity)) {
+      reports.set(found, report);
+      offs.set(found, off);
+    }
+  }
+  matched.set(snapshot, { bundle, reports });
+  return reports;
 }
 
 /**
@@ -266,14 +312,14 @@ const delays = new WeakMap<Report, { trip: Trip; delay: number }>();
  * A report's Delay for its Train, in seconds: while it runs between Stations, from where its GPS
  * puts it on its Trip's track, or how far along it TRAM has it, and otherwise, standing at or pinned
  * to a Station or with no position, its operator's figure, or how late it is where its operator
- * expects it at a Station.
+ * expects it at a Station, as TMB does at the one each of the Metro's comes to next.
  */
 function delayOf(trip: Trip, calls: Call[], shape: Shape, profile: SpeedProfile, report: Report, noonMinus12h: number): number {
   const known = delays.get(report);
   if (known?.trip === trip) return known.delay;
   const [reported, { position }] = [(report.at - noonMinus12h) / 1000, report];
-  let delay = report.delay ?? expectedDelay(trip, report.expected, noonMinus12h) ?? 0;
-  if (position && !('near' in position)) {
+  let delay = report.delay ?? expectedDelay(trip, position && 'next' in position ? position.next : report.expected, noonMinus12h) ?? 0;
+  if (position && ('lon' in position || 'along' in position)) {
     const dists = calls.map((c) => c.dist);
     // TRAM counts from a Trip's first Station, whichever way along its track the Trip runs.
     const [first = 0, last = 0] = [dists[0], dists.at(-1)];
