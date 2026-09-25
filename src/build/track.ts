@@ -1,6 +1,6 @@
 // The track each Line's Trains run on, traced along OpenStreetMap's rails (ADR-0004).
 
-import { along, type Shape, type Station } from '../bundle.ts';
+import { along, closestOnSegment, DEGREE, EARTH, type Point, type Shape, type Station } from '../bundle.ts';
 import type { OsmWay } from './osm.ts';
 
 /** A shape as the feed draws it, and the Stations its Trips serve. */
@@ -9,12 +9,6 @@ export interface FeedShape {
   coords: Point[];
   stations: string[];
 }
-
-export type Point = [lon: number, lat: number];
-
-/** The Earth's mean radius, and the length of a degree of latitude, in metres. */
-const EARTH = 6_371_008.8;
-export const DEGREE = (EARTH * Math.PI) / 180;
 
 /**
  * A Station is on the rails that pass within 50 m of its nearest one, if that is within 200 m. Renfe's
@@ -405,14 +399,6 @@ export function nearest(polyline: Point[], p: Point): { i: number; t: number; al
     if (d < best.metres) best = { i: i - 1, t, along: start + t * (end - start), metres: d };
   }
   return best;
-}
-
-/** Where the segment from a to b comes closest to p: a fraction t along it, and how far away, in metres flat around p, where a degree of longitude is kx metres. */
-export function closestOnSegment(a: Point, b: Point, p: Point, kx: number): [t: number, metres: number] {
-  const [ax, ay] = [(a[0] - p[0]) * kx, (a[1] - p[1]) * DEGREE];
-  const [dx, dy] = [(b[0] - a[0]) * kx, (b[1] - a[1]) * DEGREE];
-  const t = dx || dy ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / (dx * dx + dy * dy))) : 0;
-  return [t, Math.hypot(ax + t * dx, ay + t * dy)];
 }
 
 /** The part of a line from one distance along it to another. */

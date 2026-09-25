@@ -1,7 +1,7 @@
 // How the map draws each Line: where Lines share track, side by side, as a transit map does.
 
-import type { Line, Shape, Stroke } from '../bundle.ts';
-import { DEGREE, nearest, type Point } from './track.ts';
+import { DEGREE, type Line, type Point, type Shape, type Stroke } from '../bundle.ts';
+import { nearest } from './track.ts';
 
 /** Tracks less than this far apart, in metres, look like one zoomed out, so the Lines on them go side by side. */
 const NEAR = 45;
