@@ -22,6 +22,12 @@ const STRINGS = {
   liveMeans: { ca: 'posició confirmada per dades en temps real', es: 'posición confirmada por datos en tiempo real', en: 'position confirmed by live data' },
   scheduled: { ca: 'Programat', es: 'Programado', en: 'Scheduled' },
   scheduledMeans: { ca: "posició segons l'horari", es: 'posición según el horario', en: 'position from the timetable' },
+  // After a Network's name in the banner, while its live data is unavailable.
+  liveUnavailable: {
+    ca: "dades en temps real no disponibles, posicions segons l'horari",
+    es: 'datos en tiempo real no disponibles, posiciones según el horario',
+    en: 'live data unavailable, positions from the timetable',
+  },
 } satisfies Record<string, Record<Language, string>>;
 
 /** What the viewer's choice is kept under on their device, in local storage, which takes no cookie. */

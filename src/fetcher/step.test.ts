@@ -68,24 +68,45 @@ test('writes a snapshot of a few kilobytes, as the CDN compresses it', () => {
   expect(gzipSync(JSON.stringify(run().snapshot)).length).toBeLessThan(2000);
 });
 
-test("records when Renfe's feeds were last tried and last read, and how the last try went", () => {
-  const fine = { lastSuccess: NOW, lastAttempt: NOW, status: 'ok' };
+test("records when Renfe's feeds were last tried and last read, how the last try went, and how often they're tried", () => {
+  const fine = { lastSuccess: NOW, lastAttempt: NOW, status: 'ok', every: 20_000 };
   expect(run().snapshot.feeds).toEqual({ rodalies: fine });
   expect(run().state.feeds).toEqual({ rodalies: fine });
 
-  // Each run after, 20 s apart, finds one of the feeds down or garbled.
+  // Each run after, 20 s apart, finds one of the feeds down, garbled or empty.
   const failures: [Responses['rodalies'], string][] = [
     [{ ...RENFE, positions: { status: 503, body: '' } }, 'vehicle_positions: HTTP 503'],
     [{ ...RENFE, positions: { error: 'Error: no answer in 10 s' } }, 'vehicle_positions: Error: no answer in 10 s'],
     [{ ...RENFE, updates: { status: 200, body: '<html>' } }, 'trip_updates: not JSON'],
+    [{ ...RENFE, updates: { status: 200, body: '' } }, 'trip_updates: empty'],
   ];
   let state = run().state;
   for (const [i, [rodalies, status]] of failures.entries()) {
     const later = NOW + (i + 1) * 20_000;
     const failed = step(state, { rodalies }, later);
-    expect(failed.snapshot.feeds).toEqual({ rodalies: { lastSuccess: NOW, lastAttempt: later, status } });
+    expect(failed.snapshot.feeds).toEqual({ rodalies: { lastSuccess: NOW, lastAttempt: later, status, every: 20_000 } });
     state = failed.state;
   }
+});
+
+test("keeps Renfe's last good reports through runs whose responses fail", () => {
+  const good = run();
+  // Each run after, 20 s apart, finds one of the feeds down, garbled or empty.
+  const failures: Responses['rodalies'][] = [
+    { ...RENFE, positions: { status: 503, body: '' } },
+    { ...RENFE, updates: { error: 'Error: no answer in 10 s' } },
+    { ...RENFE, updates: { status: 200, body: '<html>' } },
+    { ...RENFE, positions: { status: 200, body: '' } },
+  ];
+  let state = good.state;
+  for (const [i, rodalies] of failures.entries()) {
+    const failed = step(state, { rodalies }, NOW + (i + 1) * 20_000);
+    expect(failed.snapshot.reports).toEqual(good.snapshot.reports);
+    state = failed.state;
+  }
+  // The next run that works replaces them, even where Renfe's feeds report no Trains at all.
+  const none = { status: 200, body: '{"header": {"timestamp": "1790278640"}}' };
+  expect(step(state, { rodalies: { positions: none, updates: none } }, NOW + 100_000).snapshot.reports).toEqual([]);
 });
 
 test('fetches Renfe on every run', () => {

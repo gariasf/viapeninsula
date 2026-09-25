@@ -4,7 +4,7 @@ import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { AttributionControl, MapLibreMap, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { along, LIVE_URL, madridDate, type Bundle, type Manifest, type Network, type Snapshot } from '../bundle.ts';
-import { trainsAt, type Received } from '../engine.ts';
+import { KEEP, trainsAt, unavailable, type Received } from '../engine.ts';
 import { language, LANGUAGES, setLanguage, t, type Language } from './i18n.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
@@ -103,13 +103,20 @@ const legend = document.createElement('div');
 legend.className = 'maplibregl-ctrl maplibregl-ctrl-group legend';
 // Top left, where the credits never cover it.
 map.addControl({ onAdd: () => legend, onRemove: () => legend.remove() }, 'top-left');
+// The banner under it, which showBanner() fills: each Network whose live data is unavailable.
+const banner = document.createElement('div');
+banner.className = 'maplibregl-ctrl maplibregl-ctrl-group banner';
+banner.setAttribute('role', 'status');
+map.addControl({ onAdd: () => banner, onRemove: () => banner.remove() }, 'top-left');
 let credits: AttributionControl | undefined;
-/** The Networks on the map, whose data the credits name. */
+/** The Networks on the map, whose data the credits name, and whose names the banner shows. */
 let credited: Network[] = [];
+/** The Networks whose live data is unavailable, by their ids. */
+let unavailableIds: string[] = [];
 showLanguage();
 
 // Live data: the fetcher's snapshot, about every 20 s while the tab is visible (ADR-0003). The
-// engine corrects the device's clock from the last half hour of them.
+// engine replays what the map had each time it looked, over the last KEEP, which also corrects the device's clock.
 let received: Received[] = [];
 let nextPoll: ReturnType<typeof setTimeout> | undefined;
 document.addEventListener('visibilitychange', () => (document.hidden ? clearTimeout(nextPoll) : poll()));
@@ -222,10 +229,16 @@ map.addLayer({
   paint: { 'text-color': '#333', 'text-halo-color': '#fff', 'text-halo-width': 1.5 },
 });
 
-// Moves the Trains every frame. The browser stops asking while the tab is hidden.
+// Moves the Trains every frame, and names the Networks whose live data is unavailable as that
+// changes. The browser stops asking while the tab is hidden.
 const trainSource = map.getSource<GeoJSONSource>('trains');
 requestAnimationFrame(function move() {
   trainSource?.setData(trains());
+  const ids = unavailable(received);
+  if (ids.join() !== unavailableIds.join()) {
+    unavailableIds = ids;
+    showBanner();
+  }
   requestAnimationFrame(move);
 });
 
@@ -259,7 +272,21 @@ function showLanguage() {
       return row;
     }),
   );
+  showBanner();
   showCredits();
+}
+
+/** Names each Network on the map whose live data is unavailable, in the viewer's language, and hides the banner while there's none. */
+function showBanner() {
+  const networks = credited.filter((n) => unavailableIds.includes(n.id));
+  banner.hidden = !networks.length;
+  banner.replaceChildren(
+    ...networks.map(({ name }) => {
+      const row = document.createElement('div');
+      row.append(Object.assign(document.createElement('b'), { textContent: name }), `: ${t('liveUnavailable')}`);
+      return row;
+    }),
+  );
 }
 
 /** Credits the basemap and each Network's data, in the viewer's language, building the credits afresh. */
@@ -287,20 +314,23 @@ async function loadBundle(): Promise<Bundle> {
 
 /** Fetches the live snapshot, and again 20 s later if the tab is still visible. */
 async function poll() {
+  let snapshot: Snapshot | undefined;
   try {
-    const snapshot = await getJson<Snapshot>(`${LIVE_URL}/snapshot.json`);
-    const at = Date.now();
-    received = [...received.filter((r) => r.at > at - 30 * 60_000), { snapshot, at }];
+    // One that hangs gives up well before the next is due.
+    snapshot = await getJson<Snapshot>(`${LIVE_URL}/snapshot.json`, AbortSignal.timeout(10_000));
   } catch (error) {
-    // The Trains keep to the last snapshot until the next one comes.
+    // The map has nothing newer than its last snapshot, which the Trains keep to until the next comes.
     console.warn(error);
+    snapshot = received.at(-1)?.snapshot;
   }
+  const at = Date.now();
+  if (snapshot) received = [...received.filter((r) => r.at > at - KEEP), { snapshot, at }];
   clearTimeout(nextPoll);
   if (!document.hidden) nextPoll = setTimeout(poll, 20_000);
 }
 
-async function getJson<T>(url: string): Promise<T> {
-  const res = await fetch(url);
+async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
+  const res = await fetch(url, { signal });
   if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
   return (await res.json()) as T;
 }
