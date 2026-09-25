@@ -157,6 +157,20 @@ export function pointAt({ coords, dist }: Pick<Shape, 'coords' | 'dist'>, d: num
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
 }
 
+export type Point = [lon: number, lat: number];
+
+/** The Earth's mean radius, and the length of a degree of latitude, in metres. */
+export const EARTH = 6_371_008.8;
+export const DEGREE = (EARTH * Math.PI) / 180;
+
+/** Where the segment from a to b comes closest to p: a fraction t along it, and how far away, in metres flat around p, where a degree of longitude is kx metres. */
+export function closestOnSegment(a: Point, b: Point, p: Point, kx: number): [t: number, metres: number] {
+  const [ax, ay] = [(a[0] - p[0]) * kx, (a[1] - p[1]) * DEGREE];
+  const [dx, dy] = [(b[0] - a[0]) * kx, (b[1] - a[1]) * DEGREE];
+  const t = dx || dy ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / (dx * dx + dy * dy))) : 0;
+  return [t, Math.hypot(ax + t * dx, ay + t * dy)];
+}
+
 /** The date in Spain, as YYYY-MM-DD. */
 export function madridDate(at: Date): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Madrid' }).format(at);

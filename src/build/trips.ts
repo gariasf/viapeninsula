@@ -1,7 +1,7 @@
 // Each Trip placed on its track: how far along it each of its Stations is.
 
-import type { Line, Shape, Station, Trip } from '../bundle.ts';
-import { closestOnSegment, DEGREE, nearest, orderAlong, type Point } from './track.ts';
+import { closestOnSegment, DEGREE, type Line, type Point, type Shape, type Station, type Trip } from '../bundle.ts';
+import { nearest, orderAlong } from './track.ts';
 
 /** A Trip as the feed times it, before its Stations are placed on its track. */
 export interface FeedTrip {

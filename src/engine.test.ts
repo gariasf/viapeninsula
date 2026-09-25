@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
-import type { Bundle, Snapshot } from './bundle.ts';
+import { pointAt, type Bundle, type Snapshot } from './bundle.ts';
 import { trainsAt, type Received } from './engine.ts';
 
 /** A speed profile like Rodalies', in metres and seconds, which the times below are worked out from. */
@@ -128,7 +128,8 @@ const BUNDLE: Bundle = {
 const at = (time: string, plus = 0) => Date.parse(`2026-09-24T${time}+02:00`) + plus * 1000;
 
 /** A Trip's Train at a moment by the device's clock, if it's on the map, with the live data received by then. */
-const train = (trip: string, moment: number, received: Received[] = []) => trainsAt(BUNDLE, moment, received).find((t) => t.trip.id === trip);
+const train = (trip: string, moment: number, received: Received[] = []) =>
+  trainsAt(BUNDLE, moment, received.filter((r) => r.at <= moment)).find((t) => t.trip.id === trip);
 
 /** How far along its track a Trip's Train is at a moment, in metres, if it's on the map. */
 const where = (trip: string, moment: number, received?: Received[]) => train(trip, moment, received)?.dist;
@@ -187,10 +188,10 @@ test('stands only for half the time its stretch to a Station can spare, where th
 const ROUNDING = 1e-6;
 
 /** A Train's speed each second it's on the map, in metres per second, from how far it runs each second. */
-function speeds(trip: string, from: string, to: string): number[] {
+function speeds(trip: string, from: string, to: string, received: Received[] = []): number[] {
   const found: number[] = [];
   for (let t = at(from); t < at(to); t += 1000) {
-    const [a, b] = [where(trip, t), where(trip, t + 1000)];
+    const [a, b] = [where(trip, t, received), where(trip, t + 1000, received)];
     if (a !== undefined && b !== undefined) found.push(Math.abs(b - a));
   }
   return found;
@@ -300,14 +301,10 @@ const RECEIVED: Received[] = [{ snapshot: LIVE, at: LIVE.generated }];
 
 const [R7, R2N] = ['rodalies:5165J77865R7', 'rodalies:5165J28480R2N'];
 
-test("a Train Renfe's live data reports is Live, and runs as late or early as Renfe says", () => {
+test("a Train Renfe's live data reports is Live, and standing at a Station runs as late or early as Renfe says", () => {
   // Renfe has the R7 standing at Cerdanyola del Vallès at 21:36:46, 2 minutes late: its timetable has it leave at 21:35.
   expect(train(R7, at('21:37:00'), RECEIVED)).toMatchObject({ live: true, dist: 3571 });
   expect(where(R7, at('21:37:00'))).toBeLessThan(3571);
-  // Renfe has the R2S between Calafell and Segur de Calafell, a minute late: it stands at Segur de
-  // Calafell from 21:38:30 rather than 21:37:30.
-  expect(train(R2S, at('21:38:45'), RECEIVED)).toMatchObject({ live: true, dist: 117049 });
-  expect(where(R2S, at('21:38:45'))).toBeGreaterThan(117049);
 });
 
 test('a Train no live data covers is Scheduled, where its timetable puts it', () => {
@@ -320,6 +317,105 @@ test('a Train Renfe gives a Delay for but no position stays Scheduled, and runs 
   const snapshot: Snapshot = { ...written(at('21:39:00')), reports: [{ trip: R2N, at: at('21:38:50'), delay: 120 }] };
   expect(train(R2N, at('21:39:30'), [{ snapshot, at: at('21:39:05') }])).toMatchObject({ live: false, dist: 50838 });
   expect(where(R2N, at('21:39:30'))).toBeGreaterThan(50838);
+});
+
+/** A snapshot, received as it's written, in which Renfe's GPS has a Trip's Train so far along its track, and Renfe's own figure a Delay. */
+function gps(trip: string, dist: number, moment: number, delay?: number): Received {
+  const shape = BUNDLE.shapes.find((s) => s.id === trip);
+  const [lon, lat] = shape ? pointAt(shape, dist) : [NaN, NaN];
+  return { snapshot: { ...written(moment), reports: [{ trip, at: moment, position: { lon, lat }, delay }] }, at: moment };
+}
+
+test('a Train Live and moving runs as late as its GPS shows, whatever its operator says', () => {
+  // Renfe's GPS has the R2S 555 m past Calafell at 21:36:46, where its timetable has it at 21:35:37:
+  // it's 69 s late, though Renfe's own figure says a minute. It reaches Segur de Calafell at 21:38:39, not 21:38:30.
+  expect(where(R2S, at('21:38:35'), RECEIVED)).toBeLessThan(117049);
+  expect(train(R2S, at('21:38:39'), RECEIVED)).toMatchObject({ live: true, dist: 117049 });
+  // Made up: Renfe's GPS has each Train where its timetable had it 2 minutes before, though Renfe's
+  // own figure says 1. The R2S is between Sitges and Castelldefels, and the R7, which runs its track
+  // backwards, between Montcada i Reixac-Manresa and Montcada i Reixac-Santa Maria.
+  for (const [trip, moment] of [[R2S, at('22:02:00')], [R7, at('21:32:30')]] as const) {
+    const received = [gps(trip, where(trip, moment - 120_000) ?? NaN, moment, 60)];
+    expect(where(trip, moment + 30_000, received)).toBeCloseTo(where(trip, moment - 90_000) ?? NaN, 3);
+  }
+});
+
+/** A snapshot saying a Trip's Train is running so many seconds late, as its operator has it, received as it's written. */
+const late = (trip: string, delay: number, moment: number): Received => ({
+  snapshot: { ...written(moment), reports: [{ trip, at: moment, delay }] },
+  at: moment,
+});
+
+/** Where a Trip's Train is each second from one moment to another, in metres along its track. */
+const course = (trip: string, from: number, to: number, received: Received[]) =>
+  Array.from({ length: (to - from) / 1000 + 1 }, (_, s) => where(trip, from + s * 1000, received) ?? NaN);
+
+test('the first snapshot places each Train outright, however little live data shifts it', () => {
+  // The map opens on the R2S between Sitges and Castelldefels, 20 s late.
+  expect(where(R2S, at('22:00:00'), [late(R2S, 20, at('22:00:00'))])).toBe(where(R2S, at('21:59:40')));
+});
+
+test('never runs back along its track when live data has it later and later', () => {
+  // Between Sitges and Castelldefels, the R2S loses 10 s every 20 s.
+  const received = [0, 10, 20, 30].map((delay, i) => late(R2S, delay, at('22:00:00', i * 20)));
+  const each = course(R2S, at('22:00:00'), at('22:02:00'), received);
+  expect(each).toEqual([...each].sort((a, b) => a - b));
+});
+
+test('runs on through GPS a few metres short or long, never backing up or standing', () => {
+  // Made up: every 20 s, Renfe's GPS has the R2S 30 s late between Sitges and Castelldefels, give or take a few metres.
+  const received = [0, 4, -4, 3, -5, 2].map((off, i) => gps(R2S, (where(R2S, at('22:00:00', i * 20 - 30)) ?? NaN) + off, at('22:00:00', i * 20)));
+  const each = course(R2S, at('22:00:00'), at('22:02:00'), received);
+  expect(Math.min(...each.slice(1).map((d, s) => d - (each[s] ?? NaN)))).toBeGreaterThan(0);
+  // It keeps within those few metres of where 30 s late has it, give or take a millimetre.
+  const steady = course(R2S, at('21:59:30'), at('22:01:30'), []);
+  expect(Math.max(...each.map((d, s) => Math.abs(d - (steady[s] ?? NaN))))).toBeLessThan(5.001);
+});
+
+test('a Train that live data shows a little later slows down, back where live data has it by the next snapshot', () => {
+  // Between Sitges and Castelldefels, the R2S runs on time until a snapshot at 22:00:00 has it 10 s late.
+  const received = [late(R2S, 0, at('21:59:40')), late(R2S, 10, at('22:00:00'))];
+  const [eased, due] = [speeds(R2S, '22:00:00', '22:00:20', received), speeds(R2S, '22:00:00', '22:00:20')];
+  expect(eased.every((v, s) => v > 0 && v < (due[s] ?? 0))).toBe(true);
+  expect(where(R2S, at('22:00:20'), received)).toBeCloseTo(where(R2S, at('22:00:10')) ?? NaN, 3);
+});
+
+test('a Train that live data shows stopped between Stations holds there, never running on and jumping back', () => {
+  // Between Sitges and Castelldefels, a signal stops the R2S at 21:59:40: every 20 s it's 20 s later.
+  const received = [0, 20, 40, 60, 80, 100].map((delay, i) => late(R2S, delay, at('21:59:40', i * 20)));
+  const each = course(R2S, at('22:00:00'), at('22:01:40'), received);
+  expect(new Set(each).size).toBe(1);
+});
+
+test('a Train standing at a Station that live data shows running later holds there until its new time to leave', () => {
+  // The R2S stands at Vilanova i la Geltrú from 21:49 to 21:50, on time, until a snapshot at 21:49:50 has it 30 s late.
+  const received = [late(R2S, 0, at('21:49:30')), late(R2S, 30, at('21:49:50'))];
+  // It leaves at 21:50:30, at its timetable's pace.
+  for (let s = 0; s <= 40; s += 5) expect(where(R2S, at('21:49:50', s), received)).toBe(128092);
+  expect(where(R2S, at('21:50:31'), received)).toBeCloseTo(where(R2S, at('21:50:01')) ?? NaN, 3);
+});
+
+test('a Train that live data shows running earlier speeds up until it catches up, never beyond line speed', () => {
+  // Between Sitges and Castelldefels, the R2S runs 30 s late until a snapshot at 22:00:00 has it on time.
+  const received = [late(R2S, 30, at('21:59:40')), late(R2S, 0, at('22:00:00'))];
+  const each = speeds(R2S, '21:59:50', '22:00:40', received);
+  // From 22:00:00 it runs faster than it was, never beyond line speed, and it's soon on time.
+  expect(each[10]).toBeGreaterThan((each[0] ?? Infinity) + 10);
+  expect(Math.max(...each)).toBeLessThanOrEqual(PROFILE.topSpeed + ROUNDING);
+  expect(where(R2S, at('22:00:40'), received)).toBeCloseTo(where(R2S, at('22:00:40')) ?? NaN, 3);
+});
+
+test('a Train drawn more than a minute from where live data has it jumps there, whichever way', () => {
+  // Between Sitges and Castelldefels, the R2S runs on time, then 90 s late, then on time again.
+  const received = [late(R2S, 0, at('21:59:40')), late(R2S, 90, at('22:00:00')), late(R2S, 0, at('22:00:20'))];
+  expect(where(R2S, at('22:00:00'), received)).toBeCloseTo(where(R2S, at('21:58:30')) ?? NaN, 3);
+  expect(where(R2S, at('22:00:20'), received)).toBeCloseTo(where(R2S, at('22:00:20')) ?? NaN, 3);
+});
+
+test('a Train drawn more than 1 km from where live data has it jumps there', () => {
+  // The made-up Trip runs at line speed from 12:00:23, so 30 s behind it is 1.2 km back.
+  const received = [late('too quick', 0, at('12:00:30')), late('too quick', 30, at('12:00:40'))];
+  expect(where('too quick', at('12:00:40'), received)).toBeCloseTo(where('too quick', at('12:00:10')) ?? NaN, 3);
 });
 
 test("drops the reports that match none of the day's Trips", () => {
