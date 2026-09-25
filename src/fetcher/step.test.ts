@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { PbfWriter } from 'pbf';
 import { expect, test } from 'vitest';
+import { unavailable } from '../engine.ts';
 import { START, step, TIMEOUT, type Fetched, type Responses, type Stored } from './step.ts';
 
 // Renfe's Cercanías feeds as recorded at 21:37 on Thursday 24 September 2026, cut down to Rodalies'
@@ -110,6 +111,48 @@ test("keeps Renfe's last good reports through runs whose responses fail", () => 
   expect(step(state, { rodalies: { positions: none, updates: none } }, NOW + 100_000).snapshot.reports).toEqual([]);
 });
 
+/** Renfe's feeds as recorded, with both headers saying a moment, in ms since 1970, rather than 21:36:49. */
+function renfeAt(moment: number): NonNullable<Responses['rodalies']> {
+  const at = ({ body }: { body: string }) => ({ status: 200, body: body.replace('"timestamp": "1790278609"', `"timestamp": "${moment / 1000}"`) });
+  return { positions: at(RENFE.positions), updates: at(RENFE.updates) };
+}
+
+/** When Renfe's headers say it wrote the recorded feeds. */
+const RENFE_WRITTEN = Date.parse('2026-09-24T21:36:49+02:00');
+
+test("counts a run whose Renfe feed says it hasn't been updated since the last as a failed try, keeping its reports", () => {
+  const good = run();
+  const later = NOW + 20_000;
+  // 20 s later, one of the feeds still has the header it had.
+  const stuck: [Responses['rodalies'], string][] = [
+    [{ ...renfeAt(RENFE_WRITTEN + 20_000), positions: RENFE.positions }, 'vehicle_positions: not updated since 19:36:49 UTC'],
+    [{ ...renfeAt(RENFE_WRITTEN + 20_000), updates: RENFE.updates }, 'trip_updates: not updated since 19:36:49 UTC'],
+  ];
+  for (const [rodalies, status] of stuck) {
+    const failed = step(good.state, { rodalies }, later);
+    expect(failed.snapshot.feeds).toEqual({ rodalies: { lastSuccess: NOW, lastAttempt: later, status, every: 20_000 } });
+    expect(failed.snapshot.reports).toEqual(good.snapshot.reports);
+  }
+});
+
+test("while Renfe's headers stay put, Rodalies' live data is unavailable from the third run, and a header repeated once changes nothing", () => {
+  /** Which Networks' live data is unavailable after each run, 20 s apart, whose Renfe headers say these moments. */
+  const runs = (headers: number[]) => {
+    let state = START.state;
+    const received: { snapshot: ReturnType<typeof step>['snapshot']; at: number }[] = [];
+    return headers.map((header, i) => {
+      const done = step(state, { rodalies: renfeAt(header) }, NOW + i * 20_000);
+      state = done.state;
+      received.push({ snapshot: done.snapshot, at: done.snapshot.generated });
+      return unavailable(received);
+    });
+  };
+  const at = (s: number) => RENFE_WRITTEN + s * 1000;
+  expect(runs([at(0), at(0), at(0), at(0), at(0)])).toEqual([[], [], [], ['rodalies'], ['rodalies']]);
+  // Renfe's headers move every 18-22 s, and the runs are 20 s apart, so one sometimes repeats.
+  expect(runs([at(0), at(20), at(20), at(40), at(60), at(60), at(80)])).toEqual([[], [], [], [], [], [], []]);
+});
+
 test('fetches Renfe on every run', () => {
   expect(START.due).toContain('rodalies');
   expect(run().due).toContain('rodalies');
@@ -197,6 +240,21 @@ function writtenAt(moment: number): Uint8Array {
   return pbf.finish();
 }
 
+/** Geotren as recorded, with FGC saying it last updated it at a moment rather than 10:30:11. */
+const geotrenAt = (moment: number) => ({ status: 200, body: FGC.positions.body.replaceAll('2026-09-25T08:30:11.284000+00:00', new Date(moment).toISOString()) });
+
+test("counts a refresh whose Geotren FGC hasn't updated since the last as a failed try, keeping its reports", () => {
+  const good = fgcRun();
+  const later = FGC_NOW + 120_000;
+  // 2 minutes later, FGC has written its trip updates again, but Geotren still says 10:30:11.
+  const failed = step(good.state, { fgc: { ...FGC, lookup: undefined, updates: { status: 200, body: writtenAt(FGC_NOW + 60_000) } } }, later);
+  expect(failed.snapshot.feeds).toEqual({ fgc: { lastSuccess: FGC_NOW, lastAttempt: later, status: 'geotren: not updated since 08:30:11 UTC', every: 120_000 } });
+  expect(failed.snapshot.reports).toEqual(good.snapshot.reports);
+  // Once it's updated again, so are the reports.
+  const updated = step(failed.state, { fgc: { ...FGC, lookup: undefined, positions: geotrenAt(later) } }, later + 120_000);
+  expect(updated.snapshot.feeds.fgc).toMatchObject({ lastSuccess: later + 120_000, status: 'ok' });
+});
+
 /** What FGC answers a refresh with: its responses, as the Worker gets them, and how many requests its API has left today. */
 interface Answer {
   positions?: Fetched;
@@ -216,7 +274,7 @@ function refreshes(from: number, minutes: number, answer: (moment: number) => An
   for (let t = from; t < from + minutes * 60_000; t += 20_000) {
     const responses: Responses = {};
     if (stored.due.includes('fgc')) {
-      const { remaining, positions = { ...FGC.positions, remaining }, updates = { status: 200, body: writtenAt(t - 60_000), remaining } } = answer(t);
+      const { remaining, positions = { ...geotrenAt(t - 60_000), remaining }, updates = { status: 200, body: writtenAt(t - 60_000), remaining } } = answer(t);
       const lookup = stored.state.fgc?.file ? undefined : { ...FGC.lookup, remaining };
       responses.fgc = { positions, updates, lookup };
       made.push({ at: t, requests: [...(lookup ? ['lookup'] : []), 'positions', 'updates'] });
@@ -395,6 +453,22 @@ test("keeps TRAM's last good reports through runs whose responses fail, for both
     const failed = step(state, { tram: { ...TRAM, ...answer } }, TRAM_NOW + (i + 1) * 20_000);
     expect(failed.snapshot.reports).toEqual(good.snapshot.reports);
     state = failed.state;
+  }
+});
+
+test("counts a run whose trip updates TRAM hasn't written again since the last as a failed try, for either half, keeping its reports", () => {
+  const good = tramRun();
+  const later = TRAM_NOW + 20_000;
+  const rewritten = (half: 'TBX' | 'TBS') => ({ ...TRAM[half], updates: { status: 200, body: writtenAt(TRAM_NOW) } });
+  // 20 s later, one of the halves' trip updates still has the header it had: TBX's 11:44:44, TBS' 11:44:46.
+  const stuck: [TramAnswer, string][] = [
+    [{ TBS: rewritten('TBS') }, 'TBX gtfsrealtime: not updated since 09:44:44 UTC'],
+    [{ TBX: rewritten('TBX') }, 'TBS gtfsrealtime: not updated since 09:44:46 UTC'],
+  ];
+  for (const [answer, status] of stuck) {
+    const failed = step(good.state, { tram: { ...TRAM, ...answer } }, later);
+    expect(failed.snapshot.feeds).toEqual({ tram: { lastSuccess: TRAM_NOW, lastAttempt: later, status, every: 20_000 } });
+    expect(failed.snapshot.reports).toEqual(good.snapshot.reports);
   }
 });
 

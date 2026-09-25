@@ -192,6 +192,7 @@ From its [README](https://github.com/siriushsu/taiwan-rail-live):
     - Against that day's timetable, trains ran a median of 52 s late on L1 and 94 s on L3, where they're 4 minutes 51 apart, so a train can be closer in time to the Trip after its own. In 12% of readings two trains came closest to one Trip, mostly bunched near a Line's end.
     - Trains held outside a Line's end wait there: L1's 115 took four minutes from Santa Coloma to Fondo, a run the timetable gives 1 minute 23.
     - TMB answered in 0.1–15.9 s, a median of 1.2 s; 2 answers of 40 took over 10 s. `timestamp` was 0.1–15.8 s after the request. No rate-limit headers.
+  - **Known gap (#35):** iTransit carries no data time, as `timestamp` is stamped when TMB answers. So the fetcher can't tell a frozen iTransit from a working one, and one that kept answering with the same predictions would keep the Metro's Trains Live. Renfe, FGC and TRAM each say when their data was last updated, and a run that finds it hasn't moved counts as failed. Telling a frozen Metro by unchanged predictions is left out until TMB is seen frozen.
 - **Bus live:** `/v1/ibus/stops/{code}` or `/v1/itransit/bus/parades/{code}`, one stop per call, ~2,600 stops. Out of scope.
 - **Quotas:** not published.
 - Several public repos embed TMB keys. Don't use them.

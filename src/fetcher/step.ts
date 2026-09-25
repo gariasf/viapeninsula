@@ -49,10 +49,16 @@ export interface Responses {
   metro?: Fetched;
 }
 
-/** What the step keeps between runs: each feed's freshness, its reports from the last run it worked, and what fetching FGC and TRAM needs. */
+/** What the step keeps between runs: each feed's freshness, its reports from the last run it worked, when its data was last updated, and what fetching FGC and TRAM needs. */
 export interface State {
   feeds: Record<string, Freshness>;
   reports: Record<string, Report[]>;
+  /**
+   * For each feed, when its files say they were last updated, in ms since 1970, by the file's name
+   * in its statuses: Renfe's headers, Geotren's `record_timestamp` and TRAM's trip updates' headers.
+   * A try that finds one no later than this is a failed one, as the feed has stopped updating.
+   */
+  updated?: Partial<Record<Feed, Record<string, number>>>;
   fgc?: {
     /** Where its trip-updates file is, until it has to be looked up again. */
     file?: string;
@@ -82,12 +88,25 @@ export const START: Stored = { state: { feeds: {}, reports: {} }, due: ['rodalie
  */
 export function step(state: State, responses: Responses, now: number): Stored & { snapshot: Snapshot } {
   // A response that fails never replaces the last good one: that feed's reports stay as they were.
-  const [feeds, reports] = [{ ...state.feeds }, { ...state.reports }];
-  /** Reads a feed's reports from this run's responses where they can be, and gives its freshness after this try. */
-  const refresh = (feed: Feed, every: number, reported: () => Report[]): Freshness => {
+  const [feeds, reports, updated] = [{ ...state.feeds }, { ...state.reports }, { ...state.updated }];
+  /**
+   * Reads a feed's reports from this run's responses where they can be, and gives its freshness after
+   * this try. Reading them says when each of its files was last updated, where the file says.
+   */
+  const refresh = (feed: Feed, every: number, reported: (said: (file: string, at: number) => void) => Report[]): Freshness => {
     let freshness: Freshness;
     try {
-      reports[feed] = reported();
+      const said: [string, number][] = [];
+      // A file that gives no time, or none that can be read, can't say it's stuck.
+      const got = reported((file, at) => {
+        if (at > 0) said.push([file, at]);
+      });
+      // Only once every file is read, so a file that can't be read says so first.
+      const last = { ...updated[feed] };
+      updated[feed] = { ...last, ...Object.fromEntries(said.map(([file, at]) => [file, Math.max(at, last[file] ?? at)])) };
+      const stuck = said.find(([file, at]) => at <= (last[file] ?? -Infinity))?.[0];
+      if (stuck) throw new Error(`${stuck}: not updated since ${clock(updated[feed][stuck] ?? 0)}`);
+      reports[feed] = got;
       freshness = { lastSuccess: now, lastAttempt: now, status: 'ok', every };
     } catch (error) {
       freshness = { ...feeds[feed], lastAttempt: now, status: (error as Error).message, every };
@@ -97,7 +116,12 @@ export function step(state: State, responses: Responses, now: number): Stored & 
   let fgc = state.fgc;
   if (responses.rodalies) {
     const { positions, updates } = responses.rodalies;
-    refresh('rodalies', EVERY, () => rodalies(read('vehicle_positions', positions), read('trip_updates', updates)));
+    refresh('rodalies', EVERY, (said) => {
+      const [vehicles, trips] = [read<GtfsRt>('vehicle_positions', positions), read<GtfsRt>('trip_updates', updates)];
+      said('vehicle_positions', ms(vehicles.header.timestamp));
+      said('trip_updates', ms(trips.header.timestamp));
+      return rodalies(vehicles, trips);
+    });
   }
   if (responses.fgc) {
     const { positions, updates, lookup } = responses.fgc;
@@ -107,10 +131,13 @@ export function step(state: State, responses: Responses, now: number): Stored & 
     fgc = { ...tripUpdates.fgc, remaining };
     // With none left, its Trains were last placed as often as before, and it isn't tried again.
     const every = remaining === 0 ? (state.feeds.fgc?.every ?? FGC_EVERY) : fgcEvery(remaining);
-    const freshness = refresh('fgc', every, () => {
+    const freshness = refresh('fgc', every, (said) => {
       const trains = read<Geotren>('geotren', positions);
       if (!tripUpdates.feed) throw tripUpdates.error;
-      return fgcReports(trains, tripUpdates.feed);
+      const got = fgcReports(trains, tripUpdates.feed);
+      // FGC updates all of Geotren's records at once.
+      said('geotren', Math.max(...(trains.results ?? []).map((r) => Date.parse(r.record_timestamp))));
+      return got;
     });
     if (remaining === 0) freshness.status = 'no requests left until 00:00 UTC';
   }
@@ -118,9 +145,9 @@ export function step(state: State, responses: Responses, now: number): Stored & 
   let tram = responses.tram?.token ? undefined : state.tram;
   if (responses.tram) {
     const { token, ...halves } = responses.tram;
-    refresh('tram', EVERY, () => {
+    refresh('tram', EVERY, (said) => {
       if (token) tram = issued(token, now);
-      return HALVES.flatMap((half) => tramReports(half, halves[half], now));
+      return HALVES.flatMap((half) => tramReports(half, halves[half], now, said));
     });
     // The token is kept for as long as it lasts through the next run's answers, and TRAM accepts it.
     const refused = HALVES.some((half) => [halves[half].positions, halves[half].updates].some((f) => 'status' in f && f.status === 401));
@@ -128,7 +155,7 @@ export function step(state: State, responses: Responses, now: number): Stored & 
   }
   const { metro } = responses;
   if (metro) refresh('metro', METRO_EVERY, () => metroReports(read('itransit', metro)));
-  const next: State = { feeds, reports, fgc, tram };
+  const next: State = { feeds, reports, updated, fgc, tram };
   const due: Feed[] = ['rodalies', 'tram'];
   if (fgcDue(next, now + EVERY)) due.push('fgc');
   // Every other run, however long TMB takes to answer, so two requests are never less than 30 s apart.
@@ -231,6 +258,9 @@ function position(vehicle: Vehicle): Report['position'] {
 
 const ms = (seconds: string | undefined) => Number(seconds) * 1000;
 
+/** A moment's time of day in UTC, such as 09:12:40 UTC. */
+const clock = (moment: number) => `${new Date(moment).toISOString().slice(11, 19)} UTC`;
+
 /** Geotren's records, as the Worker asks for them: each Train's Trip, where it is, the Station it stands at, its Unit type, and when FGC last updated them. */
 interface Geotren {
   results?: { id: string; geo_point_2d?: { lon: number; lat: number } | null; estacionat_a?: string | null; tipus_unitat?: string | null; record_timestamp: string }[];
@@ -329,10 +359,13 @@ interface ActiveVehicle {
 /**
  * The Trains one of TRAM's halves has in service, from where it has its Units and its trip updates,
  * which name the Trip each Unit runs. A Train whose Trip they don't name, as before it starts, gets
- * no report. Each report is as of the run, since TRAM's figures carry no time of their own.
+ * no report. Each report is as of the run, since TRAM's figures carry no time of their own, though
+ * the trip updates say when TRAM wrote them.
  */
-function tramReports(half: Half, { positions, updates }: NonNullable<Responses['tram']>[Half], now: number): Report[] {
-  const trips = new Map(gtfsRt(`${half} gtfsrealtime`, updates).trips.map((t) => [t.unit, t.id]));
+function tramReports(half: Half, { positions, updates }: NonNullable<Responses['tram']>[Half], now: number, said: (file: string, at: number) => void): Report[] {
+  const feed = gtfsRt(`${half} gtfsrealtime`, updates);
+  said(`${half} gtfsrealtime`, feed.written * 1000);
+  const trips = new Map(feed.trips.map((t) => [t.unit, t.id]));
   const units = read<ActiveVehicle[]>(`${half} activevehicles`, positions);
   if (!Array.isArray(units)) throw new Error(`${half} activevehicles: not a list`);
   return units.flatMap(({ vehicleId, lineName, originStopCode, vehiclePosition, delay }) => {
