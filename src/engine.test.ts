@@ -726,6 +726,32 @@ test('a Block that turns back at the end of its Line runs the Trip back from the
   expect(metro(NEXT_OUT_OF_FONDO, '13:15:50', METRO_LIVE, 60)?.dist).toBeCloseTo(metro(NEXT_OUT_OF_FONDO, '13:15:50', [], 60 + 69)?.dist ?? NaN, 3);
 });
 
+test('a Metro Train held outside the end of its Line is drawn no further back than the Station before it', () => {
+  // Made up after L1's 115 in #12's recording: at 13:19:39, having left Santa Coloma, it's held
+  // outside Fondo, and TMB expects it there at 13:23:49, 3½ minutes after the Trip's timetable does.
+  // That Delay alone has it two Stations back, between Trinitat Vella and Baró de Viver.
+  const generated = Date.parse('2026-09-25T13:19:39+02:00');
+  const report: Report = { block: { line: 'metro:L1', number: '115' }, headsign: 'Fondo', at: generated, position: { next: { station: 'tmb:1.140', at: Date.parse('2026-09-25T13:23:49+02:00') } } };
+  const held: Received[] = [{ snapshot: { generated, feeds: { metro: { lastSuccess: generated, lastAttempt: generated, status: 'ok', every: 40_000 } }, reports: [report] }, at: generated }];
+  expect(metro(NEXT_INTO_FONDO, '13:19:39', held)).toMatchObject({ live: true, dist: 19161 });
+  // As seen, with the Trip after it due at Fondo at 13:24:34: TMB's time matches the Block to that
+  // Trip, 45 s early, which alone has it two Stations short of Santa Coloma.
+  const LATER = 'metro:1.1.later';
+  const later = bundleOf('2026-09-25', METRO.networks[0] as Network, {
+    [LATER]: {
+      line: 'metro:L1',
+      headsign: 'Fondo',
+      calls: [
+        ['tmb:1.137', '13:19:43', '13:20:02', 17896, 2.193837, 41.448956], // Trinitat Vella
+        ['tmb:1.138', '13:21:10', '13:21:29', 18427, 2.199563, 41.449936], // Baró de Viver
+        ['tmb:1.139', '13:22:49', '13:23:11', 19161, 2.207969, 41.451067], // Santa Coloma
+        ['tmb:1.140', '13:24:34', '13:24:34', 20055, 2.218435, 41.451583], // Fondo
+      ],
+    },
+  });
+  expect(trainsAt(later, generated, held).find((t) => t.trip.id === LATER)).toMatchObject({ live: true, dist: 19161 });
+});
+
 // 45 minutes of production snapshots of all four Networks as the map received them, every 20 s from
 // 16:00 on Friday 25 September 2026, and that day's bundle cut to the Trips they could name.
 const RECORDED: { bundle: Bundle; received: Received[] } = JSON.parse(gunzipSync(readFileSync(new URL('fixtures/replay-2026-09-25.json.gz', import.meta.url))).toString());

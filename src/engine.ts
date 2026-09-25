@@ -329,13 +329,22 @@ const delays = new WeakMap<Report, { trip: Trip; delay: number }>();
  * A report's Delay for its Train, in seconds: while it runs between Stations, from where its GPS
  * puts it on its Trip's track, or how far along it TRAM has it, and otherwise, standing at or pinned
  * to a Station or with no position, its operator's figure, or how late it is where its operator
- * expects it at a Station, as TMB does at the one each of the Metro's comes to next.
+ * expects it at a Station, as TMB does at the one each of the Metro's comes to next, though never
+ * so late that it's drawn short of the Station before that.
  */
 function delayOf(trip: Trip, calls: Call[], shape: Shape, profile: SpeedProfile, report: Report, noonMinus12h: number): number {
   const known = delays.get(report);
   if (known?.trip === trip) return known.delay;
   const [reported, { position }] = [(report.at - noonMinus12h) / 1000, report];
   let delay = report.delay ?? expectedDelay(trip, position && 'next' in position ? position.next : report.expected, noonMinus12h) ?? 0;
+  if (position && 'next' in position) {
+    // It's no further back than the Station before the one it comes to next, however long it's held
+    // short of that, as at the end of its Line. Short of its Trip's first Station it's off the map,
+    // standing there as it turns back, and TMB's time is all there is to go by.
+    const i = calls.findIndex((c) => c.station === position.next.station);
+    const before = calls[i - 1];
+    if (before && i > 1) delay = Math.min(delay, reported - before.arrival);
+  }
   if (position && ('lon' in position || 'along' in position)) {
     const dists = calls.map((c) => c.dist);
     // TRAM counts from a Trip's first Station, whichever way along its track the Trip runs.
