@@ -187,7 +187,10 @@ export async function readFeed(
   for (const id of stops.keys()) {
     const s = stationOf(id);
     const key = station(id);
-    if (s && all.has(key) && !stations.has(key)) stations.set(key, { id: key, name: s.stop_name, lon: Number(s.stop_lon), lat: Number(s.stop_lat) });
+    if (!s || !all.has(key) || stations.has(key)) continue;
+    // Where the Station is a Line's own stop, as the Metro's are, the station grouping it is its place.
+    const place = s.parent_station && `${operator}:${s.parent_station}`;
+    stations.set(key, { id: key, name: s.stop_name, lon: Number(s.stop_lon), lat: Number(s.stop_lat), ...(place && { place }) });
   }
 
   const wanted = new Set([...lines.values()].flatMap((l) => [...l.shapes]));

@@ -3,7 +3,7 @@ import './style.css';
 import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { AttributionControl, MapLibreMap, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { along, LIVE_URL, madridDate, type Bundle, type Manifest, type Network, type Snapshot } from '../bundle.ts';
+import { along, LIVE_URL, madridDate, places, type Bundle, type Manifest, type Network, type Snapshot } from '../bundle.ts';
 import { KEEP, trainsAt, unavailable, type Received } from '../engine.ts';
 import { language, LANGUAGES, setLanguage, t, type Language } from './i18n.ts';
 
@@ -156,10 +156,10 @@ map.addSource('stations', {
   type: 'geojson',
   data: {
     type: 'FeatureCollection',
-    features: bundle.stations.map((s) => ({
+    features: places(bundle.stations).map((p) => ({
       type: 'Feature',
-      properties: { name: s.name },
-      geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
+      properties: { name: p.name },
+      geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
     })),
   },
 });

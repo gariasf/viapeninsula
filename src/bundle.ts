@@ -115,6 +115,19 @@ export interface Station {
   name: string;
   lon: number;
   lat: number;
+  /** The station its operator groups it in with other Lines' Stations, which the map shows as one place: `tmb:P.6660327` at Passeig de Gràcia (ADR-0005). */
+  place?: string;
+}
+
+/** Where the map shows the Stations: those grouped in one place as one, at the middle of theirs, and every other on its own. */
+export function places(stations: Station[]): { name: string; lon: number; lat: number }[] {
+  const groups = new Map<string, Station[]>();
+  for (const s of stations) groups.set(s.place ?? s.id, [...(groups.get(s.place ?? s.id) ?? []), s]);
+  return [...groups.values()].map((group) => ({
+    name: group[0]?.name ?? '',
+    lon: group.reduce((sum, s) => sum + s.lon, 0) / group.length,
+    lat: group.reduce((sum, s) => sum + s.lat, 0) / group.length,
+  }));
 }
 
 /** A timetable entry: the Stations a Train calls at, in order, when, and where along its shape. */
