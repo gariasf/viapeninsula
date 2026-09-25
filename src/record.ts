@@ -10,7 +10,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
-import { LIVE_URL, madridDate, type Bundle, type Manifest, type Snapshot } from './bundle.ts';
+import { LIVE_URL, madridDate, type Bundle, type Manifest, type Snapshot, type Trip } from './bundle.ts';
 import { trainsAt, type Received } from './engine.ts';
 
 const [dir, minutes = '15'] = process.argv.slice(2);
@@ -53,7 +53,13 @@ const kept = new Set(received.flatMap((r) => r.snapshot.reports.flatMap((report)
 for (let at = received[0]?.at ?? 0; at <= (received.at(-1)?.at ?? 0); at += 1000) {
   for (const train of trainsAt(bundle, at, received.filter((r) => r.at <= at))) if (train.live) kept.add(train.trip.id);
 }
-const trips = bundle.trips.filter((t) => kept.has(t.id));
+// And every Trip a Block could run, on its Line within an hour of the replay (the engine matches
+// within half an hour): cutting one a Block ran while it was off the map, such as waiting at its
+// first Station, would have the Block run another.
+const blocked = new Set(received.flatMap((r) => r.snapshot.reports.flatMap((report) => (report.block ? [report.block.line] : []))));
+const [from = 0, to = 0] = [received[0]?.at ?? 0, received.at(-1)?.at ?? 0].map((at) => (at - bundle.noonMinus12h) / 1000);
+const nearby = ({ line, calls }: Trip) => blocked.has(line) && (calls[0]?.arrival ?? Infinity) < to + 3600 && (calls.at(-1)?.departure ?? -Infinity) > from - 3600;
+const trips = bundle.trips.filter((t) => kept.has(t.id) || nearby(t));
 const [lines, shapes] = [new Set(trips.map((t) => t.line)), new Set(trips.map((t) => t.shape))];
 const cut: Bundle = {
   ...bundle,
