@@ -29,7 +29,7 @@ export interface Report {
   trip?: string;
   /**
    * For a Train its operator names by a Trip the bundle doesn't have, as Geotren does Montserrat's
-   * rack trains: its Line, as the bundle names it. The engine matches it to the Line's Trip whose
+   * rack Trains: its Line, as the bundle names it. The engine matches it to the Line's Trip whose
    * `trip_id` ends as its own does, after the `|`.
    */
   line?: string;

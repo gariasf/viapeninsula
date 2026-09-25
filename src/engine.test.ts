@@ -589,9 +589,9 @@ test("an FGC Train Geotren has standing at a Station stays there, where FGC's tr
   expect(s2(standing({ position: { near: 'fgc:SC' }, expected: { station: 'fgc:SC', at: Date.parse('2026-09-25T10:32:00+02:00') } }))).toBeUndefined();
 });
 
-// Three of Montserrat's rack Trips on 25 September 2026, as the daily build had them, and the
+// Two of Montserrat's rack Trips on 25 September 2026, as the daily build had them, and the
 // reports the fetcher made of them from Geotren as FGC updated it at 14:46:02, in a snapshot
-// written at 14:46:11. Geotren has them on lines M1 and M2, as service 6d4fdaec, which isn't the day's.
+// written at 14:46:11. Geotren has them on lines M1 and M2, under a calendar, 6d4fdaec, that isn't the day's.
 const RACK: Bundle = bundleOf('2026-09-25', { id: 'fgc', name: 'FGC', profile: { ...PROFILE, topSpeed: 30 / 3.6 } }, {
   'fgc:6350da917476|652dc7e702': {
     line: 'fgc:MM',
@@ -607,7 +607,7 @@ const RACK: Bundle = bundleOf('2026-09-25', { id: 'fgc', name: 'FGC', profile: {
       ['fgc:MM', '14:48:00', '14:48:00', 5110, 1.836497527, 41.59225373], // Montserrat
     ],
   },
-  // Not the day's MM Trip: one on another Line whose trip_id ends as a rack train's does.
+  // Made up: a Trip on another Line whose trip_id ends as a rack Train's does.
   'fgc:625cdae21f726b1bb950|652dc7e703': {
     line: 'fgc:R5',
     calls: [
@@ -629,13 +629,17 @@ const RACK_RECEIVED: Received[] = [{
   at: RACK_WRITTEN,
 }];
 
-test("a rack train Geotren has on line M1 or M2 is Live as the day's MM Trip whose trip_id ends as its id does after the |", () => {
-  const trains = trainsAt(RACK, Date.parse('2026-09-25T14:46:20+02:00'), RACK_RECEIVED);
+test("a rack Train Geotren has on line M1 or M2 is Live as the day's MM Trip it runs, running as late as its position shows", () => {
+  const moment = Date.parse('2026-09-25T14:46:20+02:00');
+  const trains = trainsAt(RACK, moment, RACK_RECEIVED);
   expect(trains.map((t) => [t.trip.id, t.live])).toEqual([
     ['fgc:6350da917476|652dc7e702', true],
     ['fgc:6350da917476|652dc7e703', true],
     ['fgc:625cdae21f726b1bb950|652dc7e703', false],
   ]);
+  // Geotren has both about 3 minutes behind their timetables, which the trip updates don't cover.
+  const scheduled = trainsAt(RACK, moment);
+  for (const i of [0, 1]) expect(trains[i]?.dist).toBeLessThan((scheduled[i]?.dist ?? NaN) - 400);
 });
 
 test("a Train Renfe pins to a Station isn't held there: Renfe's pinned Stations are stale", () => {

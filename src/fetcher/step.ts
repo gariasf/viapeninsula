@@ -322,7 +322,7 @@ function fgcReports(positions: Geotren, updates: TripUpdates): Report[] {
     if (Number.isNaN(at)) throw new Error('geotren: no record_timestamp');
     // One standing at a Station is only there, as Renfe's are (ADR-0002).
     const position = standing ? { near: `fgc:${standing}` } : gps ? { lon: gps.lon, lat: gps.lat } : undefined;
-    // Montserrat's rack trains run under a service the timetable doesn't have, on lines M1 and M2, which it has as one, MM.
+    // Montserrat's rack Trains run under a calendar the timetable doesn't have, on lines M1 and M2, which it has as one, MM.
     const line = lin === 'M1' || lin === 'M2' ? 'fgc:MM' : undefined;
     reports.set(id, { ...reports.get(id), trip: `fgc:${id}`, line, at, position, unitType: unitType || undefined });
   }

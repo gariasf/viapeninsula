@@ -225,9 +225,10 @@ test('reports an FGC Train only the trip updates cover as FGC last updated it, w
   });
 });
 
-test("names Montserrat's rack trains, which Geotren has on lines M1 and M2, the timetable's Line MM", () => {
-  // Geotren as recorded at 14:47 on Friday 25 September 2026, when FGC last updated it at 14:46:02:
-  // the three rack trains, whose ids carry a service FGC's timetable doesn't have, and an S1.
+test("names Montserrat's rack Trains, which Geotren has on lines M1 and M2, the timetable's Line MM", () => {
+  // Geotren as recorded at 14:47 on Friday 25 September 2026: the three rack Trains, whose ids carry
+  // a calendar FGC's timetable doesn't have, and an S1. The recording didn't ask for record_timestamp,
+  // so theirs is the time the fetcher's snapshot then had for that update, 14:46:02.
   const positions = { status: 200, body: fgcRecorded('rack.json').toString() };
   const reports = fgcRun({ ...FGC, positions }).snapshot.reports.filter((r) => r.position);
   expect(reports.map((r) => [r.trip, r.line])).toEqual([
