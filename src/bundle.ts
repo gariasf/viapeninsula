@@ -33,8 +33,12 @@ export interface Report {
   position?: { lon: number; lat: number } | { near: string };
   /** How late it's running, in seconds, as its operator has it: early where it's negative. */
   delay?: number;
+  /** Where its operator gives no Delay, when it expects it at a Station, in ms since 1970, as FGC does. */
+  expected?: { station: string; at: number };
   /** Whether its operator has announced that it won't run. */
   cancelled?: true;
+  /** The type of Unit it runs as, where its operator publishes it: FGC's series, such as 213x2 for two 213s coupled. */
+  unitType?: string;
 }
 
 /** Names the bundle for each service day. Cached briefly; the bundles it names never change. */

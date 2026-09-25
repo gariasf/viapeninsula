@@ -150,8 +150,8 @@ const [JUMP_TIME, JUMP_DIST] = [60, 1000];
 /**
  * The last replay, which the map asks for again every frame until its next snapshot arrives.
  * ponytail: every snapshot kept (KEEP) is replayed each time one arrives, which took about 8 ms on a
- * laptop for half an hour of Rodalies' 80 Live Trains. Fold each new one into the last replay once
- * more Networks go Live, or if phones stutter.
+ * laptop for half an hour of Rodalies' 80 Live Trains, and 12 ms with FGC's 50 more. Fold each new
+ * one into the last replay as TRAM and the Metro go Live, or if phones stutter.
  */
 let last: { bundle: Bundle; received: Received[]; eases: Map<string, Ease>; heard: Map<string, Heard> } | undefined;
 
@@ -265,13 +265,13 @@ const delays = new WeakMap<Report, { trip: Trip; delay: number }>();
 /**
  * A report's Delay for its Train, in seconds: while it runs between Stations, from where its GPS
  * puts it on its Trip's track, and otherwise, standing at or pinned to a Station or with no
- * position, its operator's figure.
+ * position, its operator's figure, or how late it is where its operator expects it at a Station.
  */
 function delayOf(trip: Trip, calls: Call[], shape: Shape, profile: SpeedProfile, report: Report, noonMinus12h: number): number {
   const known = delays.get(report);
   if (known?.trip === trip) return known.delay;
   const [reported, { position }] = [(report.at - noonMinus12h) / 1000, report];
-  let delay = report.delay ?? 0;
+  let delay = report.delay ?? expectedDelay(trip, report.expected, noonMinus12h) ?? 0;
   if (position && 'lon' in position) {
     const dists = calls.map((c) => c.dist);
     const passed = passing(calls, profile, nearest(shape, Math.min(...dists), Math.max(...dists), position), reported - delay);
@@ -279,6 +279,16 @@ function delayOf(trip: Trip, calls: Call[], shape: Shape, profile: SpeedProfile,
   }
   delays.set(report, { trip, delay });
   return delay;
+}
+
+/**
+ * A Train's Delay by when its operator expects it at a Station, in seconds: against when its Trip's
+ * timetable has it arrive there. FGC's Trips call at each Station once.
+ */
+function expectedDelay(trip: Trip, expected: Report['expected'], noonMinus12h: number): number | undefined {
+  if (!expected) return undefined;
+  const call = trip.calls.find((c) => c.station === expected.station);
+  return call && (expected.at - noonMinus12h) / 1000 - call.arrival;
 }
 
 /** How far along a shape the point of it nearest a position is, in metres, between two distances along it. */

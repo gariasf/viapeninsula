@@ -123,6 +123,12 @@ From its [README](https://github.com/siriushsu/taiwan-rail-live):
   - `tipus_unitat` (series, e.g. 112), `ut` (hashed unit ID)
   - occupancy % per car (`ocupacio_mi/ri/m1/m2_percent`)
   - Positions changed once per ~2 min, with no implausible jumps.
+- **Measured again on Friday 25 September 2026, 10:08–10:31, for #10:**
+  - Geotren's `id` is the Train's GTFS `trip_id`. 58 of 62 records agreed with their Trip's Line, origin, destination, upcoming stops and the Station they stood at. Of the rest, one Trip Geotren puts on L66 is on L6 in the timetable. The other three were Montserrat rack trains (M1/M2), whose `id` has a service part (`6d4fdaec|…`) that isn't in the timetable. Matching by Line, direction and upcoming stops would miss more than the `id` does: L66 against L6, and an S8 whose upcoming stops skip Martorell Vila.
+  - `select=…,record_timestamp` gives the time FGC last updated Geotren, the same for every record, in the same request. Geotren changed every 100–140 s, once after 6 minutes. By the trip updates' predictions, its positions were 10–20 s older than that time when it changed.
+  - The vehicle-positions file was empty at some fetches. At others it held Geotren's positions from about 2 minutes before, 2–4 minutes old, each stamped with the file's own time. Its vehicle IDs are Geotren's `ut`.
+  - The trip updates carry no delays, only predicted arrival and departure times at each stop left, and they imply the same delay at every stop. They name platforms, such as PC1 at Plaça Catalunya (PC): the Station's code, then the platform's number. Each trip update has its own `timestamp`. The file kept its address from 10:08 to 10:31, and the header's time advanced every 1–3 minutes.
+  - Geotren's `estacionat_a` held for about half the Trains. Those Trains' positions were mostly within 150 m of the Station, and the trip updates' first stop is that Station. For the others, the first stop is the next Station.
 
 ### TRAM Barcelona (Trambaix T1–T3, Trambesòs T4–T6)
 
@@ -197,7 +203,8 @@ From its [README](https://github.com/siriushsu/taiwan-rail-live):
 | Renfe Cercanías positions | ~20 s | ~20–26 s | GPS in transit; station-snapped when stopped/arriving | 36% of transitions >180 km/h |
 | Renfe LD visor | 15–30 s | median 45 s | GPS | 2.5% >330 km/h |
 | Renfe LD positions | 13–30 s | unknown (no timestamps) | GPS | not measured |
-| FGC positions / Geotren | ~120 s | 2–4 min | GPS-like | none |
+| FGC Geotren | 100–140 s, once 6 min | 10–20 s when it changes (25 Sep) | GPS-like, or standing at a Station | none |
+| FGC vehicle positions | often empty | 2–4 min | Geotren's of ~2 min before | none |
 | TRAM activevehicles | ~10 s | — | metres since trip origin; 0 at stops | small backward jitter (2–30 m) |
 | TMB iTransit metro | on request | 0.3–3 s | per-train countdown to each upcoming station | none seen |
 
