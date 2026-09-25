@@ -330,7 +330,8 @@ const delays = new WeakMap<Report, { trip: Trip; delay: number }>();
  * puts it on its Trip's track, or how far along it TRAM has it, and otherwise, standing at or pinned
  * to a Station or with no position, its operator's figure, or how late it is where its operator
  * expects it at a Station, as TMB does at the one each of the Metro's comes to next, though never
- * so late that it's drawn short of the Station before that.
+ * so late that it's drawn short of the Station before that, nor, standing at a Station with no
+ * figure, so that it's drawn anywhere else when it was reported.
  */
 function delayOf(trip: Trip, calls: Call[], shape: Shape, profile: SpeedProfile, report: Report, noonMinus12h: number): number {
   const known = delays.get(report);
@@ -344,6 +345,14 @@ function delayOf(trip: Trip, calls: Call[], shape: Shape, profile: SpeedProfile,
     const i = calls.findIndex((c) => c.station === position.next.station);
     const before = calls[i - 1];
     if (before && i > 1) delay = Math.min(delay, reported - before.arrival);
+  }
+  if (position && 'near' in position && report.delay === undefined) {
+    // Standing at a Station, as Geotren has FGC's, it's there when it was reported, however long ago
+    // the trip updates have it leave. An operator's own Delay stands: Renfe's pinned Stations are stale.
+    // At its Trip's first Station it can stand long before it leaves, off the map.
+    const i = calls.findIndex((c) => c.station === position.near);
+    const call = calls[i];
+    if (call && i > 0) delay = Math.min(Math.max(delay, reported - call.departure), reported - call.arrival);
   }
   if (position && ('lon' in position || 'along' in position)) {
     const dists = calls.map((c) => c.dist);

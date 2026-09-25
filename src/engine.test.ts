@@ -567,6 +567,29 @@ test("an FGC Train Geotren has standing at a Station is Live, running as late as
   expect(s2([{ snapshot: FGC_LIVE, at: FGC_LIVE.generated }])?.dist).toBeCloseTo(trainsAt(FGC, moment - 180_000).find((t) => t.trip.id === S2)?.dist ?? NaN, 3);
 });
 
+test("an FGC Train Geotren has standing at a Station stays there, where FGC's trip update has it leave already", () => {
+  // Made up: Geotren has the S2 standing at Sant Joan at 10:30:11, but the trip updates expect it
+  // there at 10:28:30, 90 s late, and so gone by 10:29:30. It's held as late as keeps it there at
+  // 10:30:11: 131 s, just leaving, as its timetable has it leave at 10:28.
+  const [reported, moment] = [Date.parse('2026-09-25T10:30:11+02:00'), Date.parse('2026-09-25T10:30:15+02:00')];
+  const standing = (report: Partial<Report>): Received[] => [{
+    snapshot: {
+      generated: moment,
+      feeds: { fgc: { lastSuccess: moment, lastAttempt: moment, status: 'ok', every: 120_000 } },
+      reports: [{ trip: S2, at: reported, position: { near: 'fgc:SJ' }, expected: { station: 'fgc:SJ', at: Date.parse('2026-09-25T10:28:30+02:00') }, ...report }],
+    },
+    at: moment,
+  }];
+  const s2 = (received: Received[]) => trainsAt(FGC, moment, received).find((t) => t.trip.id === S2);
+  const late = (seconds: number) => trainsAt(FGC, moment - seconds * 1000).find((t) => t.trip.id === S2)?.dist ?? NaN;
+  expect(s2(standing({}))?.dist).toBeCloseTo(late(131), 3);
+  // An operator's own Delay, as Renfe gives for the Trains it pins to a Station, isn't held.
+  expect(s2(standing({ delay: 90 }))?.dist).toBeCloseTo(late(90), 3);
+  // At its Trip's first Station it can stand long before it leaves, off the map: here at Sant Cugat
+  // Centre, expected there at 10:32, 9 minutes after its timetable has it arrive.
+  expect(s2(standing({ position: { near: 'fgc:SC' }, expected: { station: 'fgc:SC', at: Date.parse('2026-09-25T10:32:00+02:00') } }))).toBeUndefined();
+});
+
 // TRAM's live data as the fetcher made it into a snapshot at 11:44:50 on Friday 25 September 2026,
 // from where TRAM had its Units and its trip updates as recorded then, received as it was written,
 // and stretches of three of its Trips that day from their first Station, as the daily build placed them.
