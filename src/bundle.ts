@@ -1,7 +1,39 @@
-// What the daily build publishes and the web app reads.
+// What the daily build and the fetcher publish, and the web app reads.
 
-/** The R2 bucket, behind the CDN, that serves the daily bundles and (later) the live snapshot. */
+/** The R2 bucket, behind the CDN, that serves the daily bundles and the live snapshot. */
 export const LIVE_URL = 'https://viapeninsula-live.gariasf.com';
+
+/** The live data, as the fetcher writes it about every 20 s (ADR-0003). */
+export interface Snapshot {
+  /** When the fetcher wrote it, in ms since 1970. */
+  generated: number;
+  /** How fresh each Network's live data is. */
+  feeds: Record<string, Freshness>;
+  /** What the operators report about each Train. */
+  reports: Report[];
+}
+
+/** When the fetcher last tried a Network's live data and last got it, in ms since 1970, and how the try went. */
+export interface Freshness {
+  lastSuccess?: number;
+  lastAttempt: number;
+  /** `ok`, or what went wrong. */
+  status: string;
+}
+
+/** What an operator reports about one Train. */
+export interface Report {
+  /** Its Trip, as the bundle names it. */
+  trip: string;
+  /** When the operator reported it, in ms since 1970. */
+  at: number;
+  /** Where it is, in the feed's own terms: its coordinates, or at or near a Station. */
+  position?: { lon: number; lat: number } | { near: string };
+  /** How late it's running, in seconds, as its operator has it: early where it's negative. */
+  delay?: number;
+  /** Whether its operator has announced that it won't run. */
+  cancelled?: true;
+}
 
 /** Names the bundle for each service day. Cached briefly; the bundles it names never change. */
 export interface Manifest {

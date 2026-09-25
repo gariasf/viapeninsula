@@ -13,5 +13,7 @@
     "noUncheckedIndexedAccess": true,
     "skipLibCheck": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  // src/fetcher/tsconfig.json checks the fetcher's Worker, on Cloudflare's runtime.
+  "exclude": ["src/fetcher/worker.ts"]
 }

@@ -15,10 +15,18 @@ npm test
 npm run check                # typecheck
 npm run daily -- --dry-run   # build today's bundle into out/ without publishing it
 npm run daily                # build it and publish it to R2
-npm run deploy               # typecheck, build the site and deploy it
+npm run deploy               # typecheck, build the site, and deploy it and the fetcher
 ```
 
 The daily build reads the timetables of Rodalies (Renfe's Cercanías feed), FGC, TRAM and TMB, and keeps their Trains: trams, metros, trains and funiculars, and no buses. It traces each Line along OpenStreetMap's rails of its Network's own kind (ADR-0004), and reports any stretch it can't trace. It keeps the rails it downloads from Overpass in `.cache/` for a week, and fails if a traced shape's length strays more than 5% from the feed's (100 m on shapes under 2 km, such as funiculars). It then places each of the day's Trips on its track, and reports and leaves out any it can't: one calling at a Station off its track, or one that would have to run faster than its Network's top speed.
+
+The fetcher is a Durable Object in a Worker of its own, with no routes (ADR-0003). About every 20 s it fetches Renfe's live data and writes `snapshot.json` to R2 with a 15 s cache lifetime, and the site fetches that about every 20 s while its tab is visible. Its Worker's cron trigger starts it every minute, unless it's running already. To run it locally, writing to a local copy of the bucket:
+
+```sh
+npx wrangler dev -c src/fetcher/wrangler.jsonc --test-scheduled
+curl 'http://localhost:8787/__scheduled'   # start it
+npx wrangler r2 object get viapeninsula-live/snapshot.json --local -c src/fetcher/wrangler.jsonc --pipe
+```
 
 The site speaks Catalan, Spanish and English. Every string it shows is in `src/web/i18n.ts`, in all three, except names: Stations and Lines are shown as the operators publish them, and the credits name their sources as those sources do. The basemap names countries, regions, seas, rivers and airports in the viewer's language, and everything else, from towns to streets, as its signs do.
 
@@ -36,4 +44,4 @@ A Cache Rule in the dashboard caches viapeninsula-live.gariasf.com at the edge f
 
 ## Licence
 
-The code is AGPL-3.0. Timetables come from Renfe and FGC under CC BY 4.0, from TRAM (Powered by TRAM Barcelona) and from TMB, whose terms ask for the day its data was last updated to be shown with it. The track follows OpenStreetMap's rails and the basemap comes from OpenFreeMap, both © OpenStreetMap contributors under the ODbL.
+The code is AGPL-3.0. Timetables come from Renfe and FGC under CC BY 4.0, as does Renfe's live data, from TRAM (Powered by TRAM Barcelona) and from TMB, whose terms ask for the day its data was last updated to be shown with it. The track follows OpenStreetMap's rails and the basemap comes from OpenFreeMap, both © OpenStreetMap contributors under the ODbL.

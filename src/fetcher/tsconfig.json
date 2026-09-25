@@ -1,0 +1,7 @@
+{
+  // The fetcher's Worker runs on Cloudflare's runtime rather than in a browser.
+  "extends": "../../tsconfig.json",
+  "compilerOptions": { "lib": ["ES2023"], "types": ["@cloudflare/workers-types"] },
+  "include": ["worker.ts"],
+  "exclude": []
+}

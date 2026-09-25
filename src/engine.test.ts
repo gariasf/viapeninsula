@@ -1,6 +1,7 @@
+import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
-import type { Bundle } from './bundle.ts';
-import { trainsAt } from './engine.ts';
+import type { Bundle, Snapshot } from './bundle.ts';
+import { trainsAt, type Received } from './engine.ts';
 
 /** A speed profile like Rodalies', in metres and seconds, which the times below are worked out from. */
 const PROFILE = { acceleration: 1, braking: 1, topSpeed: 160 / 3.6, dwell: 30 };
@@ -59,6 +60,27 @@ const TRIPS: Record<string, { line: string; calls: Row[] }> = {
       ['Portbou', '09:08:00', '09:08:00', 168171, 3.15801841, 42.4245908],
     ],
   },
+  // Montcada-Bifurcació to Cerdanyola Universitat, running its track backwards.
+  'rodalies:5165J77865R7': {
+    line: 'R7',
+    calls: [
+      ['Montcada-Bifurcació', '21:26:00', '21:26:00', 9129, 2.18001578, 41.4698402],
+      ['Montcada i Reixac-Manresa', '21:29:00', '21:29:00', 7335, 2.1854042, 41.4839402],
+      ['Montcada i Reixac-Santa Maria', '21:32:00', '21:32:00', 5697, 2.16698683, 41.4811409],
+      ['Cerdanyola del Vallès', '21:34:00', '21:35:00', 3571, 2.14752164, 41.4925608],
+      ['Cerdanyola Universitat', '21:40:00', '21:40:00', 0, 2.1153777, 41.4969904],
+    ],
+  },
+  // Granollers Centre to La Llagosta, on the way to El Prat Aeroport.
+  'rodalies:5165J28480R2N': {
+    line: 'R2N',
+    calls: [
+      ['Granollers Centre', '21:29:00', '21:29:00', 40546, 2.29126962, 41.5997447],
+      ['Montmeló', '21:34:00', '21:34:00', 47790, 2.24544407, 41.5496523],
+      ['Mollet-Sant Fost', '21:37:00', '21:38:00', 50838, 2.21766516, 41.5335634],
+      ['La Llagosta', '21:41:00', '21:41:00', 53809, 2.19973279, 41.5104566],
+    ],
+  },
   // Not a real Trip: three kilometres in a minute and a half, quicker than Rodalies' Trains accelerate and brake for.
   'too quick': {
     line: 'R2S',
@@ -105,11 +127,11 @@ const BUNDLE: Bundle = {
 /** A moment on 24 September 2026, by the clock in Barcelona, and so many seconds on. */
 const at = (time: string, plus = 0) => Date.parse(`2026-09-24T${time}+02:00`) + plus * 1000;
 
-/** A Trip's Train at a moment, if it's on the map. */
-const train = (trip: string, moment: number) => trainsAt(BUNDLE, moment).find((t) => t.trip.id === trip);
+/** A Trip's Train at a moment by the device's clock, if it's on the map, with the live data received by then. */
+const train = (trip: string, moment: number, received: Received[] = []) => trainsAt(BUNDLE, moment, received).find((t) => t.trip.id === trip);
 
 /** How far along its track a Trip's Train is at a moment, in metres, if it's on the map. */
-const where = (trip: string, moment: number) => train(trip, moment)?.dist;
+const where = (trip: string, moment: number, received?: Received[]) => train(trip, moment, received)?.dist;
 
 const R2S = 'rodalies:5165J25478R2S';
 
@@ -225,4 +247,87 @@ test('is drawn on its track: at a Station, where the Station is', () => {
   const standing = train(R2S, at('21:49:30')); // at Vilanova i la Geltrú
   expect(standing?.lon).toBeCloseTo(1.73077249, 7);
   expect(standing?.lat).toBeCloseTo(41.2203207, 7);
+});
+
+/** A snapshot the fetcher wrote at a moment, reporting no Trains. */
+const written = (generated: number): Snapshot => ({ generated, feeds: {}, reports: [] });
+
+test("places Trains by the fetcher's clock on a device whose clock is minutes off", () => {
+  // At 21:49:30 the R2S stands at Vilanova i la Geltrú. A device 5 minutes behind receives a
+  // snapshot as it's written, at 21:49:00, and asks at what it takes for 21:44:30.
+  expect(where(R2S, at('21:44:30'), [{ snapshot: written(at('21:49:00')), at: at('21:44:00') }])).toBe(128092);
+  // One 5 minutes ahead, once it has received a second snapshot to show the first wasn't stale.
+  const ahead = [
+    { snapshot: written(at('21:48:40')), at: at('21:53:40') },
+    { snapshot: written(at('21:49:00')), at: at('21:54:00') },
+  ];
+  expect(where(R2S, at('21:54:30'), ahead)).toBe(128092);
+});
+
+test("goes by a device's own clock while the fetcher has stopped, however old its last snapshot", () => {
+  // The fetcher last wrote at 21:39:00, and the device, whose clock is right, fetches that snapshot
+  // again and again. A device 10 minutes ahead would receive the same, but only a second snapshot tells them apart.
+  const stale = [0, 20, 40].map((s) => ({ snapshot: written(at('21:39:00')), at: at('21:49:00', s) }));
+  expect(where(R2S, at('21:49:30'), stale)).toBe(128092);
+});
+
+test("goes by a device's own clock where it's right, however old a snapshot is when it arrives", () => {
+  // The R2S stands at Sitges from 21:56:00. A snapshot can be 20 s old when it arrives: the fetcher
+  // writes one every 20 s, and the CDN keeps each for 15 s.
+  expect(where(R2S, at('21:56:10'), [{ snapshot: written(at('21:55:50')), at: at('21:56:10') }])).toBe(135376);
+});
+
+test('corrects a clock by the freshest snapshot received so far', () => {
+  // A device 5 minutes behind receives a snapshot 30 s old, one as it's written, and one 25 s old.
+  const received = [
+    { snapshot: written(at('21:59:00')), at: at('21:59:30', -300) },
+    { snapshot: written(at('21:59:40')), at: at('21:59:40', -300) },
+    { snapshot: written(at('22:00:00')), at: at('22:00:25', -300) },
+  ];
+  expect(where(R2S, at('22:00:30', -300), received)).toBe(where(R2S, at('22:00:30')));
+});
+
+test('a Train its operator has cancelled leaves the map', () => {
+  const snapshot: Snapshot = { ...written(at('21:49:00')), reports: [{ trip: R2S, at: at('21:48:40'), cancelled: true }] };
+  expect(train(R2S, at('21:49:30'))).toBeDefined();
+  expect(train(R2S, at('21:49:30'), [{ snapshot, at: at('21:49:10') }])).toBeUndefined();
+});
+
+// The snapshot the fetcher makes from Renfe's feeds as recorded at 21:37 on 24 September 2026,
+// received as it was written.
+const LIVE: Snapshot = JSON.parse(readFileSync(new URL('fetcher/fixtures/snapshot.json', import.meta.url), 'utf8'));
+const RECEIVED: Received[] = [{ snapshot: LIVE, at: LIVE.generated }];
+
+const [R7, R2N] = ['rodalies:5165J77865R7', 'rodalies:5165J28480R2N'];
+
+test("a Train Renfe's live data reports is Live, and runs as late or early as Renfe says", () => {
+  // Renfe has the R7 standing at Cerdanyola del Vallès at 21:36:46, 2 minutes late: its timetable has it leave at 21:35.
+  expect(train(R7, at('21:37:00'), RECEIVED)).toMatchObject({ live: true, dist: 3571 });
+  expect(where(R7, at('21:37:00'))).toBeLessThan(3571);
+  // Renfe has the R2S between Calafell and Segur de Calafell, a minute late: it stands at Segur de
+  // Calafell from 21:38:30 rather than 21:37:30.
+  expect(train(R2S, at('21:38:45'), RECEIVED)).toMatchObject({ live: true, dist: 117049 });
+  expect(where(R2S, at('21:38:45'))).toBeGreaterThan(117049);
+});
+
+test('a Train no live data covers is Scheduled, where its timetable puts it', () => {
+  // Renfe didn't report the R2N. Its timetable has it stand at Mollet-Sant Fost from 21:37 to 21:38.
+  expect(train(R2N, at('21:37:30'), RECEIVED)).toMatchObject({ live: false, dist: 50838 });
+});
+
+test('a Train Renfe gives a Delay for but no position stays Scheduled, and runs as late as Renfe says', () => {
+  // Made up: a trip update alone for the R2N, 2 minutes late. It stands at Mollet-Sant Fost from 21:39 rather than 21:37.
+  const snapshot: Snapshot = { ...written(at('21:39:00')), reports: [{ trip: R2N, at: at('21:38:50'), delay: 120 }] };
+  expect(train(R2N, at('21:39:30'), [{ snapshot, at: at('21:39:05') }])).toMatchObject({ live: false, dist: 50838 });
+  expect(where(R2N, at('21:39:30'))).toBeGreaterThan(50838);
+});
+
+test("drops the reports that match none of the day's Trips", () => {
+  // Renfe reports 46 Trains, of which this bundle has two.
+  expect(LIVE.reports).toHaveLength(46);
+  expect(trainsAt(BUNDLE, at('21:37:30'), RECEIVED).map((t) => [t.trip.id, t.live])).toEqual([
+    [R2S, true],
+    [R7, true],
+    [R2N, false],
+  ]);
 });

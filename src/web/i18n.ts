@@ -17,6 +17,11 @@ const STRINGS = {
   osmContributors: { ca: "© Els col·laboradors de l'OpenStreetMap", es: '© Colaboradores de OpenStreetMap', en: '© OpenStreetMap contributors' },
   // Before the day an operator last updated its data, in the credits.
   updated: { ca: 'actualitzat el', es: 'actualizado el', en: 'updated' },
+  // The legend's two markers, and what each means.
+  live: { ca: 'En directe', es: 'En directo', en: 'Live' },
+  liveMeans: { ca: 'posició confirmada per dades en temps real', es: 'posición confirmada por datos en tiempo real', en: 'position confirmed by live data' },
+  scheduled: { ca: 'Programat', es: 'Programado', en: 'Scheduled' },
+  scheduledMeans: { ca: "posició segons l'horari", es: 'posición según el horario', en: 'position from the timetable' },
 } satisfies Record<string, Record<Language, string>>;
 
 /** What the viewer's choice is kept under on their device, in local storage, which takes no cookie. */
