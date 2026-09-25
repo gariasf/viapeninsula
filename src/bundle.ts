@@ -52,7 +52,15 @@ export interface Report {
 
 /** Names the bundle for each service day. Cached briefly; the bundles it names never change. */
 export interface Manifest {
-  days: { date: string; bundle: string }[];
+  days: ManifestDay[];
+}
+
+/** A service day's bundle, and when its first Train comes onto the map and its last leaves it, on time, in ms since 1970. */
+export interface ManifestDay {
+  date: string;
+  bundle: string;
+  from: number;
+  to: number;
 }
 
 /** Everything the map needs for one service day. */
@@ -197,6 +205,11 @@ export function closestOnSegment(a: Point, b: Point, p: Point, kx: number): [t: 
   const [dx, dy] = [(b[0] - a[0]) * kx, (b[1] - a[1]) * DEGREE];
   const t = dx || dy ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / (dx * dx + dy * dy))) : 0;
   return [t, Math.hypot(ax + t * dx, ay + t * dy)];
+}
+
+/** The date so many days after one (YYYY-MM-DD), or before it where negative. */
+export function addDays(date: string, days: number): string {
+  return new Date(Date.parse(`${date}T12:00:00Z`) + days * 86400_000).toISOString().slice(0, 10);
 }
 
 /** The date in Spain, as YYYY-MM-DD. */
