@@ -1,6 +1,6 @@
 # Live data is a snapshot file on R2, not an API
 
-One Cloudflare Durable Object wakes about every 20 seconds, fetches each live feed as often as its source allows (Renfe and TRAM every time, though TRAM waits up to 30 minutes after a request for its access token fails, the Metro every other time, FGC every 2 minutes), and writes one compact JSON snapshot to R2; viewers fetch that file through Cloudflare's CDN on a custom domain. Viewer traffic never runs our code, so cost doesn't grow with viewers and abuse can't raise the bill (the snapshot's cache key ignores query strings).
+One Cloudflare Durable Object wakes about every 20 seconds, fetches each live feed as often as its source allows (Renfe and TRAM every time, though TRAM waits up to 30 minutes after it issues no access token or refuses the one it issued, the Metro every other time, FGC every 2 minutes), and writes one compact JSON snapshot to R2; viewers fetch that file through Cloudflare's CDN on a custom domain. Viewer traffic never runs our code, so cost doesn't grow with viewers and abuse can't raise the bill (the snapshot's cache key ignores query strings).
 
 ## Considered Options
 
