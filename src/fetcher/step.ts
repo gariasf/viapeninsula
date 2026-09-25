@@ -21,7 +21,7 @@ const [FGC_EVERY, FGC_SLOW, FGC_FEW] = [120_000, 300_000, 1000];
 /** How often the Metro is fetched, in ms: every other run, as often as keeps to the one request every 30 s declared to TMB. */
 const METRO_EVERY = 2 * EVERY;
 
-/** The longest the fetcher waits to ask TRAM for an access token again after a request for one fails, in ms. */
+/** The longest the fetcher waits to try TRAM again after a try fails, where TRAM issues no access token or refuses it, in ms. */
 const TRAM_WAIT_MAX = 1_800_000;
 
 /** Why a feed wasn't fetched, where the Worker has no credentials for its API: it asks it for nothing. */
@@ -78,8 +78,9 @@ export interface State {
   /** TRAM's access token, and when it runs out, in ms since 1970, until a run has to ask for another. */
   tram?: { token: string; expires: number };
   /**
-   * After a request for TRAM's access token fails: when it did, in ms since 1970, and how long the
-   * fetcher waits from then before it asks again, which doubles with each failed request in a row.
+   * After a try at TRAM fails, where it issues no access token or refuses it on its data: when it
+   * did, in ms since 1970, and how long the fetcher waits from then before it tries again, which
+   * doubles with each failed try in a row.
    */
   tramBackoff?: { failed: number; wait: number };
 }
@@ -157,23 +158,20 @@ export function step(state: State, responses: Responses, now: number): Stored & 
   if (responses.tram) {
     const { token, ...halves } = responses.tram;
     const freshness = refresh('tram', EVERY, (said) => {
-      if (token) {
-        try {
-          tram = issued(token, now);
-          tramBackoff = undefined;
-        } catch (error) {
-          // A request that fails waits 20 s before the next, then twice as long each time. Without
-          // credentials none was made, and the run once they're set asks at once.
-          const unset = 'error' in token && token.error === UNSET;
-          tramBackoff = unset ? undefined : { failed: now, wait: Math.min(2 * (state.tramBackoff?.wait ?? EVERY / 2), TRAM_WAIT_MAX) };
-          throw error;
-        }
-      }
+      if (token) tram = issued(token, now);
       return HALVES.flatMap((half) => tramReports(half, halves[half], now, said));
     });
-    if (tramBackoff?.failed === now) freshness.status += `; backing off, next try at ${clock(now + tramBackoff.wait)}`;
-    // The token is kept for as long as it lasts through the next run's answers, and TRAM accepts it.
+    // A try fails where TRAM issues no token, or refuses it on its data. The next waits 20 s, then
+    // twice as long each time, until TRAM accepts a token. Without credentials none was asked for,
+    // and the run once they're set asks at once.
     const refused = HALVES.some((half) => [halves[half].positions, halves[half].updates].some((f) => 'status' in f && f.status === 401));
+    // Where the run asked for a token, it has one only where TRAM issued it.
+    const unissued = token !== undefined && !tram;
+    const unset = token !== undefined && 'error' in token && token.error === UNSET;
+    const failed = !unset && (refused || unissued);
+    tramBackoff = failed ? { failed: now, wait: Math.min(2 * (state.tramBackoff?.wait ?? EVERY / 2), TRAM_WAIT_MAX) } : undefined;
+    if (tramBackoff) freshness.status += `; backing off, next try at ${clock(now + tramBackoff.wait)}`;
+    // The token is kept for as long as it lasts through the next run's answers, and TRAM accepts it.
     if (refused || (tram && tram.expires < now + EVERY + TIMEOUT)) tram = undefined;
   }
   const { metro } = responses;
@@ -187,7 +185,7 @@ export function step(state: State, responses: Responses, now: number): Stored & 
   return { snapshot: { generated: now, feeds, reports: Object.values(reports).flat() }, state: next, due };
 }
 
-/** Whether TRAM is due on the run at a moment: on every run, but after a request for its access token fails, not until its wait is over. */
+/** Whether TRAM is due on the run at a moment: on every run, but after a try fails, not until its wait is over. */
 function tramDue({ tramBackoff: backoff }: State, at: number): boolean {
   // On the run nearest its time, as with FGC.
   return !backoff || at > backoff.failed + backoff.wait - EVERY / 2;

@@ -500,11 +500,28 @@ test('asks for an access token once an hour, keeping it in stored state for ever
   expect(seconds(TRAM_NOW, tramRuns(TRAM_NOW, 180).asked)).toEqual([0, 3600, 7200]);
 });
 
+/** TRAM's answer to a run whose access token it refuses on its data, as unauthorized. */
+const REFUSED = { TBS: { ...TRAM.TBS, updates: { status: 401, body: new Uint8Array() } } };
+
 test('asks for another access token as soon as TRAM refuses the one it has', () => {
-  // TRAM turns the third run away as unauthorized, as it would a token it had stopped accepting.
-  const refused = { status: 401, body: '' };
-  const { asked } = tramRuns(TRAM_NOW, 2, (t) => (t === TRAM_NOW + 40_000 ? { TBS: { ...TRAM.TBS, updates: { ...refused, body: new Uint8Array() } } } : {}));
+  // TRAM turns the third run away, as it would a token it had stopped accepting. The first wait is
+  // the 20 s between runs, so the next run asks at once.
+  const { asked } = tramRuns(TRAM_NOW, 2, (t) => (t === TRAM_NOW + 40_000 ? REFUSED : {}));
   expect(seconds(TRAM_NOW, asked)).toEqual([0, 60]);
+});
+
+test('says where TRAM refuses its access token, and that it waits before trying again', () => {
+  const afterRefusal = step(tramRuns(TRAM_NOW, 1).stored.state, { tram: { ...TRAM, ...REFUSED } }, TRAM_NOW + 60_000);
+  expect(afterRefusal.snapshot.feeds.tram?.status).toBe('TBS gtfsrealtime: HTTP 401; backing off, next try at 09:46:10 UTC');
+  expect(afterRefusal.state.tramBackoff).toEqual({ failed: TRAM_NOW + 60_000, wait: 20_000 });
+  expect(afterRefusal.due).toContain('tram');
+});
+
+test('waits twice as long after each run whose access token TRAM refuses, though it issued it, up to 30 minutes', () => {
+  const { asked, stored } = tramRuns(TRAM_NOW, 120, () => REFUSED);
+  expect(seconds(TRAM_NOW, asked)).toEqual([0, 20, 60, 140, 300, 620, 1260, 2540, 4340, 6140]);
+  expect(stored.state.tramBackoff).toEqual({ failed: TRAM_NOW + 6_140_000, wait: 1_800_000 });
+  expect(stored.state.feeds.tram?.status).toBe('TBS gtfsrealtime: HTTP 401; backing off, next try at 11:57:10 UTC');
 });
 
 test('says why where TRAM issues no access token, and that it waits before asking again', () => {
@@ -541,13 +558,12 @@ test('never waits where the Worker has no credentials for TRAM, since it asks TR
   expect(unset.due).toContain('tram');
 });
 
-test('waits only 20 s again after a failed request for an access token, once one succeeds', () => {
-  // TRAM issues no tokens for the first 2 minutes, then refuses the token it issued on the run at
-  // 240 s, and won't issue the next.
-  const answer = (t: number): TramAnswer =>
-    t < TRAM_NOW + 120_000 || t === TRAM_NOW + 260_000 ? UNISSUED : t === TRAM_NOW + 240_000 ? { TBS: { ...TRAM.TBS, updates: { status: 401, body: new Uint8Array() } } } : {};
+test('waits only 20 s again after failed tries, once TRAM accepts a token', () => {
+  // TRAM issues no tokens for the first minute, then refuses the one it issues on the run at 60 s,
+  // accepts the one at 140 s, and refuses it on the run at 240 s.
+  const answer = (t: number): TramAnswer => (t < TRAM_NOW + 60_000 ? UNISSUED : t === TRAM_NOW + 60_000 || t === TRAM_NOW + 240_000 ? REFUSED : {});
   const { asked, stored } = tramRuns(TRAM_NOW, 5, answer);
-  expect(seconds(TRAM_NOW, asked)).toEqual([0, 20, 60, 140, 260, 280]);
+  expect(seconds(TRAM_NOW, asked)).toEqual([0, 20, 60, 140, 260]);
   expect(stored.state.tramBackoff).toBeUndefined();
 });
 
