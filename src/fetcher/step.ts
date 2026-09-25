@@ -18,11 +18,14 @@ export const TIMEOUT = 10_000;
  */
 const [FGC_EVERY, FGC_SLOW, FGC_FEW] = [120_000, 300_000, 1000];
 
+/** How often the Metro is fetched, in ms: every other run, as often as keeps to the one request every 30 s declared to TMB. */
+const METRO_EVERY = 2 * EVERY;
+
 /** A day in ms. FGC's API counts its requests by day in UTC. */
 const DAY = 86_400_000;
 
 /** A live feed, by the Network whose Trains it reports. */
-export type Feed = 'rodalies' | 'fgc' | 'tram';
+export type Feed = 'rodalies' | 'fgc' | 'tram' | 'metro';
 
 /** TRAM's two halves, Trambaix and Trambesòs, as its timetable's feeds name them. */
 const HALVES = ['TBX', 'TBS'] as const;
@@ -42,6 +45,8 @@ export interface Responses {
    * as GTFS-RT, which name the Trip each Unit runs; and the access token the run asked for, if it had to.
    */
   tram?: { token?: Fetched } & Record<Half, { positions: Fetched; updates: Fetched<Uint8Array> }>;
+  /** TMB's predictions for the whole Metro, from iTransit, as JSON. */
+  metro?: Fetched;
 }
 
 /** What the step keeps between runs: each feed's freshness, its reports from the last run it worked, and what fetching FGC and TRAM needs. */
@@ -69,7 +74,7 @@ export interface Stored {
 }
 
 /** What the fetcher starts from. */
-export const START: Stored = { state: { feeds: {}, reports: {} }, due: ['rodalies', 'fgc', 'tram'] };
+export const START: Stored = { state: { feeds: {}, reports: {} }, due: ['rodalies', 'fgc', 'tram', 'metro'] };
 
 /**
  * One run: the stored state, this run's raw responses and the time now (ms since 1970) go in; the
@@ -121,9 +126,13 @@ export function step(state: State, responses: Responses, now: number): Stored & 
     const refused = HALVES.some((half) => [halves[half].positions, halves[half].updates].some((f) => 'status' in f && f.status === 401));
     if (refused || (tram && tram.expires < now + EVERY + TIMEOUT)) tram = undefined;
   }
+  const { metro } = responses;
+  if (metro) refresh('metro', METRO_EVERY, () => metroReports(read('itransit', metro)));
   const next: State = { feeds, reports, fgc, tram };
   const due: Feed[] = ['rodalies', 'tram'];
   if (fgcDue(next, now + EVERY)) due.push('fgc');
+  // Every other run, however long TMB takes to answer, so two requests are never less than 30 s apart.
+  if (!metro) due.push('metro');
   return { snapshot: { generated: now, feeds, reports: Object.values(reports).flat() }, state: next, due };
 }
 
@@ -331,6 +340,52 @@ function tramReports(half: Half, { positions, updates }: NonNullable<Responses['
     const position = vehiclePosition ? { along: vehiclePosition } : { near: `tram:${originStopCode}` };
     return trip && lineName !== '0' ? [{ trip: `tram:${half}:${trip}`, at: now, position, delay }] : [];
   });
+}
+
+/**
+ * TMB's predictions for the Metro, as iTransit has them: the parts the step reads. For each Line,
+ * each of its Stations each way, and the next trains there, with when each is expected, and each
+ * time in ms since 1970.
+ */
+interface ITransit {
+  timestamp: number;
+  linies: {
+    estacions: {
+      /** Which way along the Line: 1 or 2. */
+      id_sentit: number;
+      codi_estacio: number;
+      linies_trajectes: { nom_linia: string; desti_trajecte: string; propers_trens: { codi_servei: string; temps_arribada: number }[] }[];
+    }[];
+  }[];
+}
+
+/**
+ * The Metro's Trains from TMB's predictions, which name each by its Block. Each gets one report: its
+ * earliest prediction gives the Station it comes to next, `tmb:1.<code>` (ADR-0005), and when, as
+ * of when TMB made them. It's headed where its way along its Line goes, which is where most of that
+ * way's Stations say: coming into a Line's end, TMB lists a train under its next Trip's headsign.
+ */
+function metroReports({ timestamp, linies }: ITransit): Report[] {
+  if (!Array.isArray(linies)) throw new Error('itransit: no Lines');
+  const [heading, next] = [new Map<string, Map<string, number>>(), new Map<string, { line: string; way: string; number: string; station: number; at: number }>()];
+  for (const { estacions } of linies) for (const { id_sentit, codi_estacio: station, linies_trajectes: trajectes } of estacions) {
+    for (const { nom_linia: line, desti_trajecte: headsign, propers_trens: trains } of trajectes) {
+      const way = `${line} ${id_sentit}`;
+      const votes = heading.get(way) ?? new Map<string, number>();
+      heading.set(way, votes.set(headsign, (votes.get(headsign) ?? 0) + 1));
+      for (const { codi_servei: number, temps_arribada: at } of trains) {
+        const block = `${line} ${number}`;
+        if ((next.get(block)?.at ?? Infinity) > at) next.set(block, { line, way, number, station, at });
+      }
+    }
+  }
+  const headsign = (way: string) => [...(heading.get(way) ?? [])].reduce((a, b) => (b[1] > a[1] ? b : a))[0];
+  return [...next.values()].map(({ line, way, number, station, at }) => ({
+    block: { line: `metro:${line}`, number },
+    headsign: headsign(way),
+    at: timestamp,
+    position: { next: { station: `tmb:1.${station}`, at } },
+  }));
 }
 
 /**
