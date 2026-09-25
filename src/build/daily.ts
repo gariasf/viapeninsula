@@ -1,4 +1,6 @@
-// The daily build: turns the operators' timetables into today's bundle and publishes it to R2.
+// The daily build: turns the operators' timetables into a bundle for each of the next three service
+// days, today's first, and publishes them to R2, so a build that fails leaves the map the days before
+// it published.
 // `npm run daily` publishes; `npm run daily -- --dry-run` only writes the files to out/. TMB's
 // timetable needs TMB_APP_ID and TMB_APP_KEY in the environment, which `npm run daily` loads from
 // .env.local.
@@ -7,8 +9,9 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { madridDate, type Bundle, type Manifest, type Network } from '../bundle.ts';
+import { addDays, LIVE_URL, madridDate, type Bundle, type Manifest, type Network } from '../bundle.ts';
 import { download, feedStart, noonMinus12h, type Source } from './gtfs.ts';
+import { manifestDay, manifestOf } from './manifest.ts';
 import {
   FGC_FEED,
   METRO_FEED,
@@ -29,7 +32,8 @@ import { placeTrips } from './trips.ts';
 
 const BUCKET = 'viapeninsula-live';
 
-const serviceDay = madridDate(new Date());
+const today = madridDate(new Date());
+const DAYS = [0, 1, 2].map((n) => addDays(today, n));
 const [renfe, fgc, trambaix, trambesos, tmb] = await Promise.all([
   download('https://ssl.renfe.com/ftransit/Fichero_CER_FOMENTO/fomento_transit.zip', 'renfe-cercanias.zip'),
   download('https://www.fgc.cat/google/google_transit.zip', 'fgc.zip'),
@@ -45,51 +49,71 @@ const networks = [
   await build([[RODALIES_FEED, renfe]], onRodaliesRails),
   await build([[FGC_FEED, fgc]], onFgcRails),
   await build([[TRAMBAIX_FEED, trambaix], [TRAMBESOS_FEED, trambesos]], onTramRails),
-  await build([[METRO_FEED, tmb]], onMetroRails, { updated: published < serviceDay ? published : serviceDay }),
+  await build([[METRO_FEED, tmb]], onMetroRails, { updated: published < today ? published : today }),
 ];
 const [lines, shapes] = [networks.flatMap((n) => n.lines), networks.flatMap((n) => n.shapes)];
-const bundle: Bundle = {
-  serviceDay,
-  noonMinus12h: noonMinus12h(serviceDay),
-  networks: networks.map((n) => n.network),
-  lines,
-  stations: networks.flatMap((n) => n.stations),
-  shapes,
-  strokes: sideBySide(lines, shapes),
-  trips: networks.flatMap((n) => n.trips),
-};
-
-// Named by content, so the bundle can be cached for good and a rebuild never serves a stale copy.
-const json = JSON.stringify(bundle);
-const key = `days/${serviceDay}-${createHash('sha256').update(json).digest('hex').slice(0, 12)}.json`;
-const manifest: Manifest = { days: [{ date: serviceDay, bundle: key }] };
+const strokes = sideBySide(lines, shapes);
 
 await mkdir('out/days', { recursive: true });
-await writeFile(join('out', key), json);
-await writeFile('out/manifest.json', JSON.stringify(manifest));
-console.log(
-  `${key}: ${bundle.lines.length} Lines, ${bundle.stations.length} Stations, ${bundle.shapes.length} shapes, ${bundle.trips.length} Trips, ${Math.round(json.length / 1024)} KB`,
+const built = await Promise.all(
+  DAYS.map(async (serviceDay, i) => {
+    const bundle: Bundle = {
+      serviceDay,
+      noonMinus12h: noonMinus12h(serviceDay),
+      networks: networks.map((n) => n.network),
+      lines,
+      stations: networks.flatMap((n) => n.stations),
+      shapes,
+      strokes,
+      trips: networks.flatMap((n) => n.trips[i] ?? []),
+    };
+    // Named by content, so the bundle can be cached for good and a rebuild never serves a stale copy.
+    const json = JSON.stringify(bundle);
+    const key = `days/${serviceDay}-${createHash('sha256').update(json).digest('hex').slice(0, 12)}.json`;
+    await writeFile(join('out', key), json);
+    console.log(
+      `${key}: ${bundle.lines.length} Lines, ${bundle.stations.length} Stations, ${bundle.shapes.length} shapes, ${bundle.trips.length} Trips, ${Math.round(json.length / 1024)} KB`,
+    );
+    return manifestDay(bundle, key);
+  }),
 );
+// The last build's manifest names the bundle for yesterday, whose last Trains can still be running.
+const previous = await fetch(`${LIVE_URL}/manifest.json`)
+  .then((res) => (res.ok ? (res.json() as Promise<Manifest>) : undefined))
+  .catch((error: unknown) => {
+    console.warn("Couldn't read the last manifest, so yesterday's bundle goes unnamed:", error);
+    return undefined;
+  });
+await writeFile('out/manifest.json', JSON.stringify(manifestOf(built, previous)));
 
 if (!process.argv.includes('--dry-run')) {
-  // The bundle goes up first, so the manifest never names a file that isn't there yet.
-  publish(key, 'public, max-age=31536000, immutable');
+  // The bundles go up first, so the manifest never names a file that isn't there yet.
+  for (const { bundle } of built) publish(bundle, 'public, max-age=31536000, immutable');
   publish('manifest.json', 'public, max-age=60');
 }
 
 /**
  * A Network from its operator's feeds, with the day they were last updated where its terms ask the
- * map to show it: its Lines, Stations and Trips, and its track traced along OpenStreetMap's rails of
- * its own kind (ADR-0004).
+ * map to show it: its Lines, Stations and track traced along OpenStreetMap's rails of its own kind
+ * (ADR-0004), which are those of every day in its feeds, and its Trips on each of DAYS.
+ * ponytail: reads each feed once for each day, about 5 s a day for the lot; read stop_times once for
+ * every day if the build grows slow.
  */
 async function build(feeds: [[Feed, Source], ...[Feed, Source][]], onRails: (way: OsmWay) => boolean, extra: Pick<Network, 'updated'> = {}) {
   const network: Network = { ...feeds[0][0].network, ...extra };
-  const parts = await Promise.all(feeds.map(([feed, gtfs]) => readFeed(gtfs, serviceDay, feed)));
-  const [lines, stations, trips] = [parts.flatMap((p) => p.lines), parts.flatMap((p) => p.stations), parts.flatMap((p) => p.trips)];
-  // No Trips at all means a broken download or a changed feed, not a day without Trains.
-  if (!trips.length) throw new Error(`${network.name}'s timetable has no Trips on ${serviceDay}`);
+  const days = await Promise.all(DAYS.map((day) => Promise.all(feeds.map(([feed, gtfs]) => readFeed(gtfs, day, feed)))));
+  const parts = days[0] ?? [];
+  const [lines, stations] = [parts.flatMap((p) => p.lines), parts.flatMap((p) => p.stations)];
   const shapes = traceShapes(parts.flatMap((p) => p.shapes), stations, rails.filter(onRails));
-  return { network, lines, stations, shapes, trips: placeTrips(trips, lines, shapes, stations, network.profile.topSpeed) };
+  const trips = days.map((day, i) => {
+    const trips = day.flatMap((p) => p.trips);
+    // No Trips at all today means a broken download or a changed feed, not a day without Trains. On a
+    // later day it can mean a timetable that ends before it, and the next one comes before that day.
+    if (!trips.length && !i) throw new Error(`${network.name}'s timetable has no Trips on ${DAYS[i]}`);
+    if (!trips.length) console.warn(`${network.name}'s timetable has no Trips on ${DAYS[i]}`);
+    return placeTrips(trips, lines, shapes, stations, network.profile.topSpeed);
+  });
+  return { network, lines, stations, shapes, trips };
 }
 
 /** A secret from the environment, which must never be printed. */

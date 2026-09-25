@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { expect, test } from 'vitest';
 import { pointAt, type Bundle, type Network, type Report, type Snapshot } from './bundle.ts';
-import { KEEP, trainsAt, unavailable, type Received } from './engine.ts';
+import { noonMinus12h } from './build/gtfs.ts';
+import { joinDays, KEEP, trainsAt, unavailable, type Received } from './engine.ts';
 
 /** A speed profile like Rodalies', in metres and seconds, which the times below are worked out from. */
 const PROFILE = { acceleration: 1, braking: 1, topSpeed: 160 / 3.6, dwell: 30 };
@@ -799,4 +800,62 @@ test('folding each snapshot into the last replay draws the Trains as replaying e
     });
   expect(kept.at(-1)?.[0]).not.toBe(received[0]);
   expect(draw(false)).toEqual(draw(true));
+});
+
+// Made up: an R1 Trip from Badalona to El Masnou each night, from 23:50 to 00:20, on every day's
+// timetable, and on Saturday's one from 00:05 to 00:30.
+const R1_NIGHT: Row[] = [
+  ['Badalona', '23:50:00', '23:50:00', 18429, 2.24892096, 41.4458838],
+  ['El Masnou', '24:20:00', '24:20:00', 24701, 2.3103772, 41.4770363],
+];
+const R1_EARLY: Row[] = [
+  ['Badalona', '00:05:00', '00:05:00', 18429, 2.24892096, 41.4458838],
+  ['El Masnou', '00:30:00', '00:30:00', 24701, 2.3103772, 41.4770363],
+];
+const RODALIES: Network = { id: 'rodalies', name: 'Rodalies de Catalunya', profile: PROFILE };
+const [FRIDAY, SATURDAY] = [
+  bundleOf('2026-09-25', RODALIES, { night: { line: 'R1', calls: R1_NIGHT } }),
+  bundleOf('2026-09-26', RODALIES, { night: { line: 'R1', calls: R1_NIGHT }, early: { line: 'R1', calls: R1_EARLY } }),
+];
+const FRIDAY_NIGHT = joinDays([FRIDAY, SATURDAY]);
+const onSaturday = (time: string) => Date.parse(`2026-09-26T${time}+02:00`);
+
+test("after midnight the map shows the previous day's late Trains and the new day's first, each once", () => {
+  const moment = onSaturday('00:10:00');
+  const [late, early] = [trainsAt(FRIDAY, moment)[0], trainsAt(SATURDAY, moment)[0]];
+  expect(trainsAt(FRIDAY_NIGHT, moment).map((t) => [t.trip.id, t.dist])).toEqual([
+    ['2026-09-25/night', late?.dist],
+    ['early', early?.dist],
+  ]);
+});
+
+test("before midnight the map already shows the next day's Trains as they come, and the day's own as before", () => {
+  const moment = Date.parse('2026-09-25T23:55:00+02:00');
+  expect(trainsAt(FRIDAY_NIGHT, moment).map((t) => [t.trip.id, t.dist])).toEqual(trainsAt(FRIDAY, moment).map((t) => [`2026-09-25/${t.trip.id}`, t.dist]));
+});
+
+test('a report for a Trip that runs on both days is about the Train running then', () => {
+  // Renfe says the night's Train is 2 minutes late at 00:10: Friday's, since Saturday's hasn't left.
+  const moment = onSaturday('00:10:00');
+  const received = [{ snapshot: { ...written(moment), reports: [{ trip: 'night', at: moment, delay: 120 }] }, at: moment }];
+  const [late] = trainsAt(FRIDAY_NIGHT, moment, received);
+  expect(late).toMatchObject({ trip: { id: '2026-09-25/night' }, live: false, dist: trainsAt(FRIDAY, moment - 120_000)[0]?.dist });
+  expect(trainsAt(FRIDAY_NIGHT, moment, received)).toHaveLength(2);
+});
+
+test('on the night the clocks go back, the previous day runs an hour longer, and both days keep their times', () => {
+  // 25 October's timetable starts at 01:00 summer time, noon less 12 hours: 24 October's 25:30 and
+  // 25 October's 00:30 are one moment, 01:30 summer time.
+  const saturday = bundleOf('2026-10-24', RODALIES, { night: { line: 'R1', calls: [['Badalona', '25:20:00', '25:20:00', 18429, 2.24892096, 41.4458838], ['El Masnou', '25:50:00', '25:50:00', 24701, 2.3103772, 41.4770363]] } });
+  const sunday = {
+    ...bundleOf('2026-10-25', RODALIES, { early: { line: 'R1', calls: [['Badalona', '00:20:00', '00:20:00', 18429, 2.24892096, 41.4458838], ['El Masnou', '00:50:00', '00:50:00', 24701, 2.3103772, 41.4770363]] } }),
+    noonMinus12h: noonMinus12h('2026-10-25'),
+  };
+  const moment = Date.parse('2026-10-25T01:30:00+02:00');
+  expect(trainsAt(joinDays([saturday, sunday]), moment).map((t) => [t.trip.id, t.dist])).toEqual([
+    ['2026-10-24/night', trainsAt(saturday, moment)[0]?.dist],
+    ['early', trainsAt(sunday, moment)[0]?.dist],
+  ]);
+  // Both are 10 minutes out of Badalona then.
+  expect(trainsAt(saturday, moment)[0]?.dist).toBe(trainsAt(sunday, moment)[0]?.dist);
 });

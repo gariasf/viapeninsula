@@ -3,8 +3,8 @@ import './style.css';
 import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { AttributionControl, MapLibreMap, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { along, LIVE_URL, madridDate, places, type Bundle, type Manifest, type Network, type Snapshot } from '../bundle.ts';
-import { KEEP, trainsAt, unavailable, type Received } from '../engine.ts';
+import { along, LIVE_URL, madridDate, places, type Bundle, type Line, type Manifest, type Network, type Snapshot } from '../bundle.ts';
+import { joinDays, KEEP, trainsAt, unavailable, type Received } from '../engine.ts';
 import { language, LANGUAGES, setLanguage, t, type Language } from './i18n.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
@@ -14,6 +14,11 @@ const FONT = ['Noto Sans Regular'];
 const NAME_SIZE = 12;
 /** How many times the map looks for live data, never getting any, before it says live data is unavailable. */
 const EMPTY_POLLS = 3;
+/**
+ * How long before a service day's first Train the map fetches its bundle, and how long after its
+ * last is due off the map it keeps it, for Trains running late, in ms.
+ */
+const [EARLY, LATE] = [30 * 60_000, 60 * 60_000];
 
 /** A Line's width, in pixels at each zoom. */
 const WIDTH: [zoom: number, px: number][] = [[7, 1.5], [14, 4]];
@@ -122,47 +127,28 @@ let received: Received[] = [];
 let emptyPolls = 0;
 showLanguage();
 
+/** The manifest as the map last got it. */
+let manifest: Manifest | undefined;
+/** Each service day's bundle the map has fetched, or is fetching, by its file. */
+const fetched = new Map<string, Promise<Bundle>>();
+/** The files of the days' bundles on the map, and whether the map is looking for the days it needs. */
+let [shown, looking] = ['', false];
+
 let nextPoll: ReturnType<typeof setTimeout> | undefined;
-document.addEventListener('visibilitychange', () => (document.hidden ? clearTimeout(nextPoll) : poll()));
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return clearTimeout(nextPoll);
+  poll();
+  refreshDays();
+});
 if (!document.hidden) poll();
 
-const [bundle] = await Promise.all([loadBundle(), map.once('load')]);
-credited = bundle.networks;
-showCredits();
-const lines = new Map(bundle.lines.map((l) => [l.id, l]));
-const shapes = new Map(bundle.shapes.map((s) => [s.id, s]));
-
-map.addSource('lines', {
-  type: 'geojson',
-  data: {
-    type: 'FeatureCollection',
-    features: bundle.strokes.flatMap(({ line: id, shape: shapeId, from, to, side }): GeoJSON.Feature[] => {
-      const [line, shape] = [lines.get(id), shapes.get(shapeId)];
-      if (!line || !shape) return [];
-      const properties = {
-        name: line.name,
-        colour: line.colour,
-        // Zoomed right in, where Lines share track, Barcelona's commuter lines (R1–R8) are drawn over the regional ones.
-        above: /^R\d[NS]?$/.test(line.name) ? 1 : 0,
-        side,
-        // Each Line's name goes on its own stroke: text-offset is in ems.
-        ...Object.fromEntries(APART.map(([zoom, px]) => [`textOffset${zoom}`, [0, (side * px) / NAME_SIZE]])),
-      };
-      return [{ type: 'Feature', properties, geometry: { type: 'LineString', coordinates: along(shape, from, to) } }];
-    }),
-  },
-});
-map.addSource('stations', {
-  type: 'geojson',
-  data: {
-    type: 'FeatureCollection',
-    features: places(bundle.stations).map((p) => ({
-      type: 'Feature',
-      properties: { name: p.name },
-      geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
-    })),
-  },
-});
+let [bundle] = await Promise.all([neededDays().then((b) => b ?? Promise.reject(new Error('No service day to show'))), map.once('load')]);
+let lines = new Map<string, Line>();
+map.addSource('lines', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+map.addSource('stations', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+show(bundle);
+// Around midnight the days the map needs change, and each day's build names three more.
+setInterval(refreshDays, 60_000);
 
 // Track goes under the basemap's labels; Stations and names go on top of everything.
 const firstLabel = map.getStyle().layers.find((l) => l.type === 'symbol')?.id;
@@ -246,6 +232,40 @@ requestAnimationFrame(function move() {
   requestAnimationFrame(move);
 });
 
+/** Draws the Lines and Stations of the days on the map, and credits their Networks. */
+function show(days: Bundle) {
+  bundle = days;
+  lines = new Map(bundle.lines.map((l) => [l.id, l]));
+  const shapes = new Map(bundle.shapes.map((s) => [s.id, s]));
+  map.getSource<GeoJSONSource>('lines')?.setData({
+    type: 'FeatureCollection',
+    features: bundle.strokes.flatMap(({ line: id, shape: shapeId, from, to, side }): GeoJSON.Feature[] => {
+      const [line, shape] = [lines.get(id), shapes.get(shapeId)];
+      if (!line || !shape) return [];
+      const properties = {
+        name: line.name,
+        colour: line.colour,
+        // Zoomed right in, where Lines share track, Barcelona's commuter lines (R1–R8) are drawn over the regional ones.
+        above: /^R\d[NS]?$/.test(line.name) ? 1 : 0,
+        side,
+        // Each Line's name goes on its own stroke: text-offset is in ems.
+        ...Object.fromEntries(APART.map(([zoom, px]) => [`textOffset${zoom}`, [0, (side * px) / NAME_SIZE]])),
+      };
+      return [{ type: 'Feature', properties, geometry: { type: 'LineString', coordinates: along(shape, from, to) } }];
+    }),
+  });
+  map.getSource<GeoJSONSource>('stations')?.setData({
+    type: 'FeatureCollection',
+    features: places(bundle.stations).map((p) => ({
+      type: 'Feature',
+      properties: { name: p.name },
+      geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
+    })),
+  });
+  credited = bundle.networks;
+  showCredits();
+}
+
 /** Every Train on the map now, in its Line's colour, Live or Scheduled. */
 function trains(): GeoJSON.FeatureCollection {
   return {
@@ -317,12 +337,55 @@ function showCredits() {
   map.addControl(credits);
 }
 
-async function loadBundle(): Promise<Bundle> {
-  const manifest = await getJson<Manifest>(`${LIVE_URL}/manifest.json`);
-  const today = madridDate(new Date());
-  const day = manifest.days.find((d) => d.date === today) ?? manifest.days.at(-1);
-  if (!day) throw new Error('The manifest names no service day');
-  return getJson<Bundle>(`${LIVE_URL}/${day.bundle}`);
+/**
+ * The service days the map needs now, joined, where they aren't the ones it shows: today's, whatever
+ * the time, and each day whose Trains are on the map or come onto it within EARLY, as yesterday's
+ * do after midnight, and tomorrow's first can just before. Where the manifest is out of date, its
+ * last day stands for today. A day whose bundle fails to come is left out, and fetched again next time.
+ */
+async function neededDays(): Promise<Bundle | undefined> {
+  try {
+    manifest = await getJson<Manifest>(`${LIVE_URL}/manifest.json`);
+  } catch (error) {
+    if (!manifest) throw error;
+    console.warn(error);
+  }
+  const now = Date.now();
+  const today = manifest.days.find((d) => d.date === madridDate(new Date(now))) ?? manifest.days.at(-1);
+  const days = manifest.days.filter((d) => d === today || (d.from - EARLY <= now && now <= d.to + LATE));
+  if (!days.length) throw new Error('The manifest names no service day');
+  const keys = days.map((d) => d.bundle);
+  if (keys.join() === shown) return undefined;
+  for (const key of fetched.keys()) if (!keys.includes(key)) fetched.delete(key);
+  const got = await Promise.allSettled(
+    keys.map((key) => {
+      const bundle = fetched.get(key) ?? getJson<Bundle>(`${LIVE_URL}/${key}`);
+      fetched.set(key, bundle);
+      bundle.catch(() => fetched.delete(key));
+      return bundle;
+    }),
+  );
+  // Without today's bundle there's nothing to draw; without another day's, the map does without it until next time.
+  const failed = got.flatMap((g, i) => (g.status === 'rejected' ? [[keys[i], g.reason] as const] : []));
+  for (const [key, reason] of failed) if (key === today?.bundle) throw reason;
+  if (failed.length) console.warn(...failed.map(([, reason]) => reason));
+  const bundles = got.flatMap((g) => (g.status === 'fulfilled' ? [g.value] : []));
+  shown = failed.length ? '' : keys.join();
+  return joinDays(bundles);
+}
+
+/** Shows the days the map needs now, where they've changed. The Trains keep to the days shown meanwhile. */
+async function refreshDays() {
+  if (looking || document.hidden) return;
+  looking = true;
+  try {
+    const days = await neededDays();
+    if (days) show(days);
+  } catch (error) {
+    console.warn(error);
+  } finally {
+    looking = false;
+  }
 }
 
 /** Fetches the live snapshot, and again 20 s later if the tab is still visible. */

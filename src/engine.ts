@@ -93,6 +93,40 @@ export function trainsAt(bundle: Bundle, at: number, received: Received[] = []):
 }
 
 /**
+ * Consecutive service days' bundles as one, on the last day's clock, so that around midnight a Train
+ * still running from the day before and the new day's first Trains are on the map together. The
+ * earlier days' Trips run on it too, their IDs led by their service day, as in `2026-09-25/<id>`: an
+ * operator can give one day's Trip the same ID as the next's. Networks, Lines, Stations and track are
+ * the last day's, and the earlier days' where it has none of them. The engine goes over a bundle it
+ * hasn't seen before from scratch, so join the days once for as long as they're the ones shown.
+ * ponytail: an earlier day's Trips run on the last day's track where both have a shape of that ID,
+ * which is the same track unless the operator redrew it between the two builds.
+ */
+export function joinDays(days: Bundle[]): Bundle {
+  const latest = days.at(-1);
+  if (!latest) throw new Error('No service day to show');
+  if (days.length === 1) return latest;
+  const each = <T extends { id: string }>(of: (day: Bundle) => T[]) => [...new Map(days.flatMap(of).map((x) => [x.id, x])).values()];
+  return {
+    ...latest,
+    networks: each((d) => d.networks),
+    lines: each((d) => d.lines),
+    stations: each((d) => d.stations),
+    shapes: each((d) => d.shapes),
+    trips: days.flatMap(({ serviceDay, noonMinus12h, trips }) => {
+      if (serviceDay === latest.serviceDay) return trips;
+      // How far the day's clock is behind the last day's, in seconds: a day, or on the nights the clocks change, an hour more or less.
+      const behind = (latest.noonMinus12h - noonMinus12h) / 1000;
+      return trips.map((trip) => ({
+        ...trip,
+        id: `${serviceDay}/${trip.id}`,
+        calls: trip.calls.map((c) => ({ ...c, arrival: c.arrival - behind, departure: c.departure - behind })),
+      }));
+    }),
+  };
+}
+
+/**
  * The Networks whose live data is unavailable, given the snapshots received, as the latest has their
  * feeds: each has missed about three of its updates. Their Trains run as Scheduled meanwhile, and
  * the map says so.
@@ -226,21 +260,24 @@ const MATCH = 30 * 60;
  * A snapshot's reports by the Trip each is about. TMB's timetable names no Blocks, so each of the
  * Metro's runs the Trip on its Line headed its way whose timetable has it at the Block's next
  * Station closest to when TMB expects it there, within MATCH, and where two Blocks come closest to
- * one Trip, the closer runs it. A report that matches no Trip is dropped.
+ * one Trip, the closer runs it. A report naming a Trip that runs on more than one of the days
+ * joined is about the one whose timetable runs nearest when it was reported. A report that matches
+ * no Trip is dropped.
  */
 function reportsByTrip(bundle: Bundle, snapshot: Snapshot): Map<string, Report> {
   const known = matched.get(snapshot);
   if (known?.bundle === bundle) return known.reports;
-  const [reports, offs, headed] = [new Map<string, Report>(), new Map<string, number>(), new Map<string, Trip[]>()];
+  const [reports, offs, headed, named] = [new Map<string, Report>(), new Map<string, number>(), new Map<string, Trip[]>(), new Map<string, Trip[]>()];
+  const add = (to: Map<string, Trip[]>, key: string, trip: Trip) => to.set(key, [...(to.get(key) ?? []), trip]);
   for (const trip of bundle.trips) {
-    const key = `${trip.line} ${trip.headsign}`;
-    const trips = headed.get(key) ?? [];
-    trips.push(trip);
-    headed.set(key, trips);
+    add(headed, `${trip.line} ${trip.headsign}`, trip);
+    // As its operator names it, without the service day joinDays leads an earlier day's ID with.
+    add(named, trip.id.replace(/^\d{4}-\d{2}-\d{2}\//, ''), trip);
   }
   for (const report of snapshot.reports) {
     const { block, headsign, position } = report;
-    if (report.trip) reports.set(report.trip, report);
+    const trip = report.trip && closest(named.get(report.trip) ?? [], (report.at - bundle.noonMinus12h) / 1000);
+    if (trip) reports.set(trip.id, report);
     if (!block || !position || !('next' in position)) continue;
     let [found, off]: [string | undefined, number] = [undefined, MATCH];
     for (const trip of headed.get(`${block.line} ${headsign}`) ?? []) {
@@ -254,6 +291,12 @@ function reportsByTrip(bundle: Bundle, snapshot: Snapshot): Map<string, Report> 
   }
   matched.set(snapshot, { bundle, reports });
   return reports;
+}
+
+/** Of the Trips of one ID on the days joined, the one whose timetable runs nearest a time, in seconds into the service day. */
+function closest(trips: Trip[], time: number): Trip | undefined {
+  const off = ({ calls }: Trip) => Math.max(0, (calls[0]?.arrival ?? Infinity) - time, time - (calls.at(-1)?.departure ?? -Infinity));
+  return trips.reduce<Trip | undefined>((best, trip) => (!best || off(trip) < off(best) ? trip : best), undefined);
 }
 
 /**
