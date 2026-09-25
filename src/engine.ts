@@ -336,6 +336,14 @@ function delayOf(trip: Trip, calls: Call[], shape: Shape, profile: SpeedProfile,
   if (known?.trip === trip) return known.delay;
   const [reported, { position }] = [(report.at - noonMinus12h) / 1000, report];
   let delay = report.delay ?? expectedDelay(trip, position && 'next' in position ? position.next : report.expected, noonMinus12h) ?? 0;
+  if (position && 'next' in position) {
+    // It's no further back than the Station before the one it comes to next, however long it's held
+    // short of that, as at the end of its Line. Short of its Trip's first Station it's off the map,
+    // standing there as it turns back, and TMB's time is all there is to go by.
+    const i = calls.findIndex((c) => c.station === position.next.station);
+    const before = calls[i - 1];
+    if (before && i > 1) delay = Math.min(delay, reported - before.arrival);
+  }
   if (position && ('lon' in position || 'along' in position)) {
     const dists = calls.map((c) => c.dist);
     // TRAM counts from a Trip's first Station, whichever way along its track the Trip runs.
