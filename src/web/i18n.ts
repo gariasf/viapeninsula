@@ -28,6 +28,12 @@ const STRINGS = {
     es: 'datos en tiempo real no disponibles, posiciones según el horario',
     en: 'live data unavailable, positions from the timetable',
   },
+  // The banner alone, while the map has never got live data, and so can't name a Network.
+  noLive: {
+    ca: "Dades en temps real no disponibles, posicions segons l'horari",
+    es: 'Datos en tiempo real no disponibles, posiciones según el horario',
+    en: 'Live data unavailable, positions from the timetable',
+  },
 } satisfies Record<string, Record<Language, string>>;
 
 /** What the viewer's choice is kept under on their device, in local storage, which takes no cookie. */
