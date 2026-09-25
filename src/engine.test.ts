@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import { pointAt, type Bundle, type Network, type Report, type Snapshot } from './bundle.ts';
 import { KEEP, trainsAt, unavailable, type Received } from './engine.ts';
+import { jumps } from './jumps.ts';
 
 /** A speed profile like Rodalies', in metres and seconds, which the times below are worked out from. */
 const PROFILE = { acceleration: 1, braking: 1, topSpeed: 160 / 3.6, dwell: 30 };
@@ -434,6 +435,25 @@ test('a Train drawn more than a minute from where live data has it jumps there, 
   const received = [late(R2S, 0, at('21:59:40')), late(R2S, 90, at('22:00:00')), late(R2S, 0, at('22:00:20'))];
   expect(where(R2S, at('22:00:00'), received)).toBeCloseTo(where(R2S, at('21:58:30')) ?? NaN, 3);
   expect(where(R2S, at('22:00:20'), received)).toBeCloseTo(where(R2S, at('22:00:20')) ?? NaN, 3);
+});
+
+/** A snapshot in which Renfe has a Trip's Train at or near a Station, running so many seconds late, received as it's written. */
+const near = (trip: string, station: string, delay: number, moment: number): Received => ({
+  snapshot: { ...written(moment), reports: [{ trip, at: moment, position: { near: station }, delay }] },
+  at: moment,
+});
+
+test('counts the jumps of Live Trains for each Network, forward and back', () => {
+  // Between Sitges and Castelldefels, Renfe has the R2S on time, then 90 s late, then on time again.
+  const received = [0, 90, 0].map((delay, i) => near(R2S, 'Sitges', delay, at('21:59:40', i * 20)));
+  expect(jumps(BUNDLE, received)).toEqual({ rodalies: { forward: 1, back: 1, live: 41 } });
+});
+
+test("doesn't count a Live Train easing back where live data has it, or a Train that isn't Live", () => {
+  const received = [0, 10, 20].map((delay, i) => near(R2S, 'Sitges', delay, at('21:59:40', i * 20)));
+  expect(jumps(BUNDLE, received)).toEqual({ rodalies: { forward: 0, back: 0, live: 41 } });
+  // Renfe gives Delays with no position: the R2S jumps, but it's Scheduled.
+  expect(jumps(BUNDLE, [0, 90, 0].map((delay, i) => late(R2S, delay, at('21:59:40', i * 20))))).toEqual({});
 });
 
 test('a Train drawn more than 1 km from where live data has it jumps there', () => {

@@ -13,7 +13,8 @@
     "check": "tsc && tsc -p src/fetcher",
     "daily": "node --env-file-if-exists=.env.local src/build/daily.ts",
     "deploy": "npm run check && vite build && wrangler deploy && wrangler deploy -c src/fetcher/wrangler.jsonc",
-    "cors": "wrangler r2 bucket cors set viapeninsula-live --file r2-cors.json --force"
+    "cors": "wrangler r2 bucket cors set viapeninsula-live --file r2-cors.json --force",
+    "record": "node src/record.ts"
   },
   "dependencies": {
     "maplibre-gl": "^6.11.1",

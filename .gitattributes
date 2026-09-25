@@ -1,2 +1,3 @@
 # Recorded protocol buffers, such as FGC's trip updates in the fetcher's fixtures.
 *.pb binary
+*.gz binary
