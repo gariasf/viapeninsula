@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
+import { places } from '../bundle.ts';
 import { dirSource } from './gtfs.ts';
 import { FGC_FEED, METRO_FEED, onFgcRails, onMetroRails, onRodaliesRails, readFeed, RODALIES_FEED, TRAMBAIX_FEED } from './networks.ts';
 
@@ -174,8 +175,28 @@ test('runs the Montjuïc funicular every 10 minutes, from 07:30 on weekdays and 
 test("gives the Metro TMB's stops as Stations, one for each Line calling there, rather than the stations grouping them", async () => {
   const { stations } = await readFeed(tmb, '2026-10-01', METRO_FEED);
   // L11's stop at Trinitat Nova, not the station it shares with L3 and L4 (P.6660339).
-  expect(stations).toContainEqual({ id: 'tmb:1.1136', name: 'Trinitat Nova', lon: 2.1832, lat: 41.4499 });
+  expect(stations).toContainEqual({ id: 'tmb:1.1136', name: 'Trinitat Nova', lon: 2.1832, lat: 41.4499, place: 'tmb:P.6660339' });
   expect(stations.map((s) => s.id)).not.toContain('tmb:P.6660339');
+});
+
+test('draws the Stations TMB groups in one station as one place, at the middle of its Lines, and every other Station as its own', () => {
+  const stations = [
+    { id: 'tmb:1.327', name: 'Passeig de Gràcia', lon: 2.1649, lat: 41.3918, place: 'tmb:P.6660327' }, // L3
+    { id: 'tmb:1.437', name: 'Passeig de Gràcia', lon: 2.1683, lat: 41.3915, place: 'tmb:P.6660327' }, // L4
+    { id: 'tmb:1.225', name: 'Passeig de Gràcia', lon: 2.1693, lat: 41.3927, place: 'tmb:P.6660327' }, // L2
+    { id: 'tmb:1.1136', name: 'Trinitat Nova', lon: 2.1832, lat: 41.4499, place: 'tmb:P.6660339' },
+    // Renfe's station beside the Metro's goes by Adif's code, in no group of TMB's.
+    { id: 'adif:71802', name: 'Barcelona-Passeig de Gràcia', lon: 2.1652, lat: 41.3919 },
+  ];
+  const drawn = places(stations);
+  expect(drawn).toHaveLength(3);
+  expect(drawn[0]?.name).toBe('Passeig de Gràcia');
+  expect(drawn[0]?.lon).toBeCloseTo(2.1675);
+  expect(drawn[0]?.lat).toBeCloseTo(41.392);
+  expect(drawn.slice(1)).toEqual([
+    { name: 'Trinitat Nova', lon: 2.1832, lat: 41.4499 },
+    { name: 'Barcelona-Passeig de Gràcia', lon: 2.1652, lat: 41.3919 },
+  ]);
 });
 
 /** A way with these tags, as OpenStreetMap has Catalonia's rails. */
