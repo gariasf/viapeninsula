@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { gunzipSync } from 'node:zlib';
 import { expect, test } from 'vitest';
 import { pointAt, type Bundle, type Network, type Report, type Snapshot } from './bundle.ts';
 import { KEEP, trainsAt, unavailable, type Received } from './engine.ts';
@@ -527,6 +528,17 @@ test('never runs back when its last Delay runs out, among the snapshots the map 
   expect(each).toEqual([...each].sort((a, b) => a - b));
 });
 
+test('a snapshot over KEEP old takes what only it said with it, as the map folds in each new one', () => {
+  // Made up: Renfe cancels the R2S at 21:49:00, and then its feeds leave it out.
+  const cancelled: Received = { snapshot: { ...written(at('21:49:00')), reports: [{ trip: R2S, at: at('21:48:40'), cancelled: true }] }, at: at('21:49:00') };
+  const received = [cancelled, ...leftOut(at('21:49:20'), at('22:25:00'))];
+  const kept = (moment: number) => received.filter((r) => r.at > moment - KEEP && r.at <= moment);
+  const each = Array.from({ length: 61 }, (_, s) => train(R2S, at('22:23:30', s), kept(at('22:23:30', s))) !== undefined);
+  // It's back on the map at 22:24:00, as the snapshot cancelling it goes, 35 minutes after it came.
+  expect(each.indexOf(true)).toBe(30);
+  expect(each.slice(30).every(Boolean)).toBe(true);
+});
+
 // FGC's live data as the fetcher made it into a snapshot at 10:31:15 on Friday 25 September 2026,
 // from Geotren and the trip updates as recorded then, received as it was written, and a stretch of
 // an S2 that day as the daily build placed it, towards Sabadell Parc del Nord.
@@ -712,4 +724,25 @@ test('a Block that turns back at the end of its Line runs the Trip back from the
   // and expects it back at Santa Coloma at 13:17:31: 69 s before the next Trip out of Fondo is due there.
   expect(metro(NEXT_OUT_OF_FONDO, '13:15:50', METRO_LIVE)).toMatchObject({ live: true, dist: 0 });
   expect(metro(NEXT_OUT_OF_FONDO, '13:15:50', METRO_LIVE, 60)?.dist).toBeCloseTo(metro(NEXT_OUT_OF_FONDO, '13:15:50', [], 60 + 69)?.dist ?? NaN, 3);
+});
+
+// 45 minutes of production snapshots of all four Networks as the map received them, every 20 s from
+// 16:00 on Friday 25 September 2026, and that day's bundle cut to the Trips they could name.
+const RECORDED: { bundle: Bundle; received: Received[] } = JSON.parse(gunzipSync(readFileSync(new URL('fixtures/replay-2026-09-25.json.gz', import.meta.url))).toString());
+
+test('folding each snapshot into the last replay draws the Trains as replaying every snapshot kept does, as those over KEEP old go', () => {
+  const { bundle, received } = RECORDED;
+  // What the map keeps as each snapshot arrives, and every second until the next.
+  const kept = received.map((r, i) => received.slice(0, i + 1).filter((k) => k.at > r.at - KEEP));
+  // Snapshots received anew each time are replayed from the oldest kept.
+  const draw = (anew: boolean) =>
+    kept.flatMap((snapshots, i) => {
+      const [from, to] = [received[i]?.at ?? NaN, received[i + 1]?.at ?? Infinity];
+      const as = anew ? snapshots.map((r) => ({ ...r })) : snapshots;
+      return Array.from({ length: Math.min(20, Math.ceil((to - from) / 1000)) }, (_, s) =>
+        trainsAt(bundle, from + s * 1000, as).map(({ trip, dist, live, unreported }) => ({ trip: trip.id, dist: Math.round(dist * 100) / 100, live, unreported })),
+      );
+    });
+  expect(kept.at(-1)?.[0]).not.toBe(received[0]);
+  expect(draw(false)).toEqual(draw(true));
 });

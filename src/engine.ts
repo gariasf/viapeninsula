@@ -119,6 +119,8 @@ interface Heard {
   report: Report;
   got: number;
   placed?: number;
+  /** The snapshot, as received, that it was last in. */
+  in: Received;
 }
 
 /**
@@ -148,26 +150,37 @@ const EASE = 20;
 const [JUMP_TIME, JUMP_DIST] = [60, 1000];
 
 /**
- * The last replay, which the map asks for again every frame until its next snapshot arrives.
- * ponytail: every snapshot kept (KEEP) is replayed each time one arrives, which took about 8 ms on a
- * laptop for half an hour of Rodalies' 80 Live Trains, and 12 ms with FGC's 50 more. TRAM's 25 add
- * about a fifth, and the Metro's 90 about a quarter: 9 ms against 7 with 12 minutes of all four
- * kept. Fold each new one into the last replay if phones stutter (#40).
+ * The last replay, which the map asks for again every frame until its next snapshot arrives, and
+ * then folds that snapshot into.
  */
-let last: { bundle: Bundle; received: Received[]; eases: Map<string, Ease>; heard: Map<string, Heard> } | undefined;
+let last: { bundle: Bundle; received: Received[]; clock: number; eases: Map<string, Ease>; heard: Map<string, Heard>; dwelt: Map<string, Call[]> } | undefined;
 
 /**
  * How each Train live data has shifted in time is drawn, snapshot by snapshot, so that it never
  * runs back along its track (ADR-0002), and what live data last said about it. The first snapshot
  * places every Train outright, and after that a Train drawn far from where a snapshot has it jumps there.
+ *
+ * Snapshots received since the last replay are folded into it, and those it had that have since
+ * gone take what only they said with them. The rest of what they did stays: a Train has long caught
+ * up with live data, and its last Delay has run out, by the time the snapshot that gave it goes
+ * (KEEP). Where the snapshots aren't the last replay's with some gone and more come, or they correct
+ * the device's clock differently, they're all replayed.
  */
 function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<string, Network | undefined>, shapes: Map<string, Shape>): { eases: Map<string, Ease>; heard: Map<string, Heard> } {
-  if (last?.bundle === bundle && last.received.length === received.length && last.received.every((r, i) => r === received[i])) return last;
+  // How many of the last replay's snapshots have gone, and so which of these it had.
+  const gone = last?.bundle === bundle && last.clock === clock ? last.received.indexOf(received[0] as Received) : -1;
+  const had = (last?.received.length ?? 0) - gone;
+  const folding = last && gone >= 0 && had <= received.length && last.received.slice(gone).every((r, i) => r === received[i]) ? last : undefined;
+  const { eases, heard, dwelt } = folding ?? { eases: new Map<string, Ease>(), heard: new Map<string, Heard>(), dwelt: new Map<string, Call[]>() };
+  if (folding && gone > 0) {
+    const kept = new Set(received);
+    for (const [id, said] of heard) if (!kept.has(said.in)) [heard, eases, dwelt].forEach((m) => m.delete(id));
+  }
   const trips = new Map(bundle.trips.map((t) => [t.id, t]));
-  const [eases, heard, dwelt] = [new Map<string, Ease>(), new Map<string, Heard>(), new Map<string, Call[]>()];
-  for (const [i, { snapshot, at }] of received.entries()) {
-    const [arrived, upTo] = [(at + clock - bundle.noonMinus12h) / 1000, heardTo(received.slice(0, i + 1), at + clock)];
-    const reports = reportsByTrip(bundle, snapshot);
+  for (let i = folding ? had : 0; i < received.length; i++) {
+    const r = received[i] as Received;
+    const [arrived, upTo] = [(r.at + clock - bundle.noonMinus12h) / 1000, heardTo(received.slice(0, i + 1), r.at + clock)];
+    const reports = reportsByTrip(bundle, r.snapshot);
     for (const id of new Set([...eases.keys(), ...reports.keys()])) {
       const [trip, report, ease] = [trips.get(id), reports.get(id), eases.get(id)];
       const [network, shape] = [trip && lines.get(trip.line), trip && shapes.get(trip.shape)];
@@ -175,8 +188,8 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
       const { profile } = network;
       if (report) {
         // A report the fetcher kept from a feed's last good response is as old as that response.
-        const got = snapshot.feeds[network.id]?.lastSuccess ?? NaN;
-        heard.set(id, { report, got, placed: report.position ? got : heard.get(id)?.placed });
+        const got = r.snapshot.feeds[network.id]?.lastSuccess ?? NaN;
+        heard.set(id, { report, got, placed: report.position ? got : heard.get(id)?.placed, in: r });
       }
       const calls = dwelt.get(id) ?? withDwell(trip, profile);
       dwelt.set(id, calls);
@@ -190,7 +203,7 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
       eases.set(id, { at: arrived, time: i === 0 || far ? there : drawn, delay });
     }
   }
-  last = { bundle, received: [...received], eases, heard };
+  last = { bundle, received: [...received], clock, eases, heard, dwelt };
   return last;
 }
 
