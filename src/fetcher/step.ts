@@ -4,6 +4,9 @@
 
 import type { Freshness, Report, Snapshot } from '../bundle.ts';
 
+/** How often the fetcher runs, in ms. */
+export const EVERY = 20_000;
+
 /** A live feed, by the Network whose Trains it reports. */
 export type Feed = 'rodalies';
 
@@ -16,9 +19,10 @@ export interface Responses {
   rodalies?: { positions: Fetched; updates: Fetched };
 }
 
-/** What the step keeps between runs. */
+/** What the step keeps between runs: each feed's freshness, and its reports from the last run it worked. */
 export interface State {
   feeds: Record<string, Freshness>;
+  reports: Record<string, Report[]>;
 }
 
 /** What the fetcher stores between runs: the step's state, and the feeds due on the next run. */
@@ -28,25 +32,25 @@ export interface Stored {
 }
 
 /** What the fetcher starts from. */
-export const START: Stored = { state: { feeds: {} }, due: ['rodalies'] };
+export const START: Stored = { state: { feeds: {}, reports: {} }, due: ['rodalies'] };
 
 /**
  * One run: the stored state, this run's raw responses and the time now (ms since 1970) go in; the
  * snapshot, the next stored state and the feeds due on the next run come out.
  */
 export function step(state: State, responses: Responses, now: number): Stored & { snapshot: Snapshot } {
-  const feeds = { ...state.feeds };
-  const reports: Report[] = [];
+  // A response that fails never replaces the last good one: that feed's reports stay as they were.
+  const [feeds, reports] = [{ ...state.feeds }, { ...state.reports }];
   if (responses.rodalies) {
     try {
       const { positions, updates } = responses.rodalies;
-      reports.push(...rodalies(read('vehicle_positions', positions), read('trip_updates', updates)));
-      feeds.rodalies = { lastSuccess: now, lastAttempt: now, status: 'ok' };
+      reports.rodalies = rodalies(read('vehicle_positions', positions), read('trip_updates', updates));
+      feeds.rodalies = { lastSuccess: now, lastAttempt: now, status: 'ok', every: EVERY };
     } catch (error) {
-      feeds.rodalies = { ...feeds.rodalies, lastAttempt: now, status: (error as Error).message };
+      feeds.rodalies = { ...feeds.rodalies, lastAttempt: now, status: (error as Error).message, every: EVERY };
     }
   }
-  return { snapshot: { generated: now, feeds, reports }, state: { feeds }, due: ['rodalies'] };
+  return { snapshot: { generated: now, feeds, reports: Object.values(reports).flat() }, state: { feeds, reports }, due: ['rodalies'] };
 }
 
 /** GTFS-RT as Renfe's JSON has it, with times in seconds since 1970: the parts the step reads. */
@@ -67,6 +71,7 @@ interface Vehicle {
 function read(file: string, fetched: Fetched): GtfsRt {
   if ('error' in fetched) throw new Error(`${file}: ${fetched.error}`);
   if (fetched.status !== 200) throw new Error(`${file}: HTTP ${fetched.status}`);
+  if (!fetched.body.trim()) throw new Error(`${file}: empty`);
   try {
     return JSON.parse(fetched.body) as GtfsRt;
   } catch {

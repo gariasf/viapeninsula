@@ -5,8 +5,9 @@ body,
   margin: 0;
 }
 
-/* The legend, with its markers drawn as the map draws Trains: Live ones filled, Scheduled ones ringed. */
-.legend {
+/* The legend, with its markers drawn as the map draws Trains: Live ones filled, Scheduled ones ringed. The banner under it is laid out the same. */
+.legend,
+.banner {
   /* Clear of the language switch, top right, on a phone. */
   max-width: calc(100vw - 150px);
   padding: 4px 8px;
@@ -26,6 +27,11 @@ body,
 
 .legend .live {
   background: #555;
+}
+
+/* Yellow, as a warning. */
+.banner {
+  background: #fff3bf;
 }
 
 /* The language switch, as tall as MapLibre's buttons. 16px text keeps iOS from zooming in on it. */

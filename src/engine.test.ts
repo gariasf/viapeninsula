@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import { pointAt, type Bundle, type Snapshot } from './bundle.ts';
-import { trainsAt, type Received } from './engine.ts';
+import { KEEP, trainsAt, unavailable, type Received } from './engine.ts';
 
 /** A speed profile like Rodalies', in metres and seconds, which the times below are worked out from. */
 const PROFILE = { acceleration: 1, braking: 1, topSpeed: 160 / 3.6, dwell: 30 };
@@ -127,9 +127,11 @@ const BUNDLE: Bundle = {
 /** A moment on 24 September 2026, by the clock in Barcelona, and so many seconds on. */
 const at = (time: string, plus = 0) => Date.parse(`2026-09-24T${time}+02:00`) + plus * 1000;
 
+/** What the map has received of some live data by a moment by the device's clock. */
+const by = (received: Received[], moment: number) => received.filter((r) => r.at <= moment);
+
 /** A Trip's Train at a moment by the device's clock, if it's on the map, with the live data received by then. */
-const train = (trip: string, moment: number, received: Received[] = []) =>
-  trainsAt(BUNDLE, moment, received.filter((r) => r.at <= moment)).find((t) => t.trip.id === trip);
+const train = (trip: string, moment: number, received: Received[] = []) => trainsAt(BUNDLE, moment, by(received, moment)).find((t) => t.trip.id === trip);
 
 /** How far along its track a Trip's Train is at a moment, in metres, if it's on the map. */
 const where = (trip: string, moment: number, received?: Received[]) => train(trip, moment, received)?.dist;
@@ -250,8 +252,12 @@ test('is drawn on its track: at a Station, where the Station is', () => {
   expect(standing?.lat).toBeCloseTo(41.2203207, 7);
 });
 
-/** A snapshot the fetcher wrote at a moment, reporting no Trains. */
-const written = (generated: number): Snapshot => ({ generated, feeds: {}, reports: [] });
+/** A snapshot the fetcher wrote at a moment, having read Renfe's feeds then as it does every 20 s, reporting no Trains. */
+const written = (generated: number): Snapshot => ({
+  generated,
+  feeds: { rodalies: { lastSuccess: generated, lastAttempt: generated, status: 'ok', every: 20_000 } },
+  reports: [],
+});
 
 test("places Trains by the fetcher's clock on a device whose clock is minutes off", () => {
   // At 21:49:30 the R2S stands at Vilanova i la Geltrú. A device 5 minutes behind receives a
@@ -426,4 +432,79 @@ test("drops the reports that match none of the day's Trips", () => {
     [R7, true],
     [R2N, false],
   ]);
+});
+
+/** Snapshots written and received every 20 s from one moment to another, in which Renfe's feeds work but leave every Train out. */
+const leftOut = (from: number, to: number): Received[] =>
+  Array.from({ length: (to - from) / 20_000 + 1 }, (_, i) => ({ snapshot: written(from + i * 20_000), at: from + i * 20_000 }));
+
+test("a Live Train that live data stops reporting stays Live through two of its feed's updates, and turns Scheduled at the third", () => {
+  // Between Sitges and Castelldefels, Renfe's GPS has the R2S at 22:00:00, and then Renfe's feeds leave it out.
+  const received = [gps(R2S, where(R2S, at('21:59:30')) ?? NaN, at('22:00:00')), ...leftOut(at('22:00:20'), at('22:01:00'))];
+  expect([10, 30, 50, 70].map((s) => train(R2S, at('22:00:00', s), received)?.live)).toEqual([true, true, true, false]);
+});
+
+test('a Train that live data stops reporting keeps its last Delay for 30 minutes, then follows its plain timetable', () => {
+  // Renfe's GPS has the R2S 2 minutes late between Sitges and Castelldefels at 22:00:00, and then Renfe's feeds leave it out.
+  const received = [gps(R2S, where(R2S, at('21:58:00')) ?? NaN, at('22:00:00')), ...leftOut(at('22:00:20'), at('22:31:00'))];
+  expect(where(R2S, at('22:29:50'), received)).toBeCloseTo(where(R2S, at('22:27:50')) ?? NaN, 3);
+  expect(where(R2S, at('22:30:30'), received)).toBeCloseTo(where(R2S, at('22:30:30')) ?? NaN, 3);
+  // By then it's as if live data had never reported it.
+  expect(train(R2S, at('22:30:30'), received)).toMatchObject({ live: false, unreported: true });
+});
+
+/** What the fetcher wrote at a moment while Renfe's feeds had failed since an earlier snapshot: that snapshot's reports, received as it's written. */
+const failing = (moment: number, since: Received): Received => ({
+  snapshot: {
+    ...since.snapshot,
+    generated: moment,
+    feeds: { rodalies: { lastSuccess: since.snapshot.generated, lastAttempt: moment, status: 'vehicle_positions: HTTP 503', every: 20_000 } },
+  },
+  at: moment,
+});
+
+test("while Renfe's feeds fail, Rodalies' live data is unavailable from the third failed update, and its Trains turn Scheduled, keeping their Delays", () => {
+  // Renfe's GPS has the R2S 30 s late between Sitges and Castelldefels at 22:00:00, and then every run fails.
+  const good = gps(R2S, where(R2S, at('21:59:30')) ?? NaN, at('22:00:00'));
+  const received = [good, ...[20, 40, 60, 80].map((s) => failing(at('22:00:00', s), good))];
+  expect([at('22:00:50'), at('22:01:10')].map((moment) => unavailable(by(received, moment)))).toEqual([[], ['rodalies']]);
+  expect([50, 70].map((s) => train(R2S, at('22:00:00', s), received)?.live)).toEqual([true, false]);
+  expect(where(R2S, at('22:01:30'), received)).toBeCloseTo(where(R2S, at('22:01:00')) ?? NaN, 3);
+});
+
+test('when the fetcher stops, its live data is unavailable soon after its next snapshots would have come, and its Trains turn Scheduled', () => {
+  // Renfe's GPS has the R2S between Sitges and Castelldefels in the snapshot the fetcher writes at
+  // 22:00:00, its last, which the map finds again every 20 s, as it would if it couldn't fetch one.
+  // A running fetcher's snapshot can arrive a minute old and the next 20 s after, so the map counts
+  // missed updates from 22:01:20: three make 22:02:20.
+  const last = gps(R2S, where(R2S, at('21:59:30')) ?? NaN, at('22:00:00'));
+  const received = Array.from({ length: 10 }, (_, i) => ({ ...last, at: at('22:00:00', i * 20) }));
+  expect([at('22:02:10'), at('22:02:30')].map((moment) => unavailable(by(received, moment)))).toEqual([[], ['rodalies']]);
+  expect([130, 150].map((s) => train(R2S, at('22:00:00', s), received)?.live)).toEqual([true, false]);
+});
+
+test("brought back after its tab was hidden, the map shows Trains Scheduled until it hears more, without saying their live data is unavailable", () => {
+  // The map last looked at 22:00:00, and looks again at 22:10:00.
+  const received = [gps(R2S, where(R2S, at('21:59:30')) ?? NaN, at('22:00:00'))];
+  expect(train(R2S, at('22:10:00'), received)?.live).toBe(false);
+  expect(unavailable(received)).toEqual([]);
+});
+
+test("a Train that a working feed doesn't report stays Scheduled, marked as having no live data, unless the feed is down", () => {
+  // Renfe's feeds at 21:37 on 24 September didn't report the R2N, which its timetable has at Mollet-Sant Fost, and did the R2S.
+  expect(train(R2N, at('21:37:30'), RECEIVED)).toMatchObject({ live: false, unreported: true });
+  expect(train(R2S, at('21:37:30'), RECEIVED)).toMatchObject({ live: true, unreported: false });
+  // From the third update after that the feeds fail, the map says their live data is unavailable instead.
+  const down = [...RECEIVED, ...[20, 40, 60].map((s) => failing(at('21:37:00', s), { snapshot: LIVE, at: LIVE.generated }))];
+  expect(train(R2N, at('21:38:10'), down)).toMatchObject({ live: false, unreported: false });
+  // Before any live data comes, there's no telling.
+  expect(train(R2N, at('21:37:30'))?.unreported).toBe(false);
+});
+
+test('never runs back when its last Delay runs out, among the snapshots the map keeps', () => {
+  // Renfe's GPS has the R2S 30 s early between Sitges and Castelldefels at 22:00:00, and then Renfe's feeds leave it out.
+  const received = [gps(R2S, where(R2S, at('22:00:30')) ?? NaN, at('22:00:00')), ...leftOut(at('22:00:20'), at('22:32:00'))];
+  const kept = (moment: number) => received.filter((r) => r.at > moment - KEEP);
+  const each = Array.from({ length: 181 }, (_, s) => where(R2S, at('22:29:00', s), kept(at('22:29:00', s))) ?? NaN);
+  expect(each).toEqual([...each].sort((a, b) => a - b));
 });

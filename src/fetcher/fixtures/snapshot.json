@@ -4,7 +4,8 @@
     "rodalies": {
       "lastSuccess": 1790278620000,
       "lastAttempt": 1790278620000,
-      "status": "ok"
+      "status": "ok",
+      "every": 20000
     }
   },
   "reports": [

@@ -9,16 +9,18 @@ export interface Snapshot {
   generated: number;
   /** How fresh each Network's live data is. */
   feeds: Record<string, Freshness>;
-  /** What the operators report about each Train. */
+  /** What the operators report about each Train: for a feed whose last try failed, what it said when it last worked. */
   reports: Report[];
 }
 
-/** When the fetcher last tried a Network's live data and last got it, in ms since 1970, and how the try went. */
+/** When the fetcher last tried a Network's live data and last got it, in ms since 1970, how the try went, and how often it tries. */
 export interface Freshness {
   lastSuccess?: number;
   lastAttempt: number;
   /** `ok`, or what went wrong. */
   status: string;
+  /** How long from one try to the next, in ms. Its Trains turn Scheduled once they miss about three. */
+  every: number;
 }
 
 /** What an operator reports about one Train. */

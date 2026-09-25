@@ -3,10 +3,7 @@
 // thin glue around the fetcher step.
 
 import { DurableObject } from 'cloudflare:workers';
-import { START, step, type Fetched, type Responses, type Stored } from './step.ts';
-
-/** How often the fetcher runs, in ms. */
-const EVERY = 20_000;
+import { EVERY, START, step, type Fetched, type Responses, type Stored } from './step.ts';
 
 /** Renfe's Cercanías live data, as JSON: Rodalies' is in it. */
 const RENFE = {

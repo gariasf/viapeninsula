@@ -1,10 +1,10 @@
 // Where each Train is. The timetable drives motion (ADR-0002); the browser and the tests share this.
 
-import { closestOnSegment, DEGREE, pointAt, type Bundle, type Call, type Point, type Report, type Shape, type Snapshot, type SpeedProfile, type Trip } from './bundle.ts';
+import { closestOnSegment, DEGREE, pointAt, type Bundle, type Call, type Network, type Point, type Report, type Shape, type Snapshot, type SpeedProfile, type Trip } from './bundle.ts';
 
 /**
  * A Train on the map: its Trip, how far along the Trip's shape it is, in metres, and where that is.
- * It's Live where the latest snapshot reports where it is, and Scheduled where not.
+ * It's Live while live data has placed it within about its feed's last three updates, and Scheduled otherwise.
  */
 export interface Train {
   trip: Trip;
@@ -12,9 +12,15 @@ export interface Train {
   lon: number;
   lat: number;
   live: boolean;
+  /** Whether its Network's live data works but hasn't reported it lately: it has no live data, and may not be running. */
+  unreported: boolean;
 }
 
-/** A snapshot of live data, and when it arrived by the device's clock, in ms since 1970. */
+/**
+ * A snapshot of live data, and when the map had it, by the device's clock in ms since 1970. The map
+ * records one each time it looks for live data: the snapshot it gets, or where it gets none, the last
+ * it had. So a feed misses updates only while the map looks for them.
+ */
 export interface Received {
   snapshot: Snapshot;
   at: number;
@@ -27,26 +33,51 @@ export interface Received {
 const MAX_AGE = 60_000;
 
 /**
+ * How long a device can go without a newer snapshot while the fetcher is running, in ms: one can
+ * be MAX_AGE old when it arrives, and the map fetches the next 20 s later.
+ */
+const LAG = MAX_AGE + 20_000;
+
+/** How many of its feed's updates in a row a Live Train misses as it turns Scheduled, and a feed as its live data turns unavailable. */
+const MISSES = 3;
+
+/** How long a Train keeps the last Delay live data gave it once live data stops reporting it, in ms. */
+const CARRY = 30 * 60_000;
+
+/**
+ * How long the map keeps each snapshot it receives, in ms: a little longer than CARRY, so that a
+ * Train's last Delay runs out as the replay eases it back, before the snapshot that gave it goes.
+ */
+export const KEEP = CARRY + 5 * 60_000;
+
+/**
  * Every Train on the map at a moment by the device's clock (ms since 1970), given the snapshots
  * received by then, where its Trip's timetable puts it, shifted in time by live data (ADR-0002):
  * eased towards as late or early as live data has it, or where that's far, jumping there. Between
  * Stations it accelerates, cruises and brakes, as its Network's speed profile has it, so that it
- * leaves and arrives exactly on time. A Train its operator has cancelled leaves the map.
+ * leaves and arrives exactly on time. A Train its operator has cancelled leaves the map. One that
+ * live data stops reporting stays Live through two of its feed's updates and turns Scheduled at the
+ * third, and it keeps its last Delay for CARRY before it's back on its plain timetable.
  */
 export function trainsAt(bundle: Bundle, at: number, received: Received[] = []): Train[] {
   const clock = behind(received);
   const now = (at + clock - bundle.noonMinus12h) / 1000;
   const shapes = new Map(bundle.shapes.map((s) => [s.id, s]));
-  const profiles = new Map(bundle.networks.map((n) => [n.id, n.profile]));
-  const lines = new Map(bundle.lines.map((l) => [l.id, profiles.get(l.network)]));
-  const eases = replay(bundle, received, clock, lines, shapes);
-  // What the latest snapshot reports about each Trip. A report that matches no Trip is dropped.
-  const reports = new Map(received.at(-1)?.snapshot.reports.map((r) => [r.trip, r]));
+  const networks = new Map(bundle.networks.map((n) => [n.id, n]));
+  const lines = new Map(bundle.lines.map((l) => [l.id, networks.get(l.network)]));
+  // What live data last said about each Trip. A report that matches no Trip is dropped.
+  const { eases, heard } = replay(bundle, received, clock, lines, shapes);
+  // How far into live data the device has got by now, and by when the map last looked for it. A
+  // Train is Live only on recent confirmation, however long since the map looked, but live data is
+  // unavailable only where the map has looked and found none.
+  const [upToNow, upTo] = [heardTo(received, at + clock), heardTo(received, (received.at(-1)?.at ?? -Infinity) + clock)];
+  const feeds = received.at(-1)?.snapshot.feeds ?? {};
   return bundle.trips.flatMap((trip): Train[] => {
-    const report = reports.get(trip.id);
-    if (report?.cancelled) return [];
-    const [profile, shape, first, last, ease] = [lines.get(trip.line), shapes.get(trip.shape), trip.calls[0], trip.calls.at(-1), eases.get(trip.id)];
-    if (!profile || !shape) return [];
+    const said = heard.get(trip.id);
+    if (said?.report.cancelled) return [];
+    const [network, shape, first, last, ease] = [lines.get(trip.line), shapes.get(trip.shape), trip.calls[0], trip.calls.at(-1), eases.get(trip.id)];
+    if (!network || !shape) return [];
+    const { profile } = network;
     // A Train running late is where its timetable had it that long ago, once it has eased there.
     const time = ease ? eased(withDwell(trip, profile), profile, ease, now) : now;
     // Most Trips aren't on the map at any one moment, whatever their dwell: skip those first.
@@ -54,8 +85,50 @@ export function trainsAt(bundle: Bundle, at: number, received: Received[] = []):
     const dist = place(withDwell(trip, profile), profile, time);
     if (dist === undefined) return [];
     const [lon, lat] = pointAt(shape, dist);
-    return [{ trip, dist, lon, lat, live: report?.position !== undefined }];
+    const feed = feeds[network.id];
+    const live = feed !== undefined && said?.placed !== undefined && !stale(said.placed, upToNow, feed.every);
+    const unreported = feed !== undefined && !recent(said, upTo) && !stale(feed.lastSuccess, upTo, feed.every);
+    return [{ trip, dist, lon, lat, live, unreported }];
   });
+}
+
+/**
+ * The Networks whose live data is unavailable, given the snapshots received, as the latest has their
+ * feeds: each has missed about three of its updates. Their Trains run as Scheduled meanwhile, and
+ * the map says so.
+ */
+export function unavailable(received: Received[]): string[] {
+  const upTo = heardTo(received, (received.at(-1)?.at ?? -Infinity) + behind(received));
+  return Object.entries(received.at(-1)?.snapshot.feeds ?? {}).flatMap(([network, feed]) => (stale(feed.lastSuccess, upTo, feed.every) ? [network] : []));
+}
+
+/**
+ * Whether a feed whose updates come `every` ms apart has missed three of them since a moment, as
+ * far into live data as a device has got, both by the fetcher's clock in ms. Never is long ago.
+ */
+const stale = (since: number | undefined, upTo: number, every: number) => upTo - (since ?? -Infinity) >= MISSES * every;
+
+/** What live data last said about a Train, while that's recent enough to go by: under CARRY old, as far into live data as a device has got. */
+const recent = (said: Heard | undefined, upTo: number) => (said && upTo - said.got < CARRY ? said : undefined);
+
+/**
+ * What live data last said about a Train: its latest report, when the fetcher got that, and when
+ * it last got one that placed the Train, in ms since 1970 by the fetcher's clock.
+ */
+interface Heard {
+  report: Report;
+  got: number;
+  placed?: number;
+}
+
+/**
+ * How far into live data a device has got by a moment, both by the fetcher's clock in ms: to when
+ * the fetcher wrote the newest snapshot received, or where a running fetcher's would be newer by
+ * then, to LAG before it. So a snapshot that's slow to come never turns Trains Scheduled, and one
+ * that never comes does.
+ */
+function heardTo(received: Received[], moment: number): number {
+  return Math.max(moment - LAG, ...received.map((r) => r.snapshot.generated));
 }
 
 /**
@@ -76,31 +149,39 @@ const [JUMP_TIME, JUMP_DIST] = [60, 1000];
 
 /**
  * The last replay, which the map asks for again every frame until its next snapshot arrives.
- * ponytail: every snapshot kept is replayed each time one arrives, about 8 ms on a laptop for half
- * an hour of Rodalies' 80 Live Trains. Fold each new one into the last replay once more Networks
- * go Live, or if phones stutter.
+ * ponytail: every snapshot kept (KEEP) is replayed each time one arrives, which took about 8 ms on a
+ * laptop for half an hour of Rodalies' 80 Live Trains. Fold each new one into the last replay once
+ * more Networks go Live, or if phones stutter.
  */
-let last: { bundle: Bundle; received: Received[]; eases: Map<string, Ease> } | undefined;
+let last: { bundle: Bundle; received: Received[]; eases: Map<string, Ease>; heard: Map<string, Heard> } | undefined;
 
 /**
  * How each Train live data has shifted in time is drawn, snapshot by snapshot, so that it never
- * runs back along its track (ADR-0002). The first snapshot places every Train outright, and after
- * that a Train drawn far from where a snapshot has it jumps there.
+ * runs back along its track (ADR-0002), and what live data last said about it. The first snapshot
+ * places every Train outright, and after that a Train drawn far from where a snapshot has it jumps there.
  */
-function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<string, SpeedProfile | undefined>, shapes: Map<string, Shape>): Map<string, Ease> {
-  if (last?.bundle === bundle && last.received.length === received.length && last.received.every((r, i) => r === received[i])) return last.eases;
+function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<string, Network | undefined>, shapes: Map<string, Shape>): { eases: Map<string, Ease>; heard: Map<string, Heard> } {
+  if (last?.bundle === bundle && last.received.length === received.length && last.received.every((r, i) => r === received[i])) return last;
   const trips = new Map(bundle.trips.map((t) => [t.id, t]));
-  const [eases, dwelt] = [new Map<string, Ease>(), new Map<string, Call[]>()];
+  const [eases, heard, dwelt] = [new Map<string, Ease>(), new Map<string, Heard>(), new Map<string, Call[]>()];
   for (const [i, { snapshot, at }] of received.entries()) {
-    const arrived = (at + clock - bundle.noonMinus12h) / 1000;
+    const [arrived, upTo] = [(at + clock - bundle.noonMinus12h) / 1000, heardTo(received.slice(0, i + 1), at + clock)];
     const reports = new Map(snapshot.reports.map((r) => [r.trip, r]));
     for (const id of new Set([...eases.keys(), ...reports.keys()])) {
       const [trip, report, ease] = [trips.get(id), reports.get(id), eases.get(id)];
-      const [profile, shape] = [trip && lines.get(trip.line), trip && shapes.get(trip.shape)];
-      if (!trip || !profile || !shape) continue;
+      const [network, shape] = [trip && lines.get(trip.line), trip && shapes.get(trip.shape)];
+      if (!trip || !network || !shape) continue;
+      const { profile } = network;
+      if (report) {
+        // A report the fetcher kept from a feed's last good response is as old as that response.
+        const got = snapshot.feeds[network.id]?.lastSuccess ?? NaN;
+        heard.set(id, { report, got, placed: report.position ? got : heard.get(id)?.placed });
+      }
       const calls = dwelt.get(id) ?? withDwell(trip, profile);
       dwelt.set(id, calls);
-      const delay = report ? delayOf(trip, calls, shape, profile, report, bundle.noonMinus12h) : 0;
+      // A Train live data stops reporting keeps its last Delay until that's CARRY old.
+      const said = recent(heard.get(id), upTo);
+      const delay = said ? delayOf(trip, calls, shape, profile, said.report, bundle.noonMinus12h) : 0;
       // Until live data first shifts it, a Train runs on its timetable.
       const drawn = ease ? eased(calls, profile, ease, arrived) : arrived;
       const [there, dist] = [arrived - delay, (time: number) => place(calls, profile, time) ?? NaN];
@@ -108,8 +189,8 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
       eases.set(id, { at: arrived, time: i === 0 || far ? there : drawn, delay });
     }
   }
-  last = { bundle, received: [...received], eases };
-  return eases;
+  last = { bundle, received: [...received], eases, heard };
+  return last;
 }
 
 /**
