@@ -12,6 +12,8 @@ setWorkerUrl(workerUrl);
 
 const FONT = ['Noto Sans Regular'];
 const NAME_SIZE = 12;
+/** How many times the map looks for live data, never getting any, before it says live data is unavailable. */
+const EMPTY_POLLS = 3;
 
 /** A Line's width, in pixels at each zoom. */
 const WIDTH: [zoom: number, px: number][] = [[7, 1.5], [14, 4]];
@@ -113,11 +115,13 @@ let credits: AttributionControl | undefined;
 let credited: Network[] = [];
 /** The Networks whose live data is unavailable, by their ids. */
 let unavailableIds: string[] = [];
-showLanguage();
-
 // Live data: the fetcher's snapshot, about every 20 s while the tab is visible (ADR-0003). The
 // engine replays what the map had each time it looked, over the last KEEP, which also corrects the device's clock.
 let received: Received[] = [];
+/** How many times the map has looked for live data before its first snapshot. A hidden tab doesn't look. */
+let emptyPolls = 0;
+showLanguage();
+
 let nextPoll: ReturnType<typeof setTimeout> | undefined;
 document.addEventListener('visibilitychange', () => (document.hidden ? clearTimeout(nextPoll) : poll()));
 if (!document.hidden) poll();
@@ -276,10 +280,19 @@ function showLanguage() {
   showCredits();
 }
 
-/** Names each Network on the map whose live data is unavailable, in the viewer's language, and hides the banner while there's none. */
+/**
+ * Names each Network on the map whose live data is unavailable, in the viewer's language. Once the
+ * map has looked EMPTY_POLLS times and never got a snapshot, it says live data is unavailable
+ * instead, naming no Network. Hides the banner while there's neither.
+ */
 function showBanner() {
   const networks = credited.filter((n) => unavailableIds.includes(n.id));
-  banner.hidden = !networks.length;
+  const neverLive = !received.length && emptyPolls >= EMPTY_POLLS;
+  banner.hidden = !networks.length && !neverLive;
+  if (neverLive) {
+    banner.replaceChildren(t('noLive'));
+    return;
+  }
   banner.replaceChildren(
     ...networks.map(({ name }) => {
       const row = document.createElement('div');
@@ -325,6 +338,8 @@ async function poll() {
   }
   const at = Date.now();
   if (snapshot) received = [...received.filter((r) => r.at > at - KEEP), { snapshot, at }];
+  else emptyPolls++;
+  showBanner();
   clearTimeout(nextPoll);
   if (!document.hidden) nextPoll = setTimeout(poll, 20_000);
 }
