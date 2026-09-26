@@ -40,8 +40,13 @@ export async function osmRails(railways: string[], cache = '.cache'): Promise<Os
   const landBorder =
     'rel["ISO3166-2"="ES-CT"];way(r)->.ct;rel["ISO3166-2"~"^ES-(AR|VC)$"];way(r)->.es;' +
     'rel["ISO3166-1"~"^(FR|AD)$"]["admin_level"="2"];way(r)->.abroad;(way.ct.es;way.ct.abroad;)->.border;';
-  const query = `[out:json][timeout:180];area["ISO3166-2"="ES-CT"]->.catalonia;${landBorder}(${rail}(area.catalonia);${rail}(around.border:${MARGIN}););out body geom qt;`;
-  return overpass(query, cache, "OpenStreetMap's rails", parse);
+  // Two queries, so a mirror that finds none within Catalonia fails, and isn't hidden by the rails it finds beyond.
+  const [within, beyond] = await Promise.all([
+    overpass(`[out:json][timeout:180];area["ISO3166-2"="ES-CT"]->.catalonia;${rail}(area.catalonia);out body geom qt;`, cache, "OpenStreetMap's rails", parse),
+    overpass(`[out:json][timeout:180];${landBorder}${rail}(around.border:${MARGIN});out body geom qt;`, cache, "OpenStreetMap's rails beyond Catalonia", parse),
+  ]);
+  const ids = new Set(within.map((way) => way.id));
+  return [...within, ...beyond.filter((way) => !ids.has(way.id))];
 }
 
 /** Catalonia's border, as the ways that make it up, in no order, from the cache or from Overpass. */

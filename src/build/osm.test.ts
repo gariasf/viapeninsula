@@ -14,8 +14,10 @@ test('downloads the rails from the next Overpass mirror when one times out, and 
   const cache = await mkdtemp(join(tmpdir(), 'viapeninsula-'));
   const asked: { url: string; agent: string | null }[] = [];
   vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
-    asked.push({ url, agent: new Headers(init.headers).get('User-Agent') });
-    if (asked.length === 1) throw new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+    // The query for the rails within Catalonia; the one for those beyond its border answers the same way.
+    const within = String(init.body).includes('area.catalonia');
+    if (within) asked.push({ url, agent: new Headers(init.headers).get('User-Agent') });
+    if (within && asked.length === 1) throw new DOMException('The operation was aborted due to timeout', 'TimeoutError');
     return new Response(JSON.stringify({ elements: [way] }));
   });
 
@@ -35,4 +37,15 @@ test("leaves out rails that haven't opened yet", async () => {
   const opening = (date: string) => ({ ...way, tags: { railway: 'rail', opening_date: date } });
   vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ elements: [way, opening('2999'), opening('2009-02-12')] })));
   expect(await osmRails(['rail'], await mkdtemp(join(tmpdir(), 'viapeninsula-')))).toEqual([way, opening('2009-02-12')]);
+});
+
+test("asks the next mirror when one finds no rails within Catalonia, even though it finds some beyond its border", async () => {
+  // overpass.kumi.systems once answered the rails near the border but none within Catalonia.
+  const beyond = { ...way, id: 2 };
+  vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
+    const within = String(init.body).includes('area.catalonia');
+    const elements = within ? (url.includes('kumi') ? [way] : []) : [beyond];
+    return new Response(JSON.stringify({ elements }));
+  });
+  expect(await osmRails(['rail'], await mkdtemp(join(tmpdir(), 'viapeninsula-')))).toEqual([way, beyond]);
 });
