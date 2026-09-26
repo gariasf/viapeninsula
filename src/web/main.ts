@@ -3,7 +3,7 @@ import './style.css';
 import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { AttributionControl, MapLibreMap, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { along, beside, EARTH, LIVE_URL, madridDate, places, type Bundle, type DayTrips, type Line, type Manifest, type Network, type Point, type Shape, type Snapshot, type Stroke, type Track } from '../bundle.ts';
+import { along, beside, EARTH, LIVE_URL, madridDate, places, type Bundle, type Place, type DayTrips, type Line, type Manifest, type Network, type Point, type Shape, type Snapshot, type Stroke, type Track } from '../bundle.ts';
 import { boardAt, joinDays, KEEP, trainAt, trainsAt, unavailable, type Received } from '../engine.ts';
 import { language, LANGUAGES, setLanguage, t, type Language } from './i18n.ts';
 
@@ -134,7 +134,7 @@ document.body.append(panel);
  */
 let following: { day: string; trip: string; at?: Point } | undefined;
 /** The place whose board the panel shows, by its ID in places(), while the map follows no Train. */
-let boarding: string | undefined;
+let boardPlace: string | undefined;
 /** When the panel was last filled, by performance.now(). */
 let panelShown = 0;
 let credits: AttributionControl | undefined;
@@ -172,7 +172,7 @@ let bundle: Bundle | undefined;
 let lines = new Map<string, Line>();
 let stationNames = new Map<string, string>();
 /** Where the map shows the Stations, by their IDs in places(). */
-let shownPlaces = new Map<string, ReturnType<typeof places>[number]>();
+let shownPlaces = new Map<string, Place>();
 /** What places each Line's Trains beside its track zoomed out: its shapes, their sides by `<line> <shape>`, and which side its Trains keep to, 1 right and -1 left. */
 let placing = { shapes: new Map<string, Shape>(), sides: new Map<string, Stroke[]>(), keep: new Map<string, number>() };
 map.addSource('lines', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
@@ -266,7 +266,7 @@ for (const layer of ['trains', 'stations']) {
   map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'));
   map.on('mouseleave', layer, () => (map.getCanvas().style.cursor = ''));
 }
-document.addEventListener('keydown', (e) => e.key === 'Escape' && (following || boarding) && closePanel());
+document.addEventListener('keydown', (e) => e.key === 'Escape' && (following || boardPlace) && closePanel());
 
 // Moves the Trains every frame, and names the Networks whose live data is unavailable as that
 // changes. The browser stops asking while the tab is hidden.
@@ -279,7 +279,7 @@ requestAnimationFrame(function move() {
     else keepInView(following.at);
   }
   // The panel's times and ages change by the second.
-  if ((following || boarding) && performance.now() - panelShown > 1000) showPanel();
+  if ((following || boardPlace) && performance.now() - panelShown > 1000) showPanel();
   const ids = unavailable(received);
   if (ids.join() !== unavailableIds.join()) {
     unavailableIds = ids;
@@ -393,7 +393,7 @@ function showLanguage() {
 function follow(id: string) {
   const [, day, trip] = /^(\d{4}-\d{2}-\d{2})\/(.*)$/.exec(id) ?? [];
   following = day && trip ? { day, trip } : { day: bundle?.serviceDay ?? '', trip: id };
-  boarding = undefined;
+  boardPlace = undefined;
   trainSource?.setData(trains());
   showPanel();
   if (following.at) map.easeTo({ center: following.at, zoom: Math.max(map.getZoom(), 13), padding: abovePanel() });
@@ -401,14 +401,14 @@ function follow(id: string) {
 
 /** Shows a place's board, by its ID in places(), following no Train. */
 function showBoard(place: string) {
-  [following, boarding] = [undefined, place];
+  [following, boardPlace] = [undefined, place];
   trainSource?.setData(trains());
   showPanel();
 }
 
 /** Stops following a Train, or closes a Station's board. */
 function closePanel() {
-  [following, boarding] = [undefined, undefined];
+  [following, boardPlace] = [undefined, undefined];
   showPanel();
   map.easeTo({ padding: abovePanel() });
 }
@@ -440,7 +440,7 @@ function abovePanel() {
 /** Fills the panel, in the viewer's language, with the Train the map follows or the Station board it shows. Hides it while there's neither. */
 function showPanel() {
   panelShown = performance.now();
-  const shown = following ? followedPanel() : boarding ? boardPanel(boarding) : undefined;
+  const shown = following ? followedPanel() : boardPlace ? boardPanel(boardPlace) : undefined;
   panel.hidden = !shown;
   panel.replaceChildren(...(shown ?? []));
 }
@@ -462,7 +462,7 @@ function followedPanel(): Node[] | undefined {
     closeButton(t('stopFollowing')),
     el('h2', {}, lineName(trip.line), ` → ${trip.headsign}`),
     el('p', { className: live ? 'live' : 'scheduled' }, status.join(' · ')),
-    el('p', {}, late(delay)),
+    el('p', {}, delayText(delay)),
     el('p', {}, `${t('speed')}: ~${Math.round(speed * 3.6)} km/h`),
     ...(unitType ? [el('p', {}, `${t('unit')}: ${unitType}`)] : []),
     el('h3', { textContent: t('nextStations') }),
@@ -499,7 +499,7 @@ function boardPanel(id: string): Node[] | undefined {
               el('time', { textContent: time.format(departure) }),
               lineName(trip.line),
               ` ${trip.headsign} `,
-              el('small', { className: live ? 'live' : 'scheduled' }, cancelled ? t('cancelled') : `${t(live ? 'live' : 'scheduled')} · ${late(delay)}`),
+              el('small', { className: live ? 'live' : 'scheduled' }, cancelled ? t('cancelled') : `${t(live ? 'live' : 'scheduled')} · ${delayText(delay)}`),
             ),
           ),
         )
@@ -530,7 +530,7 @@ function lineName(id: string) {
 }
 
 /** How late a Train is running, in the viewer's language, to the minute. */
-function late(delay: number): string {
+function delayText(delay: number): string {
   const minutes = Math.round(Math.abs(delay) / 60);
   return minutes ? t(delay > 0 ? 'late' : 'early').replace('{n}', String(minutes)) : t('onTime');
 }

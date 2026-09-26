@@ -143,7 +143,7 @@ export function boardAt(bundle: Bundle, at: number, received: Received[], statio
       // Where it calls there more than once, as turning back, the first time it's still to leave.
       const call = on.calls.find((c, i) => i < on.calls.length - 1 && c.departure > time && here.has(c.station));
       if (!call) return [];
-      return [{ trip, station: call.station, departure: bundle.noonMinus12h + (call.departure + delay) * 1000, delay, live: on.train?.live ?? false, cancelled }];
+      return [{ trip, station: call.station, departure: bundle.noonMinus12h + (call.departure + delay) * 1000, delay, live: on.live && !cancelled, cancelled }];
     })
     .sort((a, b) => a.departure - b.departure)
     .slice(0, BOARD);
@@ -163,6 +163,8 @@ interface OnMap {
   profile: SpeedProfile;
   ease?: Ease;
   said?: Heard;
+  /** Whether live data has placed it recently, on the map or off it. */
+  live: boolean;
 }
 
 /** Where trainsAt() has each Trip's Train at a moment by the device's clock, and that moment in seconds into the service day by the fetcher's clock. */
@@ -191,7 +193,9 @@ function onMap(bundle: Bundle, at: number, received: Received[]): { of: (trip: T
     const calls = withDwell(trip, profile);
     // A Train running late is where its timetable had it that long ago, once it has eased there.
     const time = ease ? eased(calls, profile, ease, now) : now;
-    const off = { now, time, calls, profile, ease, said };
+    const feed = feeds[network.id];
+    const live = feed !== undefined && said?.placed !== undefined && !stale(said.placed, upToNow, feed.every);
+    const off = { now, time, calls, profile, ease, said, live };
     if (said?.report.cancelled) return off;
     // Most Trips aren't on the map at any one moment, whatever their dwell: skip those first.
     if (!first || !last || time < first.arrival - profile.dwell || time > last.departure + profile.dwell) return off;
@@ -199,8 +203,6 @@ function onMap(bundle: Bundle, at: number, received: Received[]): { of: (trip: T
     // Beyond where its track starts or ends, as past Catalonia's border, it's off the map.
     if (dist === undefined || dist < (shape.dist[0] ?? 0) || dist > (shape.dist.at(-1) ?? 0)) return off;
     const [lon, lat] = pointAt(shape, dist);
-    const feed = feeds[network.id];
-    const live = feed !== undefined && said?.placed !== undefined && !stale(said.placed, upToNow, feed.every);
     const unreported = feed !== undefined && !recent(said, upTo) && !stale(feed.lastSuccess, upTo, feed.every) && (!blockNetworks.has(network.id) || blockLines.has(trip.line));
     return { ...off, train: { trip, dist, lon, lat, live, unreported } };
   };
