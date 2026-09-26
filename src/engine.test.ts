@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { expect, test } from 'vitest';
-import { beside, pointAt, type Bundle, type Network, type Point, type Report, type Shape, type Snapshot } from './bundle.ts';
+import { beside, DEGREE, pointAt, type Bundle, type Network, type Point, type Report, type Shape, type Snapshot } from './bundle.ts';
 import { noonMinus12h } from './build/gtfs.ts';
 import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Received } from './engine.ts';
 
@@ -667,17 +667,27 @@ test("a board lists only its own Stations' departures, soonest first", () => {
 /** The Trains passing within a radius of a point, 1.5 km unless it says, in the next hour, at a moment by the device's clock, with the live data received by then. */
 const nearby = (point: Point, moment: number, received: Received[] = [], radius = 1500) => nearbyAt(BUNDLE, moment, by(received, moment), point, radius, 60 * 60_000);
 
+/** How far a Trip's Train is from a point at a moment, in metres, flat around the point, if it's on the map. */
+const away = (trip: string, moment: number, point: Point) => {
+  const t = train(trip, moment);
+  return t ? metresApart([t.lon, t.lat], point) : NaN;
+};
+
+/** How far apart two points are, in metres, flat around the second. */
+const metresApart = (a: Point, b: Point) => Math.hypot((a[0] - b[0]) * DEGREE * Math.cos((b[1] * Math.PI) / 180), (a[1] - b[1]) * DEGREE);
+
 /** A point so many metres to the right of the R2S's track, `dist` metres along it. */
 const offTrack = (dist: number, metres: number) => beside(BUNDLE.shapes.find((s) => s.id === R2S) as Shape, dist, metres);
 
 /** Halfway from Sitges to Castelldefels, where the R2S cruises. */
 const MIDWAY = (135376 + 150987) / 2;
 
-test('a Train passing near a point is listed with when it runs past the point of its track nearest it, and how near that is', () => {
-  const [pass] = nearby(offTrack(MIDWAY, 1000), at('21:30:00'));
+test('a Train passing near a point is listed with when it comes within the radius of it', () => {
+  const point = offTrack(MIDWAY, 1000);
+  const [pass] = nearby(point, at('21:30:00'));
   expect(pass).toMatchObject({ trip: { id: R2S }, delay: 0, live: false });
-  expect(pass?.distance).toBeCloseTo(1000, -1);
-  expect(where(R2S, pass?.at ?? NaN)).toBeCloseTo(MIDWAY, 0);
+  expect(away(R2S, pass?.at ?? NaN, point)).toBeCloseTo(1500, -1);
+  expect(away(R2S, (pass?.at ?? NaN) - 5000, point)).toBeGreaterThan(1500);
 });
 
 test('only Trains whose track comes within the radius pass near a point', () => {
@@ -685,21 +695,25 @@ test('only Trains whose track comes within the radius pass near a point', () => 
   expect(nearby(offTrack(MIDWAY, 1510), at('21:30:00'))).toEqual([]);
 });
 
-test('only Trains passing within the time window pass near a point, and not one that has gone past already', () => {
+test('only Trains passing within the time window pass near a point, and not one that has left the radius already', () => {
   const point = offTrack(MIDWAY, 1000);
   const passes = nearby(point, at('21:30:00'))[0]?.at ?? NaN;
   const ids = (moment: number) => nearby(point, moment).map((p) => p.trip.id);
   expect(ids(passes - 60 * 60_000 + 1000)).toEqual([R2S]);
   expect(ids(passes - 60 * 60_000 - 1000)).toEqual([]);
   expect(ids(passes - 1000)).toEqual([R2S]);
-  expect(ids(passes + 1000)).toEqual([]);
+  // Within the radius it passes now, until it leaves it, well before Castelldefels.
+  expect(nearby(point, passes + 1000)).toMatchObject([{ trip: { id: R2S }, at: passes + 1000 }]);
+  expect(ids(at('22:12:00'))).toEqual([]);
 });
 
-test('a Train that stands at the Station nearest a point passes when it arrives, and while it stands there, now', () => {
+test('a Train that stands at a Station within the radius passes now while it stands there', () => {
   // 500 m on from Estació de França the way the R2S comes in, where it stands from 22:51:00 to 22:51:30.
   const [[lon, lat], [fromLon, fromLat]] = [[2.18534785, 41.3844866], [2.16533862, 41.3920862]];
   const point: Point = [lon + (lon - fromLon) * 0.27, lat + (lat - fromLat) * 0.27];
-  expect(nearby(point, at('22:40:00'))).toMatchObject([{ trip: { id: R2S }, at: at('22:51:00') }]);
+  const [pass] = nearby(point, at('22:40:00'));
+  expect(pass?.at).toBeLessThan(at('22:51:00'));
+  expect(away(R2S, pass?.at ?? NaN, point)).toBeCloseTo(1500, -1);
   expect(nearby(point, at('22:51:10'))).toMatchObject([{ trip: { id: R2S }, at: at('22:51:10') }]);
   expect(nearby(point, at('22:51:31'))).toEqual([]);
 });
@@ -712,6 +726,35 @@ test('a Train running late passes near a point that much later, and a Cancelled 
   expect(late2?.at).toBeCloseTo(onTime + 120_000, -1);
   const cancelled: Snapshot = { ...written(at('21:59:40')), reports: [{ trip: R2S, at: at('21:59:40'), cancelled: true }] };
   expect(nearby(point, at('21:59:50'), [{ snapshot: cancelled, at: at('21:59:40') }])).toEqual([]);
+});
+
+test('a Train already past its nearest point passes near a point again where its Line comes back, when it comes within the radius', () => {
+  // Made up: a Line that runs 4 km east, 2 km north and back west, past a point 1.1 km from both of its long stretches.
+  const hairpin = bundleOf('2026-09-24', { id: 'rodalies', name: 'Rodalies de Catalunya', profile: PROFILE }, {
+    hairpin: {
+      line: 'R0',
+      calls: [
+        ['A', '10:00:00', '10:00:00', 0, 2.0, 41.0],
+        ['B', '10:04:00', '10:04:00', 4200, 2.05, 41.0],
+        ['C', '10:07:00', '10:07:00', 6400, 2.05, 41.02],
+        ['D', '10:11:00', '10:11:00', 10600, 2.0, 41.02],
+      ],
+    },
+  });
+  const point: Point = [2.01, 41.01];
+  const passes = (moment: number) => nearbyAt(hairpin, moment, [], point, 1500, 60 * 60_000);
+  const away = (moment: number) => {
+    const t = trainsAt(hairpin, moment)[0];
+    return t ? metresApart([t.lon, t.lat], point) : NaN;
+  };
+  // At 10:03 it has left the radius on its way east: it's listed once, for when it comes back within it.
+  const [pass, ...more] = passes(at('10:03:00'));
+  expect(more).toEqual([]);
+  expect(pass?.at).toBeGreaterThan(at('10:07:00'));
+  expect(away(pass?.at ?? NaN)).toBeCloseTo(1500, -1);
+  expect(away((pass?.at ?? NaN) - 5000)).toBeGreaterThan(1500);
+  // Before it leaves, it's listed once, for now: it's within the radius already.
+  expect(passes(at('10:00:10'))).toMatchObject([{ trip: { id: 'hairpin' }, at: at('10:00:10') }]);
 });
 
 test('never runs back when its last Delay runs out, among the snapshots the map keeps', () => {

@@ -591,7 +591,7 @@ function boardPanel(id: string): Node[] | undefined {
 
 /**
  * The viewer's nearby Trains: each that passes within NEARBY of them within SOON, soonest first, with
- * when it passes nearest them, its Line, where it's headed, Live or Scheduled, and its Delay.
+ * when it next comes within NEARBY of them, its Line, where it's headed, Live or Scheduled, and its Delay.
  */
 function nearbyPanel(near: Point | 'locating' | 'failed'): Node[] {
   const top = [closeButton(t('closeNearby')), el('h2', { textContent: t('nearby') })];

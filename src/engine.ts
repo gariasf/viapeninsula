@@ -151,16 +151,14 @@ export function boardAt(bundle: Bundle, at: number, received: Received[], statio
     .slice(0, BOARD);
 }
 
-/** A Train passing near a point: when it's expected nearest it, and how near that is. */
+/** A Train passing near a point: when it's expected to come within the radius asked about. */
 export interface Pass {
   trip: Trip;
   /**
-   * When it's expected at the point of its Trip's track nearest, in ms since 1970, running its Delay
-   * late: as trainAt() has it, where it's on the map, and now, while it stands there.
+   * When it's expected to come within the radius, in ms since 1970, running its Delay late: as
+   * trainAt() has it, where it's on the map, and now, while it's within it.
    */
   at: number;
-  /** How far that point is from the one asked about, in metres. */
-  distance: number;
   /** Its Delay, in seconds, as live data last gave it: early where it's negative. */
   delay: number;
   live: boolean;
@@ -168,40 +166,28 @@ export interface Pass {
 
 /**
  * The Trains passing within `radius` metres of a point in the next `window` ms, soonest first, at a
- * moment by the device's clock (ms since 1970), given the snapshots received by then: each still to
- * reach the point of its Trip's track nearest, or standing there, and expected there within the
- * window, as it's drawn on the map. Not one that's Cancelled, or has gone past that point already.
+ * moment by the device's clock (ms since 1970), given the snapshots received by then: each whose
+ * track still ahead of it comes within the radius, or that's within it, listed once, for when it
+ * next comes within it, expected within the window, as it's drawn on the map. Not one that's Cancelled.
  */
 export function nearbyAt(bundle: Bundle, at: number, received: Received[], point: Point, radius: number, window: number): Pass[] {
   const { of, now } = onMap(bundle, at, received);
-  const shapes = new Map(bundle.shapes.map((s) => [s.id, s]));
-  // Most track comes nowhere near: each shape is looked over once, and each stretch of it Trips run once.
-  const near = new Map<string, [d: number, metres: number]>();
-  const nearestOn = (shape: Shape, from: number, to: number) => {
-    const key = `${shape.id} ${from} ${to}`;
-    const known = near.get(key);
-    if (known) return known;
-    const d = nearest(shape, from, to, { lon: point[0], lat: point[1] });
-    const found: [number, number] = [d, apart(pointAt(shape, d), point)];
-    near.set(key, found);
-    return found;
-  };
+  // Most track comes nowhere near: each shape is looked over once, for the stretches of it within the radius.
+  const within = new Map(bundle.shapes.map((s) => [s.id, stretchesWithin(s, point, radius)]));
   return bundle.trips
     .flatMap((trip): Pass[] => {
-      const shape = shapes.get(trip.shape);
-      if (!shape || nearestOn(shape, -Infinity, Infinity)[1] > radius) return [];
-      const dists = trip.calls.map((c) => c.dist);
-      const [d, distance] = nearestOn(shape, Math.min(...dists), Math.max(...dists));
-      // Beyond where its track starts or ends, as past Catalonia's border, it's off the map.
-      if (distance > radius || d < (shape.dist[0] ?? 0) || d > (shape.dist.at(-1) ?? 0)) return [];
+      const stretches = within.get(trip.shape);
+      if (!stretches?.length) return [];
       const on = of(trip);
       if (!on || on.said?.report.cancelled) return [];
       const delay = on.ease?.delay ?? 0;
       // Where in its timetable the window ends.
       const until = now + window / 1000 - delay;
-      const there = whenAt(on.calls, on.profile, d).find(([arrives, leaves]) => leaves >= on.time && arrives <= until);
-      if (!there) return [];
-      return [{ trip, at: bundle.noonMinus12h + (Math.max(there[0], on.time) + delay) * 1000, distance, delay, live: on.live }];
+      const comes = whenWithin(on.calls, on.profile, stretches)
+        .filter(([enters, leaves]) => leaves >= on.time && enters <= until)
+        .map(([enters]) => Math.max(enters, on.time));
+      if (!comes.length) return [];
+      return [{ trip, at: bundle.noonMinus12h + (Math.min(...comes) + delay) * 1000, delay, live: on.live }];
     })
     .sort((a, b) => a.at - b.at);
 }
@@ -638,18 +624,49 @@ function passing(calls: Call[], profile: SpeedProfile, d: number, around: number
   return found;
 }
 
+/** The stretches of a shape within `radius` metres of a point, from and to how far along it they are, in metres. */
+function stretchesWithin({ coords, dist }: Shape, point: Point, radius: number): [from: number, to: number][] {
+  const kx = DEGREE * Math.cos((point[1] * Math.PI) / 180);
+  const stretches: [number, number][] = [];
+  for (let i = 1; i < coords.length; i++) {
+    const [a, b, start = 0, stop = 0] = [coords[i - 1], coords[i], dist[i - 1], dist[i]];
+    if (!a || !b) continue;
+    // Where along the segment, from 0 to 1, it's `radius` from the point, flat around it.
+    const [ax, ay, dx, dy] = [(a[0] - point[0]) * kx, (a[1] - point[1]) * DEGREE, (b[0] - a[0]) * kx, (b[1] - a[1]) * DEGREE];
+    const [qa, qb, qc] = [dx * dx + dy * dy, 2 * (ax * dx + ay * dy), ax * ax + ay * ay - radius * radius];
+    const root = qb * qb - 4 * qa * qc;
+    if (root < 0 || !qa) {
+      if (qc <= 0) stretches.push([start, stop]);
+      continue;
+    }
+    const [t0, t1] = [Math.max(0, (-qb - Math.sqrt(root)) / (2 * qa)), Math.min(1, (-qb + Math.sqrt(root)) / (2 * qa))];
+    if (t0 > t1) continue;
+    const [from, to] = [start + t0 * (stop - start), start + t1 * (stop - start)];
+    const last = stretches.at(-1);
+    if (last && last[1] >= from) last[1] = to;
+    else stretches.push([from, to]);
+  }
+  return stretches;
+}
+
 /**
- * When a Trip's Train is at a point `d` metres along its shape, in seconds into the service day, by
- * its calls as it makes them: each time it is, in order, from when it gets there to when it leaves,
- * which are the same where it runs past.
+ * When a Trip's Train is on stretches of its shape, in seconds into the service day, by its calls as
+ * it makes them: each time it gets onto one, and when it leaves it, standing at a Station on one or running along one.
  */
-function whenAt(calls: Call[], profile: SpeedProfile, d: number): [arrives: number, leaves: number][] {
+function whenWithin(calls: Call[], profile: SpeedProfile, stretches: [from: number, to: number][]): [enters: number, leaves: number][] {
   return calls.flatMap((call, i): [number, number][] => {
-    if (call.dist === d) return [[call.arrival, call.departure]];
     const next = calls[i + 1];
-    if (!next || (d - call.dist) * (d - next.dist) >= 0) return [];
-    const t = call.departure + reaching(call, next, profile, d);
-    return [[t, t]];
+    const standing: [number, number][] = stretches.some(([from, to]) => from <= call.dist && call.dist <= to) ? [[call.arrival, call.departure]] : [];
+    if (!next) return standing;
+    const [low, high] = [Math.min(call.dist, next.dist), Math.max(call.dist, next.dist)];
+    const running = stretches.flatMap(([from, to]): [number, number][] => {
+      const [lo, hi] = [Math.max(from, low), Math.min(to, high)];
+      if (lo > hi) return [];
+      // Which end it gets onto the stretch at depends which way it runs.
+      const [on, off] = next.dist > call.dist ? [lo, hi] : [hi, lo];
+      return [[call.departure + reaching(call, next, profile, on), call.departure + reaching(call, next, profile, off)]];
+    });
+    return [...standing, ...running];
   });
 }
 
@@ -664,11 +681,6 @@ function reaching(call: Call, next: Call, profile: SpeedProfile, d: number): num
     else late = mid;
   }
   return (early + late) / 2;
-}
-
-/** How far apart two points are, in metres, flat around the second. */
-function apart(a: Point, b: Point): number {
-  return Math.hypot((a[0] - b[0]) * DEGREE * Math.cos((b[1] * Math.PI) / 180), (a[1] - b[1]) * DEGREE);
 }
 
 /**
