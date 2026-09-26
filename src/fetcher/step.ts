@@ -68,7 +68,7 @@ export interface State {
   fgc?: {
     /** Where its trip-updates file is, until it has to be looked up again. */
     file?: string;
-    /** When FGC last wrote the file, in seconds since 1970. */
+    /** When FGC wrote the file, in seconds since 1970, as it said on the last refresh that read it, even where that's earlier than the time before. */
     written?: number;
     /** The time the file stayed at even as it was looked up again: it isn't looked up again until FGC writes it again. */
     stalled?: number;
@@ -332,8 +332,10 @@ function fgcReports(positions: Geotren, updates: TripUpdates): Report[] {
 
 /**
  * FGC's trip updates, read from this refresh's download, and where the file is for the next refresh:
- * where this one found it, unless its download failed, or FGC wrote it no later than last time, since
+ * where this one found it, unless its download failed, or its time is the same as last time, since
  * it may have moved. Then it's looked up again, though not twice while the file stays at one time.
+ * Any other time means FGC wrote it again, even one earlier than the last, as from a server whose
+ * clock is behind.
  */
 function readTripUpdates(fgc: State['fgc'] = {}, updates: Fetched<Uint8Array>, lookup: Fetched | undefined): { fgc: NonNullable<State['fgc']>; feed?: TripUpdates; error?: unknown } {
   let feed: TripUpdates;
@@ -342,10 +344,10 @@ function readTripUpdates(fgc: State['fgc'] = {}, updates: Fetched<Uint8Array>, l
   } catch (error) {
     return { fgc: { ...fgc, file: undefined }, error };
   }
-  const stopped = feed.written <= (fgc.written ?? -Infinity);
+  const stopped = feed.written === fgc.written;
   const stalled = stopped && lookup ? feed.written : fgc.stalled;
   const file = stopped && stalled !== feed.written ? undefined : lookup ? address(lookup) : fgc.file;
-  return { fgc: { ...fgc, file, written: Math.max(feed.written, fgc.written ?? -Infinity), stalled }, feed };
+  return { fgc: { ...fgc, file, written: feed.written, stalled }, feed };
 }
 
 /** Where FGC's trip-updates file is, as its lookup found it. */
