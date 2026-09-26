@@ -180,7 +180,8 @@ test("turns back at a terminus where the feed's shape runs out to it and back", 
     [station('A', 500, 10), station('T', 2010, 1490), station('C', 3500, 10)],
     { id: 'line', feed: [[500, 1], [1800, 1], [2000, 300], [2000, 1500], [2000, 300], [2200, 1], [3500, 1]], stations: 'A T C' },
   );
-  expect(log.filter((line) => line.includes("keeps the feed's shape"))).toEqual([]);
+  // Nor does it turn back at A on the way to C: the triangle's other leg takes it on without.
+  expect(log.filter((line) => line.includes("keeps the feed's shape") || line.includes('turns back'))).toEqual([]);
   // It turns back where T is closest to the rails, short of the buffer stop.
   expect(passes(shape('line'), 2000, 1490)).toBe(true);
   expect(passes(shape('line'), 3500, 0)).toBe(true);
@@ -188,7 +189,8 @@ test("turns back at a terminus where the feed's shape runs out to it and back", 
 
 test('turns back at a Station on the way between two others, as Trains do, and not at a switch', () => {
   // Like R16's shape: out along the branch to Tortosa (T), back to the switch short of L'Aldea (L),
-  // and on down the main line to Ulldecona (U). From T, a Train can only reach U by turning back at L.
+  // and on down the main line to Ulldecona (U). From T, a Train must turn back to reach U, and the
+  // first Station it can turn back at is L.
   const { shape, log } = trace(
     rails({ a: [0, 0], j: [2000, 0], c: [20000, 0], k: [2600, 300], t: [2600, 1500] }, 'a j c', 'j k t'),
     [station('A', 500, 10), station('L', 1600, 10), station('T', 2610, 1400), station('U', 19500, 10)],
@@ -196,6 +198,8 @@ test('turns back at a Station on the way between two others, as Trains do, and n
   );
   expect(log.filter((line) => line.includes("keeps the feed's shape"))).toEqual([]);
   expect(points(shape('line'))).toEqual([[500, 0], [1600, 0], [2000, 0], [2600, 300], [2600, 1400], [2600, 300], [2000, 0], [1600, 0], [2000, 0], [19500, 0]]);
+  // As a trace that can't carry on would, it reports where it turns back.
+  expect(log).toContain('line: T → U turns back at L');
 });
 
 test("leaves out a Station on a branch off the feed's shape, rather than run out to it and back", () => {
