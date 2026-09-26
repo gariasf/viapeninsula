@@ -11,7 +11,7 @@ Research for #68: how railisland (軌島, [railisland.tw](https://railisland.tw)
 - **A hard switch at zoom 14.** Below it: one schematic stroke per Line in MapLibre `line` layers, and Trains painted on a 2D canvas over the map. Both ways of a double track share a pixel there, and the only markers moved aside are TRA Trains close together going the same way, such as one being overtaken at a Station. From 14 the strokes are filtered out and a three.js layer draws every track, the Train models, viaducts and portals.
 - **Models:** three.js r170 in MapLibre custom layers; no deck.gl, no glTF, and no fill-extrusion for Trains. 62 Blender-made models ship as raw vertex buffers, one mesh per car, each car placed at its own distance along the track. The glow is soft ellipses per car, and every 2D marker gets a soft halo too; underground track and Trains are drawn faint in a see-through pass.
 - **Cost:** a cold load moved 15.5 MB, 11.3 MB of it track and height data fetched even if you never zoom in. Zooming into Taipei Main Station added 5.8 MB of car meshes. With the CPU slowed 4×, frames fell from 37 fps zoomed out to about 17 fps there, and turning the models off barely helped.
-- **For our v1:** our per-direction tracing ([ADR-0004](../adr/0004-track-follows-openstreetmap.md)) already covers the core idea, and our `line-offset` slide is smoother than the zoom-14 cut. Six cheap 2D ideas are worth triage (Fits v1?). 3D stays out of v1.
+- **For our v1:** our per-direction tracing ([ADR-0004](../adr/0004-track-follows-openstreetmap.md)) already covers the core idea, and our `line-offset` slide is smoother than the zoom-14 cut. Six cheap 2D ideas are worth triage (Fits v1?), filed as #89–#94. 3D stays out of v1.
 
 ## 1. Per-track drawing, zoomed out and zoomed in
 
@@ -111,14 +111,14 @@ Research for #68: how railisland (軌島, [railisland.tw](https://railisland.tw)
 
 ## Fits v1?
 
-Suggestions for needs-triage issues; none is filed. Each is 2D, uses data the map already has, and changes only the web app. Following a Train is already in v1 (#16).
+Filed as needs-triage issues, #89–#94. Each is 2D, uses data the map already has, and changes only the web app. Following a Train is already in v1 (#16).
 
-- **Nudge a Train standing at a Station aside while another on its track passes.** We know no platforms, so both sit on one point; railisland moves the standing one's marker aside and eases it back once they part.
-- **Show which way each Train runs with a small arrow on its marker.** Zoomed in, each way has its own track, but a marker alone doesn't say which way it's going.
-- **Put a soft halo in the Line's colour under each marker.** railisland puts one under every 2D marker by default. Check that Live (filled) and Scheduled (ringed) still read apart.
-- **Show by the legend how many Trains are running, and how many are Live.** railisland counts Trains running and Lines on timetable estimates; ours would show the Live and Scheduled split ([ADR-0002](../adr/0002-timetable-drives-motion.md)).
-- **Move the markers about 30 times a second while nobody touches the map.** It isn't the power-save mode the spec puts later: railisland caps idle redraws with its power-save off too. It serves the spec's smooth-on-a-phone story; measure ours first.
-- **Add "Follow a random Train" to #16's follow.** One button that picks a Train on the map and follows it. No v1 story asks for it, but it's a small addition to #16.
+- **Nudge a Train standing at a Station aside while another on its track passes** (#89). We know no platforms, so both sit on one point; railisland moves the standing one's marker aside and eases it back once they part.
+- **Show which way each Train runs with a small arrow on its marker** (#90). Zoomed in, each way has its own track, but a marker alone doesn't say which way it's going.
+- **Put a soft halo in the Line's colour under each marker** (#91). railisland puts one under every 2D marker by default. Check that Live (filled) and Scheduled (ringed) still read apart.
+- **Show by the legend how many Trains are running, and how many are Live** (#92). railisland counts Trains running and Lines on timetable estimates; ours would show the Live and Scheduled split ([ADR-0002](../adr/0002-timetable-drives-motion.md)).
+- **Move the markers about 30 times a second while nobody touches the map** (#93). It isn't the power-save mode the spec puts later: railisland caps idle redraws with its power-save off too. It serves the spec's smooth-on-a-phone story; measure ours first.
+- **Add "Follow a random Train" to #16's follow** (#94). One button that picks a Train on the map and follows it. No v1 story asks for it, but it's a small addition to #16.
 
 **Not v1**, each with its cheapest 2D form:
 
