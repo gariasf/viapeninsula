@@ -302,8 +302,8 @@ export function unavailable(received: Received[]): string[] {
  */
 const stale = (since: number | undefined, upTo: number, every: number) => upTo - (since ?? -Infinity) >= MISSES * every;
 
-/** What live data last said about a Train, while that's recent enough to go by: under CARRY old, as far into live data as a device has got. */
-const recent = (said: Heard | undefined, upTo: number) => (said && upTo - said.got < CARRY ? said : undefined);
+/** What live data last said about a Train, or a Delay its GPS gave it, while that's recent enough to go by: under CARRY old, as far into live data as a device has got. */
+const recent = <T extends { got: number }>(said: T | undefined, upTo: number) => (said && upTo - said.got < CARRY ? said : undefined);
 
 /**
  * What live data last said about a Train: its latest report, when the fetcher got that, and when
@@ -317,7 +317,69 @@ interface Heard {
   confirmed?: number;
   /** The snapshot, as received, that it was last in. */
   from: Received;
+  /** The report's own Delay, in seconds, as delayOf() has it: for Renfe's, Renfe's own figure. */
+  delay: number;
+  /** For Renfe's: the last Delay its GPS gave it. */
+  gps?: GpsDelay;
+  /** For Renfe's: the last Delay its GPS gave it that counts. */
+  counted?: GpsDelay;
 }
+
+/** A Delay Renfe's GPS gave a Train, in seconds, and when the fetcher got the report that did, as Heard's `got` has it. */
+interface GpsDelay {
+  delay: number;
+  got: number;
+}
+
+/**
+ * A Train's Delay, in seconds, by what live data last said about it, as far into live data as a
+ * device has got. For Renfe's, it's the last Delay its GPS gave it that counts, or where none does,
+ * the last its GPS gave it, until each is CARRY old, and failing both, Renfe's own figure.
+ */
+const delayBy = (said: Heard, upTo: number) => (recent(said.counted, upTo) ?? recent(said.gps, upTo) ?? said).delay;
+
+/** How far a Renfe Train's GPS can put its Delay from where its GPS report before put it and still count, in seconds. */
+const CONFIRM = 120;
+
+/**
+ * How soon after a Renfe Train's report the next has to come to be judged against it, as GPS
+ * unchanged since it or far off it, in ms. It's under KEEP less CARRY and LAG, so that replaying
+ * only the snapshots kept judges each Delay still in use as replaying them all did.
+ */
+const FOLLOWS = 2 * 60_000;
+
+/**
+ * What live data says about a Train each time a snapshot reports it, given what it said before,
+ * when the fetcher got the report, by its clock in ms since 1970, the snapshot, whether it's one of
+ * Renfe's, and how to work out a report's own Delay, as delayOf() does. A Train Renfe pins to a
+ * Station or gives no position for carries on from the last Delay its GPS gave it that counts,
+ * until that's CARRY old: Renfe's own figure moves in whole minutes and is often minutes off, so
+ * going by it made Trains jump each time Renfe switched between the two (#33). Renfe's GPS
+ * unchanged since the Train's report before is as old as that report, and counts as no position.
+ * And GPS counts only where it follows on from the Train's GPS report before, within CONFIRM of
+ * the Delay that one gave it: now and then Renfe's GPS has a Train, for a report or two, at a
+ * Station it's nowhere near, such as Barcelona-Sants, often just after Renfe has pinned it to
+ * Stations a while.
+ */
+function hear(before: Heard | undefined, report: Report, got: number, from: Received, renfe: boolean, ownDelay: (report: Report) => OwnDelay): Heard {
+  const follows = <T extends { got: number }>(earlier: T | undefined): earlier is T => earlier !== undefined && got - earlier.got < FOLLOWS;
+  // The same report again, as in a snapshot the map records twice or a feed's last good response the fetcher keeps, is unchanged too.
+  const frozen = renfe && follows(before) && sameSpot(before.report.position, report.position);
+  const taken = frozen ? { ...report, position: undefined } : report;
+  const { position } = taken;
+  const heard = { report, got, placed: position ? got : before?.placed, confirmed: position ? report.at : before?.confirmed, from };
+  if (!renfe) return { ...heard, delay: ownDelay(taken).delay };
+  const figure = ownDelay({ ...taken, position: undefined }).delay;
+  const { gps, counted } = before ?? {};
+  // GPS gives a Delay only where it puts the Train running between Stations, not standing at its first before it leaves.
+  const { delay, measured } = ownDelay(taken);
+  if (!measured) return { ...heard, delay: figure, gps, counted };
+  const agrees = follows(gps) && Math.abs(delay - gps.delay) <= CONFIRM;
+  return { ...heard, delay: figure, gps: { delay, got }, counted: agrees ? { delay, got } : counted };
+}
+
+/** Whether two positions are the same coordinates. */
+const sameSpot = (a: Report['position'], b: Report['position']) => !!a && !!b && 'lon' in a && 'lon' in b && a.lon === b.lon && a.lat === b.lat;
 
 /**
  * How far into live data a device has got by a moment, both by the fetcher's clock in ms: to when
@@ -386,17 +448,16 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
       const [network, shape] = [trip && lines.get(trip.line), trip && shapes.get(trip.shape)];
       if (!trip || !network || !shape) continue;
       const { profile } = network;
+      const calls = dwelt.get(id) ?? withDwell(trip, profile);
+      dwelt.set(id, calls);
       if (report) {
         // A report the fetcher kept from a feed's last good response is as old as that response.
         const got = r.snapshot.feeds[network.id]?.lastSuccess ?? NaN;
-        const before = heard.get(id);
-        heard.set(id, { report, got, placed: report.position ? got : before?.placed, confirmed: report.position ? report.at : before?.confirmed, from: r });
+        heard.set(id, hear(heard.get(id), report, got, r, network.id === 'rodalies', (given) => delayOf(trip, calls, shape, network, given, bundle.noonMinus12h)));
       }
-      const calls = dwelt.get(id) ?? withDwell(trip, profile);
-      dwelt.set(id, calls);
       // A Train live data stops reporting keeps its last Delay until that's CARRY old.
       const said = recent(heard.get(id), upTo);
-      const delay = said ? delayOf(trip, calls, shape, network, said.report, bundle.noonMinus12h) : 0;
+      const delay = said ? delayBy(said, upTo) : 0;
       // Until live data first shifts it, a Train runs on its timetable.
       const drawn = ease ? eased(calls, profile, ease, arrived) : arrived;
       const [there, dist] = [arrived - delay, (time: number) => place(calls, profile, time) ?? NaN];
@@ -542,7 +603,13 @@ function place(calls: Call[], profile: SpeedProfile, time: number): number | und
 }
 
 /** Each report's Delay for its Train, worked out once: finding a Train's GPS on its track is slow. */
-const delays = new WeakMap<Report, { trip: Trip; delay: number }>();
+const delays = new WeakMap<Report, { trip: Trip } & OwnDelay>();
+
+/** A report's own Delay for its Train, in seconds, and whether its position measured it: where its GPS, or TRAM's distance, puts it running between Stations. */
+interface OwnDelay {
+  delay: number;
+  measured: boolean;
+}
 
 /**
  * A report's Delay for its Train, in seconds: while it runs between Stations, from where its GPS
@@ -552,9 +619,9 @@ const delays = new WeakMap<Report, { trip: Trip; delay: number }>();
  * so late that it's drawn short of the Station before that. One standing at a Station, but for
  * Renfe's, is drawn there when it was reported.
  */
-function delayOf(trip: Trip, calls: Call[], shape: Shape, { id, profile }: Network, report: Report, noonMinus12h: number): number {
+function delayOf(trip: Trip, calls: Call[], shape: Shape, { id, profile }: Network, report: Report, noonMinus12h: number): OwnDelay {
   const known = delays.get(report);
-  if (known?.trip === trip) return known.delay;
+  if (known?.trip === trip) return known;
   const [reported, { position }] = [(report.at - noonMinus12h) / 1000, report];
   let delay = report.delay ?? expectedDelay(trip, position && 'next' in position ? position.next : report.expected, noonMinus12h) ?? 0;
   if (position && 'next' in position) {
@@ -579,10 +646,13 @@ function delayOf(trip: Trip, calls: Call[], shape: Shape, { id, profile }: Netwo
     const [first = 0, last = 0] = [dists[0], dists.at(-1)];
     const d = 'lon' in position ? nearest(shape, Math.min(...dists), Math.max(...dists), position) : first + Math.sign(last - first) * position.along;
     const passed = passing(calls, profile, d, reported - delay);
-    if (passed !== undefined) delay = reported - passed;
+    if (passed !== undefined) {
+      delays.set(report, { trip, delay: reported - passed, measured: true });
+      return { delay: reported - passed, measured: true };
+    }
   }
-  delays.set(report, { trip, delay });
-  return delay;
+  delays.set(report, { trip, delay, measured: false });
+  return { delay, measured: false };
 }
 
 /**
