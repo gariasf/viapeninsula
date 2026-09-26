@@ -289,9 +289,9 @@ const ms = (seconds: string | undefined) => Number(seconds) * 1000;
 /** A moment's time of day in UTC, such as 09:12:40 UTC. */
 const clock = (moment: number) => `${new Date(moment).toISOString().slice(11, 19)} UTC`;
 
-/** Geotren's records, as the Worker asks for them: each Train's Trip, where it is, the Station it stands at, its Unit type, and when FGC last updated them. */
+/** Geotren's records, as the Worker asks for them: each Train's Trip and Line, where it is, the Station it stands at, its Unit type, and when FGC last updated them. */
 interface Geotren {
-  results?: { id: string; geo_point_2d?: { lon: number; lat: number } | null; estacionat_a?: string | null; tipus_unitat?: string | null; record_timestamp: string }[];
+  results?: { id: string; lin?: string; geo_point_2d?: { lon: number; lat: number } | null; estacionat_a?: string | null; tipus_unitat?: string | null; record_timestamp: string }[];
 }
 
 /**
@@ -316,13 +316,15 @@ function fgcReports(positions: Geotren, updates: TripUpdates): Report[] {
     const station = platform?.replace(/\d+$/, '');
     reports.set(id, { trip: `fgc:${id}`, at: (updated ?? updates.written) * 1000, expected: station && expected ? { station: `fgc:${station}`, at: expected * 1000 } : undefined });
   }
-  for (const { id, geo_point_2d: gps, estacionat_a: standing, tipus_unitat: unitType, record_timestamp } of positions.results ?? []) {
+  for (const { id, lin, geo_point_2d: gps, estacionat_a: standing, tipus_unitat: unitType, record_timestamp } of positions.results ?? []) {
     // Its Delay is measured from when it was where Geotren has it.
     const at = Date.parse(record_timestamp);
     if (Number.isNaN(at)) throw new Error('geotren: no record_timestamp');
     // One standing at a Station is only there, as Renfe's are (ADR-0002).
     const position = standing ? { near: `fgc:${standing}` } : gps ? { lon: gps.lon, lat: gps.lat } : undefined;
-    reports.set(id, { ...reports.get(id), trip: `fgc:${id}`, at, position, unitType: unitType || undefined });
+    // Montserrat's rack Trains run under a calendar the timetable doesn't have, on lines M1 and M2, which it has as one, MM.
+    const line = lin === 'M1' || lin === 'M2' ? 'fgc:MM' : undefined;
+    reports.set(id, { ...reports.get(id), trip: `fgc:${id}`, line, at, position, unitType: unitType || undefined });
   }
   return [...reports.values()];
 }

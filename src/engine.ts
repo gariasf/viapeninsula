@@ -261,9 +261,10 @@ const MATCH = 30 * 60;
  * A snapshot's reports by the Trip each is about. TMB's timetable names no Blocks, so each of the
  * Metro's runs the Trip on its Line headed its way whose timetable has it at the Block's next
  * Station closest to when TMB expects it there, within MATCH, and where two Blocks come closest to
- * one Trip, the closer runs it. A report naming a Trip that runs on more than one of the days
- * joined is about the one whose timetable runs nearest when it was reported. A report that matches
- * no Trip is dropped.
+ * one Trip, the closer runs it. A report that names a Line, as FGC's for its rack Trains do, runs
+ * that Line's Trip whose trip_id ends as its own does, after the `|`. A report naming a Trip that
+ * runs on more than one of the days joined is about the one whose timetable runs nearest when it
+ * was reported. A report that matches no Trip is dropped.
  */
 function reportsByTrip(bundle: Bundle, snapshot: Snapshot): Map<string, Report> {
   const known = matched.get(snapshot);
@@ -277,7 +278,9 @@ function reportsByTrip(bundle: Bundle, snapshot: Snapshot): Map<string, Report> 
   }
   for (const report of snapshot.reports) {
     const { block, headsign, position } = report;
-    const trip = report.trip && closest(named.get(report.trip) ?? [], (report.at - bundle.noonMinus12h) / 1000);
+    const end = report.line && report.trip?.split('|')[1];
+    const candidates = end ? bundle.trips.filter((t) => t.line === report.line && t.id.endsWith(`|${end}`)) : report.trip ? (named.get(report.trip) ?? []) : [];
+    const trip = closest(candidates, (report.at - bundle.noonMinus12h) / 1000);
     if (trip) reports.set(trip.id, report);
     if (!block || !position || !('next' in position)) continue;
     let [found, off]: [string | undefined, number] = [undefined, MATCH];

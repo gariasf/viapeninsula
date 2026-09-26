@@ -600,6 +600,59 @@ test("an FGC Train Geotren has standing at a Station stays there, where FGC's tr
   expect(s2(standing({ position: { near: 'fgc:SC' }, expected: { station: 'fgc:SC', at: Date.parse('2026-09-25T10:32:00+02:00') } }))).toBeUndefined();
 });
 
+// Two of Montserrat's rack Trips on 25 September 2026, as the daily build had them, and the
+// reports the fetcher made of them from Geotren as FGC updated it at 14:46:02, in a snapshot
+// written at 14:46:11. Geotren has them on lines M1 and M2, under a calendar, 6d4fdaec, that isn't the day's.
+const RACK: Bundle = bundleOf('2026-09-25', { id: 'fgc', name: 'FGC', profile: { ...PROFILE, topSpeed: 30 / 3.6 } }, {
+  'fgc:6350da917476|652dc7e702': {
+    line: 'fgc:MM',
+    calls: [
+      ['fgc:MM', '14:35:00', '14:35:00', 0, 1.836497527, 41.59225373], // Montserrat
+      ['fgc:MP', '14:48:00', '14:48:00', 4132, 1.843723316, 41.61562791], // Monistrol-Vila
+    ],
+  },
+  'fgc:6350da917476|652dc7e703': {
+    line: 'fgc:MM',
+    calls: [
+      ['fgc:MP', '14:35:00', '14:35:00', 978, 1.843723316, 41.61562791], // Monistrol-Vila
+      ['fgc:MM', '14:48:00', '14:48:00', 5110, 1.836497527, 41.59225373], // Montserrat
+    ],
+  },
+  // Made up: a Trip on another Line whose trip_id ends as a rack Train's does.
+  'fgc:625cdae21f726b1bb950|652dc7e703': {
+    line: 'fgc:R5',
+    calls: [
+      ['fgc:MP', '14:35:00', '14:35:00', 978, 1.843723316, 41.61562791],
+      ['fgc:MM', '14:48:00', '14:48:00', 5110, 1.836497527, 41.59225373],
+    ],
+  },
+});
+const RACK_WRITTEN = Date.parse('2026-09-25T14:46:11+02:00');
+const RACK_RECEIVED: Received[] = [{
+  snapshot: {
+    generated: RACK_WRITTEN,
+    feeds: { fgc: { lastSuccess: RACK_WRITTEN, lastAttempt: RACK_WRITTEN, status: 'ok', every: 120_000 } },
+    reports: [
+      { trip: 'fgc:6d4fdaec|652dc7e702', line: 'fgc:MM', at: Date.parse('2026-09-25T14:46:02.024+02:00'), position: { lon: 1.83433, lat: 41.610634 }, unitType: 'AM' },
+      { trip: 'fgc:6d4fdaec|652dc7e703', line: 'fgc:MM', at: Date.parse('2026-09-25T14:46:02.024+02:00'), position: { lon: 1.836561, lat: 41.601166 }, unitType: 'AMx2' },
+    ],
+  },
+  at: RACK_WRITTEN,
+}];
+
+test("a rack Train Geotren has on line M1 or M2 is Live as the day's MM Trip it runs, running as late as its position shows", () => {
+  const moment = Date.parse('2026-09-25T14:46:20+02:00');
+  const trains = trainsAt(RACK, moment, RACK_RECEIVED);
+  expect(trains.map((t) => [t.trip.id, t.live])).toEqual([
+    ['fgc:6350da917476|652dc7e702', true],
+    ['fgc:6350da917476|652dc7e703', true],
+    ['fgc:625cdae21f726b1bb950|652dc7e703', false],
+  ]);
+  // Geotren has both about 3 minutes behind their timetables, which the trip updates don't cover.
+  const scheduled = trainsAt(RACK, moment);
+  for (const i of [0, 1]) expect(trains[i]?.dist).toBeLessThan((scheduled[i]?.dist ?? NaN) - 400);
+});
+
 test("a Train Renfe pins to a Station isn't held there: Renfe's pinned Stations are stale", () => {
   // Made up: Renfe pins the R2N to Mollet-Sant Fost at 21:39:30, with no Delay, though its timetable
   // has it leave at 21:38. It runs on its timetable.

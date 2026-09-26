@@ -18,7 +18,7 @@ const RENFE = {
  */
 const FGC_API = 'https://dadesobertes.fgc.cat/api/explore/v2.1/catalog/datasets';
 const FGC = {
-  positions: `${FGC_API}/posicionament-dels-trens/records?limit=100&select=id,geo_point_2d,estacionat_a,tipus_unitat,record_timestamp`,
+  positions: `${FGC_API}/posicionament-dels-trens/records?limit=100&select=id,lin,geo_point_2d,estacionat_a,tipus_unitat,record_timestamp`,
   lookup: `${FGC_API}/trip-updates-gtfs_realtime/records?limit=1`,
 };
 

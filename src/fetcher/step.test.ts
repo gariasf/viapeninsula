@@ -225,6 +225,20 @@ test('reports an FGC Train only the trip updates cover as FGC last updated it, w
   });
 });
 
+test("names Montserrat's rack Trains, which Geotren has on lines M1 and M2, the timetable's Line MM", () => {
+  // Geotren as recorded at 14:47 on Friday 25 September 2026: the three rack Trains, whose ids carry
+  // a calendar FGC's timetable doesn't have, and an S1. The recording didn't ask for record_timestamp,
+  // so theirs is the time the fetcher's snapshot then had for that update, 14:46:02.
+  const positions = { status: 200, body: fgcRecorded('rack.json').toString() };
+  const reports = fgcRun({ ...FGC, positions }).snapshot.reports.filter((r) => r.position);
+  expect(reports.map((r) => [r.trip, r.line])).toEqual([
+    ['fgc:6c4bdae202757640fd55c1|6a2dc6e000', undefined],
+    ['fgc:6d4fdaec|652dc7e702', 'fgc:MM'],
+    ['fgc:6d4fdaec|652dc7e703', 'fgc:MM'],
+    ['fgc:6d4fdaec|652dc7e701', 'fgc:MM'],
+  ]);
+});
+
 test('writes a snapshot of a few kilobytes with every Network, as the CDN compresses it', () => {
   // These 174 Trains take 3,216 bytes. With all 104 of the Metro's that morning, 236 took 3,934.
   const three = step(step(run().state, { fgc: FGC }, NOW + 20_000).state, { tram: { token: TOKEN, ...TRAM } }, NOW + 40_000);

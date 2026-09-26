@@ -27,6 +27,12 @@ export interface Freshness {
 export interface Report {
   /** Its Trip, as the bundle names it, or for the Metro, whose timetable names no Blocks, none: the engine matches its Block to one. */
   trip?: string;
+  /**
+   * For a Train its operator names by a Trip the bundle doesn't have, as Geotren does Montserrat's
+   * rack Trains: its Line, as the bundle names it. The engine matches it to the Line's Trip whose
+   * `trip_id` ends as its own does, after the `|`.
+   */
+  line?: string;
   /** For the Metro, which names each Train by its Block: its Line, as the bundle names it, and TMB's number for it, which another Line's can share. */
   block?: { line: string; number: string };
   /** For the Metro, where it's headed, as its Trip's headsign has it. */
