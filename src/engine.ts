@@ -624,7 +624,10 @@ function passing(calls: Call[], profile: SpeedProfile, d: number, around: number
   return found;
 }
 
-/** The stretches of a shape within `radius` metres of a point, from and to how far along it they are, in metres. */
+/**
+ * The stretches of a shape within `radius` metres of a point, from and to how far along it they are,
+ * in metres. Beyond where its track starts or ends, as past Catalonia's border, a Train is off the map.
+ */
 function stretchesWithin({ coords, dist }: Shape, point: Point, radius: number): [from: number, to: number][] {
   const kx = DEGREE * Math.cos((point[1] * Math.PI) / 180);
   const stretches: [number, number][] = [];
@@ -635,10 +638,7 @@ function stretchesWithin({ coords, dist }: Shape, point: Point, radius: number):
     const [ax, ay, dx, dy] = [(a[0] - point[0]) * kx, (a[1] - point[1]) * DEGREE, (b[0] - a[0]) * kx, (b[1] - a[1]) * DEGREE];
     const [qa, qb, qc] = [dx * dx + dy * dy, 2 * (ax * dx + ay * dy), ax * ax + ay * ay - radius * radius];
     const root = qb * qb - 4 * qa * qc;
-    if (root < 0 || !qa) {
-      if (qc <= 0) stretches.push([start, stop]);
-      continue;
-    }
+    if (root < 0 || !qa) continue;
     const [t0, t1] = [Math.max(0, (-qb - Math.sqrt(root)) / (2 * qa)), Math.min(1, (-qb + Math.sqrt(root)) / (2 * qa))];
     if (t0 > t1) continue;
     const [from, to] = [start + t0 * (stop - start), start + t1 * (stop - start)];
@@ -663,8 +663,8 @@ function whenWithin(calls: Call[], profile: SpeedProfile, stretches: [from: numb
       const [lo, hi] = [Math.max(from, low), Math.min(to, high)];
       if (lo > hi) return [];
       // Which end it gets onto the stretch at depends which way it runs.
-      const [on, off] = next.dist > call.dist ? [lo, hi] : [hi, lo];
-      return [[call.departure + reaching(call, next, profile, on), call.departure + reaching(call, next, profile, off)]];
+      const [entry, exit] = next.dist > call.dist ? [lo, hi] : [hi, lo];
+      return [[call.departure + reaching(call, next, profile, entry), call.departure + reaching(call, next, profile, exit)]];
     });
     return [...standing, ...running];
   });

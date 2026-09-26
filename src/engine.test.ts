@@ -728,7 +728,7 @@ test('a Train running late passes near a point that much later, and a Cancelled 
   expect(nearby(point, at('21:59:50'), [{ snapshot: cancelled, at: at('21:59:40') }])).toEqual([]);
 });
 
-test('a Train already past its nearest point passes near a point again where its Line comes back, when it comes within the radius', () => {
+test('a Train already past its nearest point is listed once, for when its track comes back within the radius', () => {
   // Made up: a Line that runs 4 km east, 2 km north and back west, past a point 1.1 km from both of its long stretches.
   const hairpin = bundleOf('2026-09-24', { id: 'rodalies', name: 'Rodalies de Catalunya', profile: PROFILE }, {
     hairpin: {
@@ -743,7 +743,7 @@ test('a Train already past its nearest point passes near a point again where its
   });
   const point: Point = [2.01, 41.01];
   const passes = (moment: number) => nearbyAt(hairpin, moment, [], point, 1500, 60 * 60_000);
-  const away = (moment: number) => {
+  const fromPoint = (moment: number) => {
     const t = trainsAt(hairpin, moment)[0];
     return t ? metresApart([t.lon, t.lat], point) : NaN;
   };
@@ -751,8 +751,8 @@ test('a Train already past its nearest point passes near a point again where its
   const [pass, ...more] = passes(at('10:03:00'));
   expect(more).toEqual([]);
   expect(pass?.at).toBeGreaterThan(at('10:07:00'));
-  expect(away(pass?.at ?? NaN)).toBeCloseTo(1500, -1);
-  expect(away((pass?.at ?? NaN) - 5000)).toBeGreaterThan(1500);
+  expect(fromPoint(pass?.at ?? NaN)).toBeCloseTo(1500, -1);
+  expect(fromPoint((pass?.at ?? NaN) - 5000)).toBeGreaterThan(1500);
   // Before it leaves, it's listed once, for now: it's within the radius already.
   expect(passes(at('10:00:10'))).toMatchObject([{ trip: { id: 'hairpin' }, at: at('10:00:10') }]);
 });
