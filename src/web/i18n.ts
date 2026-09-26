@@ -34,6 +34,17 @@ const STRINGS = {
     es: 'Datos en tiempo real no disponibles, posiciones según el horario',
     en: 'Live data unavailable, positions from the timetable',
   },
+  // The follow panel. {n} is a number of minutes, and {ago} how long ago, as ago() words it.
+  stopFollowing: { ca: 'Deixa de seguir aquest tren', es: 'Dejar de seguir este tren', en: 'Stop following this train' },
+  onTime: { ca: 'Puntual', es: 'Puntual', en: 'On time' },
+  late: { ca: '{n} min de retard', es: '{n} min de retraso', en: '{n} min late' },
+  early: { ca: "{n} min d'avançament", es: '{n} min de adelanto', en: '{n} min early' },
+  confirmed: { ca: 'confirmat fa {ago}', es: 'confirmado hace {ago}', en: 'confirmed {ago} ago' },
+  lastConfirmed: { ca: 'confirmat en directe per última vegada fa {ago}', es: 'confirmado en directo por última vez hace {ago}', en: 'last confirmed live {ago} ago' },
+  noLiveTrain: { ca: 'sense dades en temps real per a aquest tren', es: 'sin datos en tiempo real para este tren', en: 'no live data for this train' },
+  speed: { ca: 'Velocitat estimada', es: 'Velocidad estimada', en: 'Estimated speed' },
+  unit: { ca: 'Unitat', es: 'Unidad', en: 'Unit' },
+  nextStations: { ca: 'Properes estacions', es: 'Próximas estaciones', en: 'Next stations' },
 } satisfies Record<string, Record<Language, string>>;
 
 /** What the viewer's choice is kept under on their device, in local storage, which takes no cookie. */
