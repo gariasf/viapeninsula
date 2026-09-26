@@ -317,7 +317,63 @@ interface Heard {
   confirmed?: number;
   /** The snapshot, as received, that it was last in. */
   from: Received;
+  /** The report's own Delay, in seconds, as delayOf() has it: for Renfe's, Renfe's own figure. */
+  delay: number;
+  /** For Renfe's: the Delay its GPS last gave it, in seconds, and when the fetcher got the report that did, as `got` has it. */
+  gps?: { delay: number; got: number };
+  /** For Renfe's: the same, for the last Delay its GPS gave it that counts. */
+  counted?: { delay: number; got: number };
 }
+
+/**
+ * A Train's Delay, in seconds, by what live data last said about it, as far into live data as a
+ * device has got. For Renfe's, it's the last Delay its GPS gave it that counts, or where none does,
+ * the last its GPS gave it, until each is CARRY old, and failing both, Renfe's own figure.
+ */
+function delayBy(said: Heard, upTo: number): number {
+  for (const fix of [said.counted, said.gps]) if (fix && upTo - fix.got < CARRY) return fix.delay;
+  return said.delay;
+}
+
+/** How far a Renfe Train's GPS can put its Delay from where its GPS report before put it and still count, in seconds. */
+const CONFIRM = 120;
+
+/**
+ * How soon after a Renfe Train's report the next has to come to be judged against it, as GPS
+ * unchanged since it or far off it, in ms. It's under KEEP less CARRY and LAG, so that replaying
+ * only the snapshots kept judges each Delay still in use as replaying them all did.
+ */
+const FOLLOWS = 2 * 60_000;
+
+/**
+ * What live data says about a Train once a new report of it comes, given what it said before, when
+ * the fetcher got the report, by its clock in ms since 1970, and the report's own Delay, as delayOf()
+ * has it. A Train Renfe pins to a Station or gives no position for carries on from the last Delay
+ * its GPS gave it that counts, until that's CARRY old: Renfe's own figure moves in whole minutes
+ * and is often minutes off, so going by it made Trains jump each time Renfe switched between the
+ * two (#33). Renfe's GPS unchanged since the Train's report before is as old as that report, and
+ * counts as no position. And GPS counts only where it follows on from the Train's GPS report before,
+ * within CONFIRM of the Delay that one gave it: now and then Renfe's GPS has a Train, for a report
+ * or two, at a Station it's nowhere near, such as Barcelona-Sants, often just after Renfe has pinned
+ * it to Stations a while.
+ */
+function hear(before: Heard | undefined, report: Report, got: number, from: Received, renfe: boolean, own: (report: Report) => number): Heard {
+  const follows = <T extends { got: number }>(fix: T | undefined): fix is T => fix !== undefined && got - fix.got < FOLLOWS;
+  const frozen = renfe && follows(before) && before.report.at !== report.at && sameSpot(before.report.position, report.position);
+  const said = frozen ? { ...report, position: undefined } : report;
+  const { position } = said;
+  const heard = { report, got, placed: position ? got : before?.placed, confirmed: position ? report.at : before?.confirmed, from };
+  if (!renfe) return { ...heard, delay: own(said) };
+  const figure = own({ ...said, position: undefined });
+  const { gps, counted } = before ?? {};
+  if (!position || !('lon' in position)) return { ...heard, delay: figure, gps, counted };
+  const delay = own(said);
+  const agrees = follows(gps) && Math.abs(delay - gps.delay) <= CONFIRM;
+  return { ...heard, delay: figure, gps: { delay, got }, counted: agrees ? { delay, got } : counted };
+}
+
+/** Whether two positions are the same coordinates. */
+const sameSpot = (a: Report['position'], b: Report['position']) => !!a && !!b && 'lon' in a && 'lon' in b && a.lon === b.lon && a.lat === b.lat;
 
 /**
  * How far into live data a device has got by a moment, both by the fetcher's clock in ms: to when
@@ -386,17 +442,16 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
       const [network, shape] = [trip && lines.get(trip.line), trip && shapes.get(trip.shape)];
       if (!trip || !network || !shape) continue;
       const { profile } = network;
+      const calls = dwelt.get(id) ?? withDwell(trip, profile);
+      dwelt.set(id, calls);
       if (report) {
         // A report the fetcher kept from a feed's last good response is as old as that response.
         const got = r.snapshot.feeds[network.id]?.lastSuccess ?? NaN;
-        const before = heard.get(id);
-        heard.set(id, { report, got, placed: report.position ? got : before?.placed, confirmed: report.position ? report.at : before?.confirmed, from: r });
+        heard.set(id, hear(heard.get(id), report, got, r, network.id === 'rodalies', (given) => delayOf(trip, calls, shape, network, given, bundle.noonMinus12h)));
       }
-      const calls = dwelt.get(id) ?? withDwell(trip, profile);
-      dwelt.set(id, calls);
       // A Train live data stops reporting keeps its last Delay until that's CARRY old.
       const said = recent(heard.get(id), upTo);
-      const delay = said ? delayOf(trip, calls, shape, network, said.report, bundle.noonMinus12h) : 0;
+      const delay = said ? delayBy(said, upTo) : 0;
       // Until live data first shifts it, a Train runs on its timetable.
       const drawn = ease ? eased(calls, profile, ease, arrived) : arrived;
       const [there, dist] = [arrived - delay, (time: number) => place(calls, profile, time) ?? NaN];

@@ -55,7 +55,7 @@ A Train positioned from its Trip's timetable, shifted by its last known Delay if
 _Avoid_: Simulated, estimated, planned
 
 **Delay**:
-How late a Train is running against its Trip's timetable. While the Train is Live and moving it is measured from the Train's position; otherwise it is the operator's figure.
+How late a Train is running against its Trip's timetable. While the Train is Live and moving it is measured from the Train's position; otherwise it is the operator's figure. Rodalies differs, as Renfe's figure is often minutes off: without GPS, a Rodalies Train carries on from its last GPS Delay for up to 30 minutes. GPS unchanged since its last report counts as none, and GPS more than about 2 minutes off its GPS report before, or the first in over 2 minutes, counts only once the next agrees.
 _Avoid_: Lateness, offset
 
 **Cancelled**:
