@@ -1059,7 +1059,8 @@ test('folding each snapshot into the last replay draws the Trains as replaying e
     });
   expect(kept.at(-1)?.[0]).not.toBe(received[0]);
   expect(draw(false)).toEqual(draw(true));
-});
+  // Replaying 45 minutes second by second, twice, takes about 5 s here and longer on CI's runners.
+}, 60_000);
 
 // Made up: an R1 Trip from Badalona to El Masnou each night, from 23:50 to 00:20, on every day's
 // timetable, and on Saturday's one from 00:05 to 00:30.
