@@ -113,7 +113,8 @@ function traceShape(graph: Graph, feed: FeedShape, stations: Station[], log: (li
       continue;
     }
     draw(reached);
-    coords.push(...piece(feed.coords, a.along, b.along));
+    // Beyond either end of the feed's shape it has no track to keep: it would only jump back to that end.
+    if (a.along !== b.along) coords.push(...piece(feed.coords, a.along, b.along));
     const off = [a, b].find((w) => !graph.near.has(w.station.id));
     const why = off ? `${off.station.name} is off the network` : 'no path along the rails';
     log(`${feed.id}: ${a.station.name} → ${b.station.name} keeps the feed's shape: ${why}`);

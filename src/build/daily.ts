@@ -27,7 +27,8 @@ import {
   TRAMBESOS_FEED,
   type Feed,
 } from './networks.ts';
-import { osmRails, type OsmWay } from './osm.ts';
+import { crop } from './border.ts';
+import { catalonia, osmRails, type OsmWay } from './osm.ts';
 import { sideBySide } from './sideBySide.ts';
 import { traceShapes } from './track.ts';
 import { placeTrips } from './trips.ts';
@@ -46,7 +47,7 @@ const [renfe, fgc, trambaix, trambesos, tmb] = await Promise.all([
 // TMB's terms ask for the day its data was last updated to be shown. Its feed starts the day TMB
 // publishes it, and it can't have been published after today.
 const published = await feedStart(tmb);
-const rails = await osmRails(['rail', 'narrow_gauge', 'subway', 'tram', 'funicular']);
+const [rails, border] = await Promise.all([osmRails(['rail', 'narrow_gauge', 'subway', 'tram', 'funicular']), catalonia()]);
 const networks = [
   await build([[RODALIES_FEED, renfe]], onRodaliesRails),
   await build([[FGC_FEED, fgc]], onFgcRails),
@@ -92,7 +93,8 @@ if (!process.argv.includes('--dry-run')) {
 /**
  * A Network from its operator's feeds, with the day they were last updated where its terms ask the
  * map to show it: its Lines, Stations and track traced along OpenStreetMap's rails of its own kind
- * (ADR-0004), which are those of every day in its feeds, and its Trips on each of DAYS.
+ * (ADR-0004), which are those of every day in its feeds, and its Trips on each of DAYS, all within
+ * Catalonia: its Trips are placed on their whole track, which is then cut at the border.
  * ponytail: reads each feed once for each day, about 5 s a day for the lot; read stop_times once for
  * every day if the build grows slow.
  */
@@ -102,15 +104,15 @@ async function build(feeds: [[Feed, Source], ...[Feed, Source][]], onRails: (way
   const parts = days[0] ?? [];
   const [lines, stations] = [parts.flatMap((p) => p.lines), parts.flatMap((p) => p.stations)];
   const shapes = traceShapes(parts.flatMap((p) => p.shapes), stations, rails.filter(onRails));
-  const trips = days.map((day, i) => {
-    const trips = day.flatMap((p) => p.trips);
+  const cropped = crop(border, stations, shapes, days.map((day) => day.flatMap((p) => p.trips)));
+  const trips = cropped.days.map((trips, i) => {
     // No Trips at all today means a broken download or a changed feed, not a day without Trains. On a
     // later day it can mean a timetable that ends before it, and the next one comes before that day.
     if (!trips.length && !i) throw new Error(`${network.name}'s timetable has no Trips on ${DAYS[i]}`);
     if (!trips.length) console.warn(`${network.name}'s timetable has no Trips on ${DAYS[i]}`);
     return placeTrips(trips, lines, shapes, stations, network.profile.topSpeed);
   });
-  return { network, lines, stations, shapes, trips };
+  return { network, lines, stations: cropped.stations, shapes: cropped.shapes, trips };
 }
 
 /** A secret from the environment, which must never be printed. */

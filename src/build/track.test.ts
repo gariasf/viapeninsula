@@ -200,6 +200,16 @@ test("keeps the feed's shape where the rails don't reach, and reports it", () =>
   ]);
 });
 
+test("draws nothing for Stations off the network beyond the end of the feed's shape", () => {
+  // Like R15's, which stops at Riba-roja, while its Trips run on past Faió into Aragon, beyond the rails.
+  const { shape } = trace(
+    rails({ a: [0, 0], b: [1000, 0], c: [2000, 0] }, 'a b c'),
+    [station('A', 500, 10), station('B', 1500, 10), station('C', 5000, 10), station('D', 9000, 10)],
+    { id: 'line', feed: [[0, 1], [1000, 1]], stations: 'A B C D' },
+  );
+  expect(points(shape('line'))).toEqual([[500, 0], [1000, 0], [1500, 0]]);
+});
+
 test("keeps the feed's shape when its Trips serve fewer than two Stations", () => {
   const { shape, log } = trace(
     rails({ a: [0, 0], b: [4000, 0] }, 'a b'),

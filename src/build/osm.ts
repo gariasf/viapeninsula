@@ -1,9 +1,9 @@
-// OpenStreetMap's rails for Catalonia, from Overpass.
+// OpenStreetMap's rails for Catalonia, and its border, from Overpass.
 
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { madridDate } from '../bundle.ts';
+import { madridDate, type Point } from '../bundle.ts';
 
 /** A way as Overpass returns it with `out geom`. */
 export interface OsmWay {
@@ -28,6 +28,21 @@ const FRESH = 7 * 24 * 60 * 60 * 1000;
 /** The ways in Catalonia whose `railway` tag is one of these, from the cache or from Overpass. */
 export async function osmRails(railways: string[], cache = '.cache'): Promise<OsmWay[]> {
   const query = `[out:json][timeout:180];area["ISO3166-2"="ES-CT"]->.catalonia;way["railway"~"^(${railways.join('|')})$"](area.catalonia);out body geom qt;`;
+  return overpass(query, cache, "OpenStreetMap's rails", parse);
+}
+
+/** Catalonia's border, as the ways that make it up, in no order, from the cache or from Overpass. */
+export async function catalonia(cache = '.cache'): Promise<Point[][]> {
+  const query = '[out:json][timeout:180];rel["ISO3166-2"="ES-CT"];way(r);out skel geom qt;';
+  return overpass(query, cache, "Catalonia's border", (text) => {
+    const { elements } = JSON.parse(text) as { elements: Pick<OsmWay, 'geometry'>[] };
+    if (!elements.length) throw new Error("Overpass found no border for Catalonia");
+    return elements.map((way) => way.geometry.map((g): Point => [g.lon, g.lat]));
+  });
+}
+
+/** What Overpass answers a query, read by `parse`, from a copy less than FRESH old or else the first mirror that answers. */
+async function overpass<T>(query: string, cache: string, what: string, parse: (text: string) => T): Promise<T> {
   const file = join(cache, `osm-${createHash('sha256').update(query).digest('hex').slice(0, 12)}.json`);
   const age = await stat(file).then((s) => Date.now() - s.mtimeMs, () => Infinity);
   if (age < FRESH) return parse(await readFile(file, 'utf8'));
@@ -42,16 +57,16 @@ export async function osmRails(railways: string[], cache = '.cache'): Promise<Os
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const text = await res.text();
-      const ways = parse(text);
+      const parsed = parse(text);
       await mkdir(cache, { recursive: true });
       await writeFile(file, text);
-      return ways;
+      return parsed;
     } catch (error) {
       console.warn(`${mirror}: ${error instanceof Error ? error.message : error}`);
     }
   }
-  if (age === Infinity) throw new Error("Couldn't download OpenStreetMap's rails from any Overpass mirror");
-  console.warn(`Using OpenStreetMap's rails from ${Math.round(age / 86_400_000)} days ago`);
+  if (age === Infinity) throw new Error(`Couldn't download ${what} from any Overpass mirror`);
+  console.warn(`Using ${what} from ${Math.round(age / 86_400_000)} days ago`);
   return parse(await readFile(file, 'utf8'));
 }
 
