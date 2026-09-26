@@ -50,6 +50,17 @@ const STRINGS = {
   nextDepartures: { ca: 'Properes sortides', es: 'Próximas salidas', en: 'Next departures' },
   noDepartures: { ca: 'Cap sortida propera', es: 'Ninguna salida próxima', en: 'No upcoming departures' },
   cancelled: { ca: 'Cancel·lat', es: 'Cancelado', en: 'Cancelled' },
+  // Nearby Trains: the button that opens them, and their panel.
+  nearby: { ca: 'Trens a prop', es: 'Trenes cercanos', en: 'Nearby trains' },
+  closeNearby: { ca: 'Tanca els trens a prop', es: 'Cerrar los trenes cercanos', en: 'Close nearby trains' },
+  passingNearby: { ca: "Passen a menys d'1,5 km en la pròxima hora", es: 'Pasan a menos de 1,5 km en la próxima hora', en: 'Passing within 1.5 km in the next hour' },
+  noneNearby: { ca: "Cap tren no passa a menys d'1,5 km en la pròxima hora", es: 'Ningún tren pasa a menos de 1,5 km en la próxima hora', en: 'No trains pass within 1.5 km in the next hour' },
+  locating: { ca: 'Buscant on ets…', es: 'Buscando dónde estás…', en: 'Finding where you are…' },
+  noLocation: {
+    ca: "No s'ha pogut saber on ets, així que no es poden mostrar els trens a prop",
+    es: 'No se ha podido saber dónde estás, así que no se pueden mostrar los trenes cercanos',
+    en: "Your location isn't available, so nearby trains can't be shown",
+  },
 } satisfies Record<string, Record<Language, string>>;
 
 /** What the viewer's choice is kept under on their device, in local storage, which takes no cookie. */

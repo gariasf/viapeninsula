@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { expect, test } from 'vitest';
-import { pointAt, type Bundle, type Network, type Report, type Snapshot } from './bundle.ts';
+import { beside, pointAt, type Bundle, type Network, type Point, type Report, type Shape, type Snapshot } from './bundle.ts';
 import { noonMinus12h } from './build/gtfs.ts';
-import { boardAt, joinDays, KEEP, trainAt, trainsAt, unavailable, type Received } from './engine.ts';
+import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Received } from './engine.ts';
 
 /** A speed profile like Rodalies', in metres and seconds, which the times below are worked out from. */
 const PROFILE = { acceleration: 1, braking: 1, topSpeed: 160 / 3.6, dwell: 30 };
@@ -654,6 +654,56 @@ test("a board lists only its own Stations' departures, soonest first", () => {
   // Passeig de Gràcia's L2 and L3 Stations, and Diagonal's L5.
   expect(ids(['tmb:1.225', 'tmb:1.327'])).toEqual(['l3', 'l2']);
   expect(ids(['tmb:1.532'])).toEqual(['l5']);
+});
+
+/** The Trains passing within a radius of a point, 1.5 km unless it says, in the next hour, at a moment by the device's clock, with the live data received by then. */
+const nearby = (point: Point, moment: number, received: Received[] = [], radius = 1500) => nearbyAt(BUNDLE, moment, by(received, moment), point, radius, 60 * 60_000);
+
+/** A point so many metres to the right of the R2S's track, `dist` metres along it. */
+const offTrack = (dist: number, metres: number) => beside(BUNDLE.shapes.find((s) => s.id === R2S) as Shape, dist, metres);
+
+/** Halfway from Sitges to Castelldefels, where the R2S cruises. */
+const MIDWAY = (135376 + 150987) / 2;
+
+test('a Train passing near a point is listed with when it runs past the point of its track nearest it, and how near that is', () => {
+  const [pass] = nearby(offTrack(MIDWAY, 1000), at('21:30:00'));
+  expect(pass).toMatchObject({ trip: { id: R2S }, delay: 0, live: false });
+  expect(pass?.distance).toBeCloseTo(1000, -1);
+  expect(where(R2S, pass?.at ?? NaN)).toBeCloseTo(MIDWAY, 0);
+});
+
+test('only Trains whose track comes within the radius pass near a point', () => {
+  expect(nearby(offTrack(MIDWAY, 1490), at('21:30:00')).map((p) => p.trip.id)).toEqual([R2S]);
+  expect(nearby(offTrack(MIDWAY, 1510), at('21:30:00'))).toEqual([]);
+});
+
+test('only Trains passing within the time window pass near a point, and not one that has gone past already', () => {
+  const point = offTrack(MIDWAY, 1000);
+  const passes = nearby(point, at('21:30:00'))[0]?.at ?? NaN;
+  const ids = (moment: number) => nearby(point, moment).map((p) => p.trip.id);
+  expect(ids(passes - 60 * 60_000 + 1000)).toEqual([R2S]);
+  expect(ids(passes - 60 * 60_000 - 1000)).toEqual([]);
+  expect(ids(passes - 1000)).toEqual([R2S]);
+  expect(ids(passes + 1000)).toEqual([]);
+});
+
+test('a Train that stands at the Station nearest a point passes when it arrives, and while it stands there, now', () => {
+  // 500 m on from Estació de França the way the R2S comes in, where it stands from 22:51:00 to 22:51:30.
+  const [[lon, lat], [fromLon, fromLat]] = [[2.18534785, 41.3844866], [2.16533862, 41.3920862]];
+  const point: Point = [lon + (lon - fromLon) * 0.27, lat + (lat - fromLat) * 0.27];
+  expect(nearby(point, at('22:40:00'))).toMatchObject([{ trip: { id: R2S }, at: at('22:51:00') }]);
+  expect(nearby(point, at('22:51:10'))).toMatchObject([{ trip: { id: R2S }, at: at('22:51:10') }]);
+  expect(nearby(point, at('22:51:31'))).toEqual([]);
+});
+
+test('a Train running late passes near a point that much later, and a Cancelled one not at all', () => {
+  const point = offTrack(MIDWAY, 1000);
+  const onTime = nearby(point, at('21:59:50'))[0]?.at ?? NaN;
+  const late2 = nearby(point, at('21:59:50'), [late(R2S, 120, at('21:59:40'))])[0];
+  expect(late2?.delay).toBe(120);
+  expect(late2?.at).toBeCloseTo(onTime + 120_000, -1);
+  const cancelled: Snapshot = { ...written(at('21:59:40')), reports: [{ trip: R2S, at: at('21:59:40'), cancelled: true }] };
+  expect(nearby(point, at('21:59:50'), [{ snapshot: cancelled, at: at('21:59:40') }])).toEqual([]);
 });
 
 test('never runs back when its last Delay runs out, among the snapshots the map keeps', () => {

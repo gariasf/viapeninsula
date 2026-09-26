@@ -4,7 +4,7 @@ import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { AttributionControl, MapLibreMap, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { along, beside, EARTH, LIVE_URL, madridDate, places, type Bundle, type Place, type DayTrips, type Line, type Manifest, type Network, type Point, type Shape, type Snapshot, type Stroke, type Track } from '../bundle.ts';
-import { boardAt, joinDays, KEEP, trainAt, trainsAt, unavailable, type Received } from '../engine.ts';
+import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Received } from '../engine.ts';
 import { language, LANGUAGES, setLanguage, t, type Language } from './i18n.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
@@ -19,6 +19,8 @@ const EMPTY_POLLS = 3;
  * last is due off the map it keeps it, for Trains running late, in ms.
  */
 const [EARLY, LATE] = [30 * 60_000, 60 * 60_000];
+/** How near the viewer, in metres, and how soon, in ms, a Train passes to be one of their nearby Trains. The panel's strings say so too. */
+const [NEARBY, SOON] = [1500, 60 * 60_000];
 
 /** A Line's width, in pixels at each zoom. */
 const WIDTH: [zoom: number, px: number][] = [[7, 1.5], [14, 4]];
@@ -115,6 +117,9 @@ languageSwitch.addEventListener('change', () => {
   showLanguage();
 });
 map.addControl({ onAdd: () => languageSwitch, onRemove: () => languageSwitch.remove() }, 'top-right');
+// The button that shows the viewer's nearby Trains, with MapLibre's own locate icon, labelled by
+// showLanguage(). It goes under the language switch once the map can move Trains.
+const nearbyButton = el('button', { type: 'button', className: 'maplibregl-ctrl-geolocate', onclick: showNearby }, el('span', { className: 'maplibregl-ctrl-icon' }));
 // The legend, which showLanguage() fills: what the Live and Scheduled markers mean.
 const legend = document.createElement('div');
 legend.className = 'maplibregl-ctrl maplibregl-ctrl-group legend';
@@ -137,6 +142,11 @@ document.body.append(panel);
 let following: { day: string; trip: string; at?: Point } | undefined;
 /** The place whose board the panel shows, by its ID in places(), while the map follows no Train. */
 let boardPlace: string | undefined;
+/**
+ * Where the viewer is, while the panel shows their nearby Trains instead, or that the browser is
+ * still finding out, or couldn't. It's never sent anywhere, nor put in the page's link.
+ */
+let nearMe: Point | 'locating' | 'failed' | undefined;
 /** When the panel was last filled, by performance.now(). */
 let panelShown = 0;
 let credits: AttributionControl | undefined;
@@ -268,11 +278,13 @@ for (const layer of ['trains', 'stations']) {
   map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'));
   map.on('mouseleave', layer, () => (map.getCanvas().style.cursor = ''));
 }
-document.addEventListener('keydown', (e) => e.key === 'Escape' && (following || boardPlace) && closePanel());
+document.addEventListener('keydown', (e) => e.key === 'Escape' && (following || boardPlace || nearMe) && closePanel());
 
 // Moves the Trains every frame, and names the Networks whose live data is unavailable as that
 // changes. The browser stops asking while the tab is hidden.
 const trainSource = map.getSource<GeoJSONSource>('trains');
+const nearbyControl = el('div', { className: 'maplibregl-ctrl maplibregl-ctrl-group' }, nearbyButton);
+map.addControl({ onAdd: () => nearbyControl, onRemove: () => nearbyControl.remove() }, 'top-right');
 requestAnimationFrame(function move() {
   trainSource?.setData(trains());
   if (following) {
@@ -281,7 +293,7 @@ requestAnimationFrame(function move() {
     else keepInView(following.at);
   }
   // The panel's times and ages change by the second.
-  if ((following || boardPlace) && performance.now() - panelShown > 1000) showPanel();
+  if ((following || boardPlace || nearMe) && performance.now() - panelShown > 1000) showPanel();
   const ids = unavailable(received);
   if (ids.join() !== unavailableIds.join()) {
     unavailableIds = ids;
@@ -376,6 +388,8 @@ function trains(): GeoJSON.FeatureCollection {
 function showLanguage() {
   document.documentElement.lang = language();
   languageSwitch.title = t('language');
+  nearbyButton.title = t('nearby');
+  nearbyButton.setAttribute('aria-label', t('nearby'));
   // MapLibre reads its own strings as it builds each part, and has no way to change them after: the
   // parts it builds from now on read these, the canvas is relabelled, and the credits built afresh.
   Object.assign(map._locale, { 'Map.Title': t('map'), 'AttributionControl.ToggleAttribution': t('showCredits') });
@@ -399,7 +413,7 @@ function showLanguage() {
 function follow(id: string) {
   const [, day, trip] = /^(\d{4}-\d{2}-\d{2})\/(.*)$/.exec(id) ?? [];
   following = day && trip ? { day, trip } : { day: bundle?.serviceDay ?? '', trip: id };
-  boardPlace = undefined;
+  [boardPlace, nearMe] = [undefined, undefined];
   trainSource?.setData(trains());
   showPanel();
   writeLink();
@@ -408,15 +422,36 @@ function follow(id: string) {
 
 /** Shows a place's board, by its ID in places(), following no Train. */
 function showBoard(place: string) {
-  [following, boardPlace] = [undefined, place];
+  [following, boardPlace, nearMe] = [undefined, place, undefined];
   trainSource?.setData(trains());
   showPanel();
   writeLink();
 }
 
-/** Stops following a Train, or closes a Station's board. */
+/**
+ * Shows the viewer's nearby Trains, following no Train, once the browser says where they are. Where
+ * it won't, as when they decline, the panel says so, and the rest of the map carries on. The map
+ * stays where it is: the basemap's tiles for where they are would tell OpenFreeMap.
+ */
+function showNearby() {
+  [following, boardPlace, nearMe] = [undefined, undefined, 'locating'];
+  trainSource?.setData(trains());
+  showPanel();
+  writeLink();
+  // A position or failure that comes after the viewer has moved on to something else is dropped.
+  const found = (where: Point | 'failed') => {
+    if (!nearMe) return;
+    nearMe = where;
+    showPanel();
+  };
+  // Some browsers have no geolocation at all, as over plain http.
+  if (!('geolocation' in navigator)) return found('failed');
+  navigator.geolocation.getCurrentPosition(({ coords }) => found([coords.longitude, coords.latitude]), () => found('failed'), { maximumAge: 60_000, timeout: 30_000 });
+}
+
+/** Stops following a Train, or closes a Station's board or the nearby Trains. */
 function closePanel() {
-  [following, boardPlace] = [undefined, undefined];
+  [following, boardPlace, nearMe] = [undefined, undefined, undefined];
   showPanel();
   writeLink();
   map.easeTo({ padding: abovePanel() });
@@ -479,10 +514,10 @@ function abovePanel() {
   return { top: 0, right: 0, left: 0, bottom: panel.offsetHeight };
 }
 
-/** Fills the panel, in the viewer's language, with the Train the map follows or the Station board it shows. Hides it while there's neither. */
+/** Fills the panel, in the viewer's language, with the Train the map follows, the Station board it shows, or the viewer's nearby Trains. Hides it while there's none. */
 function showPanel() {
   panelShown = performance.now();
-  const shown = following ? followedPanel() : boardPlace ? boardPanel(boardPlace) : undefined;
+  const shown = following ? followedPanel() : boardPlace ? boardPanel(boardPlace) : nearMe ? nearbyPanel(nearMe) : undefined;
   panel.hidden = !shown;
   panel.replaceChildren(...(shown ?? []));
 }
@@ -546,6 +581,38 @@ function boardPanel(id: string): Node[] | undefined {
           ),
         )
       : el('p', { textContent: t('noDepartures') }),
+  ];
+}
+
+/**
+ * The viewer's nearby Trains: each that passes within NEARBY of them within SOON, soonest first, with
+ * when it passes nearest them, its Line, where it's headed, Live or Scheduled, and its Delay.
+ */
+function nearbyPanel(near: Point | 'locating' | 'failed'): Node[] {
+  const top = [closeButton(t('closeNearby')), el('h2', { textContent: t('nearby') })];
+  if (near === 'locating') return [...top, el('p', { textContent: t('locating') })];
+  if (near === 'failed') return [...top, el('p', { textContent: t('noLocation') })];
+  const passes = bundle ? nearbyAt(bundle, Date.now(), received, near, NEARBY, SOON) : [];
+  const time = clock();
+  return [
+    ...top,
+    el('h3', { textContent: t('passingNearby') }),
+    passes.length
+      ? el(
+          'ol',
+          {},
+          ...passes.map(({ trip, at, delay, live }) =>
+            el(
+              'li',
+              {},
+              el('time', { textContent: time.format(at) }),
+              lineName(trip.line),
+              ` ${trip.headsign} `,
+              el('small', { className: live ? 'live' : 'scheduled' }, `${t(live ? 'live' : 'scheduled')} · ${delayText(delay)}`),
+            ),
+          ),
+        )
+      : el('p', { textContent: t('noneNearby') }),
   ];
 }
 
