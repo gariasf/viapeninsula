@@ -377,7 +377,8 @@ async function neededDays(): Promise<{ track: Promise<Track>; days: Promise<Bund
     return file as Promise<T>;
   };
   const joined = async () => {
-    const got = await Promise.allSettled(days.map((d) => Promise.all([get<Track>(d.track), get<DayTrips>(d.trips)])));
+    // Each day's Trips are fetched once its track has come, so the track isn't slowed by them.
+    const got = await Promise.allSettled(days.map((d) => get<Track>(d.track).then((track) => Promise.all([track, get<DayTrips>(d.trips)]))));
     // Without today's bundle there's nothing to draw; without another day's, the map does without it until next time.
     const failed = got.flatMap((g, i) => (g.status === 'rejected' ? [[days[i], g.reason] as const] : []));
     for (const [day, reason] of failed) if (day === today) throw reason;

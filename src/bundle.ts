@@ -69,7 +69,7 @@ export interface ManifestDay {
 
 /**
  * What the map draws before any Train, which it loads first: the Networks, Lines, Stations and track,
- * one file for each day a build publishes.
+ * one file that every day a build publishes shares.
  */
 export type Track = Pick<Bundle, 'networks' | 'lines' | 'stations' | 'shapes' | 'strokes'>;
 

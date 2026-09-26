@@ -57,7 +57,13 @@ const [lines, shapes] = [networks.flatMap((n) => n.lines), networks.flatMap((n) 
 const strokes = sideBySide(lines, shapes);
 
 await mkdir('out/days', { recursive: true });
-const track: Track = { networks: networks.map((n) => n.network), lines, stations: networks.flatMap((n) => n.stations), shapes, strokes };
+const track: Track = {
+  networks: networks.map((n) => n.network),
+  lines,
+  stations: networks.flatMap((n) => n.stations),
+  shapes,
+  strokes,
+};
 const trackKey = await write('days/track', track, `${track.lines.length} Lines, ${track.stations.length} Stations, ${track.shapes.length} shapes`);
 const built = await Promise.all(
   DAYS.map(async (serviceDay, i) => {

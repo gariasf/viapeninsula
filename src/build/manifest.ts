@@ -18,9 +18,10 @@ export function manifestDay(bundle: Bundle, files: Pick<ManifestDay, 'track' | '
 
 /**
  * The manifest naming the days built, and the day before them where the last manifest named it:
- * its last Trains can still be running past midnight.
+ * its last Trains can still be running past midnight. Where it named it in a bundle of one file, as
+ * builds did before the track and Trips were split, the map can't read it, so it's left out.
  */
 export function manifestOf(built: ManifestDay[], previous?: Manifest): Manifest {
   const before = addDays(built[0]?.date ?? '', -1);
-  return { days: [...(previous?.days.filter((d) => d.date === before) ?? []), ...built] };
+  return { days: [...(previous?.days.filter((d) => d.date === before && d.track && d.trips) ?? []), ...built] };
 }
