@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import type { Shape, Station } from '../bundle.ts';
 import type { OsmWay } from './osm.ts';
-import { traceShapes } from './track.ts';
+import { eachWay, traceShapes } from './track.ts';
 
 // A small railway, drawn in metres east (x) and north (y) of a point near Manresa.
 const M = (6_371_008.8 * Math.PI) / 180; // metres in a degree of latitude
@@ -34,12 +34,20 @@ const station = (id: string, x: number, y: number): Station => {
   return { id, name: id, lon, lat };
 };
 
-function trace(rails: OsmWay[], stations: Station[], ...shapes: { id: string; feed: [number, number][]; stations: string }[]) {
+type FeedIn = { id: string; feed: [number, number][]; stations: string };
+
+function trace(rails: OsmWay[], stations: Station[], ...shapes: FeedIn[]) {
+  return traceKeeping('right', rails, stations, ...shapes);
+}
+
+/** Traces shapes for a Network whose Trains keep to one side of double track. */
+function traceKeeping(side: 'left' | 'right', rails: OsmWay[], stations: Station[], ...shapes: FeedIn[]) {
   const log: string[] = [];
   const traced = traceShapes(
     shapes.map((s) => ({ id: s.id, coords: s.feed.map(([x, y]) => at(x, y)), stations: s.stations.split(' ') })),
     stations,
     rails,
+    side,
     (line) => log.push(line),
   );
   const shape = (id: string) => {
@@ -60,6 +68,21 @@ const passes = (shape: Shape, x: number, y: number) =>
     return Math.hypot(px - x, py - y) < 2;
   });
 
+/** A line d metres left of a centre line through corners given in metres, or right where negative. */
+function offset(centre: [number, number][], d: number): [number, number][] {
+  return centre.map(([x, y], i) => {
+    // Offset each corner along the bisector of the normals of the straights either side of it.
+    const [px, py] = centre[Math.max(0, i - 1)] ?? [x, y];
+    const [nx, ny] = centre[Math.min(centre.length - 1, i + 1)] ?? [x, y];
+    const n = (ax: number, ay: number, bx: number, by: number) => [-(by - ay) / Math.hypot(bx - ax, by - ay), (bx - ax) / Math.hypot(bx - ax, by - ay)];
+    const [n1x = 0, n1y = 0] = i > 0 ? n(px, py, x, y) : n(x, y, nx, ny);
+    const [n2x = 0, n2y = 0] = i < centre.length - 1 ? n(x, y, nx, ny) : n(px, py, x, y);
+    const [mx, my] = [n1x + n2x, n1y + n2y];
+    const scale = d / ((mx * n1x + my * n1y) / Math.hypot(mx, my)) / Math.hypot(mx, my);
+    return [x + mx * scale, y + my * scale] as [number, number];
+  });
+}
+
 /**
  * Double track, 4 m apart, bending north-east and back so that each bend's inside track is the other
  * one. Scissors crossovers halfway along each straight let a train change track either way; each
@@ -67,18 +90,7 @@ const passes = (shape: Shape, x: number, y: number) =>
  */
 function doubleTrack(): { ways: OsmWay[]; crossovers: [number, number][] } {
   const centre: [number, number][] = [[0, 0], [1000, 0], [2000, 300], [3000, 300], [4000, 0], [5000, 0]];
-  const beside = (d: number) =>
-    centre.map(([x, y], i) => {
-      // Offset each corner along the bisector of the normals of the straights either side of it.
-      const [px, py] = centre[Math.max(0, i - 1)] ?? [x, y];
-      const [nx, ny] = centre[Math.min(centre.length - 1, i + 1)] ?? [x, y];
-      const n = (ax: number, ay: number, bx: number, by: number) => [-(by - ay) / Math.hypot(bx - ax, by - ay), (bx - ax) / Math.hypot(bx - ax, by - ay)];
-      const [n1x = 0, n1y = 0] = i > 0 ? n(px, py, x, y) : n(x, y, nx, ny);
-      const [n2x = 0, n2y = 0] = i < centre.length - 1 ? n(x, y, nx, ny) : n(px, py, x, y);
-      const [mx, my] = [n1x + n2x, n1y + n2y];
-      const scale = d / ((mx * n1x + my * n1y) / Math.hypot(mx, my)) / Math.hypot(mx, my);
-      return [x + mx * scale, y + my * scale] as [number, number];
-    });
+  const beside = (d: number) => offset(centre, d);
   const [left, right] = [beside(2), beside(-2)];
   const points: Record<string, [number, number]> = {};
   const track = (name: string, line: [number, number][]) =>
@@ -304,4 +316,88 @@ test('gives Lines that share track the same geometry there', () => {
   );
   const [x, y] = [shape('X').coords, shape('Y').coords];
   expect(x.slice(x.length - y.length)).toEqual(y);
+});
+
+test('gives each shape once for each way its Trips run it, turned round for the way back', () => {
+  const stations = [station('A', 0, 10), station('B', 2000, 10), station('C', 4000, 10)];
+  const feed = (id: string) => ({ id, coords: [at(0, 0), at(4000, 0)], stations: ['A', 'B', 'C'] });
+  const { shapes, shapeOf } = eachWay([feed('both'), feed('back'), feed('ahead')], stations, [
+    { shape: 'both', from: 'A', to: 'C' },
+    { shape: 'both', from: 'C', to: 'B' },
+    // Like every R7 Trip.
+    { shape: 'back', from: 'B', to: 'A' },
+    { shape: 'ahead', from: 'B', to: 'C' },
+  ]);
+  expect(shapes.map((s) => ({ id: s.id, coords: s.coords.map((c) => metres(c).map(Math.round)), stations: s.stations }))).toEqual([
+    { id: 'both', coords: [[0, 0], [4000, 0]], stations: ['A', 'B', 'C'] },
+    { id: 'both:back', coords: [[4000, 0], [0, 0]], stations: ['A', 'B', 'C'] },
+    { id: 'back:back', coords: [[4000, 0], [0, 0]], stations: ['A', 'B', 'C'] },
+    { id: 'ahead', coords: [[0, 0], [4000, 0]], stations: ['A', 'B', 'C'] },
+  ]);
+  expect(['both A B', 'both B A', 'back C A', 'ahead A C'].map((t) => t.split(' ')).map(([shape = '', from = '', to = '']) => shapeOf({ shape, from, to }))).toEqual([
+    'both',
+    'both:back',
+    'back:back',
+    'ahead',
+  ]);
+});
+
+const EAST: [number, number][] = [[0, 1], [1000, 1], [2000, 301], [3000, 301], [4000, 1], [5000, 1]];
+
+test.for(['right', 'left'] as const)('traces each way along double track on the track Trains keep to going that way (keeping %s)', (side) => {
+  const { shape } = traceKeeping(
+    side,
+    doubleTrack().ways,
+    [station('A', 0, -12), station('C', 5000, -12)],
+    { id: 'east', feed: EAST, stations: 'A C' },
+    { id: 'west', feed: EAST.toReversed(), stations: 'A C' },
+  );
+  // Going east, the south track is on the right; going west, the north one.
+  const [east, west] = side === 'right' ? [-2, 2] : [2, -2];
+  for (const x of [450, 4450]) {
+    expect([passes(shape('east'), x, east), passes(shape('east'), x, -east)]).toEqual([true, false]);
+    expect([passes(shape('west'), x, west), passes(shape('west'), x, -west)]).toEqual([true, false]);
+  }
+});
+
+test('shares single track between both ways', () => {
+  const { shape } = trace(
+    rails({ a: [0, 0], b: [1000, 0], c: [2000, 0] }, 'a b c'),
+    [station('A', 0, 10), station('C', 2000, 10)],
+    { id: 'east', feed: [[0, 1], [2000, 1]], stations: 'A C' },
+    { id: 'west', feed: [[2000, 1], [0, 1]], stations: 'A C' },
+  );
+  expect(points(shape('west'))).toEqual(points(shape('east')).toReversed());
+});
+
+test('keeps each way to its side of the pair of tracks it runs on, where four run side by side', () => {
+  // Two double tracks run side by side between x = 1000 and 4000: N's pair to the north, from NW to
+  // NE, and S's to the south, from SW to SE. Each pair's tracks are 5 m apart, but the pairs only 4 m,
+  // so a track's nearest isn't always the other of its pair. Each pair bends away from the other at
+  // both ends, so its inner track is the longer.
+  const n: [number, number][] = [[0, 300], [1000, 4.5], [4000, 4.5], [5000, 300]];
+  const s = n.map(([x, y]): [number, number] => [x, -y]);
+  const points: Record<string, [number, number]> = {};
+  const way = (name: string, line: [number, number][]) => line.map((p, i) => ((points[`${name}${i}`] = p), `${name}${i}`)).join(' ');
+  const { shape } = trace(
+    rails(points, way('n', offset(n, 2.5)), way('m', offset(n, -2.5)), way('s', offset(s, 2.5)), way('t', offset(s, -2.5))),
+    [station('NW', 0, 314), station('NE', 5000, 314), station('SW', 0, -314), station('SE', 5000, -314)],
+    { id: 'N east', feed: n, stations: 'NW NE' },
+    { id: 'N west', feed: n.toReversed(), stations: 'NW NE' },
+    { id: 'S east', feed: s, stations: 'SW SE' },
+    { id: 'S west', feed: s.toReversed(), stations: 'SW SE' },
+  );
+  const track = (id: string) => [7, 2, -2, -7].filter((y) => passes(shape(id), 1000, y) && passes(shape(id), 4000, y));
+  expect(['N east', 'N west', 'S east', 'S west'].map(track)).toEqual([[2], [7], [-7], [-2]]);
+});
+
+test("doesn't give Lines going opposite ways the same track where there are two", () => {
+  const { shape } = trace(
+    doubleTrack().ways,
+    [station('A', 0, -12), station('C', 5000, -12)],
+    { id: 'X', feed: EAST, stations: 'A C' },
+    { id: 'Y', feed: EAST.toReversed(), stations: 'A C' },
+  );
+  const y = new Set(points(shape('Y')).map(String));
+  expect(points(shape('X')).filter((p) => y.has(String(p)))).toEqual([]);
 });

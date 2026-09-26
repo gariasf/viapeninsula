@@ -3,7 +3,7 @@
 import type { Line, Network, Station } from '../bundle.ts';
 import { rows, seconds, serviceIdsOn, type Source } from './gtfs.ts';
 import type { OsmWay } from './osm.ts';
-import type { FeedShape } from './track.ts';
+import { eachWay, type FeedShape } from './track.ts';
 import type { FeedTrip } from './trips.ts';
 
 const RODALIES: Network = {
@@ -12,6 +12,9 @@ const RODALIES: Network = {
   // Every stretch between Stations in Renfe's timetable of 24 September 2026 fits 1 m/s² (138 don't
   // fit 0.7), and the fastest Units on the regional lines run at 160 km/h. Small Stations get half a minute.
   profile: { acceleration: 1, braking: 1, topSpeed: 160 / 3.6, dwell: 30 },
+  // OpenStreetMap tags which way Trains run each track of 268 km of Adif's Iberian-gauge double track
+  // in Catalonia (railway:preferred_direction, seen 2026-09-26): 94% of it has them on the right.
+  runningSide: 'right',
 };
 
 /** Rodalies runs on Iberian-gauge rails, which keeps it off the standard-gauge high-speed line. */
@@ -41,6 +44,10 @@ const FGC: Network = {
   // accelerate and brake harder. Its fastest Units, on the line to La Pobla, run at 120 km/h. Most of
   // its Stations get half a minute.
   profile: { acceleration: 1, braking: 1, topSpeed: 120 / 3.6, dwell: 30 },
+  // OpenStreetMap has FGC's Trains on the right on 99% of the 93 km of its double track it tags
+  // (seen 2026-09-26), and so does Geotren: of 61 FGC positions within a metre of one track of a
+  // double track, 56 were on the right one (25 September).
+  runningSide: 'right',
 };
 
 /** FGC runs on rails of its own, of three gauges. */
@@ -70,6 +77,8 @@ const TRAM: Network = {
   // Every stretch TRAM runs on 1 October 2026 fits 1.2 m/s² (312 don't fit 1), and its Units, Citadis
   // trams, run at 70 km/h. It gives every Station 10 seconds.
   profile: { acceleration: 1.2, braking: 1.2, topSpeed: 70 / 3.6, dwell: 10 },
+  // As the traffic beside it does: OpenStreetMap has TRAM's Trains on the right on 99% of the 32 km of its double track it tags.
+  runningSide: 'right',
 };
 
 export function onTramRails(way: OsmWay): boolean {
@@ -90,6 +99,8 @@ const METRO: Network = {
   // Trip's 894 m from Santa Coloma to Fondo in 30 s. Its Units run at 80 km/h. TMB gives each Station
   // about 20 seconds.
   profile: { acceleration: 1.3, braking: 1.3, topSpeed: 80 / 3.6, dwell: 20 },
+  // OpenStreetMap has the Metro's Trains on the right on 96% of the 116 km of its double track it tags.
+  runningSide: 'right',
 };
 
 /** The Metro runs underground, but for the Montjuïc funicular, on rails that aren't FGC's. */
@@ -173,13 +184,19 @@ export async function readFeed(
   }
 
   const served = new Map<string, Set<string>>(); // the Stations each shape's Trips serve
+  const ends = new Map<string, { first: [seq: number, station: string]; last: [seq: number, station: string] }>(); // each Trip's, on any day
   for await (const s of rows(gtfs, 'stop_times.txt', ['trip_id', 'arrival_time', 'departure_time', 'stop_id', 'stop_sequence'])) {
     const shape = shapeOf.get(s.trip_id);
     if (shape === undefined) continue;
-    served.set(shape, (served.get(shape) ?? new Set()).add(station(s.stop_id)));
+    const [seq, at] = [Number(s.stop_sequence), station(s.stop_id)];
+    served.set(shape, (served.get(shape) ?? new Set()).add(at));
+    const end = ends.get(s.trip_id) ?? { first: [seq, at], last: [seq, at] };
+    if (seq < end.first[0]) end.first = [seq, at];
+    if (seq > end.last[0]) end.last = [seq, at];
+    ends.set(s.trip_id, end);
     dayTrips.get(s.trip_id)?.calls.push({
-      seq: Number(s.stop_sequence),
-      station: station(s.stop_id),
+      seq,
+      station: at,
       arrival: seconds(s.arrival_time),
       departure: seconds(s.departure_time),
     });
@@ -214,21 +231,28 @@ export async function readFeed(
   }
   for (const id of wanted) if (!points.has(id)) console.warn(`${network.name} shape ${id} has no points`);
 
+  const { shapes, shapeOf: wayOf } = eachWay(
+    [...points].map(([id, pts]) => ({
+      id: `${prefix}:${id}`,
+      coords: pts.sort((a, b) => a.seq - b.seq).map((p) => [p.lon, p.lat]),
+      stations: [...(served.get(id) ?? [])],
+    })),
+    [...stations.values()],
+    [...ends].map(([id, { first, last }]) => ({ shape: `${prefix}:${shapeOf.get(id)}`, from: first[1], to: last[1] })),
+  );
+  const ids = new Set(shapes.map((s) => s.id));
   return {
     lines: [...lines].map(([name, line]) => ({
       id: `${network.id}:${name}`,
       network: network.id,
       name,
       colour: `#${feed.colours?.[name] ?? line.colour}`,
-      shapes: [...line.shapes].filter((id) => points.has(id)).map((id) => `${prefix}:${id}`),
+      shapes: [...line.shapes].flatMap((id) => [`${prefix}:${id}`, `${prefix}:${id}:back`].filter((way) => ids.has(way))),
     })),
     stations: [...stations.values()],
-    shapes: [...points].map(([id, pts]) => ({
-      id: `${prefix}:${id}`,
-      coords: pts.sort((a, b) => a.seq - b.seq).map((p) => [p.lon, p.lat]),
-      stations: [...(served.get(id) ?? [])],
-    })),
-    trips: [...dayTrips].flatMap(([id, trip]) => {
+    shapes,
+    trips: [...dayTrips].flatMap(([id, { shape, ...rest }]) => {
+      const trip = { ...rest, shape: wayOf({ shape, from: ends.get(id)?.first[1] ?? '', to: ends.get(id)?.last[1] ?? '' }) };
       const calls = trip.calls.sort((a, b) => a.seq - b.seq).map(({ seq: _, ...call }) => call);
       // A Trip without a headsign is headed for its last Station.
       const headsign = trip.headsign || (stations.get(calls.at(-1)?.station ?? '')?.name ?? '');

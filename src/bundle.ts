@@ -77,7 +77,7 @@ export interface ManifestDay {
  * What the map draws before any Train, which it loads first: the Networks, Lines, Stations and track,
  * one file that every day a build publishes shares.
  */
-export type Track = Pick<Bundle, 'networks' | 'lines' | 'stations' | 'shapes' | 'strokes'>;
+export type Track = Pick<Bundle, 'networks' | 'lines' | 'stations' | 'shapes' | 'strokes' | 'sides'>;
 
 /** A service day's Trips, which the map loads after its track. */
 export type DayTrips = Pick<Bundle, 'serviceDay' | 'noonMinus12h' | 'trips'>;
@@ -96,6 +96,11 @@ export interface Bundle {
   shapes: Shape[];
   /** How the map draws the Lines: each Line's track once, beside the other Lines on it. */
   strokes: Stroke[];
+  /**
+   * Where the map puts each Line's Trains zoomed out: every one of its shapes, all along it, at the
+   * side of its track the Line's stroke there is drawn.
+   */
+  sides: Stroke[];
   trips: Trip[];
 }
 
@@ -103,6 +108,8 @@ export interface Network {
   id: string;
   name: string;
   profile: SpeedProfile;
+  /** Which track of a double track its Trains run on, looking the way they go. */
+  runningSide: 'left' | 'right';
   /** The day its operator last updated its timetable (YYYY-MM-DD), where their terms ask the map to show it. */
   updated?: string;
 }
@@ -210,6 +217,20 @@ export function pointAt({ coords, dist }: Pick<Shape, 'coords' | 'dist'>, d: num
   const [start = 0, stop = 0] = [dist[i - 1], dist[i]];
   const t = stop > start ? (d - start) / (stop - start) : 0;
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+}
+
+/** The point a distance along a line, moved so many metres to its right, or its left where negative. */
+export function beside(line: Pick<Shape, 'coords' | 'dist'>, d: number, metres: number): [lon: number, lat: number] {
+  const [lon, lat] = pointAt(line, d);
+  if (!metres) return [lon, lat];
+  // Which way the line runs, over the metre either side of d, flat around it.
+  const end = line.dist.at(-1) ?? 0;
+  const [a, b] = [pointAt(line, Math.max(0, d - 1)), pointAt(line, Math.min(end, d + 1))];
+  const kx = Math.cos((lat * Math.PI) / 180);
+  const [dx, dy] = [(b[0] - a[0]) * kx, b[1] - a[1]];
+  const length = Math.hypot(dx, dy) || 1;
+  const off = metres / DEGREE / length;
+  return [lon + (dy * off) / kx, lat - dx * off];
 }
 
 export type Point = [lon: number, lat: number];

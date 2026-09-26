@@ -36,6 +36,10 @@ _Avoid_: System
 A line as the public knows it, such as R2 Sud, S1, L3 or T4. An operator's internal variants of a Line join the Line the public knows, as FGC's R53 and R63 join R5 and R6.
 _Avoid_: Route
 
+**Running side**:
+Which track of a double track a Network's Trains run on, looking the way they go. Every Network in Catalonia keeps right.
+_Avoid_: Handedness, traffic side
+
 **Station**:
 A place where Trains stop for passengers, as published by whoever runs it (Adif for Renfe, FGC, TMB, TRAM). Tram stops are Stations too; a metro station next to a railway station is a separate Station, and one served by several Lines is a Station for each, which the map shows as one place.
 _Avoid_: Stop, halt

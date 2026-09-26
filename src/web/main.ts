@@ -3,7 +3,7 @@ import './style.css';
 import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { AttributionControl, MapLibreMap, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { along, LIVE_URL, madridDate, places, type Bundle, type DayTrips, type Line, type Manifest, type Network, type Snapshot, type Track } from '../bundle.ts';
+import { along, beside, EARTH, LIVE_URL, madridDate, places, type Bundle, type DayTrips, type Line, type Manifest, type Network, type Shape, type Snapshot, type Stroke, type Track } from '../bundle.ts';
 import { joinDays, KEEP, trainsAt, unavailable, type Received } from '../engine.ts';
 import { language, LANGUAGES, setLanguage, t, type Language } from './i18n.ts';
 
@@ -27,6 +27,14 @@ const WIDTH: [zoom: number, px: number][] = [[7, 1.5], [14, 4]];
  * out, as on a transit map, and back on the rails zoomed right in, where people follow a Train.
  */
 const APART: [zoom: number, px: number][] = [...WIDTH, [15, 0]];
+
+/** The value at a zoom of these, going smoothly from one zoom's to the next's, as byZoom() does. */
+const atZoom = (stops: [zoom: number, px: number][], zoom: number): number => {
+  const i = stops.findIndex(([z]) => z > zoom);
+  if (i < 0) return stops.at(-1)?.[1] ?? 0;
+  const [[z0, v0] = [zoom, 0], [z1, v1] = [zoom, 0]] = [stops[Math.max(0, i - 1)], stops[i]];
+  return z1 > z0 ? v0 + ((v1 - v0) * (zoom - z0)) / (z1 - z0) : v1;
+};
 
 /** An expression that takes `value` at each of these zooms, and goes smoothly from one to the next. */
 const byZoom = (stops: [zoom: number, px: number][], value: (px: number, zoom: number) => number | ExpressionSpecification): ExpressionSpecification => [
@@ -148,6 +156,8 @@ const [needed] = await Promise.all([neededDays().then((n) => n ?? Promise.reject
 /** The days on the map, whose Trains move, once their Trips have come. */
 let bundle: Bundle | undefined;
 let lines = new Map<string, Line>();
+/** What places each Line's Trains beside its track zoomed out: its shapes, their sides by `<line> <shape>`, and which side its Trains keep to, 1 right and -1 left. */
+let placing = { shapes: new Map<string, Shape>(), sides: new Map<string, Stroke[]>(), keep: new Map<string, number>() };
 map.addSource('lines', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 map.addSource('stations', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 // Today's Lines and Stations are drawn as soon as its track comes, before the Trips, which are most of the bundle.
@@ -249,6 +259,10 @@ function show(days: Track | Bundle) {
   shownStations = days.stations;
   lines = new Map(days.lines.map((l) => [l.id, l]));
   const shapes = new Map(days.shapes.map((s) => [s.id, s]));
+  const sides = new Map<string, Stroke[]>();
+  for (const s of days.sides) sides.set(`${s.line} ${s.shape}`, [...(sides.get(`${s.line} ${s.shape}`) ?? []), s]);
+  const keep = new Map(days.networks.map((n) => [n.id, n.runningSide === 'left' ? -1 : 1]));
+  placing = { shapes, sides, keep: new Map(days.lines.map((l) => [l.id, keep.get(l.network) ?? 1])) };
   map.getSource<GeoJSONSource>('lines')?.setData({
     type: 'FeatureCollection',
     features: days.strokes.flatMap(({ line: id, shape: shapeId, from, to, side }): GeoJSON.Feature[] => {
@@ -278,15 +292,29 @@ function show(days: Track | Bundle) {
   showCredits();
 }
 
-/** Every Train on the map now, in its Line's colour, Live or Scheduled. */
+/**
+ * Every Train on the map now, in its Line's colour, Live or Scheduled. Zoomed out, where a double
+ * track's two tracks fall on one pixel, each sits on its Line's stroke, half a line width to the
+ * side its Network's Trains keep to, so that Trains going opposite ways show apart.
+ */
 function trains(): GeoJSON.FeatureCollection {
+  const zoom = map.getZoom();
+  // How far apart Lines are drawn, in metres at the equator: MapLibre's tiles are 512 px.
+  const apart = (atZoom(APART, zoom) * 2 * Math.PI * EARTH) / (512 * 2 ** zoom);
   return {
     type: 'FeatureCollection',
-    features: (bundle ? trainsAt(bundle, Date.now(), received) : []).map((train) => ({
-      type: 'Feature',
-      properties: { colour: lines.get(train.trip.line)?.colour, live: train.live },
-      geometry: { type: 'Point', coordinates: [train.lon, train.lat] },
-    })),
+    features: (bundle ? trainsAt(bundle, Date.now(), received) : []).map(({ trip, dist, lon, lat, live }) => {
+      const shape = placing.shapes.get(trip.shape);
+      const side = placing.sides.get(`${trip.line} ${trip.shape}`)?.find((s) => s.from <= dist && dist <= s.to)?.side ?? 0;
+      // A Trip runs its shape back where it ends nearer its start than it began.
+      const way = (trip.calls.at(-1)?.dist ?? 0) < (trip.calls[0]?.dist ?? 0) ? -1 : 1;
+      const metres = (side + 0.5 * way * (placing.keep.get(trip.line) ?? 1)) * apart * Math.cos((lat * Math.PI) / 180);
+      return {
+        type: 'Feature',
+        properties: { colour: lines.get(trip.line)?.colour, live },
+        geometry: { type: 'Point', coordinates: shape && metres ? beside(shape, dist, metres) : [lon, lat] },
+      };
+    }),
   };
 }
 

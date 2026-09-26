@@ -55,7 +55,7 @@ const networks = [
   await build([[METRO_FEED, tmb]], onMetroRails, { updated: published < today ? published : today }),
 ];
 const [lines, shapes] = [networks.flatMap((n) => n.lines), networks.flatMap((n) => n.shapes)];
-const strokes = sideBySide(lines, shapes);
+const { strokes, sides } = sideBySide(lines, shapes);
 
 await mkdir('out/days', { recursive: true });
 const track: Track = {
@@ -64,6 +64,7 @@ const track: Track = {
   stations: networks.flatMap((n) => n.stations),
   shapes,
   strokes,
+  sides,
 };
 const trackKey = await write('days/track', track, `${track.lines.length} Lines, ${track.stations.length} Stations, ${track.shapes.length} shapes`);
 const built = await Promise.all(
@@ -103,7 +104,7 @@ async function build(feeds: [[Feed, Source], ...[Feed, Source][]], onRails: (way
   const days = await Promise.all(DAYS.map((day) => Promise.all(feeds.map(([feed, gtfs]) => readFeed(gtfs, day, feed)))));
   const parts = days[0] ?? [];
   const [lines, stations] = [parts.flatMap((p) => p.lines), parts.flatMap((p) => p.stations)];
-  const shapes = traceShapes(parts.flatMap((p) => p.shapes), stations, rails.filter(onRails));
+  const shapes = traceShapes(parts.flatMap((p) => p.shapes), stations, rails.filter(onRails), network.runningSide);
   const cropped = crop(border, stations, shapes, days.map((day) => day.flatMap((p) => p.trips)));
   const trips = cropped.days.map((trips, i) => {
     // No Trips at all today means a broken download or a changed feed, not a day without Trains. On a
