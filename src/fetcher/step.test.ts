@@ -378,7 +378,7 @@ test("stops fetching FGC once its API has no requests left, until the quota rese
   expect(seconds(from, refused.made)).toEqual([0, 120]);
 });
 
-test("keeps where the trip-updates file is, and looks it up again only when its download fails or the file's time stops advancing", () => {
+test("keeps where the trip-updates file is, and looks it up again only when its download fails or the file's time stays the same", () => {
   // Refreshes 2 minutes apart: FGC writes the file a minute before each, until the third, whose
   // download fails. From the fifth, FGC stops writing it, and from the eighth writes it again.
   const written = [0, 2, undefined, 6, 6, 6, 6, 14, 16].map((m) => m !== undefined && FGC_NOW + (m - 1) * 60_000);
@@ -391,15 +391,14 @@ test("keeps where the trip-updates file is, and looks it up again only when its 
 
 test("keeps where the trip-updates file is when its time is earlier than the last, and when it's real time again after a time in the future", () => {
   /** Which refreshes, 2 minutes apart, look up the file, where FGC wrote it at these minutes after the first. */
-  const lookups = (written: number[]) => {
+  const lookedUp = (written: number[]) => {
     const answers = written.map((m) => ({ updates: { status: 200, body: writtenAt(FGC_NOW + m * 60_000) } }));
     return refreshes(FGC_NOW, 2 * written.length, (t) => answers[(t - FGC_NOW) / 120_000] ?? {}).made.map((m) => m.requests.includes('lookup'));
   };
-  // FGC writes the file a minute before each refresh, until the third, from a server whose clock is
-  // 10 minutes behind, which from the fifth stops writing it.
-  expect(lookups([-1, 1, -7, -5, -5, -5, -5])).toEqual([true, false, false, false, false, true, false]);
+  // Failover, at the third refresh, to a server whose clock is 10 minutes behind, which from the fifth stops writing the file.
+  expect(lookedUp([-1, 1, -7, -5, -5, -5, -5])).toEqual([true, false, false, false, false, true, false]);
   // A time an hour in the future, then real time again.
-  expect(lookups([-1, 59, 3, 5, 7])).toEqual([true, false, false, false, false]);
+  expect(lookedUp([-1, 59, 3, 5, 7])).toEqual([true, false, false, false, false]);
 });
 
 test('stays within about 1,440 FGC requests a day, under a third of the 5,000 its API allows each IP', () => {

@@ -68,7 +68,7 @@ export interface State {
   fgc?: {
     /** Where its trip-updates file is, until it has to be looked up again. */
     file?: string;
-    /** When FGC wrote the file, in seconds since 1970, as it said on the last refresh that read it, even where that's earlier than the time before. */
+    /** When FGC wrote the file, in seconds since 1970, as it said on the last refresh that read it, even where that's earlier than the one before. */
     written?: number;
     /** The time the file stayed at even as it was looked up again: it isn't looked up again until FGC writes it again. */
     stalled?: number;
@@ -332,8 +332,8 @@ function fgcReports(positions: Geotren, updates: TripUpdates): Report[] {
 
 /**
  * FGC's trip updates, read from this refresh's download, and where the file is for the next refresh:
- * where this one found it, unless its download failed, or its time is the same as last time, since
- * it may have moved. Then it's looked up again, though not twice while the file stays at one time.
+ * where this one found it, unless its download failed, or its time is unchanged since the last refresh,
+ * as it may have moved. Then it's looked up again, though not twice while the file stays at one time.
  * Any other time means FGC wrote it again, even one earlier than the last, as from a server whose
  * clock is behind.
  */
