@@ -1,12 +1,11 @@
-# Typechecks both projects and runs the whole test suite on every pull request and every push to
-# main. Branch protection on main requires the `check` job. The tests read fixtures only, so it
-# needs no secrets.
+# Typechecks both projects and runs the whole test suite on every pull request, and before every
+# deploy, which calls it on each push to main. Branch protection on main requires the `check` job.
+# The tests read fixtures only, so it needs no secrets.
 name: Check
 
 on:
   pull_request:
-  push:
-    branches: [main]
+  workflow_call:
 
 permissions:
   contents: read
