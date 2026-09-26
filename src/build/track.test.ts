@@ -186,6 +186,18 @@ test("turns back at a terminus where the feed's shape runs out to it and back", 
   expect(passes(shape('line'), 3500, 0)).toBe(true);
 });
 
+test('turns back at a Station on the way between two others, as Trains do, and not at a switch', () => {
+  // Like R16's shape: out along the branch to Tortosa (T), back to the switch short of L'Aldea (L),
+  // and on down the main line to Ulldecona (U). From T, a Train can only reach U by turning back at L.
+  const { shape, log } = trace(
+    rails({ a: [0, 0], j: [2000, 0], c: [20000, 0], k: [2600, 300], t: [2600, 1500] }, 'a j c', 'j k t'),
+    [station('A', 500, 10), station('L', 1600, 10), station('T', 2610, 1400), station('U', 19500, 10)],
+    { id: 'line', feed: [[500, 1], [2000, 1], [2600, 301], [2600, 1401], [2600, 301], [2000, 1], [20000, 1]], stations: 'A L T U' },
+  );
+  expect(log.filter((line) => line.includes("keeps the feed's shape"))).toEqual([]);
+  expect(points(shape('line'))).toEqual([[500, 0], [1600, 0], [2000, 0], [2600, 300], [2600, 1400], [2600, 300], [2000, 0], [1600, 0], [2000, 0], [19500, 0]]);
+});
+
 test("leaves out a Station on a branch off the feed's shape, rather than run out to it and back", () => {
   // Like Estació de França, which a few R2N Trips run to off their shape's way through Barcelona.
   const { shape, log } = trace(

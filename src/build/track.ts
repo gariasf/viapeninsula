@@ -159,13 +159,15 @@ function traceShape(graph: Graph, feed: FeedShape, stations: Station[], log: (li
     }
   };
 
+  // Its Trains can turn back at any of its Stations, on the way from one to the next too.
+  const turns = new Set(waypoints.flatMap((w) => graph.near.get(w.station.id) ?? []));
   let reached = starts(0);
   for (const [i, b] of waypoints.entries()) {
     const a = waypoints[i - 1];
     if (!a) continue;
     // A path much longer than the crow flies is no path: most likely the rails between them are missing.
     const limit = 3 * metres([a.station.lon, a.station.lat], [b.station.lon, b.station.lat]) + 10_000;
-    const next = paths(graph, reached, new Set(graph.near.get(b.station.id)), limit).map((arrival) => ({ ...arrival, waypoint: i }));
+    const next = paths(graph, reached, new Set(graph.near.get(b.station.id)), limit, turns).map((arrival) => ({ ...arrival, waypoint: i }));
     if (next.length) {
       reached = next;
       continue;
@@ -418,8 +420,10 @@ function wrongTracks(graph: Graph): boolean[] {
 /**
  * The paths from any of the arrivals `from` to the vertices `to`: the cheapest, and any others
  * within SLACK of it, which may suit the next stretch better. None if every one costs over `limit`.
+ * On the way, a path can turn back at the vertices `turns`, its shape's Stations, as where it starts:
+ * R16's Trains from Tortosa turn back at L'Aldea to go on to Ulldecona.
  */
-function paths(graph: Graph, from: Arrival[], to: Set<number>, limit: number): Omit<Arrival, 'waypoint'>[] {
+function paths(graph: Graph, from: Arrival[], to: Set<number>, limit: number, turns: Set<number>): Omit<Arrival, 'waypoint'>[] {
   const cost = new Map<number, number>();
   const pred = new Map<number, number>(); // the edge before each edge, or -1 for the first of a stretch
   const seed = new Map<number, Arrival>();
@@ -455,7 +459,9 @@ function paths(graph: Graph, from: Arrival[], to: Set<number>, limit: number): O
       best = Math.min(best, c);
     }
     const { next, ahead } = onward(graph, e);
-    for (const f of next) relax(f, c + price(graph, f) + (f === ahead ? 0 : DIVERGE), e, start);
+    for (const f of turns.has(v) ? (graph.out[v] ?? []) : next) {
+      relax(f, c + price(graph, f) + (!next.includes(f) ? REVERSE : f === ahead ? 0 : DIVERGE), e, start);
+    }
   }
   return found;
 }
