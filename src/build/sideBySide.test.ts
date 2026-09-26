@@ -35,7 +35,7 @@ function shapeEvery(every: number, id: string, corners: [x: number, y: number][]
 const line = (name: string, ...shapes: string[]): Line => ({ id: name, network: 'rodalies', name, colour: '#000', shapes });
 
 function draw(lines: Line[], shapes: Shape[]) {
-  const drawn = sideBySide(lines, shapes);
+  const { strokes: drawn } = sideBySide(lines, shapes);
   const byId = new Map(shapes.map((s) => [s.id, s]));
   /** A Line's strokes: their points in metres east and north, and how far north of its track each is drawn. */
   const placed = (name: string) =>
@@ -162,4 +162,17 @@ test('keeps Lines where they are while another runs past them the other way, and
   const order = (x: number) => Math.sign((north('R2S', x) ?? NaN) - (north('R14', x) ?? NaN));
   expect([order(2000), order(8000)]).toEqual([order(11500), order(11500)]);
   expect(north('R4', 8000)).toBeGreaterThan(Math.max(north('R2S', 8000) ?? NaN, north('R14', 8000) ?? NaN));
+});
+
+test("gives each of a Line's shapes the side its stroke is drawn at all along it, though a stroke draws their track once", () => {
+  // R2 and R11 share track; R2's Trains run it back on R2_INV, which isn't drawn again.
+  const shapes = [shape('R2', [0, 0], [5000, 0]), shape('R2_INV', [5000, 0], [0, 0]), shape('R11', [0, 0], [5000, 0])];
+  const { strokes, sides } = sideBySide([line('R2', 'R2', 'R2_INV'), line('R11', 'R11')], shapes);
+  expect(strokes.map((s) => s.shape)).toEqual(['R2', 'R11']);
+  const side = (id: string) => sides.filter((s) => s.shape === id).map(({ line, from, to, side }) => ({ line, from, to, side }));
+  const [r2] = side('R2');
+  expect(r2).toEqual({ line: 'R2', from: 0, to: 5000, side: strokes[0]?.side });
+  // Running back the other way, the same side of the track is the other side of the shape.
+  expect(side('R2_INV')).toEqual([{ line: 'R2', from: 0, to: 5000, side: -(r2?.side ?? NaN) }]);
+  expect(side('R11')).toEqual([{ line: 'R11', from: 0, to: 5000, side: strokes[1]?.side }]);
 });

@@ -46,26 +46,32 @@ interface Neighbour {
 }
 
 /**
- * The strokes that draw each Line: its shapes' track once, since a Line's two directions mostly
- * share it. Where Lines share track, or run on tracks too close together to tell apart zoomed out,
- * their strokes go side by side, a line width apart, in one order all along.
+ * The strokes that draw each Line: its shapes' track once, since Lines going opposite ways on single
+ * track, and going the same way, share it. Where Lines share track, or run on tracks too close
+ * together to tell apart zoomed out, their strokes go side by side, a line width apart, in one order
+ * all along. And the sides of every one of each Line's shapes, all along it, which is where its
+ * stroke there is drawn, for the map to put the Line's Trains on it.
  */
-export function sideBySide(lines: Line[], shapes: Shape[]): Stroke[] {
-  const { pieces, runs } = walk(lines, shapes);
+export function sideBySide(lines: Line[], shapes: Shape[]): { strokes: Stroke[]; sides: Stroke[] } {
+  const { pieces, runs, every } = walk(lines, shapes);
   const cells = grid(pieces);
   const nearby = pieces.map((p) => neighbours(p, pieces, cells));
   const turned = turn(lines.length, pieces, nearby.map((n) => cluster(n)));
   const beside = nearby.map((n) => cluster(n, turned));
   const left = sides(lines.length, pieces, nearby, turned);
   const place = rank(left);
-  return runs.flatMap((run) => {
+  const draw = (run: Step[]) => {
     const line = lines[run[0]?.line ?? -1]?.id ?? '';
     return strokes(run, (s) => side(s, beside[s.piece] ?? new Map(), turned, left, place), pieces).map((s) => ({ line, ...s }));
-  });
+  };
+  return { strokes: runs.flatMap(draw), sides: every.flatMap(draw) };
 }
 
-/** The pieces of track the Lines' shapes run on, and each Line's runs over them, a piece once each. */
-function walk(lines: Line[], shapes: Shape[]): { pieces: Piece[]; runs: Step[][] } {
+/**
+ * The pieces of track the Lines' shapes run on, and each Line's runs over them, a piece once each,
+ * and every one of its shapes over them, all along each.
+ */
+function walk(lines: Line[], shapes: Shape[]): { pieces: Piece[]; runs: Step[][]; every: Step[][] } {
   const byId = new Map(shapes.map((s) => [s.id, s]));
   const all = shapes.flatMap((s) => s.coords);
   const kx = DEGREE * Math.cos(((all.reduce((sum, p) => sum + p[1], 0) / (all.length || 1)) * Math.PI) / 180);
@@ -90,7 +96,7 @@ function walk(lines: Line[], shapes: Shape[]): { pieces: Piece[]; runs: Step[][]
     return list.map((p) => [p, 1]);
   };
 
-  const runs: Step[][] = [];
+  const [runs, every]: [Step[][], Step[][]] = [[], []];
   for (const [l, line] of lines.entries()) {
     const done = new Set<number>(); // the pieces this Line runs over already
     const first = byId.get(line.shapes[0] ?? '')?.coords ?? [];
@@ -99,12 +105,17 @@ function walk(lines: Line[], shapes: Shape[]): { pieces: Piece[]; runs: Step[][]
       // A Line's other shapes mostly run its first one's track back the other way.
       const way = n === 0 ? 1 : sameWay(coords, first, kx);
       let run: Step[] | undefined;
+      const all: Step[] = [];
+      every.push(all);
       for (const [i, b] of coords.entries()) {
         const a = coords[i - 1];
         if (!a) continue;
         const [from, to] = [dist[i - 1] ?? 0, dist[i] ?? 0];
         const legs = between(a, b);
         for (const [k, [piece, pieceWay]] of legs.entries()) {
+          const part = (to - from) / legs.length;
+          const step = { line: l, piece, shape: id, way: pieceWay, from: from + part * k, to: from + part * (k + 1) };
+          all.push(step);
           if (done.has(piece)) {
             run = undefined;
             continue;
@@ -112,13 +123,12 @@ function walk(lines: Line[], shapes: Shape[]): { pieces: Piece[]; runs: Step[][]
           done.add(piece);
           pieces[piece]?.on.set(l, pieceWay * way);
           if (!run) runs.push((run = []));
-          const part = (to - from) / legs.length;
-          run.push({ line: l, piece, shape: id, way: pieceWay, from: from + part * k, to: from + part * (k + 1) });
+          run.push(step);
         }
       }
     }
   }
-  return { pieces, runs };
+  return { pieces, runs, every };
 }
 
 /**

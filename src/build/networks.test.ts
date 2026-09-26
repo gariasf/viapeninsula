@@ -31,14 +31,20 @@ test('keeps the Stations Rodalies Trains serve, with Adif codes and names as pub
 
 test("gives each Line its shapes as the feed draws them, with the Stations their Trips serve", () => {
   expect(line('R2S')?.shapes).toEqual(['rodalies:51_R2S']);
-  expect(rodalies.shapes.map((s) => s.id).sort()).toEqual(['rodalies:51_R2S', 'rodalies:51_R7']);
+  expect(rodalies.shapes.map((s) => s.id).sort()).toEqual(['rodalies:51_R2S', 'rodalies:51_R7:back']);
 
   const r2s = rodalies.shapes.find((s) => s.id === 'rodalies:51_R2S');
   expect(r2s?.coords).toHaveLength(338);
   expect(r2s?.coords[0]).toEqual([1.5229805, 41.1856559]);
   expect(r2s?.stations).toHaveLength(13);
-  const r7 = rodalies.shapes.find((s) => s.id === 'rodalies:51_R7');
+  const r7 = rodalies.shapes.find((s) => s.id === 'rodalies:51_R7:back');
   expect([...(r7?.stations ?? [])].sort()).toEqual(['adif:72503', 'adif:78706', 'adif:78707', 'adif:78708', 'adif:78800']);
+});
+
+test('turns a shape its Trips run backwards round, so that each way can be traced on its own track', () => {
+  // R7's shape starts at Cerdanyola Universitat, where its Trip here ends: it runs from Montcada-Bifurcació.
+  expect(line('R7')?.shapes).toEqual(['rodalies:51_R7:back']);
+  expect(rodalies.trips.find((t) => t.line === 'rodalies:R7')?.shape).toBe('rodalies:51_R7:back');
 });
 
 test('runs on Iberian-gauge rails only, so never on the high-speed line', () => {
@@ -58,7 +64,7 @@ test("keeps the day's Trips that are Trains, with their Line, destination, Train
   expect(rodalies.trips.find((t) => t.id === 'rodalies:5165J77801R7')).toEqual({
     id: 'rodalies:5165J77801R7',
     line: 'rodalies:R7',
-    shape: 'rodalies:51_R7',
+    shape: 'rodalies:51_R7:back',
     // Renfe publishes no headsigns, so it's the last Station's name.
     headsign: 'Cerdanyola Universitat',
     number: '77801',

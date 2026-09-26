@@ -1,6 +1,6 @@
 // The track each Line's Trains run on, traced along OpenStreetMap's rails (ADR-0004).
 
-import { along, closestOnSegment, DEGREE, EARTH, type Point, type Shape, type Station } from '../bundle.ts';
+import { along, closestOnSegment, DEGREE, EARTH, type Network, type Point, type Shape, type Station } from '../bundle.ts';
 import type { OsmWay } from './osm.ts';
 
 /** A shape as the feed draws it, and the Stations its Trips serve. */
@@ -8,6 +8,46 @@ export interface FeedShape {
   id: string;
   coords: Point[];
   stations: string[];
+}
+
+/** A Trip, by its shape and its first and last Stations. */
+interface TripEnds {
+  shape: string;
+  from: string;
+  to: string;
+}
+
+/**
+ * Each shape once for each way its Trips run it, so that each way is traced on its own track: the
+ * way the feed draws it keeps its ID, and the way back, its points reversed, is `<id>:back`. A Trip
+ * runs its shape back where its last Station comes before its first along it. Gives those shapes,
+ * given every Trip on any day, and the one each Trip runs on.
+ */
+export function eachWay(shapes: FeedShape[], stations: Station[], trips: TripEnds[]): { shapes: FeedShape[]; shapeOf: (trip: TripEnds) => string } {
+  const [byId, feeds] = [new Map(stations.map((s) => [s.id, s])), new Map(shapes.map((s) => [s.id, s]))];
+  const known = new Map<string, boolean>();
+  const back = ({ shape, from, to }: TripEnds) => {
+    const key = `${shape} ${from} ${to}`;
+    const found = known.get(key);
+    if (found !== undefined) return found;
+    const [coords, a, b] = [feeds.get(shape)?.coords ?? [], byId.get(from), byId.get(to)];
+    const order = (s: Station) => orderAlong(coords, nearest(coords, [s.lon, s.lat]));
+    const is = !!a && !!b && order(b) < order(a);
+    known.set(key, is);
+    return is;
+  };
+  const ways = new Map<string, Set<boolean>>();
+  for (const trip of trips) ways.set(trip.shape, (ways.get(trip.shape) ?? new Set()).add(back(trip)));
+  return {
+    shapes: shapes.flatMap((s) => {
+      const way = ways.get(s.id);
+      return [
+        ...(!way || way.has(false) ? [s] : []),
+        ...(way?.has(true) ? [{ ...s, id: `${s.id}:back`, coords: s.coords.toReversed() }] : []),
+      ];
+    }),
+    shapeOf: (trip) => (back(trip) ? `${trip.shape}:back` : trip.shape),
+  };
 }
 
 /**
@@ -27,11 +67,28 @@ const ON_FEED = 300;
 const DIVERGE = 100;
 
 /**
- * What track another Line already runs on costs, per metre. Lines traced earlier pull later ones
- * onto their track, so Lines that share track share it exactly rather than each taking whichever of
- * two tracks is a few metres shorter.
+ * What track another Line already runs the same way costs, per metre. Lines traced earlier pull
+ * later ones onto their track, so Lines that share track share it exactly rather than each taking
+ * whichever of two tracks is a few metres shorter.
  */
 const SHARED = 0.9;
+
+/**
+ * What the track of a double track that Trains going the other way run on costs, per metre. It
+ * outweighs SHARED, and changing to the right track and back again across crossovers, 2 × DIVERGE,
+ * on any stretch longer than 400 m.
+ */
+const WRONG_SIDE = 1.5;
+
+/**
+ * Two ways run alongside each other as tracks of a double track where they're 2–8 m apart: in
+ * Catalonia 1,140 km of Iberian-gauge running line has another way that far alongside it. Ways
+ * closer than 2 m are one track mapped twice, or about to meet at a switch.
+ */
+const [TWIN, APART] = [2, 8];
+
+/** Tracks closer to parallel than this (a cosine) run alongside each other. */
+const ALONGSIDE = 0.95;
 
 /** What setting off back the way it came costs a trace at a Station, as at a terminus. */
 const REVERSE = 2000;
@@ -40,13 +97,14 @@ const REVERSE = 2000;
 const SLACK = 1000;
 
 /**
- * Traces each shape along the rails, through the Stations its Trips serve in order along the shape.
- * Between Stations it takes the shortest path a train can, except that a trace keeps to its track
- * rather than change tracks for a few metres, and to the track Lines traced before it take.
+ * Traces each shape along the rails, through the Stations its Trips serve in order along the shape,
+ * the way its Trips run it. Between Stations it takes the shortest path a train can, except that a
+ * trace keeps to its track rather than change tracks for a few metres, to the track of a double
+ * track on the Network's running side, and to the track Lines traced before it take the same way.
  */
-export function traceShapes(shapes: FeedShape[], stations: Station[], rails: OsmWay[], log = console.log): Shape[] {
+export function traceShapes(shapes: FeedShape[], stations: Station[], rails: OsmWay[], side: Network['runningSide'], log = console.log): Shape[] {
   const byId = new Map(stations.map((s) => [s.id, s]));
-  const graph = railGraph(rails, [...new Set(shapes.flatMap((s) => s.stations))].flatMap((id) => byId.get(id) ?? []));
+  const graph = railGraph(rails, [...new Set(shapes.flatMap((s) => s.stations))].flatMap((id) => byId.get(id) ?? []), side);
   const wrong: string[] = [];
   const traced = shapes.map((feed) => {
     const { shape, length } = traceShape(graph, feed, feed.stations.flatMap((id) => byId.get(id) ?? []), log);
@@ -92,7 +150,7 @@ function traceShape(graph: Graph, feed: FeedShape, stations: Station[], log: (li
     const edges = stretches.flatMap((a) => a.edges);
     const [first] = edges;
     if (first !== undefined) coords.push(...[source(graph, first), ...edges.map((e) => target(graph, e))].map((v) => point(graph, v)));
-    for (const e of edges) graph.shared.add(e >> 1);
+    for (const e of edges) graph.shared.add(e);
     for (const a of stretches) {
       const [from, to] = [waypoints[a.waypoint - 1], waypoints[a.waypoint]];
       if (!from || !to || from.metres > ON_FEED || to.metres > ON_FEED) continue;
@@ -182,8 +240,17 @@ interface Graph {
   out: number[][];
   /** The vertices on the rails beside each Station. */
   near: Map<string, number[]>;
-  /** The edges (e >> 1, for both directions) of the shapes traced so far. */
+  /** The edges of the shapes traced so far, each the way it was run. */
   shared: Set<number>;
+  /** For each edge, whether it's the wrong track of a double track to run the way it runs. */
+  wrong: boolean[];
+  /** The side of double track the Network's Trains keep to: 1 left, -1 right. */
+  keep: number;
+  /**
+   * For each edge, whether OpenStreetMap tags Trains as running it that way (railway:preferred_direction):
+   * 1 they do, -1 they run it the other way, 0 either way or untagged.
+   */
+  tagged: number[];
 }
 
 function point(graph: Graph, v: number): Point {
@@ -200,21 +267,23 @@ function target(graph: Graph, e: number): number {
   return graph.to[e] ?? -1;
 }
 
-/** The rails as a graph, with a vertex where each Station is closest to each way near it. */
-function railGraph(rails: OsmWay[], stations: Station[]): Graph {
-  const graph: Graph = { at: [], to: [], metres: [], out: [], near: new Map(), shared: new Set() };
+/** The rails as a graph, with a vertex where each Station is closest to each way near it, for Trains keeping to one side. */
+function railGraph(rails: OsmWay[], stations: Station[], side: Network['runningSide']): Graph {
+  const graph: Graph = { at: [], to: [], metres: [], out: [], near: new Map(), shared: new Set(), wrong: [], tagged: [], keep: side === 'left' ? 1 : -1 };
   const vertices = new Map<number, number>(); // each OpenStreetMap node's vertex
   const add = (p: Point) => {
     graph.at.push(p);
     graph.out.push([]);
     return graph.at.length - 1;
   };
-  const link = (a: number, b: number) => {
+  /** Joins a to b, where Trains run the way from a to b, as OpenStreetMap tags it: 1 mostly, -1 mostly the other way, 0 either or untagged. */
+  const link = (a: number, b: number, way = 0) => {
     const d = metres(point(graph, a), point(graph, b));
-    for (const [from, to] of [[a, b], [b, a]] as const) {
+    for (const [from, to, tagged] of [[a, b, way], [b, a, -way]] as const) {
       graph.out[from]?.push(graph.to.length);
       graph.to.push(to);
       graph.metres.push(d);
+      graph.tagged.push(tagged);
     }
   };
 
@@ -240,6 +309,7 @@ function railGraph(rails: OsmWay[], stations: Station[]): Graph {
   }
 
   for (const way of rails) {
+    const tagged = { forward: 1, backward: -1 }[way.tags['railway:preferred_direction'] ?? ''] ?? 0;
     const nodes = way.nodes.map((id, i) => {
       const g = way.geometry[i] ?? { lon: NaN, lat: NaN };
       const v = vertices.get(id) ?? add([g.lon, g.lat]);
@@ -258,15 +328,91 @@ function railGraph(rails: OsmWay[], stations: Station[]): Graph {
         let v = metres(p, b) < 1 ? v1 : metres(p, point(graph, prev)) < 1 ? prev : -1;
         if (v < 0) {
           v = add(p);
-          link(prev, v);
+          link(prev, v, tagged);
           prev = v;
         }
         graph.near.set(cut.station, [...(graph.near.get(cut.station) ?? []), v]);
       }
-      link(prev, v1);
+      link(prev, v1, tagged);
     }
   }
+  graph.wrong = wrongTracks(graph);
   return graph;
+}
+
+/**
+ * Whether each edge is the wrong track of a double track to run the way it runs: the one Trains the
+ * other way take. Where OpenStreetMap tags which way Trains run both tracks of the pair, opposite
+ * ways, that's the one tagged for the other way, as on L2 between Tetuan and Paral·lel, which runs
+ * on the left though the rest of the Metro keeps right. Elsewhere it's the one off the Network's
+ * running side: where more tracks run side by side, they pair off from one side, so that each way
+ * keeps to its side of the pair it runs on, and of an odd number, a track pairs with its nearest. A
+ * tag on one track alone counts for nothing: R8 runs both ways over a track tagged one way near
+ * Castellbisbal, with another line's track alongside. Judged at each edge's middle, across the
+ * tracks there that are each TWIN to APART from the next.
+ */
+function wrongTracks(graph: Graph): boolean[] {
+  // Flat metres, at the rails' middle latitude: across Catalonia that's no more than 4% off.
+  const lat = graph.at.reduce((sum, p) => sum + p[1], 0) / (graph.at.length || 1);
+  const kx = DEGREE * Math.cos((lat * Math.PI) / 180);
+  const xy = graph.at.map(([lon, la]) => [lon * kx, la * DEGREE] as const);
+  const WIDE = 3 * APART; // how far across to look: a double track either side
+  const cells = new Map<string, number[]>();
+  const cell = (x: number, y: number) => `${Math.floor(x / WIDE)} ${Math.floor(y / WIDE)}`;
+  const ends = (e: number) => [xy[graph.to[e + 1] ?? -1] ?? [0, 0], xy[graph.to[e] ?? -1] ?? [0, 0]] as const;
+  for (let e = 0; e < graph.to.length; e += 2) {
+    const [[ax, ay], [bx, by]] = ends(e);
+    const steps = Math.ceil(Math.hypot(bx - ax, by - ay) / (WIDE / 2)) || 1;
+    const seen = new Set<string>();
+    for (let k = 0; k <= steps; k++) seen.add(cell(ax + ((bx - ax) * k) / steps, ay + ((by - ay) * k) / steps));
+    for (const c of seen) cells.set(c, [...(cells.get(c) ?? []), e]);
+  }
+  const wrong = new Array<boolean>(graph.to.length).fill(false);
+  for (let e = 0; e < graph.to.length; e += 2) {
+    const [[ax, ay], [bx, by]] = ends(e);
+    const length = Math.hypot(bx - ax, by - ay);
+    if (!length) continue;
+    const [ux, uy, mx, my] = [(bx - ax) / length, (by - ay) / length, (ax + bx) / 2, (ay + by) / 2];
+    // How far left of this edge's middle each track alongside it is, this one's at 0, and which way
+    // OpenStreetMap tags Trains as running it, looking this edge's way.
+    const across = [{ d: 0, way: graph.tagged[e] ?? 0 }];
+    for (let i = -1; i <= 1; i++) {
+      for (let j = -1; j <= 1; j++) {
+        for (const f of cells.get(cell(mx + i * WIDE, my + j * WIDE)) ?? []) {
+          const [[cx, cy], [dx, dy]] = ends(f);
+          const [vx, vy] = [dx - cx, dy - cy];
+          const l2 = vx * vx + vy * vy;
+          if (!l2 || Math.abs(vx * ux + vy * uy) / Math.sqrt(l2) < ALONGSIDE) continue;
+          const t = Math.max(0, Math.min(1, ((mx - cx) * vx + (my - cy) * vy) / l2));
+          const [qx, qy] = [cx + vx * t - mx, cy + vy * t - my];
+          // Only where it runs right beside the middle, not ahead or behind.
+          if (Math.abs(qx * ux + qy * uy) <= 1) across.push({ d: ux * qy - uy * qx, way: (graph.tagged[f] ?? 0) * Math.sign(vx * ux + vy * uy) });
+        }
+      }
+    }
+    // The tracks, from right to left, each as how far left its nearest and furthest edges are, and its tag.
+    const tracks: [right: number, left: number, way: number][] = [];
+    for (const { d, way } of across.sort((a, b) => a.d - b.d)) {
+      const last = tracks.at(-1);
+      if (last && d - last[1] < TWIN) [last[1], last[2]] = [d, last[2] || way];
+      else tracks.push([d, d, way]);
+    }
+    // This one's, and those beside it each within APART of the next.
+    let i = tracks.findIndex(([right, left]) => right <= 0 && 0 <= left);
+    let [from, to] = [i, i];
+    while (from > 0 && (tracks[from]?.[0] ?? 0) - (tracks[from - 1]?.[1] ?? 0) <= APART) from--;
+    while (to < tracks.length - 1 && (tracks[to + 1]?.[0] ?? 0) - (tracks[to]?.[1] ?? 0) <= APART) to++;
+    const count = to - from + 1;
+    if (count < 2) continue;
+    i -= from;
+    const gap = (k: number) => (k < 0 || k >= count ? Infinity : Math.abs((tracks[from + k]?.[0] ?? 0) - (tracks[from + i]?.[0] ?? 0)));
+    const partner = count % 2 === 0 ? i ^ 1 : gap(i - 1) < gap(i + 1) ? i - 1 : i + 1;
+    // 1 where Trains going this edge's way take this track, -1 where they take the other.
+    const [mine = 0, theirs = 0] = [tracks[from + i]?.[2], tracks[from + partner]?.[2]];
+    const take = mine && mine === -theirs ? mine : (partner > i ? -1 : 1) === graph.keep ? 1 : -1;
+    [wrong[e], wrong[e + 1]] = [take < 0, take > 0];
+  }
+  return wrong;
 }
 
 /**
@@ -321,9 +467,12 @@ function onward(graph: Graph, e: number): { next: number[]; ahead: number } {
   return { next, ahead };
 }
 
-/** What running along an edge costs: its length, less where another Line already runs. */
+/**
+ * What running along an edge costs: its length, less where another Line already runs it that way,
+ * and more on the wrong track of a double track.
+ */
 function price(graph: Graph, e: number): number {
-  return (graph.metres[e] ?? 0) * (graph.shared.has(e >> 1) ? SHARED : 1);
+  return (graph.metres[e] ?? 0) * (graph.shared.has(e) ? SHARED : 1) * (graph.wrong[e] ? WRONG_SIDE : 1);
 }
 
 /**
