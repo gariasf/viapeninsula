@@ -135,22 +135,31 @@ test("counts a run whose Renfe feed says it hasn't been updated since the last a
   }
 });
 
+/** Each run, 20 s apart from the start, whose Renfe headers say these moments, in seconds after 21:36:49. */
+function renfeRuns(headers: number[]): ReturnType<typeof step>[] {
+  let state = START.state;
+  return headers.map((header, i) => {
+    const done = step(state, { rodalies: renfeAt(RENFE_WRITTEN + header * 1000) }, NOW + i * 20_000);
+    state = done.state;
+    return done;
+  });
+}
+
+test("counts a Renfe header earlier than the last as updated, and real time again after a time in the future", () => {
+  const statuses = (headers: number[]) => renfeRuns(headers).map((done) => done.snapshot.feeds.rodalies?.status);
+  // Failover to a server whose clock is a minute behind, which then stops.
+  expect(statuses([0, -60, -40, -40])).toEqual(['ok', 'ok', 'ok', 'vehicle_positions: not updated since 19:36:09 UTC']);
+  // A time an hour in the future, then real time again.
+  expect(statuses([0, 3600, 40, 60])).toEqual(['ok', 'ok', 'ok', 'ok']);
+});
+
 test("while Renfe's headers stay put, Rodalies' live data is unavailable from the third run, and a header repeated once changes nothing", () => {
-  /** Which Networks' live data is unavailable after each run, 20 s apart, whose Renfe headers say these moments. */
-  const runs = (headers: number[]) => {
-    let state = START.state;
-    const received: { snapshot: ReturnType<typeof step>['snapshot']; at: number }[] = [];
-    return headers.map((header, i) => {
-      const done = step(state, { rodalies: renfeAt(header) }, NOW + i * 20_000);
-      state = done.state;
-      received.push({ snapshot: done.snapshot, at: done.snapshot.generated });
-      return unavailable(received);
-    });
-  };
-  const at = (s: number) => RENFE_WRITTEN + s * 1000;
-  expect(runs([at(0), at(0), at(0), at(0), at(0)])).toEqual([[], [], [], ['rodalies'], ['rodalies']]);
+  /** Which Networks' live data is unavailable after each run. */
+  const unavailableAfter = (headers: number[]) =>
+    renfeRuns(headers).map((_, i, runs) => unavailable(runs.slice(0, i + 1).map(({ snapshot }) => ({ snapshot, at: snapshot.generated }))));
+  expect(unavailableAfter([0, 0, 0, 0, 0])).toEqual([[], [], [], ['rodalies'], ['rodalies']]);
   // Renfe's headers move every 18-22 s, and the runs are 20 s apart, so one sometimes repeats.
-  expect(runs([at(0), at(20), at(20), at(40), at(60), at(60), at(80)])).toEqual([[], [], [], [], [], [], []]);
+  expect(unavailableAfter([0, 20, 20, 40, 60, 60, 80])).toEqual([[], [], [], [], [], [], []]);
 });
 
 test('fetches Renfe on every run', () => {

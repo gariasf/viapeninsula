@@ -60,9 +60,9 @@ export interface State {
   feeds: Record<string, Freshness>;
   reports: Record<string, Report[]>;
   /**
-   * For each feed, when its files say they were last updated, in ms since 1970, by the file's name
-   * in its statuses: Renfe's headers, Geotren's `record_timestamp` and TRAM's trip updates' headers.
-   * A try that finds one no later than this is a failed one, as the feed has stopped updating.
+   * For each feed, when its files said on the last try that they were last updated, in ms since 1970,
+   * by the file's name in its statuses: Renfe's headers, Geotren's `record_timestamp` and TRAM's trip
+   * updates' headers. A try that finds one unchanged is a failed one, as the feed has stopped updating.
    */
   updated?: Partial<Record<Feed, Record<string, number>>>;
   fgc?: {
@@ -115,9 +115,10 @@ export function step(state: State, responses: Responses, now: number): Stored & 
       });
       // Only once every file is read, so a file that can't be read says so first.
       const last = { ...updated[feed] };
-      updated[feed] = { ...last, ...Object.fromEntries(said.map(([file, at]) => [file, Math.max(at, last[file] ?? at)])) };
-      const stuck = said.find(([file, at]) => at <= (last[file] ?? -Infinity))?.[0];
-      if (stuck) throw new Error(`${stuck}: not updated since ${clock(updated[feed][stuck] ?? 0)}`);
+      updated[feed] = { ...last, ...Object.fromEntries(said) };
+      // Only a time unchanged since the last try is stuck: one earlier, as from a server whose clock is behind, is news.
+      const stuck = said.find(([file, at]) => at === last[file]);
+      if (stuck) throw new Error(`${stuck[0]}: not updated since ${clock(stuck[1])}`);
       reports[feed] = got;
       freshness = { lastSuccess: now, lastAttempt: now, status: 'ok', every };
     } catch (error) {
