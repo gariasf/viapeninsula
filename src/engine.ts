@@ -149,6 +149,61 @@ export function boardAt(bundle: Bundle, at: number, received: Received[], statio
     .slice(0, BOARD);
 }
 
+/** A Train passing near a point: when it's expected nearest it, and how near that is. */
+export interface Pass {
+  trip: Trip;
+  /**
+   * When it's expected at the point of its Trip's track nearest, in ms since 1970, running its Delay
+   * late: as trainAt() has it, where it's on the map, and now, while it stands there.
+   */
+  at: number;
+  /** How far that point is from the one asked about, in metres. */
+  distance: number;
+  /** Its Delay, in seconds, as live data last gave it: early where it's negative. */
+  delay: number;
+  live: boolean;
+}
+
+/**
+ * The Trains passing within `radius` metres of a point in the next `window` ms, soonest first, at a
+ * moment by the device's clock (ms since 1970), given the snapshots received by then: each still to
+ * reach the point of its Trip's track nearest, or standing there, and expected there within the
+ * window, as it's drawn on the map. Not one that's Cancelled, or has gone past that point already.
+ */
+export function nearbyAt(bundle: Bundle, at: number, received: Received[], point: Point, radius: number, window: number): Pass[] {
+  const { of, now } = onMap(bundle, at, received);
+  const shapes = new Map(bundle.shapes.map((s) => [s.id, s]));
+  // Most track comes nowhere near: each shape is looked over once, and each stretch of it Trips run once.
+  const near = new Map<string, [d: number, metres: number]>();
+  const nearestOn = (shape: Shape, from: number, to: number) => {
+    const key = `${shape.id} ${from} ${to}`;
+    const known = near.get(key);
+    if (known) return known;
+    const d = nearest(shape, from, to, { lon: point[0], lat: point[1] });
+    const found: [number, number] = [d, apart(pointAt(shape, d), point)];
+    near.set(key, found);
+    return found;
+  };
+  return bundle.trips
+    .flatMap((trip): Pass[] => {
+      const shape = shapes.get(trip.shape);
+      if (!shape || nearestOn(shape, -Infinity, Infinity)[1] > radius) return [];
+      const dists = trip.calls.map((c) => c.dist);
+      const [d, distance] = nearestOn(shape, Math.min(...dists), Math.max(...dists));
+      // Beyond where its track starts or ends, as past Catalonia's border, it's off the map.
+      if (distance > radius || d < (shape.dist[0] ?? 0) || d > (shape.dist.at(-1) ?? 0)) return [];
+      const on = of(trip);
+      if (!on || on.said?.report.cancelled) return [];
+      const delay = on.ease?.delay ?? 0;
+      // Where in its timetable the window ends.
+      const until = now + window / 1000 - delay;
+      const there = whenAt(on.calls, on.profile, d).find(([arrives, leaves]) => leaves >= on.time && arrives <= until);
+      if (!there) return [];
+      return [{ trip, at: bundle.noonMinus12h + (Math.max(there[0], on.time) + delay) * 1000, distance, delay, live: on.live }];
+    })
+    .sort((a, b) => a.at - b.at);
+}
+
 /**
  * A Train on the map, if it is, and how it got there: the moment and where in its timetable it's drawn, both
  * in seconds into the service day by the fetcher's clock, its calls as it makes them, how it eases
@@ -575,18 +630,43 @@ function passing(calls: Call[], profile: SpeedProfile, d: number, around: number
   for (const [i, call] of calls.entries()) {
     const next = calls[i + 1];
     if (!next || (d - call.dist) * (d - next.dist) >= 0) continue;
-    const [length, time] = [Math.abs(next.dist - call.dist), next.arrival - call.departure];
-    // It only ever runs on along a stretch, so halving finds when it gets there.
-    let [early, late] = [0, time];
-    while (late - early > 1e-6) {
-      const mid = (early + late) / 2;
-      if (covered(length, time, mid, profile) < Math.abs(d - call.dist)) early = mid;
-      else late = mid;
-    }
-    const t = call.departure + (early + late) / 2;
+    const t = call.departure + reaching(call, next, profile, d);
     if (found === undefined || Math.abs(t - around) < Math.abs(found - around)) found = t;
   }
   return found;
+}
+
+/**
+ * When a Trip's Train is at a point `d` metres along its shape, in seconds into the service day, by
+ * its calls as it makes them: each time it is, in order, from when it gets there to when it leaves,
+ * which are the same where it runs past.
+ */
+function whenAt(calls: Call[], profile: SpeedProfile, d: number): [arrives: number, leaves: number][] {
+  return calls.flatMap((call, i): [number, number][] => {
+    if (call.dist === d) return [[call.arrival, call.departure]];
+    const next = calls[i + 1];
+    if (!next || (d - call.dist) * (d - next.dist) >= 0) return [];
+    const t = call.departure + reaching(call, next, profile, d);
+    return [[t, t]];
+  });
+}
+
+/** How long after it leaves one Station a Train running on to the next gets to a point `d` metres along its shape between them, in seconds. */
+function reaching(call: Call, next: Call, profile: SpeedProfile, d: number): number {
+  const [length, time] = [Math.abs(next.dist - call.dist), next.arrival - call.departure];
+  // It only ever runs on along a stretch, so halving finds when it gets there.
+  let [early, late] = [0, time];
+  while (late - early > 1e-6) {
+    const mid = (early + late) / 2;
+    if (covered(length, time, mid, profile) < Math.abs(d - call.dist)) early = mid;
+    else late = mid;
+  }
+  return (early + late) / 2;
+}
+
+/** How far apart two points are, in metres, flat around the second. */
+function apart(a: Point, b: Point): number {
+  return Math.hypot((a[0] - b[0]) * DEGREE * Math.cos((b[1] * Math.PI) / 180), (a[1] - b[1]) * DEGREE);
 }
 
 /**
