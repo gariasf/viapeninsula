@@ -973,10 +973,14 @@ test("Renfe's GPS unchanged since a Train's last report counts as no position: i
   const received = [0, 20, 40, 60].map((s) => gps(R2S, spot, at('22:00:00', s)));
   expect(where(R2S, at('22:00:50'), received)).toBeCloseTo(where(R2S, at('22:00:20')) ?? NaN, 3);
   expect([10, 30, 50, 70].map((s) => train(R2S, at('22:00:00', s), received)?.live)).toEqual([true, true, true, false]);
+  // The map finds the last of those snapshots again at 22:01:20: it's still Scheduled, 30 s late.
+  const again = [...received, { ...(received.at(-1) as Received), at: at('22:01:20') }];
+  expect(train(R2S, at('22:01:30'), again)?.live).toBe(false);
+  expect(where(R2S, at('22:01:30'), again)).toBeCloseTo(where(R2S, at('22:01:00')) ?? NaN, 3);
 });
 
 /** A snapshot, received as it's written, in which Renfe's GPS has the R2S where its timetable has it so many seconds late. */
-const behind = (late: number, moment: number) => gps(R2S, where(R2S, moment - late * 1000) ?? NaN, moment);
+const behind = (delay: number, moment: number) => gps(R2S, where(R2S, moment - delay * 1000) ?? NaN, moment);
 
 test("Renfe's GPS more than 2 minutes off its GPS report before counts only once its next GPS report agrees: until then a Train runs on as late as before", () => {
   // Made up: Renfe's GPS has the R2S between Sitges and Castelldefels 30 s late at 22:04:40 and
@@ -989,7 +993,24 @@ test("Renfe's GPS more than 2 minutes off its GPS report before counts only once
   expect(where(R2S, at('22:05:50'), twice)).toBeCloseTo(where(R2S, at('22:01:50')) ?? NaN, 3);
 });
 
-test("Renfe's first GPS for a Train in over 2 minutes counts only once its next GPS report agrees, as after Renfe pins it to a Station a while", () => {
+test("Renfe's GPS heard again, as the map records its last snapshot again or the fetcher keeps Renfe's last good response, doesn't agree with itself", () => {
+  // Made up: Renfe's GPS has the R2S between Sitges and Castelldefels 30 s late at 22:04:40 and
+  // 22:05:00, and 5 minutes late at 22:05:20, which comes again at 22:05:40. It runs on 30 s late.
+  const outlier = behind(300, at('22:05:20'));
+  const heard = [behind(30, at('22:04:40')), behind(30, at('22:05:00')), outlier];
+  for (const again of [{ ...outlier, at: at('22:05:40') }, failing(at('22:05:40'), outlier)]) {
+    expect(where(R2S, at('22:05:50'), [...heard, again])).toBeCloseTo(where(R2S, at('22:05:20')) ?? NaN, 3);
+  }
+});
+
+test("Renfe's GPS that puts a Train where it only ever stands, as at its first Station before it leaves, gives no GPS Delay to carry on from", () => {
+  // Made up: Renfe's GPS has the R2N at Granollers Centre, its first Station, at 21:28:50, 20 s late
+  // by Renfe's own figure, and then Renfe pins it to Montmeló, a minute late. It runs a minute late.
+  const received = [gps(R2N, 40546, at('21:28:50'), 20), near(R2N, 'Montmeló', 60, at('21:29:10'))];
+  expect(where(R2N, at('21:29:40'), received)).toBeCloseTo(where(R2N, at('21:28:40')) ?? NaN, 3);
+});
+
+test("Renfe's first GPS for a Train in over 2 minutes counts only once its next GPS report agrees, as after Renfe pins it to a Station a while: until then it runs on as late as its GPS last had it that counts", () => {
   // Made up: Renfe's GPS has the R2S between Sitges and Castelldefels 30 s late at 21:59:40 and
   // 22:00:00, then Renfe pins it to Castelldefels until 22:02:40, and then its GPS has it 2½ minutes
   // late at 22:03:00 and 22:03:20. It runs on 30 s late until 22:03:20, and then 2½ minutes late.
@@ -1222,11 +1243,11 @@ test('folding each snapshot into the last replay draws the Trains as replaying e
 }, 60_000);
 
 test("counts each Network's jumps over 45 minutes of live data as the map received it", () => {
-  // Per Train-minute, (forward + back) / (liveSeconds / 60): Rodalies 0.074, FGC 0.031, TRAM 0.0023,
+  // Per Train-minute, (forward + back) / (liveSeconds / 60): Rodalies 0.075, FGC 0.031, TRAM 0.0023,
   // the Metro 0.047. They're the baseline the tickets that make Trains jump less, such as #39, #45
   // and #46, measure against: one that changes how often they jump changes these.
   expect(jumps(RECORDED.bundle, RECORDED.received)).toEqual({
-    rodalies: { forward: 65, back: 122, liveSeconds: 152139 },
+    rodalies: { forward: 66, back: 123, liveSeconds: 152139 },
     fgc: { forward: 25, back: 52, liveSeconds: 148586 },
     tram: { forward: 3, back: 0, liveSeconds: 77809 },
     metro: { forward: 132, back: 76, liveSeconds: 265789 },
