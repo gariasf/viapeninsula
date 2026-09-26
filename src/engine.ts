@@ -60,7 +60,8 @@ export const KEEP = CARRY + 5 * 60_000;
  * Stations it accelerates, cruises and brakes, as its Network's speed profile has it, so that it
  * leaves and arrives exactly on time. A Train its operator has cancelled leaves the map. One that
  * live data stops reporting stays Live through two of its feed's updates and turns Scheduled at the
- * third, and it keeps its last Delay for CARRY before it's back on its plain timetable.
+ * third, and it keeps its last Delay for CARRY before it's back on its plain timetable. One of the
+ * Metro's whose Block goes on to run another Trip turns Scheduled at once.
  */
 export function trainsAt(bundle: Bundle, at: number, received: Received[] = []): Train[] {
   const { of } = onMap(bundle, at, received);
@@ -312,6 +313,7 @@ const recent = <T extends { got: number }>(said: T | undefined, upTo: number) =>
 interface Heard {
   report: Report;
   got: number;
+  /** None once the Metro's Block that last placed it runs another Trip. */
   placed?: number;
   /** When its operator reported the last of those, in ms since 1970. */
   confirmed?: number;
@@ -342,9 +344,10 @@ const delayBy = (said: Heard, upTo: number) => (recent(said.counted, upTo) ?? re
 const CONFIRM = 120;
 
 /**
- * How soon after a Renfe Train's report the next has to come to be judged against it, as GPS
- * unchanged since it or far off it, in ms. It's under KEEP less CARRY and LAG, so that replaying
- * only the snapshots kept judges each Delay still in use as replaying them all did.
+ * How soon after a Train's report the next has to come to go on from it, in ms: for one of Renfe's,
+ * to be judged against it, as GPS unchanged since it or far off it, and for a Metro Block, to keep
+ * the Trip it ran. It's under KEEP less CARRY and LAG, so that replaying only the snapshots kept
+ * judges each Delay still in use as replaying them all did.
  */
 const FOLLOWS = 2 * 60_000;
 
@@ -442,7 +445,13 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
   for (let i = folding ? had : 0; i < received.length; i++) {
     const r = received[i] as Received;
     const [arrived, upTo] = [(r.at + clock - bundle.noonMinus12h) / 1000, heardTo(received.slice(0, i + 1), r.at + clock)];
-    const reports = reportsByTrip(bundle, r.snapshot);
+    const { reports, ran } = reportsByTrip(bundle, r.snapshot, received[i - 1]?.snapshot);
+    // A Train whose Block has gone on to run another Trip turns Scheduled at once, rather than staying
+    // Live for two more of its feed's updates where the Block was, beside the Block's new Train.
+    for (const [id, said] of heard) {
+      const runs = said.report.block && ran.get(blockOf(said.report.block));
+      if (runs && runs !== id) heard.set(id, { ...said, placed: undefined });
+    }
     for (const id of new Set([...eases.keys(), ...reports.keys()])) {
       const [trip, report, ease] = [trips.get(id), reports.get(id), eases.get(id)];
       const [network, shape] = [trip && lines.get(trip.line), trip && shapes.get(trip.shape)];
@@ -479,8 +488,27 @@ function linesByBlock(snapshot: Snapshot): string[] {
   return known;
 }
 
-/** Each snapshot's reports by the Trip each is about, worked out once for each bundle: matching the Metro's Blocks to Trips is slow. */
-const matched = new WeakMap<Snapshot, { bundle: Bundle; reports: Map<string, Report> }>();
+/** What a replay makes of a snapshot, for a bundle: its reports by the Trip each is about, and the Trip each of the Metro's Blocks in it runs, by blockOf(). */
+interface Matched {
+  bundle: Bundle;
+  reports: Map<string, Report>;
+  ran: Map<string, string>;
+}
+
+/**
+ * What a replay makes of each snapshot, for a bundle, worked out once, as a replay first comes to it.
+ * It's more than a cache: each Block goes on from the Trip it ran in the snapshot before it then, so
+ * a later replay of the snapshots kept, with none before the oldest, matches their Blocks as the fold
+ * did only by going by this. Matching the Metro's Blocks to Trips is slow, too.
+ * ponytail: a snapshot keeps what it first made of the one before it, whatever a later replay puts
+ * there, and a Block goes on only from the snapshot just before, so one missing from that, or matched
+ * to no Trip there, is matched afresh. Keep the Trip each Block last ran in the replay, beside
+ * `heard`, if either matters.
+ */
+const matched = new WeakMap<Snapshot, Matched>();
+
+/** A Block, as the matching knows it: by its Line and TMB's number for it, which another Line's can share. */
+const blockOf = ({ line, number }: NonNullable<Report['block']>) => `${line} ${number}`;
 
 /**
  * How far apart when TMB expects a Block at its next Station and when a Trip's timetable has it there
@@ -491,24 +519,33 @@ const matched = new WeakMap<Snapshot, { bundle: Bundle; reports: Map<string, Rep
 const MATCH = 30 * 60;
 
 /**
- * A snapshot's reports by the Trip each is about. TMB's timetable names no Blocks, so each of the
- * Metro's runs the Trip on its Line headed its way whose timetable has it at the Block's next
- * Station closest to when TMB expects it there, within MATCH, and where two Blocks come closest to
- * one Trip, the closer runs it. A report that names a Line, as FGC's for its rack Trains do, runs
- * that Line's Trip whose trip_id ends as its own does, after the `|`. A report naming a Trip that
- * runs on more than one of the days joined is about the one whose timetable runs nearest when it
- * was reported. A report that matches no Trip is dropped.
+ * A snapshot's reports by the Trip each is about, and the Trip each of the Metro's Blocks runs, given
+ * the snapshot before it the first time a replay comes to it (`matched`). TMB's timetable names no
+ * Blocks, so each of the Metro's keeps the Trip it ran in the snapshot before, where TMB reported it
+ * there under FOLLOWS earlier, while that Trip, headed its way, still calls at the Station the Block
+ * comes to next: matched afresh each time, a Block running about halfway between two Trips' times
+ * moved from one to the other and back, and its Train jumped (#45). Each of the rest runs the Trip
+ * on its Line headed its way that no Block keeps whose timetable has it at the Block's next Station
+ * closest to when TMB expects it there, within MATCH, and where two come closest to one Trip, the
+ * closer runs it. A report that names a Line, as FGC's for its rack Trains do, runs that Line's Trip
+ * whose trip_id ends as its own does, after the `|`. A report naming a Trip that runs on more than
+ * one of the days joined is about the one whose timetable runs nearest when it was reported. A
+ * report that matches no Trip is dropped.
  */
-function reportsByTrip(bundle: Bundle, snapshot: Snapshot): Map<string, Report> {
+function reportsByTrip(bundle: Bundle, snapshot: Snapshot, before?: Snapshot): Matched {
   const known = matched.get(snapshot);
-  if (known?.bundle === bundle) return known.reports;
-  const [reports, offs, headed, named] = [new Map<string, Report>(), new Map<string, number>(), new Map<string, Trip[]>(), new Map<string, Trip[]>()];
+  if (known?.bundle === bundle) return known;
+  const prior = before && matched.get(before);
+  const ran = prior?.bundle === bundle ? prior.ran : new Map<string, string>();
+  const [reports, offs, headed, named, kept] = [new Map<string, Report>(), new Map<string, number>(), new Map<string, Trip[]>(), new Map<string, Trip[]>(), new Set<string>()];
   const add = (to: Map<string, Trip[]>, key: string, trip: Trip) => to.set(key, [...(to.get(key) ?? []), trip]);
   for (const trip of bundle.trips) {
     add(headed, `${trip.line} ${trip.headsign}`, trip);
     // As its operator names it, without the service day joinDays leads an earlier day's ID with.
     add(named, trip.id.replace(/^\d{4}-\d{2}-\d{2}\//, ''), trip);
   }
+  // The Metro's Blocks that don't keep their Trip, each with the Trips headed its way and its next Station.
+  const rest: [Report, Trip[], NonNullable<Report['expected']>][] = [];
   for (const report of snapshot.reports) {
     const { block, headsign, position } = report;
     const end = report.line && report.trip?.split('|')[1];
@@ -516,9 +553,22 @@ function reportsByTrip(bundle: Bundle, snapshot: Snapshot): Map<string, Report> 
     const trip = closest(candidates, (report.at - bundle.noonMinus12h) / 1000);
     if (trip) reports.set(trip.id, report);
     if (!block || !position || !('next' in position)) continue;
+    const [trips, id] = [headed.get(`${block.line} ${headsign}`) ?? [], ran.get(blockOf(block))];
+    // Not after a gap in TMB's data, or in what the map received, as while its tab was hidden: by
+    // then the Block may have run its Trip to the end and come back along it.
+    const follows = id !== undefined && report.at - (prior?.reports.get(id)?.at ?? -Infinity) < FOLLOWS;
+    const keeps = follows ? trips.find((t) => t.id === id && t.calls.some((c) => c.station === position.next.station)) : undefined;
+    if (!keeps) rest.push([report, trips, position.next]);
+    else {
+      reports.set(keeps.id, report);
+      kept.add(keeps.id);
+    }
+  }
+  for (const [report, trips, next] of rest) {
     let [found, off]: [string | undefined, number] = [undefined, MATCH];
-    for (const trip of headed.get(`${block.line} ${headsign}`) ?? []) {
-      const late = Math.abs(expectedDelay(trip, position.next, bundle.noonMinus12h) ?? Infinity);
+    for (const trip of trips) {
+      if (kept.has(trip.id)) continue;
+      const late = Math.abs(expectedDelay(trip, next, bundle.noonMinus12h) ?? Infinity);
       if (late < off) [found, off] = [trip.id, late];
     }
     if (found && off < (offs.get(found) ?? Infinity)) {
@@ -526,8 +576,9 @@ function reportsByTrip(bundle: Bundle, snapshot: Snapshot): Map<string, Report> 
       offs.set(found, off);
     }
   }
-  matched.set(snapshot, { bundle, reports });
-  return reports;
+  const decided = { bundle, reports, ran: new Map([...reports].flatMap(([id, { block }]) => (block ? [[blockOf(block), id] as const] : []))) };
+  matched.set(snapshot, decided);
+  return decided;
 }
 
 /** Of the Trips of one ID on the days joined, the one whose timetable runs nearest a time, in seconds into the service day. */
