@@ -55,15 +55,28 @@ export interface Manifest {
   days: ManifestDay[];
 }
 
-/** A service day's bundle, and when its first Train comes onto the map and its last leaves it, on time, in ms since 1970. */
+/**
+ * A service day's files, its track and its Trips, and when its first Train comes onto the map and its
+ * last leaves it, on time, in ms since 1970.
+ */
 export interface ManifestDay {
   date: string;
-  bundle: string;
+  track: string;
+  trips: string;
   from: number;
   to: number;
 }
 
-/** Everything the map needs for one service day. */
+/**
+ * What the map draws before any Train, which it loads first: the Networks, Lines, Stations and track,
+ * one file that every day a build publishes shares.
+ */
+export type Track = Pick<Bundle, 'networks' | 'lines' | 'stations' | 'shapes' | 'strokes'>;
+
+/** A service day's Trips, which the map loads after its track. */
+export type DayTrips = Pick<Bundle, 'serviceDay' | 'noonMinus12h' | 'trips'>;
+
+/** Everything the map needs for one service day: its track and its Trips. */
 export interface Bundle {
   serviceDay: string;
   /**

@@ -3,7 +3,7 @@ import './style.css';
 import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { AttributionControl, MapLibreMap, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { along, LIVE_URL, madridDate, places, type Bundle, type Line, type Manifest, type Network, type Snapshot } from '../bundle.ts';
+import { along, LIVE_URL, madridDate, places, type Bundle, type DayTrips, type Line, type Manifest, type Network, type Snapshot, type Track } from '../bundle.ts';
 import { joinDays, KEEP, trainsAt, unavailable, type Received } from '../engine.ts';
 import { language, LANGUAGES, setLanguage, t, type Language } from './i18n.ts';
 
@@ -129,10 +129,12 @@ showLanguage();
 
 /** The manifest as the map last got it. */
 let manifest: Manifest | undefined;
-/** Each service day's bundle the map has fetched, or is fetching, by its file. */
-const fetched = new Map<string, Promise<Bundle>>();
+/** Each file of the service days' bundles the map has fetched, or is fetching: their track and Trips. */
+const fetched = new Map<string, Promise<unknown>>();
 /** The files of the days' bundles on the map, and whether the map is looking for the days it needs. */
 let [shown, looking] = ['', false];
+/** The Stations of the track on the map, which come with its Lines. */
+let shownStations: Track['stations'] | undefined;
 
 let nextPoll: ReturnType<typeof setTimeout> | undefined;
 document.addEventListener('visibilitychange', () => {
@@ -142,11 +144,15 @@ document.addEventListener('visibilitychange', () => {
 });
 if (!document.hidden) poll();
 
-let [bundle] = await Promise.all([neededDays().then((b) => b ?? Promise.reject(new Error('No service day to show'))), map.once('load')]);
+const [needed] = await Promise.all([neededDays().then((n) => n ?? Promise.reject(new Error('No service day to show'))), map.once('load')]);
+/** The days on the map, whose Trains move, once their Trips have come. */
+let bundle: Bundle | undefined;
 let lines = new Map<string, Line>();
 map.addSource('lines', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 map.addSource('stations', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-show(bundle);
+// Today's Lines and Stations are drawn as soon as its track comes, before the Trips, which are most of the bundle.
+needed.days.then(show, (error: unknown) => console.error(error));
+show(await needed.track);
 // Around midnight the days the map needs change, and each day's build names three more.
 setInterval(refreshDays, 60_000);
 
@@ -232,14 +238,20 @@ requestAnimationFrame(function move() {
   requestAnimationFrame(move);
 });
 
-/** Draws the Lines and Stations of the days on the map, and credits their Networks. */
-function show(days: Bundle) {
-  bundle = days;
-  lines = new Map(bundle.lines.map((l) => [l.id, l]));
-  const shapes = new Map(bundle.shapes.map((s) => [s.id, s]));
+/**
+ * Draws the Lines and Stations of the days on the map, and credits their Networks, where they've
+ * changed, and once their Trips have come, moves their Trains.
+ */
+function show(days: Track | Bundle) {
+  if ('trips' in days) bundle = days;
+  // A day's Trips come after its track, which is drawn already, unless the days joined bring more than one.
+  if (days.stations === shownStations) return;
+  shownStations = days.stations;
+  lines = new Map(days.lines.map((l) => [l.id, l]));
+  const shapes = new Map(days.shapes.map((s) => [s.id, s]));
   map.getSource<GeoJSONSource>('lines')?.setData({
     type: 'FeatureCollection',
-    features: bundle.strokes.flatMap(({ line: id, shape: shapeId, from, to, side }): GeoJSON.Feature[] => {
+    features: days.strokes.flatMap(({ line: id, shape: shapeId, from, to, side }): GeoJSON.Feature[] => {
       const [line, shape] = [lines.get(id), shapes.get(shapeId)];
       if (!line || !shape) return [];
       const properties = {
@@ -256,13 +268,13 @@ function show(days: Bundle) {
   });
   map.getSource<GeoJSONSource>('stations')?.setData({
     type: 'FeatureCollection',
-    features: places(bundle.stations).map((p) => ({
+    features: places(days.stations).map((p) => ({
       type: 'Feature',
       properties: { name: p.name },
       geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
     })),
   });
-  credited = bundle.networks;
+  credited = days.networks;
   showCredits();
 }
 
@@ -270,7 +282,7 @@ function show(days: Bundle) {
 function trains(): GeoJSON.FeatureCollection {
   return {
     type: 'FeatureCollection',
-    features: trainsAt(bundle, Date.now(), received).map((train) => ({
+    features: (bundle ? trainsAt(bundle, Date.now(), received) : []).map((train) => ({
       type: 'Feature',
       properties: { colour: lines.get(train.trip.line)?.colour, live: train.live },
       geometry: { type: 'Point', coordinates: [train.lon, train.lat] },
@@ -342,8 +354,9 @@ function showCredits() {
  * the time, and each day whose Trains are on the map or come onto it within EARLY, as yesterday's
  * do after midnight, and tomorrow's first can just before. Where the manifest is out of date, its
  * last day stands for today. A day whose bundle fails to come is left out, and fetched again next time.
+ * Today's track comes on its own first, so the map can draw it before the Trips come.
  */
-async function neededDays(): Promise<Bundle | undefined> {
+async function neededDays(): Promise<{ track: Promise<Track>; days: Promise<Bundle> } | undefined> {
   try {
     manifest = await getJson<Manifest>(`${LIVE_URL}/manifest.json`);
   } catch (error) {
@@ -353,25 +366,28 @@ async function neededDays(): Promise<Bundle | undefined> {
   const now = Date.now();
   const today = manifest.days.find((d) => d.date === madridDate(new Date(now))) ?? manifest.days.at(-1);
   const days = manifest.days.filter((d) => d === today || (d.from - EARLY <= now && now <= d.to + LATE));
-  if (!days.length) throw new Error('The manifest names no service day');
-  const keys = days.map((d) => d.bundle);
+  if (!today || !days.length) throw new Error('The manifest names no service day');
+  const keys = days.flatMap((d) => [d.track, d.trips]);
   if (keys.join() === shown) return undefined;
   for (const key of fetched.keys()) if (!keys.includes(key)) fetched.delete(key);
-  const got = await Promise.allSettled(
-    keys.map((key) => {
-      const bundle = fetched.get(key) ?? getJson<Bundle>(`${LIVE_URL}/${key}`);
-      fetched.set(key, bundle);
-      bundle.catch(() => fetched.delete(key));
-      return bundle;
-    }),
-  );
-  // Without today's bundle there's nothing to draw; without another day's, the map does without it until next time.
-  const failed = got.flatMap((g, i) => (g.status === 'rejected' ? [[keys[i], g.reason] as const] : []));
-  for (const [key, reason] of failed) if (key === today?.bundle) throw reason;
-  if (failed.length) console.warn(...failed.map(([, reason]) => reason));
-  const bundles = got.flatMap((g) => (g.status === 'fulfilled' ? [g.value] : []));
-  shown = failed.length ? '' : keys.join();
-  return joinDays(bundles);
+  const get = <T>(key: string) => {
+    const file = fetched.get(key) ?? getJson<T>(`${LIVE_URL}/${key}`);
+    fetched.set(key, file);
+    file.catch(() => fetched.delete(key));
+    return file as Promise<T>;
+  };
+  const joined = async () => {
+    // Each day's Trips are fetched once its track has come, so the track isn't slowed by them.
+    const got = await Promise.allSettled(days.map((d) => get<Track>(d.track).then((track) => Promise.all([track, get<DayTrips>(d.trips)]))));
+    // Without today's bundle there's nothing to draw; without another day's, the map does without it until next time.
+    const failed = got.flatMap((g, i) => (g.status === 'rejected' ? [[days[i], g.reason] as const] : []));
+    for (const [day, reason] of failed) if (day === today) throw reason;
+    if (failed.length) console.warn(...failed.map(([, reason]) => reason));
+    const bundles = got.flatMap((g) => (g.status === 'fulfilled' ? [{ ...g.value[0], ...g.value[1] }] : []));
+    shown = failed.length ? '' : keys.join();
+    return joinDays(bundles);
+  };
+  return { track: get<Track>(today.track), days: joined() };
 }
 
 /** Shows the days the map needs now, where they've changed. The Trains keep to the days shown meanwhile. */
@@ -379,8 +395,8 @@ async function refreshDays() {
   if (looking || document.hidden) return;
   looking = true;
   try {
-    const days = await neededDays();
-    if (days) show(days);
+    const needed = await neededDays();
+    if (needed) show(await needed.days);
   } catch (error) {
     console.warn(error);
   } finally {
