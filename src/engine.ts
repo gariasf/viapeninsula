@@ -69,16 +69,18 @@ export function trainsAt(bundle: Bundle, at: number, received: Received[] = []):
 
 /** A Train as the follow panel shows it: where it's going, when it'll get there, and how far to trust where it's drawn. */
 export interface Followed extends Train {
-  /** How late it's drawn, in seconds: early where it's negative. */
+  /** Its Delay, in seconds, as live data last gave it: early where it's negative. A Train drawn off it eases to it by the next snapshot. */
   delay: number;
   /**
-   * The Stations it has still to leave, the one it stands at first, and when it's expected to arrive
-   * at and leave each, in ms since 1970, running as late as it's drawn.
+   * The Stations it has still to leave as it's drawn, the one it stands at first, and when it's
+   * expected to arrive at and leave each, in ms since 1970, running its Delay late.
    */
   upcoming: { station: string; arrival: number; departure: number }[];
+  /** Whether it stands at the first of them. */
+  standing: boolean;
   /** How long ago live data last placed it, in ms, as of when its operator reported it there: none where the snapshots kept don't. */
   since?: number;
-  /** How fast its speed profile has it running where it's drawn, in m/s: an estimate, not a measurement. */
+  /** How fast it's drawn running, in m/s, as its speed profile has it: an estimate, not a measurement. */
   speed: number;
   /** The type of Unit it runs as, where its operator reports one, as FGC does. */
   unitType?: string;
@@ -89,26 +91,41 @@ export function trainAt(bundle: Bundle, at: number, received: Received[], id: st
   const trip = bundle.trips.find((t) => t.id === id);
   const on = trip && onMap(bundle, at, received)(trip);
   if (!on) return undefined;
-  const { train, now, time, calls, said } = on;
-  const delay = now - time;
-  // When it's expected at a moment of its timetable, running that late.
+  const { train, now, time, calls, profile, ease, said } = on;
+  const delay = ease?.delay ?? 0;
+  // When it's expected at a moment of its timetable, running its Delay late.
   const expected = (seconds: number) => bundle.noonMinus12h + (seconds + delay) * 1000;
+  // How far along its shape it's drawn at a moment, in seconds into the service day.
+  const drawn = (moment: number) => place(calls, profile, ease ? eased(calls, profile, ease, moment) : moment) ?? train.dist;
+  const upcoming = calls.filter((c) => c.departure > time);
   return {
     ...train,
     delay,
-    upcoming: calls.filter((c) => c.departure > time).map((c) => ({ station: c.station, arrival: expected(c.arrival), departure: expected(c.departure) })),
+    upcoming: upcoming.map((c) => ({ station: c.station, arrival: expected(c.arrival), departure: expected(c.departure) })),
+    standing: (upcoming[0]?.arrival ?? Infinity) <= time,
     since: said?.confirmed === undefined ? undefined : bundle.noonMinus12h + now * 1000 - said.confirmed,
-    speed: speedAt(calls, on.profile, time),
+    speed: Math.abs(drawn(now + 0.5) - drawn(now - 0.5)),
     unitType: said?.report.unitType,
   };
 }
 
 /**
- * Where trainsAt() has each Trip's Train at a moment by the device's clock, if it's on the map, and
- * how it got there: the moment and where in its timetable it's drawn, both in seconds into the
- * service day by the fetcher's clock, and its calls as it makes them.
+ * A Train on the map, and how it got there: the moment and where in its timetable it's drawn, both
+ * in seconds into the service day by the fetcher's clock, its calls as it makes them, how it eases
+ * towards where live data has it, and what live data last said about it.
  */
-function onMap(bundle: Bundle, at: number, received: Received[]): (trip: Trip) => { train: Train; now: number; time: number; calls: Call[]; profile: SpeedProfile; said?: Heard } | undefined {
+interface OnMap {
+  train: Train;
+  now: number;
+  time: number;
+  calls: Call[];
+  profile: SpeedProfile;
+  ease?: Ease;
+  said?: Heard;
+}
+
+/** Where trainsAt() has each Trip's Train at a moment by the device's clock, if it's on the map. */
+function onMap(bundle: Bundle, at: number, received: Received[]): (trip: Trip) => OnMap | undefined {
   const clock = behind(received);
   const now = (at + clock - bundle.noonMinus12h) / 1000;
   const shapes = new Map(bundle.shapes.map((s) => [s.id, s]));
@@ -120,12 +137,12 @@ function onMap(bundle: Bundle, at: number, received: Received[]): (trip: Trip) =
   // Train is Live only on recent confirmation, however long since the map looked, but live data is
   // unavailable only where the map has looked and found none.
   const [upToNow, upTo] = [heardTo(received, at + clock), heardTo(received, (received.at(-1)?.at ?? -Infinity) + clock)];
-  const { feeds = {}, reports = [] } = received.at(-1)?.snapshot ?? {};
-  // The Lines live data names Blocks on, and so the Networks it names Blocks for: the Metro's. TMB
-  // publishes no predictions for L9, L10 or the funicular, so their Trains have no live data without
-  // being left out of it.
-  const blocks = new Set(reports.flatMap((r) => (r.block ? [r.block.line] : [])));
-  const byBlock = new Set([...blocks].map((line) => lines.get(line)?.id));
+  const feeds = received.at(-1)?.snapshot.feeds ?? {};
+  // The Lines the snapshots kept name Blocks on, and so the Networks they name Blocks for: the
+  // Metro's. TMB publishes no predictions for L9, L10 or the funicular, so their Trains have no live
+  // data without being left out of it.
+  const blockLines = new Set(received.flatMap((r) => linesByBlock(r.snapshot)));
+  const blockNetworks = new Set([...blockLines].map((line) => lines.get(line)?.id));
   return (trip) => {
     const said = heard.get(trip.id);
     if (said?.report.cancelled) return undefined;
@@ -143,8 +160,8 @@ function onMap(bundle: Bundle, at: number, received: Received[]): (trip: Trip) =
     const [lon, lat] = pointAt(shape, dist);
     const feed = feeds[network.id];
     const live = feed !== undefined && said?.placed !== undefined && !stale(said.placed, upToNow, feed.every);
-    const unreported = feed !== undefined && !recent(said, upTo) && !stale(feed.lastSuccess, upTo, feed.every) && (!byBlock.has(network.id) || blocks.has(trip.line));
-    return { train: { trip, dist, lon, lat, live, unreported }, now, time, calls, profile, said };
+    const unreported = feed !== undefined && !recent(said, upTo) && !stale(feed.lastSuccess, upTo, feed.every) && (!blockNetworks.has(network.id) || blockLines.has(trip.line));
+    return { train: { trip, dist, lon, lat, live, unreported }, now, time, calls, profile, ease, said };
   };
 }
 
@@ -302,6 +319,16 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
   }
   last = { bundle, received: [...received], clock, eases, heard, dwelt };
   return last;
+}
+
+/** Each snapshot's Lines it names Blocks on, worked out once: the map asks for them every frame. */
+const blockLinesOf = new WeakMap<Snapshot, string[]>();
+
+/** The Lines a snapshot names Blocks on, as the Metro's live data names its Trains. */
+function linesByBlock(snapshot: Snapshot): string[] {
+  const known = blockLinesOf.get(snapshot) ?? [...new Set(snapshot.reports.flatMap((r) => (r.block ? [r.block.line] : [])))];
+  blockLinesOf.set(snapshot, known);
+  return known;
 }
 
 /** Each snapshot's reports by the Trip each is about, worked out once for each bundle: matching the Metro's Blocks to Trips is slow. */
@@ -558,17 +585,6 @@ function run(length: number, time: number, profile: SpeedProfile): { v: number; 
     harder = (k * v * v) / (v * time - length);
   }
   return { v, a: acceleration * harder, b: braking * harder };
-}
-
-/** How fast a Trip's Train runs at a time into the service day, in m/s, by its calls as it makes them: accelerating, cruising or braking as covered() has it. */
-function speedAt(calls: Call[], profile: SpeedProfile, time: number): number {
-  const i = calls.findLastIndex((c) => c.arrival <= time);
-  const [call, next] = [calls[i], calls[i + 1]];
-  if (!call || !next || time <= call.departure) return 0;
-  const [length, span, t] = [Math.abs(next.dist - call.dist), next.arrival - call.departure, time - call.departure];
-  if (!length || t >= span) return 0;
-  const { v, a, b } = run(length, span, profile);
-  return Math.min(v, a * t, b * (span - t));
 }
 
 /** How far a Train has gone t seconds into a stretch of `length` metres that its timetable gives `time` seconds. */

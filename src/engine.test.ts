@@ -573,6 +573,22 @@ test("a followed Train's modelled speed is its speed profile's: none standing at
   expect(followed(R2S, at('22:05:00'))?.speed).toBeCloseTo(17.69, 2);
 });
 
+test("a followed Train easing towards where live data has it runs as late as live data says, and is expected at its Stations that late", () => {
+  // The R2S runs on time until a snapshot at 22:00:00 has it 10 s late, and slows down until it is.
+  const received = [late(R2S, 0, at('21:59:40')), late(R2S, 10, at('22:00:00'))];
+  const easing = followed(R2S, at('22:00:05'), received);
+  expect(easing?.delay).toBe(10);
+  expect(easing?.upcoming[0]).toMatchObject({ station: 'Castelldefels', arrival: at('22:12:10') });
+  expect(where(R2S, at('22:12:10'), received)).toBe(150987);
+});
+
+test('a followed Train that live data shows stopped between Stations, held there, runs at no speed', () => {
+  // A signal stops the R2S between Sitges and Castelldefels at 21:59:40: every 20 s it's 20 s later.
+  const received = [0, 20, 40, 60].map((delay, i) => late(R2S, delay, at('21:59:40', i * 20)));
+  expect(followed(R2S, at('22:00:50'), received)).toMatchObject({ speed: 0, standing: false });
+  expect(followed(R2S, at('21:49:30'))).toMatchObject({ standing: true });
+});
+
 test('never runs back when its last Delay runs out, among the snapshots the map keeps', () => {
   // Renfe's GPS has the R2S 30 s early between Sitges and Castelldefels at 22:00:00, and then Renfe's feeds leave it out.
   const received = [gps(R2S, where(R2S, at('22:00:30')) ?? NaN, at('22:00:00')), ...leftOut(at('22:00:20'), at('22:32:00'))];

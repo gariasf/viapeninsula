@@ -3,7 +3,7 @@ import './style.css';
 import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { AttributionControl, MapLibreMap, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { along, beside, EARTH, LIVE_URL, madridDate, places, type Bundle, type DayTrips, type Line, type Manifest, type Network, type Shape, type Snapshot, type Stroke, type Track } from '../bundle.ts';
+import { along, beside, EARTH, LIVE_URL, madridDate, places, type Bundle, type DayTrips, type Line, type Manifest, type Network, type Point, type Shape, type Snapshot, type Stroke, type Track } from '../bundle.ts';
 import { joinDays, KEEP, trainAt, trainsAt, unavailable, type Received } from '../engine.ts';
 import { language, LANGUAGES, setLanguage, t, type Language } from './i18n.ts';
 
@@ -132,7 +132,7 @@ document.body.append(panel);
  * The Train the map follows, by its service day and its Trip as its operator names it, so that it
  * stays followed as the days joined change around midnight, and where it's drawn.
  */
-let following: { day: string; trip: string; at?: [lon: number, lat: number] } | undefined;
+let following: { day: string; trip: string; at?: Point } | undefined;
 /** When the panel was last filled, by performance.now(). */
 let panelShown = 0;
 let credits: AttributionControl | undefined;
@@ -346,7 +346,7 @@ function trains(): GeoJSON.FeatureCollection {
       // keep left, sit half a line width to the wrong side zoomed out. Publish each shape's side of
       // its double track from the trace if that ever shows.
       const metres = (side + 0.5 * (placing.keep.get(trip.line) ?? 1)) * apart * Math.cos((lat * Math.PI) / 180);
-      const coordinates: [number, number] = shape && metres ? beside(shape, dist, metres) : [lon, lat];
+      const coordinates: Point = shape && metres ? beside(shape, dist, metres) : [lon, lat];
       if (following && trip.id === followed) following.at = coordinates;
       return {
         type: 'Feature',
@@ -386,13 +386,13 @@ function follow(id: string) {
   following = day && trip ? { day, trip } : { day: bundle?.serviceDay ?? '', trip: id };
   trainSource?.setData(trains());
   showPanel();
-  if (following.at) map.easeTo({ center: following.at, zoom: Math.max(map.getZoom(), 13), padding: { top: 0, right: 0, left: 0, bottom: panel.offsetHeight } });
+  if (following.at) map.easeTo({ center: following.at, zoom: Math.max(map.getZoom(), 13), padding: abovePanel() });
 }
 
 function stopFollowing() {
   following = undefined;
   showPanel();
-  map.easeTo({ padding: { top: 0, right: 0, left: 0, bottom: 0 } });
+  map.easeTo({ padding: abovePanel() });
 }
 
 /** The ID of the Trip the map follows in the days on the map, which lead an earlier day's Trips with that day (joinDays()). */
@@ -406,12 +406,17 @@ function followedId(): string | undefined {
  * moved the map off it: where it's outside the middle 60% of the map above the panel. Not while the
  * map moves, so it never fights the viewer's hand.
  */
-function keepInView(at: [lon: number, lat: number]) {
+function keepInView(at: Point) {
   if (map.isMoving()) return;
   const { x, y } = map.project(at);
   const { clientWidth: width, clientHeight: height } = map.getContainer();
-  const above = height - (map.getPadding().bottom ?? 0);
-  if (x < 0.2 * width || x > 0.8 * width || y < 0.2 * above || y > 0.8 * above) map.easeTo({ center: at, duration: 1000 });
+  const above = height - panel.offsetHeight;
+  if (x < 0.2 * width || x > 0.8 * width || y < 0.2 * above || y > 0.8 * above) map.easeTo({ center: at, duration: 1000, padding: abovePanel() });
+}
+
+/** The map's padding that puts its middle above the follow panel, which grows and shrinks with what it shows. */
+function abovePanel() {
+  return { top: 0, right: 0, left: 0, bottom: panel.offsetHeight };
 }
 
 /**
@@ -425,7 +430,7 @@ function showPanel() {
   const train = following && bundle && trainAt(bundle, Date.now(), received, followedId() ?? '');
   panel.hidden = !train;
   if (!train) return panel.replaceChildren();
-  const { trip, live, unreported, since, delay, speed, unitType, upcoming } = train;
+  const { trip, live, unreported, since, delay, speed, unitType, upcoming, standing } = train;
   const line = lines.get(trip.line);
   const el = <K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> = {}, ...children: (Node | string)[]) => {
     const node = Object.assign(document.createElement(tag), props);
@@ -451,7 +456,7 @@ function showPanel() {
       'ol',
       {},
       // Standing at a Station, it's when it leaves that's still to come.
-      ...upcoming.map((u, i) => el('li', {}, el('time', { textContent: time.format(i === 0 && speed === 0 ? u.departure : u.arrival) }), ` ${stationNames.get(u.station) ?? u.station}`)),
+      ...upcoming.map((u, i) => el('li', {}, el('time', { textContent: time.format(i === 0 && standing ? u.departure : u.arrival) }), ` ${stationNames.get(u.station) ?? u.station}`)),
     ),
   );
   if (line) panel.style.setProperty('--line', line.colour);
