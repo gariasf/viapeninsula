@@ -61,6 +61,22 @@ const STRINGS = {
     es: 'No se ha podido saber dónde estás, así que no se pueden mostrar los trenes cercanos',
     en: "Your location isn't available, so nearby trains can't be shown",
   },
+  // The About dialog, and the legend's button that opens it.
+  about: { ca: 'Quant a aquest mapa', es: 'Acerca de este mapa', en: 'About this map' },
+  close: { ca: 'Tanca', es: 'Cerrar', en: 'Close' },
+  estimates: {
+    ca: 'Via Península mostra els trens, metros i tramvies de Catalunya mentre circulen. Les posicions són estimacions derivades de les dades dels operadors, calculades a partir dels horaris i de les dades en temps real.',
+    es: 'Via Península muestra los trenes, metros y tranvías de Cataluña mientras circulan. Las posiciones son estimaciones derivadas de los datos de los operadores, calculadas a partir de los horarios y de los datos en tiempo real.',
+    en: "Via Península shows Catalonia's trains, metros and trams as they run. Their positions are estimates derived from the operators' data, built from timetables and live data.",
+  },
+  credits: { ca: 'Crèdits', es: 'Créditos', en: 'Credits' },
+  sourceCode: { ca: 'Codi font', es: 'Código fuente', en: 'Source code' },
+  privacy: { ca: 'Privadesa', es: 'Privacidad', en: 'Privacy' },
+  noCookies: {
+    ca: "Aquest web no fa servir galetes: només desa al teu dispositiu l'idioma que triïs.",
+    es: 'Esta web no usa cookies: solo guarda en tu dispositivo el idioma que elijas.',
+    en: 'This site uses no cookies: all it keeps on your device is the language you choose.',
+  },
 } satisfies Record<string, Record<Language, string>>;
 
 /** What the viewer's choice is kept under on their device, in local storage, which takes no cookie. */
