@@ -18,6 +18,13 @@ const EMPTY_POLLS = 3;
 const [NEARBY, SOON] = [1500, 60 * 60_000];
 /** How long after a service day's last Train is due off the map the map keeps its bundle, for Trains running late, in ms. */
 const LATE = 60 * 60_000;
+/**
+ * How long Trains keep moving every frame after the map moves, while the viewer is likely still
+ * looking closely, and how often they move otherwise, in ms: about 30 times a second, which leaves a
+ * phone headroom and battery. It's a little under 1/30 s, so that at 60 or 120 Hz it's every other
+ * or every fourth frame.
+ */
+const [MOVED, IDLE_EVERY] = [1500, 30];
 
 /** A Line's width, in pixels at each zoom. */
 const WIDTH: [zoom: number, px: number][] = [[7, 1.5], [14, 4]];
@@ -291,12 +298,20 @@ for (const layer of ['trains', 'stations']) {
 // Escape closes the About dialog on its own, if it's open.
 document.addEventListener('keydown', (e) => e.key === 'Escape' && !about.open && (following || boardPlace || nearMe) && closePanel());
 
-// Moves the Trains every frame, and names the Networks whose live data is unavailable as that
-// changes. The browser stops asking while the tab is hidden.
+// Moves the Trains, and names the Networks whose live data is unavailable as that changes: every
+// frame while the map moves or follows a Train and for MOVED after, otherwise every IDLE_EVERY. The
+// browser stops asking while the tab is hidden.
 const trainSource = map.getSource<GeoJSONSource>('trains');
 const nearbyControl = el('div', { className: 'maplibregl-ctrl maplibregl-ctrl-group' }, nearbyButton);
 map.addControl({ onAdd: () => nearbyControl, onRemove: () => nearbyControl.remove() }, 'top-right');
-requestAnimationFrame(function move() {
+/** When the map last moved, as a drag, a zoom or an easing, or followed a Train, and when its Trains were last drawn, by performance.now(). */
+let [moved, drawn] = [-Infinity, -Infinity];
+requestAnimationFrame(function move(now) {
+  if (following || map.isMoving()) moved = now;
+  // ponytail: one rate at every zoom, though zoomed out Trains move less than a pixel between
+  // updates, and at zoom 18 one at 110 km/h moves about 4.5 px. Make IDLE_EVERY depend on the zoom if either shows.
+  if (now - moved > MOVED && now - drawn < IDLE_EVERY) return requestAnimationFrame(move);
+  drawn = now;
   trainSource?.setData(trains());
   if (following) {
     // A Train that has left the map, reaching its last Station or cancelled, is followed no more.
