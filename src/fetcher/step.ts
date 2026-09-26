@@ -70,7 +70,7 @@ export interface State {
     file?: string;
     /** When FGC wrote the file, in seconds since 1970, as it said on the last refresh that read it, even where that's earlier than the one before. */
     written?: number;
-    /** The time the file stayed at even as it was looked up again: it isn't looked up again until FGC writes it again. */
+    /** The time the file stays at even after it was looked up again, in seconds since 1970: it isn't looked up again while it stays at that time, which is forgotten once FGC writes the file again. */
     stalled?: number;
     /** How many requests its API had left today, as its last answers said. */
     remaining?: number;
@@ -345,7 +345,7 @@ function readTripUpdates(fgc: State['fgc'] = {}, updates: Fetched<Uint8Array>, l
     return { fgc: { ...fgc, file: undefined }, error };
   }
   const stopped = feed.written === fgc.written;
-  const stalled = stopped && lookup ? feed.written : fgc.stalled;
+  const stalled = stopped ? (lookup ? feed.written : fgc.stalled) : undefined;
   const file = stopped && stalled !== feed.written ? undefined : lookup ? address(lookup) : fgc.file;
   return { fgc: { ...fgc, file, written: feed.written, stalled }, feed };
 }

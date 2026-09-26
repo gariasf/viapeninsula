@@ -389,16 +389,23 @@ test("keeps where the trip-updates file is, and looks it up again only when its 
   expect(made.map((m) => m.requests.includes('lookup'))).toEqual([true, false, false, true, false, true, false, false, false]);
 });
 
+/** Which refreshes, 2 minutes apart from the start, look up the trip-updates file, where FGC wrote it at these minutes after the first. */
+function lookedUp(written: number[]): boolean[] {
+  const answers = written.map((m) => ({ updates: { status: 200, body: writtenAt(FGC_NOW + m * 60_000) } }));
+  return refreshes(FGC_NOW, 2 * written.length, (t) => answers[(t - FGC_NOW) / 120_000] ?? {}).made.map((m) => m.requests.includes('lookup'));
+}
+
 test("keeps where the trip-updates file is when its time is earlier than the last, and when it's real time again after a time in the future", () => {
-  /** Which refreshes, 2 minutes apart, look up the file, where FGC wrote it at these minutes after the first. */
-  const lookedUp = (written: number[]) => {
-    const answers = written.map((m) => ({ updates: { status: 200, body: writtenAt(FGC_NOW + m * 60_000) } }));
-    return refreshes(FGC_NOW, 2 * written.length, (t) => answers[(t - FGC_NOW) / 120_000] ?? {}).made.map((m) => m.requests.includes('lookup'));
-  };
   // Failover, at the third refresh, to a server whose clock is 10 minutes behind, which from the fifth stops writing the file.
   expect(lookedUp([-1, 1, -7, -5, -5, -5, -5])).toEqual([true, false, false, false, false, true, false]);
   // A time an hour in the future, then real time again.
   expect(lookedUp([-1, 59, 3, 5, 7])).toEqual([true, false, false, false, false]);
+});
+
+test('looks up the trip-updates file once whenever its time stays the same, even at a time it stayed at before', () => {
+  // From the third refresh, FGC stops writing the file, and from the fifth writes it again. From the
+  // seventh, a copy from when it stopped is served again, and stays.
+  expect(lookedUp([-1, 1, 1, 1, 9, 11, 1, 1, 1, 1])).toEqual([true, false, false, true, false, false, false, false, true, false]);
 });
 
 test('stays within about 1,440 FGC requests a day, under a third of the 5,000 its API allows each IP', () => {
