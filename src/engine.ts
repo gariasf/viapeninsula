@@ -83,7 +83,8 @@ export function trainsAt(bundle: Bundle, at: number, received: Received[] = []):
     // Most Trips aren't on the map at any one moment, whatever their dwell: skip those first.
     if (!first || !last || time < first.arrival - profile.dwell || time > last.departure + profile.dwell) return [];
     const dist = place(withDwell(trip, profile), profile, time);
-    if (dist === undefined) return [];
+    // Beyond where its track starts or ends, as past Catalonia's border, it's off the map.
+    if (dist === undefined || dist < (shape.dist[0] ?? 0) || dist > (shape.dist.at(-1) ?? 0)) return [];
     const [lon, lat] = pointAt(shape, dist);
     const feed = feeds[network.id];
     const live = feed !== undefined && said?.placed !== undefined && !stale(said.placed, upToNow, feed.every);

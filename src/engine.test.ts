@@ -152,6 +152,17 @@ test('a Train appears at its first Station just before it leaves, and leaves the
   expect(where(R2S, at('22:51:31'))).toBeUndefined();
 });
 
+test("is off the map where its track isn't, as beyond Catalonia's border, and comes back onto it where the track does", () => {
+  // The build cuts track at the border, and it counts on from where it started: say it started at Vilanova.
+  const VILANOVA = 128092;
+  const cut = (s: Bundle['shapes'][number]) => ({ ...s, coords: s.coords.filter((_, i) => (s.dist[i] ?? 0) >= VILANOVA), dist: s.dist.filter((d) => d >= VILANOVA) });
+  const bundle = { ...BUNDLE, shapes: BUNDLE.shapes.map((s) => (s.id === R2S ? cut(s) : s)) };
+  const on = (moment: number) => trainsAt(bundle, moment).find((t) => t.trip.id === R2S)?.dist;
+  expect(on(at('21:29:30'))).toBeUndefined();
+  expect(on(at('21:45:00'))).toBeUndefined();
+  expect(on(at('21:50:00'))).toBe(VILANOVA);
+});
+
 test('leaves every Station exactly when its timetable says, and reaches every Station it has time at exactly when it says', () => {
   const wrong: string[] = [];
   for (const [trip, { calls }] of Object.entries(TRIPS)) {

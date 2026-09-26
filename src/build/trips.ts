@@ -18,7 +18,7 @@ export interface FeedTrip {
  * A Station is on a Trip's track where the track passes within 300 m of it. Renfe's Stations are
  * within 70 m of their traced track, and the ones off it are kilometres away.
  */
-const REACH = 300;
+export const REACH = 300;
 
 /**
  * Places each Trip's Stations along its track. Where the track passes a Station more than once, a
