@@ -44,8 +44,8 @@ interface Env {
 /** The cron trigger that starts the daily build, as wrangler.jsonc has it. */
 const DAILY = '30 0 * * *';
 
-/** Where GitHub starts the daily build's workflow. */
-const DISPATCH = 'https://api.github.com/repos/gariasf/viapeninsula/actions/workflows/daily.yml/dispatches';
+/** The daily build's workflow on GitHub. */
+const WORKFLOW = 'https://api.github.com/repos/gariasf/viapeninsula/actions/workflows/daily.yml';
 
 export class Fetcher extends DurableObject<Env> {
   /** Starts the runs, unless they're under way. */
@@ -80,20 +80,23 @@ export default {
   },
 } satisfies ExportedHandler<Env>;
 
-/** Starts the daily build in GitHub Actions. A failure throws, so the Worker's logs show it. */
+/**
+ * Starts the daily build in GitHub Actions. GitHub disables a public repository's scheduled
+ * workflows after 60 days without activity, and a disabled workflow can't be dispatched, so it's
+ * enabled first. A failure throws, so the Worker's logs show it.
+ */
 async function dispatchDaily({ GITHUB_DISPATCH_TOKEN: token }: Env) {
   if (!token) throw new Error("GITHUB_DISPATCH_TOKEN isn't set");
-  const res = await fetch(DISPATCH, {
-    method: 'POST',
-    headers: {
-      accept: 'application/vnd.github+json',
-      authorization: `Bearer ${token}`,
-      'user-agent': 'viapeninsula-fetcher',
-      'x-github-api-version': '2022-11-28',
-    },
-    body: JSON.stringify({ ref: 'main' }),
-  });
-  if (!res.ok) throw new Error(`GitHub didn't start the daily build: HTTP ${res.status} ${await res.text()}`);
+  const headers = {
+    accept: 'application/vnd.github+json',
+    authorization: `Bearer ${token}`,
+    'user-agent': 'viapeninsula-fetcher',
+    'x-github-api-version': '2022-11-28',
+  };
+  for (const [path, init] of [['/enable', { method: 'PUT' }], ['/dispatches', { method: 'POST', body: JSON.stringify({ ref: 'main' }) }]] as const) {
+    const res = await fetch(WORKFLOW + path, { ...init, headers });
+    if (!res.ok) throw new Error(`GitHub didn't start the daily build: ${path} HTTP ${res.status} ${await res.text()}`);
+  }
 }
 
 async function fetchRodalies(): Promise<Responses['rodalies']> {
