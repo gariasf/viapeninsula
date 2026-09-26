@@ -37,7 +37,15 @@ interface Env {
   /** TMB's app ID and key for its API, as Worker secrets. */
   TMB_APP_ID?: string;
   TMB_APP_KEY?: string;
+  /** A fine-grained GitHub token that can only start this repository's Actions, as a Worker secret. */
+  GITHUB_DISPATCH_TOKEN?: string;
 }
+
+/** The cron trigger that starts the daily build, as wrangler.jsonc has it. */
+const DAILY = '30 0 * * *';
+
+/** Where GitHub starts the daily build's workflow. */
+const DISPATCH = 'https://api.github.com/repos/gariasf/viapeninsula/actions/workflows/daily.yml/dispatches';
 
 export class Fetcher extends DurableObject<Env> {
   /** Starts the runs, unless they're under way. */
@@ -65,11 +73,28 @@ export class Fetcher extends DurableObject<Env> {
 }
 
 export default {
-  // Every minute, as the cron trigger has it.
-  async scheduled(_controller, env) {
-    await env.FETCHER.getByName('fetcher').start();
+  // Every minute, as one cron trigger has it, and once a day, as the other does.
+  async scheduled(controller, env) {
+    if (controller.cron === DAILY) await dispatchDaily(env);
+    else await env.FETCHER.getByName('fetcher').start();
   },
 } satisfies ExportedHandler<Env>;
+
+/** Starts the daily build in GitHub Actions. A failure throws, so the Worker's logs show it. */
+async function dispatchDaily({ GITHUB_DISPATCH_TOKEN: token }: Env) {
+  if (!token) throw new Error("GITHUB_DISPATCH_TOKEN isn't set");
+  const res = await fetch(DISPATCH, {
+    method: 'POST',
+    headers: {
+      accept: 'application/vnd.github+json',
+      authorization: `Bearer ${token}`,
+      'user-agent': 'viapeninsula-fetcher',
+      'x-github-api-version': '2022-11-28',
+    },
+    body: JSON.stringify({ ref: 'main' }),
+  });
+  if (!res.ok) throw new Error(`GitHub didn't start the daily build: HTTP ${res.status} ${await res.text()}`);
+}
 
 async function fetchRodalies(): Promise<Responses['rodalies']> {
   const [positions, updates] = await Promise.all([get(RENFE.positions, text), get(RENFE.updates, text)]);

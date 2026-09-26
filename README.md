@@ -50,6 +50,18 @@ for name in TRAM_CLIENT_ID TRAM_CLIENT_SECRET TMB_APP_ID TMB_APP_KEY; do
 done
 ```
 
+## The daily build in Actions
+
+`.github/workflows/daily.yml` runs `npm run daily` in GitHub Actions and publishes to R2. The fetcher's Worker starts it at 00:30 UTC through GitHub's workflow dispatch, GitHub's own schedule starts it at 03:30 UTC in case that one doesn't come, and the Run workflow button in the Actions tab starts it whenever it's wanted. Running it again for the same days publishes the same files, so the second run each day is harmless. Its secrets, fed from `.env.local` without being printed: TMB's key and the R2 token as Actions secrets, the R2 token under the name Wrangler reads there, and the dispatch token as the fetcher's secret:
+
+```sh
+for name in TMB_APP_ID TMB_APP_KEY; do
+  node --env-file=.env.local -e "process.stdout.write(process.env.$name)" | gh secret set $name
+done
+node --env-file=.env.local -e "process.stdout.write(process.env.R2_API_TOKEN)" | gh secret set CLOUDFLARE_API_TOKEN
+node --env-file=.env.local -e "process.stdout.write(process.env.GITHUB_DISPATCH_TOKEN)" | npx wrangler secret put GITHUB_DISPATCH_TOKEN -c src/fetcher/wrangler.jsonc
+```
+
 ## Licence
 
 The code is AGPL-3.0. Timetables come from Renfe and FGC under CC BY 4.0, as does their live data, from TRAM (Powered by TRAM Barcelona) and from TMB, whose terms ask for the day its data was last updated to be shown with it. The track follows OpenStreetMap's rails and the basemap comes from OpenFreeMap, both © OpenStreetMap contributors under the ODbL.
