@@ -29,6 +29,16 @@ body,
   background: #555;
 }
 
+/* The legend's button that opens the About dialog, as a link. */
+.legend button {
+  display: inline;
+  width: auto;
+  height: auto;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+}
+
 /* Yellow, as a warning. */
 .banner {
   background: #fff3bf;
@@ -60,7 +70,20 @@ body,
   font: 13px/1.5 sans-serif;
 }
 
-.follow h2 {
+/* The About dialog, in the middle of the map, laid out as the panel. */
+.about {
+  box-sizing: border-box;
+  width: min(440px, calc(100vw - 16px));
+  max-width: none;
+  padding: 8px 12px 12px;
+  border: 0;
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px rgb(0 0 0 / 10%);
+  font: 13px/1.5 sans-serif;
+}
+
+.follow h2,
+.about h2 {
   margin: 0 24px 4px 0;
   font-size: 15px;
 }
@@ -72,17 +95,21 @@ body,
   color: #fff;
 }
 
-.follow h3 {
+.follow h3,
+.about h3 {
   margin: 8px 0 2px;
   font-size: 13px;
 }
 
 .follow p,
-.follow ol {
+.follow ol,
+.about p,
+.about ul {
   margin: 0;
 }
 
-.follow ol {
+.follow ol,
+.about ul {
   padding-left: 0;
   list-style: none;
 }
@@ -93,7 +120,8 @@ body,
   font-variant-numeric: tabular-nums;
 }
 
-.follow .close {
+.follow .close,
+.about .close {
   position: absolute;
   top: 4px;
   right: 4px;

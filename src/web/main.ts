@@ -60,13 +60,16 @@ const byLive = (live: string | number | ExpressionSpecification, scheduled: stri
  */
 const TRANSLATED: ExpressionSpecification = ['any', ['in', ['get', 'class'], ['literal', ['country', 'state', 'ocean', 'sea', 'river']]], ['has', 'iata']];
 
+/** CC BY 4.0, with the link to its text that it asks for. */
+const CC_BY = '<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank">CC BY 4.0</a>';
+
 /**
  * Each Network's credit, as the terms for its data ask: Renfe's and FGC's are CC BY 4.0, TRAM's asks
  * for its own words and a link, and TMB's for the day its data was last updated.
  */
 const CREDITS: Record<string, (network: Network) => string> = {
-  rodalies: () => 'Rodalies: <a href="https://data.renfe.com/" target="_blank">Renfe</a>, CC BY 4.0',
-  fgc: () => '<a href="https://dadesobertes.fgc.cat/" target="_blank">FGC</a>, CC BY 4.0',
+  rodalies: () => `Rodalies: <a href="https://data.renfe.com/" target="_blank">Renfe</a>, ${CC_BY}`,
+  fgc: () => `<a href="https://dadesobertes.fgc.cat/" target="_blank">FGC</a>, ${CC_BY}`,
   tram: () => '<a href="https://www.tram.cat/" target="_blank">Powered by TRAM Barcelona</a>',
   metro: ({ updated }) =>
     `Metro: <a href="https://www.tmb.cat/" target="_blank">TMB</a>` +
@@ -132,6 +135,13 @@ const panel = document.createElement('section');
 panel.className = 'follow';
 panel.hidden = true;
 document.body.append(panel);
+// The About dialog, opened from the legend, which showLanguage() fills: what the map shows, and its
+// credits, code and privacy. Tapping outside it closes it too, in browsers that can.
+const about = el('dialog', { className: 'about' });
+about.setAttribute('closedby', 'any');
+document.body.append(about);
+/** The About dialog's credits, which showCredits() fills. */
+const aboutCredits = el('ul');
 /**
  * The Train the map follows, by its service day and its Trip as its operator names it, so that it
  * stays followed as the days joined change around midnight, and where it's drawn.
@@ -277,7 +287,8 @@ for (const layer of ['trains', 'stations']) {
   map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'));
   map.on('mouseleave', layer, () => (map.getCanvas().style.cursor = ''));
 }
-document.addEventListener('keydown', (e) => e.key === 'Escape' && (following || boardPlace || nearMe) && closePanel());
+// Escape closes the About dialog on its own, if it's open.
+document.addEventListener('keydown', (e) => e.key === 'Escape' && !about.open && (following || boardPlace || nearMe) && closePanel());
 
 // Moves the Trains every frame, and names the Networks whose live data is unavailable as that
 // changes. The browser stops asking while the tab is hidden.
@@ -402,6 +413,25 @@ function showLanguage() {
       row.append(marker, Object.assign(document.createElement('b'), { textContent: t(kind) }), `: ${t(`${kind}Means`)}`);
       return row;
     }),
+    el('button', { type: 'button', textContent: t('about'), onclick: () => about.showModal() }),
+  );
+  about.setAttribute('aria-label', t('about'));
+  about.replaceChildren(
+    closeButton(t('close'), () => about.close()),
+    el('h2', { textContent: t('about') }),
+    el('p', { textContent: t('estimates') }),
+    el('h3', { textContent: t('credits') }),
+    aboutCredits,
+    el('h3', { textContent: t('sourceCode') }),
+    el(
+      'p',
+      {},
+      el('a', { href: 'https://github.com/gariasf/viapeninsula', target: '_blank', textContent: 'github.com/gariasf/viapeninsula' }),
+      ', ',
+      el('a', { href: 'https://www.gnu.org/licenses/agpl-3.0.html', target: '_blank', textContent: 'AGPL-3.0' }),
+    ),
+    el('h3', { textContent: t('privacy') }),
+    el('p', { textContent: t('noCookies') }),
   );
   showBanner();
   showCredits();
@@ -628,9 +658,9 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLEl
   return node;
 }
 
-/** The panel's button that closes it. */
-function closeButton(label: string) {
-  const close = el('button', { className: 'close', title: label, textContent: '×', onclick: closePanel });
+/** The panel's button that closes it, or what `onclick` closes. */
+function closeButton(label: string, onclick = closePanel) {
+  const close = el('button', { className: 'close', title: label, textContent: '×', onclick });
   close.setAttribute('aria-label', label);
   return close;
 }
@@ -681,19 +711,19 @@ function showBanner() {
   );
 }
 
-/** Credits the basemap and each Network's data, in the viewer's language, building the credits afresh. */
+/** Credits the basemap and each Network's data, in the viewer's language, on the map and in the About dialog, building the map's credits afresh. */
 function showCredits() {
+  const list = [
+    '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> ' +
+      '<a href="https://www.openmaptiles.org/" target="_blank">© OpenMapTiles</a> ' +
+      `<a href="https://www.openstreetmap.org/copyright" target="_blank">${t('osmContributors')}</a>`,
+    // A Network with no credit of its own here still gets its name.
+    ...credited.map((network) => CREDITS[network.id]?.(network) ?? network.name),
+  ];
   if (credits) map.removeControl(credits);
-  credits = new AttributionControl({
-    customAttribution: [
-      '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> ' +
-        '<a href="https://www.openmaptiles.org/" target="_blank">© OpenMapTiles</a> ' +
-        `<a href="https://www.openstreetmap.org/copyright" target="_blank">${t('osmContributors')}</a>`,
-      // A Network with no credit of its own here still gets its name.
-      ...credited.map((network) => CREDITS[network.id]?.(network) ?? network.name),
-    ],
-  });
+  credits = new AttributionControl({ customAttribution: list });
   map.addControl(credits);
+  aboutCredits.replaceChildren(...list.map((html) => el('li', { innerHTML: html })));
 }
 
 /**
