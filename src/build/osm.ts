@@ -1,4 +1,4 @@
-// OpenStreetMap's rails for Catalonia, and its border, from Overpass.
+// OpenStreetMap's rails for Catalonia and a margin beyond its land border, and the border itself, from Overpass.
 
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
@@ -25,9 +25,22 @@ const USER_AGENT = 'viapeninsula (https://github.com/gariasf/viapeninsula)';
 /** Rails change slowly, so a copy less than a week old saves asking Overpass again. */
 const FRESH = 7 * 24 * 60 * 60 * 1000;
 
-/** The ways in Catalonia whose `railway` tag is one of these, from the cache or from Overpass. */
+/**
+ * Rails within this many metres beyond Catalonia's border are fetched too, so a Line's track reaches
+ * the first Station beyond it: Nonaspe, on R15 to Caspe, is about 6 km past it.
+ * ponytail: one margin sized from Nonaspe; widen it if a Line's first Station beyond lies further.
+ */
+const MARGIN = 10_000;
+
+/** The ways in Catalonia, or within MARGIN of its border, whose `railway` tag is one of these, from the cache or from Overpass. */
 export async function osmRails(railways: string[], cache = '.cache'): Promise<OsmWay[]> {
-  const query = `[out:json][timeout:180];area["ISO3166-2"="ES-CT"]->.catalonia;way["railway"~"^(${railways.join('|')})$"](area.catalonia);out body geom qt;`;
+  const rail = `way["railway"~"^(${railways.join('|')})$"]`;
+  // The margin runs along the land border only, the ways Catalonia shares with Aragon, Valencia,
+  // France and Andorra: around the whole border, coast and all, Overpass runs out of memory.
+  const landBorder =
+    'rel["ISO3166-2"="ES-CT"];way(r)->.ct;rel["ISO3166-2"~"^ES-(AR|VC)$"];way(r)->.es;' +
+    'rel["ISO3166-1"~"^(FR|AD)$"]["admin_level"="2"];way(r)->.abroad;(way.ct.es;way.ct.abroad;)->.border;';
+  const query = `[out:json][timeout:180];area["ISO3166-2"="ES-CT"]->.catalonia;${landBorder}(${rail}(area.catalonia);${rail}(around.border:${MARGIN}););out body geom qt;`;
   return overpass(query, cache, "OpenStreetMap's rails", parse);
 }
 

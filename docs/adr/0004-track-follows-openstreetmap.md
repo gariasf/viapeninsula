@@ -11,7 +11,7 @@ Each way a shape's Trips run it is traced on its own (#25): where they run it ba
 
 ## Consequences
 
-- The daily build downloads OpenStreetMap's rails for Catalonia from Overpass. The map already credits OpenStreetMap contributors.
+- The daily build downloads OpenStreetMap's rails for Catalonia from Overpass, and those within 10 km beyond its land border, so a Line's track reaches the first Station beyond it (#62). The map already credits OpenStreetMap contributors.
 - Trips keep their shapes, or run the reversed one where they run theirs backwards; the bundle names each Network's running side and each shape's sides, so the map can put Trains on their Line's stroke zoomed out, a little to their running side, where a double track's two tracks fall on one pixel.
 - A shape runs from the first to the last Station its Trips serve: beyond the feed's shape where Trips run further, which fills its gaps, and short of it where none do, so RL4 starts at Manresa. A Station on a branch off the middle of a shape, such as Estació de França for R2N, is left out rather than traced out to and back. The Trips that call there can't be placed on their shape, so the build leaves them out of the bundle and reports them.
 - A stretch that can't be traced keeps the feed's shape, and the build reports it. OpenStreetMap can be wrong too (railisland found a stretch mapped on an old alignment 800 m away), so where the feed has the track, a traced shape much longer or shorter than the feed's fails the build.
