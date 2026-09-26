@@ -637,6 +637,14 @@ test("a board's times are by the fetcher's clock on a device whose clock is minu
   expect(board(['Vilanova i la Geltrú'], at('21:45:30'), [{ snapshot: written(at('21:49:00')), at: at('21:44:00') }])).toEqual([]);
 });
 
+test("a departure whose Train a working feed doesn't report is marked on the board as having no live data, as in the follow panel", () => {
+  // Renfe's feeds at 21:37 on 24 September didn't report the R2N, standing at Mollet-Sant Fost until 21:38, and did the R2S.
+  expect(board(['Mollet-Sant Fost'], at('21:37:30'), RECEIVED)).toMatchObject([{ trip: { id: R2N }, live: false, unreported: true }]);
+  expect(board(['Sitges'], at('21:37:30'), RECEIVED)).toMatchObject([{ trip: { id: R2S }, live: true, unreported: false }]);
+  // With no live data at all, it's plain Scheduled.
+  expect(board(['Mollet-Sant Fost'], at('21:37:30'))).toMatchObject([{ trip: { id: R2N }, live: false, unreported: false }]);
+});
+
 test('a cancelled Train stays on the board, marked cancelled, when its timetable has it leave', () => {
   const snapshot: Snapshot = { ...written(at('21:49:00')), reports: [{ trip: R2S, at: at('21:48:40'), cancelled: true }] };
   expect(board(['Sitges'], at('21:49:30'), [{ snapshot, at: at('21:49:10') }])).toMatchObject([{ trip: { id: R2S }, departure: at('21:57:00'), cancelled: true, live: false }]);

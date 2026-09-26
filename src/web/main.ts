@@ -574,14 +574,14 @@ function boardPanel(id: string): Node[] | undefined {
       ? el(
           'ol',
           {},
-          ...departures.map(({ trip, departure, delay, live, cancelled }) =>
+          ...departures.map(({ trip, departure, delay, live, unreported, cancelled }) =>
             el(
               'li',
               { className: cancelled ? 'cancelled' : '' },
               el('time', { textContent: time.format(departure) }),
               lineName(trip.line),
               ` ${trip.headsign} `,
-              el('small', { className: live ? 'live' : 'scheduled' }, cancelled ? t('cancelled') : `${t(live ? 'live' : 'scheduled')} · ${delayText(delay)}`),
+              el('small', { className: live ? 'live' : 'scheduled' }, cancelled ? t('cancelled') : [t(live ? 'live' : 'scheduled'), ...(unreported ? [t('noLiveTrain')] : []), delayText(delay)].join(' · ')),
             ),
           ),
         )
