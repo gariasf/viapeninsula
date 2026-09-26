@@ -63,7 +63,7 @@ export const KEEP = CARRY + 5 * 60_000;
  * third, and it keeps its last Delay for CARRY before it's back on its plain timetable.
  */
 export function trainsAt(bundle: Bundle, at: number, received: Received[] = []): Train[] {
-  const of = onMap(bundle, at, received);
+  const { of } = onMap(bundle, at, received);
   return bundle.trips.flatMap((trip) => of(trip)?.train ?? []);
 }
 
@@ -89,8 +89,8 @@ export interface Followed extends Train {
 /** One Train, as the follow panel shows it, at a moment by the device's clock (ms since 1970), given the snapshots received by then: as trainsAt() has it, if it's on the map. */
 export function trainAt(bundle: Bundle, at: number, received: Received[], id: string): Followed | undefined {
   const trip = bundle.trips.find((t) => t.id === id);
-  const on = trip && onMap(bundle, at, received)(trip);
-  if (!on) return undefined;
+  const on = trip && onMap(bundle, at, received).of(trip);
+  if (!on?.train) return undefined;
   const { train, now, time, calls, profile, ease, said } = on;
   const delay = ease?.delay ?? 0;
   // When it's expected at a moment of its timetable, running its Delay late.
@@ -109,13 +109,54 @@ export function trainAt(bundle: Bundle, at: number, received: Received[], id: st
   };
 }
 
+/** A Train on a Station's board: when it's expected to leave the Station, and how far to trust that. */
+export interface Departure {
+  trip: Trip;
+  station: string;
+  /** When it's expected to leave, in ms since 1970, running its Delay late: as trainAt() has it, where it's on the map. */
+  departure: number;
+  /** Its Delay, in seconds, as live data last gave it: early where it's negative. */
+  delay: number;
+  live: boolean;
+  /** Whether its operator has announced that it won't run: then it's expected when its timetable has it leave. */
+  cancelled: boolean;
+}
+
+/** How many departures a Station's board lists. */
+const BOARD = 10;
+
 /**
- * A Train on the map, and how it got there: the moment and where in its timetable it's drawn, both
+ * The next departures from some Stations, soonest first, at a moment by the device's clock (ms since
+ * 1970), given the snapshots received by then: each Train still to leave one of them, but not one
+ * that ends its Trip there, expected as it's drawn on the map, and a Cancelled one as its timetable has it.
+ */
+export function boardAt(bundle: Bundle, at: number, received: Received[], stations: string[]): Departure[] {
+  const { of, now } = onMap(bundle, at, received);
+  const here = new Set(stations);
+  return bundle.trips
+    .flatMap((trip): Departure[] => {
+      if (!trip.calls.some((c) => here.has(c.station))) return [];
+      const on = of(trip);
+      if (!on) return [];
+      const cancelled = !!on.said?.report.cancelled;
+      const [time, delay] = cancelled ? [now, 0] : [on.time, on.ease?.delay ?? 0];
+      // Where it calls there more than once, as turning back, the first time it's still to leave.
+      const call = on.calls.find((c, i) => i < on.calls.length - 1 && c.departure > time && here.has(c.station));
+      if (!call) return [];
+      return [{ trip, station: call.station, departure: bundle.noonMinus12h + (call.departure + delay) * 1000, delay, live: on.train?.live ?? false, cancelled }];
+    })
+    .sort((a, b) => a.departure - b.departure)
+    .slice(0, BOARD);
+}
+
+/**
+ * A Train on the map, if it is, and how it got there: the moment and where in its timetable it's drawn, both
  * in seconds into the service day by the fetcher's clock, its calls as it makes them, how it eases
  * towards where live data has it, and what live data last said about it.
  */
 interface OnMap {
-  train: Train;
+  /** None while it's off the map, as before its first Station, after its last, or Cancelled. */
+  train?: Train;
   now: number;
   time: number;
   calls: Call[];
@@ -124,8 +165,8 @@ interface OnMap {
   said?: Heard;
 }
 
-/** Where trainsAt() has each Trip's Train at a moment by the device's clock, if it's on the map. */
-function onMap(bundle: Bundle, at: number, received: Received[]): (trip: Trip) => OnMap | undefined {
+/** Where trainsAt() has each Trip's Train at a moment by the device's clock, and that moment in seconds into the service day by the fetcher's clock. */
+function onMap(bundle: Bundle, at: number, received: Received[]): { of: (trip: Trip) => OnMap | undefined; now: number } {
   const clock = behind(received);
   const now = (at + clock - bundle.noonMinus12h) / 1000;
   const shapes = new Map(bundle.shapes.map((s) => [s.id, s]));
@@ -143,26 +184,27 @@ function onMap(bundle: Bundle, at: number, received: Received[]): (trip: Trip) =
   // data without being left out of it.
   const blockLines = new Set(received.flatMap((r) => linesByBlock(r.snapshot)));
   const blockNetworks = new Set([...blockLines].map((line) => lines.get(line)?.id));
-  return (trip) => {
-    const said = heard.get(trip.id);
-    if (said?.report.cancelled) return undefined;
-    const [network, shape, first, last, ease] = [lines.get(trip.line), shapes.get(trip.shape), trip.calls[0], trip.calls.at(-1), eases.get(trip.id)];
+  const of = (trip: Trip): OnMap | undefined => {
+    const [said, network, shape, first, last, ease] = [heard.get(trip.id), lines.get(trip.line), shapes.get(trip.shape), trip.calls[0], trip.calls.at(-1), eases.get(trip.id)];
     if (!network || !shape) return undefined;
     const { profile } = network;
     const calls = withDwell(trip, profile);
     // A Train running late is where its timetable had it that long ago, once it has eased there.
     const time = ease ? eased(calls, profile, ease, now) : now;
+    const off = { now, time, calls, profile, ease, said };
+    if (said?.report.cancelled) return off;
     // Most Trips aren't on the map at any one moment, whatever their dwell: skip those first.
-    if (!first || !last || time < first.arrival - profile.dwell || time > last.departure + profile.dwell) return undefined;
+    if (!first || !last || time < first.arrival - profile.dwell || time > last.departure + profile.dwell) return off;
     const dist = place(calls, profile, time);
     // Beyond where its track starts or ends, as past Catalonia's border, it's off the map.
-    if (dist === undefined || dist < (shape.dist[0] ?? 0) || dist > (shape.dist.at(-1) ?? 0)) return undefined;
+    if (dist === undefined || dist < (shape.dist[0] ?? 0) || dist > (shape.dist.at(-1) ?? 0)) return off;
     const [lon, lat] = pointAt(shape, dist);
     const feed = feeds[network.id];
     const live = feed !== undefined && said?.placed !== undefined && !stale(said.placed, upToNow, feed.every);
     const unreported = feed !== undefined && !recent(said, upTo) && !stale(feed.lastSuccess, upTo, feed.every) && (!blockNetworks.has(network.id) || blockLines.has(trip.line));
-    return { train: { trip, dist, lon, lat, live, unreported }, now, time, calls, profile, ease, said };
+    return { ...off, train: { trip, dist, lon, lat, live, unreported } };
   };
+  return { of, now };
 }
 
 /**

@@ -3,7 +3,7 @@ import { gunzipSync } from 'node:zlib';
 import { expect, test } from 'vitest';
 import { pointAt, type Bundle, type Network, type Report, type Snapshot } from './bundle.ts';
 import { noonMinus12h } from './build/gtfs.ts';
-import { joinDays, KEEP, trainAt, trainsAt, unavailable, type Received } from './engine.ts';
+import { boardAt, joinDays, KEEP, trainAt, trainsAt, unavailable, type Received } from './engine.ts';
 
 /** A speed profile like Rodalies', in metres and seconds, which the times below are worked out from. */
 const PROFILE = { acceleration: 1, braking: 1, topSpeed: 160 / 3.6, dwell: 30 };
@@ -587,6 +587,56 @@ test('a followed Train that live data shows stopped between Stations, held there
   const received = [0, 20, 40, 60].map((delay, i) => late(R2S, delay, at('21:59:40', i * 20)));
   expect(followed(R2S, at('22:00:50'), received)).toMatchObject({ speed: 0, standing: false });
   expect(followed(R2S, at('21:49:30'))).toMatchObject({ standing: true });
+});
+
+/** A board of the next departures from some Stations at a moment by the device's clock, with the live data received by then. */
+const board = (stations: string[], moment: number, received: Received[] = []) => boardAt(BUNDLE, moment, by(received, moment), stations);
+
+test("a Station's board lists each Train still to leave it, expected when its timetable has it leave, and not one that ends there", () => {
+  // With no live data, the R2S stands at Vilanova i la Geltrú from 21:49 to 21:50.
+  expect(board(['Vilanova i la Geltrú'], at('21:20:00'))).toMatchObject([{ trip: { id: R2S }, station: 'Vilanova i la Geltrú', departure: at('21:50:00'), delay: 0, live: false, cancelled: false }]);
+  expect(board(['Vilanova i la Geltrú'], at('21:49:30'))).toHaveLength(1);
+  expect(board(['Vilanova i la Geltrú'], at('21:50:01'))).toEqual([]);
+  // Its last Station, where it only arrives.
+  expect(board(['Barcelona Estació de França'], at('22:40:00'))).toEqual([]);
+});
+
+test("a board's times agree with where each Train is on the map: it leaves the Station when the board says", () => {
+  // Renfe's GPS has the R2S 69 s late past Calafell at 21:36:46.
+  const [sitges] = board(['Sitges'], at('21:37:00'), RECEIVED);
+  expect(sitges).toMatchObject({ trip: { id: R2S }, live: true });
+  expect(sitges?.delay).toBeCloseTo(69, 0);
+  expect(sitges?.departure).toBe(followed(R2S, at('21:37:00'), RECEIVED)?.upcoming.find((u) => u.station === 'Sitges')?.departure);
+  const departure = sitges?.departure ?? NaN;
+  expect(where(R2S, departure, RECEIVED)).toBe(135376);
+  expect(where(R2S, departure + 1000, RECEIVED)).toBeGreaterThan(135376);
+});
+
+test('a Train not yet on the map is on the board as late as live data has it, and leaves then', () => {
+  // Made up: a trip update at 21:19 has the R2S, due out of Sant Vicenç de Calders at 21:30, 2 minutes late.
+  const received = [late(R2S, 120, at('21:19:00'))];
+  expect(train(R2S, at('21:20:00'), received)).toBeUndefined();
+  expect(board(['Vilanova i la Geltrú'], at('21:20:00'), received)).toMatchObject([{ departure: at('21:52:00'), delay: 120, live: false }]);
+  expect(where(R2S, at('21:52:00'), received)).toBe(128092);
+  expect(where(R2S, at('21:52:01'), received)).toBeGreaterThan(128092);
+});
+
+test('a cancelled Train stays on the board, marked cancelled, when its timetable has it leave', () => {
+  const snapshot: Snapshot = { ...written(at('21:49:00')), reports: [{ trip: R2S, at: at('21:48:40'), cancelled: true }] };
+  expect(board(['Sitges'], at('21:49:30'), [{ snapshot, at: at('21:49:10') }])).toMatchObject([{ trip: { id: R2S }, departure: at('21:57:00'), cancelled: true, live: false }]);
+});
+
+test("a board lists only its own Stations' departures, soonest first", () => {
+  // Made up: three Lines at one place, two of them the Metro's, one Station for each.
+  const row = (station: string, time: string): Row => [station, time, time, 0, 2.16, 41.39];
+  const day = bundleOf('2026-09-24', { id: 'metro', name: 'Metro', profile: PROFILE }, {
+    l2: { line: 'L2', calls: [row('L2 Passeig de Gràcia', '12:05:00'), row('L2 Tetuan', '12:07:00')] },
+    l3: { line: 'L3', calls: [row('L3 Passeig de Gràcia', '12:03:00'), row('L3 Diagonal', '12:05:00')] },
+    r2: { line: 'R2S', calls: [row('Barcelona-Passeig de Gràcia', '12:01:00'), row('El Clot', '12:06:00')] },
+  });
+  const ids = (stations: string[]) => boardAt(day, at('12:00:00'), [], stations).map((d) => d.trip.id);
+  expect(ids(['L2 Passeig de Gràcia', 'L3 Passeig de Gràcia'])).toEqual(['l3', 'l2']);
+  expect(ids(['Barcelona-Passeig de Gràcia'])).toEqual(['r2']);
 });
 
 test('never runs back when its last Delay runs out, among the snapshots the map keeps', () => {

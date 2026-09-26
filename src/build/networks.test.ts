@@ -205,12 +205,13 @@ test('draws the Stations TMB groups in one station as one place, at the middle o
   ];
   const drawn = places(stations);
   expect(drawn).toHaveLength(3);
-  expect(drawn[0]?.name).toBe('Passeig de Gràcia');
+  // Its board lists each of its Lines' Stations.
+  expect(drawn[0]).toMatchObject({ id: 'tmb:P.6660327', name: 'Passeig de Gràcia', stations: ['tmb:1.327', 'tmb:1.437', 'tmb:1.225'] });
   expect(drawn[0]?.lon).toBeCloseTo(2.1675);
   expect(drawn[0]?.lat).toBeCloseTo(41.392);
   expect(drawn.slice(1)).toEqual([
-    { name: 'Trinitat Nova', lon: 2.1832, lat: 41.4499 },
-    { name: 'Barcelona-Passeig de Gràcia', lon: 2.1652, lat: 41.3919 },
+    { id: 'tmb:P.6660339', name: 'Trinitat Nova', stations: ['tmb:1.1136'], lon: 2.1832, lat: 41.4499 },
+    { id: 'adif:71802', name: 'Barcelona-Passeig de Gràcia', stations: ['adif:71802'], lon: 2.1652, lat: 41.3919 },
   ]);
 });
 

@@ -43,7 +43,7 @@ body,
   cursor: pointer;
 }
 
-/* The follow panel: bottom left, across the bottom on a phone, over the credits. Its Line's name in the Line's colour. */
+/* The panel, following a Train or showing a Station's board: bottom left, across the bottom on a phone, over the credits. Each Line's name in the Line's colour. */
 .follow {
   position: absolute;
   bottom: 8px;
@@ -104,4 +104,23 @@ body,
   font-size: 22px;
   line-height: 1;
   cursor: pointer;
+}
+
+/* On a board, each departure's status goes under its Line and destination, and a Cancelled one's time is struck through. */
+.follow li small {
+  display: block;
+  margin-left: 3.5em;
+  color: #555;
+}
+
+.follow li .line {
+  margin-right: 2px;
+}
+
+.follow .cancelled time {
+  text-decoration: line-through;
+}
+
+.follow .cancelled small {
+  color: #c00;
 }

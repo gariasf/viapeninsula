@@ -153,12 +153,17 @@ export interface Station {
   place?: string;
 }
 
-/** Where the map shows the Stations: those grouped in one place as one, at the middle of theirs, and every other on its own. */
-export function places(stations: Station[]): { name: string; lon: number; lat: number }[] {
+/**
+ * Where the map shows the Stations: those grouped in one place as one, at the middle of theirs, and
+ * every other on its own. Each is known by its place, or its Station's ID, and lists its Stations.
+ */
+export function places(stations: Station[]): { id: string; name: string; stations: string[]; lon: number; lat: number }[] {
   const groups = new Map<string, Station[]>();
   for (const s of stations) groups.set(s.place ?? s.id, [...(groups.get(s.place ?? s.id) ?? []), s]);
-  return [...groups.values()].map((group) => ({
+  return [...groups].map(([id, group]) => ({
+    id,
     name: group[0]?.name ?? '',
+    stations: group.map((s) => s.id),
     lon: group.reduce((sum, s) => sum + s.lon, 0) / group.length,
     lat: group.reduce((sum, s) => sum + s.lat, 0) / group.length,
   }));
