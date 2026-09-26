@@ -19,7 +19,7 @@ const EMPTY_POLLS = 3;
  * last is due off the map it keeps it, for Trains running late, in ms.
  */
 const [EARLY, LATE] = [30 * 60_000, 60 * 60_000];
-/** How near the viewer, in metres, and how soon, in ms, a Train passes to be one of their nearby Trains. */
+/** How near the viewer, in metres, and how soon, in ms, a Train passes to be one of their nearby Trains. The panel's strings say so too. */
 const [NEARBY, SOON] = [1500, 60 * 60_000];
 
 /** A Line's width, in pixels at each zoom. */
@@ -444,6 +444,8 @@ function showNearby() {
     nearMe = where;
     showPanel();
   };
+  // Some browsers have no geolocation at all, as over plain http.
+  if (!('geolocation' in navigator)) return found('failed');
   navigator.geolocation.getCurrentPosition(({ coords }) => found([coords.longitude, coords.latitude]), () => found('failed'), { maximumAge: 60_000, timeout: 30_000 });
 }
 
