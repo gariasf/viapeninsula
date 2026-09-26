@@ -79,7 +79,11 @@ const map = new MapLibreMap({
   center: [2.17, 41.39], // Barcelona, with the rest of Catalonia a zoom away
   zoom: 11,
   attributionControl: false,
+  // The view goes in the page's link, as `#map=<zoom>/<lat>/<lon>`, beside what shareLink() adds.
+  hash: 'map',
 });
+/** The link the map was opened with, which can follow a Train or show a Station's board besides the view. */
+const opened = new URLSearchParams(location.hash.slice(1));
 map.setStyle('https://tiles.openfreemap.org/styles/positron', {
   transformStyle: (_, style) => {
     // OpenFreeMap's credit ends "Data from OpenStreetMap", in English, and the ODbL asks for the
@@ -288,6 +292,13 @@ requestAnimationFrame(function move() {
   requestAnimationFrame(move);
 });
 
+// A link to a Station opens its board, and one to a Train follows it once its Trips have come: or
+// where it's no longer running, opens the map as usual.
+const [linkStation, linkTrain] = [opened.get('station'), opened.get('train')];
+const linkPlace = linkStation && [...shownPlaces.values()].find((p) => p.stations.includes(linkStation));
+if (linkPlace) showBoard(linkPlace.id);
+if (linkTrain) needed.days.then(() => follow(linkTrain), () => {});
+
 /**
  * Draws the Lines and Stations of the days on the map, and credits their Networks, where they've
  * changed, and once their Trips have come, moves their Trains.
@@ -396,6 +407,7 @@ function follow(id: string) {
   boardPlace = undefined;
   trainSource?.setData(trains());
   showPanel();
+  shareLink();
   if (following.at) map.easeTo({ center: following.at, zoom: Math.max(map.getZoom(), 13), padding: abovePanel() });
 }
 
@@ -404,13 +416,31 @@ function showBoard(place: string) {
   [following, boardPlace] = [undefined, place];
   trainSource?.setData(trains());
   showPanel();
+  shareLink();
 }
 
 /** Stops following a Train, or closes a Station's board. */
 function closePanel() {
   [following, boardPlace] = [undefined, undefined];
   showPanel();
+  shareLink();
   map.easeTo({ padding: abovePanel() });
+}
+
+/**
+ * Puts what the panel shows in the page's link, beside the view, so that sharing the page shares it:
+ * `train=<service day>/<Trip>`, the Train by its service day and its Trip as its operator names it,
+ * whose ID leads with its Network, or `station=<Station>`, one of the place's Stations, which opens the
+ * place's board. Written as MapLibre writes the view, which undoes any escaping each time it does.
+ */
+function shareLink() {
+  const params = new URLSearchParams(location.hash.slice(1));
+  params.delete('train');
+  params.delete('station');
+  if (following) params.set('train', `${following.day}/${following.trip}`);
+  const station = boardPlace && shownPlaces.get(boardPlace)?.stations[0];
+  if (station) params.set('station', station);
+  history.replaceState(history.state, '', `#${decodeURIComponent(params.toString())}`);
 }
 
 /** The ID of the Trip the map follows in the days on the map, which lead an earlier day's Trips with that day (joinDays()). */
