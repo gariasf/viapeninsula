@@ -346,8 +346,8 @@ const EASE = 20;
 const [JUMP_TIME, JUMP_DIST] = [60, 1000];
 
 /**
- * The last replay, which the map asks for again every frame until its next snapshot arrives, and
- * then folds that snapshot into.
+ * The last replay, which the map asks for again each time it moves its Trains until its next
+ * snapshot arrives, and then folds that snapshot into.
  */
 let last: { bundle: Bundle; received: Received[]; clock: number; eases: Map<string, Ease>; heard: Map<string, Heard>; dwelt: Map<string, Call[]> } | undefined;
 
@@ -408,7 +408,7 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
   return last;
 }
 
-/** Each snapshot's Lines it names Blocks on, worked out once: the map asks for them every frame. */
+/** Each snapshot's Lines it names Blocks on, worked out once: the map asks for them each time it moves its Trains. */
 const blockLinesOf = new WeakMap<Snapshot, string[]>();
 
 /** The Lines a snapshot names Blocks on, as the Metro's live data names its Trains. */
