@@ -1094,6 +1094,25 @@ test("before midnight the map already shows the next day's Trains as they come, 
   expect(trainsAt(FRIDAY_NIGHT, moment).map((t) => [t.trip.id, t.dist])).toEqual(trainsAt(FRIDAY, moment).map((t) => [`2026-09-25/${t.trip.id}`, t.dist]));
 });
 
+test("late in the evening, once a Station's last departure has gone, its board lists the next day's first", () => {
+  const moment = Date.parse('2026-09-25T23:51:00+02:00');
+  expect(boardAt(FRIDAY, moment, [], ['Badalona'])).toEqual([]);
+  expect(boardAt(FRIDAY_NIGHT, moment, [], ['Badalona']).map((d) => [d.trip.id, d.departure])).toEqual([
+    ['early', onSaturday('00:05:00')],
+    ['night', onSaturday('23:50:00')],
+  ]);
+});
+
+test("near midnight, the next day's Trains passing within the hour are nearby", () => {
+  const moment = Date.parse('2026-09-25T23:10:00+02:00');
+  const badalona: Point = [2.24892096, 41.4458838];
+  // Each arrives at Badalona the profile's 30 seconds before it leaves.
+  expect(nearbyAt(FRIDAY_NIGHT, moment, [], badalona, 1500, 60 * 60_000).map((p) => [p.trip.id, p.at + 30_000])).toEqual([
+    ['2026-09-25/night', Date.parse('2026-09-25T23:50:00+02:00')],
+    ['early', onSaturday('00:05:00')],
+  ]);
+});
+
 test('a report for a Trip that runs on both days is about the Train running then', () => {
   // Renfe says the night's Train is 2 minutes late at 00:10: Friday's, since Saturday's hasn't left.
   const moment = onSaturday('00:10:00');

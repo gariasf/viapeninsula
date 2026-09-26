@@ -267,3 +267,18 @@ export function addDays(date: string, days: number): string {
 export function madridDate(at: Date): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Madrid' }).format(at);
 }
+
+/**
+ * The manifest's days the map needs at a moment (ms since 1970): today, whatever the time; each day
+ * whose Trains are on the map or come onto it within `early`, as tomorrow's first can before
+ * midnight, or went off it less than `late` ago, as yesterday's last do after; and the next day once
+ * today's last Train has left the map, or a Station board has had no departures left on
+ * `emptyBoard`, today's date. Where the manifest is out of date, its last day stands for today.
+ */
+export function daysNeeded(days: ManifestDay[], at: number, { early, late, emptyBoard }: { early: number; late: number; emptyBoard?: string }): { today: ManifestDay; days: ManifestDay[] } | undefined {
+  const today = days.find((d) => d.date === madridDate(new Date(at))) ?? days.at(-1);
+  if (!today) return undefined;
+  const next = days[days.indexOf(today) + 1];
+  const nextNow = at >= today.to || emptyBoard === today.date;
+  return { today, days: days.filter((d) => d === today || (d === next && nextNow) || (d.from - early <= at && at <= d.to + late)) };
+}
