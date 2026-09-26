@@ -11,7 +11,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
-import { LIVE_URL, madridDate, type Bundle, type Manifest, type Snapshot, type Trip } from './bundle.ts';
+import { LIVE_URL, madridDate, type Bundle, type DayTrips, type Manifest, type Snapshot, type Track, type Trip } from './bundle.ts';
 import { trainsAt, type Received } from './engine.ts';
 
 const [dir, minutes = '15'] = process.argv.slice(2);
@@ -33,9 +33,10 @@ console.log(`Renfe's feeds recorded at ${new Date().toISOString()}`);
 const today = madridDate(new Date());
 const day = (JSON.parse(await get(`${LIVE_URL}/manifest.json`)) as Manifest).days.find((d) => d.date === today);
 if (!day) throw new Error(`The manifest has no bundle for ${today}: publish it with \`npm run daily\` first`);
-const json = await get(`${LIVE_URL}/${day.bundle}`);
-await writeFile(join(dir, 'bundle.json'), json);
-const bundle: Bundle = JSON.parse(json);
+// The day's track and its Trips, joined as the map joins them.
+const [track, dayTrips] = await Promise.all([get(`${LIVE_URL}/${day.track}`), get(`${LIVE_URL}/${day.trips}`)]);
+const bundle: Bundle = { ...(JSON.parse(track) as Track), ...(JSON.parse(dayTrips) as DayTrips) };
+await writeFile(join(dir, 'bundle.json'), JSON.stringify(bundle));
 
 // As the map does: each look for live data records the snapshot got, or where none came, the last one.
 const received: Received[] = [];
@@ -70,6 +71,7 @@ const cut: Bundle = {
   stations: [],
   shapes: bundle.shapes.filter((s) => shapes.has(s.id)),
   strokes: [],
+  sides: [],
   trips,
 };
 await writeFile(join(dir, 'replay.json.gz'), gzipSync(JSON.stringify({ bundle: cut, received })));
