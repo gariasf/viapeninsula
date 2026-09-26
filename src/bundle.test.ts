@@ -14,13 +14,16 @@ test('finds the point a distance along a line, moved to its right, or its left w
 
 // Made up: Friday's first Train comes onto the map at 05:00 and its last leaves it at 00:40, Saturday's
 // first at 00:05 and its last at 23:30, and Sunday's first at 06:00.
+/** A moment in Spain's summer time, as `2026-09-26T12:00`, in ms since 1970. */
 const madrid = (moment: string) => Date.parse(`${moment}+02:00`);
+/** A manifest day whose first Train comes onto the map at `from` and whose last leaves it at `to`. */
 const day = (date: string, from: string, to: string): ManifestDay => ({ date, track: `${date}.track`, trips: `${date}.trips`, from: madrid(from), to: madrid(to) });
 const WEEKEND = [
   day('2026-09-25', '2026-09-25T05:00', '2026-09-26T00:40'),
   day('2026-09-26', '2026-09-26T00:05', '2026-09-26T23:30'),
   day('2026-09-27', '2026-09-27T06:00', '2026-09-28T00:10'),
 ];
+/** The dates the map needs at a moment, fetching an hour early and keeping an hour late, with a board left empty on `emptyBoard`. */
 const needed = (moment: string, emptyBoard?: string) => daysNeeded(WEEKEND, madrid(moment), { early: 60 * 60_000, late: 60 * 60_000, emptyBoard })?.days.map((d) => d.date);
 
 test('in the daytime the map needs only today', () => {

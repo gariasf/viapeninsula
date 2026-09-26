@@ -279,6 +279,6 @@ export function daysNeeded(days: ManifestDay[], at: number, { early, late, empty
   const today = days.find((d) => d.date === madridDate(new Date(at))) ?? days.at(-1);
   if (!today) return undefined;
   const next = days[days.indexOf(today) + 1];
-  const nextNow = at >= today.to || emptyBoard === today.date;
-  return { today, days: days.filter((d) => d === today || (d === next && nextNow) || (d.from - early <= at && at <= d.to + late)) };
+  const nextDayDue = at >= today.to || emptyBoard === today.date;
+  return { today, days: days.filter((d) => d === today || (d === next && nextDayDue) || (d.from - early <= at && at <= d.to + late)) };
 }
