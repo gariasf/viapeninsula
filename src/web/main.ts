@@ -3,7 +3,7 @@ import './style.css';
 import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { AttributionControl, MapLibreMap, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { along, beside, EARTH, LIVE_URL, madridDate, places, type Bundle, type Place, type DayTrips, type Line, type Manifest, type Network, type Point, type Shape, type Snapshot, type Stroke, type Track } from '../bundle.ts';
+import { along, beside, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Place, type DayTrips, type Line, type Manifest, type Network, type Point, type Shape, type Snapshot, type Stroke, type Track } from '../bundle.ts';
 import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Received } from '../engine.ts';
 import { language, LANGUAGES, setLanguage, t, type Language } from './i18n.ts';
 
@@ -14,13 +14,10 @@ const FONT = ['Noto Sans Regular'];
 const NAME_SIZE = 12;
 /** How many times the map looks for live data, never getting any, before it says live data is unavailable. */
 const EMPTY_POLLS = 3;
-/**
- * How long before a service day's first Train the map fetches its bundle, and how long after its
- * last is due off the map it keeps it, for Trains running late, in ms.
- */
-const [EARLY, LATE] = [30 * 60_000, 60 * 60_000];
 /** How near the viewer, in metres, and how soon, in ms, a Train passes to be one of their nearby Trains. The panel's strings say so too. */
 const [NEARBY, SOON] = [1500, 60 * 60_000];
+/** How long after a service day's last Train is due off the map the map keeps its bundle, for Trains running late, in ms. */
+const LATE = 60 * 60_000;
 
 /** A Line's width, in pixels at each zoom. */
 const WIDTH: [zoom: number, px: number][] = [[7, 1.5], [14, 4]];
@@ -142,6 +139,8 @@ document.body.append(panel);
 let following: { day: string; trip: string; at?: Point } | undefined;
 /** The place whose board the panel shows, by its ID in places(), while the map follows no Train. */
 let boardPlace: string | undefined;
+/** The last date a Station board had no departures left, when the map needs the next day's Trips for it. */
+let emptyBoard: string | undefined;
 /**
  * Where the viewer is, while the panel shows their nearby Trains instead, or that the browser is
  * still finding out, or couldn't. It's never sent anywhere, nor put in the page's link.
@@ -560,6 +559,12 @@ function boardPanel(id: string): Node[] | undefined {
   const place = shownPlaces.get(id);
   if (!place) return undefined;
   const departures = bundle ? boardAt(bundle, Date.now(), received, place.stations) : [];
+  // With none left today, the next day's first are to come; refreshDays() runs again within a minute if it's busy now.
+  const date = madridDate(new Date());
+  if (bundle && !departures.length && emptyBoard !== date) {
+    emptyBoard = date;
+    refreshDays();
+  }
   const time = clock();
   return [
     closeButton(t('closeBoard')),
@@ -692,10 +697,8 @@ function showCredits() {
 }
 
 /**
- * The service days the map needs now, joined, where they aren't the ones it shows: today's, whatever
- * the time, and each day whose Trains are on the map or come onto it within EARLY, as yesterday's
- * do after midnight, and tomorrow's first can just before. Where the manifest is out of date, its
- * last day stands for today. A day whose bundle fails to come is left out, and fetched again next time.
+ * The service days the map needs now (daysNeeded()), joined, where they aren't the ones it shows. A
+ * day whose bundle fails to come is left out, and fetched again next time.
  * Today's track comes on its own first, so the map can draw it before the Trips come.
  */
 async function neededDays(): Promise<{ track: Promise<Track>; days: Promise<Bundle> } | undefined> {
@@ -705,10 +708,10 @@ async function neededDays(): Promise<{ track: Promise<Track>; days: Promise<Bund
     if (!manifest) throw error;
     console.warn(error);
   }
-  const now = Date.now();
-  const today = manifest.days.find((d) => d.date === madridDate(new Date(now))) ?? manifest.days.at(-1);
-  const days = manifest.days.filter((d) => d === today || (d.from - EARLY <= now && now <= d.to + LATE));
-  if (!today || !days.length) throw new Error('The manifest names no service day');
+  // The next day's first Trains come SOON before they're on the map, so they're among the nearby Trains.
+  const needed = daysNeeded(manifest.days, Date.now(), { early: SOON, late: LATE, emptyBoard });
+  if (!needed) throw new Error('The manifest names no service day');
+  const { today, days } = needed;
   const keys = days.flatMap((d) => [d.track, d.trips]);
   if (keys.join() === shown) return undefined;
   for (const key of fetched.keys()) if (!keys.includes(key)) fetched.delete(key);
