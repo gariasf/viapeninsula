@@ -139,10 +139,10 @@ const at = (time: string, plus = 0) => Date.parse(`2026-09-24T${time}+02:00`) + 
 /** What the map has received of some live data by a moment by the device's clock. */
 const by = (received: Received[], moment: number) => received.filter((r) => r.at <= moment);
 
-/** A Trip's Train at a moment by the device's clock, if it's on the map, with the live data received by then, among these Trips unless it says. */
+/** A Trip's Train at a moment by the device's clock, if it's on the map, with the live data received by then, in `BUNDLE` unless it says. */
 const train = (trip: string, moment: number, received: Received[] = [], bundle = BUNDLE) => trainsAt(bundle, moment, by(received, moment)).find((t) => t.trip.id === trip);
 
-/** How far along its track a Trip's Train is at a moment, in metres, if it's on the map. */
+/** How far along its track a Trip's Train is at a moment, in metres, if it's on the map, in `BUNDLE` unless it says. */
 const where = (trip: string, moment: number, received?: Received[], bundle?: Bundle) => train(trip, moment, received, bundle)?.dist;
 
 const R2S = 'rodalies:5165J25478R2S';
@@ -405,7 +405,7 @@ function gps(trip: string, dist: number, moment: number, delay?: number): Receiv
 
 test('a Train Live and moving runs as late as its GPS shows, whatever its operator says', () => {
   // Renfe's GPS has the RG1 2,979 m past Sils at 15:57:06, where its timetable has it at 15:56:29:
-  // it's 37 s late, though Renfe's own figure says a minute. It reaches Caldes de Malavella at 15:59:36, not 16:00.
+  // it's 36.5 s late, though Renfe's own figure says a minute. It reaches Caldes de Malavella at 15:59:36.5, not 16:00.
   expect(train(RG1, onFriday('15:57:40'), RECEIVED, RENFE)).toMatchObject({ live: true });
   expect(where(RG1, onFriday('15:59:30'), RECEIVED, RENFE)).toBeLessThan(13529);
   expect(where(RG1, onFriday('15:59:37'), RECEIVED, RENFE)).toBe(13529);
@@ -499,12 +499,12 @@ const near = (trip: string, station: string, delay: number, moment: number): Rec
 test('counts the jumps of Live Trains for each Network, forward and back', () => {
   // Between Sitges and Castelldefels, Renfe has the R2S on time, then 90 s late, then on time again.
   const received = [0, 90, 0].map((delay, i) => near(R2S, 'Sitges', delay, at('21:59:40', i * 20)));
-  expect(jumps(BUNDLE, received)).toEqual({ rodalies: { forward: 1, back: 1, live: 41 } });
+  expect(jumps(BUNDLE, received)).toEqual({ rodalies: { forward: 1, back: 1, liveSeconds: 41 } });
 });
 
 test("doesn't count a Live Train easing back where live data has it, or a Train that isn't Live", () => {
   const received = [0, 10, 20].map((delay, i) => near(R2S, 'Sitges', delay, at('21:59:40', i * 20)));
-  expect(jumps(BUNDLE, received)).toEqual({ rodalies: { forward: 0, back: 0, live: 41 } });
+  expect(jumps(BUNDLE, received)).toEqual({ rodalies: { forward: 0, back: 0, liveSeconds: 41 } });
   // Renfe gives Delays with no position: the R2S jumps, but it's Scheduled.
   expect(jumps(BUNDLE, [0, 90, 0].map((delay, i) => late(R2S, delay, at('21:59:40', i * 20))))).toEqual({});
 });
@@ -592,7 +592,7 @@ test("a Train that a working feed doesn't report stays Scheduled, marked as havi
   expect(train(R4, onFriday('15:57:40'), [], RENFE)?.unreported).toBe(false);
 });
 
-/** A Trip's Train as the follow panel has it at a moment by the device's clock, if it's on the map, with the live data received by then. */
+/** A Trip's Train as the follow panel has it at a moment by the device's clock, if it's on the map, with the live data received by then, in `BUNDLE` unless it says. */
 const followed = (trip: string, moment: number, received: Received[] = [], bundle = BUNDLE) => trainAt(bundle, moment, by(received, moment), trip);
 
 test("a followed Train's upcoming Stations are those it has still to leave, each expected when its timetable has it there", () => {
@@ -607,7 +607,7 @@ test("a followed Train's upcoming Stations are those it has still to leave, each
 });
 
 test("a followed Train running late is expected at each Station as late as it's drawn, and gets there then", () => {
-  // Renfe's GPS has the RG1 37 s late past Sils at 15:57:06.
+  // Renfe's GPS has the RG1 36.5 s late past Sils at 15:57:06.
   const followedAt = followed(RG1, onFriday('15:57:11'), RECEIVED, RENFE);
   expect(followedAt?.delay).toBeCloseTo(36.5, 0);
   expect(followedAt?.upcoming[0]?.arrival).toBeCloseTo(onFriday('15:59:36', 0.5), -3);
@@ -648,7 +648,7 @@ test('a followed Train that live data shows stopped between Stations, held there
   expect(followed(R2S, at('21:49:30'))).toMatchObject({ standing: true });
 });
 
-/** A board of the next departures from some Stations at a moment by the device's clock, with the live data received by then. */
+/** A board of the next departures from some Stations at a moment by the device's clock, with the live data received by then, in `BUNDLE` unless it says. */
 const board = (stations: string[], moment: number, received: Received[] = [], bundle = BUNDLE) => boardAt(bundle, moment, by(received, moment), stations);
 
 test("a Station's board lists each Train still to leave it, expected when its timetable has it leave, and not one that ends there", () => {
@@ -661,7 +661,7 @@ test("a Station's board lists each Train still to leave it, expected when its ti
 });
 
 test("a board's times agree with where each Train is on the map: it leaves the Station when the board says", () => {
-  // Renfe's GPS has the RG1 37 s late past Sils at 15:57:06.
+  // Renfe's GPS has the RG1 36.5 s late past Sils at 15:57:06.
   const [caldes] = board(['Caldes de Malavella'], onFriday('15:57:11'), RECEIVED, RENFE);
   expect(caldes).toMatchObject({ trip: { id: RG1 }, live: true });
   expect(caldes?.delay).toBeCloseTo(36.5, 0);
@@ -1172,14 +1172,15 @@ test('folding each snapshot into the last replay draws the Trains as replaying e
   // Replaying 45 minutes second by second, twice, takes about 5 s here and longer on CI's runners.
 }, 60_000);
 
-test('over the replay, Live Trains jump as often as #31 measured: the baseline #33, #39, #45 and #46 start from', () => {
-  // Per Train-minute, (forward + back) / (live / 60): Rodalies 0.25, FGC 0.031, TRAM 0.0023, the Metro 0.047.
-  // A ticket that changes how often they jump changes these.
+test("counts each Network's jumps over 45 minutes of live data as the map received it", () => {
+  // Per Train-minute, (forward + back) / (liveSeconds / 60): Rodalies 0.25, FGC 0.031, TRAM 0.0023,
+  // the Metro 0.047. They're the baseline the tickets that make Trains jump less, such as #33, #39,
+  // #45 and #46, measure against: one that changes how often they jump changes these.
   expect(jumps(RECORDED.bundle, RECORDED.received)).toEqual({
-    rodalies: { forward: 305, back: 321, live: 152167 },
-    fgc: { forward: 25, back: 52, live: 148586 },
-    tram: { forward: 3, back: 0, live: 77809 },
-    metro: { forward: 132, back: 76, live: 265789 },
+    rodalies: { forward: 305, back: 321, liveSeconds: 152167 },
+    fgc: { forward: 25, back: 52, liveSeconds: 148586 },
+    tram: { forward: 3, back: 0, liveSeconds: 77809 },
+    metro: { forward: 132, back: 76, liveSeconds: 265789 },
   });
 }, 60_000);
 

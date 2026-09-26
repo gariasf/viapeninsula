@@ -248,7 +248,8 @@ test("names Montserrat's rack Trains, which Geotren has on lines M1 and M2, the 
 });
 
 test('writes a snapshot of a few kilobytes with every Network, as the CDN compresses it', () => {
-  // These 174 Trains take 3,216 bytes. With all 104 of the Metro's that morning, 236 took 3,934.
+  // These 195 Trains take 3,457 bytes. The production snapshots in the engine tests' replay, of 272
+  // to 311 Trains each, took 4,456 to 5,146.
   const three = step(step(run().state, { fgc: FGC }, NOW + 20_000).state, { tram: { token: TOKEN, ...TRAM } }, NOW + 40_000);
   const all = step(three.state, { metro: METRO }, NOW + 60_000).snapshot;
   expect(all.reports).toHaveLength(67 + 62 + 24 + 42);

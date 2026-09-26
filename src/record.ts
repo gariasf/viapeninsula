@@ -1,10 +1,12 @@
 // Records live data for the tests' fixtures (#31): Renfe's two feeds, fetched together, then the
 // production snapshots as the map receives them, every 20 s for a quarter of an hour, with that
-// day's bundle cut down to the Trips they name. `npm run record -- <dir> [minutes]` writes to <dir>:
+// day's bundle cut down to the Trips the replay needs. `npm run record -- <dir> [minutes]` writes to <dir>:
 //
-// - vehicle_positions.json and trip_updates.json, as Renfe served them;
+// - vehicle_positions.json and trip_updates.json, as Renfe served them, which src/fetcher/fixtures/
+//   keeps cut down to Rodalies' Trips and a few of other núcleos';
 // - bundle.json, that day's whole bundle, which the tests cut their Trips from;
-// - replay.json.gz, `{ bundle, received }` gzipped, what `jumps()` and `trainsAt()` take: the shapes alone are megabytes.
+// - replay.json.gz, `{ bundle, received }` gzipped, what `jumps()` and `trainsAt()` take: the shapes
+//   alone are megabytes. The engine tests keep one in src/fixtures/, named for its day.
 //
 // It needs no key: Renfe's feeds, the bundles and the snapshot are all public.
 
@@ -60,10 +62,10 @@ for (let at = received[0]?.at ?? 0; at <= (received.at(-1)?.at ?? 0); at += 1000
 // And every Trip a Block could run, on its Line within an hour of the replay (the engine matches
 // within half an hour): cutting one a Block ran while it was off the map, such as waiting at its
 // first Station, would have the Block run another.
-const blocked = new Set(received.flatMap((r) => r.snapshot.reports.flatMap((report) => (report.block ? [report.block.line] : []))));
+const blockLines = new Set(received.flatMap((r) => r.snapshot.reports.flatMap((report) => (report.block ? [report.block.line] : []))));
 const [from = 0, to = 0] = [received[0]?.at ?? 0, received.at(-1)?.at ?? 0].map((at) => (at - bundle.noonMinus12h) / 1000);
-const nearby = ({ line, calls }: Trip) => blocked.has(line) && (calls[0]?.arrival ?? Infinity) < to + 3600 && (calls.at(-1)?.departure ?? -Infinity) > from - 3600;
-const trips = bundle.trips.filter((t) => kept.has(t.id) || nearby(t));
+const blockCouldRun = ({ line, calls }: Trip) => blockLines.has(line) && (calls[0]?.arrival ?? Infinity) < to + 3600 && (calls.at(-1)?.departure ?? -Infinity) > from - 3600;
+const trips = bundle.trips.filter((t) => kept.has(t.id) || blockCouldRun(t));
 const [lines, shapes] = [new Set(trips.map((t) => t.line)), new Set(trips.map((t) => t.shape))];
 const cut: Bundle = {
   ...bundle,

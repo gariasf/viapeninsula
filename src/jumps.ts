@@ -7,13 +7,13 @@ import { trainsAt, type Received } from './engine.ts';
 export interface Jumps {
   forward: number;
   back: number;
-  live: number;
+  liveSeconds: number;
 }
 
 /**
  * How often each Network's Live Trains jump over a replay of snapshots, as received: sampled every
  * second from the first snapshot's arrival to the last, a jump is a move in 1 s longer than line
- * speed allows, plus 5%, for a Train Live in both seconds. Jumps per Train-minute are `(forward + back) / (live / 60)`.
+ * speed allows, plus 5%, for a Train Live in both seconds. Jumps per Train-minute are `(forward + back) / (liveSeconds / 60)`.
  */
 export function jumps(bundle: Bundle, received: Received[]): Record<string, Jumps> {
   const networks = new Map(bundle.lines.map((l) => [l.id, bundle.networks.find((n) => n.id === l.network)]));
@@ -26,8 +26,8 @@ export function jumps(bundle: Bundle, received: Received[]): Record<string, Jump
       const network = networks.get(trip.line);
       if (!live || !network) continue;
       now.set(trip.id, dist);
-      const counted = (found[network.id] ??= { forward: 0, back: 0, live: 0 });
-      counted.live++;
+      const counted = (found[network.id] ??= { forward: 0, back: 0, liveSeconds: 0 });
+      counted.liveSeconds++;
       const before = was.get(trip.id);
       if (before === undefined || Math.abs(dist - before) <= network.profile.topSpeed * 1.05) continue;
       // ponytail: which way a Trip runs overall, so a jump on a Trip that turns back, as the R11's
