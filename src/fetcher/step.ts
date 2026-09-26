@@ -117,8 +117,8 @@ export function step(state: State, responses: Responses, now: number): Stored & 
       const last = { ...updated[feed] };
       updated[feed] = { ...last, ...Object.fromEntries(said) };
       // Only a time unchanged since the last try is stuck: one earlier, as from a server whose clock is behind, is news.
-      const stuck = said.find(([file, at]) => at === last[file])?.[0];
-      if (stuck) throw new Error(`${stuck}: not updated since ${clock(updated[feed][stuck] ?? 0)}`);
+      const stuck = said.find(([file, at]) => at === last[file]);
+      if (stuck) throw new Error(`${stuck[0]}: not updated since ${clock(stuck[1])}`);
       reports[feed] = got;
       freshness = { lastSuccess: now, lastAttempt: now, status: 'ok', every };
     } catch (error) {
