@@ -1,6 +1,7 @@
 // The daily build: turns the operators' timetables into a bundle for each of the next three service
 // days, today's first, and publishes them to R2, so a build that fails leaves the map the days before
-// it published.
+// it published. Each day's bundle comes in two files, so the map can draw the Lines before the Trips
+// come: the track, which is the same file for each day, and the day's Trips.
 // `npm run daily` publishes; `npm run daily -- --dry-run` only writes the files to out/. TMB's
 // timetable needs TMB_APP_ID and TMB_APP_KEY in the environment, which `npm run daily` loads from
 // .env.local.
@@ -9,7 +10,8 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { addDays, LIVE_URL, madridDate, type Bundle, type Manifest, type Network } from '../bundle.ts';
+import { brotliCompressSync, constants } from 'node:zlib';
+import { addDays, LIVE_URL, madridDate, type DayTrips, type Manifest, type Network, type Track } from '../bundle.ts';
 import { download, feedStart, noonMinus12h, type Source } from './gtfs.ts';
 import { manifestDay, manifestOf } from './manifest.ts';
 import {
@@ -55,26 +57,13 @@ const [lines, shapes] = [networks.flatMap((n) => n.lines), networks.flatMap((n) 
 const strokes = sideBySide(lines, shapes);
 
 await mkdir('out/days', { recursive: true });
+const track: Track = { networks: networks.map((n) => n.network), lines, stations: networks.flatMap((n) => n.stations), shapes, strokes };
+const trackKey = await write('days/track', track, `${track.lines.length} Lines, ${track.stations.length} Stations, ${track.shapes.length} shapes`);
 const built = await Promise.all(
   DAYS.map(async (serviceDay, i) => {
-    const bundle: Bundle = {
-      serviceDay,
-      noonMinus12h: noonMinus12h(serviceDay),
-      networks: networks.map((n) => n.network),
-      lines,
-      stations: networks.flatMap((n) => n.stations),
-      shapes,
-      strokes,
-      trips: networks.flatMap((n) => n.trips[i] ?? []),
-    };
-    // Named by content, so the bundle can be cached for good and a rebuild never serves a stale copy.
-    const json = JSON.stringify(bundle);
-    const key = `days/${serviceDay}-${createHash('sha256').update(json).digest('hex').slice(0, 12)}.json`;
-    await writeFile(join('out', key), json);
-    console.log(
-      `${key}: ${bundle.lines.length} Lines, ${bundle.stations.length} Stations, ${bundle.shapes.length} shapes, ${bundle.trips.length} Trips, ${Math.round(json.length / 1024)} KB`,
-    );
-    return manifestDay(bundle, key);
+    const trips: DayTrips = { serviceDay, noonMinus12h: noonMinus12h(serviceDay), trips: networks.flatMap((n) => n.trips[i] ?? []) };
+    const key = await write(`days/${serviceDay}`, trips, `${trips.trips.length} Trips`);
+    return manifestDay({ ...track, ...trips }, { track: trackKey, trips: key });
   }),
 );
 // The last build's manifest names the bundle for yesterday, whose last Trains can still be running.
@@ -87,8 +76,10 @@ const previous = await fetch(`${LIVE_URL}/manifest.json`)
 await writeFile('out/manifest.json', JSON.stringify(manifestOf(built, previous)));
 
 if (!process.argv.includes('--dry-run')) {
-  // The bundles go up first, so the manifest never names a file that isn't there yet.
-  for (const { bundle } of built) publish(bundle, 'public, max-age=31536000, immutable');
+  // The bundles go up first, so the manifest never names a file that isn't there yet. The CDN
+  // passes a file stored with brotli as it is to browsers that take it, which squeezes it about
+  // twice as small as the CDN would on the fly.
+  for (const key of [trackKey, ...built.map((d) => d.trips)]) publish(key, 'public, max-age=31536000, immutable', 'br');
   publish('manifest.json', 'public, max-age=60');
 }
 
@@ -123,10 +114,30 @@ function secret(name: string): string {
   return value;
 }
 
-function publish(key: string, cacheControl: string) {
+/**
+ * Writes a file to out/, named by its content, so it can be cached for good and a rebuild never
+ * serves a stale copy, and beside it a copy squeezed with brotli, `<key>.br`, and gives its key.
+ */
+async function write(prefix: string, content: object, what: string): Promise<string> {
+  const json = Buffer.from(JSON.stringify(content));
+  const key = `${prefix}-${createHash('sha256').update(json).digest('hex').slice(0, 12)}.json`;
+  const br = brotliCompressSync(json, { params: { [constants.BROTLI_PARAM_QUALITY]: 11, [constants.BROTLI_PARAM_SIZE_HINT]: json.length } });
+  await Promise.all([writeFile(join('out', key), json), writeFile(join('out', `${key}.br`), br)]);
+  console.log(`${key}: ${what}, ${Math.round(json.length / 1024)} KB, ${Math.round(br.length / 1024)} KB with brotli`);
+  return key;
+}
+
+/** Uploads a file from out/, or where it's encoded, its encoded copy, `<key>.<encoding>`. */
+function publish(key: string, cacheControl: string, encoding?: string) {
   execFileSync(
     'npx',
-    ['wrangler', 'r2', 'object', 'put', `${BUCKET}/${key}`, '--remote', '--file', join('out', key), '--content-type', 'application/json', '--cache-control', cacheControl],
+    [
+      'wrangler', 'r2', 'object', 'put', `${BUCKET}/${key}`, '--remote',
+      '--file', join('out', encoding ? `${key}.${encoding}` : key),
+      '--content-type', 'application/json',
+      '--cache-control', cacheControl,
+      ...(encoding ? ['--content-encoding', encoding] : []),
+    ],
     { stdio: 'inherit' },
   );
 }
