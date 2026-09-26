@@ -18,6 +18,12 @@ const EMPTY_POLLS = 3;
 const [NEARBY, SOON] = [1500, 60 * 60_000];
 /** How long after a service day's last Train is due off the map the map keeps its bundle, for Trains running late, in ms. */
 const LATE = 60 * 60_000;
+/**
+ * How long Trains keep moving every frame after the map moves, and how often they move otherwise, in
+ * ms: about 30 times a second, which leaves a phone headroom and battery. It's a little under 1/30 s,
+ * so that at 60 or 120 Hz it's every other or every fourth frame.
+ */
+const [MOVED, IDLE_EVERY] = [1500, 30];
 
 /** A Line's width, in pixels at each zoom. */
 const WIDTH: [zoom: number, px: number][] = [[7, 1.5], [14, 4]];
@@ -291,12 +297,18 @@ for (const layer of ['trains', 'stations']) {
 // Escape closes the About dialog on its own, if it's open.
 document.addEventListener('keydown', (e) => e.key === 'Escape' && !about.open && (following || boardPlace || nearMe) && closePanel());
 
-// Moves the Trains every frame, and names the Networks whose live data is unavailable as that
-// changes. The browser stops asking while the tab is hidden.
+// Moves the Trains every frame while the map moves or follows a Train, and for MOVED after, and
+// otherwise every IDLE_EVERY, and names the Networks whose live data is unavailable as that changes.
+// The browser stops asking while the tab is hidden.
 const trainSource = map.getSource<GeoJSONSource>('trains');
 const nearbyControl = el('div', { className: 'maplibregl-ctrl maplibregl-ctrl-group' }, nearbyButton);
 map.addControl({ onAdd: () => nearbyControl, onRemove: () => nearbyControl.remove() }, 'top-right');
-requestAnimationFrame(function move() {
+/** When the map last moved, as a drag, a zoom or an easing, and when its Trains last did, by performance.now(). */
+let [moved, drawn] = [-Infinity, -Infinity];
+map.on('move', () => (moved = performance.now()));
+requestAnimationFrame(function move(now) {
+  if (!following && now - moved > MOVED && now - drawn < IDLE_EVERY) return requestAnimationFrame(move);
+  drawn = now;
   trainSource?.setData(trains());
   if (following) {
     // A Train that has left the map, reaching its last Station or cancelled, is followed no more.
