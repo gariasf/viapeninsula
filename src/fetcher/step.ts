@@ -70,7 +70,7 @@ export interface State {
     file?: string;
     /** When FGC wrote the file, in seconds since 1970, as it said on the last refresh that read it, even where that's earlier than the one before. */
     written?: number;
-    /** The time the file stays at even after it was looked up again: it isn't looked up again while it stays there. It's forgotten once FGC writes the file again. */
+    /** The time the file stays at even after it was looked up again, in seconds since 1970: it isn't looked up again while it stays at that time, which is forgotten once FGC writes the file again. */
     stalled?: number;
     /** How many requests its API had left today, as its last answers said. */
     remaining?: number;

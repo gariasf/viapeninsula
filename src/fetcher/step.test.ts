@@ -403,7 +403,7 @@ test("keeps where the trip-updates file is when its time is earlier than the las
 });
 
 test('looks up the trip-updates file once whenever its time stays the same, even at a time it stayed at before', () => {
-  // FGC stops writing the file at the second refresh, and writes it again from the fifth. From the
+  // From the third refresh, FGC stops writing the file, and from the fifth writes it again. From the
   // seventh, a copy from when it stopped is served again, and stays.
   expect(lookedUp([-1, 1, 1, 1, 9, 11, 1, 1, 1, 1])).toEqual([true, false, false, true, false, false, false, false, true, false]);
 });
