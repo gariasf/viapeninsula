@@ -11,7 +11,7 @@ export interface FeedShape {
 }
 
 /** A Trip, by its shape and its first and last Stations. */
-interface Run {
+interface TripEnds {
   shape: string;
   from: string;
   to: string;
@@ -23,10 +23,10 @@ interface Run {
  * runs its shape back where its last Station comes before its first along it. Gives those shapes,
  * given every Trip on any day, and the one each Trip runs on.
  */
-export function eachWay(shapes: FeedShape[], stations: Station[], trips: Run[]): { shapes: FeedShape[]; shapeOf: (trip: Run) => string } {
+export function eachWay(shapes: FeedShape[], stations: Station[], trips: TripEnds[]): { shapes: FeedShape[]; shapeOf: (trip: TripEnds) => string } {
   const [byId, feeds] = [new Map(stations.map((s) => [s.id, s])), new Map(shapes.map((s) => [s.id, s]))];
   const known = new Map<string, boolean>();
-  const back = ({ shape, from, to }: Run) => {
+  const back = ({ shape, from, to }: TripEnds) => {
     const key = `${shape} ${from} ${to}`;
     const found = known.get(key);
     if (found !== undefined) return found;
@@ -104,8 +104,7 @@ const SLACK = 1000;
  */
 export function traceShapes(shapes: FeedShape[], stations: Station[], rails: OsmWay[], side: Network['runningSide'], log = console.log): Shape[] {
   const byId = new Map(stations.map((s) => [s.id, s]));
-  const graph = railGraph(rails, [...new Set(shapes.flatMap((s) => s.stations))].flatMap((id) => byId.get(id) ?? []));
-  graph.keep = side === 'left' ? 1 : -1;
+  const graph = railGraph(rails, [...new Set(shapes.flatMap((s) => s.stations))].flatMap((id) => byId.get(id) ?? []), side);
   const wrong: string[] = [];
   const traced = shapes.map((feed) => {
     const { shape, length } = traceShape(graph, feed, feed.stations.flatMap((id) => byId.get(id) ?? []), log);
@@ -266,9 +265,9 @@ function target(graph: Graph, e: number): number {
   return graph.to[e] ?? -1;
 }
 
-/** The rails as a graph, with a vertex where each Station is closest to each way near it. */
-function railGraph(rails: OsmWay[], stations: Station[]): Graph {
-  const graph: Graph = { at: [], to: [], metres: [], out: [], near: new Map(), shared: new Set(), side: [], keep: 0 };
+/** The rails as a graph, with a vertex where each Station is closest to each way near it, for Trains keeping to one side. */
+function railGraph(rails: OsmWay[], stations: Station[], side: Network['runningSide']): Graph {
+  const graph: Graph = { at: [], to: [], metres: [], out: [], near: new Map(), shared: new Set(), side: [], keep: side === 'left' ? 1 : -1 };
   const vertices = new Map<number, number>(); // each OpenStreetMap node's vertex
   const add = (p: Point) => {
     graph.at.push(p);
@@ -395,7 +394,7 @@ function sides(graph: Graph): number[] {
     const count = to - from + 1;
     if (count < 2) continue;
     i -= from;
-    const gap = (k: number) => Math.abs((tracks[from + k]?.[0] ?? Infinity) - (tracks[from + i]?.[0] ?? 0));
+    const gap = (k: number) => (k < 0 || k >= count ? Infinity : Math.abs((tracks[from + k]?.[0] ?? 0) - (tracks[from + i]?.[0] ?? 0)));
     const partner = count % 2 === 0 ? i ^ 1 : gap(i - 1) < gap(i + 1) ? i - 1 : i + 1;
     side[e] = partner > i ? -1 : 1;
     side[e + 1] = -(side[e] ?? 0);
@@ -455,7 +454,10 @@ function onward(graph: Graph, e: number): { next: number[]; ahead: number } {
   return { next, ahead };
 }
 
-/** What running along an edge costs: its length, less where another Line already runs it that way, more on the wrong side of a double track. */
+/**
+ * What running along an edge costs: its length, less where another Line already runs it that way,
+ * and more on the wrong side of a double track.
+ */
 function price(graph: Graph, e: number): number {
   return (graph.metres[e] ?? 0) * (graph.shared.has(e) ? SHARED : 1) * (graph.side[e] === -graph.keep ? WRONG_SIDE : 1);
 }

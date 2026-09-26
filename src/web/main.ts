@@ -306,9 +306,8 @@ function trains(): GeoJSON.FeatureCollection {
     features: (bundle ? trainsAt(bundle, Date.now(), received) : []).map(({ trip, dist, lon, lat, live }) => {
       const shape = placing.shapes.get(trip.shape);
       const side = placing.sides.get(`${trip.line} ${trip.shape}`)?.find((s) => s.from <= dist && dist <= s.to)?.side ?? 0;
-      // A Trip runs its shape back where it ends nearer its start than it began.
-      const way = (trip.calls.at(-1)?.dist ?? 0) < (trip.calls[0]?.dist ?? 0) ? -1 : 1;
-      const metres = (side + 0.5 * way * (placing.keep.get(trip.line) ?? 1)) * apart * Math.cos((lat * Math.PI) / 180);
+      // Each Trip runs its own shape forwards: its right is the Train's.
+      const metres = (side + 0.5 * (placing.keep.get(trip.line) ?? 1)) * apart * Math.cos((lat * Math.PI) / 180);
       return {
         type: 'Feature',
         properties: { colour: lines.get(trip.line)?.colour, live },

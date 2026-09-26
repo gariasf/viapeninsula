@@ -77,7 +77,8 @@ const TRAM: Network = {
   // Every stretch TRAM runs on 1 October 2026 fits 1.2 m/s² (312 don't fit 1), and its Units, Citadis
   // trams, run at 70 km/h. It gives every Station 10 seconds.
   profile: { acceleration: 1.2, braking: 1.2, topSpeed: 70 / 3.6, dwell: 10 },
-  // As the traffic beside it does: OpenStreetMap has TRAM's Trains on the right on 99% of the 32 km of its double track it tags.
+  // As the traffic beside it does: OpenStreetMap has TRAM's Trains on the right on 99% of the 32 km
+  // of its double track it tags.
   runningSide: 'right',
 };
 
@@ -231,7 +232,7 @@ export async function readFeed(
   }
   for (const id of wanted) if (!points.has(id)) console.warn(`${network.name} shape ${id} has no points`);
 
-  const { shapes, shapeOf: wayOf } = eachWay(
+  const { shapes, shapeOf: shapeFor } = eachWay(
     [...points].map(([id, pts]) => ({
       id: `${prefix}:${id}`,
       coords: pts.sort((a, b) => a.seq - b.seq).map((p) => [p.lon, p.lat]),
@@ -252,7 +253,7 @@ export async function readFeed(
     stations: [...stations.values()],
     shapes,
     trips: [...dayTrips].flatMap(([id, { shape, ...rest }]) => {
-      const trip = { ...rest, shape: wayOf({ shape, from: ends.get(id)?.first[1] ?? '', to: ends.get(id)?.last[1] ?? '' }) };
+      const trip = { ...rest, shape: shapeFor({ shape, from: ends.get(id)?.first[1] ?? '', to: ends.get(id)?.last[1] ?? '' }) };
       const calls = trip.calls.sort((a, b) => a.seq - b.seq).map(({ seq: _, ...call }) => call);
       // A Trip without a headsign is headed for its last Station.
       const headsign = trip.headsign || (stations.get(calls.at(-1)?.station ?? '')?.name ?? '');
