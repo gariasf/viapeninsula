@@ -153,19 +153,30 @@ function traceShape(graph: Graph, feed: FeedShape, stations: Station[], log: (li
     for (const e of edges) graph.shared.add(e);
     for (const a of stretches) {
       const [from, to] = [waypoints[a.waypoint - 1], waypoints[a.waypoint]];
+      // Where it turns back on the way: where the next edge isn't one a train can carry on along.
+      for (const [k, e] of a.edges.entries()) {
+        const f = a.edges[k + 1];
+        if (f === undefined || onward(graph, e).next.includes(f)) continue;
+        const at = waypoints.find((w) => graph.near.get(w.station.id)?.includes(target(graph, e)));
+        log(`${feed.id}: ${from?.station.name} → ${to?.station.name} turns back at ${at?.station.name}`);
+      }
       if (!from || !to || from.metres > ON_FEED || to.metres > ON_FEED) continue;
       length.traced += a.edges.reduce((sum, e) => sum + (graph.metres[e] ?? 0), 0);
       length.feed += to.along - from.along;
     }
   };
 
+  // A trace can turn back at any of its Stations, on the way from one to the next too, and says where.
+  // ponytail: at any of them, not only where its Trips do; tell them apart if a trace ever turns back
+  // where no Trip does.
+  const turnBacks = new Set(waypoints.flatMap((w) => graph.near.get(w.station.id) ?? []));
   let reached = starts(0);
   for (const [i, b] of waypoints.entries()) {
     const a = waypoints[i - 1];
     if (!a) continue;
     // A path much longer than the crow flies is no path: most likely the rails between them are missing.
     const limit = 3 * metres([a.station.lon, a.station.lat], [b.station.lon, b.station.lat]) + 10_000;
-    const next = paths(graph, reached, new Set(graph.near.get(b.station.id)), limit).map((arrival) => ({ ...arrival, waypoint: i }));
+    const next = paths(graph, reached, new Set(graph.near.get(b.station.id)), limit, turnBacks).map((arrival) => ({ ...arrival, waypoint: i }));
     if (next.length) {
       reached = next;
       continue;
@@ -418,8 +429,10 @@ function wrongTracks(graph: Graph): boolean[] {
 /**
  * The paths from any of the arrivals `from` to the vertices `to`: the cheapest, and any others
  * within SLACK of it, which may suit the next stretch better. None if every one costs over `limit`.
+ * On the way, a path can turn back at the vertices `turnBacks`, beside the shape's Stations, as it
+ * can where it starts: R16's Trains from Tortosa turn back at L'Aldea to go on to Ulldecona.
  */
-function paths(graph: Graph, from: Arrival[], to: Set<number>, limit: number): Omit<Arrival, 'waypoint'>[] {
+function paths(graph: Graph, from: Arrival[], to: Set<number>, limit: number, turnBacks: Set<number>): Omit<Arrival, 'waypoint'>[] {
   const cost = new Map<number, number>();
   const pred = new Map<number, number>(); // the edge before each edge, or -1 for the first of a stretch
   const seed = new Map<number, Arrival>();
@@ -455,7 +468,9 @@ function paths(graph: Graph, from: Arrival[], to: Set<number>, limit: number): O
       best = Math.min(best, c);
     }
     const { next, ahead } = onward(graph, e);
-    for (const f of next) relax(f, c + price(graph, f) + (f === ahead ? 0 : DIVERGE), e, start);
+    for (const f of turnBacks.has(v) ? (graph.out[v] ?? []) : next) {
+      relax(f, c + price(graph, f) + (!next.includes(f) ? REVERSE : f === ahead ? 0 : DIVERGE), e, start);
+    }
   }
   return found;
 }
