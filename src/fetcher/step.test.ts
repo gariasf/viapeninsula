@@ -135,6 +135,23 @@ test("counts a run whose Renfe feed says it hasn't been updated since the last a
   }
 });
 
+test("counts a Renfe header earlier than the last, or the next after one in the future, as updated", () => {
+  /** Each run's Rodalies status, 20 s apart, whose Renfe headers say these moments. */
+  const runs = (headers: number[]) => {
+    let state = START.state;
+    return headers.map((header, i) => {
+      const done = step(state, { rodalies: renfeAt(header) }, NOW + i * 20_000);
+      state = done.state;
+      return done.snapshot.feeds.rodalies?.status;
+    });
+  };
+  const at = (s: number) => RENFE_WRITTEN + s * 1000;
+  // Failover to a server whose clock is a minute behind, which then stops.
+  expect(runs([at(0), at(-60), at(-40), at(-40)])).toEqual(['ok', 'ok', 'ok', 'vehicle_positions: not updated since 19:36:09 UTC']);
+  // A time an hour in the future, then real time again.
+  expect(runs([at(0), at(3600), at(40), at(60)])).toEqual(['ok', 'ok', 'ok', 'ok']);
+});
+
 test("while Renfe's headers stay put, Rodalies' live data is unavailable from the third run, and a header repeated once changes nothing", () => {
   /** Which Networks' live data is unavailable after each run, 20 s apart, whose Renfe headers say these moments. */
   const runs = (headers: number[]) => {
