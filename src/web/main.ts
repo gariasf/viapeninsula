@@ -3,8 +3,8 @@ import './style.css';
 import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { AttributionControl, MapLibreMap, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { along, beside, EARTH, LIVE_URL, madridDate, places, type Bundle, type DayTrips, type Line, type Manifest, type Network, type Shape, type Snapshot, type Stroke, type Track } from '../bundle.ts';
-import { joinDays, KEEP, trainsAt, unavailable, type Received } from '../engine.ts';
+import { along, beside, EARTH, LIVE_URL, madridDate, places, type Bundle, type DayTrips, type Line, type Manifest, type Network, type Point, type Shape, type Snapshot, type Stroke, type Track } from '../bundle.ts';
+import { joinDays, KEEP, trainAt, trainsAt, unavailable, type Received } from '../engine.ts';
 import { language, LANGUAGES, setLanguage, t, type Language } from './i18n.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
@@ -123,6 +123,18 @@ const banner = document.createElement('div');
 banner.className = 'maplibregl-ctrl maplibregl-ctrl-group banner';
 banner.setAttribute('role', 'status');
 map.addControl({ onAdd: () => banner, onRemove: () => banner.remove() }, 'top-left');
+// The follow panel, which showPanel() fills while the map follows a Train.
+const panel = document.createElement('section');
+panel.className = 'follow';
+panel.hidden = true;
+document.body.append(panel);
+/**
+ * The Train the map follows, by its service day and its Trip as its operator names it, so that it
+ * stays followed as the days joined change around midnight, and where it's drawn.
+ */
+let following: { day: string; trip: string; at?: Point } | undefined;
+/** When the panel was last filled, by performance.now(). */
+let panelShown = 0;
 let credits: AttributionControl | undefined;
 /** The Networks on the map, whose data the credits name, and whose names the banner shows. */
 let credited: Network[] = [];
@@ -156,6 +168,7 @@ const [needed] = await Promise.all([neededDays().then((n) => n ?? Promise.reject
 /** The days on the map, whose Trains move, once their Trips have come. */
 let bundle: Bundle | undefined;
 let lines = new Map<string, Line>();
+let stationNames = new Map<string, string>();
 /** What places each Line's Trains beside its track zoomed out: its shapes, their sides by `<line> <shape>`, and which side its Trains keep to, 1 right and -1 left. */
 let placing = { shapes: new Map<string, Shape>(), sides: new Map<string, Stroke[]>(), keep: new Map<string, number>() };
 map.addSource('lines', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
@@ -219,8 +232,10 @@ map.addLayer({
   type: 'circle',
   source: 'trains',
   // A Live Train is filled with its Line's colour; a Scheduled one is only ringed with it.
+  layout: { 'circle-sort-key': ['case', ['get', 'followed'], 1, 0] },
+  // The Train the map follows is drawn larger, over the rest.
   paint: {
-    'circle-radius': ['interpolate', ['linear'], ['zoom'], 7, 2.5, 14, 6],
+    'circle-radius': ['interpolate', ['linear'], ['zoom'], 7, ['case', ['get', 'followed'], 5, 2.5], 14, ['case', ['get', 'followed'], 10, 6]],
     'circle-color': byLive(['get', 'colour'], '#fff'),
     'circle-stroke-color': byLive('#fff', ['get', 'colour']),
     'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 7, byLive(0.5, 1.5), 14, byLive(1.5, 3)],
@@ -235,11 +250,28 @@ map.addLayer({
   paint: { 'text-color': '#333', 'text-halo-color': '#fff', 'text-halo-width': 1.5 },
 });
 
+// Tapping a Train follows it. Trains are small, so a tap near one will do.
+map.on('click', ({ point: { x, y } }) => {
+  const [tapped] = map.queryRenderedFeatures([[x - 10, y - 10], [x + 10, y + 10]], { layers: ['trains'] });
+  const id: unknown = tapped?.properties.id;
+  if (typeof id === 'string') follow(id);
+});
+map.on('mouseenter', 'trains', () => (map.getCanvas().style.cursor = 'pointer'));
+map.on('mouseleave', 'trains', () => (map.getCanvas().style.cursor = ''));
+document.addEventListener('keydown', (e) => e.key === 'Escape' && following && stopFollowing());
+
 // Moves the Trains every frame, and names the Networks whose live data is unavailable as that
 // changes. The browser stops asking while the tab is hidden.
 const trainSource = map.getSource<GeoJSONSource>('trains');
 requestAnimationFrame(function move() {
   trainSource?.setData(trains());
+  if (following) {
+    // A Train that has left the map, reaching its last Station or cancelled, is followed no more.
+    if (!following.at) stopFollowing();
+    else keepInView(following.at);
+    // The panel's times and ages change by the second.
+    if (performance.now() - panelShown > 1000) showPanel();
+  }
   const ids = unavailable(received);
   if (ids.join() !== unavailableIds.join()) {
     unavailableIds = ids;
@@ -258,6 +290,7 @@ function show(days: Track | Bundle) {
   if (days.stations === shownStations) return;
   shownStations = days.stations;
   lines = new Map(days.lines.map((l) => [l.id, l]));
+  stationNames = new Map(days.stations.map((s) => [s.id, s.name]));
   const shapes = new Map(days.shapes.map((s) => [s.id, s]));
   const sides = new Map<string, Stroke[]>();
   for (const s of days.sides) sides.set(`${s.line} ${s.shape}`, [...(sides.get(`${s.line} ${s.shape}`) ?? []), s]);
@@ -301,6 +334,8 @@ function trains(): GeoJSON.FeatureCollection {
   const zoom = map.getZoom();
   // How far apart Lines are drawn, in metres at the equator: MapLibre's tiles are 512 px.
   const apart = (atZoom(APART, zoom) * 2 * Math.PI * EARTH) / (512 * 2 ** zoom);
+  const followed = followedId();
+  if (following) following.at = undefined;
   return {
     type: 'FeatureCollection',
     features: (bundle ? trainsAt(bundle, Date.now(), received) : []).map(({ trip, dist, lon, lat, live }) => {
@@ -311,10 +346,12 @@ function trains(): GeoJSON.FeatureCollection {
       // keep left, sit half a line width to the wrong side zoomed out. Publish each shape's side of
       // its double track from the trace if that ever shows.
       const metres = (side + 0.5 * (placing.keep.get(trip.line) ?? 1)) * apart * Math.cos((lat * Math.PI) / 180);
+      const coordinates: Point = shape && metres ? beside(shape, dist, metres) : [lon, lat];
+      if (following && trip.id === followed) following.at = coordinates;
       return {
         type: 'Feature',
-        properties: { colour: lines.get(trip.line)?.colour, live },
-        geometry: { type: 'Point', coordinates: shape && metres ? beside(shape, dist, metres) : [lon, lat] },
+        properties: { id: trip.id, colour: lines.get(trip.line)?.colour, live, followed: trip.id === followed },
+        geometry: { type: 'Point', coordinates },
       };
     }),
   };
@@ -340,6 +377,94 @@ function showLanguage() {
   );
   showBanner();
   showCredits();
+  showPanel();
+}
+
+/** Follows a Trip's Train, by its ID in the days on the map: brings it into view, over the panel, and keeps it there. */
+function follow(id: string) {
+  const [, day, trip] = /^(\d{4}-\d{2}-\d{2})\/(.*)$/.exec(id) ?? [];
+  following = day && trip ? { day, trip } : { day: bundle?.serviceDay ?? '', trip: id };
+  trainSource?.setData(trains());
+  showPanel();
+  if (following.at) map.easeTo({ center: following.at, zoom: Math.max(map.getZoom(), 13), padding: abovePanel() });
+}
+
+function stopFollowing() {
+  following = undefined;
+  showPanel();
+  map.easeTo({ padding: abovePanel() });
+}
+
+/** The ID of the Trip the map follows in the days on the map, which lead an earlier day's Trips with that day (joinDays()). */
+function followedId(): string | undefined {
+  if (!following || !bundle) return undefined;
+  return following.day === bundle.serviceDay ? following.trip : `${following.day}/${following.trip}`;
+}
+
+/**
+ * Brings the Train the map follows back into view where it's about to leave it, or the viewer has
+ * moved the map off it: where it's outside the middle 60% of the map above the panel. Not while the
+ * map moves, so it never fights the viewer's hand.
+ */
+function keepInView(at: Point) {
+  if (map.isMoving()) return;
+  const { x, y } = map.project(at);
+  const { clientWidth: width, clientHeight: height } = map.getContainer();
+  const above = height - panel.offsetHeight;
+  if (x < 0.2 * width || x > 0.8 * width || y < 0.2 * above || y > 0.8 * above) map.easeTo({ center: at, duration: 1000, padding: abovePanel() });
+}
+
+/** The map's padding that puts its middle above the follow panel, which grows and shrinks with what it shows. */
+function abovePanel() {
+  return { top: 0, right: 0, left: 0, bottom: panel.offsetHeight };
+}
+
+/**
+ * Fills the follow panel with the Train the map follows, in the viewer's language: its Line and
+ * where it's headed, Live or Scheduled and how long ago live data last placed it, its Delay, its
+ * modelled speed, its Unit type where its operator reports one, and the Stations it has still to
+ * leave, with when it's expected at each. Hides it while the map follows no Train.
+ */
+function showPanel() {
+  panelShown = performance.now();
+  const train = following && bundle && trainAt(bundle, Date.now(), received, followedId() ?? '');
+  panel.hidden = !train;
+  if (!train) return panel.replaceChildren();
+  const { trip, live, unreported, since, delay, speed, unitType, upcoming, standing } = train;
+  const line = lines.get(trip.line);
+  const el = <K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> = {}, ...children: (Node | string)[]) => {
+    const node = Object.assign(document.createElement(tag), props);
+    node.append(...children);
+    return node;
+  };
+  const minutes = Math.round(Math.abs(delay) / 60);
+  const status = [t(live ? 'live' : 'scheduled')];
+  if (unreported) status.push(t('noLiveTrain'));
+  else if (since !== undefined) status.push(t(live ? 'confirmed' : 'lastConfirmed').replace('{ago}', ago(since)));
+  const time = new Intl.DateTimeFormat(language(), { timeStyle: 'short', timeZone: 'Europe/Madrid' });
+  const close = el('button', { className: 'close', title: t('stopFollowing'), textContent: '×', onclick: stopFollowing });
+  close.setAttribute('aria-label', t('stopFollowing'));
+  panel.replaceChildren(
+    close,
+    el('h2', {}, el('span', { className: 'line', textContent: line?.name ?? '' }), ` → ${trip.headsign}`),
+    el('p', { className: live ? 'live' : 'scheduled' }, status.join(' · ')),
+    el('p', {}, minutes ? t(delay > 0 ? 'late' : 'early').replace('{n}', String(minutes)) : t('onTime')),
+    el('p', {}, `${t('speed')}: ~${Math.round(speed * 3.6)} km/h`),
+    ...(unitType ? [el('p', {}, `${t('unit')}: ${unitType}`)] : []),
+    el('h3', { textContent: t('nextStations') }),
+    el(
+      'ol',
+      {},
+      // Standing at a Station, it's when it leaves that's still to come.
+      ...upcoming.map((u, i) => el('li', {}, el('time', { textContent: time.format(i === 0 && standing ? u.departure : u.arrival) }), ` ${stationNames.get(u.station) ?? u.station}`)),
+    ),
+  );
+  if (line) panel.style.setProperty('--line', line.colour);
+}
+
+/** How long a number of ms is, to the second under a minute and to the minute after. */
+function ago(ms: number): string {
+  return ms < 60_000 ? `${Math.max(0, Math.round(ms / 1000))} s` : `${Math.round(ms / 60_000)} min`;
 }
 
 /**

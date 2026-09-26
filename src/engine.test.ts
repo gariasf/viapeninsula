@@ -3,7 +3,7 @@ import { gunzipSync } from 'node:zlib';
 import { expect, test } from 'vitest';
 import { pointAt, type Bundle, type Network, type Report, type Snapshot } from './bundle.ts';
 import { noonMinus12h } from './build/gtfs.ts';
-import { joinDays, KEEP, trainsAt, unavailable, type Received } from './engine.ts';
+import { joinDays, KEEP, trainAt, trainsAt, unavailable, type Received } from './engine.ts';
 
 /** A speed profile like Rodalies', in metres and seconds, which the times below are worked out from. */
 const PROFILE = { acceleration: 1, braking: 1, topSpeed: 160 / 3.6, dwell: 30 };
@@ -533,6 +533,62 @@ test("a Train that a working feed doesn't report stays Scheduled, marked as havi
   expect(train(R2N, at('21:37:30'))?.unreported).toBe(false);
 });
 
+/** A Trip's Train as the follow panel has it at a moment by the device's clock, if it's on the map, with the live data received by then. */
+const followed = (trip: string, moment: number, received: Received[] = []) => trainAt(BUNDLE, moment, by(received, moment), trip);
+
+test("a followed Train's upcoming Stations are those it has still to leave, each expected when its timetable has it there", () => {
+  // With no live data, the R2S has left Calafell at 21:35 and runs on to Segur de Calafell, where it stands from 21:37:30 to 21:38.
+  const upcoming = followed(R2S, at('21:36:00'))?.upcoming;
+  expect(upcoming?.map((u) => u.station)).toEqual(TRIPS[R2S]?.calls.slice(2).map(([station]) => station));
+  expect(upcoming?.[0]).toEqual({ station: 'Segur de Calafell', arrival: at('21:37:30'), departure: at('21:38:00') });
+  expect(upcoming?.at(-1)).toEqual({ station: 'Barcelona Estació de França', arrival: at('22:51:00'), departure: at('22:51:30') });
+  // Standing at Vilanova i la Geltrú, from 21:49 to 21:50, it still has that Station to leave.
+  expect(followed(R2S, at('21:49:30'))?.upcoming[0]).toEqual({ station: 'Vilanova i la Geltrú', arrival: at('21:49:00'), departure: at('21:50:00') });
+  expect(followed(R2S, at('21:49:30'))).toMatchObject({ delay: 0, live: false });
+});
+
+test("a followed Train running late is expected at each Station as late as it's drawn, and gets there then", () => {
+  // Renfe's GPS has the R2S 69 s late past Calafell at 21:36:46.
+  const followedAt = followed(R2S, at('21:37:00'), RECEIVED);
+  expect(followedAt?.delay).toBeCloseTo(69, 0);
+  expect(followedAt?.upcoming[0]?.arrival).toBeCloseTo(at('21:38:39'), -3);
+  for (const { station, arrival, departure } of followedAt?.upcoming.slice(0, 3) ?? []) {
+    const dist = TRIPS[R2S]?.calls.find(([s]) => s === station)?.[3];
+    expect([where(R2S, arrival, RECEIVED), where(R2S, departure, RECEIVED)]).toEqual([dist, dist]);
+  }
+});
+
+test('a followed Train says how long ago live data last placed it, as of when its operator reported it', () => {
+  // Renfe's GPS placed the R2S at 21:36:46, and has it Live; Renfe didn't report the R2N.
+  expect(followed(R2S, at('21:37:30'), RECEIVED)).toMatchObject({ live: true, since: 44_000 });
+  // Through the minute its feed leaves it out, it's Live for two updates, then Scheduled, still saying when it was last placed.
+  const quiet = [...RECEIVED, ...leftOut(at('21:37:20'), at('21:38:20'))];
+  expect(followed(R2S, at('21:38:20'), quiet)).toMatchObject({ live: false, since: 94_000 });
+  expect(followed(R2N, at('21:37:30'), RECEIVED)).toMatchObject({ live: false, unreported: true, since: undefined });
+});
+
+test("a followed Train's modelled speed is its speed profile's: none standing at a Station, and cruising between Stations at the lowest speed that arrives on time", () => {
+  expect(followed(R2S, at('21:49:30'))?.speed).toBe(0);
+  // Sitges to Castelldefels is 15,611 m in 15 minutes: at 1 m/s² each way, it cruises at 17.69 m/s.
+  expect(followed(R2S, at('22:05:00'))?.speed).toBeCloseTo(17.69, 2);
+});
+
+test("a followed Train easing towards where live data has it runs as late as live data says, and is expected at its Stations that late", () => {
+  // The R2S runs on time until a snapshot at 22:00:00 has it 10 s late, and slows down until it is.
+  const received = [late(R2S, 0, at('21:59:40')), late(R2S, 10, at('22:00:00'))];
+  const easing = followed(R2S, at('22:00:05'), received);
+  expect(easing?.delay).toBe(10);
+  expect(easing?.upcoming[0]).toMatchObject({ station: 'Castelldefels', arrival: at('22:12:10') });
+  expect(where(R2S, at('22:12:10'), received)).toBe(150987);
+});
+
+test('a followed Train that live data shows stopped between Stations, held there, runs at no speed', () => {
+  // A signal stops the R2S between Sitges and Castelldefels at 21:59:40: every 20 s it's 20 s later.
+  const received = [0, 20, 40, 60].map((delay, i) => late(R2S, delay, at('21:59:40', i * 20)));
+  expect(followed(R2S, at('22:00:50'), received)).toMatchObject({ speed: 0, standing: false });
+  expect(followed(R2S, at('21:49:30'))).toMatchObject({ standing: true });
+});
+
 test('never runs back when its last Delay runs out, among the snapshots the map keeps', () => {
   // Renfe's GPS has the R2S 30 s early between Sitges and Castelldefels at 22:00:00, and then Renfe's feeds leave it out.
   const received = [gps(R2S, where(R2S, at('22:00:30')) ?? NaN, at('22:00:00')), ...leftOut(at('22:00:20'), at('22:32:00'))];
@@ -652,6 +708,12 @@ test("a rack Train Geotren has on line M1 or M2 is Live as the day's MM Trip it 
   // Geotren has both about 3 minutes behind their timetables, which the trip updates don't cover.
   const scheduled = trainsAt(RACK, moment);
   for (const i of [0, 1]) expect(trains[i]?.dist).toBeLessThan((scheduled[i]?.dist ?? NaN) - 400);
+});
+
+test('a followed Train shows the type of Unit it runs as, where its operator reports one', () => {
+  const moment = Date.parse('2026-09-25T14:46:20+02:00');
+  expect(trainAt(RACK, moment, RACK_RECEIVED, 'fgc:6350da917476|652dc7e703')?.unitType).toBe('AMx2');
+  expect(trainAt(RACK, moment, RACK_RECEIVED, 'fgc:625cdae21f726b1bb950|652dc7e703')?.unitType).toBeUndefined();
 });
 
 test("a Train Renfe pins to a Station isn't held there: Renfe's pinned Stations are stale", () => {
@@ -811,6 +873,21 @@ test("a Block that no Trip headed its way reaches within half an hour of when TM
   expect(live(expecting('13:50:32'))).toEqual([]);
   // 29¾ minutes after, it runs that Trip, 29¾ minutes late.
   expect(live(expecting('13:50:02'))).toEqual([NEXT_INTO_FONDO]);
+});
+
+test("a Metro Train on a Line TMB publishes no predictions for, as L9's, isn't marked as having no live data, while one TMB leaves out on its Line is", () => {
+  // Made up: an L9 Sud Trip from Zona Universitària to Collblanc, on its own track.
+  const L9 = bundleOf('2026-09-25', METRO.networks[0] as Network, {
+    'metro:9.1.1': { line: 'metro:L9S', calls: [['tmb:1.915', '13:13:00', '13:13:30', 0, 2.1123, 41.3854], ['tmb:1.914', '13:16:00', '13:16:30', 1500, 2.1285, 41.3778]] },
+  });
+  const both: Bundle = { ...METRO, lines: [...METRO.lines, ...L9.lines], shapes: [...METRO.shapes, ...L9.shapes], trips: [...METRO.trips, ...L9.trips] };
+  // TMB reports only L1's 113, which runs the Trip into Fondo, and so leaves out the Train out of Fondo.
+  const trains = trainsAt(both, Date.parse('2026-09-25T13:14:20+02:00'), onlyL1('113'));
+  expect(trains.map((t) => [t.trip.id, t.live, t.unreported])).toEqual([
+    [INTO_FONDO, true, false],
+    [OUT_OF_FONDO, false, true],
+    ['metro:9.1.1', false, false],
+  ]);
 });
 
 test('a Block that turns back at the end of its Line runs the Trip back from there', () => {
