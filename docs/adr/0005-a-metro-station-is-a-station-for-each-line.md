@@ -8,5 +8,5 @@ TMB publishes a metro station served by several Lines as a stop for each Line, g
 
 ## Consequences
 
-- A metro station served by several Lines is that many Stations with the same name, up to a few hundred metres apart: two Sants Estació (L3 and L5), three Passeig de Gràcia (L2, L3 and L4). Each keeps the parent station TMB groups it in as its place, and the map draws each place as one dot and one name, at the middle of its Lines' Stations rather than at the parent's own point, which lies off some Lines' rails (#27). Whether a station board lists one Line or all of them is #17.
+- A metro station served by several Lines is that many Stations with the same name, up to a few hundred metres apart: two Sants Estació (L3 and L5), three Passeig de Gràcia (L2, L3 and L4). Each keeps the parent station TMB groups it in as its place, and the map draws each place as one dot and one name, at the middle of its Lines' Stations rather than at the parent's own point, which lies off some Lines' rails (#27). As the map shows the place as one dot, tapping it opens one Station board listing every one of its Lines' departures (#17); a railway Station beside it is a place of its own, with a board of its own.
 - Anything that names a Station, such as a share link (#19) or the Metro's live data (#12), names one Line's stop.

@@ -45,6 +45,11 @@ const STRINGS = {
   speed: { ca: 'Velocitat estimada', es: 'Velocidad estimada', en: 'Estimated speed' },
   unit: { ca: 'Unitat', es: 'Unidad', en: 'Unit' },
   nextStations: { ca: 'Properes estacions', es: 'Próximas estaciones', en: 'Next stations' },
+  // A Station's board.
+  closeBoard: { ca: 'Tanca el panell de sortides', es: 'Cerrar el panel de salidas', en: 'Close the departures board' },
+  nextDepartures: { ca: 'Properes sortides', es: 'Próximas salidas', en: 'Next departures' },
+  noDepartures: { ca: 'Cap sortida propera', es: 'Ninguna salida próxima', en: 'No upcoming departures' },
+  cancelled: { ca: 'Cancel·lat', es: 'Cancelado', en: 'Cancelled' },
 } satisfies Record<string, Record<Language, string>>;
 
 /** What the viewer's choice is kept under on their device, in local storage, which takes no cookie. */

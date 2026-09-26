@@ -153,12 +153,23 @@ export interface Station {
   place?: string;
 }
 
+/** Where the map shows one or more Stations as one, known by their place, or a lone Station's ID: one Station board lists them all. */
+export interface Place {
+  id: string;
+  name: string;
+  stations: string[];
+  lon: number;
+  lat: number;
+}
+
 /** Where the map shows the Stations: those grouped in one place as one, at the middle of theirs, and every other on its own. */
-export function places(stations: Station[]): { name: string; lon: number; lat: number }[] {
+export function places(stations: Station[]): Place[] {
   const groups = new Map<string, Station[]>();
   for (const s of stations) groups.set(s.place ?? s.id, [...(groups.get(s.place ?? s.id) ?? []), s]);
-  return [...groups.values()].map((group) => ({
+  return [...groups].map(([id, group]) => ({
+    id,
     name: group[0]?.name ?? '',
+    stations: group.map((s) => s.id),
     lon: group.reduce((sum, s) => sum + s.lon, 0) / group.length,
     lat: group.reduce((sum, s) => sum + s.lat, 0) / group.length,
   }));
