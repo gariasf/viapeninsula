@@ -118,6 +118,8 @@ export interface Departure {
   /** Its Delay, in seconds, as live data last gave it: early where it's negative. */
   delay: number;
   live: boolean;
+  /** Whether, drawn on the map, it has no live data though its Network's live data works, as Train.unreported has it. Not before it's on the map, when no feed reports it yet. */
+  unreported: boolean;
   /** Whether its operator has announced that it won't run: then it's expected when its timetable has it leave. */
   cancelled: boolean;
 }
@@ -143,7 +145,7 @@ export function boardAt(bundle: Bundle, at: number, received: Received[], statio
       // Where it calls there more than once, as turning back, the first time it's still to leave.
       const call = on.calls.find((c, i) => i < on.calls.length - 1 && c.departure > time && here.has(c.station));
       if (!call) return [];
-      return [{ trip, station: call.station, departure: bundle.noonMinus12h + (call.departure + delay) * 1000, delay, live: on.live && !cancelled, cancelled }];
+      return [{ trip, station: call.station, departure: bundle.noonMinus12h + (call.departure + delay) * 1000, delay, live: on.live && !cancelled, unreported: !!on.train?.unreported, cancelled }];
     })
     .sort((a, b) => a.departure - b.departure)
     .slice(0, BOARD);
