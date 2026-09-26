@@ -360,6 +360,31 @@ test.for(['right', 'left'] as const)('traces each way along double track on the 
   }
 });
 
+test("follows OpenStreetMap's tags for which way Trains run each track, where they differ from the Network's side", () => {
+  // As on the Metro's L2 between Tetuan and Paral·lel, which runs on the left though the rest keeps right.
+  const ways = doubleTrack().ways;
+  const [north, south] = ways;
+  if (north) north.tags['railway:preferred_direction'] = 'forward'; // drawn west to east
+  if (south) south.tags['railway:preferred_direction'] = 'backward';
+  const { shape } = trace(
+    ways,
+    [station('A', 0, -12), station('C', 5000, -12)],
+    { id: 'east', feed: EAST, stations: 'A C' },
+    { id: 'west', feed: EAST.toReversed(), stations: 'A C' },
+  );
+  for (const x of [450, 4450]) {
+    expect([passes(shape('east'), x, 2), passes(shape('west'), x, -2)]).toEqual([true, true]);
+  }
+});
+
+test("pays no heed to a tag on one track of a pair alone, as R8's near Castellbisbal", () => {
+  const ways = doubleTrack().ways;
+  const [north] = ways;
+  if (north) north.tags['railway:preferred_direction'] = 'forward';
+  const { shape } = trace(ways, [station('A', 0, -12), station('C', 5000, -12)], { id: 'east', feed: EAST, stations: 'A C' });
+  for (const x of [450, 4450]) expect(passes(shape('east'), x, -2)).toBe(true);
+});
+
 test('shares single track between both ways', () => {
   const { shape } = trace(
     rails({ a: [0, 0], b: [1000, 0], c: [2000, 0] }, 'a b c'),

@@ -307,6 +307,9 @@ function trains(): GeoJSON.FeatureCollection {
       const shape = placing.shapes.get(trip.shape);
       const side = placing.sides.get(`${trip.line} ${trip.shape}`)?.find((s) => s.from <= dist && dist <= s.to)?.side ?? 0;
       // Each Trip runs its own shape forwards: its right is the Train's.
+      // ponytail: takes the Network's running side, so L2's Trains between Tetuan and Paral·lel, which
+      // keep left, sit half a line width to the wrong side zoomed out. Publish each shape's side of
+      // its double track from the trace if that ever shows.
       const metres = (side + 0.5 * (placing.keep.get(trip.line) ?? 1)) * apart * Math.cos((lat * Math.PI) / 180);
       return {
         type: 'Feature',

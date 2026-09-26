@@ -12,8 +12,11 @@ const RODALIES: Network = {
   // Every stretch between Stations in Renfe's timetable of 24 September 2026 fits 1 m/s² (138 don't
   // fit 0.7), and the fastest Units on the regional lines run at 160 km/h. Small Stations get half a minute.
   profile: { acceleration: 1, braking: 1, topSpeed: 160 / 3.6, dwell: 30 },
-  // OpenStreetMap tags which way Trains run each track of 268 km of Adif's Iberian-gauge double track
-  // in Catalonia (railway:preferred_direction, seen 2026-09-26): 94% of it has them on the right.
+  // Catalonia's lines came from MZA, which ran on the right, but for Manresa–Barcelona, a Norte line
+  // run on the left until December 1971 (García Álvarez, "La vía doble en España y el sentido de
+  // circulación de los trenes por ella", FFE, 2010, table 3). OpenStreetMap agrees: its
+  // railway:preferred_direction tags have Trains on the right on 94% of the 268 km of Adif's
+  // Iberian-gauge double track they cover (seen 2026-09-26).
   runningSide: 'right',
 };
 
@@ -100,7 +103,9 @@ const METRO: Network = {
   // Trip's 894 m from Santa Coloma to Fondo in 30 s. Its Units run at 80 km/h. TMB gives each Station
   // about 20 seconds.
   profile: { acceleration: 1.3, braking: 1.3, topSpeed: 80 / 3.6, dwell: 20 },
-  // OpenStreetMap has the Metro's Trains on the right on 96% of the 116 km of its double track it tags.
+  // OpenStreetMap has the Metro's Trains on the right on 96% of the 116 km of its double track it
+  // tags. Most of the rest is L2 between Tetuan and Paral·lel, which runs on the left, and where
+  // its tags say so, the trace follows them.
   runningSide: 'right',
 };
 
