@@ -1,3 +1,4 @@
 # Recorded protocol buffers, such as FGC's trip updates in the fetcher's fixtures.
 *.pb binary
+# Gzipped recordings, such as the engine tests' replay of production snapshots.
 *.gz binary

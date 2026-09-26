@@ -5,20 +5,20 @@ import { expect, test } from 'vitest';
 import { unavailable } from '../engine.ts';
 import { START, step, TIMEOUT, UNSET, type Fetched, type Responses, type Stored } from './step.ts';
 
-// Renfe's Cercanías feeds as recorded at 21:37 on Thursday 24 September 2026, cut down to Rodalies'
+// Renfe's Cercanías feeds as recorded at 15:57 on Friday 25 September 2026, cut down to Rodalies'
 // Trains and a few of other núcleos'.
 const recorded = (file: string) => ({ status: 200, body: readFileSync(new URL(`fixtures/${file}`, import.meta.url), 'utf8') });
 const RENFE = { positions: recorded('vehicle_positions.json'), updates: recorded('trip_updates.json') };
 
 /** When the run fetched them. */
-const NOW = Date.parse('2026-09-24T21:37:00+02:00');
+const NOW = Date.parse('2026-09-25T15:57:11+02:00');
 
 /** The fetcher's first run, fetching Renfe's feeds. */
 const run = (rodalies: Responses['rodalies'] = RENFE) => step(START.state, { rodalies }, NOW);
 
 test("makes one report for each Rodalies Train in Renfe's feeds, and none for other núcleos' Trains", () => {
   const trips = run().snapshot.reports.map((r) => r.trip);
-  expect(trips).toHaveLength(46);
+  expect(trips).toHaveLength(67);
   expect(new Set(trips).size).toBe(trips.length);
   expect(trips.filter((t) => !t?.startsWith('rodalies:51'))).toEqual([]);
 });
@@ -27,37 +27,36 @@ test("makes one report for each Rodalies Train in Renfe's feeds, and none for ot
 const report = (trip: string) => run().snapshot.reports.find((r) => r.trip === `rodalies:${trip}`);
 
 test('gives a Train running between Stations its GPS position, and one standing at or coming into a Station only that Station', () => {
-  // IN_TRANSIT_TO, between Calafell and Segur de Calafell.
-  expect(report('5165J25478R2S')?.position).toEqual({ lon: 1.5816284, lat: 41.190075 });
-  // STOPPED_AT Cerdanyola del Vallès, and INCOMING_AT Barcelona-Sants: Renfe pins both to the Station's coordinates.
-  expect(report('5165J77865R7')?.position).toEqual({ near: 'adif:78706' });
-  expect(report('5165J25793R1')?.position).toEqual({ near: 'adif:71801' });
-  // Of the 46 Trains, 17 are in transit.
+  // IN_TRANSIT_TO, between Sils and Caldes de Malavella.
+  expect(report('5166V15261RG1')?.position).toEqual({ lon: 2.775004, lat: 41.82224 });
+  // STOPPED_AT La Granada, and INCOMING_AT Granollers Centre: Renfe pins both to the Station's coordinates.
+  expect(report('5166V77538R4')?.position).toEqual({ near: 'adif:72205' });
+  expect(report('5166V28444R2N')?.position).toEqual({ near: 'adif:79100' });
+  // Of the 57 Trains Renfe places, 18 are in transit.
   const positions = run().snapshot.reports.map((r) => r.position);
-  expect(positions.filter((p) => p && 'lon' in p)).toHaveLength(17);
-  expect(positions.filter((p) => p && 'near' in p)).toHaveLength(29);
+  expect(positions.filter((p) => p && 'lon' in p)).toHaveLength(18);
+  expect(positions.filter((p) => p && 'near' in p)).toHaveLength(39);
 });
 
 test("gives a Train no position where Renfe knows no Station for it, as its stop 00000 says", () => {
-  // Made up: the R7 at a stop Renfe gives as 00000, which the research found once in 343 stops.
-  const positions = { ...RENFE.positions, body: RENFE.positions.body.replace('"stopId": "78706"', '"stopId": "00000"') };
-  expect(run({ ...RENFE, positions }).snapshot.reports.find((r) => r.trip === 'rodalies:5165J77865R7')?.position).toBeUndefined();
+  // Made up: the R4 at a stop Renfe gives as 00000, which the research found once in 343 stops.
+  const positions = { ...RENFE.positions, body: RENFE.positions.body.replace('"stopId": "72205"', '"stopId": "00000"') };
+  expect(run({ ...RENFE, positions }).snapshot.reports.find((r) => r.trip === 'rodalies:5166V77538R4')?.position).toBeUndefined();
 });
 
 test('gives each Train the time Renfe reported it and the Delay of its trip update', () => {
-  const reported = Date.parse('2026-09-24T21:36:46+02:00');
-  expect(report('5165J25478R2S')).toEqual({ trip: 'rodalies:5165J25478R2S', at: reported, position: { lon: 1.5816284, lat: 41.190075 }, delay: 60 });
-  expect(report('5165J25793R1')).toEqual({ trip: 'rodalies:5165J25793R1', at: reported, position: { near: 'adif:71801' }, delay: -60 });
+  const reported = Date.parse('2026-09-25T15:57:06+02:00');
+  expect(report('5166V15261RG1')).toEqual({ trip: 'rodalies:5166V15261RG1', at: reported, position: { lon: 2.775004, lat: 41.82224 }, delay: 60 });
+  expect(report('5166V28444R2N')).toEqual({ trip: 'rodalies:5166V28444R2N', at: reported, position: { near: 'adif:79100' }, delay: -60 });
 });
 
 test('marks a Train Cancelled when Renfe cancels its Trip', () => {
-  // Renfe cancels a Trip with a trip update that says only that, as it does another núcleo's
-  // 4665J70061C1 here. None of Rodalies' was cancelled, so here's one of its Trips that Renfe doesn't report.
-  const updates = JSON.parse(RENFE.updates.body);
-  updates.entity.push({ id: 'TUCANCEL_5165J28480R2N', tripUpdate: { trip: { tripId: '5165J28480R2N', scheduleRelationship: 'CANCELED' } } });
-  const { reports } = run({ ...RENFE, updates: { status: 200, body: JSON.stringify(updates) } }).snapshot;
-  expect(reports).toContainEqual({ trip: 'rodalies:5165J28480R2N', at: Date.parse('2026-09-24T21:36:49+02:00'), cancelled: true });
-  expect(reports.filter((r) => r.cancelled)).toHaveLength(1);
+  // Renfe cancels a Trip with a trip update that says only that, as it does eleven of Rodalies' here,
+  // and another núcleo's 4666V70155C1. It still places one of their Trains, coming into Mataró.
+  const { reports } = run().snapshot;
+  expect(reports).toContainEqual({ trip: 'rodalies:5166V77640R4', at: Date.parse('2026-09-25T15:57:09+02:00'), cancelled: true });
+  expect(reports).toContainEqual({ trip: 'rodalies:5166V25756R1', at: Date.parse('2026-09-25T15:57:06+02:00'), cancelled: true, position: { near: 'adif:79500' } });
+  expect(reports.filter((r) => r.cancelled)).toHaveLength(11);
 });
 
 test("trims IDs padded with spaces, as they are in Renfe's timetable", () => {
@@ -66,7 +65,7 @@ test("trims IDs padded with spaces, as they are in Renfe's timetable", () => {
 });
 
 test('writes a snapshot of a few kilobytes, as the CDN compresses it', () => {
-  // These 46 Trains take 786 bytes.
+  // These 67 Trains take 989 bytes.
   expect(gzipSync(JSON.stringify(run().snapshot)).length).toBeLessThan(2000);
 });
 
@@ -107,26 +106,26 @@ test("keeps Renfe's last good reports through runs whose responses fail", () => 
     state = failed.state;
   }
   // The next run that works replaces them, even where Renfe's feeds report no Trains at all.
-  const none = { status: 200, body: '{"header": {"timestamp": "1790278640"}}' };
+  const none = { status: 200, body: '{"header": {"timestamp": "1790344660"}}' };
   expect(step(state, { rodalies: { positions: none, updates: none } }, NOW + 100_000).snapshot.reports).toEqual([]);
 });
 
-/** Renfe's feeds as recorded, with both headers saying a moment, in ms since 1970, rather than 21:36:49. */
+/** Renfe's feeds as recorded, with both headers saying a moment, in ms since 1970, rather than 15:57:09. */
 function renfeAt(moment: number): NonNullable<Responses['rodalies']> {
-  const at = ({ body }: { body: string }) => ({ status: 200, body: body.replace('"timestamp": "1790278609"', `"timestamp": "${moment / 1000}"`) });
+  const at = ({ body }: { body: string }) => ({ status: 200, body: body.replace('"timestamp": "1790344629"', `"timestamp": "${moment / 1000}"`) });
   return { positions: at(RENFE.positions), updates: at(RENFE.updates) };
 }
 
 /** When Renfe's headers say it wrote the recorded feeds. */
-const RENFE_WRITTEN = Date.parse('2026-09-24T21:36:49+02:00');
+const RENFE_WRITTEN = Date.parse('2026-09-25T15:57:09+02:00');
 
 test("counts a run whose Renfe feed says it hasn't been updated since the last as a failed try, keeping its reports", () => {
   const good = run();
   const later = NOW + 20_000;
   // 20 s later, one of the feeds still has the header it had.
   const stuck: [Responses['rodalies'], string][] = [
-    [{ ...renfeAt(RENFE_WRITTEN + 20_000), positions: RENFE.positions }, 'vehicle_positions: not updated since 19:36:49 UTC'],
-    [{ ...renfeAt(RENFE_WRITTEN + 20_000), updates: RENFE.updates }, 'trip_updates: not updated since 19:36:49 UTC'],
+    [{ ...renfeAt(RENFE_WRITTEN + 20_000), positions: RENFE.positions }, 'vehicle_positions: not updated since 13:57:09 UTC'],
+    [{ ...renfeAt(RENFE_WRITTEN + 20_000), updates: RENFE.updates }, 'trip_updates: not updated since 13:57:09 UTC'],
   ];
   for (const [rodalies, status] of stuck) {
     const failed = step(good.state, { rodalies }, later);
@@ -135,7 +134,7 @@ test("counts a run whose Renfe feed says it hasn't been updated since the last a
   }
 });
 
-/** Each run, 20 s apart from the start, whose Renfe headers say these moments, in seconds after 21:36:49. */
+/** Each run, 20 s apart from the start, whose Renfe headers say these moments, in seconds after 15:57:09. */
 function renfeRuns(headers: number[]): ReturnType<typeof step>[] {
   let state = START.state;
   return headers.map((header, i) => {
@@ -148,7 +147,7 @@ function renfeRuns(headers: number[]): ReturnType<typeof step>[] {
 test("counts a Renfe header earlier than the last as updated, and real time again after a time in the future", () => {
   const statuses = (headers: number[]) => renfeRuns(headers).map((done) => done.snapshot.feeds.rodalies?.status);
   // Failover to a server whose clock is a minute behind, which then stops.
-  expect(statuses([0, -60, -40, -40])).toEqual(['ok', 'ok', 'ok', 'vehicle_positions: not updated since 19:36:09 UTC']);
+  expect(statuses([0, -60, -40, -40])).toEqual(['ok', 'ok', 'ok', 'vehicle_positions: not updated since 13:56:29 UTC']);
   // A time an hour in the future, then real time again.
   expect(statuses([0, 3600, 40, 60])).toEqual(['ok', 'ok', 'ok', 'ok']);
 });
@@ -252,7 +251,7 @@ test('writes a snapshot of a few kilobytes with every Network, as the CDN compre
   // These 174 Trains take 3,216 bytes. With all 104 of the Metro's that morning, 236 took 3,934.
   const three = step(step(run().state, { fgc: FGC }, NOW + 20_000).state, { tram: { token: TOKEN, ...TRAM } }, NOW + 40_000);
   const all = step(three.state, { metro: METRO }, NOW + 60_000).snapshot;
-  expect(all.reports).toHaveLength(46 + 62 + 24 + 42);
+  expect(all.reports).toHaveLength(67 + 62 + 24 + 42);
   expect(gzipSync(JSON.stringify(all)).length).toBeLessThan(4000);
 });
 
