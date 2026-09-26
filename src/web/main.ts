@@ -120,7 +120,8 @@ map.addControl({ onAdd: () => languageSwitch, onRemove: () => languageSwitch.rem
 // The button that shows the viewer's nearby Trains, with MapLibre's own locate icon, labelled by
 // showLanguage(). It goes under the language switch once the map can move Trains.
 const nearbyButton = el('button', { type: 'button', className: 'maplibregl-ctrl-geolocate', onclick: showNearby }, el('span', { className: 'maplibregl-ctrl-icon' }));
-// The legend, which showLanguage() fills: what the Live and Scheduled markers mean.
+// The legend, which showLanguage() fills: what the Live and Scheduled markers mean, and the button
+// that opens the About dialog.
 const legend = document.createElement('div');
 legend.className = 'maplibregl-ctrl maplibregl-ctrl-group legend';
 // Top left, where the credits never cover it.
@@ -135,8 +136,8 @@ const panel = document.createElement('section');
 panel.className = 'follow';
 panel.hidden = true;
 document.body.append(panel);
-// The About dialog, opened from the legend, which showLanguage() fills: what the map shows, and its
-// credits, code and privacy. Tapping outside it closes it too, in browsers that can.
+// The About dialog, opened from the legend, which showAbout() fills. Tapping outside it closes it
+// too, in browsers that can.
 const about = el('dialog', { className: 'about' });
 about.setAttribute('closedby', 'any');
 document.body.append(about);
@@ -415,24 +416,7 @@ function showLanguage() {
     }),
     el('button', { type: 'button', textContent: t('about'), onclick: () => about.showModal() }),
   );
-  about.setAttribute('aria-label', t('about'));
-  about.replaceChildren(
-    closeButton(t('close'), () => about.close()),
-    el('h2', { textContent: t('about') }),
-    el('p', { textContent: t('estimates') }),
-    el('h3', { textContent: t('credits') }),
-    aboutCredits,
-    el('h3', { textContent: t('sourceCode') }),
-    el(
-      'p',
-      {},
-      el('a', { href: 'https://github.com/gariasf/viapeninsula', target: '_blank', textContent: 'github.com/gariasf/viapeninsula' }),
-      ', ',
-      el('a', { href: 'https://www.gnu.org/licenses/agpl-3.0.html', target: '_blank', textContent: 'AGPL-3.0' }),
-    ),
-    el('h3', { textContent: t('privacy') }),
-    el('p', { textContent: t('noCookies') }),
-  );
+  showAbout();
   showBanner();
   showCredits();
   showPanel();
@@ -711,9 +695,34 @@ function showBanner() {
   );
 }
 
+/**
+ * Fills the About dialog, in the viewer's language: what the map shows and that its positions are
+ * estimates, the credits showCredits() lists there, the code and its licence, and privacy.
+ */
+function showAbout() {
+  about.setAttribute('aria-label', t('about'));
+  about.replaceChildren(
+    closeButton(t('close'), () => about.close()),
+    el('h2', { textContent: t('about') }),
+    el('p', { textContent: t('estimates') }),
+    el('h3', { textContent: t('credits') }),
+    aboutCredits,
+    el('h3', { textContent: t('sourceCode') }),
+    el(
+      'p',
+      {},
+      el('a', { href: 'https://github.com/gariasf/viapeninsula', target: '_blank', textContent: 'github.com/gariasf/viapeninsula' }),
+      ', ',
+      el('a', { href: 'https://www.gnu.org/licenses/agpl-3.0.html', target: '_blank', textContent: 'AGPL-3.0' }),
+    ),
+    el('h3', { textContent: t('privacy') }),
+    el('p', { textContent: t('noCookies') }),
+  );
+}
+
 /** Credits the basemap and each Network's data, in the viewer's language, on the map and in the About dialog, building the map's credits afresh. */
 function showCredits() {
-  const list = [
+  const html = [
     '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> ' +
       '<a href="https://www.openmaptiles.org/" target="_blank">© OpenMapTiles</a> ' +
       `<a href="https://www.openstreetmap.org/copyright" target="_blank">${t('osmContributors')}</a>`,
@@ -721,9 +730,11 @@ function showCredits() {
     ...credited.map((network) => CREDITS[network.id]?.(network) ?? network.name),
   ];
   if (credits) map.removeControl(credits);
-  credits = new AttributionControl({ customAttribution: list });
+  credits = new AttributionControl({ customAttribution: html });
   map.addControl(credits);
-  aboutCredits.replaceChildren(...list.map((html) => el('li', { innerHTML: html })));
+  // MapLibre sanitizes its copy; this one goes in as it is, which is safe while it's all ours: these
+  // constants, t() and the Network names the daily build publishes.
+  aboutCredits.replaceChildren(...html.map((credit) => el('li', { innerHTML: credit })));
 }
 
 /**

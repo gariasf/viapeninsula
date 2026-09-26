@@ -73,9 +73,9 @@ const STRINGS = {
   sourceCode: { ca: 'Codi font', es: 'Código fuente', en: 'Source code' },
   privacy: { ca: 'Privadesa', es: 'Privacidad', en: 'Privacy' },
   noCookies: {
-    ca: "Aquest web no fa servir galetes: només desa al teu dispositiu l'idioma que triïs. La teva ubicació, per als trens a prop, no surt mai del teu dispositiu.",
-    es: 'Esta web no usa cookies: solo guarda en tu dispositivo el idioma que elijas. Tu ubicación, para los trenes cercanos, nunca sale de tu dispositivo.',
-    en: 'This site uses no cookies: all it keeps on your device is the language you choose. Your location, for nearby trains, never leaves your device.',
+    ca: "Aquest web no fa servir galetes: només desa al teu dispositiu l'idioma que triïs.",
+    es: 'Esta web no usa cookies: solo guarda en tu dispositivo el idioma que elijas.',
+    en: 'This site uses no cookies: all it keeps on your device is the language you choose.',
   },
 } satisfies Record<string, Record<Language, string>>;
 

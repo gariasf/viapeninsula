@@ -29,7 +29,7 @@ body,
   background: #555;
 }
 
-/* The legend's button that opens the About dialog, as a link. */
+/* The legend's button that opens the About dialog, as a link rather than MapLibre's square control button, which this comes after. */
 .legend button {
   display: inline;
   width: auto;
@@ -70,7 +70,7 @@ body,
   font: 13px/1.5 sans-serif;
 }
 
-/* The About dialog, in the middle of the map, laid out as the panel. */
+/* The About dialog, in the middle of the map, laid out as the panel, and as near a phone's edges as it, where the browser's own cap on a dialog's width would keep it further in. */
 .about {
   box-sizing: border-box;
   width: min(440px, calc(100vw - 16px));
