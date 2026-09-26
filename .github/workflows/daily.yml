@@ -1,20 +1,23 @@
 # The daily build, which publishes the next three service days' bundles to R2. The fetcher's Worker
 # starts it at 00:30 UTC through workflow dispatch, GitHub's own schedule at 03:30 UTC in case that
-# one doesn't come, and the button in the Actions tab whenever it's wanted. Running it again for the
-# same days publishes the same files, so a second run is harmless. Nothing it builds is committed.
+# one doesn't come, the button in the Actions tab whenever it's wanted, and a deploy that changes the
+# build. Running it again for the same days publishes the same files, so a second run is harmless.
+# Nothing it builds is committed.
 name: Daily build
 
 on:
   workflow_dispatch:
+  workflow_call:
   schedule:
     - cron: '30 3 * * *'
 
 permissions:
   contents: read
 
-# Two starts close together run one after the other, never both at once.
+# Two starts close together run one after the other, never both at once. A deploy's run, named after
+# the workflow calling it, queues on its own, so a later start can't cancel it while it waits.
 concurrency:
-  group: daily
+  group: daily-${{ github.workflow }}
   cancel-in-progress: false
 
 jobs:

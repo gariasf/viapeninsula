@@ -1,0 +1,69 @@
+# Deploys the app and the fetcher on every push to main, and from the button in the Actions tab.
+# Typecheck and tests run first. When the build (src/build/, src/bundle.ts) has changed since the
+# last deploy that succeeded, the daily build publishes the new bundles before the app that reads
+# them goes out, and if it fails nothing deploys.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+# Deploys run one after the other, never two at once.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  # Only main deploys: the button run from any other branch stops here, and so does everything after.
+  check:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/check.yml
+
+  # Whether the build changed since the last deploy that succeeded. With none to compare with, it did.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.diff.outputs.build }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          last=$(gh run list --workflow deploy.yml --branch main --status success --limit 1 --json headSha --jq '.[0].headSha // empty')
+          if [ -n "$last" ] && git cat-file -e "$last^{commit}" 2>/dev/null && git diff --quiet "$last" HEAD -- src/build src/bundle.ts; then
+            echo build=false >> "$GITHUB_OUTPUT"
+          else
+            echo build=true >> "$GITHUB_OUTPUT"
+          fi
+
+  daily:
+    needs: [check, changes]
+    if: needs.changes.outputs.build == 'true'
+    uses: ./.github/workflows/daily.yml
+    secrets: inherit
+
+  deploy:
+    needs: [check, changes, daily]
+    if: ${{ !cancelled() && needs.check.result == 'success' && needs.changes.result == 'success' && (needs.daily.result == 'success' || needs.daily.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run deploy
+        env:
+          # Workers Scripts and the custom domain's route, wider than the daily build's R2 token.
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_DEPLOY_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: 701af81e8d0ab745a54d827f520f49cc
