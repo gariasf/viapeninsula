@@ -4,6 +4,7 @@ import { expect, test } from 'vitest';
 import { beside, DEGREE, pointAt, type Bundle, type Network, type Point, type Report, type Shape, type Snapshot } from './bundle.ts';
 import { noonMinus12h } from './build/gtfs.ts';
 import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Received } from './engine.ts';
+import { jumps } from './jumps.ts';
 
 /** A speed profile like Rodalies', in metres and seconds, which the times below are worked out from. */
 const PROFILE = { acceleration: 1, braking: 1, topSpeed: 160 / 3.6, dwell: 30 };
@@ -138,11 +139,11 @@ const at = (time: string, plus = 0) => Date.parse(`2026-09-24T${time}+02:00`) + 
 /** What the map has received of some live data by a moment by the device's clock. */
 const by = (received: Received[], moment: number) => received.filter((r) => r.at <= moment);
 
-/** A Trip's Train at a moment by the device's clock, if it's on the map, with the live data received by then. */
-const train = (trip: string, moment: number, received: Received[] = []) => trainsAt(BUNDLE, moment, by(received, moment)).find((t) => t.trip.id === trip);
+/** A Trip's Train at a moment by the device's clock, if it's on the map, with the live data received by then, in `BUNDLE` unless it says. */
+const train = (trip: string, moment: number, received: Received[] = [], bundle = BUNDLE) => trainsAt(bundle, moment, by(received, moment)).find((t) => t.trip.id === trip);
 
-/** How far along its track a Trip's Train is at a moment, in metres, if it's on the map. */
-const where = (trip: string, moment: number, received?: Received[]) => train(trip, moment, received)?.dist;
+/** How far along its track a Trip's Train is at a moment, in metres, if it's on the map, in `BUNDLE` unless it says. */
+const where = (trip: string, moment: number, received?: Received[], bundle?: Bundle) => train(trip, moment, received, bundle)?.dist;
 
 const R2S = 'rodalies:5165J25478R2S';
 
@@ -319,22 +320,60 @@ test('a Train its operator has cancelled leaves the map', () => {
   expect(train(R2S, at('21:49:30'), [{ snapshot, at: at('21:49:10') }])).toBeUndefined();
 });
 
-// The snapshot the fetcher makes from Renfe's feeds as recorded at 21:37 on 24 September 2026,
-// received as it was written.
-const LIVE: Snapshot = JSON.parse(readFileSync(new URL('fetcher/fixtures/snapshot.json', import.meta.url), 'utf8'));
-const RECEIVED: Received[] = [{ snapshot: LIVE, at: LIVE.generated }];
-
 const [R7, R2N] = ['rodalies:5165J77865R7', 'rodalies:5165J28480R2N'];
 
+// The snapshot the fetcher makes from Renfe's feeds as recorded at 15:57 on Friday 25 September 2026,
+// received as it was written, and stretches of three Rodalies Trips that day as the daily build
+// placed them, each track cut down to straight lines from Station to Station.
+const LIVE: Snapshot = JSON.parse(readFileSync(new URL('fetcher/fixtures/snapshot.json', import.meta.url), 'utf8'));
+const RECEIVED: Received[] = [{ snapshot: LIVE, at: LIVE.generated }];
+const [RG1, R1, R4] = ['rodalies:5166V15261RG1', 'rodalies:5166V25647R1', 'rodalies:5166V77636R4'];
+const RENFE = bundleOf('2026-09-25', { id: 'rodalies', name: 'Rodalies de Catalunya', profile: PROFILE }, {
+  // Sils to Girona, towards Figueres: Renfe's GPS has it between Sils and Caldes de Malavella.
+  [RG1]: {
+    line: 'RG1',
+    calls: [
+      ['Sils', '15:53:00', '15:54:00', 7554, 2.74500729, 41.8075996],
+      ['Caldes de Malavella', '15:59:00', '16:00:00', 13529, 2.80076692, 41.84111],
+      ['Riudellots', '16:05:00', '16:05:00', 19808, 2.81157037, 41.896297],
+      ['Fornells de la Selva', '16:09:00', '16:09:00', 24511, 2.80978324, 41.935043],
+      ['Girona', '16:14:00', '16:15:00', 29686, 2.81693689, 41.9793629],
+    ],
+  },
+  // Caldes d'Estrac to Sant Pol de Mar, towards Maçanet-Massanes: Renfe has it standing at Arenys de Mar.
+  [R1]: {
+    line: 'R1',
+    calls: [
+      ["Caldes d'Estrac", '15:50:00', '15:50:00', 45599, 2.52598143, 41.5686082],
+      ['Arenys de Mar', '15:52:00', '15:53:00', 47795, 2.54933744, 41.577699],
+      ['Canet de Mar', '15:57:00', '15:57:00', 50668, 2.58128887, 41.5866691],
+      ['Sant Pol de Mar', '16:01:00', '16:03:00', 54667, 2.62459756, 41.6017549],
+    ],
+  },
+  // Sabadell Centre to Terrassa Est, towards Terrassa Estació del Nord: Renfe doesn't report it.
+  [R4]: {
+    line: 'R4',
+    calls: [
+      ['Sabadell Centre', '15:55:00', '15:55:00', 101558, 2.11560767, 41.5464197],
+      ['Sabadell Nord', '15:58:00', '15:58:00', 104106, 2.09622844, 41.5619773],
+      ['Terrassa Est', '16:02:00', '16:02:00', 108856, 2.03963639, 41.5675296],
+    ],
+  },
+});
+
+/** A moment on 25 September 2026, by the clock in Barcelona, and so many seconds on. */
+const onFriday = (time: string, plus = 0) => Date.parse(`2026-09-25T${time}+02:00`) + plus * 1000;
+
 test("a Train Renfe's live data reports is Live, and standing at a Station runs as late or early as Renfe says", () => {
-  // Renfe has the R7 standing at Cerdanyola del Vallès at 21:36:46, 2 minutes late: its timetable has it leave at 21:35.
-  expect(train(R7, at('21:37:00'), RECEIVED)).toMatchObject({ live: true, dist: 3571 });
-  expect(where(R7, at('21:37:00'))).toBeLessThan(3571);
+  // Renfe has the R1 standing at Arenys de Mar at 15:57:06, 5 minutes late: its timetable has it leave at 15:53.
+  expect(train(R1, onFriday('15:57:40'), RECEIVED, RENFE)).toMatchObject({ live: true, dist: 47795 });
+  expect(where(R1, onFriday('15:57:40'), [], RENFE)).toBeGreaterThan(47795);
 });
 
 test('a Train no live data covers is Scheduled, where its timetable puts it', () => {
-  // Renfe didn't report the R2N. Its timetable has it stand at Mollet-Sant Fost from 21:37 to 21:38.
-  expect(train(R2N, at('21:37:30'), RECEIVED)).toMatchObject({ live: false, dist: 50838 });
+  // Renfe didn't report the R4. Its timetable gives it no time at Sabadell Nord, so it stands there
+  // for the profile's 30 s, from 15:57:30 to 15:58.
+  expect(train(R4, onFriday('15:57:40'), RECEIVED, RENFE)).toMatchObject({ live: false, dist: 104106 });
 });
 
 test('a Train Renfe gives a Delay for but no position stays Scheduled, and runs as late as Renfe says', () => {
@@ -365,10 +404,11 @@ function gps(trip: string, dist: number, moment: number, delay?: number): Receiv
 }
 
 test('a Train Live and moving runs as late as its GPS shows, whatever its operator says', () => {
-  // Renfe's GPS has the R2S 555 m past Calafell at 21:36:46, where its timetable has it at 21:35:37:
-  // it's 69 s late, though Renfe's own figure says a minute. It reaches Segur de Calafell at 21:38:39, not 21:38:30.
-  expect(where(R2S, at('21:38:35'), RECEIVED)).toBeLessThan(117049);
-  expect(train(R2S, at('21:38:39'), RECEIVED)).toMatchObject({ live: true, dist: 117049 });
+  // Renfe's GPS has the RG1 2,979 m past Sils at 15:57:06, where its timetable has it at 15:56:29:
+  // it's 36.5 s late, though Renfe's own figure says a minute. It reaches Caldes de Malavella at 15:59:36.5, not 16:00.
+  expect(train(RG1, onFriday('15:57:40'), RECEIVED, RENFE)).toMatchObject({ live: true });
+  expect(where(RG1, onFriday('15:59:30'), RECEIVED, RENFE)).toBeLessThan(13529);
+  expect(where(RG1, onFriday('15:59:37'), RECEIVED, RENFE)).toBe(13529);
   // Made up: Renfe's GPS has each Train where its timetable had it 2 minutes before, though Renfe's
   // own figure says 1. The R2S is between Sitges and Castelldefels, and the R7, which runs its track
   // backwards, between Montcada i Reixac-Manresa and Montcada i Reixac-Santa Maria.
@@ -450,6 +490,25 @@ test('a Train drawn more than a minute from where live data has it jumps there, 
   expect(where(R2S, at('22:00:20'), received)).toBeCloseTo(where(R2S, at('22:00:20')) ?? NaN, 3);
 });
 
+/** A snapshot in which Renfe has a Trip's Train at or near a Station, running so many seconds late, received as it's written. */
+const near = (trip: string, station: string, delay: number, moment: number): Received => ({
+  snapshot: { ...written(moment), reports: [{ trip, at: moment, position: { near: station }, delay }] },
+  at: moment,
+});
+
+test('counts the jumps of Live Trains for each Network, forward and back', () => {
+  // Between Sitges and Castelldefels, Renfe has the R2S on time, then 90 s late, then on time again.
+  const received = [0, 90, 0].map((delay, i) => near(R2S, 'Sitges', delay, at('21:59:40', i * 20)));
+  expect(jumps(BUNDLE, received)).toEqual({ rodalies: { forward: 1, back: 1, liveSeconds: 41 } });
+});
+
+test("doesn't count a Live Train easing back where live data has it, or a Train that isn't Live", () => {
+  const received = [0, 10, 20].map((delay, i) => near(R2S, 'Sitges', delay, at('21:59:40', i * 20)));
+  expect(jumps(BUNDLE, received)).toEqual({ rodalies: { forward: 0, back: 0, liveSeconds: 41 } });
+  // Renfe gives Delays with no position: the R2S jumps, but it's Scheduled.
+  expect(jumps(BUNDLE, [0, 90, 0].map((delay, i) => late(R2S, delay, at('21:59:40', i * 20))))).toEqual({});
+});
+
 test('a Train drawn more than 1 km from where live data has it jumps there', () => {
   // The made-up Trip runs at line speed from 12:00:23, so 30 s behind it is 1.2 km back.
   const received = [late('too quick', 0, at('12:00:30')), late('too quick', 30, at('12:00:40'))];
@@ -457,12 +516,12 @@ test('a Train drawn more than 1 km from where live data has it jumps there', () 
 });
 
 test("drops the reports that match none of the day's Trips", () => {
-  // Renfe reports 46 Trains, of which this bundle has two.
-  expect(LIVE.reports).toHaveLength(46);
-  expect(trainsAt(BUNDLE, at('21:37:30'), RECEIVED).map((t) => [t.trip.id, t.live])).toEqual([
-    [R2S, true],
-    [R7, true],
-    [R2N, false],
+  // Renfe reports 67 Trains, of which this bundle has two.
+  expect(LIVE.reports).toHaveLength(67);
+  expect(trainsAt(RENFE, onFriday('15:57:40'), RECEIVED).map((t) => [t.trip.id, t.live])).toEqual([
+    [RG1, true],
+    [R1, true],
+    [R4, false],
   ]);
 });
 
@@ -523,18 +582,18 @@ test("brought back after its tab was hidden, the map shows Trains Scheduled unti
 });
 
 test("a Train that a working feed doesn't report stays Scheduled, marked as having no live data, unless the feed is down", () => {
-  // Renfe's feeds at 21:37 on 24 September didn't report the R2N, which its timetable has at Mollet-Sant Fost, and did the R2S.
-  expect(train(R2N, at('21:37:30'), RECEIVED)).toMatchObject({ live: false, unreported: true });
-  expect(train(R2S, at('21:37:30'), RECEIVED)).toMatchObject({ live: true, unreported: false });
+  // Renfe's feeds at 15:57 on 25 September didn't report the R4, which its timetable has at Sabadell Nord, and did the RG1.
+  expect(train(R4, onFriday('15:57:40'), RECEIVED, RENFE)).toMatchObject({ live: false, unreported: true });
+  expect(train(RG1, onFriday('15:57:40'), RECEIVED, RENFE)).toMatchObject({ live: true, unreported: false });
   // From the third update after that the feeds fail, the map says their live data is unavailable instead.
-  const down = [...RECEIVED, ...[20, 40, 60].map((s) => failing(at('21:37:00', s), { snapshot: LIVE, at: LIVE.generated }))];
-  expect(train(R2N, at('21:38:10'), down)).toMatchObject({ live: false, unreported: false });
+  const down = [...RECEIVED, ...[20, 40, 60].map((s) => failing(onFriday('15:57:11', s), { snapshot: LIVE, at: LIVE.generated }))];
+  expect(train(R4, onFriday('15:58:21'), down, RENFE)).toMatchObject({ live: false, unreported: false });
   // Before any live data comes, there's no telling.
-  expect(train(R2N, at('21:37:30'))?.unreported).toBe(false);
+  expect(train(R4, onFriday('15:57:40'), [], RENFE)?.unreported).toBe(false);
 });
 
-/** A Trip's Train as the follow panel has it at a moment by the device's clock, if it's on the map, with the live data received by then. */
-const followed = (trip: string, moment: number, received: Received[] = []) => trainAt(BUNDLE, moment, by(received, moment), trip);
+/** A Trip's Train as the follow panel has it at a moment by the device's clock, if it's on the map, with the live data received by then, in `BUNDLE` unless it says. */
+const followed = (trip: string, moment: number, received: Received[] = [], bundle = BUNDLE) => trainAt(bundle, moment, by(received, moment), trip);
 
 test("a followed Train's upcoming Stations are those it has still to leave, each expected when its timetable has it there", () => {
   // With no live data, the R2S has left Calafell at 21:35 and runs on to Segur de Calafell, where it stands from 21:37:30 to 21:38.
@@ -548,23 +607,23 @@ test("a followed Train's upcoming Stations are those it has still to leave, each
 });
 
 test("a followed Train running late is expected at each Station as late as it's drawn, and gets there then", () => {
-  // Renfe's GPS has the R2S 69 s late past Calafell at 21:36:46.
-  const followedAt = followed(R2S, at('21:37:00'), RECEIVED);
-  expect(followedAt?.delay).toBeCloseTo(69, 0);
-  expect(followedAt?.upcoming[0]?.arrival).toBeCloseTo(at('21:38:39'), -3);
+  // Renfe's GPS has the RG1 36.5 s late past Sils at 15:57:06.
+  const followedAt = followed(RG1, onFriday('15:57:11'), RECEIVED, RENFE);
+  expect(followedAt?.delay).toBeCloseTo(36.5, 0);
+  expect(followedAt?.upcoming[0]?.arrival).toBeCloseTo(onFriday('15:59:36', 0.5), -3);
   for (const { station, arrival, departure } of followedAt?.upcoming.slice(0, 3) ?? []) {
-    const dist = TRIPS[R2S]?.calls.find(([s]) => s === station)?.[3];
-    expect([where(R2S, arrival, RECEIVED), where(R2S, departure, RECEIVED)]).toEqual([dist, dist]);
+    const dist = RENFE.trips.find((t) => t.id === RG1)?.calls.find((c) => c.station === station)?.dist;
+    expect([where(RG1, arrival, RECEIVED, RENFE), where(RG1, departure, RECEIVED, RENFE)]).toEqual([dist, dist]);
   }
 });
 
 test('a followed Train says how long ago live data last placed it, as of when its operator reported it', () => {
-  // Renfe's GPS placed the R2S at 21:36:46, and has it Live; Renfe didn't report the R2N.
-  expect(followed(R2S, at('21:37:30'), RECEIVED)).toMatchObject({ live: true, since: 44_000 });
+  // Renfe's GPS placed the RG1 at 15:57:06, and has it Live; Renfe didn't report the R4.
+  expect(followed(RG1, onFriday('15:57:40'), RECEIVED, RENFE)).toMatchObject({ live: true, since: 34_000 });
   // Through the minute its feed leaves it out, it's Live for two updates, then Scheduled, still saying when it was last placed.
-  const quiet = [...RECEIVED, ...leftOut(at('21:37:20'), at('21:38:20'))];
-  expect(followed(R2S, at('21:38:20'), quiet)).toMatchObject({ live: false, since: 94_000 });
-  expect(followed(R2N, at('21:37:30'), RECEIVED)).toMatchObject({ live: false, unreported: true, since: undefined });
+  const quiet = [...RECEIVED, ...leftOut(onFriday('15:57:31'), onFriday('15:58:31'))];
+  expect(followed(RG1, onFriday('15:58:31'), quiet, RENFE)).toMatchObject({ live: false, since: 85_000 });
+  expect(followed(R4, onFriday('15:57:40'), RECEIVED, RENFE)).toMatchObject({ live: false, unreported: true, since: undefined });
 });
 
 test("a followed Train's modelled speed is its speed profile's: none standing at a Station, and cruising between Stations at the lowest speed that arrives on time", () => {
@@ -589,8 +648,8 @@ test('a followed Train that live data shows stopped between Stations, held there
   expect(followed(R2S, at('21:49:30'))).toMatchObject({ standing: true });
 });
 
-/** A board of the next departures from some Stations at a moment by the device's clock, with the live data received by then. */
-const board = (stations: string[], moment: number, received: Received[] = []) => boardAt(BUNDLE, moment, by(received, moment), stations);
+/** A board of the next departures from some Stations at a moment by the device's clock, with the live data received by then, in `BUNDLE` unless it says. */
+const board = (stations: string[], moment: number, received: Received[] = [], bundle = BUNDLE) => boardAt(bundle, moment, by(received, moment), stations);
 
 test("a Station's board lists each Train still to leave it, expected when its timetable has it leave, and not one that ends there", () => {
   // With no live data, the R2S stands at Vilanova i la Geltrú from 21:49 to 21:50.
@@ -602,14 +661,14 @@ test("a Station's board lists each Train still to leave it, expected when its ti
 });
 
 test("a board's times agree with where each Train is on the map: it leaves the Station when the board says", () => {
-  // Renfe's GPS has the R2S 69 s late past Calafell at 21:36:46.
-  const [sitges] = board(['Sitges'], at('21:37:00'), RECEIVED);
-  expect(sitges).toMatchObject({ trip: { id: R2S }, live: true });
-  expect(sitges?.delay).toBeCloseTo(69, 0);
-  expect(sitges?.departure).toBe(followed(R2S, at('21:37:00'), RECEIVED)?.upcoming.find((u) => u.station === 'Sitges')?.departure);
-  const departure = sitges?.departure ?? NaN;
-  expect(where(R2S, departure, RECEIVED)).toBe(135376);
-  expect(where(R2S, departure + 1000, RECEIVED)).toBeGreaterThan(135376);
+  // Renfe's GPS has the RG1 36.5 s late past Sils at 15:57:06.
+  const [caldes] = board(['Caldes de Malavella'], onFriday('15:57:11'), RECEIVED, RENFE);
+  expect(caldes).toMatchObject({ trip: { id: RG1 }, live: true });
+  expect(caldes?.delay).toBeCloseTo(36.5, 0);
+  expect(caldes?.departure).toBe(followed(RG1, onFriday('15:57:11'), RECEIVED, RENFE)?.upcoming.find((u) => u.station === 'Caldes de Malavella')?.departure);
+  const departure = caldes?.departure ?? NaN;
+  expect(where(RG1, departure, RECEIVED, RENFE)).toBe(13529);
+  expect(where(RG1, departure + 1000, RECEIVED, RENFE)).toBeGreaterThan(13529);
 });
 
 test('a Train not yet on the map is on the board as late as live data has it, and leaves then', () => {
@@ -638,11 +697,11 @@ test("a board's times are by the fetcher's clock on a device whose clock is minu
 });
 
 test("a departure whose Train a working feed doesn't report is marked on the board as having no live data, as in the follow panel", () => {
-  // Renfe's feeds at 21:37 on 24 September didn't report the R2N, standing at Mollet-Sant Fost until 21:38, and did the R2S.
-  expect(board(['Mollet-Sant Fost'], at('21:37:30'), RECEIVED)).toMatchObject([{ trip: { id: R2N }, live: false, unreported: true }]);
-  expect(board(['Sitges'], at('21:37:30'), RECEIVED)).toMatchObject([{ trip: { id: R2S }, live: true, unreported: false }]);
+  // Renfe's feeds at 15:57 on 25 September didn't report the R4, standing at Sabadell Nord until 15:58, and did the RG1.
+  expect(board(['Sabadell Nord'], onFriday('15:57:40'), RECEIVED, RENFE)).toMatchObject([{ trip: { id: R4 }, live: false, unreported: true }]);
+  expect(board(['Caldes de Malavella'], onFriday('15:57:40'), RECEIVED, RENFE)).toMatchObject([{ trip: { id: RG1 }, live: true, unreported: false }]);
   // With no live data at all, it's plain Scheduled.
-  expect(board(['Mollet-Sant Fost'], at('21:37:30'))).toMatchObject([{ trip: { id: R2N }, live: false, unreported: false }]);
+  expect(board(['Sabadell Nord'], onFriday('15:57:40'), [], RENFE)).toMatchObject([{ trip: { id: R4 }, live: false, unreported: false }]);
 });
 
 test('a cancelled Train stays on the board, marked cancelled, when its timetable has it leave', () => {
@@ -1092,7 +1151,7 @@ test('a Metro Train held outside the end of its Line is drawn no further back th
 });
 
 // 45 minutes of production snapshots of all four Networks as the map received them, every 20 s from
-// 16:00 on Friday 25 September 2026, and that day's bundle cut to the Trips they could name.
+// 15:57 to 16:42 on Friday 25 September 2026, and that day's bundle cut to the Trips they could name.
 const RECORDED: { bundle: Bundle; received: Received[] } = JSON.parse(gunzipSync(readFileSync(new URL('fixtures/replay-2026-09-25.json.gz', import.meta.url))).toString());
 
 test('folding each snapshot into the last replay draws the Trains as replaying every snapshot kept does, as those over KEEP old go', () => {
@@ -1111,6 +1170,18 @@ test('folding each snapshot into the last replay draws the Trains as replaying e
   expect(kept.at(-1)?.[0]).not.toBe(received[0]);
   expect(draw(false)).toEqual(draw(true));
   // Replaying 45 minutes second by second, twice, takes about 5 s here and longer on CI's runners.
+}, 60_000);
+
+test("counts each Network's jumps over 45 minutes of live data as the map received it", () => {
+  // Per Train-minute, (forward + back) / (liveSeconds / 60): Rodalies 0.25, FGC 0.031, TRAM 0.0023,
+  // the Metro 0.047. They're the baseline the tickets that make Trains jump less, such as #33, #39,
+  // #45 and #46, measure against: one that changes how often they jump changes these.
+  expect(jumps(RECORDED.bundle, RECORDED.received)).toEqual({
+    rodalies: { forward: 305, back: 321, liveSeconds: 152167 },
+    fgc: { forward: 25, back: 52, liveSeconds: 148586 },
+    tram: { forward: 3, back: 0, liveSeconds: 77809 },
+    metro: { forward: 132, back: 76, liveSeconds: 265789 },
+  });
 }, 60_000);
 
 // Made up: an R1 Trip from Badalona to El Masnou each night, from 23:50 to 00:20, on every day's

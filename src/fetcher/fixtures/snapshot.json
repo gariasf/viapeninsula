@@ -1,398 +1,537 @@
 {
-  "generated": 1790278620000,
+  "generated": 1790344631000,
   "feeds": {
     "rodalies": {
-      "lastSuccess": 1790278620000,
-      "lastAttempt": 1790278620000,
+      "lastSuccess": 1790344631000,
+      "lastAttempt": 1790344631000,
       "status": "ok",
       "every": 20000
     }
   },
   "reports": [
     {
-      "trip": "rodalies:5165J25687R1",
-      "at": 1790278606000,
-      "delay": 0,
-      "position": {
-        "near": "adif:79009"
-      }
-    },
-    {
-      "trip": "rodalies:5165J25846R1",
-      "at": 1790278606000,
-      "delay": 720,
-      "position": {
-        "near": "adif:78804"
-      }
-    },
-    {
-      "trip": "rodalies:5165J78662R8",
-      "at": 1790278606000,
-      "delay": 120,
-      "position": {
-        "lon": 2.2758849,
-        "lat": 41.56574
-      }
-    },
-    {
-      "trip": "rodalies:5165J25560R2S",
-      "at": 1790278606000,
-      "delay": 660,
-      "position": {
-        "near": "adif:71701"
-      }
-    },
-    {
-      "trip": "rodalies:5165J77456R4",
-      "at": 1790278606000,
-      "delay": 960,
-      "position": {
-        "near": "adif:78700"
-      }
-    },
-    {
-      "trip": "rodalies:5165J25563R2S",
-      "at": 1790278606000,
-      "delay": 900,
-      "position": {
-        "lon": 2.1882174,
-        "lat": 41.396965
-      }
-    },
-    {
-      "trip": "rodalies:5165J77865R7",
-      "at": 1790278606000,
-      "delay": 120,
-      "position": {
-        "near": "adif:78706"
-      }
-    },
-    {
-      "trip": "rodalies:5165J30519R15",
-      "at": 1790278606000,
-      "delay": 4800,
-      "position": {
-        "lon": 1.2176347,
-        "lat": 41.110966
-      }
-    },
-    {
-      "trip": "rodalies:5165J25848R1",
-      "at": 1790278606000,
-      "delay": 60,
-      "position": {
-        "near": "adif:79405"
-      }
-    },
-    {
-      "trip": "rodalies:5165J15702R11",
-      "at": 1790278606000,
-      "delay": 0,
-      "position": {
-        "near": "adif:71801"
-      }
-    },
-    {
-      "trip": "rodalies:5165J25478R2S",
-      "at": 1790278606000,
-      "delay": 60,
-      "position": {
-        "lon": 1.5816284,
-        "lat": 41.190075
-      }
-    },
-    {
-      "trip": "rodalies:5165J25679R1",
-      "at": 1790278606000,
-      "delay": 420,
-      "position": {
-        "near": "adif:79607"
-      }
-    },
-    {
-      "trip": "rodalies:5165J77460R4",
-      "at": 1790278606000,
-      "delay": 60,
-      "position": {
-        "near": "adif:78804"
-      }
-    },
-    {
-      "trip": "rodalies:5165J25847R1",
-      "at": 1790278606000,
-      "delay": 120,
-      "position": {
-        "lon": 2.2490852,
-        "lat": 41.445705
-      }
-    },
-    {
-      "trip": "rodalies:5165J25559R2S",
-      "at": 1790278606000,
-      "delay": 420,
-      "position": {
-        "near": "adif:71602"
-      }
-    },
-    {
-      "trip": "rodalies:5165J25565R2S",
-      "at": 1790278606000,
-      "delay": 0,
-      "position": {
-        "near": "adif:79400"
-      }
-    },
-    {
-      "trip": "rodalies:5165J28462R2N",
-      "at": 1790278606000,
-      "delay": 1680,
-      "position": {
-        "near": "adif:71801"
-      }
-    },
-    {
-      "trip": "rodalies:5165J77462R4",
-      "at": 1790278606000,
-      "delay": 60,
+      "trip": "rodalies:5166V77540R4",
+      "at": 1790344626000,
+      "delay": 480,
       "position": {
         "lon": 2.0208638,
         "lat": 41.40998
       }
     },
     {
-      "trip": "rodalies:5165J25685R1",
-      "at": 1790278606000,
+      "trip": "rodalies:5166V15916R11",
+      "at": 1790344626000,
+      "delay": 1260,
+      "position": {
+        "lon": 3.0990562,
+        "lat": 42.328293
+      }
+    },
+    {
+      "trip": "rodalies:5166V77542R4",
+      "at": 1790344626000,
+      "delay": 0,
+      "position": {
+        "near": "adif:71801"
+      }
+    },
+    {
+      "trip": "rodalies:5166V77546R4",
+      "at": 1790344626000,
       "delay": 360,
       "position": {
-        "near": "adif:79408"
+        "near": "adif:78609"
       }
     },
     {
-      "trip": "rodalies:5165J28386R2S",
-      "at": 1790278606000,
-      "delay": 540,
-      "position": {
-        "lon": 2.1449475,
-        "lat": 41.381195
-      }
-    },
-    {
-      "trip": "rodalies:5165J25688R1",
-      "at": 1790278606000,
-      "delay": 660,
-      "position": {
-        "near": "adif:79403"
-      }
-    },
-    {
-      "trip": "rodalies:5165J77860R7",
-      "at": 1790278606000,
-      "delay": 0,
-      "position": {
-        "near": "adif:72503"
-      }
-    },
-    {
-      "trip": "rodalies:5165J77464R4",
-      "at": 1790278606000,
-      "delay": 1080,
-      "position": {
-        "lon": 1.6774992,
-        "lat": 41.32268
-      }
-    },
-    {
-      "trip": "rodalies:5165J15738R11",
-      "at": 1790278606000,
-      "delay": 420,
-      "position": {
-        "near": "adif:79104"
-      }
-    },
-    {
-      "trip": "rodalies:5165J78630R8",
-      "at": 1790278606000,
-      "delay": 120,
-      "position": {
-        "lon": 1.998133,
-        "lat": 41.464928
-      }
-    },
-    {
-      "trip": "rodalies:5165J77564R4",
-      "at": 1790278606000,
-      "delay": 120,
-      "position": {
-        "near": "adif:72303"
-      }
-    },
-    {
-      "trip": "rodalies:5165J25692R1",
-      "at": 1790278606000,
-      "delay": 0,
-      "position": {
-        "near": "adif:79410"
-      }
-    },
-    {
-      "trip": "rodalies:5165J28389R2S",
-      "at": 1790278606000,
-      "delay": 0,
-      "position": {
-        "near": "adif:79400"
-      }
-    },
-    {
-      "trip": "rodalies:5165J28387R2S",
-      "at": 1790278606000,
-      "delay": 1200,
-      "position": {
-        "lon": 2.1303985,
-        "lat": 41.37006
-      }
-    },
-    {
-      "trip": "rodalies:5165J28464R2N",
-      "at": 1790278606000,
+      "trip": "rodalies:5166V35549R3",
+      "at": 1790344626000,
       "delay": 300,
       "position": {
-        "lon": 2.1873875,
-        "lat": 41.409042
+        "lon": 2.1630561,
+        "lat": 42.252277
       }
     },
     {
-      "trip": "rodalies:5165J77566R4",
-      "at": 1790278606000,
-      "delay": 1440,
+      "trip": "rodalies:5166V35534R3",
+      "at": 1790344626000,
+      "delay": 360,
       "position": {
-        "near": "adif:78703"
+        "lon": 2.2114592,
+        "lat": 42.137646
       }
     },
     {
-      "trip": "rodalies:5165J35564R4",
-      "at": 1790278606000,
-      "delay": 0,
-      "position": {
-        "near": "adif:78600"
-      }
-    },
-    {
-      "trip": "rodalies:5165J25793R1",
-      "at": 1790278606000,
-      "delay": -60,
-      "position": {
-        "near": "adif:71801"
-      }
-    },
-    {
-      "trip": "rodalies:5165J77568R4",
-      "at": 1790278606000,
-      "delay": 180,
-      "position": {
-        "lon": 2.0526452,
-        "lat": 41.566174
-      }
-    },
-    {
-      "trip": "rodalies:5165J15021R15",
-      "at": 1790278606000,
-      "delay": 420,
-      "position": {
-        "near": "adif:71801"
-      }
-    },
-    {
-      "trip": "rodalies:5165J15064R17",
-      "at": 1790278606000,
-      "delay": 0,
-      "position": {
-        "near": "adif:65411"
-      }
-    },
-    {
-      "trip": "rodalies:5165J77458R4",
-      "at": 1790278606000,
-      "delay": 840,
-      "position": {
-        "near": "adif:78708"
-      }
-    },
-    {
-      "trip": "rodalies:5165J28390R2S",
-      "at": 1790278606000,
+      "trip": "rodalies:5166V77304R3",
+      "at": 1790344626000,
       "delay": 240,
       "position": {
-        "lon": 1.9849565,
-        "lat": 41.28324
+        "lon": 2.2443726,
+        "lat": 41.77486
       }
     },
     {
-      "trip": "rodalies:5165J25460R2N",
-      "at": 1790278606000,
+      "trip": "rodalies:5166V25440R2N",
+      "at": 1790344626000,
+      "delay": 0,
+      "position": {
+        "near": "adif:71801"
+      }
+    },
+    {
+      "trip": "rodalies:5166V15043R13",
+      "at": 1790344626000,
+      "delay": 660,
+      "position": {
+        "near": "adif:71600"
+      }
+    },
+    {
+      "trip": "rodalies:5166V25442R2N",
+      "at": 1790344626000,
+      "delay": 0,
+      "position": {
+        "near": "adif:72400"
+      }
+    },
+    {
+      "trip": "rodalies:5166V77307R3",
+      "at": 1790344626000,
       "delay": 120,
       "position": {
-        "near": "adif:79100"
+        "lon": 2.2470117,
+        "lat": 41.937695
       }
     },
     {
-      "trip": "rodalies:5165J33529RL4",
-      "at": 1790278606000,
-      "delay": 3060,
+      "trip": "rodalies:5166V25647R1",
+      "at": 1790344626000,
+      "delay": 300,
       "position": {
-        "lon": 1.51249,
-        "lat": 41.725555
+        "near": "adif:79600"
       }
     },
     {
-      "trip": "rodalies:5165J25458R2N",
-      "at": 1790278606000,
-      "delay": 480,
+      "trip": "rodalies:5166V25761R1",
+      "at": 1790344626000,
+      "delay": 0,
       "position": {
-        "near": "adif:79104"
+        "near": "adif:72305"
       }
     },
     {
-      "trip": "rodalies:5165J33518RL4",
-      "at": 1790278606000,
-      "delay": 2760,
+      "trip": "rodalies:5166V77538R4",
+      "at": 1790344626000,
+      "delay": 300,
       "position": {
-        "lon": 1.5390053,
-        "lat": 41.72287
+        "near": "adif:72205"
       }
     },
     {
-      "trip": "rodalies:5165J77562R4",
-      "at": 1790278606000,
+      "trip": "rodalies:5166V25537R2S",
+      "at": 1790344626000,
+      "delay": 780,
+      "position": {
+        "near": "adif:71700"
+      }
+    },
+    {
+      "trip": "rodalies:5166V28363R2S",
+      "at": 1790344626000,
+      "delay": 660,
+      "position": {
+        "near": "adif:71703"
+      }
+    },
+    {
+      "trip": "rodalies:5166V18126R16",
+      "at": 1790344626000,
+      "delay": 900,
+      "position": {
+        "lon": 2.1633713,
+        "lat": 41.391064
+      }
+    },
+    {
+      "trip": "rodalies:5166V17050R15",
+      "at": 1790344626000,
+      "delay": 840,
+      "position": {
+        "near": "adif:71600"
+      }
+    },
+    {
+      "trip": "rodalies:5166V78650R8",
+      "at": 1790344626000,
+      "delay": 180,
+      "position": {
+        "lon": 2.0668223,
+        "lat": 41.48003
+      }
+    },
+    {
+      "trip": "rodalies:5166V28364R2S",
+      "at": 1790344626000,
       "delay": 60,
+      "position": {
+        "near": "adif:71801"
+      }
+    },
+    {
+      "trip": "rodalies:5166V77444R4",
+      "at": 1790344626000,
+      "delay": 0,
+      "position": {
+        "near": "adif:71600"
+      }
+    },
+    {
+      "trip": "rodalies:5166V28440R2N",
+      "at": 1790344626000,
+      "delay": 360,
+      "position": {
+        "lon": 2.0773065,
+        "lat": 41.326496
+      }
+    },
+    {
+      "trip": "rodalies:5166V77640R4",
+      "at": 1790344629000,
+      "cancelled": true
+    },
+    {
+      "trip": "rodalies:5166V28368R2S",
+      "at": 1790344626000,
+      "delay": 0,
+      "position": {
+        "near": "adif:71700"
+      }
+    },
+    {
+      "trip": "rodalies:5166V77642R4",
+      "at": 1790344626000,
+      "delay": 0,
       "position": {
         "near": "adif:72209"
       }
     },
     {
-      "trip": "rodalies:5165J25464R2N",
-      "at": 1790278606000,
+      "trip": "rodalies:5166V28444R2N",
+      "at": 1790344626000,
+      "delay": -60,
+      "position": {
+        "near": "adif:79100"
+      }
+    },
+    {
+      "trip": "rodalies:5166V28365R2S",
+      "at": 1790344626000,
+      "delay": 60,
+      "position": {
+        "lon": 2.1356957,
+        "lat": 41.37553
+      }
+    },
+    {
+      "trip": "rodalies:5166V28442R2N",
+      "at": 1790344626000,
+      "delay": 720,
+      "position": {
+        "near": "adif:79005"
+      }
+    },
+    {
+      "trip": "rodalies:5166V78618R8",
+      "at": 1790344626000,
+      "delay": 120,
+      "position": {
+        "lon": 2.191356,
+        "lat": 41.527237
+      }
+    },
+    {
+      "trip": "rodalies:5166V18129R16",
+      "at": 1790344626000,
+      "delay": 660,
+      "position": {
+        "near": "adif:71600"
+      }
+    },
+    {
+      "trip": "rodalies:5166V15812R11",
+      "at": 1790344626000,
+      "delay": 900,
+      "position": {
+        "lon": 2.8596168,
+        "lat": 42.024117
+      }
+    },
+    {
+      "trip": "rodalies:5166V25664R1",
+      "at": 1790344626000,
       "delay": 0,
       "position": {
-        "near": "adif:71707"
+        "near": "adif:79200"
       }
     },
     {
-      "trip": "rodalies:5165J77558R4",
-      "at": 1790278606000,
-      "delay": 960,
-      "position": {
-        "lon": 1.5329359,
-        "lat": 41.197735
-      }
-    },
-    {
-      "trip": "rodalies:5165J15820R11",
-      "at": 1790278606000,
+      "trip": "rodalies:5166V28366R2S",
+      "at": 1790344626000,
       "delay": 180,
       "position": {
-        "lon": 3.0644794,
-        "lat": 42.31181
+        "near": "adif:71703"
       }
+    },
+    {
+      "trip": "rodalies:5166V25650R1",
+      "at": 1790344626000,
+      "delay": 720,
+      "position": {
+        "near": "adif:78805"
+      }
+    },
+    {
+      "trip": "rodalies:5166V30503R15",
+      "at": 1790344626000,
+      "delay": -180,
+      "position": {
+        "near": "adif:71802"
+      }
+    },
+    {
+      "trip": "rodalies:5166V77432R4",
+      "at": 1790344626000,
+      "delay": 1020,
+      "position": {
+        "lon": 1.86971,
+        "lat": 41.64128
+      }
+    },
+    {
+      "trip": "rodalies:5166V15261RG1",
+      "at": 1790344626000,
+      "delay": 60,
+      "position": {
+        "lon": 2.775004,
+        "lat": 41.82224
+      }
+    },
+    {
+      "trip": "rodalies:5166V77738R4",
+      "at": 1790344629000,
+      "cancelled": true
+    },
+    {
+      "trip": "rodalies:5166V25539R2S",
+      "at": 1790344626000,
+      "delay": 360,
+      "position": {
+        "near": "adif:71709"
+      }
+    },
+    {
+      "trip": "rodalies:5166V28526R2",
+      "at": 1790344626000,
+      "delay": 1020,
+      "position": {
+        "near": "adif:79005"
+      }
+    },
+    {
+      "trip": "rodalies:5166V25652R1",
+      "at": 1790344626000,
+      "delay": 600,
+      "position": {
+        "near": "adif:79407"
+      }
+    },
+    {
+      "trip": "rodalies:5166V25534R2S",
+      "at": 1790344626000,
+      "delay": 540,
+      "position": {
+        "near": "adif:79400"
+      }
+    },
+    {
+      "trip": "rodalies:5166V28578R2",
+      "at": 1790344629000,
+      "cancelled": true
+    },
+    {
+      "trip": "rodalies:5166V25654R1",
+      "at": 1790344626000,
+      "delay": 300,
+      "position": {
+        "near": "adif:79500"
+      }
+    },
+    {
+      "trip": "rodalies:5166V77990R4",
+      "at": 1790344629000,
+      "cancelled": true
+    },
+    {
+      "trip": "rodalies:5166V25536R2S",
+      "at": 1790344626000,
+      "delay": 900,
+      "position": {
+        "near": "adif:71705"
+      }
+    },
+    {
+      "trip": "rodalies:5166V28576R2",
+      "at": 1790344626000,
+      "delay": 660,
+      "position": {
+        "lon": 2.1145327,
+        "lat": 41.34591
+      }
+    },
+    {
+      "trip": "rodalies:5166V25538R2S",
+      "at": 1790344626000,
+      "delay": 1080,
+      "position": {
+        "near": "adif:71602"
+      }
+    },
+    {
+      "trip": "rodalies:5166V25660R1",
+      "at": 1790344626000,
+      "delay": 180,
+      "position": {
+        "lon": 2.7655122,
+        "lat": 41.66627
+      }
+    },
+    {
+      "trip": "rodalies:5166V77638R4",
+      "at": 1790344629000,
+      "cancelled": true
+    },
+    {
+      "trip": "rodalies:5166V28530R2",
+      "at": 1790344626000,
+      "delay": 0,
+      "position": {
+        "near": "adif:71705"
+      }
+    },
+    {
+      "trip": "rodalies:5166V25541R2S",
+      "at": 1790344626000,
+      "delay": 300,
+      "position": {
+        "lon": 2.1887958,
+        "lat": 41.396126
+      }
+    },
+    {
+      "trip": "rodalies:5166V25759R1",
+      "at": 1790344626000,
+      "delay": 0,
+      "position": {
+        "near": "adif:72305"
+      }
+    },
+    {
+      "trip": "rodalies:5166V25752R1",
+      "at": 1790344626000,
+      "delay": 180,
+      "position": {
+        "lon": 2.1955595,
+        "lat": 41.42529
+      }
+    },
+    {
+      "trip": "rodalies:5166V77438R4",
+      "at": 1790344626000,
+      "delay": 900,
+      "position": {
+        "near": "adif:72301"
+      }
+    },
+    {
+      "trip": "rodalies:5166V25754R1",
+      "at": 1790344626000,
+      "delay": 360,
+      "position": {
+        "near": "adif:79409"
+      }
+    },
+    {
+      "trip": "rodalies:5166V33526RL4",
+      "at": 1790344626000,
+      "delay": 0,
+      "position": {
+        "near": "adif:78400"
+      }
+    },
+    {
+      "trip": "rodalies:5166V25756R1",
+      "at": 1790344626000,
+      "cancelled": true,
+      "position": {
+        "near": "adif:79500"
+      }
+    },
+    {
+      "trip": "rodalies:5166V15868R11",
+      "at": 1790344626000,
+      "delay": 0,
+      "position": {
+        "near": "adif:79309"
+      }
+    },
+    {
+      "trip": "rodalies:5166V15870R11",
+      "at": 1790344626000,
+      "delay": 0,
+      "position": {
+        "near": "adif:79315"
+      }
+    },
+    {
+      "trip": "rodalies:5166V25757R1",
+      "at": 1790344629000,
+      "cancelled": true
+    },
+    {
+      "trip": "rodalies:5166V35547R3",
+      "at": 1790344626000,
+      "delay": 180,
+      "position": {
+        "near": "adif:77309"
+      }
+    },
+    {
+      "trip": "rodalies:5166V77740R4",
+      "at": 1790344629000,
+      "cancelled": true
+    },
+    {
+      "trip": "rodalies:5166V25438R2N",
+      "at": 1790344626000,
+      "delay": 240,
+      "position": {
+        "near": "adif:79011"
+      }
+    },
+    {
+      "trip": "rodalies:5166V77742R4",
+      "at": 1790344629000,
+      "cancelled": true
+    },
+    {
+      "trip": "rodalies:5166V77744R4",
+      "at": 1790344629000,
+      "cancelled": true
+    },
+    {
+      "trip": "rodalies:5166V77988R4",
+      "at": 1790344629000,
+      "cancelled": true
     }
   ]
 }
