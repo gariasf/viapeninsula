@@ -9,8 +9,9 @@
   "durable_objects": { "bindings": [{ "name": "FETCHER", "class_name": "Fetcher" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Fetcher"] }],
   "r2_buckets": [{ "binding": "LIVE", "bucket_name": "viapeninsula-live" }],
-  // Every minute, which starts the fetcher's runs after a deploy and restarts them if they ever stop.
-  "triggers": { "crons": ["* * * * *"] },
+  // Every minute, which starts the fetcher's runs after a deploy and restarts them if they ever stop,
+  // and at 00:30 UTC, after midnight in Madrid all year, which starts the daily build (worker.ts's DAILY).
+  "triggers": { "crons": ["* * * * *", "30 0 * * *"] },
   // A run takes about 12 ms of CPU, so a bug can't cost more than a second of it each run.
   "limits": { "cpu_ms": 1000 }
 }

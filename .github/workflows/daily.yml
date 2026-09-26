@@ -1,0 +1,45 @@
+# The daily build, which publishes the next three service days' bundles to R2. The fetcher's Worker
+# starts it at 00:30 UTC through workflow dispatch, GitHub's own schedule at 03:30 UTC in case that
+# one doesn't come, and the button in the Actions tab whenever it's wanted. Running it again for the
+# same days publishes the same files, so a second run is harmless. Nothing it builds is committed.
+name: Daily build
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 3 * * *'
+
+permissions:
+  contents: read
+
+# Two starts close together run one after the other, never both at once.
+concurrency:
+  group: daily
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # OpenStreetMap's rails, which the build keeps for a week. Each run saves its own copy and
+      # restores the newest one.
+      - uses: actions/cache@v4
+        with:
+          path: .cache
+          key: osm-${{ github.run_id }}
+          restore-keys: osm-
+      - run: npm run daily
+        env:
+          TMB_APP_ID: ${{ secrets.TMB_APP_ID }}
+          TMB_APP_KEY: ${{ secrets.TMB_APP_KEY }}
+          # The R2 token, R2_API_TOKEN in .env.local, under the name Wrangler reads here.
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # Not a secret: it names the account, and grants nothing without a token.
+          CLOUDFLARE_ACCOUNT_ID: 701af81e8d0ab745a54d827f520f49cc

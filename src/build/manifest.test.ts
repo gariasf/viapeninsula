@@ -59,3 +59,10 @@ test("leaves out the day before where the last manifest named it in a bundle of 
   const last = { days: [{ date: '2026-09-25', bundle: 'days/2026-09-25.json', from: 0, to: 0 } as unknown as ManifestDay] };
   expect(manifestOf(built, last)).toEqual({ days: built });
 });
+
+test('building the same days again gives the same manifest, so a second run the same day publishes the same result', () => {
+  const entry = (date: string) => manifestDay(day(date, [18000, 88200]), { track: 'days/track-t.json', trips: `days/${date}.json` });
+  const built = ['2026-09-26', '2026-09-27', '2026-09-28'].map(entry);
+  const first = manifestOf(built, { days: [entry('2026-09-25'), entry('2026-09-26'), entry('2026-09-27')] });
+  expect(manifestOf(built, first)).toEqual(first);
+});
