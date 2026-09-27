@@ -131,10 +131,10 @@ const nearbyButton = el('button', { type: 'button', className: 'maplibregl-ctrl-
 // are on the map and how many of them are Live, and the button that opens the About dialog.
 const legend = document.createElement('div');
 legend.className = 'maplibregl-ctrl maplibregl-ctrl-group legend';
-/** The legend's count of the Trains on the map, which showCount() fills once their Trips have come. */
-const countRow = el('div');
 // Top left, where the credits never cover it.
 map.addControl({ onAdd: () => legend, onRemove: () => legend.remove() }, 'top-left');
+/** The legend's count of the Trains on the map, which showCount() fills once their Trips have come. */
+const countRow = el('div');
 // The banner under it, which showBanner() fills: each Network whose live data is unavailable.
 const banner = document.createElement('div');
 banner.className = 'maplibregl-ctrl maplibregl-ctrl-group banner';
