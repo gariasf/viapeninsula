@@ -1313,11 +1313,36 @@ test('the Trip a Metro Block runs into the end of its Line on stays Live, on its
   const received = [intoFondo('13:14:00', ['112', 'tmb:1.139', '13:14:20']), ...['13:14:40', '13:15:20', '13:16:00'].map((time) => outOfFondo(time, ['112', 'tmb:1.140', '13:17:13']))];
   expect(metro(INTO_FONDO, '13:15:40', received)).toMatchObject({ live: true });
   expect(metro(INTO_FONDO, '13:15:40', received)?.dist).toBeCloseTo(metro(INTO_FONDO, '13:15:40', [], -5)?.dist ?? NaN, 3);
-  // Standing at Fondo from 13:16:05 to 13:16:25, over two minutes since TMB last reported it on that Trip.
+  // Standing at Fondo from 13:16:05 to 13:16:25, over two minutes since TMB last reported it on that
+  // Trip, and confirmed by its Block's report of 13:16:00.
   expect(metro(INTO_FONDO, '13:16:10', received)).toMatchObject({ live: true, dist: 20055 });
+  expect(followed(INTO_FONDO, Date.parse('2026-09-25T13:16:10+02:00'), received, METRO)).toMatchObject({ live: true, since: 10_000 });
   // Then the Block's next Trip stands there.
   expect(metro(INTO_FONDO, '13:16:30', received)).toBeUndefined();
   expect(metro(NEXT_OUT_OF_FONDO, '13:16:30', received)).toMatchObject({ live: true, dist: 0 });
+});
+
+test('the Trip a Metro Block ran turns Scheduled at once where its Block goes on to another Trip headed its way, even one TMB expects at its last Station', () => {
+  // Made up: TMB expects L1's 112 at Santa Coloma at 13:14:30, running the Trip into Fondo 15 s late. After
+  // a gap of over 2 minutes in its reports, it expects 112 at Fondo at 13:20:00, so 112 runs the next Trip
+  // into Fondo, and the Trip into Fondo, still running in, turns Scheduled.
+  const received = [intoFondo('13:13:50', ['112', 'tmb:1.139', '13:14:30']), intoFondo('13:16:00', ['112', 'tmb:1.140', '13:20:00'])];
+  expect(metro(NEXT_INTO_FONDO, '13:16:10', received)).toMatchObject({ live: true });
+  expect(metro(INTO_FONDO, '13:16:10', received)).toMatchObject({ live: false });
+  expect(metro(INTO_FONDO, '13:16:10', received)?.dist).toBeLessThan(20055);
+});
+
+test('two Trips of one Block that each start where the other ends never wait on each other', () => {
+  // Made up: a shuttle between two Stations, whose Block TMB has short of the first before it runs out
+  // to the second, and then lists under its way back, naming the second, while the Trip out, 30 s late,
+  // is still short of its first Station. Each is then Live, and short of where it starts.
+  const [row, a, b] = [(station: string, time: string, dist: number, lon: number): Row => [station, time, time, dist, lon, 41.45], 'tmb:1.901', 'tmb:1.902'];
+  const shuttle = bundleOf('2026-09-25', METRO.networks[0] as Network, {
+    out: { line: 'metro:L1', headsign: 'B', calls: [row(a, '13:00:00', 0, 2.2), row(b, '13:02:00', 1000, 2.212)] },
+    back: { line: 'metro:L1', headsign: 'A', calls: [row(b, '13:03:00', 1000, 2.212), row(a, '13:05:00', 0, 2.2)] },
+  });
+  const received = [headedFor('B')('12:59:00', ['1', a, '13:00:30']), headedFor('A')('12:59:30', ['1', b, '13:03:00'])];
+  expect(() => trainsAt(shuttle, Date.parse('2026-09-25T12:59:40+02:00'), received)).not.toThrow();
 });
 
 test('a followed Metro Train whose Block waits at the end of its Line stands at its first Station, expected to leave when TMB expects it to', () => {

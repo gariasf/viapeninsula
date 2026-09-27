@@ -61,9 +61,10 @@ export const KEEP = CARRY + 5 * 60_000;
  * leaves and arrives exactly on time. A Train its operator has cancelled leaves the map. One that
  * live data stops reporting stays Live through two of its feed's updates and turns Scheduled at the
  * third, and it keeps its last Delay for CARRY before it's back on its plain timetable. One of the
- * Metro's whose Block goes on to run another Trip turns Scheduled at once. A Live one short of its
- * Trip's first Station, as while its Block waits at the end of its Line, stands there, unless the Trip
- * its Block ran in on is still on the map.
+ * Metro's whose Block goes on to run another Trip turns Scheduled at once, but not while TMB has the
+ * Block coming to that Trip's last Station, as it runs into the end of its Line. A Live one short of
+ * its Trip's first Station, as while its Block waits at the end of its Line, stands there, unless the
+ * Trip its Block ran in on is still on the map.
  */
 export function trainsAt(bundle: Bundle, at: number, received: Received[] = []): Train[] {
   const { of } = onMap(bundle, at, received);
@@ -249,7 +250,7 @@ function onMap(bundle: Bundle, at: number, received: Received[]): { of: (trip: T
     }, new Map<string, Trip[]>());
     return blocks.get(blockOf(block)) ?? [];
   };
-  const of = (trip: Trip): OnMap | undefined => {
+  const of = (trip: Trip, nested = false): OnMap | undefined => {
     const [said, network, shape, first, last, ease] = [heard.get(trip.id), lines.get(trip.line), shapes.get(trip.shape), trip.calls[0], trip.calls.at(-1), eases.get(trip.id)];
     if (!network || !shape) return undefined;
     const { profile } = network;
@@ -261,9 +262,10 @@ function onMap(bundle: Bundle, at: number, received: Received[]): { of: (trip: T
     // A Live Metro Train short of its Trip's first Station, as TMB has it while its Block waits at the
     // end of its Line, has come in there already, and stands there from now on (#105): unless the Trip
     // its Block ran in on is still on the map, and so at once where live data knows none, as on a map
-    // just opened. That Trip turned Scheduled as its Block moved on (#45), so it never waits there itself.
+    // just opened. Whether that Trip is on the map is judged without this rule, as it has long left
+    // its own first Station: with the rule, where it hadn't, the two could each wait on the other.
     const block = live ? said?.report.block : undefined;
-    const waits = block && first && time < (dwelt[0]?.arrival ?? -Infinity) && !ranBy(block).some((t) => t !== trip && t.calls.at(-1)?.station === first.station && of(t)?.train);
+    const waits = !nested && block && first && time < (dwelt[0]?.arrival ?? -Infinity) && !ranBy(block).some((t) => t !== trip && t.calls.at(-1)?.station === first.station && of(t, true)?.train);
     const calls = waits ? dwelt.map((c, i) => (i ? c : { ...c, arrival: time })) : dwelt;
     const off = { now, time, calls, network, profile, ease, said, live };
     if (said?.report.cancelled) return off;
@@ -339,7 +341,7 @@ const recent = <T extends { got: number }>(said: T | undefined, upTo: number) =>
 interface Heard {
   report: Report;
   got: number;
-  /** None once the Metro's Block that last placed it runs another Trip. */
+  /** None once the Metro's Block that last placed it runs another Trip, but for one it's running in on to the end of its Line, which its Block's reports place there (#108). */
   placed?: number;
   /** When its operator reported the last of those, in ms since 1970. */
   confirmed?: number;
@@ -476,15 +478,15 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
     // Live for two more of its feed's updates where the Block was, beside the Block's new Train. But
     // TMB lists a Block under its way back as it passes the Station before the end of its Line, naming
     // the end as the Station it comes to next, so the Trip it runs in on stays Live, on its last Delay,
-    // while TMB names that Trip's last Station, until its timetable has it leave the map there (#108).
+    // while TMB names that Trip's last Station, on a Trip from there (#108): each such report places it,
+    // as it runs in there.
     for (const [id, said] of heard) {
       const runs = said.report.block && ran.get(blockOf(said.report.block));
       if (!runs || runs === id) continue;
       const [trip, report] = [trips.get(id), reports.get(runs)];
-      const [network, last, position] = [trip && lines.get(trip.line), trip?.calls.at(-1), report?.position];
-      if (report && network && last && position && 'next' in position && position.next.station === last.station && arrived - said.delay <= last.departure + network.profile.dwell) {
-        heard.set(id, { ...said, placed: r.snapshot.feeds[network.id]?.lastSuccess ?? NaN, confirmed: report.at });
-      } else heard.set(id, { ...said, placed: undefined });
+      const [network, end, position] = [trip && lines.get(trip.line), trip?.calls.at(-1), report?.position];
+      const runsIn = report && network && end && position && 'next' in position && position.next.station === end.station && trips.get(runs)?.calls[0]?.station === end.station;
+      heard.set(id, runsIn ? { ...said, placed: r.snapshot.feeds[network.id]?.lastSuccess, confirmed: report.at } : { ...said, placed: undefined });
     }
     for (const id of new Set([...eases.keys(), ...reports.keys()])) {
       const [trip, report, ease] = [trips.get(id), reports.get(id), eases.get(id)];
