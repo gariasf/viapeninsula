@@ -668,7 +668,8 @@ interface OwnDelay {
  * to a Station or with no position, its operator's figure, or how late it is where its operator
  * expects it at a Station, as TMB does at the one each of the Metro's comes to next, though never
  * so late that it's drawn short of the Station before that. One standing at a Station, but for
- * Renfe's, is drawn there when it was reported.
+ * Renfe's, is drawn there when it was reported, but at its Trip's first Station only held from
+ * leaving.
  */
 function delayOf(trip: Trip, calls: Call[], shape: Shape, { id, profile }: Network, report: Report, noonMinus12h: number): OwnDelay {
   const known = delays.get(report);
@@ -686,10 +687,12 @@ function delayOf(trip: Trip, calls: Call[], shape: Shape, { id, profile }: Netwo
   if (position && 'near' in position && id !== 'rodalies') {
     // Standing at a Station, as Geotren has FGC's, it's there when it was reported, however long ago
     // the trip updates have it leave. Not Renfe's: it pins Trains coming into a Station too, and late.
-    // At its Trip's first Station it can stand long before it leaves, off the map.
+    // At its Trip's first Station it can stand long before it leaves, off the map, so there it's
+    // only held from leaving.
     const i = calls.findIndex((c) => c.station === position.near);
     const call = calls[i];
-    if (call && i > 0) delay = Math.min(Math.max(delay, reported - call.departure), reported - call.arrival);
+    if (call) delay = Math.max(delay, reported - call.departure);
+    if (call && i > 0) delay = Math.min(delay, reported - call.arrival);
   }
   if (position && ('lon' in position || 'along' in position)) {
     const dists = calls.map((c) => c.dist);
