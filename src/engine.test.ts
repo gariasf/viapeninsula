@@ -272,6 +272,46 @@ test('is drawn on its track: at a Station, where the Station is', () => {
   expect(standing?.lat).toBeCloseTo(41.2203207, 7);
 });
 
+// Made up, at the equator, where a degree is DEGREE metres both ways: a track from A 3 km east, round
+// a bend 2 km north to B, and on from B 2 km west to C.
+const KM = 1000 / DEGREE;
+const BEND: Bundle = {
+  ...bundleOf('2026-09-24', { id: 'rodalies', name: 'Rodalies de Catalunya', profile: PROFILE }, {
+    bend: {
+      line: 'R2S',
+      calls: [
+        ['A', '12:00:00', '12:00:00', 0, 0, 0],
+        ['B', '12:05:00', '12:06:00', 5000, 3 * KM, 2 * KM],
+        ['C', '12:09:00', '12:09:00', 7000, KM, 2 * KM],
+      ],
+    },
+  }),
+  shapes: [{ id: 'bend', coords: [[0, 0], [3 * KM, 0], [3 * KM, 2 * KM], [KM, 2 * KM]], dist: [0, 3000, 5000, 7000] }],
+};
+
+/** Which way a Trip's Train heads at a moment on the made-up track, in degrees clockwise from north. */
+const heading = (moment: number) => train('bend', moment, [], BEND)?.heading;
+
+test('heads the way it runs along its track, round a bend between Stations too', () => {
+  expect(heading(at('12:01:00'))).toBeCloseTo(90); // about 0.9 km east of A
+  expect(heading(at('12:04:00'))).toBeCloseTo(0); // about 1.1 km north of the bend
+});
+
+test('standing at a Station heads the way it runs next, and at its last Station the way it came', () => {
+  expect(heading(at('11:59:45'))).toBeCloseTo(90); // at A, before it leaves
+  expect(heading(at('12:05:30'))).toBeCloseTo(270); // at B, come in from the south, to go on west
+  expect(heading(at('12:09:15'))).toBeCloseTo(270); // at C, where its track ends
+});
+
+test('heads back along its track where its Trip runs it backwards, as R11 turns back at Cerbère for Portbou', () => {
+  const r11 = (time: string) => train('rodalies:5165J15900R11', at(time))?.heading;
+  const there = r11('08:54:00') ?? NaN; // from Portbou to Cerbère, a little east of north
+  expect(there).toBeGreaterThan(0);
+  expect(there).toBeLessThan(45);
+  expect(r11('09:00:00')).toBeCloseTo(there + 180); // standing at Cerbère, where its track ends
+  expect(r11('09:06:00')).toBeCloseTo(there + 180); // on its way back to Portbou
+});
+
 /** A snapshot the fetcher wrote at a moment, having read Renfe's feeds then as it does every 20 s, reporting no Trains. */
 const written = (generated: number): Snapshot => ({
   generated,
