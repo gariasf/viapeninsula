@@ -192,8 +192,7 @@ export function nearbyAt(bundle: Bundle, at: number, received: Received[], point
         .filter(([enters, leaves]) => leaves >= on.time && enters <= until)
         .map(([enters]) => Math.max(enters, on.time));
       if (!comes.length) return [];
-      // Never sooner than now, as for one drawn behind where live data has it, as after it's held (#107).
-      return [{ trip, at: bundle.noonMinus12h + Math.max(Math.min(...comes) + delay, now) * 1000, delay: shown(on.network, delay), live: on.live }];
+      return [{ trip, at: bundle.noonMinus12h + (Math.min(...comes) + delay) * 1000, delay: shown(on.network, delay), live: on.live }];
     })
     .sort((a, b) => a.at - b.at);
 }
@@ -218,7 +217,7 @@ interface OnMap {
   train?: Train;
   now: number;
   time: number;
-  /** How late its times run, in seconds: as live data last had it, or held at its first Station after that has it leave, as late as it's held (#107). */
+  /** How late its times run, in seconds: as live data last had it, or while it's held at its first Station, or let out and catching up, as late as it's drawn, where that's later (#107). */
   delay: number;
   calls: Call[];
   network: Network;
@@ -266,7 +265,7 @@ function onMap(bundle: Bundle, at: number, received: Received[]): { of: (trip: T
     const time = ease ? eased(dwelt, profile, ease, now) : now;
     const feed = feeds[network.id];
     const live = isLive(said, feed, upToNow);
-    const delay = Math.max(ease?.delay ?? 0, ease?.hold !== undefined && time >= ease.hold ? now - time : -Infinity);
+    const delay = ease?.hold !== undefined || ease?.leaving ? Math.max(ease.delay, now - time) : (ease?.delay ?? 0);
     // A Live Metro Train short of its Trip's first Station, as TMB has it while its Block waits at the
     // end of its Line, has come in there already, and stands there from now on (#105): unless the Trip
     // its Block ran in on is still on the map, and so at once where live data knows none, as on a map
@@ -437,13 +436,14 @@ function heardTo(received: Received[], moment: number): number {
  * When the latest snapshot arrived and where in its timetable a Train was drawn then, in seconds
  * into the service day by the fetcher's clock, how late that snapshot has it, in seconds, and where
  * in its timetable it's held until the next: as it would leave its Trip's first Station, for one of
- * the Metro's that snapshot still has there.
+ * the Metro's that snapshot still has there. Let out of there, it's `leaving` until it has caught up.
  */
 interface Ease {
   at: number;
   time: number;
   delay: number;
   hold?: number;
+  leaving?: true;
 }
 
 /** How long a Train drawn off where live data has it takes to ease back, in seconds: until the next snapshot. */
@@ -520,9 +520,12 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
       // Until live data first shifts it, a Train runs on its timetable.
       const drawn = ease ? eased(calls, profile, ease, arrived) : arrived;
       const [there, dist] = [arrived - delay, (t: number) => place(calls, profile, t) ?? NaN];
-      // Held at its first Station until now, it eases out however far behind it's drawn, and jumps
-      // only where live data has it a long way on (#107).
-      const far = (ease?.hold === undefined && Math.abs(drawn - there) > JUMP_TIME) || Math.abs(dist(drawn) - dist(there)) > JUMP_DIST;
+      // Held at its first Station, or let out and still drawn behind, it eases out however far behind,
+      // and jumps only where live data has it a long way on, or off its Trip (#107).
+      const leaving = (ease?.hold !== undefined || !!ease?.leaving) && drawn < there;
+      // Short of its first Station, one leaving is drawn standing there (#105).
+      const off = Math.abs(dist(leaving ? Math.max(drawn, calls[0]?.arrival ?? drawn) : drawn) - dist(there));
+      const far = leaving ? !(off <= JUMP_DIST) : Math.abs(drawn - there) > JUMP_TIME || off > JUMP_DIST;
       const time = i === 0 || far ? there : drawn;
       // A Live Metro Train at its Trip's first Station stays there until a report has it gone, by its
       // Delay, when it was reported: TMB's ETA for a Block waiting at the end of its Line keeps moving
@@ -531,7 +534,7 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
       // before live data first placed it: holding it there would run it back.
       const first = calls[0];
       const held = isLive(said, r.snapshot.feeds[network.id], upTo) && said?.report.block && first && (said.report.at - bundle.noonMinus12h) / 1000 - delay <= first.departure && (i === 0 || far || time <= first.departure);
-      eases.set(id, { at: arrived, time, delay, hold: held ? first.departure : undefined });
+      eases.set(id, { at: arrived, time, delay, hold: held ? first.departure : undefined, leaving: !held && leaving && !far ? true : undefined });
     }
   }
   last = { bundle, received: [...received], clock, eases, heard, dwelt };

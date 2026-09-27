@@ -1377,18 +1377,30 @@ test("a Live Metro Train at its Trip's first Station stays there until a report 
 
 test('a Metro Train held at its first Station eases out however long after it left the report that has it gone comes', () => {
   // Made up: TMB has L1's 112 waiting at Fondo at 13:17:20, as in the test before, then leaves it out
-  // of its reports, and at 13:19:20 expects it at Santa Coloma at 13:19:30: gone since 13:18:03, 77 s before.
+  // of its reports. At 13:19:20 it expects it at Santa Coloma at 13:19:20, so gone since 13:17:53, 87 s
+  // before, and at 13:19:40 at Baró de Viver at 13:21:06, as late. It's still well behind by then.
   const received = [
     outOfFondo('13:16:40', ['112', 'tmb:1.140', '13:17:13']),
     outOfFondo('13:17:20', ['112', 'tmb:1.139', '13:19:00']),
     ...['13:18:00', '13:18:40'].map((time) => outOfFondo(time)),
-    outOfFondo('13:19:20', ['112', 'tmb:1.139', '13:19:30']),
+    outOfFondo('13:19:20', ['112', 'tmb:1.139', '13:19:20']),
+    outOfFondo('13:19:40', ['112', 'tmb:1.138', '13:21:06']),
   ];
   expect(metro(NEXT_OUT_OF_FONDO, '13:19:19', received)).toMatchObject({ live: true, dist: 0 });
-  const dists = Array.from({ length: 31 }, (_, s) => metro(NEXT_OUT_OF_FONDO, '13:19:19', received, s)?.dist ?? NaN);
-  expect(dists[30]).toBeGreaterThan(0);
+  const dists = Array.from({ length: 61 }, (_, s) => metro(NEXT_OUT_OF_FONDO, '13:19:19', received, s)?.dist ?? NaN);
+  expect(dists[60]).toBeGreaterThan(0);
+  // Near Fondo while it catches up, it passes there now.
+  const moment = Date.parse('2026-09-25T13:19:25+02:00');
+  expect(nearbyAt(METRO, moment, by(received, moment), [2.218435, 41.451583], 300, 60 * 60_000).find((p) => p.trip.id === NEXT_OUT_OF_FONDO)).toMatchObject({ at: moment }); // Fondo
   for (let s = 1; s < dists.length; s++) expect((dists[s] ?? NaN) - (dists[s - 1] ?? NaN)).toBeGreaterThanOrEqual(0);
   for (let s = 1; s < dists.length; s++) expect((dists[s] ?? NaN) - (dists[s - 1] ?? NaN)).toBeLessThanOrEqual(80 / 3.6 + 1e-6);
+});
+
+test('a Metro Train held at its first Station leaves the map at once where the next snapshot the map gets has its Trip over', () => {
+  // Made up: the map, holding 112 at Fondo as at 13:17:20 in the tests before, gets no snapshot until
+  // 13:30:00, as while its tab was hidden. By then the Trip out of Fondo, 20 s late, has ended.
+  const received = [outOfFondo('13:16:40', ['112', 'tmb:1.140', '13:17:13']), outOfFondo('13:17:20', ['112', 'tmb:1.139', '13:19:00']), outOfFondo('13:30:00')];
+  expect(metro(NEXT_OUT_OF_FONDO, '13:30:01', received)).toBeUndefined();
 });
 
 test("a Metro Train its timetable has taken out of its first Station before live data first places it there isn't run back", () => {
