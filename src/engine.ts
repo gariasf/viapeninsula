@@ -101,7 +101,8 @@ export function trainAt(bundle: Bundle, at: number, received: Received[], id: st
   const expected = (seconds: number) => bundle.noonMinus12h + (seconds + delay) * 1000;
   // How far along its shape it's drawn at a moment, in seconds into the service day.
   const drawn = (moment: number) => place(calls, profile, ease ? eased(calls, profile, ease, moment) : moment) ?? train.dist;
-  const upcoming = calls.filter((c) => c.departure > time);
+  // Held at its first Station as it would leave, it has that Station still to leave (#107).
+  const upcoming = calls.filter((c) => c.departure >= time);
   return {
     ...train,
     delay: shown(network, delay),
@@ -424,12 +425,15 @@ function heardTo(received: Received[], moment: number): number {
 
 /**
  * When the latest snapshot arrived and where in its timetable a Train was drawn then, in seconds
- * into the service day by the fetcher's clock, and how late that snapshot has it, in seconds.
+ * into the service day by the fetcher's clock, how late that snapshot has it, in seconds, and where
+ * in its timetable it's held until the next: as it would leave its Trip's first Station, for one of
+ * the Metro's that snapshot still has there.
  */
 interface Ease {
   at: number;
   time: number;
   delay: number;
+  hold?: number;
 }
 
 /** How long a Train drawn off where live data has it takes to ease back, in seconds: until the next snapshot. */
@@ -505,9 +509,17 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
       const delay = said ? delayBy(said, upTo) : 0;
       // Until live data first shifts it, a Train runs on its timetable.
       const drawn = ease ? eased(calls, profile, ease, arrived) : arrived;
-      const [there, dist] = [arrived - delay, (time: number) => place(calls, profile, time) ?? NaN];
+      const [there, dist] = [arrived - delay, (t: number) => place(calls, profile, t) ?? NaN];
       const far = Math.abs(drawn - there) > JUMP_TIME || Math.abs(dist(drawn) - dist(there)) > JUMP_DIST;
-      eases.set(id, { at: arrived, time: i === 0 || far ? there : drawn, delay });
+      const time = i === 0 || far ? there : drawn;
+      // A Live Metro Train at its Trip's first Station stays there until a report has it gone, by its
+      // Delay, when it was reported. TMB's ETA for a Block waiting at the end of its Line keeps moving
+      // later, so one drawn leaving when an ETA said was drawn out on its track, where it can't run
+      // back, or jumped back (#107). Not one drawn out already, which that would run back itself.
+      const [first, feed] = [calls[0], r.snapshot.feeds[network.id]];
+      const live = said?.placed !== undefined && feed !== undefined && !stale(said.placed, upTo, feed.every);
+      const waiting = live && said.report.block && first && (said.report.at - bundle.noonMinus12h) / 1000 - delay <= first.departure && (i === 0 || far || time <= first.departure);
+      eases.set(id, { at: arrived, time, delay, hold: waiting ? first.departure : undefined });
     }
   }
   last = { bundle, received: [...received], clock, eases, heard, dwelt };
@@ -630,9 +642,14 @@ function closest(trips: Trip[], time: number): Trip | undefined {
  * calls as it makes them. One drawn off where live data has it eases back by the next snapshot, as
  * far as it can. Drawn ahead, it runs slower, holding where it's EASE or more ahead, and holds
  * while it stands at a Station or is off the map. Drawn behind, it runs faster, up to line speed,
- * and leaves a Station as soon as reality has.
+ * and leaves a Station as soon as reality has. Held at its first Station, it goes no further.
  */
-function eased(calls: Call[], profile: SpeedProfile, { at, time, delay }: Ease, now: number): number {
+function eased(calls: Call[], profile: SpeedProfile, ease: Ease, now: number): number {
+  return Math.min(easing(calls, profile, ease, now), ease.hold ?? Infinity);
+}
+
+/** Where eased() has a Train drawn at a moment, but for any hold. */
+function easing(calls: Call[], profile: SpeedProfile, { at, time, delay }: Ease, now: number): number {
   // How far ahead of where live data has it the Train was drawn as the snapshot arrived.
   const gap = time - (at - delay);
   let [t, drawn] = [at, time];

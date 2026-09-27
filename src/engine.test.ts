@@ -1199,9 +1199,11 @@ test("a Metro Train on a Line TMB publishes no predictions for, as L9's, isn't m
 
 test('a Block that turns back at the end of its Line runs the Trip back from there', () => {
   // At 13:15:40 TMB has L1's 112 in at Fondo, which it reached at 13:15:38 as the Trip into Fondo,
-  // and expects it back at Santa Coloma at 13:17:31: 69 s before the next Trip out of Fondo is due there.
+  // and expects it back at Santa Coloma at 13:17:31: 69 s before the next Trip out of Fondo is due
+  // there, so it's expected to leave Fondo at 13:16:04. No report after has it gone, so it stays there.
   expect(metro(NEXT_OUT_OF_FONDO, '13:15:50', METRO_LIVE)).toMatchObject({ live: true, dist: 0 });
-  expect(metro(NEXT_OUT_OF_FONDO, '13:15:50', METRO_LIVE, 60)?.dist).toBeCloseTo(metro(NEXT_OUT_OF_FONDO, '13:15:50', [], 60 + 69)?.dist ?? NaN, 3);
+  expect(metro(NEXT_OUT_OF_FONDO, '13:15:50', METRO_LIVE, 60)).toMatchObject({ live: true, dist: 0 });
+  expect(followed(NEXT_OUT_OF_FONDO, Date.parse('2026-09-25T13:15:50+02:00'), METRO_LIVE, METRO)?.upcoming[0]).toMatchObject({ station: 'tmb:1.140', departure: Date.parse('2026-09-25T13:16:04+02:00') });
 });
 
 test('a Metro Train whose Block goes on to run another Trip turns Scheduled at once, where it was drawn', () => {
@@ -1345,6 +1347,38 @@ test('two Trips of one Block that each start where the other ends never wait on 
   expect(() => trainsAt(shuttle, Date.parse('2026-09-25T12:59:40+02:00'), received)).not.toThrow();
 });
 
+test("a Live Metro Train at its Trip's first Station stays there until a report has it gone, whichever Station TMB names next, and then leaves without jumping", () => {
+  // Made up: L1's 112 waits at Fondo. At 13:16:40 TMB expects it to leave at 13:17:13, as the next Trip
+  // out of Fondo is due to. Then it names Santa Coloma, 87 s on by that Trip's timetable: at 13:17:20
+  // and 13:18:00 it expects 112 there 100 s later, so still at Fondo, and at 13:18:40 70 s later, so
+  // gone since 13:18:23. Each ETA has it leave soon after it was reported: at 13:17:13, 13:17:33 and 13:18:13.
+  const received = [
+    outOfFondo('13:16:40', ['112', 'tmb:1.140', '13:17:13']),
+    outOfFondo('13:17:20', ['112', 'tmb:1.139', '13:19:00']),
+    outOfFondo('13:18:00', ['112', 'tmb:1.139', '13:19:40']),
+    outOfFondo('13:18:40', ['112', 'tmb:1.139', '13:19:50']),
+  ];
+  for (const time of ['13:17:19', '13:17:50', '13:18:30', '13:18:39']) expect(metro(NEXT_OUT_OF_FONDO, time, received)).toMatchObject({ live: true, dist: 0 });
+  const panel = followed(NEXT_OUT_OF_FONDO, Date.parse('2026-09-25T13:18:30+02:00'), received, METRO);
+  expect(panel).toMatchObject({ standing: true, speed: 0 });
+  expect(panel?.upcoming[0]?.station).toBe('tmb:1.140');
+  // Leaving 17 s behind the report that has it gone, it catches up, never faster than line speed.
+  const dists = Array.from({ length: 41 }, (_, s) => metro(NEXT_OUT_OF_FONDO, '13:18:40', received, s)?.dist ?? NaN);
+  expect(dists[0]).toBe(0);
+  expect(dists[10]).toBeGreaterThan(0);
+  for (let s = 1; s < dists.length; s++) expect((dists[s] ?? NaN) - (dists[s - 1] ?? NaN)).toBeLessThanOrEqual(80 / 3.6);
+  expect(dists[40]).toBeCloseTo(metro(NEXT_OUT_OF_FONDO, '13:18:40', [], 40 - 70)?.dist ?? NaN, 3);
+});
+
+test("a Metro Train its timetable has taken out of its first Station before live data first places it there isn't run back", () => {
+  // Made up: with no live data, the next Trip out of Fondo leaves at 13:17:13. At 13:17:20 TMB first
+  // reports L1's 112, expecting it at Santa Coloma at 13:18:50, 90 s on: still at Fondo.
+  const received = [outOfFondo('13:16:00'), outOfFondo('13:17:20', ['112', 'tmb:1.139', '13:18:50'])];
+  const dists = ['13:17:20', '13:17:25', '13:17:30', '13:17:35'].map((time) => metro(NEXT_OUT_OF_FONDO, time, received)?.dist ?? NaN);
+  expect(dists[0]).toBeGreaterThan(0);
+  for (let i = 1; i < dists.length; i++) expect(dists[i]).toBeGreaterThanOrEqual(dists[i - 1] ?? NaN);
+});
+
 test('a followed Metro Train whose Block waits at the end of its Line stands at its first Station, expected to leave when TMB expects it to', () => {
   const panel = followed(NEXT_OUT_OF_FONDO, Date.parse('2026-09-25T13:16:30+02:00'), TURNING_112, METRO);
   expect(panel).toMatchObject({ live: true, standing: true, speed: 0 });
@@ -1405,17 +1439,21 @@ test('folding each snapshot into the last replay draws the Trains as replaying e
 
 test("counts each Network's jumps over 45 minutes of live data as the map received it", () => {
   // Per Train-minute, (forward + back) / (liveSeconds / 60): Rodalies 0.075, FGC 0.031, TRAM 0.0023,
-  // the Metro 0.0059. They're the baseline the tickets that make Trains jump less, such as #39 and
+  // the Metro 0.0047. They're the baseline the tickets that make Trains jump less, such as #39 and
   // #46, measure against: one that changes how often they jump changes these. The Metro's rose by 11
   // with #105: each is where a Train used to vanish or appear off its Trip's first Station, and now
   // stands at that Station instead. And by one with #108, which keeps the Trip a Block runs into the
   // end of its Line on Live: L2's 208 jumps back into Badalona Pompeu Fabra at 16:41:10, as TMB lists
-  // it under its way in again, later, and it jumped there before too, but Scheduled.
+  // it under its way in again, later, and it jumped there before too, but Scheduled. It fell by six
+  // with #107, which holds a Metro Train at its Trip's first Station until a report has it gone: six
+  // jumped back there, 135–883 m, as a later ETA had them wait longer, and one jumped forward as it
+  // left. One more jumps forward as it leaves now, L2's out of Paral·lel at 16:11:46, as the report
+  // that has it gone comes over a minute after it left.
   expect(jumps(RECORDED.bundle, RECORDED.received)).toEqual({
     rodalies: { forward: 66, back: 123, liveSeconds: 152139 },
     fgc: { forward: 25, back: 51, liveSeconds: 148634 },
     tram: { forward: 3, back: 0, liveSeconds: 77809 },
-    metro: { forward: 5, back: 25, liveSeconds: 303997 },
+    metro: { forward: 5, back: 19, liveSeconds: 303997 },
   });
 }, 60_000);
 
