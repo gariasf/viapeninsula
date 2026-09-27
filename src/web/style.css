@@ -54,7 +54,7 @@ body,
 }
 
 /* The button that follows a random Train: a die, drawn as MapLibre draws its own buttons' icons. */
-.random .maplibregl-ctrl-icon {
+.follow-random .maplibregl-ctrl-icon {
   background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='29' height='29' viewBox='0 0 29 29' fill='%23333'><rect x='8.75' y='8.75' width='11.5' height='11.5' rx='2.25' fill='none' stroke='%23333' stroke-width='1.5'/><circle cx='11.75' cy='11.75' r='1.1'/><circle cx='17.25' cy='11.75' r='1.1'/><circle cx='14.5' cy='14.5' r='1.1'/><circle cx='11.75' cy='17.25' r='1.1'/><circle cx='17.25' cy='17.25' r='1.1'/></svg>");
 }
 
