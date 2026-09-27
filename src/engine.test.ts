@@ -882,6 +882,9 @@ test("an FGC Train Geotren has standing at a Station stays there, where FGC's tr
   // At its Trip's first Station it can stand long before it leaves, off the map: here at Sant Cugat
   // Centre, expected there at 10:32, 9 minutes after its timetable has it arrive.
   expect(s2(standing({ position: { near: 'fgc:SC' }, expected: { station: 'fgc:SC', at: Date.parse('2026-09-25T10:32:00+02:00') } }))).toBeUndefined();
+  // But it's held from leaving: expected there on time, at 10:23, it's held as late as keeps it
+  // there at 10:30:11, 371 s, as its timetable has it leave at 10:24, so it leaves then.
+  expect(s2(standing({ position: { near: 'fgc:SC' }, expected: { station: 'fgc:SC', at: Date.parse('2026-09-25T10:23:00+02:00') } }))?.dist).toBeCloseTo(late(371), 3);
 });
 
 // Two of Montserrat's rack Trips on 25 September 2026, as the daily build had them, and the
@@ -1311,7 +1314,7 @@ test("counts each Network's jumps over 45 minutes of live data as the map receiv
   // #46, measure against: one that changes how often they jump changes these.
   expect(jumps(RECORDED.bundle, RECORDED.received)).toEqual({
     rodalies: { forward: 66, back: 123, liveSeconds: 152139 },
-    fgc: { forward: 25, back: 52, liveSeconds: 148586 },
+    fgc: { forward: 25, back: 51, liveSeconds: 148634 },
     tram: { forward: 3, back: 0, liveSeconds: 77809 },
     metro: { forward: 0, back: 18, liveSeconds: 290273 },
   });
