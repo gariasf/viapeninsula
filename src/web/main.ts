@@ -6,6 +6,7 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { along, beside, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Place, type DayTrips, type Line, type Manifest, type Network, type Point, type Shape, type Snapshot, type Stroke, type Track } from '../bundle.ts';
 import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Received } from '../engine.ts';
 import { language, LANGUAGES, setLanguage, t, trainCount, type Language } from './i18n.ts';
+import { prototypeProperties, setUpPrototype } from './markers.prototype.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
 setWorkerUrl(workerUrl);
@@ -289,12 +290,13 @@ map.addLayer({
   layout: { 'text-field': ['get', 'name'], 'text-font': FONT, 'text-size': 11, 'text-anchor': 'top', 'text-offset': [0, 0.7] },
   paint: { 'text-color': '#333', 'text-halo-color': '#fff', 'text-halo-width': 1.5 },
 });
+if (import.meta.env.DEV) setUpPrototype(map, 'station-names');
 
 // Tapping a Train follows it, and tapping a Station shows its board. Both are small, so a tap near one
 // will do, and a Train standing at a Station is the one tapped.
 map.on('click', ({ point: { x, y } }) => {
   const near = (layer: string): unknown => map.queryRenderedFeatures([[x - 10, y - 10], [x + 10, y + 10]], { layers: [layer] })[0]?.properties.id;
-  const [train, place] = [near('trains'), near('stations')];
+  const [train, place] = [near('trains') ?? (map.getLayer('train-pills') ? near('train-pills') : undefined), near('stations')];
   if (typeof train === 'string') follow(train);
   else if (typeof place === 'string') showBoard(place);
 });
@@ -405,7 +407,7 @@ function trains(): GeoJSON.FeatureCollection {
   if (following) following.at = undefined;
   return {
     type: 'FeatureCollection',
-    features: (bundle ? trainsAt(bundle, Date.now(), received) : []).map(({ trip, dist, lon, lat, live }) => {
+    features: (bundle ? trainsAt(bundle, Date.now(), received) : []).map(({ trip, dist, lon, lat, heading, live }) => {
       const shape = placing.shapes.get(trip.shape);
       const side = placing.sides.get(`${trip.line} ${trip.shape}`)?.find((s) => s.from <= dist && dist <= s.to)?.side ?? 0;
       // Each Trip runs its own shape forwards: its right is the Train's.
@@ -417,7 +419,7 @@ function trains(): GeoJSON.FeatureCollection {
       if (following && trip.id === followed) following.at = coordinates;
       return {
         type: 'Feature',
-        properties: { id: trip.id, colour: lines.get(trip.line)?.colour, live, followed: trip.id === followed },
+        properties: { id: trip.id, colour: lines.get(trip.line)?.colour, live, followed: trip.id === followed, heading, ...(import.meta.env.DEV ? prototypeProperties(map, lines.get(trip.line), heading) : {}) },
         geometry: { type: 'Point', coordinates },
       };
     }),
@@ -872,3 +874,4 @@ async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
   return (await res.json()) as T;
 }
+if (import.meta.env.DEV) Object.assign(window, { map });
