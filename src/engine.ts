@@ -473,10 +473,18 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
     const [arrived, upTo] = [(r.at + clock - bundle.noonMinus12h) / 1000, heardTo(received.slice(0, i + 1), r.at + clock)];
     const { reports, ran } = reportsByTrip(bundle, r.snapshot, received[i - 1]?.snapshot);
     // A Train whose Block has gone on to run another Trip turns Scheduled at once, rather than staying
-    // Live for two more of its feed's updates where the Block was, beside the Block's new Train.
+    // Live for two more of its feed's updates where the Block was, beside the Block's new Train. But
+    // TMB lists a Block under its way back as it passes the Station before the end of its Line, naming
+    // the end as the Station it comes to next, so the Trip it runs in on stays Live, on its last Delay,
+    // while TMB names that Trip's last Station, until its timetable has it leave the map there (#108).
     for (const [id, said] of heard) {
       const runs = said.report.block && ran.get(blockOf(said.report.block));
-      if (runs && runs !== id) heard.set(id, { ...said, placed: undefined });
+      if (!runs || runs === id) continue;
+      const [trip, report] = [trips.get(id), reports.get(runs)];
+      const [network, last, position] = [trip && lines.get(trip.line), trip?.calls.at(-1), report?.position];
+      if (report && network && last && position && 'next' in position && position.next.station === last.station && arrived - said.delay <= last.departure + network.profile.dwell) {
+        heard.set(id, { ...said, placed: r.snapshot.feeds[network.id]?.lastSuccess ?? NaN, confirmed: report.at });
+      } else heard.set(id, { ...said, placed: undefined });
     }
     for (const id of new Set([...eases.keys(), ...reports.keys()])) {
       const [trip, report, ease] = [trips.get(id), reports.get(id), eases.get(id)];
