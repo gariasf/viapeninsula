@@ -1,6 +1,6 @@
 // Where each Train is. The timetable drives motion (ADR-0002); the browser and the tests share this.
 
-import { closestOnSegment, DEGREE, pointAt, type Bundle, type Call, type Freshness, type Network, type Point, type Report, type Shape, type Snapshot, type SpeedProfile, type Trip } from './bundle.ts';
+import { closestOnSegment, DEGREE, direction, pointAt, type Bundle, type Call, type Freshness, type Network, type Point, type Report, type Shape, type Snapshot, type SpeedProfile, type Trip } from './bundle.ts';
 
 /**
  * A Train on the map: its Trip, how far along the Trip's shape it is, in metres, where that is, and
@@ -815,9 +815,8 @@ function headingAt(shape: Shape, calls: Call[], time: number, d: number): number
   const [call, next] = calls[i + 1] ? [calls[i], calls[i + 1]] : [calls[i - 1], calls[i]];
   const way = call && next && next.dist < call.dist ? -1 : 1;
   const from = way > 0 ? Math.min(d, (shape.dist.at(-1) ?? 0) - 1) : Math.max(d, (shape.dist[0] ?? 0) + 1);
-  const [a, b] = [pointAt(shape, from), pointAt(shape, from + way)];
-  const kx = Math.cos((a[1] * Math.PI) / 180);
-  return ((Math.atan2((b[0] - a[0]) * kx, b[1] - a[1]) * 180) / Math.PI + 360) % 360;
+  const [east, north] = direction(shape, from, from + way);
+  return ((Math.atan2(east, north) * 180) / Math.PI + 360) % 360;
 }
 
 /**

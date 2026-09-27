@@ -234,14 +234,18 @@ export function pointAt({ coords, dist }: Pick<Shape, 'coords' | 'dist'>, d: num
 export function beside(line: Pick<Shape, 'coords' | 'dist'>, d: number, metres: number): [lon: number, lat: number] {
   const [lon, lat] = pointAt(line, d);
   if (!metres) return [lon, lat];
-  // Which way the line runs, over the metre either side of d, flat around it.
+  // Which way the line runs, over the metre either side of d.
   const end = line.dist.at(-1) ?? 0;
-  const [a, b] = [pointAt(line, Math.max(0, d - 1)), pointAt(line, Math.min(end, d + 1))];
-  const kx = Math.cos((lat * Math.PI) / 180);
-  const [dx, dy] = [(b[0] - a[0]) * kx, b[1] - a[1]];
+  const [dx, dy] = direction(line, Math.max(0, d - 1), Math.min(end, d + 1));
   const length = Math.hypot(dx, dy) || 1;
   const off = metres / DEGREE / length;
-  return [lon + (dy * off) / kx, lat - dx * off];
+  return [lon + (dy * off) / Math.cos((lat * Math.PI) / 180), lat - dx * off];
+}
+
+/** Which way a line runs from one distance along it to another, flat around the first: how far east and north the second point is from it, in degrees of latitude. */
+export function direction(line: Pick<Shape, 'coords' | 'dist'>, from: number, to: number): [east: number, north: number] {
+  const [a, b] = [pointAt(line, from), pointAt(line, to)];
+  return [(b[0] - a[0]) * Math.cos((a[1] * Math.PI) / 180), b[1] - a[1]];
 }
 
 export type Point = [lon: number, lat: number];

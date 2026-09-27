@@ -12,6 +12,34 @@ setWorkerUrl(workerUrl);
 
 const FONT = ['Noto Sans Regular'];
 const NAME_SIZE = 12;
+/** The size of a Line's name on its Trains' pills, in px, and on the followed Train's, which is larger. */
+const [PILL_TEXT, FOLLOWED_TEXT] = [10, 12];
+/** How far a pill reaches beyond its Line's name either side, and above and below the name's line, in px. */
+const [PILL_PADDING, PILL_EDGE] = [2, 1.5];
+/** MapLibre's `text-line-height`, in ems: the height of the name's line that a pill fits. */
+const LINE_HEIGHT = 1.2;
+/** How far outside its pill's outline the middle of a Train's arrow is, in px. */
+const ARROW_GAP = 4;
+/** The dark lettering for a Line's colour that white doesn't read on. */
+const INK = '#111';
+/**
+ * The outlines a Train is drawn with, `w`×`h` px around their middles: how far `outside` each a point
+ * is, in px (x right, y down), or inside where negative. A pill's outline stretches across its middle
+ * 2 px both ways to fit its Line's name over its middle `across` px, and all but PILL_EDGE of its
+ * height. The arrow points up.
+ */
+const OUTLINES: Record<Pill['outline'] | 'arrow', { w: number; h: number; across?: number; outside: (x: number, y: number) => number }> = {
+  // A square with corners so round it's nearly a circle.
+  round: { w: 15, h: 15, across: 9, outside: roundedSquare(7.5, 6.5) },
+  // Its ends 5 px long, to a point 2 px across.
+  pointed: { w: 12, h: 15, across: 2, outside: (x, y) => Math.max(Math.abs(y) - 7.5, Math.abs(x) - 6, 0.7926 * (Math.abs(x) - 6) + 0.6097 * (Math.abs(y) - 1)) },
+  // A square with corners rounded 3 px, which a name of two letters leaves nearly square, like the Metro's and TRAM's Line badges.
+  badge: { w: 15, h: 15, across: 13, outside: roundedSquare(7.5, 3) },
+  // Its tip 4.5 px ahead of its middle, and its base 2.25 px behind and 6 px across.
+  arrow: { w: 12, h: 12, outside: (x, y) => Math.max(y - 2.25, (6.75 * Math.abs(x) - 3 * (y + 4.5)) / Math.hypot(3, 6.75)) },
+};
+/** What measures the Lines' names for nameWidth(). */
+const measuring = document.createElement('canvas').getContext('2d');
 /** How many times the map looks for live data, never getting any, before it says live data is unavailable. */
 const EMPTY_POLLS = 3;
 /** How near the viewer, in metres, and how soon, in ms, a Train passes to be one of their nearby Trains. The panel's strings say so too. */
@@ -211,6 +239,8 @@ let stationNames = new Map<string, string>();
 let shownPlaces = new Map<string, Place>();
 /** What places each Line's Trains beside its track zoomed out: its shapes, their sides by `<line> <shape>`, and which side its Trains keep to, 1 right and -1 left. */
 let placing = { shapes: new Map<string, Shape>(), sides: new Map<string, Stroke[]>(), keep: new Map<string, number>() };
+/** How each Line's Trains are drawn as pills, by the Line's ID. */
+let pills = new Map<string, Pill>();
 map.addSource('lines', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 map.addSource('stations', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 // Today's Lines and Stations are drawn as soon as its track comes, before the Trips, which are most of the bundle.
@@ -265,12 +295,13 @@ map.addLayer({
     'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 7, 0.5, 14, 1.5],
   },
 });
-// Trains go over the Stations they stand at, under the Stations' names.
+// Zoomed out, Trains are dots over the Stations they stand at, under the Stations' names.
 map.addSource('trains', { type: 'geojson', data: trains() });
 map.addLayer({
   id: 'trains',
   type: 'circle',
   source: 'trains',
+  filter: ['<', ['zoom'], ['get', 'pillZoom']],
   // A Live Train is filled with its Line's colour; a Scheduled one is only ringed with it.
   layout: { 'circle-sort-key': ['case', ['get', 'followed'], 1, 0] },
   // The Train the map follows is drawn larger, over the rest.
@@ -289,16 +320,65 @@ map.addLayer({
   layout: { 'text-field': ['get', 'name'], 'text-font': FONT, 'text-size': 11, 'text-anchor': 'top', 'text-offset': [0, 0.7] },
   paint: { 'text-color': '#333', 'text-halo-color': '#fff', 'text-halo-width': 1.5 },
 });
+// Zoomed in (pillOf()), each Train is a pill with its Line's name, over the Stations' names too,
+// outlined by its Line's kind of service: a Live one's filled with its Line's colour and edged in
+// white, a Scheduled one's white, ringed and lettered in its Line's colour. Just outside it, an arrow
+// points the way the Train runs, and turns with the map. The Train the map follows has its own pill
+// and arrow, larger, over every other Train's: MapLibre draws a layer's names after all its pills.
+for (const [id, outline] of Object.entries(OUTLINES)) addOutline(id, outline);
+for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', true, FOLLOWED_TEXT]] as const) {
+  const filter: ExpressionSpecification = ['all', ['>=', ['zoom'], ['get', 'pillZoom']], ['==', ['get', 'followed'], followed]];
+  map.addLayer({
+    id: `train-pills${suffix}`,
+    type: 'symbol',
+    source: 'trains',
+    filter,
+    layout: {
+      'icon-image': ['concat', 'train-', ['get', 'outline']],
+      'icon-text-fit': 'both',
+      'icon-text-fit-padding': [0, PILL_PADDING, 0, PILL_PADDING],
+      'text-field': ['get', 'name'],
+      'text-font': ['Noto Sans Bold'],
+      'text-size': size,
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+      'text-allow-overlap': true,
+      'text-ignore-placement': true,
+    },
+    paint: {
+      'icon-color': byLive(['get', 'colour'], '#fff'),
+      'icon-halo-color': byLive('#fff', ['get', 'colour']),
+      'icon-halo-width': 1.5,
+      'text-color': byLive(['case', ['get', 'dark'], INK, '#fff'], ['get', 'colour']),
+    },
+  });
+  map.addLayer({
+    id: `train-arrows${suffix}`,
+    type: 'symbol',
+    source: 'trains',
+    filter,
+    layout: {
+      'icon-image': 'train-arrow',
+      'icon-rotate': ['get', 'heading'],
+      'icon-rotation-alignment': 'map',
+      // `reach` px ahead of the Train.
+      'icon-offset': ['interpolate', ['linear'], ['get', 'reach'], 0, ['literal', [0, 0]], 100, ['literal', [0, -100]]],
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+    },
+    paint: { 'icon-color': ['get', 'colour'], 'icon-halo-color': '#fff', 'icon-halo-width': 1 },
+  });
+}
 
 // Tapping a Train follows it, and tapping a Station shows its board. Both are small, so a tap near one
 // will do, and a Train standing at a Station is the one tapped.
 map.on('click', ({ point: { x, y } }) => {
   const near = (layer: string): unknown => map.queryRenderedFeatures([[x - 10, y - 10], [x + 10, y + 10]], { layers: [layer] })[0]?.properties.id;
-  const [train, place] = [near('trains'), near('stations')];
+  const [train, place] = [near('train-pills-followed') ?? near('train-pills') ?? near('trains'), near('stations')];
   if (typeof train === 'string') follow(train);
   else if (typeof place === 'string') showBoard(place);
 });
-for (const layer of ['trains', 'stations']) {
+for (const layer of ['trains', 'train-pills', 'train-pills-followed', 'stations']) {
   map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'));
   map.on('mouseleave', layer, () => (map.getCanvas().style.cursor = ''));
 }
@@ -363,6 +443,7 @@ function show(days: Track | Bundle) {
   for (const s of days.sides) sides.set(`${s.line} ${s.shape}`, [...(sides.get(`${s.line} ${s.shape}`) ?? []), s]);
   const keep = new Map(days.networks.map((n) => [n.id, n.runningSide === 'left' ? -1 : 1]));
   placing = { shapes, sides, keep: new Map(days.lines.map((l) => [l.id, keep.get(l.network) ?? 1])) };
+  pills = new Map(days.lines.map((l) => [l.id, pillOf(l)]));
   map.getSource<GeoJSONSource>('lines')?.setData({
     type: 'FeatureCollection',
     features: days.strokes.flatMap(({ line: id, shape: shapeId, from, to, side }): GeoJSON.Feature[] => {
@@ -401,11 +482,11 @@ function trains(): GeoJSON.FeatureCollection {
   const zoom = map.getZoom();
   // How far apart Lines are drawn, in metres at the equator: MapLibre's tiles are 512 px.
   const apart = (atZoom(APART, zoom) * 2 * Math.PI * EARTH) / (512 * 2 ** zoom);
-  const followed = followedId();
+  const [followed, bearing] = [followedId(), map.getBearing()];
   if (following) following.at = undefined;
   return {
     type: 'FeatureCollection',
-    features: (bundle ? trainsAt(bundle, Date.now(), received) : []).map(({ trip, dist, lon, lat, live }) => {
+    features: (bundle ? trainsAt(bundle, Date.now(), received) : []).map(({ trip, dist, lon, lat, heading, live }) => {
       const shape = placing.shapes.get(trip.shape);
       const side = placing.sides.get(`${trip.line} ${trip.shape}`)?.find((s) => s.from <= dist && dist <= s.to)?.side ?? 0;
       // Each Trip runs its own shape forwards: its right is the Train's.
@@ -415,13 +496,122 @@ function trains(): GeoJSON.FeatureCollection {
       const metres = (side + 0.5 * (placing.keep.get(trip.line) ?? 1)) * apart * Math.cos((lat * Math.PI) / 180);
       const coordinates: Point = shape && metres ? beside(shape, dist, metres) : [lon, lat];
       if (following && trip.id === followed) following.at = coordinates;
+      const pill = pills.get(trip.line);
       return {
         type: 'Feature',
-        properties: { id: trip.id, colour: lines.get(trip.line)?.colour, live, followed: trip.id === followed },
+        properties: {
+          id: trip.id,
+          colour: lines.get(trip.line)?.colour,
+          live,
+          followed: trip.id === followed,
+          heading,
+          name: pill?.name,
+          outline: pill?.outline,
+          dark: pill?.dark,
+          pillZoom: pill?.zoom,
+          reach: pill && reach(trip.id === followed ? pill.followedBox : pill.box, heading - bearing),
+        },
         geometry: { type: 'Point', coordinates },
       };
     }),
   };
+}
+
+/**
+ * How a Line's Trains are drawn as pills: its name, the outline for its kind of service, whether its
+ * name is lettered dark on its colour, the zoom its Trains are pills from, and how far a pill reaches
+ * either side of its Train and above and below it, in px, and the followed Train's.
+ */
+interface Pill {
+  name: string;
+  outline: 'round' | 'pointed' | 'badge';
+  dark: boolean;
+  zoom: number;
+  box: [number, number];
+  followedBox: [number, number];
+}
+
+/**
+ * How a Line's Trains are drawn as pills. The Metro's and TRAM's are badges, as their operators badge
+ * their Lines, and pills from zoom 12, where their Trains are far enough apart to read. Rodalies' and
+ * FGC's are pills from zoom 10, as main-line Trains show before metros: rounded for commuter and
+ * suburban Lines, pointed at both ends for regional ones, and badges for the rack and the funicular.
+ * ponytail: told apart by Network and name, as the bundle names no kind of service. Have the daily
+ * build publish one if a Line comes that these don't place.
+ */
+function pillOf({ network, name, colour }: Line): Pill {
+  const city = network === 'metro' || network === 'tram';
+  const regional = network === 'rodalies' ? /^R1\d$/.test(name) : network === 'fgc' && /^(R[56]0?|RL[12])$/.test(name);
+  const outline = city || name === 'MM' || name === 'FV' ? 'badge' : regional ? 'pointed' : 'round';
+  const width = nameWidth(name);
+  return { name, outline, dark: darkInk(colour), zoom: city ? 12 : 10, box: boxOf(outline, width, PILL_TEXT), followedBox: boxOf(outline, width, FOLLOWED_TEXT) };
+}
+
+/** How far a pill reaches either side of its Train and above and below it, in px, with its outline, around a name `width` px wide at PILL_TEXT, lettered at `size` px. */
+function boxOf(outline: Pill['outline'], width: number, size: number): [number, number] {
+  const { w, across = 0 } = OUTLINES[outline];
+  return [Math.max(w, w - across + (width * size) / PILL_TEXT + 2 * PILL_PADDING) / 2, PILL_EDGE + (LINE_HEIGHT * size) / 2];
+}
+
+/** A colour's (#rrggbb) relative luminance, as WCAG works it out. */
+function luminance(colour: string): number {
+  const [r = 0, g = 0, b = 0] = [1, 3, 5].map((i) => parseInt(colour.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** Whether INK reads better on a colour than white does, by WCAG's contrast ratio. */
+function darkInk(colour: string): boolean {
+  const lit = luminance(colour) + 0.05;
+  return lit / (luminance(INK) + 0.05) > 1.05 / lit;
+}
+
+/**
+ * How wide a Line's name is on its Trains' pills, in px.
+ * ponytail: measured in the browser's bold sans-serif, not MapLibre's Noto Sans Bold, which comes
+ * within a px or so of it on these names, so an arrow can sit that much nearer its pill or further.
+ * Measure in Noto Sans Bold, loaded as a web font, if that shows.
+ */
+function nameWidth(name: string): number {
+  if (!measuring) return name.length * 6;
+  measuring.font = `bold ${PILL_TEXT}px sans-serif`;
+  return measuring.measureText(name).width;
+}
+
+/**
+ * How far ahead of its Train an arrow goes, in px: just outside a pill reaching `box` px either side
+ * and above and below, where the Train's heading leaves it on screen, `angle` degrees clockwise from
+ * straight up, as the pill stays level while the map turns.
+ * ponytail: to the pill's box, so a heading that leaves off the level by a pointed or rounded end puts
+ * its arrow a few px further out; and laid out flat, so on a tilted map an arrow sits nearer its
+ * pill's far side. Aim at the outline itself, tilted with the pill, if either shows.
+ */
+function reach([halfWidth, halfHeight]: [number, number], angle: number): number {
+  const a = (angle * Math.PI) / 180;
+  return Math.min(halfWidth / Math.abs(Math.sin(a)), halfHeight / Math.abs(Math.cos(a))) + ARROW_GAP;
+}
+
+/** How far outside a square `half` px either side of its middle, with its corners rounded `r` px, a point is, in px. */
+function roundedSquare(half: number, r: number) {
+  return (x: number, y: number) => {
+    const [qx, qy] = [Math.abs(x) - half + r, Math.abs(y) - half + r];
+    return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - r;
+  };
+}
+
+/**
+ * Adds an outline to the map as the image `train-<id>`, as a signed distance field, which MapLibre
+ * colours, edges and sizes sharp: 3 px bigger each way for its edge, at 2 texture px a px. MapLibre
+ * draws where the field reads 0.75, and takes a px as 1/8 of it.
+ */
+function addOutline(id: string, { w, h, across, outside }: (typeof OUTLINES)[keyof typeof OUTLINES]) {
+  const [width, height] = [(w + 6) * 2, (h + 6) * 2];
+  const data = new Uint8ClampedArray(width * height * 4);
+  for (let row = 0; row < height; row++) {
+    for (let col = 0; col < width; col++) data[(row * width + col) * 4 + 3] = 255 * (0.75 - outside((col + 0.5 - width / 2) / 2, (row + 0.5 - height / 2) / 2) / 8);
+  }
+  const [x, y, high] = [width / 2, height / 2, h - 2 * PILL_EDGE];
+  const fit = across === undefined ? {} : { stretchX: [[x - 2, x + 2]] as [number, number][], stretchY: [[y - 2, y + 2]] as [number, number][], content: [x - across, y - high, x + across, y + high] as [number, number, number, number] };
+  map.addImage(`train-${id}`, { width, height, data }, { sdf: true, pixelRatio: 2, ...fit });
 }
 
 /** Shows the interface in the viewer's language: on start, and again each time they switch it. */
