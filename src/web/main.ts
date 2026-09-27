@@ -47,12 +47,16 @@ const [NEARBY, SOON] = [1500, 60 * 60_000];
 /** How long after a service day's last Train is due off the map the map keeps its bundle, for Trains running late, in ms. */
 const LATE = 60 * 60_000;
 /**
- * How long Trains keep moving every frame after the map moves, while the viewer is likely still
- * looking closely, and how often they move otherwise, in ms: about 30 times a second, which leaves a
- * phone headroom and battery. It's a little under 1/30 s, so that at 60 or 120 Hz it's every other
- * or every fourth frame.
+ * How often Trains move, in ms. As often as the fastest of them moves a quarter of a pixel, which
+ * nobody sees in between (quarterPixel()): about 12 times a second at zoom 12, and every frame zoomed
+ * right in. Every frame while the map zooms or turns, which moves them beside their Lines and turns
+ * their arrows, or follows a Train. Once the map has stood for MOVED, while the viewer is likely still
+ * looking closely, no more often than every IDLE_EVERY, about 30 times a second, which leaves a phone
+ * headroom and battery and is a little under 1/30 s, so that at 60 or 120 Hz it's every other or every
+ * fourth frame. And never less often than every IDLE_MOST, so that the legend's count and the panels
+ * keep up by the second.
  */
-const [MOVED, IDLE_EVERY] = [1500, 30];
+const [MOVED, IDLE_EVERY, IDLE_MOST] = [1500, 30, 250];
 
 /** A Line's width, in pixels at each zoom. */
 const WIDTH: [zoom: number, px: number][] = [[7, 1.5], [14, 4]];
@@ -61,6 +65,9 @@ const WIDTH: [zoom: number, px: number][] = [[7, 1.5], [14, 4]];
  * out, as on a transit map, and back on the rails zoomed right in, where people follow a Train.
  */
 const APART: [zoom: number, px: number][] = [...WIDTH, [15, 0]];
+
+/** How many metres wide a pixel is at a zoom, at the equator: MapLibre's tiles are 512 px. */
+const pixelMetres = (zoom: number) => (2 * Math.PI * EARTH) / (512 * 2 ** zoom);
 
 /** The value at a zoom of these, going smoothly from one zoom's to the next's, as byZoom() does. */
 const atZoom = (stops: [zoom: number, px: number][], zoom: number): number => {
@@ -385,20 +392,21 @@ for (const layer of ['trains', 'train-pills', 'train-pills-followed', 'stations'
 // Escape closes the About dialog on its own, if it's open.
 document.addEventListener('keydown', (e) => e.key === 'Escape' && !about.open && (following || boardPlace || nearMe) && closePanel());
 
-// Moves the Trains, and names the Networks whose live data is unavailable as that changes: every
-// frame while the map moves or follows a Train and for MOVED after, otherwise every IDLE_EVERY. The
-// browser stops asking while the tab is hidden.
+// Moves the Trains, and names the Networks whose live data is unavailable as that changes, as often
+// as MOVED says. The browser stops asking while the tab is hidden.
 const trainSource = map.getSource<GeoJSONSource>('trains');
 const trainButtons = el('div', { className: 'maplibregl-ctrl maplibregl-ctrl-group' }, nearbyButton, followRandomButton);
 map.addControl({ onAdd: () => trainButtons, onRemove: () => trainButtons.remove() }, 'top-right');
-/** When the map last moved, as a drag, a zoom or an easing, or followed a Train, and when its Trains were last drawn, by performance.now(). */
-let [moved, drawn] = [-Infinity, -Infinity];
+/** When the map last moved, as a drag, a zoom or an easing, or followed a Train, and when its Trains were last drawn, by performance.now(), and at which zoom and bearing. */
+let [moved, drawn, drawnAt] = [-Infinity, -Infinity, ''];
 requestAnimationFrame(function move(now) {
   if (following || map.isMoving()) moved = now;
-  // ponytail: one rate at every zoom, though zoomed out Trains move less than a pixel between
-  // updates, and at zoom 18 one at 110 km/h moves about 4.5 px. Make IDLE_EVERY depend on the zoom if either shows.
-  if (now - moved > MOVED && now - drawn < IDLE_EVERY) return requestAnimationFrame(move);
-  drawn = now;
+  const view = `${map.getZoom()} ${map.getBearing()}`;
+  // ponytail: no more often than IDLE_EVERY once the map stands, so zoomed right in, at 18, a Train at
+  // 110 km/h then steps about 4.5 px at a time. Let the rate rise with the zoom there too if that shows.
+  const every = following || view !== drawnAt ? 0 : Math.min(IDLE_MOST, now - moved > MOVED ? Math.max(IDLE_EVERY, quarterPixel()) : quarterPixel());
+  if (now - drawn < every) return requestAnimationFrame(move);
+  [drawn, drawnAt] = [now, view];
   const drawing = trains();
   trainSource?.setData(drawing);
   // The legend's count changes by the second, once the Trips have come, and with it whether there's a
@@ -480,8 +488,8 @@ function show(days: Track | Bundle) {
  */
 function trains(): GeoJSON.FeatureCollection {
   const zoom = map.getZoom();
-  // How far apart Lines are drawn, in metres at the equator: MapLibre's tiles are 512 px.
-  const apart = (atZoom(APART, zoom) * 2 * Math.PI * EARTH) / (512 * 2 ** zoom);
+  // How far apart Lines are drawn, in metres at the equator.
+  const apart = atZoom(APART, zoom) * pixelMetres(zoom);
   const [followed, bearing] = [followedId(), map.getBearing()];
   if (following) following.at = undefined;
   return {
@@ -515,6 +523,13 @@ function trains(): GeoJSON.FeatureCollection {
       };
     }),
   };
+}
+
+/** How long the fastest Train, at its Network's top speed, takes to move a quarter of a pixel where the map is, in ms. */
+function quarterPixel(): number {
+  const fastest = Math.max(...credited.map((n) => n.profile.topSpeed));
+  const pixel = pixelMetres(map.getZoom()) * Math.cos((map.getCenter().lat * Math.PI) / 180);
+  return (1000 * pixel) / 4 / fastest;
 }
 
 /**
