@@ -1359,15 +1359,36 @@ test("a Live Metro Train at its Trip's first Station stays there until a report 
     outOfFondo('13:18:40', ['112', 'tmb:1.139', '13:19:50']),
   ];
   for (const time of ['13:17:19', '13:17:50', '13:18:30', '13:18:39']) expect(metro(NEXT_OUT_OF_FONDO, time, received)).toMatchObject({ live: true, dist: 0 });
-  const panel = followed(NEXT_OUT_OF_FONDO, Date.parse('2026-09-25T13:18:30+02:00'), received, METRO);
+  // Held past when the report of 13:18:00 has it leave, it's leaving now, in the follow panel, on the board and nearby.
+  const moment = Date.parse('2026-09-25T13:18:30+02:00');
+  const panel = followed(NEXT_OUT_OF_FONDO, moment, received, METRO);
   expect(panel).toMatchObject({ standing: true, speed: 0 });
-  expect(panel?.upcoming[0]?.station).toBe('tmb:1.140');
+  expect(panel?.upcoming[0]).toMatchObject({ station: 'tmb:1.140', departure: moment });
+  expect(board(['tmb:1.140'], moment, received, METRO)).toMatchObject([{ trip: { id: NEXT_OUT_OF_FONDO }, departure: moment, live: true }]);
+  expect(nearbyAt(METRO, moment, by(received, moment), [2.218435, 41.451583], 300, 60 * 60_000).find((p) => p.trip.id === NEXT_OUT_OF_FONDO)).toMatchObject({ at: moment }); // Fondo
   // Leaving 17 s behind the report that has it gone, it catches up, never faster than line speed.
   const dists = Array.from({ length: 41 }, (_, s) => metro(NEXT_OUT_OF_FONDO, '13:18:40', received, s)?.dist ?? NaN);
   expect(dists[0]).toBe(0);
   expect(dists[10]).toBeGreaterThan(0);
-  for (let s = 1; s < dists.length; s++) expect((dists[s] ?? NaN) - (dists[s - 1] ?? NaN)).toBeLessThanOrEqual(80 / 3.6);
+  for (let s = 1; s < dists.length; s++) expect((dists[s] ?? NaN) - (dists[s - 1] ?? NaN)).toBeGreaterThanOrEqual(0);
+  for (let s = 1; s < dists.length; s++) expect((dists[s] ?? NaN) - (dists[s - 1] ?? NaN)).toBeLessThanOrEqual(80 / 3.6 + 1e-6);
   expect(dists[40]).toBeCloseTo(metro(NEXT_OUT_OF_FONDO, '13:18:40', [], 40 - 70)?.dist ?? NaN, 3);
+});
+
+test('a Metro Train held at its first Station eases out however long after it left the report that has it gone comes', () => {
+  // Made up: TMB has L1's 112 waiting at Fondo at 13:17:20, as in the test before, then leaves it out
+  // of its reports, and at 13:19:20 expects it at Santa Coloma at 13:19:30: gone since 13:18:03, 77 s before.
+  const received = [
+    outOfFondo('13:16:40', ['112', 'tmb:1.140', '13:17:13']),
+    outOfFondo('13:17:20', ['112', 'tmb:1.139', '13:19:00']),
+    ...['13:18:00', '13:18:40'].map((time) => outOfFondo(time)),
+    outOfFondo('13:19:20', ['112', 'tmb:1.139', '13:19:30']),
+  ];
+  expect(metro(NEXT_OUT_OF_FONDO, '13:19:19', received)).toMatchObject({ live: true, dist: 0 });
+  const dists = Array.from({ length: 31 }, (_, s) => metro(NEXT_OUT_OF_FONDO, '13:19:19', received, s)?.dist ?? NaN);
+  expect(dists[30]).toBeGreaterThan(0);
+  for (let s = 1; s < dists.length; s++) expect((dists[s] ?? NaN) - (dists[s - 1] ?? NaN)).toBeGreaterThanOrEqual(0);
+  for (let s = 1; s < dists.length; s++) expect((dists[s] ?? NaN) - (dists[s - 1] ?? NaN)).toBeLessThanOrEqual(80 / 3.6 + 1e-6);
 });
 
 test("a Metro Train its timetable has taken out of its first Station before live data first places it there isn't run back", () => {
@@ -1439,21 +1460,20 @@ test('folding each snapshot into the last replay draws the Trains as replaying e
 
 test("counts each Network's jumps over 45 minutes of live data as the map received it", () => {
   // Per Train-minute, (forward + back) / (liveSeconds / 60): Rodalies 0.075, FGC 0.031, TRAM 0.0023,
-  // the Metro 0.0047. They're the baseline the tickets that make Trains jump less, such as #39 and
+  // the Metro 0.0038. They're the baseline the tickets that make Trains jump less, such as #39 and
   // #46, measure against: one that changes how often they jump changes these. The Metro's rose by 11
   // with #105: each is where a Train used to vanish or appear off its Trip's first Station, and now
   // stands at that Station instead. And by one with #108, which keeps the Trip a Block runs into the
   // end of its Line on Live: L2's 208 jumps back into Badalona Pompeu Fabra at 16:41:10, as TMB lists
-  // it under its way in again, later, and it jumped there before too, but Scheduled. It fell by six
-  // with #107, which holds a Metro Train at its Trip's first Station until a report has it gone: six
-  // jumped back there, 135–883 m, as a later ETA had them wait longer, and one jumped forward as it
-  // left. One more jumps forward as it leaves now, L2's out of Paral·lel at 16:11:46, as the report
-  // that has it gone comes over a minute after it left.
+  // it under its way in again, later, and it jumped there before too, but Scheduled. It fell by 11
+  // with #107, which holds a Metro Train at its Trip's first Station until a report has it gone, and
+  // then eases it out however far behind: none jumps back there as a later ETA has it wait longer, as
+  // six did, 135–883 m, nor forward out of it, as five did.
   expect(jumps(RECORDED.bundle, RECORDED.received)).toEqual({
     rodalies: { forward: 66, back: 123, liveSeconds: 152139 },
     fgc: { forward: 25, back: 51, liveSeconds: 148634 },
     tram: { forward: 3, back: 0, liveSeconds: 77809 },
-    metro: { forward: 5, back: 19, liveSeconds: 303997 },
+    metro: { forward: 0, back: 19, liveSeconds: 303997 },
   });
 }, 60_000);
 
