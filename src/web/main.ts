@@ -553,7 +553,8 @@ function showPanel() {
 /**
  * The followed Train's panel: its Line and where it's headed, Live or Scheduled and how long ago
  * live data last placed it, its Delay but for a Metro Train's, its modelled speed, its Unit type
- * where its operator reports one, and the Stations it has still to leave, with when it's expected at each.
+ * where its operator reports one, and the Stations it has still to leave, with when it's expected at
+ * each.
  */
 function followedPanel(): Node[] | undefined {
   const train = bundle && trainAt(bundle, Date.now(), received, followedId() ?? '');

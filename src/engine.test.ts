@@ -1324,11 +1324,20 @@ test("a Metro Train gives no Delay, however far its Block runs from its Trip's t
   const received = [intoFondo('13:47:50', ['112', 'tmb:1.139', '13:48:20'])];
   const moment = Date.parse('2026-09-25T13:48:00+02:00');
   const panel = followed(NEXT_INTO_FONDO, moment, received, METRO);
-  expect(panel).toMatchObject({ live: true, delay: undefined });
+  expect(panel).toMatchObject({ live: true });
+  expect(panel?.delay).toBeUndefined();
   // It's still expected where TMB expects it, and when.
   expect(panel?.upcoming[0]).toMatchObject({ station: 'tmb:1.139', arrival: Date.parse('2026-09-25T13:48:20+02:00') });
-  expect(board(['tmb:1.139'], moment, received, METRO)).toMatchObject([{ trip: { id: NEXT_INTO_FONDO }, departure: Date.parse('2026-09-25T13:48:42+02:00'), delay: undefined, live: true }]);
-  expect(nearbyAt(METRO, moment, received, [2.218435, 41.451583], 300, 60 * 60_000)).toMatchObject([{ trip: { id: NEXT_INTO_FONDO }, delay: undefined, live: true }]); // Fondo
+  const departures = board(['tmb:1.139'], moment, received, METRO);
+  expect(departures).toMatchObject([{ trip: { id: NEXT_INTO_FONDO }, departure: Date.parse('2026-09-25T13:48:42+02:00'), live: true }]);
+  expect(departures[0]?.delay).toBeUndefined();
+  const passes = nearbyAt(METRO, moment, received, [2.218435, 41.451583], 300, 60 * 60_000); // Fondo
+  expect(passes).toMatchObject([{ trip: { id: NEXT_INTO_FONDO }, live: true }]);
+  expect(passes[0]?.delay).toBeUndefined();
+  // Nor one on its timetable, with no live data: the Trip into Fondo at 13:13.
+  const scheduled = followed(INTO_FONDO, Date.parse('2026-09-25T13:13:00+02:00'), [], METRO);
+  expect(scheduled).toMatchObject({ live: false });
+  expect(scheduled?.delay).toBeUndefined();
   // The R2S, 10 s late, gives its Delay.
   expect(followed(R2S, at('22:00:05'), [late(R2S, 10, at('22:00:00'))])?.delay).toBe(10);
 });

@@ -72,7 +72,7 @@ export function trainsAt(bundle: Bundle, at: number, received: Received[] = []):
 
 /** A Train as the follow panel shows it: where it's going, when it'll get there, and how far to trust where it's drawn. */
 export interface Followed extends Train {
-  /** Its Delay, in seconds, as live data last gave it: early where it's negative. A Train drawn off it eases to it by the next snapshot. None for a Metro Train (shown()). */
+  /** Its Delay, in seconds, as live data last gave it: early where it's negative. A Train drawn off it eases to it by the next snapshot. None to show for a Metro Train (#103). */
   delay?: number;
   /**
    * The Stations it has still to leave as it's drawn, the one it stands at first, and when it's
@@ -118,7 +118,7 @@ export interface Departure {
   station: string;
   /** When it's expected to leave, in ms since 1970, running its Delay late: as trainAt() has it, where it's on the map. */
   departure: number;
-  /** Its Delay, in seconds, as live data last gave it: early where it's negative. None for a Metro Train (shown()). */
+  /** Its Delay, in seconds, as live data last gave it: early where it's negative. None to show for a Metro Train (#103). */
   delay?: number;
   live: boolean;
   /** Whether, drawn on the map, it has no live data though its Network's live data works, as Train.unreported has it. Not before it's on the map, when no feed reports it yet. */
@@ -162,7 +162,7 @@ export interface Pass {
    * trainAt() has it, where it's on the map, and now, while it's within it.
    */
   at: number;
-  /** Its Delay, in seconds, as live data last gave it: early where it's negative. None for a Metro Train (shown()). */
+  /** Its Delay, in seconds, as live data last gave it: early where it's negative. None to show for a Metro Train (#103). */
   delay?: number;
   live: boolean;
 }
