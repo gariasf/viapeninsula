@@ -61,7 +61,9 @@ export const KEEP = CARRY + 5 * 60_000;
  * leaves and arrives exactly on time. A Train its operator has cancelled leaves the map. One that
  * live data stops reporting stays Live through two of its feed's updates and turns Scheduled at the
  * third, and it keeps its last Delay for CARRY before it's back on its plain timetable. One of the
- * Metro's whose Block goes on to run another Trip turns Scheduled at once.
+ * Metro's whose Block goes on to run another Trip turns Scheduled at once. A Live one short of its
+ * Trip's first Station, as while its Block waits at the end of its Line, stands there, unless the Trip
+ * its Block ran in on is still on the map.
  */
 export function trainsAt(bundle: Bundle, at: number, received: Received[] = []): Train[] {
   const { of } = onMap(bundle, at, received);
@@ -230,19 +232,35 @@ function onMap(bundle: Bundle, at: number, received: Received[]): { of: (trip: T
   // data without being left out of it.
   const blockLines = new Set(received.flatMap((r) => linesByBlock(r.snapshot)));
   const blockNetworks = new Set([...blockLines].map((line) => lines.get(line)?.id));
+  // The Trips live data last had each of the Metro's Blocks run, by blockOf(): worked out only once a Block waits at the end of its Line.
+  let blocks: Map<string, Trip[]> | undefined;
+  const ranBy = (block: NonNullable<Report['block']>) => {
+    blocks ??= bundle.trips.reduce((m, t) => {
+      const b = heard.get(t.id)?.report.block;
+      return b ? add(m, blockOf(b), t) : m;
+    }, new Map<string, Trip[]>());
+    return blocks.get(blockOf(block)) ?? [];
+  };
   const of = (trip: Trip): OnMap | undefined => {
     const [said, network, shape, first, last, ease] = [heard.get(trip.id), lines.get(trip.line), shapes.get(trip.shape), trip.calls[0], trip.calls.at(-1), eases.get(trip.id)];
     if (!network || !shape) return undefined;
     const { profile } = network;
-    const calls = withDwell(trip, profile);
+    const dwelt = withDwell(trip, profile);
     // A Train running late is where its timetable had it that long ago, once it has eased there.
-    const time = ease ? eased(calls, profile, ease, now) : now;
+    const time = ease ? eased(dwelt, profile, ease, now) : now;
     const feed = feeds[network.id];
     const live = feed !== undefined && said?.placed !== undefined && !stale(said.placed, upToNow, feed.every);
+    // A Live Metro Train short of its Trip's first Station, as TMB has it while its Block waits at the
+    // end of its Line, has come in there already, and stands there from now on (#105): unless the Trip
+    // its Block ran in on is still on the map, and so at once where live data knows none, as on a map
+    // just opened. That Trip turned Scheduled as its Block moved on (#45), so it never waits there itself.
+    const block = live ? said?.report.block : undefined;
+    const waits = block && first && time < (dwelt[0]?.arrival ?? -Infinity) && !ranBy(block).some((t) => t !== trip && t.calls.at(-1)?.station === first.station && of(t)?.train);
+    const calls = waits ? dwelt.map((c, i) => (i ? c : { ...c, arrival: time })) : dwelt;
     const off = { now, time, calls, profile, ease, said, live };
     if (said?.report.cancelled) return off;
     // Most Trips aren't on the map at any one moment, whatever their dwell: skip those first.
-    if (!first || !last || time < first.arrival - profile.dwell || time > last.departure + profile.dwell) return off;
+    if (!first || !last || (!waits && time < first.arrival - profile.dwell) || time > last.departure + profile.dwell) return off;
     const dist = place(calls, profile, time);
     // Beyond where its track starts or ends, as past Catalonia's border, it's off the map.
     if (dist === undefined || dist < (shape.dist[0] ?? 0) || dist > (shape.dist.at(-1) ?? 0)) return off;
@@ -510,6 +528,9 @@ const matched = new WeakMap<Snapshot, Matched>();
 /** A Block, as the matching knows it: by its Line and TMB's number for it, which another Line's can share. */
 const blockOf = ({ line, number }: NonNullable<Report['block']>) => `${line} ${number}`;
 
+/** Lists a Trip under a key, after those listed there already. */
+const add = (to: Map<string, Trip[]>, key: string, trip: Trip) => to.set(key, [...(to.get(key) ?? []), trip]);
+
 /**
  * How far apart when TMB expects a Block at its next Station and when a Trip's timetable has it there
  * can be for the Block to be running that Trip, in seconds: half an hour, well over half the longest
@@ -538,7 +559,6 @@ function reportsByTrip(bundle: Bundle, snapshot: Snapshot, before?: Snapshot): M
   const prior = before && matched.get(before);
   const ran = prior?.bundle === bundle ? prior.ran : new Map<string, string>();
   const [reports, offs, headed, named, kept] = [new Map<string, Report>(), new Map<string, number>(), new Map<string, Trip[]>(), new Map<string, Trip[]>(), new Set<string>()];
-  const add = (to: Map<string, Trip[]>, key: string, trip: Trip) => to.set(key, [...(to.get(key) ?? []), trip]);
   for (const trip of bundle.trips) {
     add(headed, `${trip.line} ${trip.headsign}`, trip);
     // As its operator names it, without the service day joinDays leads an earlier day's ID with.
@@ -678,8 +698,8 @@ function delayOf(trip: Trip, calls: Call[], shape: Shape, { id, profile }: Netwo
   let delay = report.delay ?? expectedDelay(trip, position && 'next' in position ? position.next : report.expected, noonMinus12h) ?? 0;
   if (position && 'next' in position) {
     // It's no further back than the Station before the one it comes to next, however long it's held
-    // short of that, as at the end of its Line. Short of its Trip's first Station it's off the map,
-    // standing there as it turns back, and TMB's time is all there is to go by.
+    // short of that, as at the end of its Line. Short of its Trip's first Station, standing there as it
+    // turns back, TMB's time is all there is to go by, and the map draws it standing there (onMap()).
     const i = calls.findIndex((c) => c.station === position.next.station);
     const before = calls[i - 1];
     if (before && i > 1) delay = Math.min(delay, reported - before.arrival);

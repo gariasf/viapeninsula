@@ -1152,12 +1152,13 @@ const onlyL1 = (...numbers: string[]): Received[] => {
 /** Where and when TMB expects one of L1's Blocks: by TMB's number for it, the Station and when. */
 type Expected = [number: string, station: string, at: string];
 
-/** A made-up Metro snapshot, written at a moment on 25 September 2026 and received as it was written, in which TMB expects some of L1's Blocks headed for Fondo. */
-const intoFondo = (time: string, ...expected: Expected[]): Received => {
+/** A made-up Metro snapshot, written at a moment on 25 September 2026 and received as it was written, in which TMB expects some of L1's Blocks headed for a Station. */
+const headedFor = (headsign: string) => (time: string, ...expected: Expected[]): Received => {
   const generated = Date.parse(`2026-09-25T${time}+02:00`);
-  const reports = expected.map(([number, station, at]): Report => ({ block: { line: 'metro:L1', number }, headsign: 'Fondo', at: generated, position: { next: { station, at: Date.parse(`2026-09-25T${at}+02:00`) } } }));
+  const reports = expected.map(([number, station, at]): Report => ({ block: { line: 'metro:L1', number }, headsign, at: generated, position: { next: { station, at: Date.parse(`2026-09-25T${at}+02:00`) } } }));
   return { snapshot: { generated, feeds: { metro: { lastSuccess: generated, lastAttempt: generated, status: 'ok', every: 40_000 } }, reports }, at: generated };
 };
+const [intoFondo, outOfFondo] = [headedFor('Fondo'), headedFor('Hospital de Bellvitge')];
 
 test('never matches a Block to a Trip running the other way, however close its time there', () => {
   // TMB expects L1's 113 at Santa Coloma at 13:14:58, on its way into Fondo. The Trip out of Fondo
@@ -1285,6 +1286,39 @@ test('a Metro Train held outside the end of its Line is drawn no further back th
   expect(trainsAt(later, Date.parse('2026-09-25T13:19:39+02:00'), held).find((t) => t.trip.id === LATER)).toMatchObject({ live: true, dist: 19161 });
 });
 
+// Made up: L1's 112 runs the Trip into Fondo on time, due there at 13:16:00. Past Santa Coloma, TMB
+// lists it under its way back, naming Fondo as the Station it comes to next and expecting it there
+// when it leaves, at 13:17:13, as the next Trip out of Fondo does. That Trip's timetable has it at
+// Fondo only from 13:16:53.
+const TURNING_112 = [intoFondo('13:15:00', ['112', 'tmb:1.140', '13:16:00']), outOfFondo('13:15:20', ['112', 'tmb:1.140', '13:17:13'])];
+
+test("a Live Metro Train whose Block waits at the end of its Line stands at its Trip's first Station, whichever Station TMB names next", () => {
+  expect(metro(NEXT_OUT_OF_FONDO, '13:16:30', TURNING_112)).toMatchObject({ live: true, dist: 0 });
+  // Made up: on a map opened at 13:17:20, with 112 still at Fondo once its time to leave has gone,
+  // TMB expects it at Santa Coloma at 13:19:40, a minute after the Trip's timetable does. Running
+  // that late, the Trip is at Fondo only from 13:17:53.
+  expect(metro(NEXT_OUT_OF_FONDO, '13:17:30', [outOfFondo('13:17:20', ['112', 'tmb:1.139', '13:19:40'])])).toMatchObject({ live: true, dist: 0 });
+});
+
+test('a Metro Train whose Block waits at the end of its Line comes onto the map only once the Trip its Block ran in on has left it', () => {
+  // Scheduled since TMB moved its Block on, the Trip into Fondo runs in until 13:16:00 and stands there until 13:16:20.
+  expect(metro(INTO_FONDO, '13:15:40', TURNING_112)?.dist).toBeLessThan(20055);
+  expect(metro(INTO_FONDO, '13:16:10', TURNING_112)).toMatchObject({ live: false, dist: 20055 });
+  for (const time of ['13:15:40', '13:16:10']) expect(metro(NEXT_OUT_OF_FONDO, time, TURNING_112)).toBeUndefined();
+});
+
+test('a followed Metro Train whose Block waits at the end of its Line stands at its first Station, expected to leave when TMB expects it to', () => {
+  const panel = followed(NEXT_OUT_OF_FONDO, Date.parse('2026-09-25T13:16:30+02:00'), TURNING_112, METRO);
+  expect(panel).toMatchObject({ live: true, standing: true, delay: 0, speed: 0 });
+  expect(panel?.upcoming[0]).toMatchObject({ station: 'tmb:1.140', departure: Date.parse('2026-09-25T13:17:13+02:00') });
+});
+
+test('a Metro Train whose Block waits at the end of its Line passes near a point there now', () => {
+  const moment = Date.parse('2026-09-25T13:16:30+02:00');
+  const passes = nearbyAt(METRO, moment, by(TURNING_112, moment), [2.218435, 41.451583], 300, 60 * 60_000); // Fondo
+  expect(passes.find((p) => p.trip.id === NEXT_OUT_OF_FONDO)).toMatchObject({ at: moment, live: true });
+});
+
 // 45 minutes of production snapshots of all four Networks as the map received them, every 20 s from
 // 15:57 to 16:42 on Friday 25 September 2026, and that day's bundle cut to the Trips they could name.
 const RECORDED: { bundle: Bundle; received: Received[] } = JSON.parse(gunzipSync(readFileSync(new URL('fixtures/replay-2026-09-25.json.gz', import.meta.url))).toString());
@@ -1310,13 +1344,15 @@ test('folding each snapshot into the last replay draws the Trains as replaying e
 
 test("counts each Network's jumps over 45 minutes of live data as the map received it", () => {
   // Per Train-minute, (forward + back) / (liveSeconds / 60): Rodalies 0.075, FGC 0.031, TRAM 0.0023,
-  // the Metro 0.0037. They're the baseline the tickets that make Trains jump less, such as #39 and
-  // #46, measure against: one that changes how often they jump changes these.
+  // the Metro 0.0058. They're the baseline the tickets that make Trains jump less, such as #39 and
+  // #46, measure against: one that changes how often they jump changes these. The Metro's rose by 11
+  // with #105: each is where a Train used to vanish or appear off its Trip's first Station, and now
+  // stands at that Station instead.
   expect(jumps(RECORDED.bundle, RECORDED.received)).toEqual({
     rodalies: { forward: 66, back: 123, liveSeconds: 152139 },
     fgc: { forward: 25, back: 51, liveSeconds: 148634 },
     tram: { forward: 3, back: 0, liveSeconds: 77809 },
-    metro: { forward: 0, back: 18, liveSeconds: 290273 },
+    metro: { forward: 5, back: 24, liveSeconds: 298088 },
   });
 }, 60_000);
 
