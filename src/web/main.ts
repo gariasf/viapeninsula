@@ -127,6 +127,9 @@ map.addControl({ onAdd: () => languageSwitch, onRemove: () => languageSwitch.rem
 // The button that shows the viewer's nearby Trains, with MapLibre's own locate icon, labelled by
 // showLanguage(). It goes under the language switch once the map can move Trains.
 const nearbyButton = el('button', { type: 'button', className: 'maplibregl-ctrl-geolocate', onclick: showNearby }, el('span', { className: 'maplibregl-ctrl-icon' }));
+// The button under it that follows a random Train, with a die, labelled by showLanguage(). It's
+// disabled while there's no Train on the map but the one the map follows.
+const followRandomButton = el('button', { type: 'button', className: 'follow-random', disabled: true, onclick: followRandom }, el('span', { className: 'maplibregl-ctrl-icon' }));
 // The legend, which showLanguage() fills: what the Live and Scheduled markers mean, how many Trains
 // are on the map and how many of them are Live, and the button that opens the About dialog.
 const legend = document.createElement('div');
@@ -306,8 +309,8 @@ document.addEventListener('keydown', (e) => e.key === 'Escape' && !about.open &&
 // frame while the map moves or follows a Train and for MOVED after, otherwise every IDLE_EVERY. The
 // browser stops asking while the tab is hidden.
 const trainSource = map.getSource<GeoJSONSource>('trains');
-const nearbyControl = el('div', { className: 'maplibregl-ctrl maplibregl-ctrl-group' }, nearbyButton);
-map.addControl({ onAdd: () => nearbyControl, onRemove: () => nearbyControl.remove() }, 'top-right');
+const trainButtons = el('div', { className: 'maplibregl-ctrl maplibregl-ctrl-group' }, nearbyButton, followRandomButton);
+map.addControl({ onAdd: () => trainButtons, onRemove: () => trainButtons.remove() }, 'top-right');
 /** When the map last moved, as a drag, a zoom or an easing, or followed a Train, and when its Trains were last drawn, by performance.now(). */
 let [moved, drawn] = [-Infinity, -Infinity];
 requestAnimationFrame(function move(now) {
@@ -318,8 +321,12 @@ requestAnimationFrame(function move(now) {
   drawn = now;
   const drawing = trains();
   trainSource?.setData(drawing);
-  // The legend's count changes by the second, once the Trips have come.
-  if (bundle && performance.now() - countShown > 1000) showCount(drawing.features);
+  // The legend's count changes by the second, once the Trips have come, and with it whether there's a
+  // Train to follow at random: one the map doesn't follow already.
+  if (bundle && performance.now() - countShown > 1000) {
+    showCount(drawing.features);
+    followRandomButton.disabled = drawing.features.every((f) => f.properties?.followed);
+  }
   if (following) {
     // A Train that has left the map, reaching its last Station or cancelled, is followed no more.
     if (!following.at) closePanel();
@@ -423,6 +430,8 @@ function showLanguage() {
   languageSwitch.title = t('language');
   nearbyButton.title = t('nearby');
   nearbyButton.setAttribute('aria-label', t('nearby'));
+  followRandomButton.title = t('followRandom');
+  followRandomButton.setAttribute('aria-label', t('followRandom'));
   // MapLibre reads its own strings as it builds each part, and has no way to change them after: the
   // parts it builds from now on read these, the canvas is relabelled, and the credits built afresh.
   Object.assign(map._locale, { 'Map.Title': t('map'), 'AttributionControl.ToggleAttribution': t('showCredits') });
@@ -451,6 +460,20 @@ function showLanguage() {
 function showCount(features: GeoJSON.Feature[]) {
   countShown = performance.now();
   countRow.textContent = trainCount(features.length, features.filter((f) => f.properties?.live).length);
+}
+
+/** Follows a Train picked at random but for the one the map follows: a Live one in view, else a Live one anywhere on the map, else any. */
+function followRandom() {
+  const followed = followedId();
+  const others = (bundle ? trainsAt(bundle, Date.now(), received) : []).filter((t) => t.trip.id !== followed);
+  const live = others.filter((t) => t.live);
+  // ponytail: in view by the map's bounds, which take in what's under the panel too, and on a rotated
+  // map the corners around the view. Test where each Train is on screen above the panel, as
+  // keepInView() does, if picks out of sight ever show.
+  const bounds = map.getBounds();
+  const pool = [live.filter((t) => bounds.contains([t.lon, t.lat])), live, others].find((p) => p.length) ?? [];
+  const pick = pool[Math.floor(Math.random() * pool.length)];
+  if (pick) follow(pick.trip.id);
 }
 
 /** Follows a Trip's Train, by its ID in the days on the map: brings it into view, over the panel, and keeps it there. */

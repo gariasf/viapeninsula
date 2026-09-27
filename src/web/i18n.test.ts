@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { pickLanguage, trainCount } from './i18n.ts';
+import { pickLanguage, t, trainCount } from './i18n.ts';
 
 test("speaks the first of the browser's languages it knows, whatever the region, and English when it knows none", () => {
   expect(pickLanguage(null, ['ca-ES', 'es-ES', 'en'])).toBe('ca');
@@ -29,4 +29,10 @@ test('counts one Train in the singular, and none in the plural', () => {
   expect(trainCount(1, 0, 'es')).toBe('1 tren, 0 en directo');
   expect(trainCount(1, 1, 'en')).toBe('1 train, 1 live');
   expect(trainCount(0, 0, 'en')).toBe('0 trains, 0 live');
+});
+
+test('labels the button that follows a random Train in each language', () => {
+  expect(t('followRandom', 'ca')).toBe("Segueix un tren a l'atzar");
+  expect(t('followRandom', 'es')).toBe('Seguir un tren al azar');
+  expect(t('followRandom', 'en')).toBe('Follow a random train');
 });
