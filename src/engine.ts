@@ -1,6 +1,6 @@
 // Where each Train is. The timetable drives motion (ADR-0002); the browser and the tests share this.
 
-import { closestOnSegment, DEGREE, pointAt, type Bundle, type Call, type Network, type Point, type Report, type Shape, type Snapshot, type SpeedProfile, type Trip } from './bundle.ts';
+import { closestOnSegment, DEGREE, pointAt, type Bundle, type Call, type Freshness, type Network, type Point, type Report, type Shape, type Snapshot, type SpeedProfile, type Trip } from './bundle.ts';
 
 /**
  * A Train on the map: its Trip, how far along the Trip's shape it is, in metres, and where that is.
@@ -64,7 +64,8 @@ export const KEEP = CARRY + 5 * 60_000;
  * Metro's whose Block goes on to run another Trip turns Scheduled at once, but not while TMB has the
  * Block coming to that Trip's last Station, as it runs into the end of its Line. A Live one short of
  * its Trip's first Station, as while its Block waits at the end of its Line, stands there, unless the
- * Trip its Block ran in on is still on the map.
+ * Trip its Block ran in on is still on the map, and a Live one at that Station stays there until a
+ * report has it gone.
  */
 export function trainsAt(bundle: Bundle, at: number, received: Received[] = []): Train[] {
   const { of } = onMap(bundle, at, received);
@@ -77,7 +78,8 @@ export interface Followed extends Train {
   delay?: number;
   /**
    * The Stations it has still to leave as it's drawn, the one it stands at first, and when it's
-   * expected to arrive at and leave each, in ms since 1970, running its Delay late.
+   * expected to arrive at and leave each, in ms since 1970, running its Delay late, or held at its
+   * first Station after that has it leave, as late as it's held.
    */
   upcoming: { station: string; arrival: number; departure: number }[];
   /** Whether it stands at the first of them. */
@@ -95,13 +97,12 @@ export function trainAt(bundle: Bundle, at: number, received: Received[], id: st
   const trip = bundle.trips.find((t) => t.id === id);
   const on = trip && onMap(bundle, at, received).of(trip);
   if (!on?.train) return undefined;
-  const { train, now, time, calls, profile, ease, said, network } = on;
-  const delay = ease?.delay ?? 0;
+  const { train, now, time, calls, profile, ease, said, network, delay } = on;
   // When it's expected at a moment of its timetable, running its Delay late.
   const expected = (seconds: number) => bundle.noonMinus12h + (seconds + delay) * 1000;
   // How far along its shape it's drawn at a moment, in seconds into the service day.
   const drawn = (moment: number) => place(calls, profile, ease ? eased(calls, profile, ease, moment) : moment) ?? train.dist;
-  const upcoming = calls.filter((c) => c.departure > time);
+  const upcoming = calls.filter((c) => toLeave(c, time));
   return {
     ...train,
     delay: shown(network, delay),
@@ -145,9 +146,9 @@ export function boardAt(bundle: Bundle, at: number, received: Received[], statio
       const on = of(trip);
       if (!on) return [];
       const cancelled = !!on.said?.report.cancelled;
-      const [time, delay] = cancelled ? [now, 0] : [on.time, on.ease?.delay ?? 0];
+      const [time, delay] = cancelled ? [now, 0] : [on.time, on.delay];
       // Where it calls there more than once, as turning back, the first time it's still to leave.
-      const call = on.calls.find((c, i) => i < on.calls.length - 1 && c.departure > time && here.has(c.station));
+      const call = on.calls.find((c, i) => i < on.calls.length - 1 && toLeave(c, time) && here.has(c.station));
       if (!call) return [];
       return [{ trip, station: call.station, departure: bundle.noonMinus12h + (call.departure + delay) * 1000, delay: shown(on.network, delay), live: on.live && !cancelled, unreported: !!on.train?.unreported, cancelled }];
     })
@@ -184,7 +185,7 @@ export function nearbyAt(bundle: Bundle, at: number, received: Received[], point
       if (!stretches?.length) return [];
       const on = of(trip);
       if (!on || on.said?.report.cancelled) return [];
-      const delay = on.ease?.delay ?? 0;
+      const { delay } = on;
       // Where in its timetable the window ends.
       const until = now + window / 1000 - delay;
       const comes = whenWithin(on.calls, on.profile, stretches)
@@ -203,6 +204,9 @@ export function nearbyAt(bundle: Bundle, at: number, received: Received[], point
  */
 const shown = (network: Network, delay: number) => (network.id === 'metro' ? undefined : delay);
 
+/** Whether a Train drawn at a time in its timetable has a call still to leave: the one it stands at too, as it leaves, or while it's held there (#107). */
+const toLeave = (call: Call, time: number) => call.departure >= time;
+
 /**
  * A Train on the map, if it is, and how it got there: the moment and where in its timetable it's drawn, both
  * in seconds into the service day by the fetcher's clock, its calls as it makes them, its Network, how
@@ -213,6 +217,8 @@ interface OnMap {
   train?: Train;
   now: number;
   time: number;
+  /** How late its times run, in seconds: as live data last had it, or while it's held at its first Station, or let out and catching up, as late as it's drawn, where that's later (#107). */
+  delay: number;
   calls: Call[];
   network: Network;
   profile: SpeedProfile;
@@ -258,7 +264,8 @@ function onMap(bundle: Bundle, at: number, received: Received[]): { of: (trip: T
     // A Train running late is where its timetable had it that long ago, once it has eased there.
     const time = ease ? eased(dwelt, profile, ease, now) : now;
     const feed = feeds[network.id];
-    const live = feed !== undefined && said?.placed !== undefined && !stale(said.placed, upToNow, feed.every);
+    const live = isLive(said, feed, upToNow);
+    const delay = ease?.hold !== undefined || ease?.leaving ? Math.max(ease.delay, now - time) : (ease?.delay ?? 0);
     // A Live Metro Train short of its Trip's first Station, as TMB has it while its Block waits at the
     // end of its Line, has come in there already, and stands there from now on (#105): unless the Trip
     // its Block ran in on is still on the map, and so at once where live data knows none, as on a map
@@ -267,7 +274,7 @@ function onMap(bundle: Bundle, at: number, received: Received[]): { of: (trip: T
     const block = live ? said?.report.block : undefined;
     const waits = !nested && block && first && time < (dwelt[0]?.arrival ?? -Infinity) && !ranBy(block).some((t) => t !== trip && t.calls.at(-1)?.station === first.station && of(t, true)?.train);
     const calls = waits ? dwelt.map((c, i) => (i ? c : { ...c, arrival: time })) : dwelt;
-    const off = { now, time, calls, network, profile, ease, said, live };
+    const off = { now, time, delay, calls, network, profile, ease, said, live };
     if (said?.report.cancelled) return off;
     // Most Trips aren't on the map at any one moment, whatever their dwell: skip those first.
     if (!first || !last || (!waits && time < first.arrival - profile.dwell) || time > last.departure + profile.dwell) return off;
@@ -330,6 +337,9 @@ export function unavailable(received: Received[]): string[] {
  * far into live data as a device has got, both by the fetcher's clock in ms. Never is long ago.
  */
 const stale = (since: number | undefined, upTo: number, every: number) => upTo - (since ?? -Infinity) >= MISSES * every;
+
+/** Whether a Train is Live, by what live data last said about it and its feed, as far into live data as a device has got. */
+const isLive = (said: Heard | undefined, feed: Freshness | undefined, upTo: number) => feed !== undefined && said?.placed !== undefined && !stale(said.placed, upTo, feed.every);
 
 /** What live data last said about a Train, or a Delay its GPS gave it, while that's recent enough to go by: under CARRY old, as far into live data as a device has got. */
 const recent = <T extends { got: number }>(said: T | undefined, upTo: number) => (said && upTo - said.got < CARRY ? said : undefined);
@@ -424,12 +434,16 @@ function heardTo(received: Received[], moment: number): number {
 
 /**
  * When the latest snapshot arrived and where in its timetable a Train was drawn then, in seconds
- * into the service day by the fetcher's clock, and how late that snapshot has it, in seconds.
+ * into the service day by the fetcher's clock, how late that snapshot has it, in seconds, and where
+ * in its timetable it's held until the next: as it would leave its Trip's first Station, for one of
+ * the Metro's that snapshot still has there. Let out of there, it's `leaving` until it has caught up.
  */
 interface Ease {
   at: number;
   time: number;
   delay: number;
+  hold?: number;
+  leaving?: true;
 }
 
 /** How long a Train drawn off where live data has it takes to ease back, in seconds: until the next snapshot. */
@@ -505,9 +519,22 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
       const delay = said ? delayBy(said, upTo) : 0;
       // Until live data first shifts it, a Train runs on its timetable.
       const drawn = ease ? eased(calls, profile, ease, arrived) : arrived;
-      const [there, dist] = [arrived - delay, (time: number) => place(calls, profile, time) ?? NaN];
-      const far = Math.abs(drawn - there) > JUMP_TIME || Math.abs(dist(drawn) - dist(there)) > JUMP_DIST;
-      eases.set(id, { at: arrived, time: i === 0 || far ? there : drawn, delay });
+      const [there, dist] = [arrived - delay, (t: number) => place(calls, profile, t) ?? NaN];
+      // Held at its first Station, or let out and still drawn behind, it eases out however far behind,
+      // and jumps only where live data has it a long way on, or off its Trip (#107).
+      const leaving = (ease?.hold !== undefined || !!ease?.leaving) && drawn < there;
+      // Short of its first Station, one leaving is drawn standing there (#105).
+      const off = Math.abs(dist(leaving ? Math.max(drawn, calls[0]?.arrival ?? drawn) : drawn) - dist(there));
+      const far = leaving ? !(off <= JUMP_DIST) : Math.abs(drawn - there) > JUMP_TIME || off > JUMP_DIST;
+      const time = i === 0 || far ? there : drawn;
+      // A Live Metro Train at its Trip's first Station stays there until a report has it gone, by its
+      // Delay, when it was reported: TMB's ETA for a Block waiting at the end of its Line keeps moving
+      // later, so one drawn leaving when an ETA said was drawn out on its track, where it can't run
+      // back, or jumped back (#107). Not one already drawn out of that Station, as its timetable had it
+      // before live data first placed it: holding it there would run it back.
+      const first = calls[0];
+      const held = isLive(said, r.snapshot.feeds[network.id], upTo) && said?.report.block && first && (said.report.at - bundle.noonMinus12h) / 1000 - delay <= first.departure && (i === 0 || far || time <= first.departure);
+      eases.set(id, { at: arrived, time, delay, hold: held ? first.departure : undefined, leaving: !held && leaving && !far ? true : undefined });
     }
   }
   last = { bundle, received: [...received], clock, eases, heard, dwelt };
@@ -630,9 +657,14 @@ function closest(trips: Trip[], time: number): Trip | undefined {
  * calls as it makes them. One drawn off where live data has it eases back by the next snapshot, as
  * far as it can. Drawn ahead, it runs slower, holding where it's EASE or more ahead, and holds
  * while it stands at a Station or is off the map. Drawn behind, it runs faster, up to line speed,
- * and leaves a Station as soon as reality has.
+ * and leaves a Station as soon as reality has. Held at its first Station, it goes no further.
  */
-function eased(calls: Call[], profile: SpeedProfile, { at, time, delay }: Ease, now: number): number {
+function eased(calls: Call[], profile: SpeedProfile, ease: Ease, now: number): number {
+  return Math.min(unheld(calls, profile, ease, now), ease.hold ?? Infinity);
+}
+
+/** Where eased() has a Train drawn at a moment, were it not held. */
+function unheld(calls: Call[], profile: SpeedProfile, { at, time, delay }: Ease, now: number): number {
   // How far ahead of where live data has it the Train was drawn as the snapshot arrived.
   const gap = time - (at - delay);
   let [t, drawn] = [at, time];
