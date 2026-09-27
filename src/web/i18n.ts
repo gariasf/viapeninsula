@@ -22,6 +22,9 @@ const STRINGS = {
   liveMeans: { ca: 'posició confirmada per dades en temps real', es: 'posición confirmada por datos en tiempo real', en: 'position confirmed by live data' },
   scheduled: { ca: 'Programat', es: 'Programado', en: 'Scheduled' },
   scheduledMeans: { ca: "posició segons l'horari", es: 'posición según el horario', en: 'position from the timetable' },
+  // The legend's count of every Train on the map. {n} is how many there are, and {live} how many of them are Live.
+  trainCount: { ca: '{n} trens, {live} en directe', es: '{n} trenes, {live} en directo', en: '{n} trains, {live} live' },
+  oneTrainCount: { ca: '1 tren, {live} en directe', es: '1 tren, {live} en directo', en: '1 train, {live} live' },
   // After a Network's name in the banner, while its live data is unavailable.
   liveUnavailable: {
     ca: "dades en temps real no disponibles, posicions segons l'horari",
@@ -112,6 +115,12 @@ export function setLanguage(choice: Language) {
 
 /** An interface string, in the language the interface speaks now. */
 export const t = (key: keyof typeof STRINGS): string => STRINGS[key][language()];
+
+/** How many Trains are on the map, and how many of them are Live, in `lang`, or else the language the interface speaks now. */
+export const trainCount = (trains: number, live: number, lang = language()): string =>
+  // ponytail: one Train is singular and any other number plural, as in Catalan, Spanish and English.
+  // Pick the string by Intl.PluralRules if a language with other plural forms joins them.
+  STRINGS[trains === 1 ? 'oneTrainCount' : 'trainCount'][lang].replace('{n}', String(trains)).replace('{live}', String(live));
 
 /** What this device remembers the viewer chose, if its storage can be read. */
 function remembered(): string | null {

@@ -5,7 +5,7 @@ import { AttributionControl, MapLibreMap, setWorkerUrl, type GeoJSONSource } fro
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { along, beside, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Place, type DayTrips, type Line, type Manifest, type Network, type Point, type Shape, type Snapshot, type Stroke, type Track } from '../bundle.ts';
 import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Received } from '../engine.ts';
-import { language, LANGUAGES, setLanguage, t, type Language } from './i18n.ts';
+import { language, LANGUAGES, setLanguage, t, trainCount, type Language } from './i18n.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
 setWorkerUrl(workerUrl);
@@ -127,12 +127,14 @@ map.addControl({ onAdd: () => languageSwitch, onRemove: () => languageSwitch.rem
 // The button that shows the viewer's nearby Trains, with MapLibre's own locate icon, labelled by
 // showLanguage(). It goes under the language switch once the map can move Trains.
 const nearbyButton = el('button', { type: 'button', className: 'maplibregl-ctrl-geolocate', onclick: showNearby }, el('span', { className: 'maplibregl-ctrl-icon' }));
-// The legend, which showLanguage() fills: what the Live and Scheduled markers mean, and the button
-// that opens the About dialog.
+// The legend, which showLanguage() fills: what the Live and Scheduled markers mean, how many Trains
+// are on the map and how many of them are Live, and the button that opens the About dialog.
 const legend = document.createElement('div');
 legend.className = 'maplibregl-ctrl maplibregl-ctrl-group legend';
 // Top left, where the credits never cover it.
 map.addControl({ onAdd: () => legend, onRemove: () => legend.remove() }, 'top-left');
+/** The legend's count of the Trains on the map, which showCount() fills once their Trips have come. */
+const countRow = el('div');
 // The banner under it, which showBanner() fills: each Network whose live data is unavailable.
 const banner = document.createElement('div');
 banner.className = 'maplibregl-ctrl maplibregl-ctrl-group banner';
@@ -166,6 +168,8 @@ let emptyBoard: string | undefined;
 let nearMe: Point | 'locating' | 'failed' | undefined;
 /** When the panel was last filled, by performance.now(). */
 let panelShown = 0;
+/** When the legend's count was last filled, by performance.now(). */
+let countShown = -Infinity;
 let credits: AttributionControl | undefined;
 /** The Networks on the map, whose data the credits name, and whose names the banner shows. */
 let credited: Network[] = [];
@@ -312,7 +316,10 @@ requestAnimationFrame(function move(now) {
   // updates, and at zoom 18 one at 110 km/h moves about 4.5 px. Make IDLE_EVERY depend on the zoom if either shows.
   if (now - moved > MOVED && now - drawn < IDLE_EVERY) return requestAnimationFrame(move);
   drawn = now;
-  trainSource?.setData(trains());
+  const drawing = trains();
+  trainSource?.setData(drawing);
+  // The legend's count changes by the second, once the Trips have come.
+  if (bundle && performance.now() - countShown > 1000) showCount(drawing.features);
   if (following) {
     // A Train that has left the map, reaching its last Station or cancelled, is followed no more.
     if (!following.at) closePanel();
@@ -429,12 +436,21 @@ function showLanguage() {
       row.append(marker, Object.assign(document.createElement('b'), { textContent: t(kind) }), `: ${t(`${kind}Means`)}`);
       return row;
     }),
+    countRow,
     el('button', { type: 'button', textContent: t('about'), onclick: () => about.showModal() }),
   );
+  // The next frame counts the Trains again, in this language.
+  countShown = -Infinity;
   showAbout();
   showBanner();
   showCredits();
   showPanel();
+}
+
+/** Says in the legend how many of these Trains there are, every one on the map and not only those in view, and how many of them are Live, in the viewer's language. */
+function showCount(features: GeoJSON.Feature[]) {
+  countShown = performance.now();
+  countRow.textContent = trainCount(features.length, features.filter((f) => f.properties?.live).length);
 }
 
 /** Follows a Trip's Train, by its ID in the days on the map: brings it into view, over the panel, and keeps it there. */
