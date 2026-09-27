@@ -1309,7 +1309,7 @@ test('a Metro Train whose Block waits at the end of its Line comes onto the map 
 
 test('a followed Metro Train whose Block waits at the end of its Line stands at its first Station, expected to leave when TMB expects it to', () => {
   const panel = followed(NEXT_OUT_OF_FONDO, Date.parse('2026-09-25T13:16:30+02:00'), TURNING_112, METRO);
-  expect(panel).toMatchObject({ live: true, standing: true, delay: 0, speed: 0 });
+  expect(panel).toMatchObject({ live: true, standing: true, speed: 0 });
   expect(panel?.upcoming[0]).toMatchObject({ station: 'tmb:1.140', departure: Date.parse('2026-09-25T13:17:13+02:00') });
 });
 
@@ -1317,6 +1317,20 @@ test('a Metro Train whose Block waits at the end of its Line passes near a point
   const moment = Date.parse('2026-09-25T13:16:30+02:00');
   const passes = nearbyAt(METRO, moment, by(TURNING_112, moment), [2.218435, 41.451583], 300, 60 * 60_000); // Fondo
   expect(passes.find((p) => p.trip.id === NEXT_OUT_OF_FONDO)).toMatchObject({ at: moment, live: true });
+});
+
+test("a Metro Train gives no Delay, however far its Block runs from its Trip's time, while another Network's Train does", () => {
+  // Made up: at 13:47:50 TMB expects L1's 112 at Santa Coloma at 13:48:20, so it runs the last Trip into Fondo 29 minutes 48 late.
+  const received = [intoFondo('13:47:50', ['112', 'tmb:1.139', '13:48:20'])];
+  const moment = Date.parse('2026-09-25T13:48:00+02:00');
+  const panel = followed(NEXT_INTO_FONDO, moment, received, METRO);
+  expect(panel).toMatchObject({ live: true, delay: undefined });
+  // It's still expected where TMB expects it, and when.
+  expect(panel?.upcoming[0]).toMatchObject({ station: 'tmb:1.139', arrival: Date.parse('2026-09-25T13:48:20+02:00') });
+  expect(board(['tmb:1.139'], moment, received, METRO)).toMatchObject([{ trip: { id: NEXT_INTO_FONDO }, departure: Date.parse('2026-09-25T13:48:42+02:00'), delay: undefined, live: true }]);
+  expect(nearbyAt(METRO, moment, received, [2.218435, 41.451583], 300, 60 * 60_000)).toMatchObject([{ trip: { id: NEXT_INTO_FONDO }, delay: undefined, live: true }]); // Fondo
+  // The R2S, 10 s late, gives its Delay.
+  expect(followed(R2S, at('22:00:05'), [late(R2S, 10, at('22:00:00'))])?.delay).toBe(10);
 });
 
 // 45 minutes of production snapshots of all four Networks as the map received them, every 20 s from

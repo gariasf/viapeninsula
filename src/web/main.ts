@@ -552,8 +552,8 @@ function showPanel() {
 
 /**
  * The followed Train's panel: its Line and where it's headed, Live or Scheduled and how long ago
- * live data last placed it, its Delay, its modelled speed, its Unit type where its operator reports
- * one, and the Stations it has still to leave, with when it's expected at each.
+ * live data last placed it, its Delay but for a Metro Train's, its modelled speed, its Unit type
+ * where its operator reports one, and the Stations it has still to leave, with when it's expected at each.
  */
 function followedPanel(): Node[] | undefined {
   const train = bundle && trainAt(bundle, Date.now(), received, followedId() ?? '');
@@ -567,7 +567,7 @@ function followedPanel(): Node[] | undefined {
     closeButton(t('stopFollowing')),
     el('h2', {}, lineName(trip.line), ` → ${trip.headsign}`),
     el('p', { className: live ? 'live' : 'scheduled' }, status.join(' · ')),
-    el('p', {}, delayText(delay)),
+    ...delayText(delay).map((text) => el('p', {}, text)),
     el('p', {}, `${t('speed')}: ~${Math.round(speed * 3.6)} km/h`),
     ...(unitType ? [el('p', {}, `${t('unit')}: ${unitType}`)] : []),
     el('h3', { textContent: t('nextStations') }),
@@ -582,7 +582,8 @@ function followedPanel(): Node[] | undefined {
 
 /**
  * A place's board: its next departures from each of its Stations, each with when it's expected to
- * leave, its Line, where it's headed, Live or Scheduled, and its Delay, or that it's Cancelled.
+ * leave, its Line, where it's headed, Live or Scheduled, and its Delay but for a Metro Train's, or
+ * that it's Cancelled.
  */
 function boardPanel(id: string): Node[] | undefined {
   const place = shownPlaces.get(id);
@@ -610,7 +611,7 @@ function boardPanel(id: string): Node[] | undefined {
               el('time', { textContent: time.format(departure) }),
               lineName(trip.line),
               ` ${trip.headsign} `,
-              el('small', { className: live ? 'live' : 'scheduled' }, cancelled ? t('cancelled') : [t(live ? 'live' : 'scheduled'), ...(unreported ? [t('noLiveTrain')] : []), delayText(delay)].join(' · ')),
+              el('small', { className: live ? 'live' : 'scheduled' }, cancelled ? t('cancelled') : [t(live ? 'live' : 'scheduled'), ...(unreported ? [t('noLiveTrain')] : []), ...delayText(delay)].join(' · ')),
             ),
           ),
         )
@@ -620,7 +621,8 @@ function boardPanel(id: string): Node[] | undefined {
 
 /**
  * The viewer's nearby Trains: each that passes within NEARBY of them within SOON, soonest first, with
- * when it next comes within NEARBY of them, its Line, where it's headed, Live or Scheduled, and its Delay.
+ * when it next comes within NEARBY of them, its Line, where it's headed, Live or Scheduled, and its
+ * Delay but for a Metro Train's.
  */
 function nearbyPanel(near: Point | 'locating' | 'failed'): Node[] {
   const top = [closeButton(t('closeNearby')), el('h2', { textContent: t('nearby') })];
@@ -642,7 +644,7 @@ function nearbyPanel(near: Point | 'locating' | 'failed'): Node[] {
               el('time', { textContent: time.format(at) }),
               lineName(trip.line),
               ` ${trip.headsign} `,
-              el('small', { className: live ? 'live' : 'scheduled' }, `${t(live ? 'live' : 'scheduled')} · ${delayText(delay)}`),
+              el('small', { className: live ? 'live' : 'scheduled' }, [t(live ? 'live' : 'scheduled'), ...delayText(delay)].join(' · ')),
             ),
           ),
         )
@@ -672,10 +674,11 @@ function lineName(id: string) {
   return name;
 }
 
-/** How late a Train is running, in the viewer's language, to the minute. */
-function delayText(delay: number): string {
+/** How late a Train is running, in the viewer's language, to the minute: nothing for one with no Delay to show, as a Metro Train. */
+function delayText(delay: number | undefined): string[] {
+  if (delay === undefined) return [];
   const minutes = Math.round(Math.abs(delay) / 60);
-  return minutes ? t(delay > 0 ? 'late' : 'early').replace('{n}', String(minutes)) : t('onTime');
+  return [minutes ? t(delay > 0 ? 'late' : 'early').replace('{n}', String(minutes)) : t('onTime')];
 }
 
 /** Formats times of day as the viewer's language does, in Barcelona. */
