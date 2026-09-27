@@ -1,16 +1,18 @@
 // Where each Train is. The timetable drives motion (ADR-0002); the browser and the tests share this.
 
-import { closestOnSegment, DEGREE, pointAt, type Bundle, type Call, type Freshness, type Network, type Point, type Report, type Shape, type Snapshot, type SpeedProfile, type Trip } from './bundle.ts';
+import { closestOnSegment, DEGREE, direction, pointAt, type Bundle, type Call, type Freshness, type Network, type Point, type Report, type Shape, type Snapshot, type SpeedProfile, type Trip } from './bundle.ts';
 
 /**
- * A Train on the map: its Trip, how far along the Trip's shape it is, in metres, and where that is.
- * It's Live while live data has placed it within about its feed's last three updates, and Scheduled otherwise.
+ * A Train on the map: its Trip, how far along the Trip's shape it is, in metres, where that is, and
+ * which way it heads there, in degrees clockwise from north. It's Live while live data has placed it
+ * within about its feed's last three updates, and Scheduled otherwise.
  */
 export interface Train {
   trip: Trip;
   dist: number;
   lon: number;
   lat: number;
+  heading: number;
   live: boolean;
   /**
    * Whether its Network's live data works but hasn't reported it lately: it has no live data, and may
@@ -283,7 +285,7 @@ function onMap(bundle: Bundle, at: number, received: Received[]): { of: (trip: T
     if (dist === undefined || dist < (shape.dist[0] ?? 0) || dist > (shape.dist.at(-1) ?? 0)) return off;
     const [lon, lat] = pointAt(shape, dist);
     const unreported = feed !== undefined && !recent(said, upTo) && !stale(feed.lastSuccess, upTo, feed.every) && (!blockNetworks.has(network.id) || blockLines.has(trip.line));
-    return { ...off, train: { trip, dist, lon, lat, live, unreported } };
+    return { ...off, train: { trip, dist, lon, lat, heading: headingAt(shape, calls, time, dist), live, unreported } };
   };
   return { of, now };
 }
@@ -800,6 +802,21 @@ function nearest({ coords, dist }: Shape, from: number, to: number, { lon, lat }
     if (metres < closest) [closest, found] = [metres, start + t * (stop - start)];
   }
   return Math.max(from, Math.min(to, found));
+}
+
+/**
+ * Which way a Train drawn at a time in its timetable heads, `d` metres along its shape, in degrees
+ * clockwise from north: the way it runs the stretch it's on, or standing at a Station the one it runs
+ * next, or at its last the one it came by, forwards or back along its shape, as R11's run back from
+ * Cerbère to Portbou. Over the metre ahead, or where its track ends first, the metre before.
+ */
+function headingAt(shape: Shape, calls: Call[], time: number, d: number): number {
+  const i = calls.findLastIndex((c) => c.arrival <= time);
+  const [call, next] = calls[i + 1] ? [calls[i], calls[i + 1]] : [calls[i - 1], calls[i]];
+  const way = call && next && next.dist < call.dist ? -1 : 1;
+  const from = way > 0 ? Math.min(d, (shape.dist.at(-1) ?? 0) - 1) : Math.max(d, (shape.dist[0] ?? 0) + 1);
+  const [east, north] = direction(shape, from, from + way);
+  return ((Math.atan2(east, north) * 180) / Math.PI + 360) % 360;
 }
 
 /**
