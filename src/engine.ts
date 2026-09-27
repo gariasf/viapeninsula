@@ -72,8 +72,8 @@ export function trainsAt(bundle: Bundle, at: number, received: Received[] = []):
 
 /** A Train as the follow panel shows it: where it's going, when it'll get there, and how far to trust where it's drawn. */
 export interface Followed extends Train {
-  /** Its Delay, in seconds, as live data last gave it: early where it's negative. A Train drawn off it eases to it by the next snapshot. */
-  delay: number;
+  /** Its Delay, in seconds, as live data last gave it: early where it's negative. A Train drawn off it eases to it by the next snapshot. None to show for a Metro Train (#103). */
+  delay?: number;
   /**
    * The Stations it has still to leave as it's drawn, the one it stands at first, and when it's
    * expected to arrive at and leave each, in ms since 1970, running its Delay late.
@@ -94,7 +94,7 @@ export function trainAt(bundle: Bundle, at: number, received: Received[], id: st
   const trip = bundle.trips.find((t) => t.id === id);
   const on = trip && onMap(bundle, at, received).of(trip);
   if (!on?.train) return undefined;
-  const { train, now, time, calls, profile, ease, said } = on;
+  const { train, now, time, calls, profile, ease, said, network } = on;
   const delay = ease?.delay ?? 0;
   // When it's expected at a moment of its timetable, running its Delay late.
   const expected = (seconds: number) => bundle.noonMinus12h + (seconds + delay) * 1000;
@@ -103,7 +103,7 @@ export function trainAt(bundle: Bundle, at: number, received: Received[], id: st
   const upcoming = calls.filter((c) => c.departure > time);
   return {
     ...train,
-    delay,
+    delay: shown(network, delay),
     upcoming: upcoming.map((c) => ({ station: c.station, arrival: expected(c.arrival), departure: expected(c.departure) })),
     standing: (upcoming[0]?.arrival ?? Infinity) <= time,
     since: said?.confirmed === undefined ? undefined : bundle.noonMinus12h + now * 1000 - said.confirmed,
@@ -118,8 +118,8 @@ export interface Departure {
   station: string;
   /** When it's expected to leave, in ms since 1970, running its Delay late: as trainAt() has it, where it's on the map. */
   departure: number;
-  /** Its Delay, in seconds, as live data last gave it: early where it's negative. */
-  delay: number;
+  /** Its Delay, in seconds, as live data last gave it: early where it's negative. None to show for a Metro Train (#103). */
+  delay?: number;
   live: boolean;
   /** Whether, drawn on the map, it has no live data though its Network's live data works, as Train.unreported has it. Not before it's on the map, when no feed reports it yet. */
   unreported: boolean;
@@ -148,7 +148,7 @@ export function boardAt(bundle: Bundle, at: number, received: Received[], statio
       // Where it calls there more than once, as turning back, the first time it's still to leave.
       const call = on.calls.find((c, i) => i < on.calls.length - 1 && c.departure > time && here.has(c.station));
       if (!call) return [];
-      return [{ trip, station: call.station, departure: bundle.noonMinus12h + (call.departure + delay) * 1000, delay, live: on.live && !cancelled, unreported: !!on.train?.unreported, cancelled }];
+      return [{ trip, station: call.station, departure: bundle.noonMinus12h + (call.departure + delay) * 1000, delay: shown(on.network, delay), live: on.live && !cancelled, unreported: !!on.train?.unreported, cancelled }];
     })
     .sort((a, b) => a.departure - b.departure)
     .slice(0, BOARD);
@@ -162,8 +162,8 @@ export interface Pass {
    * trainAt() has it, where it's on the map, and now, while it's within it.
    */
   at: number;
-  /** Its Delay, in seconds, as live data last gave it: early where it's negative. */
-  delay: number;
+  /** Its Delay, in seconds, as live data last gave it: early where it's negative. None to show for a Metro Train (#103). */
+  delay?: number;
   live: boolean;
 }
 
@@ -190,15 +190,22 @@ export function nearbyAt(bundle: Bundle, at: number, received: Received[], point
         .filter(([enters, leaves]) => leaves >= on.time && enters <= until)
         .map(([enters]) => Math.max(enters, on.time));
       if (!comes.length) return [];
-      return [{ trip, at: bundle.noonMinus12h + (Math.min(...comes) + delay) * 1000, delay, live: on.live }];
+      return [{ trip, at: bundle.noonMinus12h + (Math.min(...comes) + delay) * 1000, delay: shown(on.network, delay), live: on.live }];
     })
     .sort((a, b) => a.at - b.at);
 }
 
 /**
+ * A Train's Delay, in seconds, as the follow panel, boards and Nearby give it: none for the Metro's.
+ * TMB runs the Metro by headway, and its timetable names no Blocks, so a Metro Train's Delay is only
+ * against whichever Trip its Block runs, which can be minutes off its own time (#103).
+ */
+const shown = (network: Network, delay: number) => (network.id === 'metro' ? undefined : delay);
+
+/**
  * A Train on the map, if it is, and how it got there: the moment and where in its timetable it's drawn, both
- * in seconds into the service day by the fetcher's clock, its calls as it makes them, how it eases
- * towards where live data has it, and what live data last said about it.
+ * in seconds into the service day by the fetcher's clock, its calls as it makes them, its Network, how
+ * it eases towards where live data has it, and what live data last said about it.
  */
 interface OnMap {
   /** None while it's off the map, as before its first Station, after its last, or Cancelled. */
@@ -206,6 +213,7 @@ interface OnMap {
   now: number;
   time: number;
   calls: Call[];
+  network: Network;
   profile: SpeedProfile;
   ease?: Ease;
   said?: Heard;
@@ -257,7 +265,7 @@ function onMap(bundle: Bundle, at: number, received: Received[]): { of: (trip: T
     const block = live ? said?.report.block : undefined;
     const waits = block && first && time < (dwelt[0]?.arrival ?? -Infinity) && !ranBy(block).some((t) => t !== trip && t.calls.at(-1)?.station === first.station && of(t)?.train);
     const calls = waits ? dwelt.map((c, i) => (i ? c : { ...c, arrival: time })) : dwelt;
-    const off = { now, time, calls, profile, ease, said, live };
+    const off = { now, time, calls, network, profile, ease, said, live };
     if (said?.report.cancelled) return off;
     // Most Trips aren't on the map at any one moment, whatever their dwell: skip those first.
     if (!first || !last || (!waits && time < first.arrival - profile.dwell) || time > last.departure + profile.dwell) return off;
