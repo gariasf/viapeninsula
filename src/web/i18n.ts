@@ -64,6 +64,8 @@ const STRINGS = {
     es: 'No se ha podido saber dónde estás, así que no se pueden mostrar los trenes cercanos',
     en: "Your location isn't available, so nearby trains can't be shown",
   },
+  // The button beside Nearby's that follows a random Train.
+  followRandom: { ca: "Segueix un tren a l'atzar", es: 'Seguir un tren al azar', en: 'Follow a random train' },
   // The About dialog, and the legend's button that opens it.
   about: { ca: 'Quant a aquest mapa', es: 'Acerca de este mapa', en: 'About this map' },
   close: { ca: 'Tanca', es: 'Cerrar', en: 'Close' },
@@ -113,8 +115,8 @@ export function setLanguage(choice: Language) {
   }
 }
 
-/** An interface string, in the language the interface speaks now. */
-export const t = (key: keyof typeof STRINGS): string => STRINGS[key][language()];
+/** An interface string, in `lang`, or else the language the interface speaks now. */
+export const t = (key: keyof typeof STRINGS, lang = language()): string => STRINGS[key][lang];
 
 /** How many Trains are on the map, and how many of them are Live, in `lang`, or else the language the interface speaks now. */
 export const trainCount = (trains: number, live: number, lang = language()): string =>

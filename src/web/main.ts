@@ -127,6 +127,9 @@ map.addControl({ onAdd: () => languageSwitch, onRemove: () => languageSwitch.rem
 // The button that shows the viewer's nearby Trains, with MapLibre's own locate icon, labelled by
 // showLanguage(). It goes under the language switch once the map can move Trains.
 const nearbyButton = el('button', { type: 'button', className: 'maplibregl-ctrl-geolocate', onclick: showNearby }, el('span', { className: 'maplibregl-ctrl-icon' }));
+// The button under it that follows a random Train, with a die, labelled by showLanguage(). It's
+// disabled while there's no Train on the map, which showCount() checks.
+const randomButton = el('button', { type: 'button', className: 'random', disabled: true, onclick: followRandom }, el('span', { className: 'maplibregl-ctrl-icon' }));
 // The legend, which showLanguage() fills: what the Live and Scheduled markers mean, how many Trains
 // are on the map and how many of them are Live, and the button that opens the About dialog.
 const legend = document.createElement('div');
@@ -306,7 +309,7 @@ document.addEventListener('keydown', (e) => e.key === 'Escape' && !about.open &&
 // frame while the map moves or follows a Train and for MOVED after, otherwise every IDLE_EVERY. The
 // browser stops asking while the tab is hidden.
 const trainSource = map.getSource<GeoJSONSource>('trains');
-const nearbyControl = el('div', { className: 'maplibregl-ctrl maplibregl-ctrl-group' }, nearbyButton);
+const nearbyControl = el('div', { className: 'maplibregl-ctrl maplibregl-ctrl-group' }, nearbyButton, randomButton);
 map.addControl({ onAdd: () => nearbyControl, onRemove: () => nearbyControl.remove() }, 'top-right');
 /** When the map last moved, as a drag, a zoom or an easing, or followed a Train, and when its Trains were last drawn, by performance.now(). */
 let [moved, drawn] = [-Infinity, -Infinity];
@@ -390,7 +393,7 @@ function show(days: Track | Bundle) {
  * track's two tracks fall on one pixel, each sits on its Line's stroke, half a line width to the
  * side its Network's Trains keep to, so that Trains going opposite ways show apart.
  */
-function trains(): GeoJSON.FeatureCollection {
+function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
   const zoom = map.getZoom();
   // How far apart Lines are drawn, in metres at the equator: MapLibre's tiles are 512 px.
   const apart = (atZoom(APART, zoom) * 2 * Math.PI * EARTH) / (512 * 2 ** zoom);
@@ -423,6 +426,8 @@ function showLanguage() {
   languageSwitch.title = t('language');
   nearbyButton.title = t('nearby');
   nearbyButton.setAttribute('aria-label', t('nearby'));
+  randomButton.title = t('followRandom');
+  randomButton.setAttribute('aria-label', t('followRandom'));
   // MapLibre reads its own strings as it builds each part, and has no way to change them after: the
   // parts it builds from now on read these, the canvas is relabelled, and the credits built afresh.
   Object.assign(map._locale, { 'Map.Title': t('map'), 'AttributionControl.ToggleAttribution': t('showCredits') });
@@ -447,10 +452,25 @@ function showLanguage() {
   showPanel();
 }
 
-/** Says in the legend how many of these Trains there are, every one on the map and not only those in view, and how many of them are Live, in the viewer's language. */
+/**
+ * Says in the legend how many of these Trains there are, every one on the map and not only those in
+ * view, and how many of them are Live, in the viewer's language. With none, there's none to follow at random.
+ */
 function showCount(features: GeoJSON.Feature[]) {
   countShown = performance.now();
   countRow.textContent = trainCount(features.length, features.filter((f) => f.properties?.live).length);
+  randomButton.disabled = !features.length;
+}
+
+/** Follows a Train picked at random but for the one the map follows: a Live one in view, else a Live one anywhere on the map, else any. */
+function followRandom() {
+  const bounds = map.getBounds();
+  const others = trains().features.filter((f) => !f.properties?.followed);
+  const live = others.filter((f) => f.properties?.live);
+  const inView = live.filter((f) => bounds.contains(f.geometry.coordinates as Point));
+  const from = [inView, live, others].find((f) => f.length) ?? [];
+  const id: unknown = from[Math.floor(Math.random() * from.length)]?.properties?.id;
+  if (typeof id === 'string') follow(id);
 }
 
 /** Follows a Trip's Train, by its ID in the days on the map: brings it into view, over the panel, and keeps it there. */
