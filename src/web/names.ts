@@ -1,5 +1,7 @@
-// Where each place's name goes: beside the track nearest its dot, clear of the Trains running along it (#120).
-import { closestOnSegment, DEGREE, direction, type Point, type Shape, type Stroke } from '../bundle.ts';
+// Where each place's name goes: beside the track nearest its dot, clear of the Trains running along it (#120),
+// and which of the basemap's labels it says again (#121).
+import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
+import { closestOnSegment, DEGREE, direction, type Place, type Point, type Shape, type Stroke } from '../bundle.ts';
 
 /** How near up and down a track runs on screen, in degrees, for a name to go right of it rather than above it. */
 const STEEP = 30;
@@ -17,6 +19,10 @@ const NEAR = 200;
  * west anywhere in Spain, so the cells round a place's hold every track within NEAR of it.
  */
 const CELL = 0.005;
+/** How near a place a basemap label with its name is, in metres, to name the same place (#121). */
+const TWICE = 2000;
+/** The classes of the basemap's place labels that a place's name can say again: its towns', from cities to villages, and suburbs'. */
+const TOWNS = ['city', 'town', 'village', 'suburb'];
 
 /** Where a place's name goes, beside the track nearest its dot, as railisland's do (#120). */
 export interface Spot {
@@ -114,6 +120,25 @@ export function alongside(shapes: Shape[], sides: Stroke[], keep: (line: string)
 export function nameOffset({ anchor, normal: [x, y] }: Spot, clear: number, [width, height]: [number, number]): [x: number, y: number] {
   const out = clear + (anchor === 'left' ? (height / 2) * Math.abs(y) : (width / 2) * Math.abs(x));
   return [out * x, out * y];
+}
+
+/**
+ * Whether a place label of the basemap's, as a MapLibre filter reads it, is of one of the TOWNS with
+ * the name of a place within TWICE of it, from the zoom the place's name shows (#121).
+ */
+export function namedTwice(places: (Pick<Place, 'name' | 'lon' | 'lat'> & { nameZoom: number })[]): ExpressionSpecification {
+  // Where a label of each name names a place again, by the name.
+  // ponytail: folds case alone, as none of the 140 places #121 counted differs from its town's label
+  // otherwise. Fold accents and punctuation too, with split and join over a table of them on both
+  // sides, if one does.
+  const near = new Map<string, ExpressionSpecification[]>();
+  for (const { name, nameZoom, lon, lat } of places) {
+    const key = name.toLowerCase();
+    near.set(key, [...(near.get(key) ?? []), ['all', ['>=', ['zoom'], nameZoom], ['<=', ['distance', { type: 'Point', coordinates: [lon, lat] }], TWICE]]]);
+  }
+  const [first, ...rest] = [...near].map(([name, where]): [string, ExpressionSpecification] => [name, ['any', ...where]]);
+  // A match takes one name at least.
+  return ['match', ['get', 'class'], TOWNS, ['match', ['downcase', ['to-string', ['get', 'name']]], ...(first ?? ['', false]), ...rest.flat(), false], false];
 }
 
 /** The way right of a track heading so many degrees clockwise from north is on screen, where the map's bearing is up: 1 px, x right and y down. */
