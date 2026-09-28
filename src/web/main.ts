@@ -1,6 +1,6 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
-import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
+import type { ExpressionSpecification, LineLayerSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { AttributionControl, MapLibreMap, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { along, beside, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Place, type DayTrips, type Line, type Manifest, type Network, type Point, type Shape, type Snapshot, type Stroke, type Track } from '../bundle.ts';
@@ -65,6 +65,12 @@ const WIDTH: [zoom: number, px: number][] = [[7, 1.5], [14, 4]];
  * out, as on a transit map, and back on the rails zoomed right in, where people follow a Train.
  */
 const APART: [zoom: number, px: number][] = [...WIDTH, [15, 0]];
+/**
+ * The basemap's paper colour, positron's background, that each Line is cased in.
+ * ponytail: copied from positron, whose style isn't versioned, so the casing would stop matching if
+ * OpenFreeMap changed it. Take it from the style's background layer if that ever shows.
+ */
+const PAPER = '#f2f3f0';
 
 /** How many metres wide a pixel is at a zoom, at the equator: MapLibre's tiles are 512 px. */
 const pixelMetres = (zoom: number) => (2 * Math.PI * EARTH) / (512 * 2 ** zoom);
@@ -258,16 +264,33 @@ setInterval(refreshDays, 60_000);
 
 // Track goes under the basemap's labels; Stations and names go on top of everything.
 const firstLabel = map.getStyle().layers.find((l) => l.type === 'symbol')?.id;
+/** How each Line's stroke is laid out, and its casing alike, so that MapLibre builds their geometry once. */
+const lineLayout: LineLayerSpecification['layout'] = { 'line-cap': 'round', 'line-join': 'round', 'line-sort-key': ['get', 'above'] };
+/** How far right of its track each Line's stroke is drawn, and its casing: `side` line widths, zoomed out. */
+const lineOffset = byZoom(APART, (px) => ['*', ['get', 'side'], px]);
+// The casing sets each Line off the basemap's roads and rivers, 1 px either side of it. It's one layer
+// under every Line, so none shows between Lines side by side on shared track, and where Lines cross it
+// cuts no gap.
+map.addLayer(
+  {
+    id: 'line-casing',
+    type: 'line',
+    source: 'lines',
+    layout: lineLayout,
+    paint: { 'line-color': PAPER, 'line-width': byZoom(WIDTH, (px) => px + 2), 'line-offset': lineOffset },
+  },
+  firstLabel,
+);
 map.addLayer(
   {
     id: 'lines',
     type: 'line',
     source: 'lines',
-    layout: { 'line-cap': 'round', 'line-join': 'round', 'line-sort-key': ['get', 'above'] },
+    layout: lineLayout,
     paint: {
       'line-color': ['get', 'colour'],
       'line-width': byZoom(WIDTH, (px) => px),
-      'line-offset': byZoom(APART, (px) => ['*', ['get', 'side'], px]),
+      'line-offset': lineOffset,
     },
   },
   firstLabel,
