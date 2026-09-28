@@ -74,13 +74,16 @@ const PAPER = '#f2f3f0';
 
 /**
  * The places drawn larger than the rest and named from further out, by their IDs in places(), as the
- * maintainer picks them: each tier's dots are `larger` px larger than a place's in neither, and its
- * names show from zoom `named`, before a lower tier's where they collide. A place in neither, as every
- * Metro and TRAM place is and one that opens later will be, is drawn as UNTIERED says.
+ * maintainer picks them: each tier's dots are `larger` px larger in radius than a place's in neither,
+ * and its names show from zoom `nameZoom`, before a lower tier's where they collide. A place in
+ * neither, as every Metro and TRAM place is and one that opens later will be, is drawn as UNTIERED
+ * says.
+ * ponytail: by ID, so a listed place whose operator renumbers it drops to UNTIERED unnoticed. Have
+ * show() warn of a listed ID it doesn't find among the places if that ever happens.
  */
 const TIERS = [
   {
-    named: 9,
+    nameZoom: 9,
     larger: 2,
     places: [
       // Barcelona's main Stations, where the most Lines call or end.
@@ -105,7 +108,7 @@ const TIERS = [
     ],
   },
   {
-    named: 11,
+    nameZoom: 11,
     larger: 1,
     places: [
       // Barcelona's other main Stations, and where its Lines part and end.
@@ -123,7 +126,6 @@ const TIERS = [
       'fgc:ME', // Martorell Enllaç
       'fgc:OL', // Olesa de Montserrat
       'fgc:MO', // Monistrol de Montserrat
-      'fgc:MM', // Montserrat
       'fgc:MB', // Manresa-Baixador
       'fgc:IG', // Igualada
       'fgc:BG', // Balaguer
@@ -162,7 +164,7 @@ const TIERS = [
   },
 ];
 /** How a place in neither tier is drawn: named from zoom 12, and in the smallest size. */
-const UNTIERED = { named: 12, larger: 0 };
+const UNTIERED = { nameZoom: 12, larger: 0 };
 
 /** How many metres wide a pixel is at a zoom, at the equator: MapLibre's tiles are 512 px. */
 const pixelMetres = (zoom: number) => (2 * Math.PI * EARTH) / (512 * 2 ** zoom);
@@ -413,7 +415,7 @@ map.addLayer({
   source: 'stations',
   layout: { 'circle-sort-key': ['get', 'larger'] },
   paint: {
-    'circle-radius': ['interpolate', ['linear'], ['zoom'], 7, ['+', 1.5, ['get', 'larger']], 14, ['+', 5, ['get', 'larger']]],
+    'circle-radius': byZoom([[7, 1.5], [14, 5]], (px) => ['+', px, ['get', 'larger']]),
     'circle-color': '#fff',
     'circle-stroke-color': '#444',
     'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 7, 0.5, 14, 1.5],
@@ -441,8 +443,8 @@ map.addLayer({
   id: 'station-names',
   type: 'symbol',
   source: 'stations',
-  filter: ['>=', ['zoom'], ['get', 'named']],
-  layout: { 'symbol-sort-key': ['get', 'named'], 'text-field': ['get', 'name'], 'text-font': FONT, 'text-size': 11, 'text-anchor': 'top', 'text-offset': [0, 0.7] },
+  filter: ['>=', ['zoom'], ['get', 'nameZoom']],
+  layout: { 'symbol-sort-key': ['get', 'nameZoom'],'text-field': ['get', 'name'], 'text-font': FONT, 'text-size': 11, 'text-anchor': 'top', 'text-offset': [0, 0.7] },
   paint: { 'text-color': '#333', 'text-halo-color': '#fff', 'text-halo-width': 1.5 },
 });
 // Zoomed in (pillOf()), each Train is a pill with its Line's name, over the Stations' names too,
@@ -590,8 +592,8 @@ function show(days: Track | Bundle) {
   map.getSource<GeoJSONSource>('stations')?.setData({
     type: 'FeatureCollection',
     features: [...shownPlaces.values()].map((p) => {
-      const { named, larger } = TIERS.find((tier) => tier.places.includes(p.id)) ?? UNTIERED;
-      return { type: 'Feature', properties: { id: p.id, name: p.name, named, larger }, geometry: { type: 'Point', coordinates: [p.lon, p.lat] } };
+      const { nameZoom, larger } = TIERS.find((tier) => tier.places.includes(p.id)) ?? UNTIERED;
+      return { type: 'Feature', properties: { id: p.id, name: p.name, nameZoom, larger }, geometry: { type: 'Point', coordinates: [p.lon, p.lat] } };
     }),
   });
   credited = days.networks;
