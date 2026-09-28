@@ -21,7 +21,7 @@ const [FGC_EVERY, FGC_SLOW, FGC_FEW] = [120_000, 300_000, 1000];
 /** How often the Metro is fetched, in ms: every other run, as often as keeps to the one request every 30 s declared to TMB. */
 const METRO_EVERY = 2 * EVERY;
 
-/** The longest the fetcher waits to try TRAM again after a try fails, where TRAM issues no access token or refuses it, in ms. */
+/** The longest the fetcher waits to try TRAM again after a try fails, where TRAM answers and issues no access token or refuses it, in ms. */
 const TRAM_WAIT_MAX = 1_800_000;
 
 /** Why a feed wasn't fetched, where the Worker has no credentials for its API: it asks it for nothing. */
@@ -164,18 +164,18 @@ export function step(state: State, responses: Responses, now: number): Stored & 
       return HALVES.flatMap((half) => tramReports(half, halves[half], now, said));
     });
     // A try fails only where TRAM answers and refuses: it issues no token, or refuses it on its data.
-    // The next waits 20 s, then twice as long each time, until TRAM accepts a token on its data. A
-    // try it gives no answer, or a server error, neither counts nor resets the wait, and neither does
-    // one without credentials, which asks for nothing: the run after either asks again once any wait
-    // under way is over.
+    // The next waits 20 s, then twice as long each time, until TRAM answers its data requests without
+    // refusing the token. No answer, a server error, or a run without credentials, which asks for
+    // nothing, neither counts nor resets the wait: the next run asks again once any wait under way
+    // is over.
     const data = HALVES.flatMap((half) => [halves[half].positions, halves[half].updates]);
     const refused = data.some((f) => 'status' in f && f.status === 401);
-    // Where the run asked for a token, it has one only where TRAM issued it.
-    const unissued = token !== undefined && !tram && answered(token);
+    // Where the run asked for a token, it has one only where TRAM issued it, and TRAM refused one only where it judged the request.
+    const unissued = token !== undefined && !tram && judged(token);
     if (refused || unissued) {
       tramBackoff = { failed: now, wait: Math.min(2 * (state.tramBackoff?.wait ?? EVERY / 2), TRAM_WAIT_MAX) };
       freshness.status += `; backing off, next try at ${clock(now + tramBackoff.wait)}`;
-    } else if (data.some(answered)) tramBackoff = undefined;
+    } else if (data.some(judged)) tramBackoff = undefined;
     // The token is kept for as long as it lasts through the next run's answers, and TRAM accepts it.
     if (refused || (tram && tram.expires < now + EVERY + TIMEOUT)) tram = undefined;
   }
@@ -190,8 +190,8 @@ export function step(state: State, responses: Responses, now: number): Stored & 
   return { snapshot: { generated: now, feeds, reports: Object.values(reports).flat() }, state: next, due };
 }
 
-/** Whether TRAM answered a request: with a status under 500, as a server error isn't TRAM refusing anything. */
-const answered = (fetched: Fetched<unknown>) => 'status' in fetched && fetched.status < 500;
+/** Whether TRAM judged a request, answering it with a status under 500: no answer, or a server error, says nothing of its credentials or its token. */
+const judged = (fetched: Fetched<unknown>) => 'status' in fetched && fetched.status < 500;
 
 /** Whether TRAM is due on the run at a moment: on every run, but after a try fails, not until its wait is over. */
 function tramDue({ tramBackoff: backoff }: State, at: number): boolean {
