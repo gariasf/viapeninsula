@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { PbfWriter } from 'pbf';
 import { expect, test } from 'vitest';
+import type { Bundle } from '../bundle.ts';
 import { unavailable } from '../engine.ts';
 import { START, step, TIMEOUT, UNSET, type Fetched, type Responses, type Stored } from './step.ts';
 
@@ -152,10 +153,13 @@ test("counts a Renfe header earlier than the last as updated, and real time agai
   expect(statuses([0, 3600, 40, 60])).toEqual(['ok', 'ok', 'ok', 'ok']);
 });
 
+/** A service day's bundle with no Trips on the map, by which a Network's live data is unavailable only where its feed fails. */
+const NO_TRIPS: Bundle = { serviceDay: '2026-09-25', noonMinus12h: Date.parse('2026-09-25T00:00:00+02:00'), networks: [], lines: [], stations: [], shapes: [], strokes: [], sides: [], trips: [] };
+
 test("while Renfe's headers stay put, Rodalies' live data is unavailable from the third run, and a header repeated once changes nothing", () => {
   /** Which Networks' live data is unavailable after each run. */
   const unavailableAfter = (headers: number[]) =>
-    renfeRuns(headers).map((_, i, runs) => unavailable(runs.slice(0, i + 1).map(({ snapshot }) => ({ snapshot, at: snapshot.generated }))));
+    renfeRuns(headers).map(({ snapshot }, i, runs) => unavailable(NO_TRIPS, snapshot.generated, runs.slice(0, i + 1).map((done) => ({ snapshot: done.snapshot, at: done.snapshot.generated }))));
   expect(unavailableAfter([0, 0, 0, 0, 0])).toEqual([[], [], [], ['rodalies'], ['rodalies']]);
   // Renfe's headers move every 18-22 s, and the runs are 20 s apart, so one sometimes repeats.
   expect(unavailableAfter([0, 20, 20, 40, 60, 60, 80])).toEqual([[], [], [], [], [], [], []]);

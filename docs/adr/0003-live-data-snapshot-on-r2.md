@@ -9,7 +9,7 @@ One Cloudflare Durable Object wakes about every 20 seconds, fetches each live fe
 
 ## Consequences
 
-- The snapshot records each feed's freshness; that is what turns Trains Scheduled and raises the "live data unavailable" banner.
+- The snapshot records each feed's freshness; that is what turns Trains Scheduled and raises the "live data unavailable" banner. The map raises it too where a feed works but has had none of its Network's Trains in it for about three of its updates while the timetable has at least 5 of them on the map, as on 28 September 2026, when Renfe served its Cercanías feeds with a header and no Trains (#124). The snapshot still says `ok` for that feed, since the fetcher never loads the timetable, so the banner and the maintainer's checks on the snapshot no longer go by one signal alone.
 - It needs a domain on Cloudflare: R2's `r2.dev` URLs aren't cached and are rate-limited.
 - It runs on Workers Paid ($5/month): a fetcher run measured about 12 ms of CPU, over the free plan's 10 ms. Viewer traffic never reaches a Worker, so usage stays inside the plan's included amounts.
 - The Durable Object is evicted between alarms, so its throttles, tokens and each feed's last good reports live in its storage, not in memory (measured in the Cloudflare spike, see `docs/research/live-data-sources.md`).

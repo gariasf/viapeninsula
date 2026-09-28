@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { expect, test } from 'vitest';
-import { beside, DEGREE, pointAt, type Bundle, type Network, type Point, type Report, type Shape, type Snapshot } from './bundle.ts';
+import { beside, DEGREE, pointAt, type Bundle, type Network, type Point, type Report, type Shape, type Snapshot, type Trip } from './bundle.ts';
 import { noonMinus12h } from './build/gtfs.ts';
 import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Received } from './engine.ts';
 import { jumps } from './jumps.ts';
@@ -594,11 +594,14 @@ const failing = (moment: number, since: Received, network = 'rodalies'): Receive
   at: moment,
 });
 
+/** The Networks whose live data is unavailable at a moment by the device's clock, with the live data received by then, in `BUNDLE` unless it says. */
+const unavailableAt = (moment: number, received: Received[], bundle = BUNDLE) => unavailable(bundle, moment, by(received, moment));
+
 test("while Renfe's feeds fail, Rodalies' live data is unavailable from the third failed update, and its Trains turn Scheduled, keeping their Delays", () => {
   // Renfe's GPS has the R2S 30 s late between Sitges and Castelldefels at 22:00:00, and then every run fails.
   const good = gps(R2S, where(R2S, at('21:59:30')) ?? NaN, at('22:00:00'));
   const received = [good, ...[20, 40, 60, 80].map((s) => failing(at('22:00:00', s), good))];
-  expect([at('22:00:50'), at('22:01:10')].map((moment) => unavailable(by(received, moment)))).toEqual([[], ['rodalies']]);
+  expect([at('22:00:50'), at('22:01:10')].map((moment) => unavailableAt(moment, received))).toEqual([[], ['rodalies']]);
   expect([50, 70].map((s) => train(R2S, at('22:00:00', s), received)?.live)).toEqual([true, false]);
   expect(where(R2S, at('22:01:30'), received)).toBeCloseTo(where(R2S, at('22:01:00')) ?? NaN, 3);
 });
@@ -610,7 +613,7 @@ test('when the fetcher stops, its live data is unavailable soon after its next s
   // missed updates from 22:01:20: three make 22:02:20.
   const last = gps(R2S, where(R2S, at('21:59:30')) ?? NaN, at('22:00:00'));
   const received = Array.from({ length: 10 }, (_, i) => ({ ...last, at: at('22:00:00', i * 20) }));
-  expect([at('22:02:10'), at('22:02:30')].map((moment) => unavailable(by(received, moment)))).toEqual([[], ['rodalies']]);
+  expect([at('22:02:10'), at('22:02:30')].map((moment) => unavailableAt(moment, received))).toEqual([[], ['rodalies']]);
   expect([130, 150].map((s) => train(R2S, at('22:00:00', s), received)?.live)).toEqual([true, false]);
 });
 
@@ -618,7 +621,7 @@ test("brought back after its tab was hidden, the map shows Trains Scheduled unti
   // The map last looked at 22:00:00, and looks again at 22:10:00.
   const received = [gps(R2S, where(R2S, at('21:59:30')) ?? NaN, at('22:00:00'))];
   expect(train(R2S, at('22:10:00'), received)?.live).toBe(false);
-  expect(unavailable(received)).toEqual([]);
+  expect(unavailableAt(at('22:10:00'), received)).toEqual([]);
 });
 
 test("a Train that a working feed doesn't report stays Scheduled, marked as having no live data, unless the feed is down", () => {
@@ -630,6 +633,51 @@ test("a Train that a working feed doesn't report stays Scheduled, marked as havi
   expect(train(R4, onFriday('15:58:21'), down, RENFE)).toMatchObject({ live: false, unreported: false });
   // Before any live data comes, there's no telling.
   expect(train(R4, onFriday('15:57:40'), [], RENFE)?.unreported).toBe(false);
+});
+
+/** A bundle's Trips, and copies of one of them so many minutes later, each a Trip of its own on the same track. */
+function withCopies(bundle: Bundle, id: string, minutes: number[]): Bundle {
+  const trip = bundle.trips.find((t) => t.id === id) as Trip;
+  const later = (m: number): Trip => ({ ...trip, id: `${id} +${m}`, calls: trip.calls.map((c) => ({ ...c, arrival: c.arrival + m * 60, departure: c.departure + m * 60 })) });
+  return { ...bundle, trips: [...bundle.trips, ...minutes.map(later)] };
+}
+
+// Made up: the R2S every 10 minutes from Sant Vicenç de Calders, from 21:30 to 22:10. Five of
+// Rodalies' Trains are on the map from 22:09:30, as the last comes onto it, to 22:51:30, as the first
+// leaves it, and four in the 10 minutes before.
+const EVERY_10 = withCopies(BUNDLE, R2S, [10, 20, 30, 40]);
+
+test("where Renfe's feeds work but have had none of Rodalies' Trains in them for three of their updates, while five or more are on the map, its live data is unavailable", () => {
+  // Renfe's GPS has the R2S between Castelldefels and Gavà at 22:14:00. Then Renfe's feeds have a
+  // header and no Trains, as they did on 28 September: they work, but leave every Train out.
+  const received = [gps(R2S, where(R2S, at('22:13:30')) ?? NaN, at('22:14:00')), ...leftOut(at('22:14:20'), at('22:16:00'))];
+  expect([at('22:14:50'), at('22:15:10')].map((moment) => unavailableAt(moment, received, EVERY_10))).toEqual([[], ['rodalies']]);
+  // With four of its Trains on the map, it isn't an outage, until the fifth comes onto it at 22:09:30.
+  const earlier = [gps(R2S, where(R2S, at('21:59:30')) ?? NaN, at('22:00:00')), ...leftOut(at('22:00:20'), at('22:10:00'))];
+  expect([at('22:01:10'), at('22:09:20'), at('22:09:40')].map((moment) => unavailableAt(moment, earlier, EVERY_10))).toEqual([[], [], ['rodalies']]);
+  // On a map opened while they have no Trains in them, as far as the map knows they've never had one.
+  expect(unavailableAt(at('22:15:10'), leftOut(at('22:15:00'), at('22:15:00')), EVERY_10)).toEqual(['rodalies']);
+});
+
+test("while Rodalies' live data is unavailable that way, its Trains are Scheduled, each keeping its last Delay, and none is marked as having no live data", () => {
+  // Renfe's GPS has the R2S 30 s late between Castelldefels and Gavà at 22:14:00, and then Renfe's
+  // feeds have no Trains in them. Until their third update with none, the four Trains they leave out
+  // are marked as having no live data, as ever.
+  const received = [gps(R2S, where(R2S, at('22:13:30')) ?? NaN, at('22:14:00')), ...leftOut(at('22:14:20'), at('22:16:00'))];
+  const marks = (moment: number) => trainsAt(EVERY_10, moment, by(received, moment)).map((t) => [t.trip.id, t.live, t.unreported]);
+  expect(marks(at('22:14:50'))).toEqual([[R2S, true, false], ...[10, 20, 30, 40].map((m) => [`${R2S} +${m}`, false, true])]);
+  // From then, none is.
+  const moment = at('22:15:30');
+  expect(marks(moment)).toEqual([R2S, ...[10, 20, 30, 40].map((m) => `${R2S} +${m}`)].map((id) => [id, false, false]));
+  expect(where(R2S, moment, received, EVERY_10)).toBeCloseTo(where(R2S, at('22:15:00')) ?? NaN, 3);
+  expect(followed(`${R2S} +10`, moment, received, EVERY_10)).toMatchObject({ live: false, unreported: false });
+  expect(board(['Barcelona-Sants'], moment, received, EVERY_10).map((d) => [d.live, d.unreported])).toEqual(Array(5).fill([false, false]));
+});
+
+test("Rodalies' live data is available again from the first snapshot in which Renfe's feeds have one of its Trains", () => {
+  // Made up: after four updates with none, Renfe's trip updates have the R2S 10 minutes behind the first on time at 22:16:00.
+  const received = [gps(R2S, where(R2S, at('22:13:30')) ?? NaN, at('22:14:00')), ...leftOut(at('22:14:20'), at('22:15:40')), late(`${R2S} +10`, 0, at('22:16:00'))];
+  expect([at('22:15:50'), at('22:16:00')].map((moment) => unavailableAt(moment, received, EVERY_10))).toEqual([['rodalies'], []]);
 });
 
 /** A Trip's Train as the follow panel has it at a moment by the device's clock, if it's on the map, with the live data received by then, in `BUNDLE` unless it says. */
@@ -1553,9 +1601,25 @@ test("a Scheduled Metro Train on a Line TMB publishes no predictions for, as L9'
   // 13:17:00. The next Trip out of Fondo leaves when its timetable has it leave, at 13:17:13.
   const last = working.at(-1) as Received;
   const failed = [...working, ...Array.from({ length: 9 }, (_, i) => failing(last.at + (i + 1) * 20_000, last, 'metro'))];
-  expect(unavailable(by(failed, Date.parse('2026-09-25T13:17:00+02:00')))).toEqual(['metro']);
+  expect(unavailableAt(Date.parse('2026-09-25T13:17:00+02:00'), failed, WITH_L9)).toEqual(['metro']);
   expect(metro(NEXT_OUT_OF_FONDO, '13:17:30', failed)?.dist).toBeCloseTo(metro(NEXT_OUT_OF_FONDO, '13:17:30')?.dist ?? NaN, 3);
   expect(metro(NEXT_OUT_OF_FONDO, '13:17:30')?.dist).toBeGreaterThan(0);
+});
+
+test("every Scheduled Metro Train runs its timetable while TMB's live data works but has had none of the Metro's Trains in it for three of its updates, with five or more on the map", () => {
+  // Made up: four more of L1's Trips into Fondo, from 2 to 5 minutes after the first, so that at
+  // 13:17:30 six of the Metro's Trains are on the map. From 13:15:00, TMB's live data names only
+  // L1's 113, which runs none of them, and the Metro's live data is unavailable.
+  const bundle = withCopies(METRO, INTO_FONDO, [2, 3, 4, 5]);
+  const received = elsewhere('13:15:00', '13:18:00');
+  const moment = Date.parse('2026-09-25T13:17:30+02:00');
+  expect(unavailableAt(moment, received, bundle)).toEqual(['metro']);
+  // The next Trip out of Fondo leaves when its timetable has it leave, at 13:17:13, rather than waiting there for its Block.
+  const outOfFondo = (on: Bundle, got: Received[]) => trainsAt(on, moment, by(got, moment)).find((t) => t.trip.id === NEXT_OUT_OF_FONDO)?.dist;
+  expect(outOfFondo(bundle, received)).toBeCloseTo(outOfFondo(bundle, []) ?? NaN, 3);
+  expect(outOfFondo(bundle, [])).toBeGreaterThan(0);
+  // With two on the map, it waits.
+  expect(outOfFondo(METRO, received)).toBe(0);
 });
 
 test('a followed Metro Train whose Block waits at the end of its Line stands at its first Station, expected to leave when TMB expects it to', () => {
