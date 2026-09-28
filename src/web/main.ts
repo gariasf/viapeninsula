@@ -422,7 +422,7 @@ requestAnimationFrame(function move(now) {
   }
   // The panel's times and ages change by the second.
   if ((following || boardPlace || nearMe) && performance.now() - panelShown > 1000) showPanel();
-  const ids = bundle ? unavailable(bundle, Date.now(), received) : [];
+  const ids = unavailable(bundle, Date.now(), received);
   if (ids.join() !== unavailableIds.join()) {
     unavailableIds = ids;
     showBanner();

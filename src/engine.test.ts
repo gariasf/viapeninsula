@@ -602,6 +602,8 @@ test("while Renfe's feeds fail, Rodalies' live data is unavailable from the thir
   const good = gps(R2S, where(R2S, at('21:59:30')) ?? NaN, at('22:00:00'));
   const received = [good, ...[20, 40, 60, 80].map((s) => failing(at('22:00:00', s), good))];
   expect([at('22:00:50'), at('22:01:10')].map((moment) => unavailableAt(moment, received))).toEqual([[], ['rodalies']]);
+  // Before the day's Trips have come, too.
+  expect(unavailable(undefined, at('22:01:10'), received)).toEqual(['rodalies']);
   expect([50, 70].map((s) => train(R2S, at('22:00:00', s), received)?.live)).toEqual([true, false]);
   expect(where(R2S, at('22:01:30'), received)).toBeCloseTo(where(R2S, at('22:01:00')) ?? NaN, 3);
 });
@@ -1250,7 +1252,7 @@ const [intoFondo, outOfFondo] = [headedFor('Fondo'), headedFor('Hospital de Bell
 
 /**
  * Made-up Metro snapshots, written every 20 s from one moment to another on 25 September 2026 and
- * received as they were written, in which TMB's live data works but names only L1's 113, coming to a
+ * received as they were written, in which TMB's feed works but names only L1's 113, coming to a
  * Station none of these Trips calls at: so no Block runs any of them.
  */
 const elsewhere = (from: string, to: string): Received[] => {
@@ -1606,7 +1608,7 @@ test("a Scheduled Metro Train on a Line TMB publishes no predictions for, as L9'
   expect(metro(NEXT_OUT_OF_FONDO, '13:17:30')?.dist).toBeGreaterThan(0);
 });
 
-test("every Scheduled Metro Train runs its timetable while TMB's live data works but has had none of the Metro's Trains in it for three of its updates, with five or more on the map", () => {
+test("every Scheduled Metro Train runs its timetable while TMB's feed works but has had none of the Metro's Trains in it for three of its updates, with five or more on the map", () => {
   // Made up: four more of L1's Trips into Fondo, from 2 to 5 minutes after the first, so that at
   // 13:17:30 six of the Metro's Trains are on the map. From 13:15:00, TMB's live data names only
   // L1's 113, which runs none of them, and the Metro's live data is unavailable.
@@ -1615,11 +1617,11 @@ test("every Scheduled Metro Train runs its timetable while TMB's live data works
   const moment = Date.parse('2026-09-25T13:17:30+02:00');
   expect(unavailableAt(moment, received, bundle)).toEqual(['metro']);
   // The next Trip out of Fondo leaves when its timetable has it leave, at 13:17:13, rather than waiting there for its Block.
-  const outOfFondo = (on: Bundle, got: Received[]) => trainsAt(on, moment, by(got, moment)).find((t) => t.trip.id === NEXT_OUT_OF_FONDO)?.dist;
-  expect(outOfFondo(bundle, received)).toBeCloseTo(outOfFondo(bundle, []) ?? NaN, 3);
-  expect(outOfFondo(bundle, [])).toBeGreaterThan(0);
+  const nextOut = (on: Bundle, got: Received[]) => trainsAt(on, moment, by(got, moment)).find((t) => t.trip.id === NEXT_OUT_OF_FONDO)?.dist;
+  expect(nextOut(bundle, received)).toBeCloseTo(nextOut(bundle, []) ?? NaN, 3);
+  expect(nextOut(bundle, [])).toBeGreaterThan(0);
   // With two on the map, it waits.
-  expect(outOfFondo(METRO, received)).toBe(0);
+  expect(nextOut(METRO, received)).toBe(0);
 });
 
 test('a followed Metro Train whose Block waits at the end of its Line stands at its first Station, expected to leave when TMB expects it to', () => {
@@ -1719,6 +1721,23 @@ test("counts each Network's jumps over 45 minutes of a weekday morning's live da
     tram: { forward: 0, back: 0, liveSeconds: 35240 },
     metro: { forward: 0, back: 9, liveSeconds: 369373 },
   });
+}, 60_000);
+
+test("over both replays, a Network's live data is unavailable only while its feed fails, as each working feed has its Trains in it", () => {
+  /** Each time a snapshot arrives that changes which Networks' live data is unavailable, by the clock in Barcelona, and which they are then. */
+  const changes = ({ bundle, received }: typeof RECORDED) => {
+    let before = '';
+    return received.flatMap((r, i) => {
+      const now = unavailable(bundle, r.at, received.slice(0, i + 1));
+      if (now.join() === before) return [];
+      before = now.join();
+      return [[new Date(r.at).toLocaleTimeString('en-GB', { timeZone: 'Europe/Madrid' }), now]];
+    });
+  };
+  expect(changes(RECORDED)).toEqual([]);
+  // Geotren's positions were stuck from 08:24 to 08:33, and TRAM's API stopped answering at 08:38, as
+  // before #124. Monday's bundle has no Rodalies Trips, so Renfe's feeds with none in them change nothing.
+  expect(changes(MORNING)).toEqual([['08:31:32', ['fgc']], ['08:33:13', []], ['08:39:37', ['tram']]]);
 }, 60_000);
 
 // Made up: an R1 Trip from Badalona to El Masnou each night, from 23:50 to 00:20, on every day's
