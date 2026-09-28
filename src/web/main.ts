@@ -72,6 +72,100 @@ const APART: [zoom: number, px: number][] = [...WIDTH, [15, 0]];
  */
 const PAPER = '#f2f3f0';
 
+/**
+ * The places drawn larger than the rest and named from further out, by their IDs in places(), as the
+ * maintainer picks them: each tier's dots are `larger` px larger in radius than a place's in neither,
+ * and its names show from zoom `nameZoom`, before a lower tier's where they collide. A place in
+ * neither, as every Metro and TRAM place is and one that opens later will be, is drawn as UNTIERED
+ * says.
+ * ponytail: by ID, so a listed place whose operator renumbers it drops to UNTIERED unnoticed. Have
+ * show() warn of a listed ID it doesn't find among the places if that ever happens.
+ */
+const TIERS = [
+  {
+    nameZoom: 9,
+    larger: 2,
+    places: [
+      // Barcelona's main Stations, where the most Lines call or end.
+      'adif:71801', // Barcelona-Sants
+      'adif:71802', // Barcelona-Passeig de Gràcia
+      'fgc:PC', // Barcelona - Plaça Catalunya
+      'fgc:PE', // Barcelona - Plaça Espanya
+      'adif:79400', // Barcelona Estació de França
+      // Where Lines meet and part beyond it.
+      'adif:71600', // Sant Vicenç de Calders
+      'adif:72209', // Martorell Central
+      'adif:79100', // Granollers Centre
+      // Each city's main Station.
+      'adif:71500', // Tarragona
+      'adif:71400', // Reus
+      'adif:78400', // Lleida-Pirineus
+      'adif:79300', // Girona
+      'adif:79309', // Figueres
+      'adif:78600', // Manresa
+      'adif:77109', // Vic
+      'adif:65400', // Tortosa
+    ],
+  },
+  {
+    nameZoom: 11,
+    larger: 1,
+    places: [
+      // Barcelona's other main Stations, and where its Lines part and end.
+      'adif:78805', // Barcelona Plaça de Catalunya
+      'adif:79009', // Barcelona El Clot
+      'adif:72305', // L'Hospitalet de Llobregat
+      'adif:71707', // El Prat de Llobregat
+      'adif:72400', // El Prat Aeroport
+      'fgc:GR', // Gràcia
+      'fgc:SR', // Sarrià
+      // Where FGC's Lines part and end.
+      'fgc:SC', // Sant Cugat Centre
+      'fgc:NA', // Terrassa Nacions Unides
+      'fgc:PN', // Sabadell Parc del Nord
+      'fgc:ME', // Martorell Enllaç
+      'fgc:OL', // Olesa de Montserrat
+      'fgc:MO', // Monistrol de Montserrat
+      'fgc:MB', // Manresa-Baixador
+      'fgc:IG', // Igualada
+      'fgc:BG', // Balaguer
+      'fgc:PS', // La Pobla de Segur
+      // Where Rodalies' Lines meet, part and end.
+      'adif:78800', // Montcada-Bifurcació
+      'adif:72503', // Cerdanyola Universitat
+      'adif:79006', // Mollet-Sant Fost
+      'adif:72210', // Castellbisbal
+      'adif:79200', // Maçanet-Massanes
+      'adif:79104', // Sant Celoni
+      'adif:79606', // Blanes
+      'adif:79315', // Portbou
+      'adif:77200', // Ripoll
+      'adif:77309', // Puigcerdà
+      'adif:71705', // Castelldefels
+      'adif:71700', // Vilanova i la Geltrú
+      'adif:71401', // Vila-seca
+      'adif:73100', // La Plana-Picamoixons
+      'adif:65411', // Salou-Port Aventura
+      'adif:65402', // L'Aldea-Amposta-Tortosa
+      'adif:78500', // Cervera
+      // Each other town's main Station.
+      'adif:79404', // Badalona
+      'adif:79500', // Mataró
+      'adif:78700', // Terrassa Estació del Nord
+      'adif:78704', // Sabadell Centre
+      'fgc:BO', // Sant Boi
+      'adif:71701', // Sitges
+      'adif:72204', // Vilafranca del Penedès
+      'adif:65422', // Cambrils
+      'adif:76004', // Valls
+      'adif:78408', // Tàrrega
+      'adif:71300', // Móra la Nova
+    ],
+  },
+];
+/** How a place in neither tier is drawn: named from zoom 12, and in the smallest size. */
+const UNTIERED = { nameZoom: 12, larger: 0 };
+
 /** How many metres wide a pixel is at a zoom, at the equator: MapLibre's tiles are 512 px. */
 const pixelMetres = (zoom: number) => (2 * Math.PI * EARTH) / (512 * 2 ** zoom);
 
@@ -314,12 +408,14 @@ map.addLayer({
     'text-opacity': ['interpolate', ['linear'], ['zoom'], 14, 1, 14.1, 0, 14.9, 0, 15, 1],
   },
 });
+// A tier's dots are larger than the rest, and drawn over them where they meet.
 map.addLayer({
   id: 'stations',
   type: 'circle',
   source: 'stations',
+  layout: { 'circle-sort-key': ['get', 'larger'] },
   paint: {
-    'circle-radius': ['interpolate', ['linear'], ['zoom'], 7, 1.5, 14, 5],
+    'circle-radius': byZoom([[7, 1.5], [14, 5]], (px) => ['+', px, ['get', 'larger']]),
     'circle-color': '#fff',
     'circle-stroke-color': '#444',
     'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 7, 0.5, 14, 1.5],
@@ -342,12 +438,13 @@ map.addLayer({
     'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 7, byLive(0.5, 1.5), 14, byLive(1.5, 3)],
   },
 });
+// Each place's name from its tier's zoom, and where names collide, the one named from further out.
 map.addLayer({
   id: 'station-names',
   type: 'symbol',
   source: 'stations',
-  minzoom: 12,
-  layout: { 'text-field': ['get', 'name'], 'text-font': FONT, 'text-size': 11, 'text-anchor': 'top', 'text-offset': [0, 0.7] },
+  filter: ['>=', ['zoom'], ['get', 'nameZoom']],
+  layout: { 'symbol-sort-key': ['get', 'nameZoom'],'text-field': ['get', 'name'], 'text-font': FONT, 'text-size': 11, 'text-anchor': 'top', 'text-offset': [0, 0.7] },
   paint: { 'text-color': '#333', 'text-halo-color': '#fff', 'text-halo-width': 1.5 },
 });
 // Zoomed in (pillOf()), each Train is a pill with its Line's name, over the Stations' names too,
@@ -494,11 +591,10 @@ function show(days: Track | Bundle) {
   });
   map.getSource<GeoJSONSource>('stations')?.setData({
     type: 'FeatureCollection',
-    features: [...shownPlaces.values()].map((p) => ({
-      type: 'Feature',
-      properties: { id: p.id, name: p.name },
-      geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
-    })),
+    features: [...shownPlaces.values()].map((p) => {
+      const { nameZoom, larger } = TIERS.find((tier) => tier.places.includes(p.id)) ?? UNTIERED;
+      return { type: 'Feature', properties: { id: p.id, name: p.name, nameZoom, larger }, geometry: { type: 'Point', coordinates: [p.lon, p.lat] } };
+    }),
   });
   credited = days.networks;
   showCredits();
