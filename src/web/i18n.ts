@@ -82,6 +82,12 @@ const STRINGS = {
     es: 'Esta web no usa cookies: solo guarda en tu dispositivo el idioma que elijas.',
     en: 'This site uses no cookies: all it keeps on your device is the language you choose.',
   },
+  // After noCookies. Cloudflare Web Analytics goes by that name in every language, and About links it where the sentence names it.
+  visitsCounted: {
+    ca: 'Les visites es compten amb Cloudflare Web Analytics, que no fa servir galetes ni desa res al teu dispositiu.',
+    es: 'Las visitas se cuentan con Cloudflare Web Analytics, que no usa cookies ni guarda nada en tu dispositivo.',
+    en: 'Visits are counted with Cloudflare Web Analytics, which uses no cookies and keeps nothing on your device.',
+  },
 } satisfies Record<string, Record<Language, string>>;
 
 /** What the viewer's choice is kept under on their device, in local storage, which takes no cookie. */

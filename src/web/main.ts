@@ -963,6 +963,10 @@ function showBanner() {
  * estimates, the credits showCredits() lists there, the code and its licence, and privacy.
  */
 function showAbout() {
+  // ponytail: the link goes round Cloudflare Web Analytics where the sentence names it, as every language
+  // names it so. A language that words it otherwise needs a placeholder in its string instead.
+  const analytics = 'Cloudflare Web Analytics';
+  const [beforeAnalytics = '', afterAnalytics = ''] = t('visitsCounted').split(analytics);
   about.setAttribute('aria-label', t('about'));
   about.replaceChildren(
     closeButton(t('close'), () => about.close()),
@@ -980,6 +984,14 @@ function showAbout() {
     ),
     el('h3', { textContent: t('privacy') }),
     el('p', { textContent: t('noCookies') }),
+    el(
+      'p',
+      {},
+      beforeAnalytics,
+      // Cloudflare's own pages on the data and metrics Web Analytics collects.
+      el('a', { href: 'https://developers.cloudflare.com/web-analytics/data-metrics/', target: '_blank', textContent: analytics }),
+      afterAnalytics,
+    ),
   );
 }
 
