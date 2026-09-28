@@ -1519,13 +1519,32 @@ test("counts each Network's jumps over 45 minutes of live data as the map receiv
   // end of its Line on Live: L2's 208 jumps back into Badalona Pompeu Fabra at 16:41:10, as TMB lists
   // it under its way in again, later, and it jumped there before too, but Scheduled. It fell by 11
   // with #107, which holds a Metro Train at its Trip's first Station until a report has it gone, and
-  // then eases it out however far behind: none jumps back there as a later ETA has it wait longer, as
-  // six did, 135–883 m, nor forward out of it, as five did.
+  // then eases it out however far behind: gone are six jumps back there as a later ETA had it wait
+  // longer, 135–883 m, and five forward out of it. Four still jump back there as a later ETA has
+  // their Blocks wait again (#125): three let out by the report before, and one that its timetable
+  // took out of there before live data placed it.
   expect(jumps(RECORDED.bundle, RECORDED.received)).toEqual({
     rodalies: { forward: 66, back: 123, liveSeconds: 152139 },
     fgc: { forward: 25, back: 51, liveSeconds: 148634 },
     tram: { forward: 3, back: 0, liveSeconds: 77809 },
     metro: { forward: 0, back: 19, liveSeconds: 303997 },
+  });
+}, 60_000);
+
+// 45 minutes of production snapshots as the map received them, every 20 s from 08:20 to 09:05 on
+// Monday 28 September 2026, a weekday morning (#100), and that day's bundle cut to the Trips they
+// could name. Renfe served its Cercanías feeds with no Trains in them all that time (#124), so the
+// replay has no Rodalies Train Live, and TRAM's feed stopped answering at 08:38.
+const MORNING: { bundle: Bundle; received: Received[] } = JSON.parse(gunzipSync(readFileSync(new URL('fixtures/replay-2026-09-28.json.gz', import.meta.url))).toString());
+
+test("counts each Network's jumps over 45 minutes of a weekday morning's live data as the map received it", () => {
+  // Per Train-minute: FGC 0.040, TRAM none, the Metro 0.0044, a twelfth of the 0.053 it was before
+  // #45. Nine of the Metro's are Trains drawn leaving the end of their Line that jump back there, as
+  // TMB has their Blocks leave later (#125).
+  expect(jumps(MORNING.bundle, MORNING.received)).toEqual({
+    fgc: { forward: 44, back: 86, liveSeconds: 193927 },
+    tram: { forward: 0, back: 0, liveSeconds: 35240 },
+    metro: { forward: 0, back: 27, liveSeconds: 369373 },
   });
 }, 60_000);
 
