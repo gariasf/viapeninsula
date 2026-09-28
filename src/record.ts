@@ -6,7 +6,7 @@
 //   keeps cut down to Rodalies' Trips and a few of other núcleos';
 // - bundle.json, that day's whole bundle, which the tests cut their Trips from;
 // - replay.json.gz, `{ bundle, received }` gzipped, what `jumps()` and `trainsAt()` take: the shapes
-//   alone are megabytes. The engine tests keep one in src/fixtures/, named for its day.
+//   alone are megabytes. The engine tests keep those they pin in src/fixtures/, each named for its day.
 //
 // It needs no key: Renfe's feeds, the bundles and the snapshot are all public.
 
