@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { expect, test } from 'vitest';
-import { beside, DEGREE, pointAt, type Bundle, type Freshness, type Network, type Point, type Report, type Shape, type Snapshot } from './bundle.ts';
+import { beside, DEGREE, pointAt, type Bundle, type Network, type Point, type Report, type Shape, type Snapshot } from './bundle.ts';
 import { noonMinus12h } from './build/gtfs.ts';
 import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Received } from './engine.ts';
 import { jumps } from './jumps.ts';
@@ -584,12 +584,12 @@ test('a Train that live data stops reporting keeps its last Delay for 30 minutes
   expect(train(R2S, at('22:30:30'), received)).toMatchObject({ live: false, unreported: true });
 });
 
-/** What the fetcher wrote at a moment while Renfe's feeds had failed since an earlier snapshot: that snapshot's reports, received as it's written. */
-const failing = (moment: number, since: Received): Received => ({
+/** What the fetcher wrote at a moment while a Network's feeds had failed since an earlier snapshot, Renfe's unless it says: that snapshot's reports, received as it's written. */
+const failing = (moment: number, since: Received, network = 'rodalies'): Received => ({
   snapshot: {
     ...since.snapshot,
     generated: moment,
-    feeds: { rodalies: { lastSuccess: since.snapshot.generated, lastAttempt: moment, status: 'vehicle_positions: HTTP 503', every: 20_000 } },
+    feeds: { [network]: { lastSuccess: since.snapshot.generated, lastAttempt: moment, status: 'HTTP 503', every: since.snapshot.feeds[network]?.every ?? 20_000 } },
   },
   at: moment,
 });
@@ -1487,7 +1487,7 @@ test("a Live Metro Train let out of its first Station stays out where a later re
   expect(dists[190]).toBeCloseTo(metro(NEXT_OUT_OF_FONDO, '13:20:30', [], -80)?.dist ?? NaN, 3);
 });
 
-test('a Scheduled Metro Trip waits at its first Station for its Block, leaving now on its board and nearby, and its Block takes over there', () => {
+test("a Scheduled Metro Train waits at its Trip's first Station for its Block, leaving now on its board and nearby, and its Block takes over there", () => {
   // Made up: no Block runs the next Trip out of Fondo, due to leave at 13:17:13, until at 13:18:20 TMB
   // first lists L1's 112 for it, expecting it at Santa Coloma at 13:19:55, 75 s late: still at Fondo.
   // At 13:19:00 it expects 112 there at 13:20:00, so gone since 13:18:33.
@@ -1505,18 +1505,43 @@ test('a Scheduled Metro Trip waits at its first Station for its Block, leaving n
   for (let s = 1; s < dists.length; s++) expect((dists[s] ?? NaN) - (dists[s - 1] ?? NaN)).toBeLessThanOrEqual(80 / 3.6 + 1e-6);
 });
 
-test('a Scheduled Metro Trip whose Block never comes leaves its first Station 3 minutes after its timetable has it leave, and runs that late', () => {
-  // Made up: no Block ever runs the next Trip out of Fondo, due to leave at 13:17:13.
+test("a Scheduled Metro Train whose Block never comes leaves its Trip's first Station 3 minutes after its timetable has it leave, and catches up with its timetable at up to line speed", () => {
+  // Made up: no Block ever runs the next Trip out of Fondo, due to leave at 13:17:13 and to reach
+  // Baró de Viver, where it ends, at 13:20:26.
   const received = elsewhere('13:16:00', '13:25:00');
   expect(metro(NEXT_OUT_OF_FONDO, '13:20:13', received)).toMatchObject({ live: false, dist: 0 });
-  expect(metro(NEXT_OUT_OF_FONDO, '13:20:15', received)?.dist).toBeGreaterThan(0);
-  expect(metro(NEXT_OUT_OF_FONDO, '13:22:00', received)?.dist).toBeCloseTo(metro(NEXT_OUT_OF_FONDO, '13:22:00', [], -180)?.dist ?? NaN, 3);
-  // Due to leave Santa Coloma at 13:19:02, it's expected to leave there at 13:22:02.
-  const moment = Date.parse('2026-09-25T13:20:30+02:00');
-  expect(board(['tmb:1.139'], moment, received, METRO).find((d) => d.trip.id === NEXT_OUT_OF_FONDO)).toMatchObject({ departure: Date.parse('2026-09-25T13:22:02+02:00') });
+  const dists = Array.from({ length: 138 }, (_, s) => metro(NEXT_OUT_OF_FONDO, '13:20:13', received, s)?.dist);
+  // It runs faster than its timetable 3 minutes late would have it, and has run in by 13:22:30, when
+  // that would have it only past Santa Coloma.
+  expect(dists[2]).toBeGreaterThan(0);
+  expect(dists[30]).toBeGreaterThan(metro(NEXT_OUT_OF_FONDO, '13:17:43')?.dist ?? NaN);
+  expect(dists[137]).toBeUndefined();
+  expect(metro(NEXT_OUT_OF_FONDO, '13:19:30')).toBeDefined();
+  const drawn = dists.filter((d) => d !== undefined);
+  for (let s = 1; s < drawn.length; s++) expect((drawn[s] ?? NaN) - (drawn[s - 1] ?? NaN)).toBeGreaterThanOrEqual(0);
+  for (let s = 1; s < drawn.length; s++) expect((drawn[s] ?? NaN) - (drawn[s - 1] ?? NaN)).toBeLessThanOrEqual(80 / 3.6 + 1e-6);
 });
 
-test("a Scheduled Metro Trip on a Line TMB publishes no predictions for, as L9's, runs its timetable, as does every Metro Trip while the Metro's live data is unavailable", () => {
+test("a Metro Train whose Block's reports stop isn't drawn back as if it had waited for its Block once the snapshots that placed it have gone, among the snapshots the map keeps", () => {
+  // Made up: an hour-long L1 Trip, which L1's 112 is at its first Station for at 12:59:40 and has
+  // left on time at 13:00:20. Then TMB names only 113, and the snapshots with 112 go at 13:35:20.
+  const long = bundleOf('2026-09-25', METRO.networks[0] as Network, {
+    long: {
+      line: 'metro:L1',
+      headsign: 'Hospital de Bellvitge',
+      calls: [['tmb:1.901', '13:00:00', '13:00:00', 0, 2, 41.45], ['tmb:1.902', '13:30:00', '13:30:20', 20000, 2.24, 41.45], ['tmb:1.903', '14:00:00', '14:00:00', 40000, 2.48, 41.45]],
+    },
+  });
+  const received = [...['12:59:40', '13:00:20'].map((time) => outOfFondo(time, ['112', 'tmb:1.902', '13:30:00'])), ...elsewhere('13:00:40', '13:37:00')];
+  const kept = (moment: number) => received.filter((r) => r.at > moment - KEEP && r.at <= moment);
+  const each = Array.from({ length: 151 }, (_, s) => {
+    const moment = Date.parse('2026-09-25T13:34:30+02:00') + s * 1000;
+    return trainsAt(long, moment, kept(moment)).find((t) => t.trip.id === 'long')?.dist ?? NaN;
+  });
+  expect(each).toEqual([...each].sort((a, b) => a - b));
+});
+
+test("a Scheduled Metro Train on a Line TMB publishes no predictions for, as L9's, runs its timetable, as does every Metro Train while the Metro's live data is unavailable", () => {
   // With TMB's live data working, the Trip out of Fondo, due to leave at 13:12:56, waits there for a
   // Block, but L9's, due to leave Zona Universitària at 13:13:30, has left on time.
   const working = elsewhere('13:12:00', '13:15:00');
@@ -1527,10 +1552,7 @@ test("a Scheduled Metro Trip on a Line TMB publishes no predictions for, as L9's
   // Made up: from 13:15:20, TMB's data fails to come, and the Metro's live data is unavailable from
   // 13:17:00. The next Trip out of Fondo leaves when its timetable has it leave, at 13:17:13.
   const last = working.at(-1) as Received;
-  const failed = [...working, ...Array.from({ length: 9 }, (_, i): Received => {
-    const moment = last.at + (i + 1) * 20_000;
-    return { snapshot: { ...last.snapshot, generated: moment, feeds: { metro: { ...(last.snapshot.feeds.metro as Freshness), lastAttempt: moment, status: 'HTTP 503' } } }, at: moment };
-  })];
+  const failed = [...working, ...Array.from({ length: 9 }, (_, i) => failing(last.at + (i + 1) * 20_000, last, 'metro'))];
   expect(unavailable(by(failed, Date.parse('2026-09-25T13:17:00+02:00')))).toEqual(['metro']);
   expect(metro(NEXT_OUT_OF_FONDO, '13:17:30', failed)?.dist).toBeCloseTo(metro(NEXT_OUT_OF_FONDO, '13:17:30')?.dist ?? NaN, 3);
   expect(metro(NEXT_OUT_OF_FONDO, '13:17:30')?.dist).toBeGreaterThan(0);

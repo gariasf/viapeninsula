@@ -68,7 +68,8 @@ export const KEEP = CARRY + 5 * 60_000;
  * its Trip's first Station, as while its Block waits at the end of its Line, stands there, unless the
  * Trip its Block ran in on is still on the map, and a Live one at that Station stays there until a
  * report has it gone, and once out, stays out. A Scheduled one on a Line whose live data names Blocks
- * waits there for its Block while that live data works, for up to WAIT past when it's due to leave.
+ * waits there for its Block while that live data works, for up to WAIT past when it's due to leave,
+ * and then catches up with its timetable.
  */
 export function trainsAt(bundle: Bundle, at: number, received: Received[] = []): Train[] {
   const { of } = onMap(bundle, at, received);
@@ -225,7 +226,7 @@ interface OnMap {
   /**
    * How late its times run, in seconds: as live data last had it, or while it's held at its first
    * Station, or let out and catching up, as late as it's drawn, where that's later (#107). One live
-   * data hasn't shifted runs as late as it's drawn, waiting for its Block (#125).
+   * data hasn't shifted runs as late as it's drawn, waiting for its Block or catching up after (#125).
    */
   delay: number;
   calls: Call[];
@@ -273,7 +274,7 @@ function onMap(bundle: Bundle, at: number, received: Received[]): { of: (trip: T
     const feed = feeds[network.id];
     // A Train running late is where its timetable had it that long ago, once it has eased there. One
     // live data hasn't shifted is where unshifted() has it.
-    const timeAt =(moment: number) => (ease ? eased(dwelt, profile, ease, moment) : unshifted(dwelt, moment, blockLines.has(trip.line), feed, upTo));
+    const timeAt = (moment: number) => (ease ? eased(dwelt, profile, ease, moment) : unshifted(dwelt, profile, moment, blockLines.has(trip.line) && works(feed, upTo)));
     const time = timeAt(now);
     const live = isLive(said, feed, upToNow);
     const delay = ease?.hold !== undefined || ease?.leaving ? Math.max(ease.delay, now - time) : (ease?.delay ?? now - time);
@@ -293,7 +294,7 @@ function onMap(bundle: Bundle, at: number, received: Received[]): { of: (trip: T
     // Beyond where its track starts or ends, as past Catalonia's border, it's off the map.
     if (dist === undefined || dist < (shape.dist[0] ?? 0) || dist > (shape.dist.at(-1) ?? 0)) return off;
     const [lon, lat] = pointAt(shape, dist);
-    const unreported = feed !== undefined && !recent(said, upTo) && !stale(feed.lastSuccess, upTo, feed.every) && (!blockNetworks.has(network.id) || blockLines.has(trip.line));
+    const unreported = works(feed, upTo) && !recent(said, upTo) && (!blockNetworks.has(network.id) || blockLines.has(trip.line));
     return { ...off, train: { trip, dist, lon, lat, heading: headingAt(shape, calls, time, dist), live, unreported } };
   };
   return { of, now };
@@ -340,7 +341,7 @@ export function joinDays(days: Bundle[]): Bundle {
  */
 export function unavailable(received: Received[]): string[] {
   const upTo = heardTo(received, (received.at(-1)?.at ?? -Infinity) + behind(received));
-  return Object.entries(received.at(-1)?.snapshot.feeds ?? {}).flatMap(([network, feed]) => (stale(feed.lastSuccess, upTo, feed.every) ? [network] : []));
+  return Object.entries(received.at(-1)?.snapshot.feeds ?? {}).flatMap(([network, feed]) => (works(feed, upTo) ? [] : [network]));
 }
 
 /**
@@ -348,6 +349,9 @@ export function unavailable(received: Received[]): string[] {
  * far into live data as a device has got, both by the fetcher's clock in ms. Never is long ago.
  */
 const stale = (since: number | undefined, upTo: number, every: number) => upTo - (since ?? -Infinity) >= MISSES * every;
+
+/** Whether a Network's live data works, by its feed, as far into live data as a device has got: it hasn't missed three of its updates. */
+const works = (feed: Freshness | undefined, upTo: number) => feed !== undefined && !stale(feed.lastSuccess, upTo, feed.every);
 
 /** Whether a Train is Live, by what live data last said about it and its feed, as far into live data as a device has got. */
 const isLive = (said: Heard | undefined, feed: Freshness | undefined, upTo: number) => feed !== undefined && said?.placed !== undefined && !stale(said.placed, upTo, feed.every);
@@ -531,7 +535,7 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
       const said = recent(heard.get(id), upTo);
       const [live, delay] = [isLive(said, feed, upTo), said ? delayBy(said, upTo) : 0];
       // Until live data first shifts it, a Train runs on its timetable, but for one of the Metro's that waits for its Block (#125).
-      const drawn = ease ? eased(calls, profile, ease, arrived) : unshifted(calls, arrived, linesByBlock(r.snapshot).includes(trip.line), feed, upTo);
+      const drawn = ease ? eased(calls, profile, ease, arrived) : unshifted(calls, profile, arrived, linesByBlock(r.snapshot).includes(trip.line) && works(feed, upTo));
       const [there, dist] = [arrived - delay, (t: number) => place(calls, profile, t) ?? NaN];
       // Held at its first Station, or let out and still drawn behind, it eases out however far behind,
       // and jumps only where live data has it a long way on, or off its Trip (#107).
@@ -539,13 +543,12 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
       // A Live Metro Train out of its first Station stays out: TMB's ETA for a Block that has left the
       // end of its Line can move later again, as while it waited, and have it back at that Station, or
       // behind where the Train is drawn on its first stretch. It stands where it's drawn until its
-      // Delay catches up, since it can't run back (ADR-0002), rather than jumping back (#125), unless
-      // live data has it over 1 km back. Not one live data places only now: its timetable had it out.
+      // Delay catches up, since it can't run back (ADR-0002), rather than jumping back (#125). Not one
+      // live data places only now: its timetable had it out.
       const out = was && live && !!said?.report.block && !!first && !!second && drawn > first.departure && there < Math.min(drawn, second.arrival);
-      // Short of its first Station, a Train leaving is drawn standing there (#105), and one out is as far
-      // back as that Station where live data has it short of it.
-      const off =Math.abs(dist(leaving ? Math.max(drawn, first?.arrival ?? drawn) : drawn) - dist(out ? Math.max(there, first?.arrival ?? there) : there));
-      const far = leaving ? !(off <= JUMP_DIST) : off > JUMP_DIST || (!out && Math.abs(drawn - there) > JUMP_TIME);
+      // Short of its first Station, one leaving is drawn standing there (#105).
+      const off = Math.abs(dist(leaving ? Math.max(drawn, first?.arrival ?? drawn) : drawn) - dist(there));
+      const far = leaving ? !(off <= JUMP_DIST) : !out && (Math.abs(drawn - there) > JUMP_TIME || off > JUMP_DIST);
       const time = i === 0 || far ? there : drawn;
       // A Live Metro Train at its Trip's first Station stays there until a report has it gone, by its
       // Delay, when it was reported: TMB's ETA for a Block waiting at the end of its Line keeps moving
@@ -713,27 +716,31 @@ function unheld(calls: Call[], profile: SpeedProfile, { at, time, delay }: Ease,
 }
 
 /**
- * How long a Scheduled Metro Trip waits at its first Station for its Block, past when its timetable
- * has it leave, in seconds: on #100's weekday morning, the latest TMB first listed a Block for a Trip
- * was 141 s after it was due to leave.
+ * How long a Scheduled Metro Train waits at its Trip's first Station for its Block, past when its
+ * timetable has it leave, in seconds: on #100's weekday morning, the latest TMB first listed a Block
+ * for a Trip was 141 s after it was due to leave.
  */
 const WAIT = 180;
 
 /**
  * Where in its timetable a Train live data hasn't shifted is drawn at a moment, both in seconds into
- * the service day: where its timetable has it, but on a Line whose live data names Blocks, while that
- * live data works, as unavailable() has it, at its first Station, waiting for its Block, for up to
- * WAIT past when it's due to leave, and then as late as it waited. Drawn leaving on time, it snapped
- * back as its Block was first listed for it, a minute or two late (#125). A report placing it takes
- * over from where it's drawn.
- * ponytail: it goes by the live data the map has now, not what it had as the Trip was due to leave,
- * so on a map just opened a Trip no Block runs yet is drawn as if it had waited, and one that waited
- * snaps to its timetable and back as the Metro's live data turns unavailable and works again. Keep
- * the wait in the replay's eases if that shows.
+ * the service day: where its timetable has it, or where it waits for its Block, as on a Line whose
+ * live data names Blocks while that works, at its Trip's first Station for up to WAIT past when it's
+ * due to leave. Drawn leaving on time, it snapped back as its Block was first listed for it, a minute
+ * or two late (#125). A report placing it takes over from where it's drawn. With none by then, it
+ * leaves as late as it waited, and catches up with its timetable at up to line speed, as eased() has a
+ * Train drawn behind do: run that late to the end, it was drawn 3 minutes back once the snapshots that
+ * placed it had gone.
+ * ponytail: it goes by the live data the map has now, not what it had as the Train was due to leave,
+ * so on a map just opened one that left minutes before, which no Block has run yet, is drawn as if it
+ * had waited, and one waiting or catching up snaps to its timetable and back as the Metro's live data
+ * turns unavailable and works again. Keep the wait in the replay's eases if that shows.
  */
-function unshifted(calls: Call[], moment: number, blocks: boolean, feed: Freshness | undefined, upTo: number): number {
-  const waits = blocks && feed !== undefined && !stale(feed.lastSuccess, upTo, feed.every);
-  return waits ? Math.min(moment, Math.max(calls[0]?.departure ?? moment, moment - WAIT)) : moment;
+function unshifted(calls: Call[], profile: SpeedProfile, moment: number, waits: boolean): number {
+  const [departure = moment, end = Infinity] = [calls[0]?.departure, calls.at(-1)?.departure];
+  // Past its last Station however late it waited, it's off the map, as most of the day's Trips are.
+  if (!waits || moment <= departure || moment - WAIT > end) return moment;
+  return moment <= departure + WAIT ? departure : unheld(calls, profile, { at: departure + WAIT, time: departure, delay: 0 }, moment);
 }
 
 /**
