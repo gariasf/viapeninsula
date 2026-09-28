@@ -571,7 +571,7 @@ test('says why where TRAM issues no access token, and that it waits before askin
   const none = { error: 'no access token' };
   const unissued: [Fetched, string][] = [
     [{ status: 401, body: '{"error": "invalid_client"}' }, 'token: HTTP 401'],
-    [{ error: 'Error: no answer in 10 s' }, 'token: Error: no answer in 10 s'],
+    [{ status: 400, body: '{"error": "invalid_request"}' }, 'token: HTTP 400'],
     [{ status: 200, body: '{"error": "server_error"}' }, 'token: none issued'],
   ];
   for (const [token, status] of unissued) {
@@ -590,6 +590,49 @@ test('waits twice as long after each failed request for an access token, up to 3
   expect(seconds(TRAM_NOW, asked)).toEqual([0, 20, 60, 140, 300, 620, 1260, 2540, 4340, 6140]);
   expect(stored.state.tramBackoff).toEqual({ failed: TRAM_NOW + 6_140_000, wait: 1_800_000 });
   expect(stored.state.feeds.tram?.status).toBe('token: HTTP 401; backing off, next try at 11:57:10 UTC');
+});
+
+/** What TRAM gives a run whose request for an access token gets this answer, and no token: the Worker then asks it for no data. */
+const noToken = (token: Fetched): NonNullable<Responses['tram']> => {
+  const none = { error: 'no access token' };
+  return { token, TBX: { positions: none, updates: none }, TBS: { positions: none, updates: none } };
+};
+
+test("asks for an access token on every run while TRAM gives its requests no answer, or a server error, which isn't TRAM refusing its credentials", () => {
+  const unanswered: [Fetched, string][] = [
+    [{ error: 'Error: no answer in 10 s' }, 'token: Error: no answer in 10 s'],
+    [{ status: 503, body: 'Service Unavailable' }, 'token: HTTP 503'],
+  ];
+  for (const [token, status] of unanswered) {
+    const { asked, stored } = tramRuns(TRAM_NOW, 2, () => noToken(token));
+    expect(seconds(TRAM_NOW, asked)).toEqual([0, 20, 40, 60, 80, 100]);
+    expect(stored.state.tramBackoff).toBeUndefined();
+    // It says why, and not that it's backing off.
+    expect(stored.state.feeds.tram?.status).toBe(status);
+  }
+});
+
+test("waits twice as long after credentials TRAM refuses again, as if a request it gave no answer in between weren't there", () => {
+  const refused = step(START.state, { tram: noToken(UNISSUED.token) }, TRAM_NOW);
+  const unanswered = step(refused.state, { tram: noToken({ error: 'Error: no answer in 10 s' }) }, TRAM_NOW + 20_000);
+  // Its wait of 20 s is over, so the next run asks again.
+  expect(unanswered.snapshot.feeds.tram?.status).toBe('token: Error: no answer in 10 s');
+  expect(unanswered.due).toContain('tram');
+  const again = step(unanswered.state, { tram: noToken(UNISSUED.token) }, TRAM_NOW + 40_000);
+  expect(again.state.tramBackoff).toEqual({ failed: TRAM_NOW + 40_000, wait: 40_000 });
+  expect(again.snapshot.feeds.tram?.status).toBe('token: HTTP 401; backing off, next try at 09:46:10 UTC');
+});
+
+test("keeps the wait as it was where TRAM gives a token's data requests no answer, or a server error, which isn't TRAM accepting it", () => {
+  const both = (positions: Fetched, updates: Fetched<Uint8Array>) => ({ TBX: { positions, updates }, TBS: { positions, updates } });
+  const unanswered: TramAnswer[] = [both({ error: 'Error: no answer in 10 s' }, { error: 'Error: no answer in 10 s' }), both({ status: 503, body: '' }, { status: 503, body: new Uint8Array() })];
+  for (const answer of unanswered) {
+    // TRAM refuses the first run's token on its data, gives the next run's data requests no answer
+    // or a server error, and refuses its token on the run after.
+    const { asked, stored } = tramRuns(TRAM_NOW, 1, (t) => (t === TRAM_NOW + 20_000 ? answer : REFUSED));
+    expect(seconds(TRAM_NOW, asked)).toEqual([0, 20]);
+    expect(stored.state.tramBackoff).toEqual({ failed: TRAM_NOW + 40_000, wait: 40_000 });
+  }
 });
 
 test('never waits where the Worker has no credentials for TRAM, since it asks TRAM for nothing', () => {
