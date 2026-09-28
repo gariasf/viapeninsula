@@ -36,6 +36,10 @@ _Avoid_: System
 A line as the public knows it, such as R2 Sud, S1, L3 or T4. An operator's internal variants of a Line join the Line the public knows, as FGC's R53 and R63 join R5 and R6.
 _Avoid_: Route
 
+**Kind of service**:
+What a Line runs as: commuter and suburban, as Rodalies' R1–R8, RG1, RT1, RT2, RL3 and RL4, and FGC's S and L Lines; regional, as R11–R17 and FGC's R5, R50, R6, R60, RL1 and RL2; or metro, tram, rack railway and funicular, as the Metro's and TRAM's Lines, and FGC's MM and FV. Zoomed in, a Train's pill is outlined by its Line's kind of service. The bundle names none, so the map tells it by the Line's Network and name.
+_Avoid_: Service type, train type, category, class, product
+
 **Running side**:
 Which track of a double track a Network's Trains run on, looking the way they go. Every Network in Catalonia keeps right.
 _Avoid_: Handedness, traffic side
