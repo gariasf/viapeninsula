@@ -155,7 +155,7 @@ test("counts a Renfe header earlier than the last as updated, and real time agai
 test("while Renfe's headers stay put, Rodalies' live data is unavailable from the third run, and a header repeated once changes nothing", () => {
   /** Which Networks' live data is unavailable after each run. */
   const unavailableAfter = (headers: number[]) =>
-    renfeRuns(headers).map((_, i, runs) => unavailable(runs.slice(0, i + 1).map(({ snapshot }) => ({ snapshot, at: snapshot.generated }))));
+    renfeRuns(headers).map(({ snapshot }, i, runs) => unavailable(undefined, snapshot.generated, runs.slice(0, i + 1).map((done) => ({ snapshot: done.snapshot, at: done.snapshot.generated }))));
   expect(unavailableAfter([0, 0, 0, 0, 0])).toEqual([[], [], [], ['rodalies'], ['rodalies']]);
   // Renfe's headers move every 18-22 s, and the runs are 20 s apart, so one sometimes repeats.
   expect(unavailableAfter([0, 20, 20, 40, 60, 60, 80])).toEqual([[], [], [], [], [], [], []]);

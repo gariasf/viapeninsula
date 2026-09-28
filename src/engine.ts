@@ -15,8 +15,8 @@ export interface Train {
   heading: number;
   live: boolean;
   /**
-   * Whether its Network's live data works but hasn't reported it lately: it has no live data, and may
-   * not be running. Not where that live data names Blocks but none on its Line, as on L9.
+   * Whether its Network's live data is available but hasn't reported it lately: it has no live data,
+   * and may not be running. Not where that live data names Blocks but none on its Line, as on L9.
    */
   unreported: boolean;
 }
@@ -68,8 +68,8 @@ export const KEEP = CARRY + 5 * 60_000;
  * its Trip's first Station, as while its Block waits at the end of its Line, stands there, unless the
  * Trip its Block ran in on is still on the map, and a Live one at that Station stays there until a
  * report has it gone, and once out, stays out. A Scheduled one on a Line whose live data names Blocks
- * waits there for its Block while that live data works, for up to WAIT past when it's due to leave,
- * and then catches up with its timetable.
+ * waits there for its Block while that live data is available, for up to WAIT past when it's due to
+ * leave, and then catches up with its timetable.
  */
 export function trainsAt(bundle: Bundle, at: number, received: Received[] = []): Train[] {
   const { of } = onMap(bundle, at, received);
@@ -127,7 +127,7 @@ export interface Departure {
   /** Its Delay, in seconds, as live data last gave it: early where it's negative. None to show for a Metro Train (#103). */
   delay?: number;
   live: boolean;
-  /** Whether, drawn on the map, it has no live data though its Network's live data works, as Train.unreported has it. Not before it's on the map, when no feed reports it yet. */
+  /** Whether, drawn on the map, it has no live data though its Network's live data is available, as Train.unreported has it. Not before it's on the map, when no feed reports it yet. */
   unreported: boolean;
   /** Whether its operator has announced that it won't run: then it's expected when its timetable has it leave. */
   cancelled: boolean;
@@ -238,20 +238,38 @@ interface OnMap {
   live: boolean;
 }
 
-/** Where trainsAt() has each Trip's Train at a moment by the device's clock, and that moment in seconds into the service day by the fetcher's clock. */
-function onMap(bundle: Bundle, at: number, received: Received[]): { of: (trip: Trip) => OnMap | undefined; now: number } {
+/**
+ * Where trainsAt() has each Trip's Train at a moment by the device's clock, that moment in seconds
+ * into the service day by the fetcher's clock, and the Networks whose live data is available then.
+ */
+function onMap(bundle: Bundle, at: number, received: Received[]): { of: (trip: Trip) => OnMap | undefined; now: number; available: Set<string> } {
   const clock = behind(received);
   const now = (at + clock - bundle.noonMinus12h) / 1000;
   const shapes = new Map(bundle.shapes.map((s) => [s.id, s]));
   const networks = new Map(bundle.networks.map((n) => [n.id, n]));
   const lines = new Map(bundle.lines.map((l) => [l.id, networks.get(l.network)]));
   // What live data last said about each Trip. A report that matches no Trip is dropped.
-  const { eases, heard } = replay(bundle, received, clock, lines, shapes);
+  const { eases, heard, reported } = replay(bundle, received, clock, lines, shapes);
   // How far into live data the device has got by now, and by when the map last looked for it. A
   // Train is Live only on recent confirmation, however long since the map looked, but live data is
   // unavailable only where the map has looked and found none.
   const [upToNow, upTo] = [heardTo(received, at + clock), heardTo(received, (received.at(-1)?.at ?? -Infinity) + clock)];
   const feeds = received.at(-1)?.snapshot.feeds ?? {};
+  // How many of each quiet Network's Trains its timetable has on the map now, counted as far as
+  // RUNNING: each one whose feed works but has had none of its Trains in it for three of its updates.
+  // Most Trips aren't on the map at any one moment, whatever their dwell: those are skipped first.
+  const quietOnMap = new Map<string, number>(Object.entries(feeds).flatMap(([id, feed]): [string, number][] => (works(feed, upTo) && stale(reported.get(id), upTo, feed.every) ? [[id, 0]] : [])));
+  for (const trip of quietOnMap.size ? bundle.trips : []) {
+    const [network, first, last] = [lines.get(trip.line), trip.calls[0], trip.calls.at(-1)];
+    const count = network && quietOnMap.get(network.id);
+    if (!network || count === undefined || count >= RUNNING || !first || !last || now < first.arrival - network.profile.dwell || now > last.departure + network.profile.dwell) continue;
+    const shape = shapes.get(trip.shape);
+    if (shape && onTrack(shape, place(withDwell(trip, network.profile), network.profile, now))) quietOnMap.set(network.id, count + 1);
+  }
+  // The Networks whose live data is available: each one's feed works, and has had one of its Trains
+  // in it within three of its updates, unless its timetable has fewer than RUNNING of them on the
+  // map, as at night, when a feed is rightly empty (#124).
+  const available = new Set(Object.entries(feeds).flatMap(([id, feed]) => (works(feed, upTo) && (quietOnMap.get(id) ?? 0) < RUNNING ? [id] : [])));
   // The Lines the snapshots kept name Blocks on, and so the Networks they name Blocks for: the
   // Metro's. TMB publishes no predictions for L9, L10 or the funicular, so their Trains have no live
   // data without being left out of it.
@@ -274,7 +292,7 @@ function onMap(bundle: Bundle, at: number, received: Received[]): { of: (trip: T
     const feed = feeds[network.id];
     // A Train running late is where its timetable had it that long ago, once it has eased there. One
     // live data hasn't shifted is where unshifted() has it.
-    const timeAt = (moment: number) => (ease ? eased(dwelt, profile, ease, moment) : unshifted(dwelt, profile, moment, blockLines.has(trip.line) && works(feed, upTo)));
+    const timeAt = (moment: number) => (ease ? eased(dwelt, profile, ease, moment) : unshifted(dwelt, profile, moment, blockLines.has(trip.line) && available.has(network.id)));
     const time = timeAt(now);
     const live = isLive(said, feed, upToNow);
     const delay = ease?.hold !== undefined || ease?.leaving ? Math.max(ease.delay, now - time) : (ease?.delay ?? now - time);
@@ -291,14 +309,16 @@ function onMap(bundle: Bundle, at: number, received: Received[]): { of: (trip: T
     // Most Trips aren't on the map at any one moment, whatever their dwell: skip those first.
     if (!first || !last || (!waits && time < first.arrival - profile.dwell) || time > last.departure + profile.dwell) return off;
     const dist = place(calls, profile, time);
-    // Beyond where its track starts or ends, as past Catalonia's border, it's off the map.
-    if (dist === undefined || dist < (shape.dist[0] ?? 0) || dist > (shape.dist.at(-1) ?? 0)) return off;
+    if (!onTrack(shape, dist)) return off;
     const [lon, lat] = pointAt(shape, dist);
-    const unreported = works(feed, upTo) && !recent(said, upTo) && (!blockNetworks.has(network.id) || blockLines.has(trip.line));
+    const unreported = available.has(network.id) && !recent(said, upTo) && (!blockNetworks.has(network.id) || blockLines.has(trip.line));
     return { ...off, train: { trip, dist, lon, lat, heading: headingAt(shape, calls, time, dist), live, unreported } };
   };
-  return { of, now };
+  return { of, now, available };
 }
+
+/** Whether a Train so far along its shape, in metres, is on the map: not where it's off it, before its first Station or after its last, nor beyond where its track starts or ends, as past Catalonia's border. */
+const onTrack = (shape: Shape, dist: number | undefined): dist is number => dist !== undefined && dist >= (shape.dist[0] ?? 0) && dist <= (shape.dist.at(-1) ?? 0);
 
 /**
  * Consecutive service days' bundles as one, on the last day's clock, so that around midnight a Train
@@ -335,14 +355,27 @@ export function joinDays(days: Bundle[]): Bundle {
 }
 
 /**
- * The Networks whose live data is unavailable, given the snapshots received, as the latest has their
- * feeds: each has missed about three of its updates. Their Trains run as Scheduled meanwhile, and
- * the map says so.
+ * The Networks whose live data is unavailable at a moment by the device's clock (ms since 1970),
+ * given the snapshots received by then, as the latest has their feeds: each has missed about three
+ * of its updates, or works but has had none of its Trains in it for about three of them while its
+ * timetable has RUNNING or more on the map (#124). Before the day's Trips have come, it goes by the
+ * feeds alone. Their Trains run as Scheduled meanwhile, and the map says so.
  */
-export function unavailable(received: Received[]): string[] {
-  const upTo = heardTo(received, (received.at(-1)?.at ?? -Infinity) + behind(received));
-  return Object.entries(received.at(-1)?.snapshot.feeds ?? {}).flatMap(([network, feed]) => (works(feed, upTo) ? [] : [network]));
+export function unavailable(bundle: Bundle | undefined, at: number, received: Received[]): string[] {
+  const { available } = onMap(bundle ?? NO_TRIPS, at, received);
+  return Object.keys(received.at(-1)?.snapshot.feeds ?? {}).filter((network) => !available.has(network));
 }
+
+/** A service day with no Trips, as the map has before the day's have come. */
+const NO_TRIPS: Bundle = { serviceDay: '', noonMinus12h: 0, networks: [], lines: [], stations: [], shapes: [], strokes: [], sides: [], trips: [] };
+
+/**
+ * How many of a Network's Trains its timetable has to have on the map for a feed that works but has
+ * had none of them in it for about three of its updates to count as failing, as Renfe's did on 28
+ * September (#124). With fewer, as at night, it's rightly empty, and the day's first Trains come onto
+ * the map before their first report.
+ */
+const RUNNING = 5;
 
 /**
  * Whether a feed whose updates come `every` ms apart has missed three of them since a moment, as
@@ -350,7 +383,7 @@ export function unavailable(received: Received[]): string[] {
  */
 const stale = (since: number | undefined, upTo: number, every: number) => upTo - (since ?? -Infinity) >= MISSES * every;
 
-/** Whether a Network's live data works, by its feed, as far into live data as a device has got: it hasn't missed three of its updates. */
+/** Whether a Network's feed works, as far into live data as a device has got: it hasn't missed three of its updates. */
 const works = (feed: Freshness | undefined, upTo: number) => feed !== undefined && !stale(feed.lastSuccess, upTo, feed.every);
 
 /** Whether a Train is Live, by what live data last said about it and its feed, as far into live data as a device has got. */
@@ -471,12 +504,14 @@ const [JUMP_TIME, JUMP_DIST] = [60, 1000];
  * The last replay, which the map asks for again each time it moves its Trains until its next
  * snapshot arrives, and then folds that snapshot into.
  */
-let last: { bundle: Bundle; received: Received[]; clock: number; eases: Map<string, Ease>; heard: Map<string, Heard>; dwelt: Map<string, Call[]> } | undefined;
+let last: { bundle: Bundle; received: Received[]; clock: number; eases: Map<string, Ease>; heard: Map<string, Heard>; dwelt: Map<string, Call[]>; reported: Map<string, number> } | undefined;
 
 /**
  * How each Train live data has shifted in time is drawn, snapshot by snapshot, so that it never
- * runs back along its track (ADR-0002), and what live data last said about it. The first snapshot
- * places every Train outright, and after that a Train drawn far from where a snapshot has it jumps there.
+ * runs back along its track (ADR-0002), what live data last said about it, and when each Network's
+ * live data last had one of its Trains in it, by the fetcher's clock in ms since 1970, as it got the
+ * report. The first snapshot places every Train outright, and after that a Train drawn far from
+ * where a snapshot has it jumps there.
  *
  * Snapshots received since the last replay are folded into it, and those it had that have since
  * gone take what only they said with them. The rest of what they did stays: a Train has long caught
@@ -487,7 +522,7 @@ let last: { bundle: Bundle; received: Received[]; clock: number; eases: Map<stri
  * fresher than any before, or the freshest goes, and replays everything then. Fold with the old
  * correction if those devices stutter.
  */
-function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<string, Network | undefined>, shapes: Map<string, Shape>): { eases: Map<string, Ease>; heard: Map<string, Heard> } {
+function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<string, Network | undefined>, shapes: Map<string, Shape>): { eases: Map<string, Ease>; heard: Map<string, Heard>; reported: Map<string, number> } {
   // How many of the last replay's snapshots have gone, and so which of these it had.
   const gone = last?.bundle === bundle && last.clock === clock ? (received.length ? last.received.indexOf(received[0] as Received) : 0) : -1;
   const had = (last?.received.length ?? 0) - gone;
@@ -534,7 +569,9 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
       // A Train live data stops reporting keeps its last Delay until that's CARRY old.
       const said = recent(heard.get(id), upTo);
       const [live, delay] = [isLive(said, feed, upTo), said ? delayBy(said, upTo) : 0];
-      // Until live data first shifts it, a Train runs on its timetable, but for one of the Metro's that waits for its Block (#125).
+      // Until live data first shifts it, a Train runs on its timetable, but for one of the Metro's that
+      // waits for its Block (#125). It's in this snapshot, so its Network's feed has one of its Trains
+      // in it: its live data is available where that feed works (#124).
       const drawn = ease ? eased(calls, profile, ease, arrived) : unshifted(calls, profile, arrived, linesByBlock(r.snapshot).includes(trip.line) && works(feed, upTo));
       const [there, dist] = [arrived - delay, (t: number) => place(calls, profile, t) ?? NaN];
       // Held at its first Station, or let out and still drawn behind, it eases out however far behind,
@@ -559,7 +596,12 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
       eases.set(id, { at: arrived, time, delay, hold: held ? first.departure : undefined, leaving: !held && leaving && !far ? true : undefined });
     }
   }
-  last = { bundle, received: [...received], clock, eases, heard, dwelt };
+  const reported = new Map<string, number>();
+  for (const [id, said] of heard) {
+    const network = lines.get(trips.get(id)?.line ?? '');
+    if (network && said.got > (reported.get(network.id) ?? -Infinity)) reported.set(network.id, said.got);
+  }
+  last = { bundle, received: [...received], clock, eases, heard, dwelt, reported };
   return last;
 }
 
@@ -725,16 +767,16 @@ const WAIT = 180;
 /**
  * Where in its timetable a Train live data hasn't shifted is drawn at a moment, both in seconds into
  * the service day: where its timetable has it, or where it waits for its Block, as on a Line whose
- * live data names Blocks while that works, at its Trip's first Station for up to WAIT past when it's
- * due to leave. Drawn leaving on time, it snapped back as its Block was first listed for it, a minute
- * or two late (#125). A report placing it takes over from where it's drawn. With none by then, it
- * leaves as late as it waited, and catches up with its timetable at up to line speed, as eased() has a
- * Train drawn behind do: run that late to the end, it was drawn 3 minutes back once the snapshots that
- * placed it had gone.
+ * live data names Blocks while that's available, at its Trip's first Station for up to WAIT past
+ * when it's due to leave. Drawn leaving on time, it snapped back as its Block was first listed for
+ * it, a minute or two late (#125). A report placing it takes over from where it's drawn. With none by
+ * then, it leaves as late as it waited, and catches up with its timetable at up to line speed, as
+ * eased() has a Train drawn behind do: run that late to the end, it was drawn 3 minutes back once the
+ * snapshots that placed it had gone.
  * ponytail: it goes by the live data the map has now, not what it had as the Train was due to leave,
  * so on a map just opened one that left minutes before, which no Block has run yet, is drawn as if it
  * had waited, and one waiting or catching up snaps to its timetable and back as the Metro's live data
- * turns unavailable and works again. Keep the wait in the replay's eases if that shows.
+ * turns unavailable and available again. Keep the wait in the replay's eases if that shows.
  */
 function unshifted(calls: Call[], profile: SpeedProfile, moment: number, waits: boolean): number {
   const [departure = moment, end = Infinity] = [calls[0]?.departure, calls.at(-1)?.departure];
