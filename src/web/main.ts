@@ -646,9 +646,8 @@ function showLanguage() {
   legend.replaceChildren(
     ...(['live', 'scheduled'] as const).map((kind) => {
       const row = document.createElement('div');
-      // A dot and a blank pill, as the map draws Trains zoomed out and zoomed in (pillOf()).
-      const markers = ['marker', 'marker pill'].map((shape) => Object.assign(document.createElement('span'), { className: `${shape} ${kind}` }));
-      row.append(...markers, Object.assign(document.createElement('b'), { textContent: t(kind) }), `: ${t(`${kind}Means`)}`);
+      // A dot and a pill with no name, as the map draws Trains zoomed out and zoomed in (pillOf()).
+      row.append(el('span', { className: `marker ${kind}` }), el('span', { className: `marker pill ${kind}` }), Object.assign(document.createElement('b'), { textContent: t(kind) }), `: ${t(`${kind}Means`)}`);
       return row;
     }),
     countRow,

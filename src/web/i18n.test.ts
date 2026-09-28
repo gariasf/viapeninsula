@@ -39,13 +39,13 @@ test('labels the button that follows a random Train in each language', () => {
 
 test("says in About what a Train's outline says of its Line's kind of service, in each language", () => {
   expect(t('outlines', 'ca')).toBe(
-    'Amb el mapa ampliat, cada tren és una etiqueta amb el nom de la seva línia, amb una forma segons el tipus de servei: arrodonida per a les línies de rodalia i les suburbanes, acabada en punta pels dos extrems per a les regionals, i un quadrat amb les cantonades arrodonides per a les de metro, tramvia, cremallera i funicular.',
+    'Amb el mapa ampliat, cada tren és una etiqueta amb el nom de la seva línia, i la seva forma indica el tipus de servei: arrodonida per a les línies de rodalia i les suburbanes, acabada en punta als dos extrems per a les regionals, i quadrada amb les cantonades arrodonides per a les del metro de TMB, del TRAM, del cremallera i dels funiculars.',
   );
   expect(t('outlines', 'es')).toBe(
-    'Con el mapa ampliado, cada tren es una etiqueta con el nombre de su línea, con una forma según el tipo de servicio: redondeada para las líneas de cercanías y las suburbanas, acabada en punta por los dos extremos para las regionales, y un cuadrado con las esquinas redondeadas para las de metro, tranvía, cremallera y funicular.',
+    'Con el mapa ampliado, cada tren es una etiqueta con el nombre de su línea, y su forma indica el tipo de servicio: redondeada para las líneas de cercanías y las suburbanas, acabada en punta por ambos extremos para las regionales, y cuadrada con las esquinas redondeadas para las del metro de TMB, del TRAM, del cremallera y de los funiculares.',
   );
   expect(t('outlines', 'en')).toBe(
-    "Zoomed in, each train is a label with its line's name, shaped by the line's kind of service: rounded for commuter and suburban lines, pointed at both ends for regional lines, and a rounded square for metro, tram, rack railway and funicular lines.",
+    "Zoomed in, each train is a label with its line's name, shaped by the line's kind of service: rounded for commuter and suburban lines, pointed at both ends for regional lines, and a rounded square for the lines of TMB's metro, TRAM, the rack railway and the funiculars.",
   );
 });
 
