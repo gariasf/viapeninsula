@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { pickLanguage, t, trainCount } from './i18n.ts';
+import { LANGUAGES, type Language, pickLanguage, t, trainCount } from './i18n.ts';
 
 test("speaks the first of the browser's languages it knows, whatever the region, and English when it knows none", () => {
   expect(pickLanguage(null, ['ca-ES', 'es-ES', 'en'])).toBe('ca');
@@ -39,5 +39,5 @@ test('labels the button that follows a random Train in each language', () => {
 
 test("says in About's Privacy that visits are counted, naming Cloudflare Web Analytics once in each language for its link", () => {
   expect(t('visitsCounted', 'en')).toBe('Visits are counted with Cloudflare Web Analytics, which uses no cookies and keeps nothing on your device.');
-  for (const lang of ['ca', 'es', 'en'] as const) expect(t('visitsCounted', lang).split('Cloudflare Web Analytics')).toHaveLength(2);
+  for (const lang of Object.keys(LANGUAGES) as Language[]) expect(t('visitsCounted', lang).split('Cloudflare Web Analytics')).toHaveLength(2);
 });
