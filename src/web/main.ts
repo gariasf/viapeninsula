@@ -6,6 +6,7 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { along, beside, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Place, type DayTrips, type Line, type Manifest, type Network, type Point, type Shape, type Snapshot, type Stroke, type Track } from '../bundle.ts';
 import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Received } from '../engine.ts';
 import { language, LANGUAGES, setLanguage, t, trainCount, type Language } from './i18n.ts';
+import { alongside, nameOffset, type Spot } from './names.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
 setWorkerUrl(workerUrl);
@@ -16,7 +17,9 @@ const NAME_SIZE = 12;
 const [PILL_TEXT, FOLLOWED_TEXT] = [10, 12];
 /** How far a pill reaches beyond its Line's name either side, and above and below the name's line, in px. */
 const [PILL_PADDING, PILL_EDGE] = [2, 1.5];
-/** MapLibre's `text-line-height`, in ems: the height of the name's line that a pill fits. */
+/** How wide the edge drawn round a pill is, in px. */
+const PILL_HALO = 1.5;
+/** MapLibre's `text-line-height`, in ems: the height of a line of text, as of the Line's name a pill fits or of a place's name. */
 const LINE_HEIGHT = 1.2;
 /** How far outside its pill's outline the middle of a Train's arrow is, in px. */
 const ARROW_GAP = 4;
@@ -38,7 +41,7 @@ const OUTLINES: Record<Pill['outline'] | 'arrow', { w: number; h: number; across
   // Its tip 4.5 px ahead of its middle, and its base 2.25 px behind and 6 px across.
   arrow: { w: 12, h: 12, outside: (x, y) => Math.max(y - 2.25, (6.75 * Math.abs(x) - 3 * (y + 4.5)) / Math.hypot(3, 6.75)) },
 };
-/** What measures the Lines' names for nameWidth(). */
+/** What measures names for textWidth(). */
 const measuring = document.createElement('canvas').getContext('2d');
 /** How many times the map looks for live data, never getting any, before it says live data is unavailable. */
 const EMPTY_POLLS = 3;
@@ -57,6 +60,15 @@ const LATE = 60 * 60_000;
  * keep up by the second.
  */
 const [MOVED, IDLE_EVERY, IDLE_MOST] = [1500, 30, 250];
+
+/** A place's dot's radius, in px at each zoom, for a place in neither tier. */
+const DOT: [zoom: number, px: number][] = [[7, 1.5], [14, 5]];
+/** The width of the ring round a place's dot, in px at each zoom. */
+const RING: [zoom: number, px: number][] = [[7, 0.5], [14, 1.5]];
+/** The size of a place's name, in px, and how long a line of it can be, in ems, as MapLibre wraps names. */
+const [PLACE_TEXT, PLACE_WRAP] = [11, 10];
+/** How far a place's name stays clear of its dot and of the Trains drawn along its track, in px. */
+const NAME_GAP = 2;
 
 /** A Line's width, in pixels at each zoom. */
 const WIDTH: [zoom: number, px: number][] = [[7, 1.5], [14, 4]];
@@ -165,6 +177,12 @@ const TIERS = [
 ];
 /** How a place in neither tier is drawn: named from zoom 12, and in the smallest size. */
 const UNTIERED = { nameZoom: 12, larger: 0 };
+/**
+ * The whole zooms a place's name is laid out at, as MapLibre offsets names by whole zoom levels: from
+ * the first a tier's names show at to the last the Lines move beside their track at (APART).
+ */
+const NAME_ZOOMS: number[] = [];
+for (let zoom = Math.min(...TIERS.map((tier) => tier.nameZoom)); zoom <= (APART.at(-1)?.[0] ?? 0); zoom++) NAME_ZOOMS.push(zoom);
 
 /** How many metres wide a pixel is at a zoom, at the equator: MapLibre's tiles are 512 px. */
 const pixelMetres = (zoom: number) => (2 * Math.PI * EARTH) / (512 * 2 ** zoom);
@@ -348,8 +366,16 @@ let shownPlaces = new Map<string, Place>();
 let placing = { shapes: new Map<string, Shape>(), sides: new Map<string, Stroke[]>(), keep: new Map<string, number>() };
 /** How each Line's Trains are drawn as pills, by the Line's ID. */
 let pills = new Map<string, Pill>();
+/**
+ * Each place's name: where it goes beside its track, once the map's bearing is known, broken into its
+ * lines, how wide and high those are, in px, the zoom it shows from, and how much larger its dot is.
+ */
+let names: { spot: (bearing: number) => Spot; name: string; size: [width: number, height: number]; nameZoom: number; larger: number }[] = [];
+/** The map's bearing when the names were last put beside their tracks. */
+let namesBearing = NaN;
 map.addSource('lines', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 map.addSource('stations', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+map.addSource('station-names', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 // Today's Lines and Stations are drawn as soon as its track comes, before the Trips, which are most of the bundle.
 needed.days.then(show, (error: unknown) => console.error(error));
 show(await needed.track);
@@ -415,10 +441,10 @@ map.addLayer({
   source: 'stations',
   layout: { 'circle-sort-key': ['get', 'larger'] },
   paint: {
-    'circle-radius': byZoom([[7, 1.5], [14, 5]], (px) => ['+', px, ['get', 'larger']]),
+    'circle-radius': byZoom(DOT, (px) => ['+', px, ['get', 'larger']]),
     'circle-color': '#fff',
     'circle-stroke-color': '#444',
-    'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 7, 0.5, 14, 1.5],
+    'circle-stroke-width': byZoom(RING, (px) => px),
   },
 });
 // Zoomed out, Trains are dots over the Stations they stand at, under the Stations' names.
@@ -438,13 +464,27 @@ map.addLayer({
     'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 7, byLive(0.5, 1.5), 14, byLive(1.5, 3)],
   },
 });
-// Each place's name from its tier's zoom, and where names collide, the one named from further out.
+// Each place's name beside its track (showNames()), from its tier's zoom, and where names collide, the
+// one named from further out. Right of a track, a name's lines line up along the track's side.
 map.addLayer({
   id: 'station-names',
   type: 'symbol',
-  source: 'stations',
+  source: 'station-names',
   filter: ['>=', ['zoom'], ['get', 'nameZoom']],
-  layout: { 'symbol-sort-key': ['get', 'nameZoom'],'text-field': ['get', 'name'], 'text-font': FONT, 'text-size': 11, 'text-anchor': 'top', 'text-offset': [0, 0.7] },
+  layout: {
+    'symbol-sort-key': ['get', 'nameZoom'],
+    'text-field': ['get', 'name'],
+    'text-font': FONT,
+    'text-size': PLACE_TEXT,
+    // Each name comes in the lines nameLines() breaks it into, which MapLibre keeps to when lines can be this long.
+    'text-max-width': 1000,
+    'text-anchor': ['get', 'anchor'],
+    'text-justify': 'auto',
+    'text-offset': byZoom(
+      NAME_ZOOMS.map((zoom) => [zoom, 0]),
+      (_, zoom) => ['array', 'number', 2, ['get', `offset${zoom}`]],
+    ),
+  },
   paint: { 'text-color': '#333', 'text-halo-color': '#fff', 'text-halo-width': 1.5 },
 });
 // Zoomed in (pillOf()), each Train is a pill with its Line's name, over the Stations' names too,
@@ -475,7 +515,7 @@ for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', tr
     paint: {
       'icon-color': byLive(['get', 'colour'], '#fff'),
       'icon-halo-color': byLive('#fff', ['get', 'colour']),
-      'icon-halo-width': 1.5,
+      'icon-halo-width': PILL_HALO,
       'text-color': byLive(['case', ['get', 'dark'], INK, '#fff'], ['get', 'colour']),
     },
   });
@@ -550,6 +590,11 @@ requestAnimationFrame(function move(now) {
   requestAnimationFrame(move);
 });
 
+// A name goes beside its track as the track lies on screen, so once the map has turned, names move.
+// ponytail: only once it stops, so while it turns, names keep their offsets and can cross their
+// tracks. Put them beside their tracks on 'rotate' too, a few times a second, if that shows.
+map.on('moveend', () => map.getBearing() !== namesBearing && showNames());
+
 // The link the map is opened with, and one pasted into the tab later: MapLibre moves the view.
 openLink();
 addEventListener('hashchange', openLink);
@@ -589,13 +634,20 @@ function show(days: Track | Bundle) {
       return [{ type: 'Feature', properties, geometry: { type: 'LineString', coordinates: along(shape, from, to) } }];
     }),
   });
+  const tiered = [...shownPlaces.values()].map((p) => {
+    const { nameZoom, larger } = TIERS.find((tier) => tier.places.includes(p.id)) ?? UNTIERED;
+    return { ...p, nameZoom, larger };
+  });
   map.getSource<GeoJSONSource>('stations')?.setData({
     type: 'FeatureCollection',
-    features: [...shownPlaces.values()].map((p) => {
-      const { nameZoom, larger } = TIERS.find((tier) => tier.places.includes(p.id)) ?? UNTIERED;
-      return { type: 'Feature', properties: { id: p.id, name: p.name, nameZoom, larger }, geometry: { type: 'Point', coordinates: [p.lon, p.lat] } };
-    }),
+    features: tiered.map(({ id, larger, lon, lat }) => ({ type: 'Feature', properties: { id, larger }, geometry: { type: 'Point', coordinates: [lon, lat] } })),
   });
+  const spots = alongside(days.shapes, days.sides, (line) => placing.keep.get(line) ?? 1);
+  names = tiered.map(({ name, nameZoom, larger, lon, lat }) => {
+    const rows = nameLines(name);
+    return { spot: spots([lon, lat]), name: rows.join('\n'), size: [Math.max(...rows.map(placeWidth)), rows.length * LINE_HEIGHT * PLACE_TEXT], nameZoom, larger };
+  });
+  showNames();
   credited = days.networks;
   showCredits();
 }
@@ -644,6 +696,71 @@ function trains(): GeoJSON.FeatureCollection {
   };
 }
 
+/**
+ * Puts each place's name beside its track (alongside()) as the track lies on screen now, at each of
+ * NAME_ZOOMS as far out as clearance() says.
+ * ponytail: laid out flat, so on a tilted map a name sits a little nearer its track or further than
+ * NAME_GAP. Work each normal out on screen with map.project() if that shows.
+ */
+function showNames() {
+  namesBearing = map.getBearing();
+  map.getSource<GeoJSONSource>('station-names')?.setData({
+    type: 'FeatureCollection',
+    features: names.map(({ spot, name, size, nameZoom, larger }): GeoJSON.Feature => {
+      const at = spot(namesBearing);
+      // MapLibre offsets names in ems.
+      const offsets = NAME_ZOOMS.map((zoom) => [`offset${zoom}`, nameOffset(at, clearance(at, larger, zoom), size).map((px) => px / PLACE_TEXT)]);
+      return { type: 'Feature', properties: { name, nameZoom, anchor: at.anchor, ...Object.fromEntries(offsets) }, geometry: { type: 'Point', coordinates: at.from } };
+    }),
+  });
+}
+
+/**
+ * How far out from where it's measured from a place's name goes at a zoom, in px: NAME_GAP clear of
+ * its dot, `larger` px larger than the smallest, and of each Train drawn along its tracks there, as a
+ * pill, or below its Line's pill zoom a dot about as large as the place's, beside its Line's stroke
+ * zoomed out. MapLibre lays names out at whole zooms, so it's as far out as the map needs until the
+ * next, where the Lines are drawn furthest apart and dots largest.
+ * ponytail: clear of every Train but the followed one, which is drawn larger. Take in its pill too if
+ * the names it covers show.
+ */
+function clearance({ from: [, lat], normal: [x, y], dot: dotBehind, lines: drawn }: Spot, larger: number, zoom: number): number {
+  const metresPerPx = pixelMetres(zoom) * Math.cos((lat * Math.PI) / 180);
+  const dot = atZoom(DOT, zoom + 1) + larger + atZoom(RING, zoom + 1);
+  const apart = Math.max(atZoom(APART, zoom), atZoom(APART, zoom + 1));
+  const reaches = drawn.map(({ line, toward, behind }) => {
+    const pill = pills.get(line);
+    const across = pill && zoom >= pill.zoom ? pill.box[0] * Math.abs(x) + pill.box[1] * Math.abs(y) + PILL_HALO : dot;
+    return toward * apart + across - behind / metresPerPx;
+  });
+  return Math.max(dot - dotBehind / metresPerPx, ...reaches) + NAME_GAP;
+}
+
+/**
+ * A place's name broken into lines as MapLibre breaks names (determineLineBreaks()): after a space, a
+ * hyphen, a slash or a middle dot, into lines as near as can be to the mean of as few as fit PLACE_WRAP
+ * ems, their squared differences from it least, a last line better short than long. MapLibre measures
+ * a line without its spaces to break it.
+ */
+function nameLines(name: string): string[] {
+  const words = name.match(/[^ /·-]+[ /·-]*/g) ?? [name];
+  const width = (from: number, to: number) => placeWidth(words.slice(from, to).join('').replaceAll(' ', ''));
+  const even = placeWidth(name) / Math.max(1, Math.ceil(placeWidth(name) / (PLACE_WRAP * PLACE_TEXT)));
+  // The least ragged lines up to each word, and the word the last of them starts with.
+  const [ragged, starts] = [[0], [0]];
+  for (let end = 1; end <= words.length; end++) {
+    ragged[end] = Infinity;
+    for (let start = 0; start < end; start++) {
+      const off = width(start, end) - even;
+      const total = (ragged[start] ?? 0) + (end < words.length ? off ** 2 : off < 0 ? off ** 2 / 2 : 2 * off ** 2);
+      if (total <= (ragged[end] ?? Infinity)) [ragged[end], starts[end]] = [total, start];
+    }
+  }
+  const lines: string[] = [];
+  for (let end = words.length; end > 0; end = starts[end] ?? 0) lines.unshift(words.slice(starts[end], end).join('').trimEnd());
+  return lines;
+}
+
 /** How long the fastest Train, at its Network's top speed, takes to move a quarter of a pixel where the map is, in ms. */
 function quarterPixel(): number {
   const fastest = Math.max(...credited.map((n) => n.profile.topSpeed));
@@ -677,7 +794,7 @@ function pillOf({ network, name, colour }: Line): Pill {
   const city = network === 'metro' || network === 'tram';
   const regional = network === 'rodalies' ? /^R1\d$/.test(name) : network === 'fgc' && /^(R[56]0?|RL[12])$/.test(name);
   const outline = city || name === 'MM' || name === 'FV' ? 'badge' : regional ? 'pointed' : 'round';
-  const width = nameWidth(name);
+  const width = textWidth(name, `bold ${PILL_TEXT}px sans-serif`);
   return { name, outline, dark: darkInk(colour), zoom: city ? 12 : 10, box: boxOf(outline, width, PILL_TEXT), followedBox: boxOf(outline, width, FOLLOWED_TEXT) };
 }
 
@@ -699,16 +816,22 @@ function darkInk(colour: string): boolean {
   return lit / (luminance(INK) + 0.05) > 1.05 / lit;
 }
 
+/** How wide a place's name, or a line of it, is, in px. */
+function placeWidth(text: string): number {
+  return textWidth(text, `${PLACE_TEXT}px sans-serif`);
+}
+
 /**
- * How wide a Line's name is on its Trains' pills, in px.
- * ponytail: measured in the browser's bold sans-serif, not MapLibre's Noto Sans Bold, which comes
- * within a px or so of it on these names, so an arrow can sit that much nearer its pill or further.
- * Measure in Noto Sans Bold, loaded as a web font, if that shows.
+ * How wide a text is in a font, in px: a Line's name on its Trains' pills, or a place's name.
+ * ponytail: measured in the browser's sans-serif, not MapLibre's Noto Sans, which comes within a px or
+ * so of it on the Lines' names and 5 px on a line of a place's, so an arrow can sit that much nearer
+ * its pill or further, and a name beside a slanting track 2 px nearer the track or further. Measure in
+ * Noto Sans, loaded as a web font, if that shows.
  */
-function nameWidth(name: string): number {
-  if (!measuring) return name.length * 6;
-  measuring.font = `bold ${PILL_TEXT}px sans-serif`;
-  return measuring.measureText(name).width;
+function textWidth(text: string, font: string): number {
+  if (!measuring) return text.length * 6;
+  measuring.font = font;
+  return measuring.measureText(text).width;
 }
 
 /**
