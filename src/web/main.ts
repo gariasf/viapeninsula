@@ -963,6 +963,9 @@ function showBanner() {
  * estimates, the credits showCredits() lists there, the code and its licence, and privacy.
  */
 function showAbout() {
+  // The sentence on counting visits names Cloudflare Web Analytics in every language, so the link goes round that name.
+  const analytics = 'Cloudflare Web Analytics';
+  const [beforeAnalytics = '', afterAnalytics = ''] = t('visitsCounted').split(analytics);
   about.setAttribute('aria-label', t('about'));
   about.replaceChildren(
     closeButton(t('close'), () => about.close()),
@@ -980,6 +983,14 @@ function showAbout() {
     ),
     el('h3', { textContent: t('privacy') }),
     el('p', { textContent: t('noCookies') }),
+    el(
+      'p',
+      {},
+      beforeAnalytics,
+      // Cloudflare's own page on what Web Analytics collects.
+      el('a', { href: 'https://developers.cloudflare.com/web-analytics/data-metrics/data-origin-and-collection/', target: '_blank', textContent: analytics }),
+      afterAnalytics,
+    ),
   );
 }
 
