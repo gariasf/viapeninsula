@@ -29,6 +29,18 @@ body,
   background: #555;
 }
 
+/* In a forced-colours theme, such as Windows' contrast themes, the browser would take Live's fill off, so the markers keep theirs in the theme's text colour. */
+@media (forced-colors: active) {
+  .legend .marker {
+    border-color: CanvasText;
+    forced-color-adjust: none;
+  }
+
+  .legend .live {
+    background: CanvasText;
+  }
+}
+
 /* The legend's button that opens the About dialog, as a link rather than MapLibre's square control button, which this comes after. */
 .legend button {
   display: inline;
@@ -56,6 +68,19 @@ body,
 /* The button that follows a random Train: a die, drawn as MapLibre draws its own buttons' icons. */
 .follow-random .maplibregl-ctrl-icon {
   background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='29' height='29' viewBox='0 0 29 29' fill='%23333'><rect x='8.75' y='8.75' width='11.5' height='11.5' rx='2.25' fill='none' stroke='%23333' stroke-width='1.5'/><circle cx='11.75' cy='11.75' r='1.1'/><circle cx='17.25' cy='11.75' r='1.1'/><circle cx='14.5' cy='14.5' r='1.1'/><circle cx='11.75' cy='17.25' r='1.1'/><circle cx='17.25' cy='17.25' r='1.1'/></svg>");
+}
+
+/* In a forced-colours theme the die is white, and black where the scheme is light, as MapLibre's own icons are. */
+@media (forced-colors: active) {
+  .follow-random .maplibregl-ctrl-icon {
+    background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='29' height='29' viewBox='0 0 29 29' fill='%23fff'><rect x='8.75' y='8.75' width='11.5' height='11.5' rx='2.25' fill='none' stroke='%23fff' stroke-width='1.5'/><circle cx='11.75' cy='11.75' r='1.1'/><circle cx='17.25' cy='11.75' r='1.1'/><circle cx='14.5' cy='14.5' r='1.1'/><circle cx='11.75' cy='17.25' r='1.1'/><circle cx='17.25' cy='17.25' r='1.1'/></svg>");
+  }
+}
+
+@media (forced-colors: active) and (prefers-color-scheme: light) {
+  .follow-random .maplibregl-ctrl-icon {
+    background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='29' height='29' viewBox='0 0 29 29' fill='%23000'><rect x='8.75' y='8.75' width='11.5' height='11.5' rx='2.25' fill='none' stroke='%23000' stroke-width='1.5'/><circle cx='11.75' cy='11.75' r='1.1'/><circle cx='17.25' cy='11.75' r='1.1'/><circle cx='14.5' cy='14.5' r='1.1'/><circle cx='11.75' cy='17.25' r='1.1'/><circle cx='17.25' cy='17.25' r='1.1'/></svg>");
+  }
 }
 
 /* The panel, following a Train or showing a Station's board: bottom left, across the bottom on a phone, over the credits. Each Line's name in the Line's colour. */
