@@ -29,7 +29,7 @@ body,
   background: #555;
 }
 
-/* In a forced-colours theme, such as Windows' contrast themes, the browser would take Live's fill off, so the markers keep theirs in the theme's text colour. */
+/* In a forced-colours theme, such as Windows' contrast themes, the browser would take Live's fill off. The markers keep their own colours instead, all in the theme's text colour: Live filled and ringed, Scheduled only ringed. */
 @media (forced-colors: active) {
   .legend .marker {
     border-color: CanvasText;
