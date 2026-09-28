@@ -1,6 +1,7 @@
-import { expect, test } from 'vitest';
+import { featureFilter, type Feature, type ICanonicalTileID } from '@maplibre/maplibre-gl-style-spec';
+import { expect, test, vi } from 'vitest';
 import { DEGREE, type Point, type Shape, type Stroke } from '../bundle.ts';
-import { alongside, nameOffset, type Spot } from './names.ts';
+import { alongside, namedTwice, nameOffset, type Spot } from './names.ts';
 
 // Made up, on the equator, where a degree is DEGREE metres both ways.
 /** The point so many metres east and north of 0°, 0°. */
@@ -123,4 +124,70 @@ test("its box keeps a given distance from its track, however the track slants: s
   // Over a flat track, it's centred over the dot; beside an upright one, level with it.
   expect(rounded(nameOffset(alongside([heading(90)], [], right)(at(0, 0))(0), 10, size))).toEqual([0, -10]);
   expect(rounded(nameOffset(alongside([heading(0)], [], right)(at(0, 0))(0), 10, size))).toEqual([10, 0]);
+});
+
+/** A place of this name, named from a zoom, so many metres east and north of 0°, 0°. */
+const named = (name: string, nameZoom: number, east = 0, north = 0) => {
+  const [lon, lat] = at(east, north);
+  return { name, nameZoom, lon, lat };
+};
+
+/**
+ * Whether the basemap shows a place label with these properties, so many metres east and north of
+ * 0°, 0°, at a whole zoom, where these places are named: as MapLibre filters it in a vector tile of
+ * the zoom, which lays it out 8192 units a side.
+ */
+function shows(places: ReturnType<typeof named>[], zoom: number, properties: Record<string, string>, east = 0, north = 0): boolean {
+  const [lon, lat] = at(east, north);
+  const [x, y] = [((lon + 180) / 360) * 2 ** zoom, ((1 - Math.asinh(Math.tan((lat * Math.PI) / 180)) / Math.PI) / 2) * 2 ** zoom];
+  // MapLibre's distance reads only the tile's z, x and y.
+  const tile = { z: zoom, x: Math.floor(x), y: Math.floor(y) } as ICanonicalTileID;
+  const label: Feature = { type: 1, properties, geometry: [[{ x: (x % 1) * 8192, y: (y % 1) * 8192 }]] };
+  const warn = vi.spyOn(console, 'warn');
+  try {
+    const shown = featureFilter(['!', namedTwice(places)], 'filter').filter({ zoom }, label, tile);
+    // Where the filter fails to run, MapLibre warns and hides the label.
+    expect(warn).not.toHaveBeenCalled();
+    return shown;
+  } finally {
+    warn.mockRestore();
+  }
+}
+
+test("a town's label with a place's name, within 2 km of it, goes from the zoom the place's name shows", () => {
+  const vic = [named('Vic', 9)];
+  expect(shows(vic, 8, { class: 'town', name: 'Vic' }, 300, 400)).toBe(true);
+  expect(shows(vic, 9, { class: 'town', name: 'Vic' }, 300, 400)).toBe(false);
+  expect(shows(vic, 13, { class: 'town', name: 'Vic' }, 300, 400)).toBe(false);
+});
+
+test('one further than 2 km from the place stays', () => {
+  const vic = [named('Vic', 9)];
+  expect(shows(vic, 12, { class: 'town', name: 'Vic' }, 1900, 0)).toBe(false);
+  expect(shows(vic, 12, { class: 'town', name: 'Vic' }, 2100, 0)).toBe(true);
+  expect(shows(vic, 12, { class: 'town', name: 'Vic' }, 0, -2100)).toBe(true);
+});
+
+test("names match whatever their case, but a place's that says more than the label's doesn't", () => {
+  const places = [named('El Vendrell', 12), named('Barcelona-Sants', 9, 500)];
+  expect(shows(places, 12, { class: 'town', name: 'el Vendrell' }, 300)).toBe(false);
+  expect(shows(places, 12, { class: 'city', name: 'Barcelona' }, 300)).toBe(true);
+});
+
+test("only a city's, a town's, a village's or a suburb's label goes, not a neighbourhood's or a hamlet's", () => {
+  const sarria = [named('Sarrià', 11)];
+  for (const kind of ['city', 'town', 'village', 'suburb']) expect(shows(sarria, 12, { class: kind, name: 'Sarrià' }, 300)).toBe(false);
+  for (const kind of ['neighbourhood', 'quarter', 'hamlet']) expect(shows(sarria, 12, { class: kind, name: 'Sarrià' }, 300)).toBe(true);
+});
+
+test('a label with no name stays', () => {
+  expect(shows([named('Vic', 9)], 12, { class: 'town' }, 300)).toBe(true);
+});
+
+test('where two places have one name, each takes the label near it, from the zoom its own name shows', () => {
+  const places = [named('Sant Roc', 12), named('Sant Roc', 9, 10_000)];
+  expect(shows(places, 11, { class: 'suburb', name: 'Sant Roc' }, 300)).toBe(true);
+  expect(shows(places, 12, { class: 'suburb', name: 'Sant Roc' }, 300)).toBe(false);
+  expect(shows(places, 9, { class: 'suburb', name: 'Sant Roc' }, 10_300)).toBe(false);
+  expect(shows(places, 12, { class: 'suburb', name: 'Sant Roc' }, 5000)).toBe(true);
 });

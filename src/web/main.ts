@@ -1,12 +1,12 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
-import type { ExpressionSpecification, LineLayerSpecification } from '@maplibre/maplibre-gl-style-spec';
+import type { ExpressionFilterSpecification, ExpressionSpecification, LineLayerSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { AttributionControl, MapLibreMap, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { along, beside, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Place, type DayTrips, type Line, type Manifest, type Network, type Point, type Shape, type Snapshot, type Stroke, type Track } from '../bundle.ts';
 import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Received } from '../engine.ts';
 import { language, LANGUAGES, setLanguage, t, trainCount, type Language } from './i18n.ts';
-import { alongside, nameOffset, type Spot } from './names.ts';
+import { alongside, namedTwice, nameOffset, type Spot } from './names.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
 setWorkerUrl(workerUrl);
@@ -244,6 +244,8 @@ const map = new MapLibreMap({
   // The view goes in the page's link, as `#map=<zoom>/<lat>/<lon>`, beside what writeLink() adds.
   hash: 'map',
 });
+/** The basemap's place labels, by their layers' IDs, with the filters it gives them, which show() adds to. */
+const placeLabels = new Map<string, ExpressionFilterSpecification | undefined>();
 map.setStyle('https://tiles.openfreemap.org/styles/positron', {
   transformStyle: (_, style) => {
     // OpenFreeMap's credit ends "Data from OpenStreetMap", in English, and the ODbL asks for the
@@ -254,6 +256,10 @@ map.setStyle('https://tiles.openfreemap.org/styles/positron', {
     style.state = { language: { default: language() } };
     for (const layer of style.layers) {
       if (layer.type !== 'symbol' || !layer.layout) continue;
+      // ponytail: takes the place labels' filters to be expressions, as all 9 of positron's are, which
+      // show() can add to. MapLibre would refuse a legacy one's with ours, and that label would stay
+      // beside its place's name. Convert it with the style spec's convertFilter() if one comes.
+      if (layer['source-layer'] === 'place') placeLabels.set(layer.id, layer.filter as ExpressionFilterSpecification | undefined);
       const text = JSON.stringify(layer.layout['text-field']);
       if (!text?.includes('"name_en"')) continue;
       const own = JSON.parse(text.replaceAll('"name_en"', '"name"'));
@@ -638,6 +644,9 @@ function show(days: Track | Bundle) {
     const { nameZoom, larger } = TIERS.find((tier) => tier.places.includes(p.id)) ?? UNTIERED;
     return { ...p, nameZoom, larger };
   });
+  // Where a place is named after its town, the town's label goes once the place's name shows (#121).
+  const once: ExpressionSpecification = ['!', namedTwice(tiered)];
+  for (const [id, filter] of placeLabels) map.setFilter(id, ['all', filter ?? true, once]);
   map.getSource<GeoJSONSource>('stations')?.setData({
     type: 'FeatureCollection',
     features: tiered.map(({ id, larger, lon, lat }) => ({ type: 'Feature', properties: { id, larger }, geometry: { type: 'Point', coordinates: [lon, lat] } })),
