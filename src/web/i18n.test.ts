@@ -37,6 +37,18 @@ test('labels the button that follows a random Train in each language', () => {
   expect(t('followRandom', 'en')).toBe('Follow a random train');
 });
 
+test("says in About what a Train's outline says of its Line's kind of service, in each language", () => {
+  expect(t('outlines', 'ca')).toBe(
+    'Amb el mapa ampliat, cada tren és una etiqueta amb el nom de la seva línia, amb una forma segons el tipus de servei: arrodonida per a les línies de rodalia i les suburbanes, acabada en punta pels dos extrems per a les regionals, i un quadrat amb les cantonades arrodonides per a les de metro, tramvia, cremallera i funicular.',
+  );
+  expect(t('outlines', 'es')).toBe(
+    'Con el mapa ampliado, cada tren es una etiqueta con el nombre de su línea, con una forma según el tipo de servicio: redondeada para las líneas de cercanías y las suburbanas, acabada en punta por los dos extremos para las regionales, y un cuadrado con las esquinas redondeadas para las de metro, tranvía, cremallera y funicular.',
+  );
+  expect(t('outlines', 'en')).toBe(
+    "Zoomed in, each train is a label with its line's name, shaped by the line's kind of service: rounded for commuter and suburban lines, pointed at both ends for regional lines, and a rounded square for metro, tram, rack railway and funicular lines.",
+  );
+});
+
 test("says in About's Privacy that visits are counted, naming Cloudflare Web Analytics once in each language for its link", () => {
   expect(t('visitsCounted', 'en')).toBe('Visits are counted with Cloudflare Web Analytics, which uses no cookies and keeps nothing on your device.');
   for (const lang of Object.keys(LANGUAGES) as Language[]) expect(t('visitsCounted', lang).split('Cloudflare Web Analytics')).toHaveLength(2);

@@ -646,8 +646,9 @@ function showLanguage() {
   legend.replaceChildren(
     ...(['live', 'scheduled'] as const).map((kind) => {
       const row = document.createElement('div');
-      const marker = Object.assign(document.createElement('span'), { className: `marker ${kind}` });
-      row.append(marker, Object.assign(document.createElement('b'), { textContent: t(kind) }), `: ${t(`${kind}Means`)}`);
+      // A dot and a blank pill, as the map draws Trains zoomed out and zoomed in (pillOf()).
+      const markers = ['marker', 'marker pill'].map((shape) => Object.assign(document.createElement('span'), { className: `${shape} ${kind}` }));
+      row.append(...markers, Object.assign(document.createElement('b'), { textContent: t(kind) }), `: ${t(`${kind}Means`)}`);
       return row;
     }),
     countRow,
@@ -960,7 +961,8 @@ function showBanner() {
 
 /**
  * Fills the About dialog, in the viewer's language: what the map shows and that its positions are
- * estimates, the credits showCredits() lists there, the code and its licence, and privacy.
+ * estimates, what a Train's outline says, the credits showCredits() lists there, the code and its
+ * licence, and privacy.
  */
 function showAbout() {
   // ponytail: the link goes round Cloudflare Web Analytics where the sentence names it, as every language
@@ -972,6 +974,7 @@ function showAbout() {
     closeButton(t('close'), () => about.close()),
     el('h2', { textContent: t('about') }),
     el('p', { textContent: t('estimates') }),
+    el('p', { textContent: t('outlines') }),
     el('h3', { textContent: t('credits') }),
     aboutCredits,
     el('h3', { textContent: t('sourceCode') }),
