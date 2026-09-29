@@ -25,6 +25,13 @@ const LINE_HEIGHT = 1.2;
 /** How far outside its pill's outline the middle of a Train's arrow is, in px. */
 const ARROW_GAP = 4;
 /**
+ * The zoom from which Trains standing together at a Station are drawn apart (spreading()): close up,
+ * where a pill is some 90 m across and those moved apart still read as at their Station. Zoomed out
+ * further, where four at Sarrià fanned out over a kilometre at zoom 12, they're drawn on their tracks,
+ * as the maintainer chose (#129).
+ */
+const SPREAD_ZOOM = 14;
+/**
  * How far outside the map's edges Trains standing together are still drawn apart (spreading()), in
  * px: about as far as four going one way move the outermost, so that those coming into view as the
  * map pans are apart already. Further out, none is, as none would show.
@@ -677,7 +684,7 @@ function show(days: Track | Bundle) {
 /**
  * Every Train on the map now, in its Line's colour, Live or Scheduled. Zoomed out, where a double
  * track's two tracks fall on one pixel, each sits on its Line's stroke, half a line width to the
- * side its Network's Trains keep to, so that Trains going opposite ways show apart. Drawn as pills,
+ * side its Network's Trains keep to, so that Trains going opposite ways show apart. From SPREAD_ZOOM,
  * Trains standing together at a Station, or standing there as another passes, go side by side across
  * their track (spreading()), so that each can be seen and tapped (#129).
  */
@@ -717,7 +724,8 @@ function trains(): GeoJSON.FeatureCollection {
     const [x, y] = onScreen(at);
     if (x < -NEAR_VIEW || y < -NEAR_VIEW || x > clientWidth + NEAR_VIEW || y > clientHeight + NEAR_VIEW) return [];
     const [width, height] = followed ? pill.followedBox : pill.box;
-    return [{ id: trip.id, at: [x, y] as [number, number], heading: heading - bearing, aside, box: [width + PILL_HALO, height + PILL_HALO] as [number, number], network: lines.get(trip.line)?.network ?? '', standsAt, fixed: followed }];
+    // Zoomed out from SPREAD_ZOOM, every Train stays where it's drawn, and any moved apart eases back.
+    return [{ id: trip.id, at: [x, y] as [number, number], heading: heading - bearing, aside, box: [width + PILL_HALO, height + PILL_HALO] as [number, number], network: lines.get(trip.line)?.network ?? '', standsAt, fixed: followed || zoom < SPREAD_ZOOM }];
   });
   const movedApart = spread(inView, performance.now());
   return {
