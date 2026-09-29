@@ -649,6 +649,29 @@ const add = (to: Map<string, Trip[]>, key: string, trip: Trip) => to.set(key, [.
 const MATCH = 30 * 60;
 
 /**
+ * How long before a Trip is due to leave its first Station a Block TMB has out of there already can
+ * run it, in seconds. Before the Metro opens, TMB names Blocks out along their Lines with ETAs well
+ * ahead of any Trip, and matched, they were drawn Live up to 9 km along Trips due 5–24 minutes later
+ * (#146). By day TMB often has a Block leave the end of its Line 3–7 minutes before its Trip is due:
+ * with 3 minutes here, those went undrawn a minute or two.
+ * ponytail: one margin for every Line and hour, so before the Metro opens a Block up to 8 minutes
+ * early is still drawn out along its Trip; give the night its own margin if that shows.
+ */
+const EARLY = 8 * 60;
+
+/**
+ * Whether a Block reported at a moment, in ms since 1970, and expected at a Station, can run a Trip:
+ * not where that has it out of the Trip's first Station already, left as long before as the Trip's
+ * timetable runs from there to that Station, while the Trip is due to leave there more than EARLY
+ * later. One waiting at the end of its Line, expected at the Station after, hasn't left (#105).
+ */
+const canRun = (trip: Trip, next: NonNullable<Report['expected']>, reported: number, noonMinus12h: number) => {
+  const [first, call] = [trip.calls[0], trip.calls.find((c) => c.station === next.station)];
+  const [now, expected] = [reported, next.at].map((ms) => (ms - noonMinus12h) / 1000) as [number, number];
+  return !first || !call || expected - (call.arrival - first.departure) >= now || first.departure - now <= EARLY;
+};
+
+/**
  * A snapshot's reports by the Trip each is about, and the Trip each of the Metro's Blocks runs, given
  * the snapshot before it the first time a replay comes to it (`matched`). TMB's timetable names no
  * Blocks, so each of the Metro's keeps the Trip it ran in the snapshot before, where TMB reported it
@@ -657,10 +680,12 @@ const MATCH = 30 * 60;
  * moved from one to the other and back, and its Train jumped (#45). Each of the rest runs the Trip
  * on its Line headed its way that no Block keeps whose timetable has it at the Block's next Station
  * closest to when TMB expects it there, within MATCH, and where two come closest to one Trip, the
- * closer runs it. A report that names a Line, as FGC's for its rack Trains do, runs that Line's Trip
- * whose trip_id ends as its own does, after the `|`. A report naming a Trip that runs on more than
- * one of the days joined is about the one whose timetable runs nearest when it was reported. A
- * report that matches no Trip is dropped.
+ * closer runs it. A Block neither keeps nor runs a Trip that TMB's ETA has it out of the first Station of
+ * already, while that Trip is due to leave there more than EARLY after the report: unmatched, it
+ * isn't drawn, and the Trip waits there Scheduled (#146). A report that names a Line, as FGC's for
+ * its rack Trains do, runs that Line's Trip whose trip_id ends as its own does, after the `|`. A
+ * report naming a Trip that runs on more than one of the days joined is about the one whose
+ * timetable runs nearest when it was reported. A report that matches no Trip is dropped.
  */
 function reportsByTrip(bundle: Bundle, snapshot: Snapshot, before?: Snapshot): Matched {
   const known = matched.get(snapshot);
@@ -686,7 +711,7 @@ function reportsByTrip(bundle: Bundle, snapshot: Snapshot, before?: Snapshot): M
     // Not after a gap in TMB's data, or in what the map received, as while its tab was hidden: by
     // then the Block may have run its Trip to the end and come back along it.
     const follows = id !== undefined && report.at - (prior?.reports.get(id)?.at ?? -Infinity) < FOLLOWS;
-    const keeps = follows ? trips.find((t) => t.id === id && t.calls.some((c) => c.station === position.next.station)) : undefined;
+    const keeps = follows ? trips.find((t) => t.id === id && t.calls.some((c) => c.station === position.next.station) && canRun(t, position.next, report.at, bundle.noonMinus12h)) : undefined;
     if (!keeps) rest.push([report, trips, position.next]);
     else {
       reports.set(keeps.id, report);
@@ -696,7 +721,7 @@ function reportsByTrip(bundle: Bundle, snapshot: Snapshot, before?: Snapshot): M
   for (const [report, trips, next] of rest) {
     let [found, off]: [string | undefined, number] = [undefined, MATCH];
     for (const trip of trips) {
-      if (kept.has(trip.id)) continue;
+      if (kept.has(trip.id) || !canRun(trip, next, report.at, bundle.noonMinus12h)) continue;
       const late = Math.abs(expectedDelay(trip, next, bundle.noonMinus12h) ?? Infinity);
       if (late < off) [found, off] = [trip.id, late];
     }
