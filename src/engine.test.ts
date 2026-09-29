@@ -272,6 +272,16 @@ test('is drawn on its track: at a Station, where the Station is', () => {
   expect(standing?.lat).toBeCloseTo(41.2203207, 7);
 });
 
+test('says which Station it stands at, while it stands at one: its first before it leaves, and its last once it arrives', () => {
+  const standsAt = (time: string) => train(R2S, at(time))?.standsAt;
+  expect(standsAt('21:29:45')).toBe('Sant Vicenç de Calders');
+  expect(standsAt('21:30:30')).toBeUndefined();
+  // With no live data, it stands at Vilanova i la Geltrú from 21:49 to 21:50.
+  expect(standsAt('21:49:30')).toBe('Vilanova i la Geltrú');
+  expect(standsAt('21:50:01')).toBeUndefined();
+  expect(standsAt('22:51:15')).toBe('Barcelona Estació de França');
+});
+
 // Made up, at the equator, where a degree is DEGREE metres both ways: a track from A 3 km east, round
 // a bend 2 km north to B, and on from B 2 km west to C.
 const KM = 1000 / DEGREE;
@@ -734,8 +744,8 @@ test("a followed Train easing towards where live data has it runs as late as liv
 test('a followed Train that live data shows stopped between Stations, held there, runs at no speed', () => {
   // A signal stops the R2S between Sitges and Castelldefels at 21:59:40: every 20 s it's 20 s later.
   const received = [0, 20, 40, 60].map((delay, i) => late(R2S, delay, at('21:59:40', i * 20)));
-  expect(followed(R2S, at('22:00:50'), received)).toMatchObject({ speed: 0, standing: false });
-  expect(followed(R2S, at('21:49:30'))).toMatchObject({ standing: true });
+  expect(followed(R2S, at('22:00:50'), received)).toMatchObject({ speed: 0, standsAt: undefined });
+  expect(followed(R2S, at('21:49:30'))).toMatchObject({ standsAt: 'Vilanova i la Geltrú' });
 });
 
 /** A board of the next departures from some Stations at a moment by the device's clock, with the live data received by then, in `BUNDLE` unless it says. */
@@ -1464,7 +1474,7 @@ test("a Live Metro Train at its Trip's first Station stays there until a report 
   // Held past when the report of 13:18:00 has it leave, it's leaving now, in the follow panel, on the board and nearby.
   const moment = Date.parse('2026-09-25T13:18:30+02:00');
   const panel = followed(NEXT_OUT_OF_FONDO, moment, received, METRO);
-  expect(panel).toMatchObject({ standing: true, speed: 0 });
+  expect(panel).toMatchObject({ standsAt: 'tmb:1.140', speed: 0 });
   expect(panel?.upcoming[0]).toMatchObject({ station: 'tmb:1.140', departure: moment });
   expect(board(['tmb:1.140'], moment, received, METRO)).toMatchObject([{ trip: { id: NEXT_OUT_OF_FONDO }, departure: moment, live: true }]);
   expect(nearbyAt(METRO, moment, by(received, moment), [2.218435, 41.451583], 300, 60 * 60_000).find((p) => p.trip.id === NEXT_OUT_OF_FONDO)).toMatchObject({ at: moment }); // Fondo
@@ -1544,7 +1554,7 @@ test("a Scheduled Metro Train waits at its Trip's first Station for its Block, l
   const received = [...elsewhere('13:16:00', '13:18:00'), outOfFondo('13:18:20', ['112', 'tmb:1.139', '13:19:55']), outOfFondo('13:19:00', ['112', 'tmb:1.139', '13:20:00'])];
   for (const time of ['13:17:12', '13:17:40', '13:18:19']) expect(metro(NEXT_OUT_OF_FONDO, time, received)).toMatchObject({ live: false, dist: 0 });
   const moment = Date.parse('2026-09-25T13:17:40+02:00');
-  expect(followed(NEXT_OUT_OF_FONDO, moment, received, METRO)).toMatchObject({ standing: true, speed: 0, upcoming: [{ station: 'tmb:1.140', departure: moment }, {}, {}] });
+  expect(followed(NEXT_OUT_OF_FONDO, moment, received, METRO)).toMatchObject({ standsAt: 'tmb:1.140', speed: 0, upcoming: [{ station: 'tmb:1.140', departure: moment }, {}, {}] });
   expect(board(['tmb:1.140'], moment, received, METRO).find((d) => d.trip.id === NEXT_OUT_OF_FONDO)).toMatchObject({ departure: moment, live: false });
   expect(nearbyAt(METRO, moment, by(received, moment), [2.218435, 41.451583], 300, 60 * 60_000).find((p) => p.trip.id === NEXT_OUT_OF_FONDO)).toMatchObject({ at: moment }); // Fondo
   // Its Block's first report has it there, and it stays there until the next has it gone, when it eases out.
@@ -1626,7 +1636,7 @@ test("every Scheduled Metro Train runs its timetable while TMB's feed works but 
 
 test('a followed Metro Train whose Block waits at the end of its Line stands at its first Station, expected to leave when TMB expects it to', () => {
   const panel = followed(NEXT_OUT_OF_FONDO, Date.parse('2026-09-25T13:16:30+02:00'), TURNING_112, METRO);
-  expect(panel).toMatchObject({ live: true, standing: true, speed: 0 });
+  expect(panel).toMatchObject({ live: true, standsAt: 'tmb:1.140', speed: 0 });
   expect(panel?.upcoming[0]).toMatchObject({ station: 'tmb:1.140', departure: Date.parse('2026-09-25T13:17:13+02:00') });
 });
 

@@ -86,7 +86,7 @@ export function alongside(shapes: Shape[], sides: Stroke[], keep: (line: string)
     const near = [...found].map(([shape, f]) => ({ ...f, shape, heading: headingAt(shape, f.dist) }));
     const nearest = near.reduce<(typeof near)[number] | undefined>((best, n) => (best && best.metres <= n.metres ? best : n), undefined);
     // The tracks alongside it there: those not much further from the dot, running much the same way, either way.
-    const tracks = near.filter((n) => nearest && n.metres <= nearest.metres + ALONGSIDE_METRES && Math.abs(Math.cos(((n.heading - nearest.heading) * Math.PI) / 180)) >= Math.cos((ALONGSIDE_DEGREES * Math.PI) / 180));
+    const tracks = near.filter((n) => nearest && n.metres <= nearest.metres + ALONGSIDE_METRES && parallel(n.heading, nearest.heading));
     // Each Line drawn along them there, and how many line widths to the track's right its Trains are drawn.
     const lines = tracks.flatMap((track) =>
       (sidesOf.get(track.shape.id) ?? []).filter((s) => s.from <= track.dist && track.dist <= s.to).map((s) => ({ track, line: s.line, widths: s.side + 0.5 * keep(s.line) })),
@@ -141,8 +141,13 @@ export function namedTwice(places: (Pick<Place, 'name' | 'lon' | 'lat'> & { name
   return ['match', ['get', 'class'], TOWNS, ['match', ['downcase', ['to-string', ['get', 'name']]], ...(first ?? ['', false]), ...rest.flat(), false], false];
 }
 
+/** Whether two tracks, or Trains, heading so many degrees clockwise from one way run along one line, either way: within ALONGSIDE_DEGREES of it. */
+export function parallel(a: number, b: number): boolean {
+  return Math.abs(Math.cos(((a - b) * Math.PI) / 180)) >= Math.cos((ALONGSIDE_DEGREES * Math.PI) / 180);
+}
+
 /** The way right of a track heading so many degrees clockwise from north is on screen, where the map's bearing is up: 1 px, x right and y down. */
-function rightOf(heading: number, bearing: number): [x: number, y: number] {
+export function rightOf(heading: number, bearing: number): [x: number, y: number] {
   // The track runs `a` clockwise from up on screen, and its right is a quarter turn on.
   const a = ((heading - bearing) * Math.PI) / 180;
   return [Math.cos(a), Math.sin(a)];
