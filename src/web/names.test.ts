@@ -1,7 +1,7 @@
 import { featureFilter, type Feature, type ICanonicalTileID } from '@maplibre/maplibre-gl-style-spec';
 import { expect, test, vi } from 'vitest';
 import { DEGREE, type Point, type Shape, type Stroke } from '../bundle.ts';
-import { alongside, namedTwice, nameOffset, type Spot } from './names.ts';
+import { alongside, namedTwice, nameOffset, NETWORK_OF, type Spot } from './names.ts';
 
 // Made up, on the equator, where a degree is DEGREE metres both ways.
 /** The point so many metres east and north of 0°, 0°. */
@@ -63,6 +63,48 @@ test('where several tracks meet at a place, it follows the one nearest the dot',
   expect(other.anchor).toBe('bottom');
 });
 
+test("it follows its own Network's nearest track, even where another Network's passes nearer its dot", () => {
+  // As at Barcelona Plaça de Catalunya: the Metro's track 1 m from the dot, north to south, and
+  // Rodalies' 13 m from it, east to west.
+  const tracks = [track('metro:L3', [1, -500], [1, 500]), track('rodalies:R1', [-500, 13], [500, 13])];
+  const lines = [
+    { network: 'metro', shapes: ['metro:L3'] },
+    { network: 'rodalies', shapes: ['rodalies:R1'] },
+  ];
+  const spots = alongside(tracks, [], right, lines);
+  expect(spots(at(0, 0), ['adif:78805'])(0).anchor).toBe('bottom');
+  expect(spots(at(0, 0), ['tmb:1'])(0).anchor).toBe('left');
+  // With no track of its own Network within 200 m, it goes by the nearest of any.
+  expect(spots(at(0, 0), ['fgc:EN'])(0).anchor).toBe('left');
+});
+
+test("each Station's operator runs one Network", async () => {
+  const feeds = await import('../build/networks.ts');
+  const operators = [feeds.RODALIES_FEED, feeds.FGC_FEED, feeds.TRAMBAIX_FEED, feeds.TRAMBESOS_FEED, feeds.METRO_FEED].map((f) => [f.operator, f.network.id]);
+  expect(Object.fromEntries(operators)).toEqual(NETWORK_OF);
+});
+
+test("where another track crosses its own near the place, it takes the side of its own that's clear", () => {
+  // Its own track runs east to west through the dot, and another leaves it north-east.
+  const own = track('own', [-500, 0], [500, 0]);
+  const branch = track('branch', [0, 5], [300, 300]);
+  const place = alongside([own, branch], [], right)(at(0, 0));
+  expect(place(0).anchor).toBe('top');
+  expect(rounded(place(0).normal)).toEqual([0, 1]);
+  // Upside down, north is below on screen, so it stays above.
+  expect(place(180).anchor).toBe('bottom');
+  // Where a track crosses right over its own, neither side is clear, and it goes as it would.
+  const across = track('across', [-300, -300], [300, 300]);
+  expect(alongside([own, across], [], right)(at(0, 0))(0).anchor).toBe('bottom');
+  // Only a track's stretch within 200 m of the place counts: this one crosses its own 212 m east.
+  const beyond = track('beyond', [-100, 312], [500, -288]);
+  expect(alongside([own, beyond], [], right)(at(0, 0))(0).anchor).toBe('top');
+  // Right of a track that runs north to south, crossed to the east, it goes left of it.
+  const upright = alongside([heading(0), track('east', [5, 0], [300, 200])], [], right)(at(0, 0))(0);
+  expect(upright.anchor).toBe('right');
+  expect(rounded(upright.normal)).toEqual([-1, 0]);
+});
+
 test('where the dot lies the other side of its track, it goes from the track', () => {
   expect(metres(alongside([heading(90)], [], right)(at(0, -20))(0).from)).toEqual([0, 0]);
   expect(metres(alongside([heading(90)], [], right)(at(0, 20))(0).from)).toEqual([0, 20]);
@@ -114,12 +156,22 @@ test("zoomed out, where Lines are drawn side by side, it takes each Line's Train
 test("its box keeps a given distance from its track, however the track slants: straight out along its normal", () => {
   // The corners of a name `w`×`h` px that MapLibre anchors at a point by its bottom or its left.
   const corners = (anchor: Spot['anchor'], [x, y]: [number, number], [w, h]: [number, number]) =>
-    anchor === 'left' ? [[x, y - h / 2], [x + w, y - h / 2], [x, y + h / 2], [x + w, y + h / 2]] : [[x - w / 2, y - h], [x + w / 2, y - h], [x - w / 2, y], [x + w / 2, y]];
+    ({
+      left: [[x, y - h / 2], [x + w, y - h / 2], [x, y + h / 2], [x + w, y + h / 2]],
+      right: [[x - w, y - h / 2], [x, y - h / 2], [x - w, y + h / 2], [x, y + h / 2]],
+      bottom: [[x - w / 2, y - h], [x + w / 2, y - h], [x - w / 2, y], [x + w / 2, y]],
+      top: [[x - w / 2, y], [x + w / 2, y], [x - w / 2, y + h], [x + w / 2, y + h]],
+    })[anchor];
   const size: [number, number] = [100, 26];
+  const opposite = { left: 'right', right: 'left', bottom: 'top', top: 'bottom' } as const;
   for (const degrees of [0, 20, 45, 90, 135, 160]) {
     const spot = alongside([heading(degrees)], [], right)(at(0, 0))(0);
-    const clear = Math.min(...corners(spot.anchor, nameOffset(spot, 10, size), size).map(([x = 0, y = 0]) => x * spot.normal[0] + y * spot.normal[1]));
-    expect(rounded([clear])).toEqual([10]);
+    // And the other side of the track, where another crosses its own.
+    const other: Spot = { ...spot, anchor: opposite[spot.anchor], normal: [-spot.normal[0], -spot.normal[1]] };
+    for (const s of [spot, other]) {
+      const clear = Math.min(...corners(s.anchor, nameOffset(s, 10, size), size).map(([x = 0, y = 0]) => x * s.normal[0] + y * s.normal[1]));
+      expect(rounded([clear])).toEqual([10]);
+    }
   }
   // Over a flat track, it's centred over the dot; beside an upright one, level with it.
   expect(rounded(nameOffset(alongside([heading(90)], [], right)(at(0, 0))(0), 10, size))).toEqual([0, -10]);
