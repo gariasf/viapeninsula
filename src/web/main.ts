@@ -22,7 +22,7 @@ const PILL_HALO = 1.5;
 /** MapLibre's `text-line-height`, in ems: the height of a line of text, as of the Line's name a pill fits or of a place's name. */
 const LINE_HEIGHT = 1.2;
 /** How far outside its pill's outline the middle of a Train's arrow is, in px. */
-const ARROW_GAP = 4;
+const ARROW_GAP = 7;
 /** The dark lettering for a Line's colour that white doesn't read on. */
 const INK = '#111';
 /**
