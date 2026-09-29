@@ -26,6 +26,12 @@ const ARROW_GAP = 4;
 /** The dark lettering for a Line's colour that white doesn't read on. */
 const INK = '#111';
 /**
+ * A Live Train's halo (#91): how many times its dot's radius it reaches, how far beyond the corners of
+ * its pill's box, in px, how softly it fades out, from blurred through to its middle (1), and how
+ * strongly it's coloured.
+ */
+const [HALO_DOT, HALO_BEYOND, HALO_BLUR, HALO_OPACITY] = [2, 4, 0.6, 0.6];
+/**
  * The outlines a Train is drawn with, `w`×`h` px around their middles: how far `outside` each a point
  * is, in px (x right, y down), or inside where negative. A pill's outline stretches across its middle
  * 2 px both ways to fit its Line's name over its middle `across` px, and all but PILL_EDGE of its
@@ -65,6 +71,8 @@ const [MOVED, IDLE_EVERY, IDLE_MOST] = [1500, 30, 250];
 const DOT: [zoom: number, px: number][] = [[7, 1.5], [14, 5]];
 /** The width of the ring round a place's dot, in px at each zoom. */
 const RING: [zoom: number, px: number][] = [[7, 0.5], [14, 1.5]];
+/** A Train's dot's radius, in px at each zoom, and the followed Train's, which is larger. */
+const TRAIN_DOT: [zoom: number, px: number, followed: number][] = [[7, 2.5, 5], [14, 6, 10]];
 /** The size of a place's name, in px, and how long a line of it can be, in ems, as MapLibre wraps names. */
 const [PLACE_TEXT, PLACE_WRAP] = [11, 10];
 /** How far a place's name stays clear of its dot and of the Trains drawn along its track, in px. */
@@ -202,6 +210,9 @@ const byZoom = (stops: [zoom: number, px: number][], value: (px: number, zoom: n
   ['zoom'],
   ...stops.flatMap(([zoom, px]) => [zoom, value(px, zoom)]),
 ];
+
+/** Whether a Train is drawn as a dot, zoomed out from its Line's pill zoom (pillOf()), or as a pill. */
+const [AS_DOT, AS_PILL]: [ExpressionSpecification, ExpressionSpecification] = [['<', ['zoom'], ['get', 'pillZoom']], ['>=', ['zoom'], ['get', 'pillZoom']]];
 
 /** An expression that takes one value for a Live Train and another for a Scheduled one. */
 const byLive = (live: string | number | ExpressionSpecification, scheduled: string | number | ExpressionSpecification): ExpressionSpecification => [
@@ -453,23 +464,45 @@ map.addLayer({
     'circle-stroke-width': byZoom(RING, (px) => px),
   },
 });
+/** A Train's dot's radius at a zoom, in px (TRAIN_DOT), or the followed Train's. */
+const dotAt = (zoom: number, followed: boolean) => atZoom(TRAIN_DOT.map(([z, px, larger]) => [z, followed ? larger : px]), zoom);
+/** A Train's dot's radius, in px, as an expression (TRAIN_DOT). */
+const trainDot: ExpressionSpecification = ['interpolate', ['linear'], ['zoom'], ...TRAIN_DOT.flatMap(([zoom, px, followed]): (number | ExpressionSpecification)[] => [zoom, ['case', ['get', 'followed'], followed, px]])];
 // Zoomed out, Trains are dots over the Stations they stand at, under the Stations' names.
 map.addSource('trains', { type: 'geojson', data: trains() });
 map.addLayer({
   id: 'trains',
   type: 'circle',
   source: 'trains',
-  filter: ['<', ['zoom'], ['get', 'pillZoom']],
+  filter: AS_DOT,
   // A Live Train is filled with its Line's colour; a Scheduled one is only ringed with it.
   layout: { 'circle-sort-key': ['case', ['get', 'followed'], 1, 0] },
   // The Train the map follows is drawn larger, over the rest.
   paint: {
-    'circle-radius': ['interpolate', ['linear'], ['zoom'], 7, ['case', ['get', 'followed'], 5, 2.5], 14, ['case', ['get', 'followed'], 10, 6]],
+    'circle-radius': trainDot,
     'circle-color': byLive(['get', 'colour'], '#fff'),
     'circle-stroke-color': byLive('#fff', ['get', 'colour']),
     'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 7, byLive(0.5, 1.5), 14, byLive(1.5, 3)],
   },
 });
+// A Live Train has a soft halo in its Line's colour under its marker, dot or pill, which says again
+// that it's Live and sets it further apart from a Scheduled one, which has none (#91). It grows with
+// the marker, the followed Train's too, as trains() works its radius out for the zoom: a plain
+// number for each Train is quicker for the map to draw with, each time it draws Trains, than an
+// expression of the zoom. It lies under the Lines' names, which it would veil, and the places' dots,
+// which it would blur. On a tilted map it keeps its size, as a pill does more than a circle.
+// ponytail: a circle, so under a long pill it reaches further above and below it than past its ends,
+// whatever its outline. Blur each outline, drawn larger, if that shows.
+map.addLayer(
+  {
+    id: 'train-halos',
+    type: 'circle',
+    source: 'trains',
+    filter: ['get', 'live'],
+    paint: { 'circle-radius': ['get', 'haloRadius'], 'circle-color': ['get', 'colour'], 'circle-blur': HALO_BLUR, 'circle-opacity': HALO_OPACITY, 'circle-pitch-scale': 'viewport' },
+  },
+  'line-names',
+);
 // Each place's name beside its track (showNames()), from its tier's zoom, and where names collide, the
 // one named from further out. Right of a track, a name's lines line up along the track's side.
 map.addLayer({
@@ -500,7 +533,7 @@ map.addLayer({
 // and arrow, larger, over every other Train's: MapLibre draws a layer's names after all its pills.
 for (const [id, outline] of Object.entries(OUTLINES)) addOutline(id, outline);
 for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', true, FOLLOWED_TEXT]] as const) {
-  const filter: ExpressionSpecification = ['all', ['>=', ['zoom'], ['get', 'pillZoom']], ['==', ['get', 'followed'], followed]];
+  const filter: ExpressionSpecification = ['all', AS_PILL, ['==', ['get', 'followed'], followed]];
   map.addLayer({
     id: `train-pills${suffix}`,
     type: 'symbol',
@@ -685,6 +718,7 @@ function trains(): GeoJSON.FeatureCollection {
       const coordinates: Point = shape && metres ? beside(shape, dist, metres) : [lon, lat];
       if (following && trip.id === followed) following.at = coordinates;
       const pill = pills.get(trip.line);
+      const box = pill && (trip.id === followed ? pill.followedBox : pill.box);
       return {
         type: 'Feature',
         properties: {
@@ -697,7 +731,9 @@ function trains(): GeoJSON.FeatureCollection {
           outline: pill?.outline,
           dark: pill?.dark,
           pillZoom: pill?.zoom,
-          reach: pill && reach(trip.id === followed ? pill.followedBox : pill.box, heading - bearing),
+          reach: box && reach(box, heading - bearing),
+          // Its halo's radius: HALO_DOT times its dot's, or from its Line's pill zoom, out to the corners of its pill's box and HALO_BEYOND beyond.
+          haloRadius: pill && box && zoom >= pill.zoom ? Math.hypot(...box) + HALO_BEYOND : HALO_DOT * dotAt(zoom, trip.id === followed),
         },
         geometry: { type: 'Point', coordinates },
       };
