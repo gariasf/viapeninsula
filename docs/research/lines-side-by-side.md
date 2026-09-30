@@ -227,14 +227,14 @@ Each threshold fix lands on a different fault:
   - two Lines that come in and go out on opposite sides.
 - **Change the representation, not the threshold.** When two thresholds each fix one fault and cause another, the model is missing a concept. Here that concept is the shared stretch.
 
-## 8. Tickets this suggests
+## 8. Tickets filed
 
-1. **Measures for drawing Lines:** `breaks()` plus Lines drawn twice, Lines drawn off a track they have alone, Lines on one track drawn over each other, and folds per zoom, run by the daily build and logged. The spot list and sweep go in the repo too.
-2. **A line graph in the build** (ADR first): stretches of one set of Lines, each with an averaged centreline, and short stretches merged on the graph. It emits today's `Stroke`s, one per edge per Line, so `main.ts` draws it unchanged. That alone removes 3.2 and 3.3 and most of 3.1.
-3. **One order per edge,** with crossings and separations minimised and pushed to Stations and forks (3.6).
-4. **Curves at nodes** instead of steps (3.1, 3.5, 3.9).
-5. **Centrelines smooth at the scale of their offset,** per zoom band (3.4).
-6. **Who may bundle, and how wide** (decisions 3 and 4, then 3.7 and 3.8).
+1. **#160 Measures for drawing Lines:** `breaks()` plus Lines drawn twice, Lines drawn off a track they have alone, Lines on one track drawn over each other, and folds per zoom, run by the daily build and logged. The spot list and sweep go in the repo too.
+2. **#161 A line graph in the build** (ADR first): stretches of one set of Lines, each with an averaged centreline, and short stretches merged on the graph. It emits today's `Stroke`s, one per edge per Line, so `main.ts` draws it unchanged. That alone removes 3.2 and 3.3 and most of 3.1.
+3. **#162 One order per edge,** with crossings and separations minimised and pushed to Stations and forks (3.6).
+4. **#163 Curves at nodes** instead of steps (3.1, 3.5, 3.9).
+5. **#164 Centrelines smooth at the scale of their offset,** per zoom band (3.4).
+6. **#165 Who may bundle, and how wide** (decisions 3 and 4, then 3.7 and 3.8).
 
 ## Appendix: the sweep
 
