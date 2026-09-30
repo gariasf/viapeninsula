@@ -217,3 +217,14 @@ test("doesn't move the Lines on a stretch over where another runs along their tr
   );
   expect(['R2', 'R11'].map((name) => strokes(name).map(({ from, to }) => [from, to]))).toEqual([[[0, 5000]], [[0, 5000]]]);
 });
+
+test('keeps a Line at one side where it steps off a stretch for under SHORT and back', () => {
+  // R11 shares R2's track but for a 100 m loop 60 m off it.
+  const { strokes } = draw(
+    [line('R2', 'R2'), line('R11', 'R11')],
+    [shape('R2', [0, 0], [5000, 0]), shape('R11', [0, 0], [2450, 0], [2450, 60], [2550, 60], [2550, 0], [5000, 0])],
+  );
+  expect(strokes('R2')).toEqual([{ from: 0, to: 5000, north: strokes('R2')[0]?.north }]);
+  expect(new Set(strokes('R11').filter((s) => s.to - s.from > 1000).map((s) => s.north)).size).toBe(1);
+  expect(Math.abs(strokes('R2')[0]?.north ?? 0)).toBe(0.5);
+});
