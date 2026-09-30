@@ -6,7 +6,7 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { along, beside, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Place, type DayTrips, type Line, type Manifest, type Network, type Point, type Shape, type Snapshot, type Stroke, type Track } from '../bundle.ts';
 import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Received } from '../engine.ts';
 import { language, LANGUAGES, setLanguage, t, trainCount, type Language } from './i18n.ts';
-import { alongside, namedTwice, nameOffset, type Spot } from './names.ts';
+import { alongside, namedTwice, nameOffset, nearestSide, type Side, type Spot } from './names.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
 setWorkerUrl(workerUrl);
@@ -384,10 +384,10 @@ let placing = { shapes: new Map<string, Shape>(), sides: new Map<string, Stroke[
 /** How each Line's Trains are drawn as pills, by the Line's ID. */
 let pills = new Map<string, Pill>();
 /**
- * Each place's name: where it goes beside its track, once the map's bearing is known, broken into its
- * lines, how wide and high those are, in px, the zoom it shows from, and how much larger its dot is.
+ * Each place's name: its dot, the sides of its track it can go, once the map's bearing is known, broken
+ * into its lines, how wide and high those are, in px, the zoom it shows from, and how much larger its dot is.
  */
-let names: { spot: (bearing: number) => Spot; name: string; size: [width: number, height: number]; nameZoom: number; larger: number }[] = [];
+let names: { dot: Point; sides: (bearing: number) => Side[]; name: string; size: [width: number, height: number]; nameZoom: number; larger: number }[] = [];
 /** The map's bearing when the names were last put beside their tracks. */
 let namesBearing = NaN;
 map.addSource('lines', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
@@ -517,7 +517,7 @@ map.addLayer({
     'text-size': PLACE_TEXT,
     // Each name comes in the lines nameLines() breaks it into, which MapLibre keeps to when lines can be this long.
     'text-max-width': 1000,
-    'text-anchor': ['get', 'anchor'],
+    'text-anchor': ['step', ['zoom'], ...NAME_ZOOMS.flatMap((zoom, i) => [...(i ? [zoom] : []), ['get', `anchor${zoom}`]])] as ExpressionSpecification,
     'text-justify': 'auto',
     'text-offset': byZoom(
       NAME_ZOOMS.map((zoom) => [zoom, 0]),
@@ -687,7 +687,7 @@ function show(days: Track | Bundle) {
   const spots = alongside(days.shapes, days.sides, (line) => placing.keep.get(line) ?? 1, days.lines);
   names = tiered.map(({ name, stations, nameZoom, larger, lon, lat }) => {
     const rows = nameLines(name);
-    return { spot: spots([lon, lat], stations), name: rows.join('\n'), size: [Math.max(...rows.map(placeWidth)), rows.length * LINE_HEIGHT * PLACE_TEXT], nameZoom, larger };
+    return { dot: [lon, lat], sides: spots([lon, lat], stations), name: rows.join('\n'), size: [Math.max(...rows.map(placeWidth)), rows.length * LINE_HEIGHT * PLACE_TEXT], nameZoom, larger };
   });
   showNames();
   credited = days.networks;
@@ -743,7 +743,7 @@ function trains(): GeoJSON.FeatureCollection {
 
 /**
  * Puts each place's name beside its own Network's track (alongside()) as the track lies on screen now, at each of
- * NAME_ZOOMS as far out as clearance() says.
+ * NAME_ZOOMS on the side nearestSide() takes, as far out from its dot as clearance() says.
  * ponytail: laid out flat, so on a tilted map a name sits a little nearer its track or further than
  * NAME_GAP. Work each normal out on screen with map.project() if that shows.
  */
@@ -751,20 +751,26 @@ function showNames() {
   namesBearing = map.getBearing();
   map.getSource<GeoJSONSource>('station-names')?.setData({
     type: 'FeatureCollection',
-    features: names.map(({ spot, name, size, nameZoom, larger }): GeoJSON.Feature => {
-      const at = spot(namesBearing);
-      // MapLibre offsets names in ems.
-      const offsets = NAME_ZOOMS.map((zoom) => [`offset${zoom}`, nameOffset(at, clearance(at, larger, zoom), size).map((px) => px / PLACE_TEXT)]);
-      return { type: 'Feature', properties: { name, nameZoom, anchor: at.anchor, ...Object.fromEntries(offsets) }, geometry: { type: 'Point', coordinates: at.from } };
+    features: names.map(({ dot, sides, name, size, nameZoom, larger }): GeoJSON.Feature => {
+      const at = sides(namesBearing);
+      const properties = NAME_ZOOMS.flatMap((zoom) => {
+        const { spot, far } = nearestSide(at, (s) => clearance(s, larger, zoom));
+        // MapLibre offsets names in ems.
+        return [
+          [`anchor${zoom}`, spot.anchor],
+          [`offset${zoom}`, nameOffset(spot, far, size).map((px) => px / PLACE_TEXT)],
+        ];
+      });
+      return { type: 'Feature', properties: { name, nameZoom, ...Object.fromEntries(properties) }, geometry: { type: 'Point', coordinates: dot } };
     }),
   });
 }
 
 /**
- * How far out from where it's measured from a place's name goes at a zoom, in px: NAME_GAP clear of
- * its dot, `larger` px larger than the smallest, and of each Train drawn along its tracks there, as a
- * pill, or below its Line's pill zoom a dot about as large as the place's, beside its Line's stroke
- * zoomed out. MapLibre lays names out at whole zooms, so it's as far out as the map needs until the
+ * How far out from its dot a place's name goes at a zoom, in px: NAME_GAP clear of the dot, `larger`
+ * px larger than the smallest, and of each Train drawn along its tracks there, as a pill, or below its
+ * Line's pill zoom a dot about as large as the place's, beside its Line's stroke zoomed out, or where
+ * the spot says so, of each Line's stroke. MapLibre lays names out at whole zooms, so it's as far out as the map needs until the
  * next, where the Lines are drawn furthest apart and dots largest.
  * ponytail: clear of every Train but the followed one, which is drawn larger. Take in its pill too if
  * the names it covers show.
@@ -773,12 +779,12 @@ function clearance({ from: [, lat], normal: [x, y], dot: dotBehind, lines: drawn
   const metresPerPx = pixelMetres(zoom) * Math.cos((lat * Math.PI) / 180);
   const dot = atZoom(DOT, zoom + 1) + larger + atZoom(RING, zoom + 1);
   const apart = Math.max(atZoom(APART, zoom), atZoom(APART, zoom + 1));
-  const reaches = drawn.map(({ line, toward, behind }) => {
+  const reaches = drawn.map(({ line, toward, behind, stroke }) => {
     const pill = pills.get(line);
-    const across = pill && zoom >= pill.zoom ? pill.box[0] * Math.abs(x) + pill.box[1] * Math.abs(y) + PILL_HALO : dot;
+    const across = stroke ? atZoom(WIDTH, zoom + 1) / 2 : pill && zoom >= pill.zoom ? pill.box[0] * Math.abs(x) + pill.box[1] * Math.abs(y) + PILL_HALO : dot;
     return toward * apart + across - behind / metresPerPx;
   });
-  return Math.max(dot - dotBehind / metresPerPx, ...reaches) + NAME_GAP;
+  return Math.max(dot - dotBehind / metresPerPx, ...reaches) + NAME_GAP + dotBehind / metresPerPx;
 }
 
 /**
