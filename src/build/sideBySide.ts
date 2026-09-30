@@ -31,6 +31,8 @@ const SAMPLE = 5;
 const MOVE = 1;
 /** How many times at most a centreline's smoothing is widened where it still folds. */
 const ROUNDS = 30;
+/** Past this many Lines side by side, the gap between them narrows, so that a stretch gets no wider (#165). */
+const CROWD = 6;
 
 /** A piece of track: where its middle is and which way it points, in local metres, and the Lines on it. */
 interface Piece {
@@ -39,6 +41,8 @@ interface Piece {
   ux: number;
   uy: number;
   length: number;
+  /** Its level, as its track's shape has it (Shape's `levels`): only Lines on the same level go side by side (#165). */
+  level: string;
   /** Each Line on it: 1 where it runs the way the piece points, going the way its first shape does, -1 the other way. */
   on: Map<number, number>;
 }
@@ -130,7 +134,7 @@ export async function sideBySide(lines: Line[], shapes: Shape[]): Promise<{ stro
         if (!run) list.push((run = []));
         run.push({ ...s, line });
         const here = orders[e]?.filter((l) => keptBeside[s.piece]?.has(l) && visited.has(`${e} ${l}`)) ?? [];
-        const at = here.indexOf(line) - (here.length - 1) / 2;
+        const at = spread(here.indexOf(line), here.length);
         metres.set(at, (metres.get(at) ?? 0) + (pieces[s.piece]?.length ?? 0));
       }
       const at = most(metres);
@@ -517,7 +521,7 @@ function stretches(pieces: Piece[], every: Step[][], tracks: Neighbour[][], besi
     // Each piece's ends, the way the chain runs, moved over to halfway between its outermost tracks:
     // smoothed() smooths the jitter that leaves.
     const ends = chain.map(({ piece, way }) => {
-      const p = pieces[piece] ?? { x: 0, y: 0, ux: 0, uy: 0, length: 0 };
+      const p = pieces[piece] ?? { x: 0, y: 0, ux: 0, uy: 0, length: 0, level: '' };
       const lefts = (across[piece] ?? []).map((n) => n.left);
       const centre = (Math.min(0, ...lefts) + Math.max(0, ...lefts)) / 2;
       const [cx, cy, hx, hy] = [p.x - p.uy * centre, p.y + p.ux * centre, (p.ux * p.length * way) / 2, (p.uy * p.length * way) / 2];
@@ -605,21 +609,21 @@ function walk(lines: Line[], shapes: Shape[]): { pieces: Piece[]; runs: Step[][]
   const metres = ([lon, lat]: Point): [x: number, y: number] => [lon * kx, lat * DEGREE];
 
   const pieces: Piece[] = [];
-  const cut = new Map<string, number[]>(); // the pieces from one point to another
+  const cut = new Map<string, number[]>(); // the pieces from one point to another, on each level
   /** The pieces from a to b: 1 for each that points that way, -1 for each that points back. */
-  const between = (a: Point, b: Point): [piece: number, way: number][] => {
-    const known = cut.get(`${a} ${b}`);
+  const between = (a: Point, b: Point, level: string): [piece: number, way: number][] => {
+    const known = cut.get(`${a} ${b} ${level}`);
     if (known) return known.map((p) => [p, 1]);
-    const back = cut.get(`${b} ${a}`);
+    const back = cut.get(`${b} ${a} ${level}`);
     if (back) return back.map((p): [number, number] => [p, -1]).reverse();
     const [[ax, ay], [bx, by]] = [metres(a), metres(b)];
     const length = Math.hypot(bx - ax, by - ay);
     const [ux, uy, n] = [(bx - ax) / (length || 1), (by - ay) / (length || 1), Math.ceil(length / STEP) || 1];
     const list = Array.from({ length: n }, (_, k) => {
       const t = (k + 0.5) / n;
-      return pieces.push({ x: ax + (bx - ax) * t, y: ay + (by - ay) * t, ux, uy, length: length / n, on: new Map() }) - 1;
+      return pieces.push({ x: ax + (bx - ax) * t, y: ay + (by - ay) * t, ux, uy, length: length / n, level, on: new Map() }) - 1;
     });
-    cut.set(`${a} ${b}`, list);
+    cut.set(`${a} ${b} ${level}`, list);
     return list.map((p) => [p, 1]);
   };
 
@@ -628,7 +632,7 @@ function walk(lines: Line[], shapes: Shape[]): { pieces: Piece[]; runs: Step[][]
     const done = new Set<number>(); // the pieces this Line runs over already
     const first = byId.get(line.shapes[0] ?? '')?.coords ?? [];
     for (const [n, id] of line.shapes.entries()) {
-      const { coords = [], dist = [] } = byId.get(id) ?? {};
+      const { coords = [], dist = [], levels = [] } = byId.get(id) ?? {};
       // A Line's other shapes mostly run its first one's track back the other way.
       const way = n === 0 ? 1 : sameWay(coords, first, kx);
       let run: Step[] | undefined;
@@ -638,7 +642,7 @@ function walk(lines: Line[], shapes: Shape[]): { pieces: Piece[]; runs: Step[][]
         const a = coords[i - 1];
         if (!a) continue;
         const [from, to] = [dist[i - 1] ?? 0, dist[i] ?? 0];
-        const legs = between(a, b);
+        const legs = between(a, b, levels.findLast(([at]) => at <= from)?.[1] ?? '');
         for (const [k, [piece, pieceWay]] of legs.entries()) {
           const part = (to - from) / legs.length;
           const step = { line: l, piece, shape: id, way: pieceWay, from: from + part * k, to: from + part * (k + 1) };
@@ -692,7 +696,7 @@ function cell(x: number, y: number): string {
 
 /** The Lines on a piece and beside it within WIDE, from its right to its left. */
 function neighbours(index: number, pieces: Piece[], cells: Map<string, number[]>): Neighbour[] {
-  const p = pieces[index] ?? { x: 0, y: 0, ux: 0, uy: 0, length: 0, on: new Map() };
+  const p = pieces[index] ?? { x: 0, y: 0, ux: 0, uy: 0, length: 0, level: '', on: new Map() };
   const found = [...p.on].map(([line, way]) => ({ line, piece: index, left: 0, on: true, alongside: true, way }));
   for (let i = -1; i <= 1; i++) {
     for (let j = -1; j <= 1; j++) {
@@ -705,7 +709,13 @@ function neighbours(index: number, pieces: Piece[], cells: Map<string, number[]>
         const left = p.ux * dy - p.uy * dx;
         if (Math.abs(dx * p.ux + dy * p.uy) > STEP / 2 || Math.abs(left) > WIDE) continue;
         const cos = p.ux * o.ux + p.uy * o.uy;
-        for (const [line, way] of o.on) found.push({ line, piece: k, left, on: false, alongside: Math.abs(cos) >= PARALLEL, way: way * Math.sign(cos) });
+        for (const [line, way] of o.on) {
+          // Only Lines on the same level, not a tram over a tunnel, or a Line in one tunnel over
+          // another's: but a Line's own other track counts, as its tunnel can be mapped at another
+          // layer, or longer. Only that Line, so that none joins those on another level through it.
+          if (o.level !== p.level && !p.on.has(line)) continue;
+          found.push({ line, piece: k, left, on: false, alongside: Math.abs(cos) >= PARALLEL, way: way * Math.sign(cos) });
+        }
       }
     }
   }
@@ -842,7 +852,12 @@ function side(s: Step, beside: Map<number, Neighbour>, turned: number[], left: n
   const apart = where(against) - where(along);
   const kept = against.reduce((sum, a) => sum + along.reduce((sum, b) => sum + (left[a.line]?.[b.line] ?? 0), 0), 0);
   const order = against.length && (Math.abs(apart) >= 1 ? apart > 0 : kept > 0) ? [...against, ...along] : [...along, ...against];
-  return (order.findIndex((m) => m.line === s.line) - (order.length - 1) / 2) * ahead * s.way;
+  return spread(order.findIndex((m) => m.line === s.line), order.length) * ahead * s.way;
+}
+
+/** How many line widths right of the middle of so many Lines side by side one is, by its place among them: a line width apart, or closer past CROWD. */
+function spread(place: number, count: number): number {
+  return Math.round((place - (count - 1) / 2) * Math.min(1, (CROWD - 1) / (count - 1 || 1)) * 1000) / 1000;
 }
 
 /** Steps that go together: a run's steps at one side, or a centreline's with one set of Lines. */

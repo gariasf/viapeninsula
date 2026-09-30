@@ -104,6 +104,35 @@ test('draws Lines on tracks too close to tell apart zoomed out side by side too,
   expect(['R2', 'R4', 'R1'].flatMap(strokes).map((s) => s.north).sort((a, b) => a - b)).toEqual([-1, 0, 1]);
 });
 
+test("keeps Lines on tracks at different levels apart, as a tram's over a tunnel", async () => {
+  // As at Glòries: T4 runs on the avenue, 20 m from where R2 runs below it in a tunnel.
+  const tunnel = { ...shape('R2', [0, 0], [5000, 0]), levels: [[0, 'tunnel -1']] as [number, string][] };
+  const { strokes } = await draw([line('R2', 'R2'), line('T4', 'T4')], [tunnel, shape('T4', [0, 20], [5000, 20])]);
+  expect(strokes('R2')).toEqual([{ from: 0, to: 5000, north: 0 }]);
+  expect(strokes('T4')).toEqual([{ from: 0, to: 5000, north: 0 }]);
+});
+
+test('keeps Lines on the very same points at different levels apart, whichever comes first', async () => {
+  const tunnel = { ...shape('R2', [0, 0], [5000, 0]), levels: [[0, 'tunnel -1']] as [number, string][] };
+  for (const lines of [[line('R2', 'R2'), line('T4', 'T4')], [line('T4', 'T4'), line('R2', 'R2')]]) {
+    const { strokes } = await draw(lines, [tunnel, shape('T4', [0, 0], [5000, 0])]);
+    expect([...strokes('R2'), ...strokes('T4')]).toEqual([{ from: 0, to: 5000, north: 0 }, { from: 0, to: 5000, north: 0 }]);
+  }
+});
+
+test("draws a Line's two directions once where OpenStreetMap maps their tracks at different layers of one tunnel", async () => {
+  const [east, west] = [shape('R2', [0, 0], [5000, 0]), shape('R2_INV', [5000, 20], [0, 20])];
+  const { strokes } = await draw([line('R2', 'R2', 'R2_INV')], [{ ...east, levels: [[0, 'tunnel -1']] }, { ...west, levels: [[0, 'tunnel -2']] }]);
+  expect(strokes('R2')).toHaveLength(1);
+});
+
+test('narrows the gap between Lines past six side by side, so that a stretch gets no wider', async () => {
+  const names = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
+  const { strokes } = await draw(names.map((n) => line(n, n)), names.map((n) => shape(n, [0, 0], [5000, 0])));
+  const sides = names.flatMap(strokes).map((s) => s.north).sort((a, b) => a - b);
+  expect(sides.map((n) => n.toFixed(3))).toEqual(names.map((_, i) => ((i - 4) * (5 / 8)).toFixed(3)));
+});
+
 test('puts each Line on the side it branches off to, so that none crosses the others there', async () => {
   // As at El Clot: R2 carries straight on, R11 turns off north and R14 south.
   const { north } = await draw(

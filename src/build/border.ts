@@ -90,5 +90,6 @@ function clip(shape: Shape, inside: (p: Point) => boolean): Shape | undefined {
     id: shape.id,
     coords: [...from.map((d) => pointAt(shape, d)), ...coords.slice(first, last + 1), ...to.map((d) => pointAt(shape, d))],
     dist: [...from, ...dist.slice(first, last + 1), ...to],
+    ...(shape.levels && { levels: shape.levels }),
   };
 }

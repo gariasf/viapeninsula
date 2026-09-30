@@ -90,6 +90,13 @@ const [TWIN, APART] = [2, 8];
 /** Tracks closer to parallel than this (a cosine) run alongside each other. */
 const ALONGSIDE = 0.95;
 
+/**
+ * A bridge or tunnel shorter than this, in metres along a trace, is a bridge over a road or a short
+ * underpass, which tracks alongside each other are often mapped crossing at different places: the
+ * trace keeps the level either side of it.
+ */
+const BRIEF = 150;
+
 /** What setting off back the way it came costs a trace at a Station, as at a terminus. */
 const REVERSE = 2000;
 
@@ -142,6 +149,7 @@ function traceShape(graph: Graph, feed: FeedShape, stations: Station[], log: (li
     return { shape: shape(feed.id, feed.coords), length };
   }
   const coords: Point[] = [];
+  const levels: string[] = []; // of the track up to each point
   const starts = (i: number): Arrival[] =>
     (graph.near.get(waypoints[i]?.station.id ?? '') ?? []).map((vertex) => ({ vertex, edge: -1, cost: 0, waypoint: i, edges: [] }));
   // Draws the cheapest path traced to the last Station reached, and counts its length.
@@ -149,7 +157,10 @@ function traceShape(graph: Graph, feed: FeedShape, stations: Station[], log: (li
     const stretches = cheapest(reached);
     const edges = stretches.flatMap((a) => a.edges);
     const [first] = edges;
-    if (first !== undefined) coords.push(...[source(graph, first), ...edges.map((e) => target(graph, e))].map((v) => point(graph, v)));
+    if (first !== undefined) {
+      coords.push(...[source(graph, first), ...edges.map((e) => target(graph, e))].map((v) => point(graph, v)));
+      levels.push(...[first, ...edges].map((e) => graph.level[e] ?? ''));
+    }
     for (const e of edges) graph.shared.add(e);
     for (const a of stretches) {
       const [from, to] = [waypoints[a.waypoint - 1], waypoints[a.waypoint]];
@@ -183,14 +194,18 @@ function traceShape(graph: Graph, feed: FeedShape, stations: Station[], log: (li
     }
     draw(reached);
     // Beyond either end of the feed's shape it has no track to keep: it would only jump back to that end.
-    if (a.along !== b.along) coords.push(...piece(feed.coords, a.along, b.along));
+    if (a.along !== b.along) {
+      const kept = piece(feed.coords, a.along, b.along);
+      coords.push(...kept);
+      levels.push(...kept.map(() => ''));
+    }
     const off = [a, b].find((w) => !graph.near.has(w.station.id));
     const why = off ? `${off.station.name} is off the network` : 'no path along the rails';
     log(`${feed.id}: ${a.station.name} → ${b.station.name} keeps the feed's shape: ${why}`);
     reached = starts(i);
   }
   draw(reached);
-  return { shape: shape(feed.id, coords), length };
+  return { shape: shape(feed.id, coords, levels), length };
 }
 
 /** A Station a shape's Trips serve, placed on the feed's shape: how far along it, and how far from it, in metres. */
@@ -262,6 +277,8 @@ interface Graph {
    * 1 they do, -1 they run it the other way, 0 either way or untagged.
    */
   tagged: number[];
+  /** For each edge, its way's level (level()). */
+  level: string[];
 }
 
 function point(graph: Graph, v: number): Point {
@@ -280,7 +297,7 @@ function target(graph: Graph, e: number): number {
 
 /** The rails as a graph, with a vertex where each Station is closest to each way near it, for Trains keeping to one side. */
 function railGraph(rails: OsmWay[], stations: Station[], side: Network['runningSide']): Graph {
-  const graph: Graph = { at: [], to: [], metres: [], out: [], near: new Map(), shared: new Set(), wrong: [], tagged: [], keep: side === 'left' ? 1 : -1 };
+  const graph: Graph = { at: [], to: [], metres: [], out: [], near: new Map(), shared: new Set(), wrong: [], tagged: [], level: [], keep: side === 'left' ? 1 : -1 };
   const vertices = new Map<number, number>(); // each OpenStreetMap node's vertex
   const add = (p: Point) => {
     graph.at.push(p);
@@ -288,13 +305,14 @@ function railGraph(rails: OsmWay[], stations: Station[], side: Network['runningS
     return graph.at.length - 1;
   };
   /** Joins a to b, where Trains run the way from a to b, as OpenStreetMap tags it: 1 mostly, -1 mostly the other way, 0 either or untagged. */
-  const link = (a: number, b: number, way = 0) => {
+  const link = (a: number, b: number, way: number, onLevel: string) => {
     const d = metres(point(graph, a), point(graph, b));
     for (const [from, to, tagged] of [[a, b, way], [b, a, -way]] as const) {
       graph.out[from]?.push(graph.to.length);
       graph.to.push(to);
       graph.metres.push(d);
       graph.tagged.push(tagged);
+      graph.level.push(onLevel);
     }
   };
 
@@ -320,7 +338,7 @@ function railGraph(rails: OsmWay[], stations: Station[], side: Network['runningS
   }
 
   for (const way of rails) {
-    const tagged = { forward: 1, backward: -1 }[way.tags['railway:preferred_direction'] ?? ''] ?? 0;
+    const [tagged, onLevel] = [{ forward: 1, backward: -1 }[way.tags['railway:preferred_direction'] ?? ''] ?? 0, level(way.tags)];
     const nodes = way.nodes.map((id, i) => {
       const g = way.geometry[i] ?? { lon: NaN, lat: NaN };
       const v = vertices.get(id) ?? add([g.lon, g.lat]);
@@ -339,12 +357,12 @@ function railGraph(rails: OsmWay[], stations: Station[], side: Network['runningS
         let v = metres(p, b) < 1 ? v1 : metres(p, point(graph, prev)) < 1 ? prev : -1;
         if (v < 0) {
           v = add(p);
-          link(prev, v, tagged);
+          link(prev, v, tagged, onLevel);
           prev = v;
         }
         graph.near.set(cut.station, [...(graph.near.get(cut.station) ?? []), v]);
       }
-      link(prev, v1, tagged);
+      link(prev, v1, tagged, onLevel);
     }
   }
   graph.wrong = wrongTracks(graph);
@@ -571,14 +589,52 @@ function piece(polyline: Point[], from: number, to: number): Point[] {
   return along({ coords: polyline, dist: distances(polyline) }, from, to);
 }
 
-/** A Shape from its points, with the distance along it at each. */
-function shape(id: string, all: Point[]): Shape {
-  const points: Point[] = [];
-  for (const p of all) {
+/** A Shape from its points, with the distance along it at each, and its levels, given the level of the track up to each point. */
+function shape(id: string, all: Point[], levels: string[] = []): Shape {
+  const [points, at]: [Point[], string[]] = [[], []];
+  for (const [i, p] of all.entries()) {
     const last = points.at(-1);
-    if (!last || metres(last, p) > 0.5) points.push(p);
+    if (last && metres(last, p) <= 0.5) continue;
+    points.push(p);
+    at.push(levels[i] ?? '');
   }
-  return { id, coords: points.map(([lon, lat]) => [round(lon), round(lat)]), dist: distances(points).map(Math.round) };
+  const dist = distances(points).map(Math.round);
+  // Each length of one level, those under BRIEF merged into their neighbours.
+  const runs = merged(at.slice(1).map((level, i) => ({ key: level, metres: (dist[i + 1] ?? 0) - (dist[i] ?? 0), from: dist[i] ?? 0 })), BRIEF);
+  // The ground at its start goes without saying.
+  const found = runs.filter((r, i) => r.key || i).map((r): [number, string] => [r.from, r.key]);
+  return { id, coords: points.map(([lon, lat]) => [round(lon), round(lat)]), dist, ...(found.length && { levels: found }) };
+}
+
+/** A way's level: `tunnel`, `bridge` or, off the ground, `layer`, and its layer, which OpenStreetMap takes as -1 in a tunnel and 1 on a bridge where it's untagged; or '' on the ground. */
+function level(tags: Record<string, string>): string {
+  const [tunnel, bridge] = [tags.tunnel, tags.bridge].map((t) => !!t && t !== 'no');
+  const tagged = Number.parseInt(tags.layer ?? '', 10);
+  const layer = Number.isNaN(tagged) ? (tunnel ? -1 : bridge ? 1 : 0) : tagged;
+  return tunnel ? `tunnel ${layer}` : bridge ? `bridge ${layer}` : layer ? `layer ${layer}` : '';
+}
+
+/**
+ * Lengths of something along a line, each under `short` metres merged into a neighbour, shortest
+ * first: into the one it interrupts, or else the longer. The one merged into keeps its key.
+ * ponytail: the rule sideBySide's merge() follows for spans of pieces; share one if a third needs it.
+ */
+function merged<T extends { key: string; metres: number; from: number }>(parts: T[], short: number): T[] {
+  let list = parts.reduce<T[]>((all, p) => {
+    const last = all.at(-1);
+    if (last?.key === p.key) last.metres += p.metres;
+    else all.push({ ...p });
+    return all;
+  }, []);
+  for (;;) {
+    const s = list.filter((p) => p.metres < short).sort((a, b) => a.metres - b.metres)[0];
+    const i = s ? list.indexOf(s) : -1;
+    const [prev, next] = [list[i - 1], list[i + 1]];
+    if (!s || (!prev && !next)) return list;
+    if (prev && next && prev.key === next.key) list = list.toSpliced(i - 1, 3, { ...prev, metres: prev.metres + s.metres + next.metres });
+    else if (prev && (!next || prev.metres >= next.metres)) list = list.toSpliced(i - 1, 2, { ...prev, metres: prev.metres + s.metres });
+    else if (next) list = list.toSpliced(i, 2, { ...next, from: s.from, metres: s.metres + next.metres });
+  }
 }
 
 /** The great-circle distance along a line at each of its points, in metres. */
