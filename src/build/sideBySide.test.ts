@@ -196,3 +196,24 @@ test("gives each of a Line's shapes the side its stroke is drawn at all along it
   expect(side('R2_INV')).toEqual([{ line: 'R2', from: 0, to: 5000, side: -(r2?.side ?? NaN) }]);
   expect(side('R11')).toEqual([{ line: 'R11', from: 0, to: 5000, side: strokes[1]?.side }]);
 });
+
+test('moves the Lines on a stretch over together, at the one place where another joins them', () => {
+  // R2 and R11 share track east; R14 comes in from the north and joins them halfway.
+  const { strokes } = draw(
+    [line('R2', 'R2'), line('R11', 'R11'), line('R14', 'R14')],
+    [shape('R2', [0, 0], [5000, 0]), shape('R11', [0, 0], [5000, 0]), shape('R14', [1000, 1500], [2500, 0], [5000, 0])],
+  );
+  const steps = ['R2', 'R11'].map((name) => strokes(name).slice(1).map((s) => s.from));
+  expect(steps.map((s) => s.length)).toEqual([1, 1]);
+  expect(steps[0]).toEqual(steps[1]);
+  expect(Math.abs((steps[0]?.[0] ?? NaN) - 2500)).toBeLessThanOrEqual(50);
+});
+
+test("doesn't move the Lines on a stretch over where another runs along their track for under SHORT", () => {
+  // R14 crosses R2's and R11's track, sharing it for 100 m.
+  const { strokes } = draw(
+    [line('R2', 'R2'), line('R11', 'R11'), line('R14', 'R14')],
+    [shape('R2', [0, 0], [5000, 0]), shape('R11', [0, 0], [5000, 0]), shape('R14', [1000, 1500], [2450, 0], [2550, 0], [4000, -1500])],
+  );
+  expect(['R2', 'R11'].map((name) => strokes(name).map(({ from, to }) => [from, to]))).toEqual([[[0, 5000]], [[0, 5000]]]);
+});

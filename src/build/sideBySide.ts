@@ -41,6 +41,12 @@ interface Step {
   to: number;
 }
 
+/** A Line's run along a Stretch, and all its steps on that Stretch, where a SHORT one merged into it may have it come and go. */
+interface Along {
+  steps: Step[];
+  all: Step[];
+}
+
 /** A Line on or beside a piece: the piece it's on, how far left of it, in metres (right if negative), whether on it or alongside it, and which way it runs. */
 interface Neighbour {
   line: number;
@@ -78,17 +84,25 @@ export function sideBySide(lines: Line[], shapes: Shape[]): { strokes: Stroke[];
   const keptBeside = kept.map(byLine);
   const { centrelines, runs: along } = stretches(pieces, every, kept, keptBeside, kx);
   const stretchSide = (s: Step) => side(s, keptBeside[s.piece] ?? new Map(), turned, left, place);
+  // Each Line at one side all along a Stretch: the side it takes for most of it.
+  const once = ({ steps, all }: Along) => {
+    const most = new Map<number, number>();
+    for (const s of all) most.set(stretchSide(s), (most.get(stretchSide(s)) ?? 0) + (pieces[s.piece]?.length ?? 0));
+    const side = [...most].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 0;
+    return draw(steps, () => side);
+  };
   // Not flatMap(draw): that would pass each run's index as its sides.
-  return { strokes: along.flatMap((run) => draw(run, stretchSide)), centrelines, rails: runs.flatMap((run) => draw(run)), sides: every.flatMap((run) => draw(run)) };
+  return { strokes: along.flatMap(once), centrelines, rails: runs.flatMap((run) => draw(run)), sides: every.flatMap((run) => draw(run)) };
 }
 
 /**
- * The stretches' centrelines, and each Line's runs along them, for the Lines on or beside each piece
- * (`beside`). Each piece is drawn with the lowest of those on other tracks beside it whose Lines
- * include all its own, or else it draws them itself, with the Lines beside it: along the line halfway
- * between the outermost tracks beside it.
+ * The stretches' centrelines, and each Line's runs along the Stretches on them, for the Lines on or
+ * beside each piece (`beside`). Each piece is drawn with the lowest of those on other tracks beside
+ * it whose Lines include all its own, or else it draws them itself, with the Lines beside it: along
+ * the line halfway between the outermost tracks beside it. A centreline is a Stretch wherever the
+ * set of Lines along it stays the same, and one Stretch after another where it changes.
  */
-function stretches(pieces: Piece[], every: Step[][], tracks: Neighbour[][], beside: Map<number, Neighbour>[], kx: number): { centrelines: Shape[]; runs: Step[][] } {
+function stretches(pieces: Piece[], every: Step[][], tracks: Neighbour[][], beside: Map<number, Neighbour>[], kx: number): { centrelines: Shape[]; runs: Along[] } {
   const mates = mated(pieces, every);
   const across = tracks.map((list, p) => list.filter((n) => !mates[p]?.has(n.piece)));
   const drawer: number[] = [];
@@ -113,9 +127,8 @@ function stretches(pieces: Piece[], every: Step[][], tracks: Neighbour[][], besi
       chain.push(s);
     }
   }
-  const [centrelines, runs]: [Shape[], Step[][]] = [[], []];
+  const [centrelines, runs]: [Shape[], Along[]] = [[], []];
   for (const chain of chains) {
-    const id = `${STRETCH}${centrelines.length}`;
     // Each piece's ends, the way the chain runs, moved over to halfway between its outermost tracks,
     // evened out along the chain.
     const centres = chain.map(({ piece }) => {
@@ -136,15 +149,43 @@ function stretches(pieces: Piece[], every: Step[][], tracks: Neighbour[][], besi
     points.push(ends.at(-1)?.[1] ?? [0, 0]);
     const round = (degrees: number) => Math.round(degrees * 1e5) / 1e5;
     const coords = points.map(([x, y]): Point => [round(x / kx), round(y / DEGREE)]);
+    const id = `${STRETCH}${centrelines.length}`;
     const dist = distances(coords).map(Math.round);
     centrelines.push({ id, coords, dist });
-    // Each Line along it, a run for each time it's there.
-    const running = new Map<number, Step[]>();
-    for (const [i, { piece, way }] of chain.entries()) {
-      for (const n of beside[piece]?.keys() ?? []) {
-        const [run, step] = [running.get(n), { line: n, piece, shape: id, way, from: dist[i] ?? 0, to: dist[i + 1] ?? 0 }];
-        if (run && run.at(-1)?.piece === chain[i - 1]?.piece) run.push(step);
-        else runs.push(running.set(n, [step]).get(n) ?? []);
+    // A Stretch for each length of it one set of Lines takes, the SHORT ones merged into their
+    // neighbours: into the one they interrupt, or else the longer.
+    const lines = (i: number) => `${[...(beside[chain[i]?.piece ?? -1]?.keys() ?? [])].sort((a, b) => a - b)}`;
+    let parts: { from: number; to: number; lines: string; length: number }[] = [];
+    for (const [i, { piece }] of chain.entries()) {
+      const [last, length] = [parts.at(-1), pieces[piece]?.length ?? 0];
+      if (last?.lines === lines(i)) [last.to, last.length] = [i + 1, last.length + length];
+      else parts.push({ from: i, to: i + 1, lines: lines(i), length });
+    }
+    for (;;) {
+      const short = parts.filter((s) => s.length < SHORT).sort((a, b) => a.length - b.length || a.from - b.from)[0];
+      const i = short ? parts.indexOf(short) : -1;
+      const [prev, next] = [parts[i - 1], parts[i + 1]];
+      if (!short || (!prev && !next)) break;
+      const [a, b] = prev && next && prev.lines === next.lines ? [i - 1, i + 2] : prev && (!next || prev.length >= next.length) ? [i - 1, i + 1] : [i, i + 2];
+      const joined = parts.slice(a, b);
+      const lines = (a < i ? prev : next)?.lines ?? short.lines;
+      parts = parts.toSpliced(a, b - a, { from: joined[0]?.from ?? 0, to: joined.at(-1)?.to ?? 0, lines, length: joined.reduce((sum, s) => sum + s.length, 0) });
+    }
+    // Each Line on each, a run for each time it's there.
+    for (const { from, to } of parts) {
+      const steps = chain.slice(from, to).map(({ piece, way }, k) => ({ piece, way, from: dist[from + k] ?? 0, to: dist[from + k + 1] ?? 0 }));
+      for (const line of new Set(steps.flatMap(({ piece }) => [...(beside[piece]?.keys() ?? [])]))) {
+        const all: Step[] = [];
+        let run: Step[] | undefined;
+        for (const step of steps) {
+          if (!beside[step.piece]?.has(line)) run = undefined;
+          else {
+            const on = { line, shape: id, ...step };
+            if (!run) runs.push({ steps: (run = []), all });
+            run.push(on);
+            all.push(on);
+          }
+        }
       }
     }
   }
