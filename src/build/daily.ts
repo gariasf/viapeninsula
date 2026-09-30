@@ -56,7 +56,7 @@ const networks = [
   await build([[METRO_FEED, tmb]], onMetroRails, { updated: published < today ? published : today }),
 ];
 const [lines, traced] = [networks.flatMap((n) => n.lines), networks.flatMap((n) => n.shapes)];
-const { strokes, centrelines, rails: ownTrack, sides } = sideBySide(lines, traced);
+const { strokes, centrelines, rails: ownTrack, sides } = await sideBySide(lines, traced);
 const shapes = [...traced, ...centrelines];
 // How the Lines are drawn, for comparing one day's track, or one change to sideBySide(), with another (#160).
 console.log(`Lines drawn: ${summary(measures({ shapes, strokes }))}`);

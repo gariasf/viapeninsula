@@ -241,6 +241,6 @@ if (import.meta.main) {
   const track = JSON.parse(await readFile(process.argv[2] ?? '', 'utf8')) as Track;
   console.log('drawn:', summary(measures(track)));
   const shapes = track.shapes.filter((s) => !s.id.startsWith(STRETCH));
-  const now = sideBySide(track.lines, shapes);
+  const now = await sideBySide(track.lines, shapes);
   console.log('now:  ', summary(measures({ shapes: [...shapes, ...now.centrelines], strokes: now.strokes })));
 }
