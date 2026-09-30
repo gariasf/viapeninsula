@@ -73,41 +73,21 @@ const DOT: [zoom: number, px: number][] = [[7, 1.5], [14, 5]];
 const RING: [zoom: number, px: number][] = [[7, 0.5], [14, 1.5]];
 /** A Train's dot's radius, in px at each zoom, and the followed Train's, which is larger. */
 const TRAIN_DOT: [zoom: number, px: number, followed: number][] = [[7, 2.5, 5], [14, 6, 10]];
-/** The size of a place's name, in px, and how long a line of it can be, in ems, as MapLibre wraps names. */
-const [PLACE_TEXT, PLACE_WRAP] = [11, 10];
-/**
- * How a place's name is lettered: in Noto Sans Bold or Regular, how large, in px, in what colour, how
- * wide its white halo is, in px, and whether it's on a white plate reaching as far, which hides the
- * tracks and dots under it.
- */
+/** How long a line of a place's name can be, in ems, as MapLibre wraps names. */
+const PLACE_WRAP = 10;
+/** How a place's name is lettered, by its tier (TIERS): in Noto Sans Bold or Regular, and how large, in px. */
 interface NameStyle {
   bold: boolean;
   size: number;
-  colour: string;
-  halo: number;
-  plate: boolean;
 }
-/** How every place's name was lettered before #144. */
-const PLAIN_NAME: NameStyle = { bold: false, size: PLACE_TEXT, colour: '#333', halo: 1.5, plate: false };
 /**
- * #144's styles for places' names, one picked by the page's `?names=`: `bold`, in Noto Sans Bold;
- * `tiers`, bolder and larger by tier, as railisland's (TIER_STYLE: 800 at 12.5 px, 700 at 12 px), in
- * Bold, as Noto Sans has no weights between, and the rest as before, not railisland's 10.5 px, so as
- * not to lose names at zoom 12 (#144); `ink`, a dark blue of their own with a
- * stronger halo; `plate`, tiers' sizes in ink's colour, on a plate. Without it, PLAIN_NAME.
- * ponytail: for the maintainer to pick one of on the PR; the one picked stays, and the rest and the
- * parameter go before merge.
+ * The colour of places' names, a dark blue of their own, and how wide their white halo is, in px, which
+ * with each tier's lettering sets them apart from the basemap's labels, the Lines' names and the pills'
+ * lettering (#144).
  */
-const NAME_STYLES: Record<string, (nameZoom: number) => NameStyle> = {
-  bold: () => ({ ...PLAIN_NAME, bold: true }),
-  tiers: (nameZoom) => [12.5, 12].map((size) => ({ ...PLAIN_NAME, bold: true, size }))[TIERS.findIndex((tier) => tier.nameZoom === nameZoom)] ?? PLAIN_NAME,
-  ink: () => ({ ...PLAIN_NAME, colour: '#14305a', halo: 2.5 }),
-  plate: (nameZoom) => ({ ...NAME_STYLES.tiers!(nameZoom), colour: '#14305a', halo: 2.5, plate: true }),
-};
-/** How a place's name is lettered, by the zoom it shows from: in the style the page's `?names=` picks, or PLAIN_NAME. */
-const nameStyle = NAME_STYLES[new URLSearchParams(location.search).get('names') ?? ''] ?? (() => PLAIN_NAME);
-/** How far a place's name stays clear of its dot and of the Trains drawn along its track, in px. */
-const NAME_GAP = 2;
+const [NAME_COLOUR, NAME_HALO] = ['#14305a', 2.5];
+/** How far a place's name stays clear of its dot and of the Trains drawn along its track, in px: its halo and half a px. */
+const NAME_GAP = NAME_HALO + 0.5;
 
 /** A Line's width, in pixels at each zoom. */
 const WIDTH: [zoom: number, px: number][] = [[7, 1.5], [14, 4]];
@@ -126,16 +106,19 @@ const PAPER = '#f2f3f0';
 /**
  * The places drawn larger than the rest and named from further out, by their IDs in places(), as the
  * maintainer picks them: each tier's dots are `larger` px larger in radius than a place's in neither,
- * and its names show from zoom `nameZoom`, before a lower tier's where they collide. A place in
+ * and its names show from zoom `nameZoom`, before a lower tier's where they collide, lettered as
+ * `name` says: bolder and larger by tier, as railisland's (TIER_STYLE: 800 at 12.5 px, 700 at 12 px),
+ * in Bold, as Noto Sans has no weights between. A place in
  * neither, as every Metro and TRAM place is and one that opens later will be, is drawn as UNTIERED
  * says.
  * ponytail: by ID, so a listed place whose operator renumbers it drops to UNTIERED unnoticed. Have
  * show() warn of a listed ID it doesn't find among the places if that ever happens.
  */
-const TIERS = [
+const TIERS: { nameZoom: number; larger: number; name: NameStyle; places: string[] }[] = [
   {
     nameZoom: 9,
     larger: 2,
+    name: { bold: true, size: 12.5 },
     places: [
       // Barcelona's main Stations, where the most Lines call or end.
       'adif:71801', // Barcelona-Sants
@@ -161,6 +144,7 @@ const TIERS = [
   {
     nameZoom: 11,
     larger: 1,
+    name: { bold: true, size: 12 },
     places: [
       // Barcelona's other main Stations, and where its Lines part and end.
       'adif:78805', // Barcelona Plaça de Catalunya
@@ -214,8 +198,8 @@ const TIERS = [
     ],
   },
 ];
-/** How a place in neither tier is drawn: named from zoom 12, and in the smallest size. */
-const UNTIERED = { nameZoom: 12, larger: 0 };
+/** How a place in neither tier is drawn: named from zoom 12, and in the smallest size, in Regular. */
+const UNTIERED = { nameZoom: 12, larger: 0, name: { bold: false, size: 11 } };
 /**
  * The whole zooms a place's name is laid out at, as MapLibre offsets names by whole zoom levels: from
  * the first a tier's names show at to the last the Lines move beside their track at (APART).
@@ -536,18 +520,12 @@ map.addLayer(
 );
 // Each place's name beside its track (showNames()), from its tier's zoom, and where names collide, the
 // one named from further out. Right of a track, a name's lines line up along the track's side.
-// The plate is the same for every name in a style.
-const { plate, halo } = nameStyle(UNTIERED.nameZoom);
-// Its outline fits the name across its full width and all but PILL_EDGE of its height, so it reaches halo px beyond it.
-// Only the names collide, as before: MapLibre draws a layer's names after all its plates, so no plate covers a name.
-if (plate) addOutline('plate', { w: 15, h: 15, across: 15, outside: roundedSquare(7.5, 2) });
 map.addLayer({
   id: 'station-names',
   type: 'symbol',
   source: 'station-names',
   filter: ['>=', ['zoom'], ['get', 'nameZoom']],
   layout: {
-    ...(plate ? { 'icon-image': 'train-plate', 'icon-text-fit': 'both' as const, 'icon-text-fit-padding': [halo - PILL_EDGE, halo, halo - PILL_EDGE, halo], 'icon-allow-overlap': true, 'icon-ignore-placement': true } : {}),
     'symbol-sort-key': ['get', 'nameZoom'],
     'text-field': ['get', 'name'],
     'text-font': ['case', ['get', 'bold'], ['literal', ['Noto Sans Bold']], ['literal', FONT]],
@@ -561,7 +539,7 @@ map.addLayer({
       (_, zoom) => ['array', 'number', 2, ['get', `offset${zoom}`]],
     ),
   },
-  paint: { 'text-color': ['get', 'colour'], 'text-halo-color': '#fff', 'text-halo-width': ['get', 'halo'], ...(plate ? { 'icon-color': '#fff' } : {}) },
+  paint: { 'text-color': NAME_COLOUR, 'text-halo-color': '#fff', 'text-halo-width': NAME_HALO },
 });
 // Zoomed in (pillOf()), each Train is a pill with its Line's name, over the Stations' names too,
 // outlined by its Line's kind of service: a Live one's filled with its Line's colour and edged in
@@ -711,8 +689,8 @@ function show(days: Track | Bundle) {
     }),
   });
   const tiered = [...shownPlaces.values()].map((p) => {
-    const { nameZoom, larger } = TIERS.find((tier) => tier.places.includes(p.id)) ?? UNTIERED;
-    return { ...p, nameZoom, larger };
+    const { nameZoom, larger, name: style } = TIERS.find((tier) => tier.places.includes(p.id)) ?? UNTIERED;
+    return { ...p, nameZoom, larger, style };
   });
   // Where a place is named after its town, the town's label goes once the place's name shows (#121).
   const once: ExpressionSpecification = ['!', namedTwice(tiered)];
@@ -722,8 +700,7 @@ function show(days: Track | Bundle) {
     features: tiered.map(({ id, larger, lon, lat }) => ({ type: 'Feature', properties: { id, larger }, geometry: { type: 'Point', coordinates: [lon, lat] } })),
   });
   const spots = alongside(days.shapes, days.sides, (line) => placing.keep.get(line) ?? 1, days.lines);
-  names = tiered.map(({ name, stations, nameZoom, larger, lon, lat }) => {
-    const style = nameStyle(nameZoom);
+  names = tiered.map(({ name, stations, nameZoom, larger, style, lon, lat }) => {
     const rows = nameLines(name, style);
     return { dot: [lon, lat], sides: spots([lon, lat], stations), name: rows.join('\n'), size: [Math.max(...rows.map((row) => placeWidth(row, style))), rows.length * LINE_HEIGHT * style.size], nameZoom, larger, style };
   });
@@ -792,8 +769,7 @@ function showNames() {
     features: names.map(({ dot, sides, name, size, nameZoom, larger, style }): GeoJSON.Feature => {
       const at = sides(namesBearing);
       const properties = NAME_ZOOMS.flatMap((zoom) => {
-        // A stronger halo than PLAIN_NAME's goes as much further out, to keep off the Lines and Trains.
-        const { spot, far } = nearestSide(at, (s) => clearance(s, larger, zoom) + style.halo - PLAIN_NAME.halo);
+        const { spot, far } = nearestSide(at, (s) => clearance(s, larger, zoom));
         // MapLibre offsets names in ems.
         return [
           [`anchor${zoom}`, spot.anchor],
