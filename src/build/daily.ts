@@ -28,6 +28,7 @@ import {
   type Feed,
 } from './networks.ts';
 import { crop } from './border.ts';
+import { measures, summary } from './measures.ts';
 import { catalonia, osmRails, type OsmWay } from './osm.ts';
 import { sideBySide } from './sideBySide.ts';
 import { traceShapes } from './track.ts';
@@ -56,6 +57,8 @@ const networks = [
 ];
 const [lines, shapes] = [networks.flatMap((n) => n.lines), networks.flatMap((n) => n.shapes)];
 const { strokes, sides } = sideBySide(lines, shapes);
+// How the Lines are drawn, for comparing one day's track, or one change to sideBySide(), with another (#160).
+console.log(`Lines drawn: ${summary(measures({ shapes, strokes }))}`);
 
 await mkdir('out/days', { recursive: true });
 const track: Track = {

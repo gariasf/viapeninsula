@@ -3,7 +3,7 @@ import './style.css';
 import type { ExpressionFilterSpecification, ExpressionSpecification, LineLayerSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { AttributionControl, MapLibreMap, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { along, beside, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Place, type DayTrips, type Line, type Manifest, type Network, type Point, type Shape, type Snapshot, type Stroke, type Track } from '../bundle.ts';
+import { along, APART, atZoom, beside, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Place, type DayTrips, type Line, type Manifest, type Network, type Point, type Shape, type Snapshot, type Stroke, type Track, WIDTH } from '../bundle.ts';
 import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Received } from '../engine.ts';
 import { language, LANGUAGES, setLanguage, t, trainCount, type Language } from './i18n.ts';
 import { alongside, namedTwice, nameOffset, nearestSide, type Side, type Spot } from './names.ts';
@@ -89,13 +89,6 @@ const [NAME_COLOUR, NAME_HALO] = ['#14305a', 2.5];
 /** How far a place's name stays clear of its dot and of the Trains drawn along its track, in px: its halo and half a px. */
 const NAME_GAP = NAME_HALO + 0.5;
 
-/** A Line's width, in pixels at each zoom. */
-const WIDTH: [zoom: number, px: number][] = [[7, 1.5], [14, 4]];
-/**
- * How far apart Lines that share track are drawn, in pixels at each zoom: a line width apart zoomed
- * out, as on a transit map, and back on the rails zoomed right in, where people follow a Train.
- */
-const APART: [zoom: number, px: number][] = [...WIDTH, [15, 0]];
 /**
  * The basemap's paper colour, positron's background, that each Line is cased in.
  * ponytail: copied from positron, whose style isn't versioned, so the casing would stop matching if
@@ -224,14 +217,6 @@ for (let zoom = Math.min(...TIERS.map((tier) => tier.nameZoom)); zoom <= (APART.
 
 /** How many metres wide a pixel is at a zoom, at the equator: MapLibre's tiles are 512 px. */
 const pixelMetres = (zoom: number) => (2 * Math.PI * EARTH) / (512 * 2 ** zoom);
-
-/** The value at a zoom of these, going smoothly from one zoom's to the next's, as byZoom() does. */
-const atZoom = (stops: [zoom: number, px: number][], zoom: number): number => {
-  const i = stops.findIndex(([z]) => z > zoom);
-  if (i < 0) return stops.at(-1)?.[1] ?? 0;
-  const [[z0, v0] = [zoom, 0], [z1, v1] = [zoom, 0]] = [stops[Math.max(0, i - 1)], stops[i]];
-  return z1 > z0 ? v0 + ((v1 - v0) * (zoom - z0)) / (z1 - z0) : v1;
-};
 
 /** An expression that takes `value` at each of these zooms, and goes smoothly from one to the next. */
 const byZoom = (stops: [zoom: number, px: number][], value: (px: number, zoom: number) => number | ExpressionSpecification): ExpressionSpecification => [

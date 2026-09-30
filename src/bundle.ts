@@ -250,6 +250,22 @@ export function direction(line: Pick<Shape, 'coords' | 'dist'>, from: number, to
 
 export type Point = [lon: number, lat: number];
 
+/** A Line's width, in pixels at each zoom. */
+export const WIDTH: [zoom: number, px: number][] = [[7, 1.5], [14, 4]];
+/**
+ * How far apart Lines that share track are drawn, in pixels at each zoom: a line width apart zoomed
+ * out, as on a transit map, and back on the rails zoomed right in, where people follow a Train.
+ */
+export const APART: [zoom: number, px: number][] = [...WIDTH, [15, 0]];
+
+/** The value at a zoom of these, going smoothly from one zoom's to the next's, as the map's byZoom() does. */
+export function atZoom(stops: [zoom: number, px: number][], zoom: number): number {
+  const i = stops.findIndex(([z]) => z > zoom);
+  if (i < 0) return stops.at(-1)?.[1] ?? 0;
+  const [[z0, v0] = [zoom, 0], [z1, v1] = [zoom, 0]] = [stops[Math.max(0, i - 1)], stops[i]];
+  return z1 > z0 ? v0 + ((v1 - v0) * (zoom - z0)) / (z1 - z0) : v1;
+}
+
 /** The Earth's mean radius, and the length of a degree of latitude, in metres. */
 export const EARTH = 6_371_008.8;
 export const DEGREE = (EARTH * Math.PI) / 180;
