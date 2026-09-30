@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { along, APART, atZoom, BANDS, beside, LINK, pieces, pixelMetres, type Line, type Shape, type Stroke } from '../bundle.ts';
+import { along, APART, atZoom, BANDS, beside, inBand, LINK, pieces, pixelMetres, pointAt, SMOOTH, type Line, type Shape, type Stroke } from '../bundle.ts';
 import { measures } from './measures.ts';
 import { sideBySide } from './sideBySide.ts';
 
@@ -264,7 +264,7 @@ test('curves a Line from its side on one Stretch to its side on the next, in eac
     const width = atZoom(APART, zoom) * px;
     // Where a stroke is drawn at an end, in metres east and north, at the band's zoom.
     const at = (s: Stroke, d: number): [number, number] => {
-      const [lon, lat] = beside(byId.get(s.shape) ?? { coords: [], dist: [] }, d, s.side * width);
+      const [lon, lat] = beside(inBand(byId, s.shape, band) ?? { coords: [], dist: [] }, d, s.side * width);
       return [(lon - LON) * M * COS, (lat - LAT) * M];
     };
     const edges = strokes.filter((s) => s.line === 'R2' && !s.shape.startsWith(LINK));
@@ -286,4 +286,26 @@ test('ends Lines that end together at one point across their Stretch', async () 
   // A and B share track to a terminus; B's track stops 100 m short of A's.
   const { strokes } = await draw([line('A', 'A'), line('B', 'B')], [shape('A', [0, 0], [5000, 0]), shape('B', [0, 0], [4900, 0])]);
   expect([...strokes('A'), ...strokes('B')].map((s) => s.to)).toEqual([5000, 5000]);
+});
+
+test('smooths each centreline for each zoom band where Lines drawn off it would fold, moving it at most a line width', async () => {
+  // Four Lines share track round a quarter circle 150 m across: 1.5 line widths off it is about 220 m at zoom 10.
+  const turn = Array.from({ length: 25 }, (_, i): [number, number] => [1000 + 150 * Math.sin((i * Math.PI) / 48), 150 - 150 * Math.cos((i * Math.PI) / 48)]);
+  const track = (id: string) => shape(id, [0, 0], ...turn, [1150, 1150]);
+  const names = ['R1', 'R2', 'R3', 'R4'];
+  const shapes = names.map(track);
+  const { strokes, centrelines } = await sideBySide(names.map((n) => line(n, n)), shapes);
+  expect(measures({ shapes: [...shapes, ...centrelines], strokes }).folds).toEqual({ 10: 0, 11: 0, 12: 0, 13: 0 });
+  // Each band's centreline stays within a line width of the Stretch's own, which its Trains are placed by.
+  const byId = new Map(centrelines.map((c) => [c.id, c]));
+  const smoothed = BANDS.flatMap((zoom, band) => centrelines.filter((c) => c.id.endsWith(`${SMOOTH}${band}`)).map((c) => ({ c, width: atZoom(APART, zoom) * pixelMetres(zoom, LAT) })));
+  expect(smoothed.length).toBeGreaterThan(0);
+  for (const { c, width } of smoothed) {
+    const own = byId.get(c.id.slice(0, c.id.lastIndexOf(SMOOTH))) ?? { coords: [], dist: [] };
+    for (const [i, [lon, lat]] of c.coords.entries()) {
+      const [x, y] = pointAt(own, c.dist[i] ?? 0);
+      // Give or take a metre, for rounding its points.
+      expect(Math.hypot((lon - x) * M * COS, (lat - y) * M)).toBeLessThanOrEqual(width + 1);
+    }
+  }
 });

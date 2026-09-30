@@ -1,7 +1,8 @@
 // How the map draws each Line: where Lines share track, side by side, as a transit map does.
 
-import { APART, atZoom, BANDS, beside, DEGREE, LINK, pixelMetres, pointAt, STRETCH, type Line, type Point, type Shape, type Stroke } from '../bundle.ts';
+import { APART, atZoom, BANDS, beside, DEGREE, inBand, LINK, pixelMetres, pointAt, smoothId, STRETCH, type Line, type Point, type Shape, type Stroke } from '../bundle.ts';
 import { order, type Node } from './order.ts';
+import { folded, simplify, TOLERANCE } from './offset.ts';
 import { distances, nearest } from './track.ts';
 
 /** Tracks less than this far apart, in metres, look like one zoomed out, so the Lines on them go side by side. */
@@ -14,11 +15,6 @@ const PARALLEL = Math.cos(Math.PI / 6);
 const STEP = 50;
 /** A Line doesn't shift over for less than this, in metres: another's track is only brushing past. */
 const SHORT = 150;
-/**
- * How many pieces either side a stretch's centreline is evened out over: how far it is from each
- * piece's tracks jitters with their points, which folds Lines drawn far off it zoomed out.
- */
-const EVEN = 2;
 /** How far along an edge from a node, in metres, the way it leaves the node is judged. */
 const ANGLE = 300;
 /** How far, in metres, a Line's stroke may end from where its shape leaves a Stretch or comes onto it, for a curve to join it there. */
@@ -29,6 +25,12 @@ const LENGTH = 4;
 const TAKE = 0.45;
 /** How many segments a curve is drawn with. */
 const SEGMENTS = 8;
+/** How far apart, in metres, a centreline is looked at to smooth it. */
+const SAMPLE = 5;
+/** The most a centreline is moved to smooth it, in line widths at its band's zoom. */
+const MOVE = 1;
+/** How many times at most a centreline's smoothing is widened where it still folds. */
+const ROUNDS = 30;
 
 /** A piece of track: where its middle is and which way it points, in local metres, and the Lines on it. */
 interface Piece {
@@ -140,9 +142,11 @@ export async function sideBySide(lines: Line[], shapes: Shape[]): Promise<{ stro
   );
   const joins = ports(walked, found, onStretch);
   together(found, onStretch, joins);
+  const smooth = smoothed(centrelines, drawn, kx);
+  for (const c of smooth) byId.set(c.id, c);
   const linked = curves(joins, byId, lines, kx);
   // Not flatMap(draw): that would pass each run's index as its sides.
-  return { strokes: [...drawn, ...linked.strokes], centrelines: [...centrelines, ...linked.shapes], rails: runs.flatMap((run) => draw(run)), sides: every.flatMap((run) => draw(run)) };
+  return { strokes: [...drawn, ...linked.strokes], centrelines: [...centrelines, ...smooth, ...linked.shapes], rails: runs.flatMap((run) => draw(run)), sides: every.flatMap((run) => draw(run)) };
 }
 
 /** A shape's time on a Stretch it goes along: how far along the Stretch's centreline it comes in and goes out, and how far it goes. */
@@ -220,7 +224,7 @@ function together(found: Stretch[], onStretch: Map<string, Stroke[]>, joins: Joi
 function curves(joins: Join[], byId: Map<string, Shape>, lines: Line[], kx: number): { shapes: Shape[]; strokes: Stroke[] } {
   const lat = [...byId.values()][0]?.coords[0]?.[1] ?? 0;
   const widths = BANDS.map((zoom) => atZoom(APART, zoom) * pixelMetres(zoom, lat));
-  const shapeOf = (s: Stroke) => byId.get(s.shape) ?? { coords: [], dist: [] };
+  const shapeOf = (s: Stroke, band: number) => inBand(byId, s.shape, band) ?? { coords: [], dist: [] };
   const flat = ([lon, lat]: Point): [number, number] => [lon * kx, lat * DEGREE];
   const cuts = new Map<Stroke, [number, number][]>(); // each stroke's, in each band, at its start and its end
   const cutOf = (s: Stroke) => cuts.get(s) ?? (cuts.set(s, BANDS.map(() => [0, 0])), cuts.get(s) ?? []);
@@ -228,11 +232,12 @@ function curves(joins: Join[], byId: Map<string, Shape>, lines: Line[], kx: numb
   const made = joins.map((j) => {
     const [a, b] = [j.out ? j.from.to : j.from.from, j.into ? j.to.to : j.to.from];
     const sides = [j.from.side * (j.out ? 1 : -1), j.to.side * (j.into ? -1 : 1)] as const;
-    const apart = widths.map((width) => {
-      const [p, q] = [flat(beside(shapeOf(j.from), a, j.from.side * width)), flat(beside(shapeOf(j.to), b, j.to.side * width))];
+    const apart = widths.map((width, band) => {
+      const [p, q] = [flat(beside(shapeOf(j.from, band), a, j.from.side * width)), flat(beside(shapeOf(j.to, band), b, j.to.side * width))];
       return Math.hypot(q[0] - p[0], q[1] - p[1]);
     });
-    const gap = Math.hypot(...[0, 1].map((k) => (flat(pointAt(shapeOf(j.to), b))[k] ?? 0) - (flat(pointAt(shapeOf(j.from), a))[k] ?? 0)));
+    const own = (s: Stroke) => byId.get(s.shape) ?? { coords: [], dist: [] };
+    const gap = Math.hypot(...[0, 1].map((k) => (flat(pointAt(own(j.to), b))[k] ?? 0) - (flat(pointAt(own(j.from), a))[k] ?? 0)));
     const skip = gap < 5 && sides[0] === sides[1];
     if (!skip) {
       for (const [band, metres] of apart.entries()) {
@@ -251,9 +256,9 @@ function curves(joins: Join[], byId: Map<string, Shape>, lines: Line[], kx: numb
     for (const band of BANDS.keys()) {
       // Where the curve starts and ends, and which way it leaves the one and comes onto the other.
       const [d0, d3] = [out ? a - (from.cut?.[band]?.[1] ?? 0) : a + (from.cut?.[band]?.[0] ?? 0), into ? b - (to.cut?.[band]?.[1] ?? 0) : b + (to.cut?.[band]?.[0] ?? 0)];
-      const [p0, p3] = [flat(pointAt(shapeOf(from), d0)), flat(pointAt(shapeOf(to), d3))];
+      const [p0, p3] = [flat(pointAt(shapeOf(from, band), d0)), flat(pointAt(shapeOf(to, band), d3))];
       const way = (s: Stroke, d: number, ahead: number) => {
-        const [p, q] = [flat(pointAt(shapeOf(s), d)), flat(pointAt(shapeOf(s), d + ahead))];
+        const [p, q] = [flat(pointAt(shapeOf(s, band), d)), flat(pointAt(shapeOf(s, band), d + ahead))];
         const length = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1;
         return [(q[0] - p[0]) / length, (q[1] - p[1]) / length] as const;
       };
@@ -262,7 +267,8 @@ function curves(joins: Join[], byId: Map<string, Shape>, lines: Line[], kx: numb
       const [p1, p2] = [[p0[0] + t0[0] * h, p0[1] + t0[1] * h], [p3[0] - t3[0] * h, p3[1] - t3[1] * h]];
       const round = (degrees: number) => Math.round(degrees * 1e5) / 1e5;
       const coords = Array.from({ length: SEGMENTS + 1 }, (_, k): Point => {
-        const t = k / SEGMENTS;
+        // Closer together at the ends, so that the first and last segments leave and come in the way the strokes run.
+        const t = (1 - Math.cos((Math.PI * k) / SEGMENTS)) / 2;
         const [u, v, w, z] = [(1 - t) ** 3, 3 * (1 - t) ** 2 * t, 3 * (1 - t) * t ** 2, t ** 3];
         const at = (i: 0 | 1) => u * p0[i] + v * (p1[i] ?? 0) + w * (p2[i] ?? 0) + z * p3[i];
         return [round(at(0) / kx), round(at(1) / DEGREE)];
@@ -275,6 +281,113 @@ function curves(joins: Join[], byId: Map<string, Shape>, lines: Line[], kx: numb
     }
   }
   return { shapes, strokes };
+}
+
+/**
+ * Each centreline smoothed for each zoom band, where a Line drawn off it at the band's zoom would
+ * fold, on the inside of a bend tighter than it's far off (#164). The strokes go along it in the
+ * band, as far along as on the centreline, and so do the curves.
+ */
+function smoothed(centrelines: Shape[], strokes: Stroke[], kx: number): Shape[] {
+  const lat = centrelines[0]?.coords[0]?.[1] ?? 0;
+  const onIt = new Map<string, Stroke[]>();
+  for (const s of strokes) if (s.side) onIt.set(s.shape, [...(onIt.get(s.shape) ?? []), s]);
+  return BANDS.flatMap((zoom, band) => {
+    const [px, width] = [pixelMetres(zoom, lat), atZoom(APART, zoom) * pixelMetres(zoom, lat)];
+    return centrelines.flatMap((c) => {
+      const drawn = (onIt.get(c.id) ?? []).map((s) => ({ from: s.from, to: s.to, metres: s.side * width }));
+      const line = drawn.length ? smooth(c, drawn, MOVE * width, TOLERANCE * px, kx) : undefined;
+      return line ? [{ id: smoothId(c.id, band), ...line }] : [];
+    });
+  });
+}
+
+/**
+ * A line smoothed so that none of the strokes drawn along it, each `metres` right of it from one
+ * distance along it to another, folds, simplified by `tolerance` as the map does; and moved no more
+ * than `most` metres. It's a gaussian blur of its points, SAMPLE apart, as wide at each as it needs to
+ * be there, widened a round at a time where a stroke still folds, and tapering off either side so
+ * that the line stays smooth. Its ends stay where they are. Or nothing, where none folds.
+ */
+export function smooth(line: Pick<Shape, 'coords' | 'dist'>, strokes: { from: number; to: number; metres: number }[], most: number, tolerance: number, kx: number): Pick<Shape, 'coords' | 'dist'> | undefined {
+  const length = line.dist.at(-1) ?? 0;
+  // Its own points too, so that where it isn't smoothed, it's simplified as it is.
+  const every = Array.from({ length: Math.ceil(length / SAMPLE) }, (_, i) => i * SAMPLE);
+  const at = [...new Set([...every, ...line.dist])].sort((a, b) => a - b);
+  const n = at.length;
+  const points = at.map((d): [number, number] => {
+    const [lon, lat] = pointAt(line, d);
+    return [lon * kx, lat * DEGREE];
+  });
+  const moved = (q: [number, number][], i: number) => Math.hypot((q[i]?.[0] ?? 0) - (points[i]?.[0] ?? 0), (q[i]?.[1] ?? 0) - (points[i]?.[1] ?? 0));
+  /** The line as it's written: only the points it needs, within a tenth of `most` of itself, rounded as the track's are. */
+  const written = (q: [number, number][]): Pick<Shape, 'coords' | 'dist'> => {
+    const kept = new Set(simplify(q, most / 10));
+    const round = (degrees: number) => Math.round(degrees * 1e5) / 1e5;
+    return { coords: q.filter((p) => kept.has(p)).map(([x, y]) => [round(x / kx), round(y / DEGREE)]), dist: at.filter((_, i) => kept.has(q[i] ?? [0, 0])).map(Math.round) };
+  };
+  /** The points on the segments of the strokes that fold, as written and as the map simplifies each, less those moved as far as they may be. */
+  const folds = (q: [number, number][]) => {
+    const found = new Set<number>();
+    const shape = written(q);
+    for (const { from, to, metres } of strokes) {
+      const inside = shape.dist.flatMap((d, i) => (d > from && d < to ? [i] : []));
+      const dists = [from, ...inside.map((i) => shape.dist[i] ?? 0), to];
+      const flat = [pointAt(shape, from), ...inside.map((i) => shape.coords[i] ?? pointAt(shape, from)), pointAt(shape, to)].map(([lon, lat]): [number, number] => [lon * kx, lat * DEGREE]);
+      const kept = simplify(flat, tolerance);
+      const along = new Map(flat.map((p, i) => [p, dists[i] ?? 0]));
+      for (const k of folded(kept, metres)) {
+        const [start, end] = [along.get(kept[k - 1] ?? [0, 0]) ?? 0, along.get(kept[k] ?? [0, 0]) ?? 0];
+        for (const [i, d] of at.entries()) if (d >= start && d <= end) found.add(i);
+      }
+    }
+    // Less a centimetre, for those moved back to `most`, give or take rounding.
+    return [...found].filter((i) => moved(q, i) < most - 0.01);
+  };
+  const width = new Array<number>(n).fill(0); // the blur's, in samples, at each
+  let q = points;
+  for (let [round, tight] = [0, folds(q)]; round < ROUNDS && tight.length; round++, tight = folds(q)) {
+    const was = [...width];
+    for (const i of tight) {
+      const wider = Math.min(n / 3, Math.max(1, (was[i] ?? 0) * 1.25));
+      // Tapering off a sample for every four either side.
+      for (let j = Math.max(0, Math.floor(i - 4 * wider)); j < Math.min(n, i + 4 * wider); j++) width[j] = Math.max(width[j] ?? 0, wider - Math.abs(j - i) / 4);
+    }
+    const blurred = blur(points, width);
+    // No further than `most` from where it was.
+    q = blurred.map(([bx, by], i) => {
+      const [[x, y], off] = [points[i] ?? [bx, by], moved(blurred, i)];
+      const k = off > most ? most / off : 1;
+      return [x + (bx - x) * k, y + (by - y) * k];
+    });
+  }
+  return q === points ? undefined : written(q);
+}
+
+/**
+ * Points blurred along their line, each over a gaussian so many points wide, its ends kept where they
+ * are by mirroring the line through them.
+ * ponytail: every point's whole gaussian, O(n × width), about 4 s for the map's four bands; a running
+ * sum over boxes if the track grows.
+ */
+function blur(points: [number, number][], width: number[]): [number, number][] {
+  const last = points.length - 1;
+  const mirrored = (j: number): [number, number] => {
+    const [end, k] = j < 0 ? [0, -j] : j > last ? [last, 2 * last - j] : [j, j];
+    const [[ex, ey], [px, py]] = [points[end] ?? [0, 0], points[Math.max(0, Math.min(last, k))] ?? [0, 0]];
+    return end === j ? [px, py] : [2 * ex - px, 2 * ey - py];
+  };
+  return points.map((p, i) => {
+    const sigma = width[i] ?? 0;
+    if (sigma <= 0 || i === 0 || i === last) return p;
+    let [x, y, sum] = [0, 0, 0];
+    for (let j = Math.floor(i - 3 * sigma); j <= i + 3 * sigma; j++) {
+      const g = Math.exp(-((j - i) ** 2) / (2 * sigma * sigma));
+      const [px, py] = mirrored(j);
+      [x, y, sum] = [x + g * px, y + g * py, sum + g];
+    }
+    return [x / sum, y / sum];
+  });
 }
 
 /**
@@ -401,16 +514,12 @@ function stretches(pieces: Piece[], every: Step[][], tracks: Neighbour[][], besi
   const [centrelines, found]: [Shape[], Stretch[]] = [[], []];
   for (const chain of chains) {
     const id = `${STRETCH}${centrelines.length}`;
-    // Each piece's ends, the way the chain runs, moved over to halfway between its outermost tracks,
-    // evened out along the chain.
-    const centres = chain.map(({ piece }) => {
-      const lefts = (across[piece] ?? []).map((n) => n.left);
-      return (Math.min(0, ...lefts) + Math.max(0, ...lefts)) / 2;
-    });
-    const ends = chain.map(({ piece, way }, i) => {
+    // Each piece's ends, the way the chain runs, moved over to halfway between its outermost tracks:
+    // smoothed() smooths the jitter that leaves.
+    const ends = chain.map(({ piece, way }) => {
       const p = pieces[piece] ?? { x: 0, y: 0, ux: 0, uy: 0, length: 0 };
-      const near = centres.slice(Math.max(0, i - EVEN), i + EVEN + 1);
-      const centre = near.reduce((a, b) => a + b, 0) / near.length;
+      const lefts = (across[piece] ?? []).map((n) => n.left);
+      const centre = (Math.min(0, ...lefts) + Math.max(0, ...lefts)) / 2;
       const [cx, cy, hx, hy] = [p.x - p.uy * centre, p.y + p.ux * centre, (p.ux * p.length * way) / 2, (p.uy * p.length * way) / 2];
       return [[cx - hx, cy - hy], [cx + hx, cy + hy]] as const;
     });
