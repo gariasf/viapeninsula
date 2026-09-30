@@ -73,10 +73,21 @@ const DOT: [zoom: number, px: number][] = [[7, 1.5], [14, 5]];
 const RING: [zoom: number, px: number][] = [[7, 0.5], [14, 1.5]];
 /** A Train's dot's radius, in px at each zoom, and the followed Train's, which is larger. */
 const TRAIN_DOT: [zoom: number, px: number, followed: number][] = [[7, 2.5, 5], [14, 6, 10]];
-/** The size of a place's name, in px, and how long a line of it can be, in ems, as MapLibre wraps names. */
-const [PLACE_TEXT, PLACE_WRAP] = [11, 10];
-/** How far a place's name stays clear of its dot and of the Trains drawn along its track, in px. */
-const NAME_GAP = 2;
+/** How long a line of a place's name can be, in ems, as MapLibre wraps names. */
+const PLACE_WRAP = 10;
+/** How a place's name is lettered: in Noto Sans Bold (BOLD) or Regular, and how large, in px, by its tier (TIERS). */
+interface NameStyle {
+  bold: boolean;
+  size: number;
+}
+/**
+ * The colour of places' names, a dark blue of their own, and how wide their white halo is, in px, which
+ * with each tier's lettering sets them apart from the basemap's labels, the Lines' names and the pills'
+ * lettering (#144).
+ */
+const [NAME_COLOUR, NAME_HALO] = ['#14305a', 2.5];
+/** How far a place's name stays clear of its dot and of the Trains drawn along its track, in px: its halo and half a px. */
+const NAME_GAP = NAME_HALO + 0.5;
 
 /** A Line's width, in pixels at each zoom. */
 const WIDTH: [zoom: number, px: number][] = [[7, 1.5], [14, 4]];
@@ -95,16 +106,18 @@ const PAPER = '#f2f3f0';
 /**
  * The places drawn larger than the rest and named from further out, by their IDs in places(), as the
  * maintainer picks them: each tier's dots are `larger` px larger in radius than a place's in neither,
- * and its names show from zoom `nameZoom`, before a lower tier's where they collide. A place in
+ * and its names show from zoom `nameZoom`, before a lower tier's where they collide, `size` px large,
+ * a little larger by tier, as railisland's (TIER_STYLE). A place in
  * neither, as every Metro and TRAM place is and one that opens later will be, is drawn as UNTIERED
  * says.
  * ponytail: by ID, so a listed place whose operator renumbers it drops to UNTIERED unnoticed. Have
  * show() warn of a listed ID it doesn't find among the places if that ever happens.
  */
-const TIERS = [
+const TIERS: { nameZoom: number; larger: number; size: number; places: string[] }[] = [
   {
     nameZoom: 9,
     larger: 2,
+    size: 12,
     places: [
       // Barcelona's main Stations, where the most Lines call or end.
       'adif:71801', // Barcelona-Sants
@@ -130,6 +143,7 @@ const TIERS = [
   {
     nameZoom: 11,
     larger: 1,
+    size: 11.5,
     places: [
       // Barcelona's other main Stations, and where its Lines part and end.
       'adif:78805', // Barcelona Plaça de Catalunya
@@ -184,7 +198,23 @@ const TIERS = [
   },
 ];
 /** How a place in neither tier is drawn: named from zoom 12, and in the smallest size. */
-const UNTIERED = { nameZoom: 12, larger: 0 };
+const UNTIERED = { nameZoom: 12, larger: 0, size: 11 };
+/**
+ * The places whose names are in Noto Sans Bold, as the maintainer picks them, by their IDs in places():
+ * the biggest, Barcelona's main Stations and the largest cities', which the rest are Regular beside.
+ * ponytail: by ID, as TIERS are.
+ */
+const BOLD = new Set([
+  'adif:71801', // Barcelona-Sants
+  'adif:71802', // Barcelona-Passeig de Gràcia
+  'fgc:PC', // Barcelona - Plaça Catalunya
+  'adif:78805', // Barcelona Plaça de Catalunya
+  'fgc:PE', // Barcelona - Plaça Espanya
+  'adif:79400', // Barcelona Estació de França
+  'adif:71500', // Tarragona
+  'adif:78400', // Lleida-Pirineus
+  'adif:79300', // Girona
+]);
 /**
  * The whole zooms a place's name is laid out at, as MapLibre offsets names by whole zoom levels: from
  * the first a tier's names show at to the last the Lines move beside their track at (APART).
@@ -385,9 +415,9 @@ let placing = { shapes: new Map<string, Shape>(), sides: new Map<string, Stroke[
 let pills = new Map<string, Pill>();
 /**
  * Each place's name: its dot, the sides of its track it can go, once the map's bearing is known, broken
- * into its lines, how wide and high those are, in px, the zoom it shows from, and how much larger its dot is.
+ * into its lines, how wide and high those are, in px, the zoom it shows from, how much larger its dot is, and how it's lettered.
  */
-let names: { dot: Point; sides: (bearing: number) => Side[]; name: string; size: [width: number, height: number]; nameZoom: number; larger: number }[] = [];
+let names: { dot: Point; sides: (bearing: number) => Side[]; name: string; size: [width: number, height: number]; nameZoom: number; larger: number; style: NameStyle }[] = [];
 /** The map's bearing when the names were last put beside their tracks. */
 let namesBearing = NaN;
 map.addSource('lines', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
@@ -513,8 +543,8 @@ map.addLayer({
   layout: {
     'symbol-sort-key': ['get', 'nameZoom'],
     'text-field': ['get', 'name'],
-    'text-font': FONT,
-    'text-size': PLACE_TEXT,
+    'text-font': ['case', ['get', 'bold'], ['literal', ['Noto Sans Bold']], ['literal', FONT]],
+    'text-size': ['get', 'size'],
     // Each name comes in the lines nameLines() breaks it into, which MapLibre keeps to when lines can be this long.
     'text-max-width': 1000,
     'text-anchor': ['step', ['zoom'], ...NAME_ZOOMS.flatMap((zoom, i) => [...(i ? [zoom] : []), ['get', `anchor${zoom}`]])] as ExpressionSpecification,
@@ -524,7 +554,7 @@ map.addLayer({
       (_, zoom) => ['array', 'number', 2, ['get', `offset${zoom}`]],
     ),
   },
-  paint: { 'text-color': '#333', 'text-halo-color': '#fff', 'text-halo-width': 1.5 },
+  paint: { 'text-color': NAME_COLOUR, 'text-halo-color': '#fff', 'text-halo-width': NAME_HALO },
 });
 // Zoomed in (pillOf()), each Train is a pill with its Line's name, over the Stations' names too,
 // outlined by its Line's kind of service: a Live one's filled with its Line's colour and edged in
@@ -674,8 +704,8 @@ function show(days: Track | Bundle) {
     }),
   });
   const tiered = [...shownPlaces.values()].map((p) => {
-    const { nameZoom, larger } = TIERS.find((tier) => tier.places.includes(p.id)) ?? UNTIERED;
-    return { ...p, nameZoom, larger };
+    const { nameZoom, larger, size } = TIERS.find((tier) => tier.places.includes(p.id)) ?? UNTIERED;
+    return { ...p, nameZoom, larger, style: { bold: BOLD.has(p.id), size } };
   });
   // Where a place is named after its town, the town's label goes once the place's name shows (#121).
   const once: ExpressionSpecification = ['!', namedTwice(tiered)];
@@ -685,9 +715,9 @@ function show(days: Track | Bundle) {
     features: tiered.map(({ id, larger, lon, lat }) => ({ type: 'Feature', properties: { id, larger }, geometry: { type: 'Point', coordinates: [lon, lat] } })),
   });
   const spots = alongside(days.shapes, days.sides, (line) => placing.keep.get(line) ?? 1, days.lines);
-  names = tiered.map(({ name, stations, nameZoom, larger, lon, lat }) => {
-    const rows = nameLines(name);
-    return { dot: [lon, lat], sides: spots([lon, lat], stations), name: rows.join('\n'), size: [Math.max(...rows.map(placeWidth)), rows.length * LINE_HEIGHT * PLACE_TEXT], nameZoom, larger };
+  names = tiered.map(({ name, stations, nameZoom, larger, style, lon, lat }) => {
+    const rows = nameLines(name, style);
+    return { dot: [lon, lat], sides: spots([lon, lat], stations), name: rows.join('\n'), size: [Math.max(...rows.map((row) => placeWidth(row, style))), rows.length * LINE_HEIGHT * style.size], nameZoom, larger, style };
   });
   showNames();
   credited = days.networks;
@@ -751,17 +781,17 @@ function showNames() {
   namesBearing = map.getBearing();
   map.getSource<GeoJSONSource>('station-names')?.setData({
     type: 'FeatureCollection',
-    features: names.map(({ dot, sides, name, size, nameZoom, larger }): GeoJSON.Feature => {
+    features: names.map(({ dot, sides, name, size, nameZoom, larger, style }): GeoJSON.Feature => {
       const at = sides(namesBearing);
       const properties = NAME_ZOOMS.flatMap((zoom) => {
         const { spot, far } = nearestSide(at, (s) => clearance(s, larger, zoom));
         // MapLibre offsets names in ems.
         return [
           [`anchor${zoom}`, spot.anchor],
-          [`offset${zoom}`, nameOffset(spot, far, size).map((px) => px / PLACE_TEXT)],
+          [`offset${zoom}`, nameOffset(spot, far, size).map((px) => px / style.size)],
         ];
       });
-      return { type: 'Feature', properties: { name, nameZoom, ...Object.fromEntries(properties) }, geometry: { type: 'Point', coordinates: dot } };
+      return { type: 'Feature', properties: { name, nameZoom, ...style, ...Object.fromEntries(properties) }, geometry: { type: 'Point', coordinates: dot } };
     }),
   });
 }
@@ -793,10 +823,10 @@ function clearance({ from: [, lat], normal: [x, y], dot: dotBehind, lines: drawn
  * ems, their squared differences from it least, a last line better short than long. MapLibre measures
  * a line without its spaces to break it.
  */
-function nameLines(name: string): string[] {
+function nameLines(name: string, style: NameStyle): string[] {
   const words = name.match(/[^ /·-]+[ /·-]*/g) ?? [name];
-  const width = (from: number, to: number) => placeWidth(words.slice(from, to).join('').replaceAll(' ', ''));
-  const even = placeWidth(name) / Math.max(1, Math.ceil(placeWidth(name) / (PLACE_WRAP * PLACE_TEXT)));
+  const width = (from: number, to: number) => placeWidth(words.slice(from, to).join('').replaceAll(' ', ''), style);
+  const even = placeWidth(name, style) / Math.max(1, Math.ceil(placeWidth(name, style) / (PLACE_WRAP * style.size)));
   // The least ragged lines up to each word, and the word the last of them starts with.
   const [ragged, starts] = [[0], [0]];
   for (let end = 1; end <= words.length; end++) {
@@ -867,9 +897,9 @@ function darkInk(colour: string): boolean {
   return lit / (luminance(INK) + 0.05) > 1.05 / lit;
 }
 
-/** How wide a place's name, or a line of it, is, in px. */
-function placeWidth(text: string): number {
-  return textWidth(text, `${PLACE_TEXT}px sans-serif`);
+/** How wide a place's name, or a line of it, is, in px, in its style. */
+function placeWidth(text: string, { bold, size }: NameStyle): number {
+  return textWidth(text, `${bold ? 'bold ' : ''}${size}px sans-serif`);
 }
 
 /**
