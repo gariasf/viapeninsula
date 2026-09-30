@@ -92,7 +92,7 @@ test('measures a Line drawn twice, where its two directions have tracks of their
 });
 
 test('measures a Line drawn off a track it has alone', () => {
-  // R3 goes on beside R2's track for 1 km past where R2's ends, then 30 m from R14's for 1 km.
+  // R3 runs beside R2's track for 1 km and 30 m from R14's for 2 km, then on alone for 1 km, still drawn off its track.
   const found = measures({
     shapes: [east('a', 3000), east('b', 1000), east('c', 2000, 0, 30)],
     strokes: [stroke('R3', 'a', 0, 2000, 0.5), stroke('R3', 'a', 2000, 3000, -1), stroke('R2', 'b', 0, 1000, -0.5), stroke('R14', 'c', 0, 2000, 1)],
