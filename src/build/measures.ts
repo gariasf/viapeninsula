@@ -1,7 +1,7 @@
 // Yardsticks for how the Lines are drawn side by side, the same before and after a change: how often
 // they break up (#138), and how faithfully they follow their track (#160).
 
-import { along, APART, atZoom, DEGREE, direction, EARTH, LINK, pointAt, STRETCH, type Point, type Shape, type Stroke, type Track } from '../bundle.ts';
+import { along, APART, atZoom, BANDS, bandZooms, DEGREE, direction, EARTH, LINK, pieces, pixelMetres, pointAt, STRETCH, type Point, type Shape, type Stroke, type Track } from '../bundle.ts';
 
 /** Strokes shorter than this, in metres, are stubs: sideBySide()'s SHORT before #138. */
 const STUB = 150;
@@ -36,8 +36,8 @@ const TERMINUS = 60;
  * other, less than half a line width apart. `folds`: at each of FOLD_ZOOMS, where a stroke's
  * offset turns back on itself, on the inside of a curve tighter than its offset. `dangling`: stroke
  * ends drawn at LOOSE_ZOOM further than LOOSE from any other stroke of their Line, and not at a
- * terminus (#172). Links (LINK), which join a Line's stroke on one Stretch to its next, count only
- * there.
+ * terminus (#172). Links (LINK), the curves that join a Line's stroke on one Stretch to its next, count only
+ * there, in LOOSE_ZOOM's band.
  */
 export interface Measures {
   breaks: Breaks;
@@ -181,13 +181,16 @@ function dangling(strokes: Stroke[], shapes: Shape[]): number {
   const kx = DEGREE * Math.cos(((shapes[0]?.coords[0]?.[1] ?? 0) * Math.PI) / 180);
   const flat = ([lon, lat]: Point): [x: number, y: number] => [lon * kx, lat * DEGREE];
   const termini = shapes.filter((s) => !s.id.startsWith(STRETCH)).flatMap((s) => [s.coords[0], s.coords.at(-1)].flatMap((p) => (p ? [flat(p)] : [])));
-  // Each Line's strokes as drawn at LOOSE_ZOOM, a line width to the right for each side.
+  // Each Line's strokes as drawn at LOOSE_ZOOM, a line width to the right for each side: in its band,
+  // cut back where its curves take over.
+  const band = BANDS.findIndex((_, b) => LOOSE_ZOOM < bandZooms(b)[1]);
   const byLine = new Map<string, [number, number][][]>();
-  for (const s of strokes) {
+  for (const s of strokes.flatMap(pieces)) {
     const shape = byId.get(s.shape);
-    if (!shape) continue;
-    const points = along(shape, s.from, s.to).map(flat);
-    const width = atZoom(APART, LOOSE_ZOOM) * ((2 * Math.PI * EARTH * (kx / DEGREE)) / (512 * 2 ** LOOSE_ZOOM));
+    if (!shape || (s.band !== undefined && s.band !== band)) continue;
+    const [start, end] = s.cut?.[band] ?? [0, 0];
+    const points = along(shape, s.from + start, s.to - end).map(flat);
+    const width = atZoom(APART, LOOSE_ZOOM) * pixelMetres(LOOSE_ZOOM, shape.coords[0]?.[1] ?? 0);
     byLine.set(s.line, [...(byLine.get(s.line) ?? []), offset(points, s.side * width)]);
   }
   // ponytail: every stroke end against every segment of its Line, about 2 s for the map; a grid if it grows.

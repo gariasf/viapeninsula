@@ -3,7 +3,7 @@ import './style.css';
 import type { ExpressionFilterSpecification, ExpressionSpecification, LineLayerSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { AttributionControl, MapLibreMap, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { along, APART, atZoom, STRETCH, beside, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Place, type DayTrips, type Line, type Manifest, type Network, type Point, type Shape, type Snapshot, type Stroke, type Track, WIDTH } from '../bundle.ts';
+import { along, APART, atZoom, BANDS, bandZooms, STRETCH, beside, pieces, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Place, type DayTrips, type Line, type Manifest, type Network, type Point, type Shape, type Snapshot, type Stroke, type Track, WIDTH } from '../bundle.ts';
 import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Received } from '../engine.ts';
 import { language, LANGUAGES, setLanguage, t, trainCount, type Language } from './i18n.ts';
 import { alongside, namedTwice, nameOffset, nearestSide, type Side, type Spot } from './names.ts';
@@ -424,9 +424,18 @@ const lineOffset = byZoom(APART, (px) => ['*', ['get', 'side'], px]);
 // The casing sets each Line off the basemap's roads and rivers, 1 px either side of it. It's one layer
 // under every Line, so none shows between Lines side by side on shared track, and where Lines cross it
 // cuts no gap. The Lines are drawn along their stretches until they're back on the rails, and then
-// each on its own track (ADR-0006).
+// each on its own track (ADR-0006). Along their stretches, each zoom band has layers of its own, for
+// its curves across the nodes and its strokes cut back to make room for them (#163).
 const railsZoom = APART.at(-1)?.[0] ?? 15;
-for (const [source, prefix, zooms] of [['lines', 'line', { maxzoom: railsZoom }], ['rails', 'rail', { minzoom: railsZoom }]] as const) {
+const layered = [
+  ...BANDS.map((_, band) => {
+    const [minzoom, maxzoom] = bandZooms(band);
+    const filter: ExpressionFilterSpecification = ['any', ['!', ['has', 'band']], ['==', ['get', 'band'], band]];
+    return { source: 'lines', id: band ? `lines-${band}` : 'lines', prefix: band ? `line-${band}` : 'line', zooms: { minzoom, maxzoom: Math.min(maxzoom, railsZoom), filter } };
+  }),
+  { source: 'rails', id: 'rails', prefix: 'rail', zooms: { minzoom: railsZoom } },
+];
+for (const { source, id, prefix, zooms } of layered) {
   map.addLayer(
     {
       id: `${prefix}-casing`,
@@ -440,7 +449,7 @@ for (const [source, prefix, zooms] of [['lines', 'line', { maxzoom: railsZoom }]
   );
   map.addLayer(
     {
-      id: source,
+      id,
       type: 'line',
       source,
       ...zooms,
@@ -681,7 +690,8 @@ function show(days: Track | Bundle) {
   pills = new Map(days.lines.map((l) => [l.id, pillOf(l)]));
   const drawn = (strokes: Stroke[]): GeoJSON.FeatureCollection => ({
     type: 'FeatureCollection',
-    features: strokes.flatMap(({ line: id, shape: shapeId, from, to, side }): GeoJSON.Feature[] => {
+    // A stroke cut back for curves, once for each zoom band, cut as it is there; a curve in its pieces.
+    features: strokes.flatMap((s) => (s.cut ? s.cut.map(([start, end], band) => ({ ...s, from: s.from + start, to: s.to - end, band })) : pieces(s))).flatMap(({ line: id, shape: shapeId, from, to, side, band }): GeoJSON.Feature[] => {
       const [line, shape] = [lines.get(id), shapes.get(shapeId)];
       if (!line || !shape) return [];
       const properties = {
@@ -690,6 +700,7 @@ function show(days: Track | Bundle) {
         // Zoomed right in, where Lines share track, Barcelona's commuter lines (R1–R8) are drawn over the regional ones.
         above: /^R\d[NS]?$/.test(line.name) ? 1 : 0,
         side,
+        ...(band !== undefined && { band }),
         // Each Line's name goes on its own stroke: text-offset is in ems.
         ...Object.fromEntries(APART.map(([zoom, px]) => [`textOffset${zoom}`, [0, (side * px) / NAME_SIZE]])),
       };

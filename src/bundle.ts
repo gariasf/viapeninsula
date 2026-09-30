@@ -144,6 +144,12 @@ export interface Stroke {
   from: number;
   to: number;
   side: number;
+  /** Only in this zoom band (BANDS): a curve across a node, which is made for each (#163). */
+  band?: number;
+  /** A curve's side at its end, which it's eased to from `side` at its start: it's drawn in pieces(). */
+  ease?: number;
+  /** In each zoom band, how many metres less of its shape it's drawn along at its start and at its end, where a curve takes over (#163). */
+  cut?: [start: number, end: number][];
 }
 
 /** Identified by whoever runs it: `adif:<code>` for Renfe's Stations. */
@@ -255,8 +261,42 @@ export type Point = [lon: number, lat: number];
 
 /** How the IDs of the stretches' centrelines start, among the track's shapes. */
 export const STRETCH = 'stretch:';
-/** How the IDs of the links start: the shapes that join a Line's stroke on one Stretch to its next. */
+/** How the IDs of the links start: the curves that join a Line's stroke on one Stretch to its next, one for each zoom band. */
 export const LINK = `${STRETCH}link`;
+
+/**
+ * The zoom bands the curves across the line graph's nodes are made for, by the zoom each is made at:
+ * each shows from halfway between its zoom and the one before to halfway to the next (#163).
+ */
+export const BANDS = [10, 11, 12, 13];
+
+/** The zoom a band starts at, and the zoom the next starts at. */
+export function bandZooms(band: number): [from: number, to: number] {
+  const [zoom = 0, before, next] = [BANDS[band], BANDS[band - 1], BANDS[band + 1]];
+  return [before === undefined ? 0 : (before + zoom) / 2, next === undefined ? Infinity : (zoom + next) / 2];
+}
+
+/** How many line widths a curve moves over from one of its pieces to the next, at most. */
+const PIECE = 1 / 8;
+
+/**
+ * A stroke as the map draws it: `line-offset` is constant along a feature, so a curve that eases from
+ * one side to another goes in pieces, a PIECE of a line width over from each to the next, eased in
+ * and out along it.
+ */
+export function pieces(stroke: Stroke): Stroke[] {
+  const { ease, ...rest } = stroke;
+  if (ease === undefined) return [stroke];
+  const [start, stop, n] = [stroke.side, ease, Math.ceil(Math.abs(ease - stroke.side) / PIECE) + 1];
+  const length = stroke.to - stroke.from;
+  const cut = (k: number) => (k <= 0 ? 0 : k >= n ? length : (length * Math.acos(1 - (2 * (k - 0.5)) / (n - 1))) / Math.PI);
+  return Array.from({ length: n }, (_, k) => ({ ...rest, from: stroke.from + cut(k), to: stroke.from + cut(k + 1), side: n > 1 ? start + ((stop - start) * k) / (n - 1) : start }));
+}
+
+/** How many metres on the ground a pixel is at a zoom, at a latitude. */
+export function pixelMetres(zoom: number, lat: number): number {
+  return (2 * Math.PI * EARTH * Math.cos((lat * Math.PI) / 180)) / (512 * 2 ** zoom);
+}
 
 /** A Line's width, in pixels at each zoom. */
 export const WIDTH: [zoom: number, px: number][] = [[7, 1.5], [14, 4]];
