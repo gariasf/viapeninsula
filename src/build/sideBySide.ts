@@ -41,6 +41,13 @@ interface Step {
   to: number;
 }
 
+/** A Line's run along a Stretch, and all its steps on that Stretch: a SHORT one merged into it may have it come and go. */
+interface Along {
+  steps: Step[];
+  /** Its steps on every run along the Stretch. */
+  all: Step[];
+}
+
 /** A Line on or beside a piece: the piece it's on, how far left of it, in metres (right if negative), whether on it or alongside it, and which way it runs. */
 interface Neighbour {
   line: number;
@@ -78,17 +85,28 @@ export function sideBySide(lines: Line[], shapes: Shape[]): { strokes: Stroke[];
   const keptBeside = kept.map(byLine);
   const { centrelines, runs: along } = stretches(pieces, every, kept, keptBeside, kx);
   const stretchSide = (s: Step) => side(s, keptBeside[s.piece] ?? new Map(), turned, left, place);
+  // Each Line at one side all along a Stretch: the side it takes for most of it.
+  const oneSide = ({ steps, all }: Along) => {
+    const metres = new Map<number, number>(); // at each side
+    for (const s of all) {
+      const at = stretchSide(s);
+      metres.set(at, (metres.get(at) ?? 0) + (pieces[s.piece]?.length ?? 0));
+    }
+    const most = [...metres].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 0;
+    return draw(steps, () => most);
+  };
   // Not flatMap(draw): that would pass each run's index as its sides.
-  return { strokes: along.flatMap((run) => draw(run, stretchSide)), centrelines, rails: runs.flatMap((run) => draw(run)), sides: every.flatMap((run) => draw(run)) };
+  return { strokes: along.flatMap(oneSide), centrelines, rails: runs.flatMap((run) => draw(run)), sides: every.flatMap((run) => draw(run)) };
 }
 
 /**
- * The stretches' centrelines, and each Line's runs along them, for the Lines on or beside each piece
- * (`beside`). Each piece is drawn with the lowest of those on other tracks beside it whose Lines
- * include all its own, or else it draws them itself, with the Lines beside it: along the line halfway
- * between the outermost tracks beside it.
+ * The stretches' centrelines, and each Line's runs along the stretches on them, for the Lines on or
+ * beside each piece (`beside`). Each piece is drawn with the lowest of those on other tracks beside
+ * it whose Lines include all its own, or else it draws them itself, with the Lines beside it: along
+ * the line halfway between the outermost tracks beside it. A centreline is a Stretch wherever the
+ * set of Lines along it stays the same, and one Stretch after another where it changes.
  */
-function stretches(pieces: Piece[], every: Step[][], tracks: Neighbour[][], beside: Map<number, Neighbour>[], kx: number): { centrelines: Shape[]; runs: Step[][] } {
+function stretches(pieces: Piece[], every: Step[][], tracks: Neighbour[][], beside: Map<number, Neighbour>[], kx: number): { centrelines: Shape[]; runs: Along[] } {
   const mates = mated(pieces, every);
   const across = tracks.map((list, p) => list.filter((n) => !mates[p]?.has(n.piece)));
   const drawer: number[] = [];
@@ -113,7 +131,7 @@ function stretches(pieces: Piece[], every: Step[][], tracks: Neighbour[][], besi
       chain.push(s);
     }
   }
-  const [centrelines, runs]: [Shape[], Step[][]] = [[], []];
+  const [centrelines, runs]: [Shape[], Along[]] = [[], []];
   for (const chain of chains) {
     const id = `${STRETCH}${centrelines.length}`;
     // Each piece's ends, the way the chain runs, moved over to halfway between its outermost tracks,
@@ -138,13 +156,29 @@ function stretches(pieces: Piece[], every: Step[][], tracks: Neighbour[][], besi
     const coords = points.map(([x, y]): Point => [round(x / kx), round(y / DEGREE)]);
     const dist = distances(coords).map(Math.round);
     centrelines.push({ id, coords, dist });
-    // Each Line along it, a run for each time it's there.
-    const running = new Map<number, Step[]>();
-    for (const [i, { piece, way }] of chain.entries()) {
-      for (const n of beside[piece]?.keys() ?? []) {
-        const [run, step] = [running.get(n), { line: n, piece, shape: id, way, from: dist[i] ?? 0, to: dist[i + 1] ?? 0 }];
-        if (run && run.at(-1)?.piece === chain[i - 1]?.piece) run.push(step);
-        else runs.push(running.set(n, [step]).get(n) ?? []);
+    // A Stretch for each length of it one set of Lines takes, the SHORT ones merged into their
+    // neighbours. Each set is keyed by its Lines, in order, so that the same set has the same key.
+    const onIt = chain.map(({ piece, way }, i) => ({ line: -1, piece, shape: id, way, from: dist[i] ?? 0, to: dist[i + 1] ?? 0 }));
+    const parts: Span<string>[] = [];
+    for (const s of onIt) {
+      const [key, last] = [`${[...(beside[s.piece]?.keys() ?? [])].sort((a, b) => a - b)}`, parts.at(-1)];
+      if (last?.key === key) last.steps.push(s);
+      else parts.push({ key, steps: [s] });
+    }
+    // Each Line on each Stretch, a run for each time it's there.
+    for (const { steps } of merge(parts, pieces)) {
+      for (const line of new Set(steps.flatMap(({ piece }) => [...(beside[piece]?.keys() ?? [])]))) {
+        const all: Step[] = [];
+        let run: Step[] | undefined;
+        for (const s of steps) {
+          if (!beside[s.piece]?.has(line)) {
+            run = undefined;
+            continue;
+          }
+          if (!run) runs.push({ steps: (run = []), all });
+          run.push({ ...s, line });
+          all.push({ ...s, line });
+        }
       }
     }
   }
@@ -448,9 +482,9 @@ function side(s: Step, beside: Map<number, Neighbour>, turned: number[], left: n
   return (order.findIndex((m) => m.line === s.line) - (order.length - 1) / 2) * ahead * s.way;
 }
 
-/** A run's steps at one side. */
-interface Span {
-  side: number;
+/** Steps that go together: a run's steps at one side, or a centreline's with one set of Lines. */
+interface Span<Key = number> {
+  key: Key;
   steps: Step[];
 }
 
@@ -459,10 +493,10 @@ function strokes(run: Step[], sideOf: (s: Step) => number, pieces: Piece[]): Omi
   const spans: Span[] = [];
   for (const s of run) {
     const [side, last] = [sideOf(s), spans.at(-1)];
-    if (last?.side === side) last.steps.push(s);
-    else spans.push({ side, steps: [s] });
+    if (last?.key === side) last.steps.push(s);
+    else spans.push({ key: side, steps: [s] });
   }
-  return merge(spans, pieces).flatMap(({ side, steps: [first, ...rest] }) => {
+  return merge(spans, pieces).flatMap(({ key: side, steps: [first, ...rest] }) => {
     const last = rest.at(-1) ?? first;
     return first && last ? [{ shape: first.shape, from: Math.round(first.from), to: Math.round(last.to), side }] : [];
   });
@@ -473,18 +507,18 @@ function strokes(run: Step[], sideOf: (s: Step) => number, pieces: Piece[]): Omi
  * the longer. Ties go by where the spans are rather than the way the run goes, so that Lines running
  * a track either way merge alike.
  */
-function merge(spans: Span[], pieces: Piece[]): Span[] {
-  const length = (s: Span) => Math.round(s.steps.reduce((sum, t) => sum + (pieces[t.piece]?.length ?? 0), 0));
-  const where = (s: Span) => Math.min(...s.steps.map((t) => t.piece));
-  const before = (a: Span, b: Span) => length(a) - length(b) || where(a) - where(b);
-  const joined = (side: number, ...parts: Span[]): Span => ({ side, steps: parts.flatMap((p) => p.steps) });
+function merge<Key>(spans: Span<Key>[], pieces: Piece[]): Span<Key>[] {
+  const length = (s: Span<Key>) => Math.round(s.steps.reduce((sum, t) => sum + (pieces[t.piece]?.length ?? 0), 0));
+  const where = (s: Span<Key>) => Math.min(...s.steps.map((t) => t.piece));
+  const before = (a: Span<Key>, b: Span<Key>) => length(a) - length(b) || where(a) - where(b);
+  const joined = (key: Key, ...parts: Span<Key>[]): Span<Key> => ({ key, steps: parts.flatMap((p) => p.steps) });
   for (;;) {
     const short = spans.filter((s) => length(s) < SHORT).sort(before)[0];
     const i = short ? spans.indexOf(short) : -1;
     const [prev, next] = [spans[i - 1], spans[i + 1]];
     if (!short || (!prev && !next)) return spans;
-    if (prev && next && prev.side === next.side) spans = spans.toSpliced(i - 1, 3, joined(prev.side, prev, short, next));
-    else if (prev && (!next || before(next, prev) < 0)) spans = spans.toSpliced(i - 1, 2, joined(prev.side, prev, short));
-    else if (next) spans = spans.toSpliced(i, 2, joined(next.side, short, next));
+    if (prev && next && prev.key === next.key) spans = spans.toSpliced(i - 1, 3, joined(prev.key, prev, short, next));
+    else if (prev && (!next || before(next, prev) < 0)) spans = spans.toSpliced(i - 1, 2, joined(prev.key, prev, short));
+    else if (next) spans = spans.toSpliced(i, 2, joined(next.key, short, next));
   }
 }
