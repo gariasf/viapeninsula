@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest';
-import { along, type Line, type Shape } from '../bundle.ts';
+import { along, LINK, type Line, type Shape } from '../bundle.ts';
+import { measures } from './measures.ts';
 import { sideBySide } from './sideBySide.ts';
 
 // Track drawn in metres east (x) and north (y) of a point in Barcelona.
@@ -36,7 +37,8 @@ const line = (name: string, ...shapes: string[]): Line => ({ id: name, network: 
 
 async function draw(lines: Line[], shapes: Shape[], on: 'strokes' | 'rails' = 'strokes') {
   const found = await sideBySide(lines, shapes);
-  const drawn = found[on];
+  // Without the links between strokes, which only join them up.
+  const drawn = found[on].filter((s) => !s.shape.startsWith(LINK));
   const byId = new Map([...shapes, ...found.centrelines].map((s) => [s.id, s]));
   /** A Line's strokes: their points in metres east and north, and how far north of its track each is drawn. */
   const placed = (name: string) =>
@@ -242,4 +244,12 @@ test('puts two Lines in each Stretch in the order that suits it, where the order
   );
   const aNorth = (x: number) => Math.sign((north('A', x) ?? NaN) - (north('B', x) ?? NaN));
   expect([1000, 4000, 21000, 24000].map(aNorth)).toEqual([1, 1, -1, -1]);
+});
+
+test('joins a Line up where it leaves a stretch for a track of its own, leaving no loose ends', async () => {
+  // R2 and R11 are drawn between their tracks, 40 m apart, for 2.5 km; then R2 goes on alone.
+  const shapes = [shape('R2', [0, 0], [5000, 0]), shape('R11', [2500, 40], [0, 40])];
+  const { strokes, centrelines } = await sideBySide([line('R2', 'R2'), line('R11', 'R11')], shapes);
+  expect(strokes.some((s) => s.line === 'R2' && s.shape.startsWith(LINK))).toBe(true);
+  expect(measures({ shapes: [...shapes, ...centrelines], strokes }).dangling).toBe(0);
 });

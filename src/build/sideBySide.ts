@@ -1,6 +1,6 @@
 // How the map draws each Line: where Lines share track, side by side, as a transit map does.
 
-import { DEGREE, pointAt, STRETCH, type Line, type Point, type Shape, type Stroke } from '../bundle.ts';
+import { DEGREE, LINK, pointAt, STRETCH, type Line, type Point, type Shape, type Stroke } from '../bundle.ts';
 import { order, type Node } from './order.ts';
 import { distances, nearest } from './track.ts';
 
@@ -97,12 +97,18 @@ export async function sideBySide(lines: Line[], shapes: Shape[]): Promise<{ stro
     };
     return onIt.toSorted((a, b) => usual(a) - usual(b) || a - b);
   });
-  const orders = await order(prior, graph(found, every, pieces, drawer, edgeOf, new Map(centrelines.map((c) => [c.id, c]))));
-  // Each Line on each Stretch, a run for each time it's there, all at one side: its place in the
-  // Stretch's order among the Lines there, for most of it. A SHORT Stretch merged into another brings
-  // its Lines, but only there.
+  const walked = every.map((shape) => ({ line: shape[0]?.line ?? -1, visits: visits(shape, pieces, drawer, edgeOf) }));
+  const byId = new Map(centrelines.map((c) => [c.id, c]));
+  const orders = await order(prior, graph(found, walked, byId));
+  // Each Line on each Stretch it goes along, a run for each time it's there, all at one side: its
+  // place in the Stretch's order among the Lines there, for most of it. A SHORT Stretch merged into
+  // another brings its Lines, but only there.
+  const sideOn = new Map<string, number>(); // `<Stretch> <Line>`
+  const visited = new Set(walked.flatMap(({ line, visits }) => visits.map((v) => `${v.edge} ${line}`)));
   const drawn = found.flatMap(({ steps, lines: onIt }, e) =>
     onIt.flatMap((line) => {
+      // Only on a Stretch it goes along: beside one it doesn't, it's drawn on its own.
+      if (!visited.has(`${e} ${line}`)) return [];
       const [list, metres] = [[] as Step[][], new Map<number, number>()];
       let run: Step[] | undefined;
       for (const s of steps) {
@@ -112,16 +118,72 @@ export async function sideBySide(lines: Line[], shapes: Shape[]): Promise<{ stro
         }
         if (!run) list.push((run = []));
         run.push({ ...s, line });
-        const here = orders[e]?.filter((l) => keptBeside[s.piece]?.has(l)) ?? [];
+        const here = orders[e]?.filter((l) => keptBeside[s.piece]?.has(l) && visited.has(`${e} ${l}`)) ?? [];
         const at = here.indexOf(line) - (here.length - 1) / 2;
         metres.set(at, (metres.get(at) ?? 0) + (pieces[s.piece]?.length ?? 0));
       }
       const at = most(metres);
+      sideOn.set(`${e} ${line}`, at);
       return list.flatMap((run) => draw(run, () => at));
     }),
   );
+  const linked = links(walked, found, byId, sideOn, lines);
   // Not flatMap(draw): that would pass each run's index as its sides.
-  return { strokes: drawn, centrelines, rails: runs.flatMap((run) => draw(run)), sides: every.flatMap((run) => draw(run)) };
+  return { strokes: [...drawn, ...linked.strokes], centrelines: [...centrelines, ...linked.shapes], rails: runs.flatMap((run) => draw(run)), sides: every.flatMap((run) => draw(run)) };
+}
+
+/** A shape's time on a Stretch it goes along: how far along the Stretch's centreline it comes in and goes out, and how far it goes. */
+interface Visit {
+  edge: number;
+  first: number;
+  last: number;
+  length: number;
+}
+
+/** The Stretches a shape goes along, in order, each where its pieces are drawn. */
+function visits(shape: Step[], pieces: Piece[], drawer: number[], edgeOf: Map<number, [edge: number, at: number]>): Visit[] {
+  const found: Visit[] = [];
+  for (const s of shape) {
+    const [edge, middle] = edgeOf.get(drawer[s.piece] ?? s.piece) ?? [];
+    if (edge === undefined || middle === undefined) continue;
+    const v = found.at(-1);
+    if (v?.edge === edge) [v.last, v.length] = [middle, v.length + (pieces[s.piece]?.length ?? 0)];
+    else found.push({ edge, first: middle, last: middle, length: pieces[s.piece]?.length ?? 0 });
+  }
+  return found;
+}
+
+/**
+ * The links: for each time a Line's shape goes from one Stretch to the next, a shape from where it
+ * leaves the one to where it comes onto the next, which the Line is drawn along, so that its strokes
+ * on the two meet (#172). `line-offset` is constant along a stroke, so a link that goes from one side
+ * to another is drawn in pieces, a quarter of a line width over each.
+ */
+function links(walked: { line: number; visits: Visit[] }[], found: Stretch[], byId: Map<string, Shape>, sideOn: Map<string, number>, lines: Line[]): { shapes: Shape[]; strokes: Stroke[] } {
+  const [shapes, strokes]: [Shape[], Stroke[]] = [[], []];
+  const done = new Set<string>();
+  for (const { line, visits } of walked) {
+    for (const [i, v] of visits.entries()) {
+      const w = visits[i + 1];
+      const [from, to] = [byId.get(found[v.edge]?.steps[0]?.shape ?? ''), byId.get(found[w?.edge ?? -1]?.steps[0]?.shape ?? '')];
+      if (!w || !from || !to) continue;
+      const [a, b] = [pointAt(from, v.last), pointAt(to, w.first)];
+      // Its sides at each end, looking the way it goes: the Line's side on each Stretch, where it runs it the way its centreline does.
+      const [out, into] = [end(v, found, false) ? 1 : -1, end(w, found, true) ? -1 : 1];
+      const [start, stop] = [(sideOn.get(`${v.edge} ${line}`) ?? 0) * out, (sideOn.get(`${w.edge} ${line}`) ?? 0) * into];
+      const metres = Math.round(distances([a, b])[1] ?? 0);
+      const key = [`${a}`, `${b}`].sort().join(' ') + ` ${line}`;
+      if ((metres < 5 && start === stop) || done.has(key)) continue;
+      done.add(key);
+      const id = `${LINK}${shapes.length}`;
+      shapes.push({ id, coords: [a, b], dist: [0, metres] });
+      const n = Math.max(1, Math.ceil(Math.abs(stop - start) / 0.25));
+      for (let k = 0; k < n; k++) {
+        strokes.push({ line: lines[line]?.id ?? '', shape: id, from: (metres * k) / n, to: (metres * (k + 1)) / n, side: start + ((stop - start) * (k + 0.5)) / n });
+      }
+    }
+  }
+  return { shapes, strokes };
 }
 
 /**
@@ -129,7 +191,7 @@ export async function sideBySide(lines: Line[], shapes: Shape[]): Promise<{ stro
  * where a Line's shapes go from one edge to another. Each of a Line's shapes goes along the edges
  * its pieces are drawn on, in and out at their ends.
  */
-function graph(edges: Stretch[], every: Step[][], pieces: Piece[], drawer: number[], edgeOf: Map<number, [edge: number, at: number]>, byId: Map<string, Shape>): Node[] {
+function graph(edges: Stretch[], walked: { line: number; visits: Visit[] }[], byId: Map<string, Shape>): Node[] {
   const parent = new Map<string, string>(); // each edge's end, `<edge> <end>`, towards its node's
   const root = (key: string): string => {
     const up = parent.get(key) ?? key;
@@ -146,17 +208,9 @@ function graph(edges: Stretch[], every: Step[][], pieces: Piece[], drawer: numbe
     if (steps[0] && edges[e - 1]?.steps.at(-1)?.shape === steps[0].shape) join(`${e - 1} 1`, `${e} 0`);
   }
   const passes: { line: number; from: string; to: string }[] = [];
-  for (const shape of every) {
-    // The edges the shape goes along, and where along each it comes in and goes out.
-    // Those it's on for under SHORT it's only brushing past, or crossing a node on.
-    const visits: { edge: number; first: number; last: number; length: number }[] = [];
-    for (const s of shape) {
-      const [edge, middle] = edgeOf.get(drawer[s.piece] ?? s.piece) ?? [];
-      if (edge === undefined || middle === undefined) continue;
-      const v = visits.at(-1);
-      if (v?.edge === edge) [v.last, v.length] = [middle, v.length + (pieces[s.piece]?.length ?? 0)];
-      else visits.push({ edge, first: middle, last: middle, length: pieces[s.piece]?.length ?? 0 });
-    }
+  for (const { line, visits: all } of walked) {
+    // Those the shape's on for under SHORT it's only brushing past, or crossing a node on.
+    const visits = all.map((v) => ({ ...v }));
     for (let i = visits.length - 1; i >= 0; i--) {
       const [v, w] = [visits[i], visits[i + 1]];
       if (v && v.length < SHORT) visits.splice(i, 1);
@@ -167,7 +221,7 @@ function graph(edges: Stretch[], every: Step[][], pieces: Piece[], drawer: numbe
       if (!w) continue;
       const [out, into] = [end(v, edges, false), end(w, edges, true)];
       join(`${v.edge} ${out}`, `${w.edge} ${into}`);
-      passes.push({ line: shape[0]?.line ?? -1, from: `${v.edge} ${out}`, to: `${w.edge} ${into}` });
+      passes.push({ line, from: `${v.edge} ${out}`, to: `${w.edge} ${into}` });
     }
   }
   const nodes = new Map<string, Node>();
@@ -207,7 +261,7 @@ function graph(edges: Stretch[], every: Step[][], pieces: Piece[], drawer: numbe
 }
 
 /** Which end of its edge a shape goes out at (or comes in at): 1 at its end, 0 at its start. */
-function end({ edge, first, last }: { edge: number; first: number; last: number }, edges: Stretch[], into: boolean): 0 | 1 {
+function end({ edge, first, last }: Visit, edges: Stretch[], into: boolean): 0 | 1 {
   const steps = edges[edge]?.steps ?? [];
   const [from, to] = [steps[0]?.from ?? 0, steps.at(-1)?.to ?? 0];
   if (first === last) return last - from > to - last ? 1 : 0; // the nearer
