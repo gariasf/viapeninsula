@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { type Shape, type Stroke } from '../bundle.ts';
+import { LINK, STRETCH, type Shape, type Stroke } from '../bundle.ts';
 import { breaks, measures } from './measures.ts';
 
 const degree = (6_371_008.8 * Math.PI) / 180;
@@ -78,7 +78,7 @@ test("doesn't count Lines stepping side by side the same way as a swap", () => {
 
 test('measures nothing amiss for Lines side by side on one track, each drawn once', () => {
   const found = measures({ shapes: [east('a', 2000), east('b', 2000)], strokes: [stroke('R2', 'a', 0, 2000, -0.5), stroke('R11', 'b', 0, 2000, 0.5)] });
-  expect(found).toEqual({ breaks: { steps: 0, stubs: 0, swaps: 0, joins: 0 }, twice: 0, alone: 0, over: 0, folds: { 10: 0, 11: 0, 12: 0, 13: 0 } });
+  expect(found).toEqual({ breaks: { steps: 0, stubs: 0, swaps: 0, joins: 0 }, twice: 0, alone: 0, over: 0, folds: { 10: 0, 11: 0, 12: 0, 13: 0 }, dangling: 0 });
 });
 
 test('measures a Line drawn twice, where its two directions have tracks of their own and different sides', () => {
@@ -126,4 +126,19 @@ test('measures folds where a stroke is drawn inside a curve tighter than its off
   expect(tight[13]).toBe(0);
   expect(folds(300, 3)).toEqual({ 10: 0, 11: 0, 12: 0, 13: 0 });
   expect(folds(3000, -3)).toEqual({ 10: 0, 11: 0, 12: 0, 13: 0 });
+});
+
+test("counts a Line's stroke ends left loose, away from its other strokes and its terminus", () => {
+  // R2's track runs east for 2 km. It's drawn along it for 1 km, then along a stretch's centreline
+  // 40 m north of it to the end.
+  const shapes = [east('a', 2000), shape(`${STRETCH}0`, [[1000, 40], [2000, 40]])];
+  const found = (joined: boolean) =>
+    measures({
+      shapes: joined ? [...shapes, shape(`${LINK}0`, [[1000, 0], [1000, 40]])] : shapes,
+      strokes: [stroke('R2', 'a', 0, 1000, 0), stroke('R2', `${STRETCH}0`, 0, 1000, 0), ...(joined ? [stroke('R2', `${LINK}0`, 0, 40, 0)] : [])],
+    });
+  expect(found(false).dangling).toBe(2);
+  expect(found(true).dangling).toBe(0);
+  // A link isn't a break, however short.
+  expect(found(true).breaks).toEqual(found(false).breaks);
 });

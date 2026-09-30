@@ -255,6 +255,8 @@ export type Point = [lon: number, lat: number];
 
 /** How the IDs of the stretches' centrelines start, among the track's shapes. */
 export const STRETCH = 'stretch:';
+/** How the IDs of the links start: the shapes that join a Line's stroke on one Stretch to its next. */
+export const LINK = `${STRETCH}link`;
 
 /** A Line's width, in pixels at each zoom. */
 export const WIDTH: [zoom: number, px: number][] = [[7, 1.5], [14, 4]];

@@ -1,7 +1,7 @@
 // Yardsticks for how the Lines are drawn side by side, the same before and after a change: how often
 // they break up (#138), and how faithfully they follow their track (#160).
 
-import { along, APART, atZoom, DEGREE, direction, EARTH, pointAt, STRETCH, type Point, type Shape, type Stroke, type Track } from '../bundle.ts';
+import { along, APART, atZoom, DEGREE, direction, EARTH, LINK, pointAt, STRETCH, type Point, type Shape, type Stroke, type Track } from '../bundle.ts';
 
 /** Strokes shorter than this, in metres, are stubs: sideBySide()'s SHORT before #138. */
 const STUB = 150;
@@ -21,6 +21,12 @@ const PARALLEL = Math.cos(Math.PI / 6);
 const FOLD_ZOOMS = [10, 11, 12, 13];
 /** How far MapLibre simplifies a GeoJSON source, in px at each zoom: its default tolerance. */
 const TOLERANCE = 0.375;
+/** The zoom a stroke end is judged loose at: the widest a Line is drawn off its rails, in metres, before APART goes to 0. */
+const LOOSE_ZOOM = 14;
+/** A stroke end further than this, in metres, from any other stroke of its Line is loose. */
+const LOOSE = 20;
+/** A stroke end this close, in metres, to where a track ends is at a terminus. */
+const TERMINUS = 60;
 
 /**
  * How the Lines are drawn. `breaks`: how often they break up. `twice`: metres where a Line shows
@@ -28,7 +34,10 @@ const TOLERANCE = 0.375;
  * half a line width apart. `alone`: metres of Line drawn off a track no other Line's is beside,
  * within NEAR and alongside. `over`: metres where two Lines on one track are drawn on top of each
  * other, less than half a line width apart. `folds`: at each of FOLD_ZOOMS, where a stroke's
- * offset turns back on itself, on the inside of a curve tighter than its offset.
+ * offset turns back on itself, on the inside of a curve tighter than its offset. `dangling`: stroke
+ * ends drawn at LOOSE_ZOOM further than LOOSE from any other stroke of their Line, and not at a
+ * terminus (#172). Links (LINK), which join a Line's stroke on one Stretch to its next, count only
+ * there.
  */
 export interface Measures {
   breaks: Breaks;
@@ -36,17 +45,19 @@ export interface Measures {
   alone: number;
   over: number;
   folds: Record<number, number>;
+  dangling: number;
 }
 
 export function measures({ shapes, strokes }: Pick<Track, 'shapes' | 'strokes'>): Measures {
-  return { breaks: breaks(strokes, shapes), ...faithful(strokes, shapes), folds: folds(strokes, shapes) };
+  const drawn = strokes.filter((s) => !s.shape.startsWith(LINK));
+  return { breaks: breaks(drawn, shapes), ...faithful(drawn, shapes), folds: folds(drawn, shapes), dangling: dangling(strokes, shapes) };
 }
 
 /** Measures in a line for the build's log. */
-export function summary({ breaks: b, twice, alone, over, folds: f }: Measures): string {
+export function summary({ breaks: b, twice, alone, over, folds: f, dangling: loose }: Measures): string {
   const km = (m: number) => `${(m / 1000).toFixed(1)} km`;
   const folds = Object.entries(f).map(([zoom, n]) => `${n} at zoom ${zoom}`).join(', ');
-  return `${b.steps + b.stubs + b.swaps + b.joins} breaks (${b.steps} steps, ${b.stubs} stubs, ${b.swaps} swaps, ${b.joins} joins), ${km(twice)} drawn twice, ${km(alone)} off a track they have alone, ${Math.round(over)} m over each other, folds ${folds}`;
+  return `${b.steps + b.stubs + b.swaps + b.joins} breaks (${b.steps} steps, ${b.stubs} stubs, ${b.swaps} swaps, ${b.joins} joins), ${km(twice)} drawn twice, ${km(alone)} off a track they have alone, ${Math.round(over)} m over each other, folds ${folds}, ${loose} dangling ends`;
 }
 
 /**
@@ -159,6 +170,40 @@ function faithful(strokes: Stroke[], shapes: Shape[]): Pick<Measures, 'twice' | 
       found.twice += twice ? EVERY / 2 : 0;
       found.over += over ? EVERY / 2 : 0;
       found.alone += !beside && m.side ? EVERY : 0;
+    }
+  }
+  return found;
+}
+
+/** How many stroke ends are loose (see Measures). */
+function dangling(strokes: Stroke[], shapes: Shape[]): number {
+  const byId = new Map(shapes.map((s) => [s.id, s]));
+  const kx = DEGREE * Math.cos(((shapes[0]?.coords[0]?.[1] ?? 0) * Math.PI) / 180);
+  const flat = ([lon, lat]: Point): [x: number, y: number] => [lon * kx, lat * DEGREE];
+  const termini = shapes.filter((s) => !s.id.startsWith(STRETCH)).flatMap((s) => [s.coords[0], s.coords.at(-1)].flatMap((p) => (p ? [flat(p)] : [])));
+  // Each Line's strokes as drawn at LOOSE_ZOOM, a line width to the right for each side.
+  const byLine = new Map<string, [number, number][][]>();
+  for (const s of strokes) {
+    const shape = byId.get(s.shape);
+    if (!shape) continue;
+    const points = along(shape, s.from, s.to).map(flat);
+    const width = atZoom(APART, LOOSE_ZOOM) * ((2 * Math.PI * EARTH * (kx / DEGREE)) / (512 * 2 ** LOOSE_ZOOM));
+    byLine.set(s.line, [...(byLine.get(s.line) ?? []), offset(points, s.side * width)]);
+  }
+  // ponytail: every stroke end against every segment of its Line, about 2 s for the map; a grid if it grows.
+  let found = 0;
+  for (const drawn of byLine.values()) {
+    for (const [i, points] of drawn.entries()) {
+      for (const p of [points[0], points.at(-1)]) {
+        if (!p || termini.some(([x, y]) => Math.hypot(x - p[0], y - p[1]) < TERMINUS)) continue;
+        const near = drawn.some((other, j) => j !== i && other.some((b, k) => {
+          const a = other[k - 1] ?? b;
+          const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
+          const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)));
+          return Math.hypot(a[0] + t * dx - p[0], a[1] + t * dy - p[1]) <= LOOSE;
+        }));
+        if (!near) found++;
+      }
     }
   }
   return found;
