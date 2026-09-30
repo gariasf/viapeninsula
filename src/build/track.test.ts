@@ -277,6 +277,28 @@ test("doesn't fail a short shape for stopping at the near side of a Station's ra
   expect(log).toEqual(['line: 0.7 km long. Where the feed has the track: 0.7 km traced against its 0.7 km (-5.7%)']);
 });
 
+test("gives the level of each length of track a trace runs, from OpenStreetMap's tunnel, bridge and layer tags, but not a short bridge's", () => {
+  const { shape } = trace(
+    rails(
+      { a: [0, 0], b: [1000, 0], c: [2000, 0], d: [3000, 0], e: [3500, 0], f: [3550, 0], g: [4000, 0], h: [5000, 0] },
+      'a b',
+      ['b c d', { tunnel: 'yes', layer: '-2' }],
+      'd e',
+      ['e f', { bridge: 'yes' }],
+      'f g',
+      ['g h', { bridge: 'viaduct' }],
+    ),
+    [station('A', 500, 0), station('B', 4800, 0)],
+    { id: 'line', feed: [[0, 0], [5000, 0]], stations: 'A B' },
+  );
+  expect(shape('line').levels).toEqual([[500, 'tunnel -2'], [2500, ''], [3500, 'bridge 1']]);
+});
+
+test('gives no levels for a trace that runs on the ground all along', () => {
+  const { shape } = trace(rails({ a: [0, 0], b: [1000, 0] }, 'a b'), [station('A', 100, 0), station('B', 900, 0)], { id: 'line', feed: [[0, 0], [1000, 0]], stations: 'A B' });
+  expect(shape('line').levels).toBeUndefined();
+});
+
 test('stays on one track of a double track instead of zig-zagging across the crossovers', () => {
   const { ways, crossovers } = doubleTrack();
   const { shape } = trace(

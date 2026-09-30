@@ -214,6 +214,13 @@ export interface Shape {
   id: string;
   coords: [lon: number, lat: number][];
   dist: number[];
+  /**
+   * A traced shape's level, where it isn't all on the ground: from each distance along it on, until
+   * the next, as OpenStreetMap tags the track there, `tunnel <layer>`, `bridge <layer>` or
+   * `layer <layer>`, or '' on the ground (#165). The map doesn't use it: it's there so that
+   * measures.ts can draw a day's track again.
+   */
+  levels?: [from: number, level: string][];
 }
 
 /** A line's points from one distance along it to another, where `dist` gives the distance at each point. */
