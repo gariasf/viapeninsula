@@ -12,7 +12,15 @@ const PARALLEL = Math.cos(Math.PI / 6);
 /** Longer segments are judged in pieces this long, in metres, by what runs beside each. */
 const STEP = 50;
 /** A Line doesn't shift over for less than this, in metres: another's track is only brushing past. */
-const SHORT = 150;
+const SHORT = 300;
+/**
+ * Which Lines on other tracks are beside a piece is judged over this far along its track each way,
+ * in metres: those beside it for at least half that stretch. So Lines join and leave a bundle
+ * together, where tracks run in and out of NEAR of each other, rather than each stepping aside
+ * where it happens to. With SHORT, it halves how often Lines step aside over the whole map, as
+ * breaks() counts them (#138).
+ */
+const ALONG = 2000;
 
 /** A piece of track: where its middle is and which way it points, in local metres, and the Lines on it. */
 interface Piece {
@@ -57,7 +65,7 @@ export function sideBySide(lines: Line[], shapes: Shape[]): { strokes: Stroke[];
   const cells = grid(pieces);
   const nearby = pieces.map((p) => neighbours(p, pieces, cells));
   const turned = turn(lines.length, pieces, nearby.map((n) => cluster(n)));
-  const beside = nearby.map((n) => cluster(n, turned));
+  const beside = steady(nearby.map((n) => cluster(n, turned)), pieces, every);
   const left = sides(lines.length, pieces, nearby, turned);
   const place = rank(left);
   const draw = (run: Step[]) => {
@@ -202,6 +210,55 @@ function cluster(nearby: Neighbour[], turned?: number[]): Map<number, Neighbour>
     if (!lines.has(n.line)) lines.set(n.line, n);
   }
   return lines;
+}
+
+/**
+ * The Lines beside each piece: those on it, and those beside its track, on it or on others, for at
+ * least half the stretch ALONG either way of it, each where it's nearest. Where its track ends
+ * sooner, what's beside the piece itself goes on to ALONG.
+ */
+function steady(beside: Map<number, Neighbour>[], pieces: Piece[], every: Step[][]): Map<number, Neighbour>[] {
+  const links = pieces.map(() => new Set<number>()); // the pieces next to each along its track
+  for (const run of every) {
+    for (const [i, s] of run.entries()) {
+      const b = run[i - 1];
+      if (!b || b.piece === s.piece) continue;
+      links[b.piece]?.add(s.piece);
+      links[s.piece]?.add(b.piece);
+    }
+  }
+  return beside.map((own, p) => {
+    const piece = pieces[p];
+    if (!piece) return own;
+    const found = new Map<number, { length: number; n: Neighbour }>(); // how far each Line not on it is beside its track
+    let all = 0; // and how far its track goes
+    const add = (q: number, length: number) => {
+      all += length;
+      for (const [line, n] of beside[q] ?? []) {
+        if (piece.on.has(line)) continue;
+        const known = found.get(line);
+        if (known) known.length += length;
+        else found.set(line, { length, n });
+      }
+    };
+    add(p, piece.length);
+    const ahead = (q: number) => ((pieces[q]?.x ?? 0) - piece.x) * piece.ux + ((pieces[q]?.y ?? 0) - piece.y) * piece.uy > 0;
+    const next = [...(links[p] ?? [])];
+    for (const from of [next.filter(ahead), next.filter((q) => !ahead(q))]) {
+      const away = new Map(from.map((q): [number, number] => [q, 0])); // how far along the track from p's end each piece starts
+      let far = 0;
+      for (const [q, d] of away) {
+        const length = pieces[q]?.length ?? 0;
+        add(q, length);
+        far = Math.max(far, d + length);
+        for (const r of links[q] ?? []) if (r !== p && !away.has(r) && d + length < ALONG) away.set(r, d + length);
+      }
+      if (far < ALONG) add(p, ALONG - far);
+    }
+    const kept = new Map([...own].filter(([, n]) => n.on));
+    for (const [line, { length, n }] of found) if (length * 2 >= all) kept.set(line, own.get(line) ?? n);
+    return kept;
+  });
 }
 
 /**

@@ -176,3 +176,49 @@ test("gives each of a Line's shapes the side its stroke is drawn at all along it
   expect(side('R2_INV')).toEqual([{ line: 'R2', from: 0, to: 5000, side: -(r2?.side ?? NaN) }]);
   expect(side('R11')).toEqual([{ line: 'R11', from: 0, to: 5000, side: strokes[1]?.side }]);
 });
+
+test("doesn't move a bundle over for a Line whose track runs beside it for a short stretch, nor move that Line off its track", () => {
+  // As L5 between Plaça de Sants and Sants Estació: its track comes within 30 m of R2's and R11's for 500 m.
+  const { strokes } = draw(
+    [line('R2', 'R2'), line('R11', 'R11'), line('L5', 'L5')],
+    [
+      shape('R2', [0, 0], [10000, 0]),
+      shape('R11', [0, 0], [10000, 0]),
+      shape('L5', [0, 300], [4000, 300], [4300, 30], [4800, 30], [5100, 300], [10000, 300]),
+    ],
+  );
+  expect(['R2', 'R11'].flatMap(strokes).map((s) => [s.from, s.to, Math.abs(s.north)])).toEqual([[0, 10000, 0.5], [0, 10000, 0.5]]);
+  expect(strokes('L5').map((s) => s.north)).toEqual([0]);
+});
+
+test('makes room in a bundle for a Line that joins it for longer, on the side its track is, and puts it back on its track after', () => {
+  // L5's track runs 30 m north of R2's and R11's for 3 km.
+  const { north } = draw(
+    [line('R2', 'R2'), line('R11', 'R11'), line('L5', 'L5')],
+    [
+      shape('R2', [0, 0], [10000, 0]),
+      shape('R11', [0, 0], [10000, 0]),
+      shape('L5', [0, 300], [3000, 300], [3300, 30], [6300, 30], [6600, 300], [10000, 300]),
+    ],
+  );
+  const at = (x: number) => [north('L5', x, x > 3300 && x < 6300 ? 30 : 300), north('R2', x), north('R11', x)];
+  expect(at(4800)[0]).toBe(1);
+  expect(at(4800).slice(1).sort()).toEqual([-1, 0]);
+  expect([at(1500), at(8500)].map(([l5, r2, r11]) => [l5, Math.abs(r2 ?? NaN), Math.abs(r11 ?? NaN)])).toEqual([[0, 0.5, 0.5], [0, 0.5, 0.5]]);
+});
+
+test('keeps two Lines in one order all along their shared track, though they come in and go out on opposite sides', () => {
+  // R1 comes in from the north and leaves south, R2 the other way round, so one has to cross the
+  // other: they cross where their tracks meet or part, not along the stretch they share.
+  const { strokes, north } = draw(
+    [line('R1', 'R1'), line('R2', 'R2')],
+    [
+      shape('R1', [0, 1000], [2000, 1000], [3000, 0], [7000, 0], [8000, -1000], [10000, -1000]),
+      shape('R2', [0, -1000], [2000, -1000], [3000, 0], [7000, 0], [8000, 1000], [10000, 1000]),
+    ],
+  );
+  const order = [3200, 5000, 6800].map((x) => Math.sign((north('R1', x) ?? NaN) - (north('R2', x) ?? NaN)));
+  expect(order.map(Math.abs)).toEqual([1, 1, 1]);
+  expect(new Set(order).size).toBe(1);
+  for (const name of ['R1', 'R2']) expect(strokes(name).filter((s) => s.from < 6800 && s.to > 3200)).toHaveLength(1);
+});
