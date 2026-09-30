@@ -73,6 +73,7 @@ const cut: Bundle = {
   stations: [],
   shapes: bundle.shapes.filter((s) => shapes.has(s.id)),
   strokes: [],
+  rails: [],
   sides: [],
   trips,
 };

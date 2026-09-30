@@ -582,7 +582,7 @@ function shape(id: string, all: Point[]): Shape {
 }
 
 /** The great-circle distance along a line at each of its points, in metres. */
-function distances(polyline: Point[]): number[] {
+export function distances(polyline: Point[]): number[] {
   let along = 0;
   return polyline.map((p, i) => {
     const prev = polyline[i - 1];

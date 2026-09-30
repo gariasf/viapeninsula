@@ -34,9 +34,10 @@ function shapeEvery(every: number, id: string, corners: [x: number, y: number][]
 
 const line = (name: string, ...shapes: string[]): Line => ({ id: name, network: 'rodalies', name, colour: '#000', shapes });
 
-function draw(lines: Line[], shapes: Shape[]) {
-  const { strokes: drawn } = sideBySide(lines, shapes);
-  const byId = new Map(shapes.map((s) => [s.id, s]));
+function draw(lines: Line[], shapes: Shape[], on: 'strokes' | 'rails' = 'strokes') {
+  const found = sideBySide(lines, shapes);
+  const drawn = found[on];
+  const byId = new Map([...shapes, ...found.centrelines].map((s) => [s.id, s]));
   /** A Line's strokes: their points in metres east and north, and how far north of its track each is drawn. */
   const placed = (name: string) =>
     drawn
@@ -50,6 +51,8 @@ function draw(lines: Line[], shapes: Shape[]) {
       });
   /** A Line's strokes, each as the metres it covers from west to east and how far north of its track it's drawn. */
   const strokes = (name: string) => placed(name).map(({ from, to, north }) => ({ from, to, north }));
+  /** How far north each of a Line's strokes' own line is, in metres, at its ends: its track or its stretch's centreline. */
+  const at = (name: string) => placed(name).map(({ points }) => [points[0], points.at(-1)].map((p) => Math.round(p?.[1] ?? NaN)));
   /** How far north of its track a Line is drawn at x metres east, on its track nearest y metres north. */
   const north = (name: string, x: number, y = 0) =>
     placed(name)
@@ -61,7 +64,7 @@ function draw(lines: Line[], shapes: Shape[]) {
         }),
       )
       .sort((a, b) => a.off - b.off)[0]?.north;
-  return { strokes, north };
+  return { strokes, north, at };
 }
 
 test('draws a Line on track of its own as one stroke on its track, for both its directions', () => {
@@ -118,16 +121,33 @@ test("doesn't shift a Line over where another's track only brushes past it", () 
   expect(strokes('R1').map((s) => s.north)).toEqual([0]);
 });
 
-test.for(['R4', 'R7'])("draws a Line's two directions as one where each has a track of a double track (%s first)", (first) => {
+test.for(['R4', 'R7'])("draws a Line's two directions once, between their tracks, where each has a track of a double track (%s first)", (first) => {
   // R4 runs east on the south track and back west on the north one, and R7 shares the south one.
   const [r4, r7] = [line('R4', 'R4', 'R4_INV'), line('R7', 'R7')];
-  const { strokes } = draw(
+  const { strokes, at } = draw(
     first === 'R4' ? [r4, r7] : [r7, r4],
-    [shape('R4', [0, 0], [5000, 0]), shape('R4_INV', [5000, 5], [0, 5]), shape('R7', [0, 0], [5000, 0])],
+    [shape('R4', [0, 0], [5000, 0]), shape('R4_INV', [5000, 20], [0, 20]), shape('R7', [0, 0], [5000, 0])],
   );
-  const sides = strokes('R4').map((s) => s.north);
-  expect(sides).toEqual([sides[0], sides[0]]);
-  expect([sides[0], strokes('R7')[0]?.north].sort((a = 0, b = 0) => a - b)).toEqual([-0.5, 0.5]);
+  const sides = [...strokes('R4'), ...strokes('R7')].map((s) => s.north);
+  expect(strokes('R4')).toHaveLength(1);
+  expect(sides.sort((a = 0, b = 0) => a - b)).toEqual([-0.5, 0.5]);
+  expect([...at('R4'), ...at('R7')]).toEqual([[10, 10], [10, 10]]);
+});
+
+test('draws Lines on tracks side by side along one line between their tracks', () => {
+  const { strokes, at } = draw([line('R2', 'R2'), line('R11', 'R11')], [shape('R2', [0, 0], [5000, 0]), shape('R11', [5000, 40], [0, 40])]);
+  expect([...strokes('R2'), ...strokes('R11')].map((s) => [s.from, s.to, s.north])).toEqual([[0, 5000, -0.5], [0, 5000, 0.5]]);
+  expect([...at('R2'), ...at('R11')]).toEqual([[20, 20], [20, 20]]);
+});
+
+test('zoomed right in, draws each Line on its own track, once', () => {
+  const { strokes, at } = draw(
+    [line('R4', 'R4', 'R4_INV'), line('R7', 'R7')],
+    [shape('R4', [0, 0], [5000, 0]), shape('R4_INV', [5000, 20], [0, 20]), shape('R7', [0, 0], [5000, 0])],
+    'rails',
+  );
+  expect([...strokes('R4'), ...strokes('R7')].map(({ from, to }) => [from, to])).toEqual([[0, 5000], [0, 5000], [0, 5000]]);
+  expect([...at('R4'), ...at('R7')].sort()).toEqual([[0, 0], [0, 0], [20, 20]]);
 });
 
 test('keeps Lines on their sides along a long straight, whichever way each runs it', () => {
@@ -167,7 +187,7 @@ test('keeps Lines where they are while another runs past them the other way, and
 test("gives each of a Line's shapes the side its stroke is drawn at all along it, though a stroke draws their track once", () => {
   // R2 and R11 share track; R2's Trains run it back on R2_INV, which isn't drawn again.
   const shapes = [shape('R2', [0, 0], [5000, 0]), shape('R2_INV', [5000, 0], [0, 0]), shape('R11', [0, 0], [5000, 0])];
-  const { strokes, sides } = sideBySide([line('R2', 'R2', 'R2_INV'), line('R11', 'R11')], shapes);
+  const { rails: strokes, sides } = sideBySide([line('R2', 'R2', 'R2_INV'), line('R11', 'R11')], shapes);
   expect(strokes.map((s) => s.shape)).toEqual(['R2', 'R11']);
   const side = (id: string) => sides.filter((s) => s.shape === id).map(({ line, from, to, side }) => ({ line, from, to, side }));
   const [r2] = side('R2');
