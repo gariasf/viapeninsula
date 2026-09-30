@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { along, LINK, type Line, type Shape } from '../bundle.ts';
+import { along, APART, atZoom, BANDS, beside, LINK, pieces, pixelMetres, type Line, type Shape, type Stroke } from '../bundle.ts';
 import { measures } from './measures.ts';
 import { sideBySide } from './sideBySide.ts';
 
@@ -252,4 +252,38 @@ test('joins a Line up where it leaves a stretch for a track of its own, leaving 
   const { strokes, centrelines } = await sideBySide([line('R2', 'R2'), line('R11', 'R11')], shapes);
   expect(strokes.some((s) => s.line === 'R2' && s.shape.startsWith(LINK))).toBe(true);
   expect(measures({ shapes: [...shapes, ...centrelines], strokes }).dangling).toBe(0);
+});
+
+test('curves a Line from its side on one Stretch to its side on the next, in each zoom band, the further it moves over the longer', async () => {
+  // R2 and R11 are drawn between their tracks, 40 m apart, for 2.5 km; then R2 goes on alone.
+  const shapes = [shape('R2', [0, 0], [5000, 0]), shape('R11', [2500, 40], [0, 40])];
+  const { strokes, centrelines } = await sideBySide([line('R2', 'R2'), line('R11', 'R11')], shapes);
+  const byId = new Map([...shapes, ...centrelines].map((s) => [s.id, s]));
+  const lengths = BANDS.map((zoom, band) => {
+    const px = pixelMetres(zoom, LAT);
+    const width = atZoom(APART, zoom) * px;
+    // Where a stroke is drawn at an end, in metres east and north, at the band's zoom.
+    const at = (s: Stroke, d: number): [number, number] => {
+      const [lon, lat] = beside(byId.get(s.shape) ?? { coords: [], dist: [] }, d, s.side * width);
+      return [(lon - LON) * M * COS, (lat - LAT) * M];
+    };
+    const edges = strokes.filter((s) => s.line === 'R2' && !s.shape.startsWith(LINK));
+    const ends = edges.flatMap((s) => [at(s, s.from + (s.cut?.[band]?.[0] ?? 0)), at(s, s.to - (s.cut?.[band]?.[1] ?? 0))]);
+    const curve = strokes.filter((s) => s.line === 'R2' && s.shape.startsWith(LINK) && s.band === band).flatMap(pieces);
+    const [first, last] = [curve[0], curve.at(-1)];
+    if (!first || !last) return NaN;
+    // Its ends meet the strokes it joins, within a quarter of a pixel, wherever the Line is drawn at that zoom.
+    for (const p of [at(first, first.from), at(last, last.to)]) {
+      expect(Math.min(...ends.map((e) => Math.hypot(e[0] - p[0], e[1] - p[1])))).toBeLessThan(px / 4);
+    }
+    return last.to - first.from;
+  });
+  // A line width is further on the ground zoomed out, so the curve is longer there.
+  expect(lengths.every((l, i) => l > (lengths[i + 1] ?? 0))).toBe(true);
+});
+
+test('ends Lines that end together at one point across their Stretch', async () => {
+  // A and B share track to a terminus; B's track stops 100 m short of A's.
+  const { strokes } = await draw([line('A', 'A'), line('B', 'B')], [shape('A', [0, 0], [5000, 0]), shape('B', [0, 0], [4900, 0])]);
+  expect([...strokes('A'), ...strokes('B')].map((s) => s.to)).toEqual([5000, 5000]);
 });
