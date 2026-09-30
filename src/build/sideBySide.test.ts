@@ -205,6 +205,9 @@ test('makes room in a bundle for a Line that joins it for longer, on the side it
   expect(at(4800)[0]).toBe(1);
   expect(at(4800).slice(1).sort()).toEqual([-1, 0]);
   expect([at(1500), at(8500)].map(([l5, r2, r11]) => [l5, Math.abs(r2 ?? NaN), Math.abs(r11 ?? NaN)])).toEqual([[0, 0.5, 0.5], [0, 0.5, 0.5]]);
+  // Just past where its track parts from theirs, they close up and it's back on its track.
+  expect([north('R2', 6400), north('R11', 6400)].map((n) => Math.abs(n ?? NaN))).toEqual([0.5, 0.5]);
+  expect(north('L5', 6500, 210)).toBe(0);
 });
 
 test('keeps two Lines in one order all along their shared track, though they come in and go out on opposite sides', () => {

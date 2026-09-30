@@ -1,6 +1,6 @@
 // A yardstick for how often the Lines drawn side by side break up, the same before and after a change (#138).
 
-import { DEGREE, direction, pointAt, type Shape, type Stroke } from '../bundle.ts';
+import { DEGREE, direction, pointAt, type Shape, type Stroke, type Track } from '../bundle.ts';
 
 /** Strokes shorter than this, in metres, are stubs: sideBySide()'s SHORT before #138. */
 const STUB = 150;
@@ -11,8 +11,8 @@ const JOIN = 1000;
 
 /**
  * How the strokes break up. A step is a Line changing side from one stroke to the next; a stub is a
- * stroke under 150 m; a swap is two Lines stepping past each other at one place; a join is a Line
- * stepping out for under 1 km and back to the side it left. So each swap is two steps too, and
+ * stroke under STUB; a swap is two Lines stepping past each other at one place; a join is a Line
+ * stepping out for under JOIN and back to the side it left. So each swap is two steps too, and
  * each join two steps.
  */
 export interface Breaks {
@@ -63,4 +63,14 @@ export function breaks(strokes: Stroke[], shapes: Shape[]): Breaks {
     }
   }
   return found;
+}
+
+// Run as `node src/build/breaks.ts <track.json>`, on a day's track the daily build wrote or the map
+// downloads: the breaks in its strokes, and in the strokes sideBySide() draws from its Lines now.
+if (import.meta.main) {
+  const { readFile } = await import('node:fs/promises');
+  const { sideBySide } = await import('./sideBySide.ts');
+  const track = JSON.parse(await readFile(process.argv[2] ?? '', 'utf8')) as Track;
+  console.log('drawn', breaks(track.strokes, track.shapes));
+  console.log('now  ', breaks(sideBySide(track.lines, track.shapes).strokes, track.shapes));
 }

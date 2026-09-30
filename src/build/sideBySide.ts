@@ -214,7 +214,7 @@ function cluster(nearby: Neighbour[], turned?: number[]): Map<number, Neighbour>
 
 /**
  * The Lines beside each piece: those on it, and those beside its track, on it or on others, for at
- * least half the stretch ALONG either way of it, each where it's nearest. Where its track ends
+ * least half the stretch ALONG either way of it, each where it's first met along the track. Where its track ends
  * sooner, what's beside the piece itself goes on to ALONG.
  */
 function steady(beside: Map<number, Neighbour>[], pieces: Piece[], every: Step[][]): Map<number, Neighbour>[] {
