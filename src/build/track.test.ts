@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import type { Shape, Station } from '../bundle.ts';
 import type { OsmWay } from './osm.ts';
-import { eachWay, traceShapes } from './track.ts';
+import { eachWay, onOwnTrack, traceShapes } from './track.ts';
 
 // A small railway, drawn in metres east (x) and north (y) of a point near Manresa.
 const M = (6_371_008.8 * Math.PI) / 180; // metres in a degree of latitude
@@ -463,4 +463,25 @@ test("doesn't give Lines going opposite ways the same track where there are two"
   );
   const y = new Set(points(shape('Y')).map(String));
   expect(points(shape('X')).filter((p) => y.has(String(p)))).toEqual([]);
+});
+
+test("moves a Station published at another Network's point onto its own track, as one place with the other's", () => {
+  // Renfe's track runs 60 m south of FGC's, but Renfe publishes its Station at FGC's.
+  const shape = (id: string, y: number): Shape => {
+    const coords = [at(0, y), at(1000, y)];
+    return { id, coords, dist: [0, 1000] };
+  };
+  const [renfe, fgc] = [station('adif:1', 500, 3), station('fgc:A', 500, 1)];
+  // As at Lleida, both published at the station building, over 40 m from either track, stay as they are.
+  const [lleida, fgcLleida] = [station('adif:2', 2500, 0), station('fgc:B', 2500, 2)];
+  const further = (s: Shape, y: number): Shape => ({ ...s, coords: [at(2000, y), at(3000, y)] });
+  const [ours, theirs] = onOwnTrack([
+    { stations: [renfe, lleida], shapes: [shape('r', -60), further(shape('r2', 0), -41)] },
+    { stations: [fgc, fgcLleida], shapes: [shape('f', 0), further(shape('f2', 0), 45)] },
+  ]);
+  const moved = ours?.[0];
+  expect(metres([moved?.lon ?? NaN, moved?.lat ?? NaN]).map(Math.round)).toEqual([500, -60]);
+  expect(moved).toMatchObject({ id: 'adif:1', place: 'adif:1' });
+  expect(theirs?.[0]).toEqual({ ...fgc, place: 'adif:1' });
+  expect([ours?.[1], theirs?.[1]]).toEqual([lleida, fgcLleida]);
 });

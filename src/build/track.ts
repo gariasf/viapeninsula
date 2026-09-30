@@ -133,6 +133,48 @@ export function traceShapes(shapes: FeedShape[], stations: Station[], rails: Osm
 }
 
 /**
+ * A Station within 20 m of another Network's is published at its point, or both at one building's,
+ * as at Lleida-Pirineus, 40 m from either Network's track. A Station within 20 m of its track is on it.
+ */
+const SAME_POINT = 20;
+
+/**
+ * Each Network's Stations, but where one is published at the point of another Network's Station on
+ * that Network's track, and nearer it than its own, as Renfe publishes Martorell Central at FGC's,
+ * 60 m from R4 (#158): that one goes onto its own track, where its Trains stop, and the two are one place.
+ */
+export function onOwnTrack(networks: { stations: Station[]; shapes: Shape[] }[]): Station[][] {
+  const closest = (s: Station, shapes: Shape[]) =>
+    shapes.map((shape) => ({ shape, ...nearest(shape.coords, [s.lon, s.lat]) })).reduce((a, b) => (b.metres < a.metres ? b : a));
+  const [moved, places] = [new Map<string, Station>(), new Map<string, string>()];
+  for (const [n, { stations, shapes }] of networks.entries()) {
+    if (!shapes.length) continue;
+    for (const s of stations) {
+      // ponytail: onto the nearest of any of its Network's track, not only its own Lines'; keep to the
+      // shapes whose Trips call there if a Line that doesn't passes nearer one day.
+      let own: ReturnType<typeof closest> | undefined;
+      const onTheirs = (o: Station, other: Shape[]) =>
+        metres([s.lon, s.lat], [o.lon, o.lat]) <= SAME_POINT &&
+        closest(o, other).metres <= SAME_POINT &&
+        closest(s, other).metres < (own ??= closest(s, shapes)).metres;
+      const there = networks.flatMap((other, m) => (m === n || !other.shapes.length ? [] : other.stations.filter((o) => onTheirs(o, other.shapes))))[0];
+      if (!there || !own) continue;
+      const [lon, lat] = lerp(own.shape.coords[own.i] ?? [NaN, NaN], own.shape.coords[own.i + 1] ?? [NaN, NaN], own.t);
+      // A second Station published at the same point joins the place the first made.
+      const place = there.place ?? places.get(there.id) ?? s.place ?? s.id;
+      moved.set(s.id, { ...s, lon: round(lon), lat: round(lat), place });
+      places.set(there.id, place);
+    }
+  }
+  return networks.map(({ stations }) =>
+    stations.map((s) => {
+      const place = places.get(s.id);
+      return moved.get(s.id) ?? (place ? { ...s, place } : s);
+    }),
+  );
+}
+
+/**
  * One shape traced, and its length where both of a stretch's Stations are on the feed's shape, as
  * traced and in the feed: there the two should be about as long.
  */
