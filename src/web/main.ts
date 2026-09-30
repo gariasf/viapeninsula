@@ -75,7 +75,7 @@ const RING: [zoom: number, px: number][] = [[7, 0.5], [14, 1.5]];
 const TRAIN_DOT: [zoom: number, px: number, followed: number][] = [[7, 2.5, 5], [14, 6, 10]];
 /** How long a line of a place's name can be, in ems, as MapLibre wraps names. */
 const PLACE_WRAP = 10;
-/** How a place's name is lettered, by its tier (TIERS): in Noto Sans Bold or Regular, and how large, in px. */
+/** How a place's name is lettered: in Noto Sans Bold (BOLD) or Regular, and how large, in px, by its tier (TIERS). */
 interface NameStyle {
   bold: boolean;
   size: number;
@@ -106,19 +106,18 @@ const PAPER = '#f2f3f0';
 /**
  * The places drawn larger than the rest and named from further out, by their IDs in places(), as the
  * maintainer picks them: each tier's dots are `larger` px larger in radius than a place's in neither,
- * and its names show from zoom `nameZoom`, before a lower tier's where they collide, lettered as
- * `name` says: bolder and larger by tier, as railisland's (TIER_STYLE: 800 at 12.5 px, 700 at 12 px),
- * in Bold, as Noto Sans has no weights between. A place in
+ * and its names show from zoom `nameZoom`, before a lower tier's where they collide, `size` px large,
+ * a little larger by tier, as railisland's (TIER_STYLE). A place in
  * neither, as every Metro and TRAM place is and one that opens later will be, is drawn as UNTIERED
  * says.
  * ponytail: by ID, so a listed place whose operator renumbers it drops to UNTIERED unnoticed. Have
  * show() warn of a listed ID it doesn't find among the places if that ever happens.
  */
-const TIERS: { nameZoom: number; larger: number; name: NameStyle; places: string[] }[] = [
+const TIERS: { nameZoom: number; larger: number; size: number; places: string[] }[] = [
   {
     nameZoom: 9,
     larger: 2,
-    name: { bold: true, size: 12.5 },
+    size: 12,
     places: [
       // Barcelona's main Stations, where the most Lines call or end.
       'adif:71801', // Barcelona-Sants
@@ -144,7 +143,7 @@ const TIERS: { nameZoom: number; larger: number; name: NameStyle; places: string
   {
     nameZoom: 11,
     larger: 1,
-    name: { bold: true, size: 12 },
+    size: 11.5,
     places: [
       // Barcelona's other main Stations, and where its Lines part and end.
       'adif:78805', // Barcelona Plaça de Catalunya
@@ -198,8 +197,24 @@ const TIERS: { nameZoom: number; larger: number; name: NameStyle; places: string
     ],
   },
 ];
-/** How a place in neither tier is drawn: named from zoom 12, and in the smallest size, in Regular. */
-const UNTIERED = { nameZoom: 12, larger: 0, name: { bold: false, size: 11 } };
+/** How a place in neither tier is drawn: named from zoom 12, and in the smallest size. */
+const UNTIERED = { nameZoom: 12, larger: 0, size: 11 };
+/**
+ * The places whose names are in Noto Sans Bold, as the maintainer picks them, by their IDs in places():
+ * the biggest, Barcelona's main Stations and the largest cities', which the rest are Regular beside.
+ * ponytail: by ID, as TIERS are.
+ */
+const BOLD = new Set([
+  'adif:71801', // Barcelona-Sants
+  'adif:71802', // Barcelona-Passeig de Gràcia
+  'fgc:PC', // Barcelona - Plaça Catalunya
+  'adif:78805', // Barcelona Plaça de Catalunya
+  'fgc:PE', // Barcelona - Plaça Espanya
+  'adif:79400', // Barcelona Estació de França
+  'adif:71500', // Tarragona
+  'adif:78400', // Lleida-Pirineus
+  'adif:79300', // Girona
+]);
 /**
  * The whole zooms a place's name is laid out at, as MapLibre offsets names by whole zoom levels: from
  * the first a tier's names show at to the last the Lines move beside their track at (APART).
@@ -689,8 +704,8 @@ function show(days: Track | Bundle) {
     }),
   });
   const tiered = [...shownPlaces.values()].map((p) => {
-    const { nameZoom, larger, name: style } = TIERS.find((tier) => tier.places.includes(p.id)) ?? UNTIERED;
-    return { ...p, nameZoom, larger, style };
+    const { nameZoom, larger, size } = TIERS.find((tier) => tier.places.includes(p.id)) ?? UNTIERED;
+    return { ...p, nameZoom, larger, style: { bold: BOLD.has(p.id), size } };
   });
   // Where a place is named after its town, the town's label goes once the place's name shows (#121).
   const once: ExpressionSpecification = ['!', namedTwice(tiered)];
