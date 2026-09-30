@@ -1,7 +1,8 @@
 // Yardsticks for how the Lines are drawn side by side, the same before and after a change: how often
 // they break up (#138), and how faithfully they follow their track (#160).
 
-import { along, APART, atZoom, BANDS, bandZooms, DEGREE, direction, EARTH, LINK, pieces, pixelMetres, pointAt, STRETCH, type Point, type Shape, type Stroke, type Track } from '../bundle.ts';
+import { along, APART, atZoom, bandAt, DEGREE, direction, EARTH, inBand, LINK, pieces, pixelMetres, pointAt, STRETCH, type Point, type Shape, type Stroke, type Track } from '../bundle.ts';
+import { folded, offset, simplify, TOLERANCE } from './offset.ts';
 
 /** Strokes shorter than this, in metres, are stubs: sideBySide()'s SHORT before #138. */
 const STUB = 150;
@@ -19,8 +20,6 @@ const SAME = 2;
 const PARALLEL = Math.cos(Math.PI / 6);
 /** The zooms folds are looked for at: where bundles are widest on the ground. */
 const FOLD_ZOOMS = [10, 11, 12, 13];
-/** How far MapLibre simplifies a GeoJSON source, in px at each zoom: its default tolerance. */
-const TOLERANCE = 0.375;
 /** The zoom a stroke end is judged loose at: the widest a Line is drawn off its rails, in metres, before APART goes to 0. */
 const LOOSE_ZOOM = 14;
 /** A stroke end further than this, in metres, from any other stroke of its Line is loose. */
@@ -183,10 +182,10 @@ function dangling(strokes: Stroke[], shapes: Shape[]): number {
   const termini = shapes.filter((s) => !s.id.startsWith(STRETCH)).flatMap((s) => [s.coords[0], s.coords.at(-1)].flatMap((p) => (p ? [flat(p)] : [])));
   // Each Line's strokes as drawn at LOOSE_ZOOM, a line width to the right for each side: in its band,
   // cut back where its curves take over.
-  const band = BANDS.findIndex((_, b) => LOOSE_ZOOM < bandZooms(b)[1]);
+  const band = bandAt(LOOSE_ZOOM);
   const byLine = new Map<string, [number, number][][]>();
   for (const s of strokes.flatMap(pieces)) {
-    const shape = byId.get(s.shape);
+    const shape = inBand(byId, s.shape, band);
     if (!shape || (s.band !== undefined && s.band !== band)) continue;
     const [start, end] = s.cut?.[band] ?? [0, 0];
     const points = along(shape, s.from + start, s.to - end).map(flat);
@@ -221,64 +220,21 @@ function folds(strokes: Stroke[], shapes: Shape[]): Record<number, number> {
   const byId = new Map(shapes.map((s) => [s.id, s]));
   const found = Object.fromEntries(FOLD_ZOOMS.map((z) => [z, 0]));
   for (const s of strokes) {
-    const shape = byId.get(s.shape);
-    if (!s.side || !shape) continue;
-    const coords = along(shape, s.from, s.to);
-    const lat = coords[0]?.[1] ?? 0;
-    const kx = DEGREE * Math.cos((lat * Math.PI) / 180);
-    const flat = coords.map(([lon, lat]): [number, number] => [lon * kx, lat * DEGREE]);
+    if (!s.side) continue;
     for (const z of FOLD_ZOOMS) {
+      // Along its centreline smoothed for the zoom's band, where it is.
+      const shape = inBand(byId, s.shape, bandAt(z));
+      if (!shape) continue;
+      const coords = along(shape, s.from, s.to);
+      const lat = coords[0]?.[1] ?? 0;
+      const kx = DEGREE * Math.cos((lat * Math.PI) / 180);
+      const flat = coords.map(([lon, lat]): [number, number] => [lon * kx, lat * DEGREE]);
       const px = (2 * Math.PI * EARTH * Math.cos((lat * Math.PI) / 180)) / (512 * 2 ** z);
       const points = simplify(flat, TOLERANCE * px);
-      const off = offset(points, s.side * atZoom(APART, z) * px);
-      for (let i = 1; i < points.length; i++) {
-        const [[ax, ay], [bx, by]] = [points[i - 1] ?? [0, 0], points[i] ?? [0, 0]];
-        const [[cx, cy], [dx, dy]] = [off[i - 1] ?? [0, 0], off[i] ?? [0, 0]];
-        if ((bx - ax) * (dx - cx) + (by - ay) * (dy - cy) < 0) found[z] = (found[z] ?? 0) + 1;
-      }
+      found[z] = (found[z] ?? 0) + folded(points, s.side * atZoom(APART, z) * px).length;
     }
   }
   return found;
-}
-
-/** A line with only the points it needs to stay within a tolerance of itself (Douglas–Peucker, as geojson-vt). */
-function simplify(points: [number, number][], tolerance: number): [number, number][] {
-  if (points.length < 3) return points;
-  const keep = new Set([0, points.length - 1]);
-  const stack: [number, number][] = [[0, points.length - 1]];
-  for (let next = stack.pop(); next; next = stack.pop()) {
-    const [a, b] = next;
-    const [[ax, ay], [bx, by]] = [points[a] ?? [0, 0], points[b] ?? [0, 0]];
-    const length = Math.hypot(bx - ax, by - ay) || 1;
-    let [far, at] = [tolerance, -1];
-    for (let i = a + 1; i < b; i++) {
-      const [x, y] = points[i] ?? [0, 0];
-      const off = Math.abs((bx - ax) * (ay - y) - (ax - x) * (by - ay)) / length;
-      if (off > far) [far, at] = [off, i];
-    }
-    if (at < 0) continue;
-    keep.add(at);
-    stack.push([a, at], [at, b]);
-  }
-  return points.filter((_, i) => keep.has(i));
-}
-
-/** A line's points moved so many metres to its right, each along its join's miter. */
-function offset(points: [number, number][], metres: number): [number, number][] {
-  const right = (a: [number, number], b: [number, number]): [number, number] => {
-    const length = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
-    return [(b[1] - a[1]) / length, -(b[0] - a[0]) / length];
-  };
-  return points.map((p, i) => {
-    // The segments either side of the point, where an end's missing one comes out as none.
-    const [n1, n2] = [right(points[i - 1] ?? p, p), right(p, points[i + 1] ?? p)];
-    const join = [n1[0] + n2[0], n1[1] + n2[1]] as const;
-    const length = Math.hypot(join[0], join[1]) || 1;
-    const [jx, jy] = [join[0] / length, join[1] / length];
-    // A floor on the half-angle's cosine, so a hairpin doesn't shoot off.
-    const miter = 1 / Math.max(0.05, jx * n1[0] + jy * n1[1], jx * n2[0] + jy * n2[1]);
-    return [p[0] + metres * jx * miter, p[1] + metres * jy * miter];
-  });
 }
 
 // Run as `node src/build/measures.ts <track.json>`, on a day's track the daily build wrote or the map

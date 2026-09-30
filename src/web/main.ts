@@ -3,7 +3,7 @@ import './style.css';
 import type { ExpressionFilterSpecification, ExpressionSpecification, LineLayerSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { AttributionControl, MapLibreMap, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { along, APART, atZoom, BANDS, bandZooms, STRETCH, beside, pieces, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Place, type DayTrips, type Line, type Manifest, type Network, type Point, type Shape, type Snapshot, type Stroke, type Track, WIDTH } from '../bundle.ts';
+import { along, APART, atZoom, BANDS, bandZooms, STRETCH, smoothId, beside, inBand, pieces, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Place, type DayTrips, type Line, type Manifest, type Network, type Point, type Shape, type Snapshot, type Stroke, type Track, WIDTH } from '../bundle.ts';
 import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Received } from '../engine.ts';
 import { language, LANGUAGES, setLanguage, t, trainCount, type Language } from './i18n.ts';
 import { alongside, namedTwice, nameOffset, nearestSide, type Side, type Spot } from './names.ts';
@@ -690,9 +690,13 @@ function show(days: Track | Bundle) {
   pills = new Map(days.lines.map((l) => [l.id, pillOf(l)]));
   const drawn = (strokes: Stroke[]): GeoJSON.FeatureCollection => ({
     type: 'FeatureCollection',
-    // A stroke cut back for curves, once for each zoom band, cut as it is there; a curve in its pieces.
-    features: strokes.flatMap((s) => (s.cut ? s.cut.map(([start, end], band) => ({ ...s, from: s.from + start, to: s.to - end, band })) : pieces(s))).flatMap(({ line: id, shape: shapeId, from, to, side, band }): GeoJSON.Feature[] => {
-      const [line, shape] = [lines.get(id), shapes.get(shapeId)];
+    // A stroke cut back for curves, or along a centreline smoothed for a zoom band, once for each band,
+    // as it is there; a curve in its pieces.
+    features: strokes.flatMap((s) => {
+      const cut = s.cut ?? (BANDS.some((_, band) => shapes.has(smoothId(s.shape, band))) ? BANDS.map((): [number, number] => [0, 0]) : undefined);
+      return cut ? cut.map(([start, end], band) => ({ ...s, from: s.from + start, to: s.to - end, band })) : pieces(s);
+    }).flatMap(({ line: id, shape: shapeId, from, to, side, band }): GeoJSON.Feature[] => {
+      const [line, shape] = [lines.get(id), band === undefined ? shapes.get(shapeId) : inBand(shapes, shapeId, band)];
       if (!line || !shape) return [];
       const properties = {
         name: line.name,

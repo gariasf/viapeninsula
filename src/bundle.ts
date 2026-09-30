@@ -93,7 +93,7 @@ export interface Bundle {
   networks: Network[];
   lines: Line[];
   stations: Station[];
-  /** The Lines' track, and the centrelines of the stretches they're drawn along, whose IDs start with STRETCH. */
+  /** The Lines' track, and the centrelines of the stretches they're drawn along, whose IDs start with STRETCH, some smoothed for a zoom band too (smoothId()). */
   shapes: Shape[];
   /** How the map draws the Lines: each Line once on each stretch it runs along, beside the other Lines on it (ADR-0006). */
   strokes: Stroke[];
@@ -274,6 +274,27 @@ export const BANDS = [10, 11, 12, 13];
 export function bandZooms(band: number): [from: number, to: number] {
   const [zoom = 0, before, next] = [BANDS[band], BANDS[band - 1], BANDS[band + 1]];
   return [before === undefined ? 0 : (before + zoom) / 2, next === undefined ? Infinity : (zoom + next) / 2];
+}
+
+/**
+ * What a centreline's ID is followed by, and then its band's index, where it's smoothed for the band
+ * (#164). The smoothed one's `dist` is the centreline's, not its own, so strokes go as far along it.
+ */
+export const SMOOTH = '@';
+
+/** A centreline's ID, smoothed for a zoom band. */
+export function smoothId(id: string, band: number): string {
+  return `${id}${SMOOTH}${band}`;
+}
+
+/** The shape a stroke goes along in a zoom band: its centreline smoothed for the band, where it is. */
+export function inBand(shapes: Map<string, Shape>, id: string, band: number): Shape | undefined {
+  return shapes.get(smoothId(id, band)) ?? shapes.get(id);
+}
+
+/** The zoom band a zoom is in. */
+export function bandAt(zoom: number): number {
+  return BANDS.findIndex((_, band) => zoom < bandZooms(band)[1]);
 }
 
 /** How many line widths a curve moves over from one of its pieces to the next, at most. */
