@@ -14,6 +14,7 @@ const day = (serviceDay: string, ...trips: [from: number, to: number][]): Bundle
   stations: [],
   shapes: [],
   strokes: [],
+  rails: [],
   sides: [],
   trips: trips.map(([from, to], i) => ({
     id: `${i}`,

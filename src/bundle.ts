@@ -77,7 +77,7 @@ export interface ManifestDay {
  * What the map draws before any Train, which it loads first: the Networks, Lines, Stations and track,
  * one file that every day a build publishes shares.
  */
-export type Track = Pick<Bundle, 'networks' | 'lines' | 'stations' | 'shapes' | 'strokes' | 'sides'>;
+export type Track = Pick<Bundle, 'networks' | 'lines' | 'stations' | 'shapes' | 'strokes' | 'rails' | 'sides'>;
 
 /** A service day's Trips, which the map loads after its track. */
 export type DayTrips = Pick<Bundle, 'serviceDay' | 'noonMinus12h' | 'trips'>;
@@ -93,12 +93,15 @@ export interface Bundle {
   networks: Network[];
   lines: Line[];
   stations: Station[];
+  /** The Lines' track, and the centrelines of the stretches they're drawn along, whose IDs start with STRETCH. */
   shapes: Shape[];
-  /** How the map draws the Lines: each Line's track once, beside the other Lines on it. */
+  /** How the map draws the Lines: each Line once on each stretch it runs along, beside the other Lines on it (ADR-0006). */
   strokes: Stroke[];
+  /** How the map draws the Lines zoomed right in, where they're back on the rails: each Line's own track once. */
+  rails: Stroke[];
   /**
    * Where the map puts each Line's Trains zoomed out: every one of its shapes, all along it, at the
-   * side of its track the Line's stroke there is drawn.
+   * side of its track the Line's stroke there would be drawn on its own track.
    */
   sides: Stroke[];
   trips: Trip[];
@@ -249,6 +252,9 @@ export function direction(line: Pick<Shape, 'coords' | 'dist'>, from: number, to
 }
 
 export type Point = [lon: number, lat: number];
+
+/** How the IDs of the stretches' centrelines start, among the track's shapes. */
+export const STRETCH = 'stretch:';
 
 /** A Line's width, in pixels at each zoom. */
 export const WIDTH: [zoom: number, px: number][] = [[7, 1.5], [14, 4]];

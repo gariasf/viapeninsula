@@ -1,7 +1,7 @@
 // How the map draws each Line: where Lines share track, side by side, as a transit map does.
 
-import { DEGREE, type Line, type Point, type Shape, type Stroke } from '../bundle.ts';
-import { nearest } from './track.ts';
+import { DEGREE, STRETCH, type Line, type Point, type Shape, type Stroke } from '../bundle.ts';
+import { distances, nearest } from './track.ts';
 
 /** Tracks less than this far apart, in metres, look like one zoomed out, so the Lines on them go side by side. */
 const NEAR = 45;
@@ -13,6 +13,11 @@ const PARALLEL = Math.cos(Math.PI / 6);
 const STEP = 50;
 /** A Line doesn't shift over for less than this, in metres: another's track is only brushing past. */
 const SHORT = 150;
+/**
+ * How many pieces either side a stretch's centreline is evened out over: how far it is from each
+ * piece's tracks jitters with their points, which folds Lines drawn far off it zoomed out.
+ */
+const EVEN = 2;
 
 /** A piece of track: where its middle is and which way it points, in local metres, and the Lines on it. */
 interface Piece {
@@ -36,9 +41,10 @@ interface Step {
   to: number;
 }
 
-/** A Line on or beside a piece: how far left of it, in metres (right if negative), whether on it or alongside it, and which way it runs. */
+/** A Line on or beside a piece: the piece it's on, how far left of it, in metres (right if negative), whether on it or alongside it, and which way it runs. */
 interface Neighbour {
   line: number;
+  piece: number;
   left: number;
   on: boolean;
   alongside: boolean;
@@ -46,32 +52,156 @@ interface Neighbour {
 }
 
 /**
- * The strokes that draw each Line: its shapes' track once, since Lines going opposite ways on single
- * track, and going the same way, share it. Where Lines share track, or run on tracks too close
- * together to tell apart zoomed out, their strokes go side by side, a line width apart, in one order
- * all along. And the sides of every one of each Line's shapes, all along it, which is where its
- * stroke there is drawn, for the map to put the Line's Trains on it.
+ * The strokes that draw each Line. Where Lines share track, or run on tracks too close together to
+ * tell apart zoomed out, those tracks are one stretch, drawn along one line between them, its
+ * centreline: its Lines go side by side along it, a line width apart, in one order all along, and
+ * each is drawn once, whichever way and whichever of its tracks it runs (ADR-0006). The centrelines
+ * are shapes of their own. `rails` draws each Line on its own track instead, its shapes' track once,
+ * for zoomed right in. And the sides of every one of each Line's shapes, all along it, where its
+ * stroke on its own track would be drawn, for the map to put the Line's Trains on it.
  */
-export function sideBySide(lines: Line[], shapes: Shape[]): { strokes: Stroke[]; sides: Stroke[] } {
-  const { pieces, runs, every } = walk(lines, shapes);
+export function sideBySide(lines: Line[], shapes: Shape[]): { strokes: Stroke[]; centrelines: Shape[]; rails: Stroke[]; sides: Stroke[] } {
+  const { pieces, runs, every, kx } = walk(lines, shapes);
   const cells = grid(pieces);
-  const nearby = pieces.map((p) => neighbours(p, pieces, cells));
-  const turned = turn(lines.length, pieces, nearby.map((n) => cluster(n)));
-  const beside = nearby.map((n) => cluster(n, turned));
+  const nearby = pieces.map((_, i) => neighbours(i, pieces, cells));
+  const turned = turn(lines.length, pieces, nearby.map((n) => byLine(cluster(n))));
+  const tracks = nearby.map((n) => cluster(n, turned));
+  const beside = tracks.map(byLine);
   const left = sides(lines.length, pieces, nearby, turned);
   const place = rank(left);
-  const draw = (run: Step[]) => {
+  const sideOf = (s: Step) => side(s, beside[s.piece] ?? new Map(), turned, left, place);
+  const draw = (run: Step[], by = sideOf) => {
     const line = lines[run[0]?.line ?? -1]?.id ?? '';
-    return strokes(run, (s) => side(s, beside[s.piece] ?? new Map(), turned, left, place), pieces).map((s) => ({ line, ...s }));
+    return strokes(run, by, pieces).map((s) => ({ line, ...s }));
   };
-  return { strokes: runs.flatMap(draw), sides: every.flatMap(draw) };
+  const kept = lasting(every, pieces, tracks);
+  const keptBeside = kept.map(byLine);
+  const { centrelines, runs: along } = stretches(pieces, every, kept, keptBeside, kx);
+  const stretchSide = (s: Step) => side(s, keptBeside[s.piece] ?? new Map(), turned, left, place);
+  // Not flatMap(draw): that would pass each run's index as its sides.
+  return { strokes: along.flatMap((run) => draw(run, stretchSide)), centrelines, rails: runs.flatMap((run) => draw(run)), sides: every.flatMap((run) => draw(run)) };
+}
+
+/**
+ * The stretches' centrelines, and each Line's runs along them, for the Lines on or beside each piece
+ * (`beside`). Each piece is drawn with the lowest of those on other tracks beside it whose Lines
+ * include all its own, or else it draws them itself, with the Lines beside it: along the line halfway
+ * between the outermost tracks beside it.
+ */
+function stretches(pieces: Piece[], every: Step[][], tracks: Neighbour[][], beside: Map<number, Neighbour>[], kx: number): { centrelines: Shape[]; runs: Step[][] } {
+  const mates = mated(pieces, every);
+  const across = tracks.map((list, p) => list.filter((n) => !mates[p]?.has(n.piece)));
+  const drawer: number[] = [];
+  for (const [p, piece] of pieces.entries()) {
+    const lines = [...piece.on.keys()];
+    // Only drawn with a piece beside it, so that it's never drawn further than NEAR or so off its track.
+    const near = new Set((across[p] ?? []).map((n) => n.piece));
+    const lower = [...near].map((n) => drawer[n] ?? p).filter((d) => d < p && near.has(d));
+    drawer[p] = lower.sort((a, b) => a - b).find((d) => lines.every((l) => beside[d]?.has(l))) ?? p;
+  }
+  const drawn = new Set<number>();
+  const chains: Step[][] = [];
+  for (const steps of every) {
+    let chain: Step[] | undefined;
+    for (const s of steps) {
+      if (drawer[s.piece] !== s.piece || drawn.has(s.piece)) {
+        chain = undefined;
+        continue;
+      }
+      drawn.add(s.piece);
+      if (!chain) chains.push((chain = []));
+      chain.push(s);
+    }
+  }
+  const [centrelines, runs]: [Shape[], Step[][]] = [[], []];
+  for (const chain of chains) {
+    const id = `${STRETCH}${centrelines.length}`;
+    // Each piece's ends, the way the chain runs, moved over to halfway between its outermost tracks,
+    // evened out along the chain.
+    const centres = chain.map(({ piece }) => {
+      const lefts = (across[piece] ?? []).map((n) => n.left);
+      return (Math.min(0, ...lefts) + Math.max(0, ...lefts)) / 2;
+    });
+    const ends = chain.map(({ piece, way }, i) => {
+      const p = pieces[piece] ?? { x: 0, y: 0, ux: 0, uy: 0, length: 0 };
+      const near = centres.slice(Math.max(0, i - EVEN), i + EVEN + 1);
+      const centre = near.reduce((a, b) => a + b, 0) / near.length;
+      const [cx, cy, hx, hy] = [p.x - p.uy * centre, p.y + p.ux * centre, (p.ux * p.length * way) / 2, (p.uy * p.length * way) / 2];
+      return [[cx - hx, cy - hy], [cx + hx, cy + hy]] as const;
+    });
+    const points = ends.map(([start], i) => {
+      const [x, y] = ends[i - 1]?.[1] ?? start;
+      return [(x + start[0]) / 2, (y + start[1]) / 2] as const;
+    });
+    points.push(ends.at(-1)?.[1] ?? [0, 0]);
+    const round = (degrees: number) => Math.round(degrees * 1e5) / 1e5;
+    const coords = points.map(([x, y]): Point => [round(x / kx), round(y / DEGREE)]);
+    const dist = distances(coords).map(Math.round);
+    centrelines.push({ id, coords, dist });
+    // Each Line along it, a run for each time it's there.
+    const running = new Map<number, Step[]>();
+    for (const [i, { piece, way }] of chain.entries()) {
+      for (const n of beside[piece]?.keys() ?? []) {
+        const [run, step] = [running.get(n), { line: n, piece, shape: id, way, from: dist[i] ?? 0, to: dist[i + 1] ?? 0 }];
+        if (run && run.at(-1)?.piece === chain[i - 1]?.piece) run.push(step);
+        else runs.push(running.set(n, [step]).get(n) ?? []);
+      }
+    }
+  }
+  return { centrelines, runs };
+}
+
+/**
+ * The Lines on or beside each piece, less those on another track that stays beside it for under
+ * SHORT along every shape that runs it: that track is only brushing past.
+ */
+function lasting(every: Step[][], pieces: Piece[], tracks: Neighbour[][]): Neighbour[][] {
+  const kept = new Set<string>(); // `<piece> <line>`
+  for (const steps of every) {
+    const open = new Map<number, number[]>(); // each Line beside the shape here, and the pieces it's been beside since it came
+    const close = (line: number) => {
+      const run = open.get(line) ?? [];
+      if (run.reduce((sum, p) => sum + (pieces[p]?.length ?? 0), 0) >= SHORT) for (const p of run) kept.add(`${p} ${line}`);
+      open.delete(line);
+    };
+    for (const { piece } of steps) {
+      const here = new Set((tracks[piece] ?? []).filter((n) => !n.on).map((n) => n.line));
+      for (const line of open.keys()) if (!here.has(line)) close(line);
+      for (const line of here) {
+        const run = open.get(line);
+        if (run) run.push(piece);
+        else open.set(line, [piece]);
+      }
+    }
+    for (const line of [...open.keys()]) close(line);
+  }
+  return tracks.map((beside, p) => beside.filter((n) => n.on || kept.has(`${p} ${n.line}`)));
+}
+
+/**
+ * The pieces on each piece's own track: itself, and those ahead or behind it less than STEP along any
+ * shape that runs it, where rounding and curves can put them a metre or two to its side.
+ */
+function mated(pieces: Piece[], every: Step[][]): Set<number>[] {
+  const mates = pieces.map((_, i) => new Set([i]));
+  for (const steps of every) {
+    for (const [i, { piece }] of steps.entries()) {
+      for (let [j, gone] = [i + 1, 0]; j < steps.length && gone < STEP; j++) {
+        const next = steps[j]?.piece ?? piece;
+        gone += pieces[next]?.length ?? 0;
+        mates[piece]?.add(next);
+        mates[next]?.add(piece);
+      }
+    }
+  }
+  return mates;
 }
 
 /**
  * The pieces of track the Lines' shapes run on, and each Line's runs over them, a piece once each,
  * and every one of its shapes over them, all along each.
  */
-function walk(lines: Line[], shapes: Shape[]): { pieces: Piece[]; runs: Step[][]; every: Step[][] } {
+function walk(lines: Line[], shapes: Shape[]): { pieces: Piece[]; runs: Step[][]; every: Step[][]; kx: number } {
   const byId = new Map(shapes.map((s) => [s.id, s]));
   const all = shapes.flatMap((s) => s.coords);
   const kx = DEGREE * Math.cos(((all.reduce((sum, p) => sum + p[1], 0) / (all.length || 1)) * Math.PI) / 180);
@@ -128,7 +258,7 @@ function walk(lines: Line[], shapes: Shape[]): { pieces: Piece[]; runs: Step[][]
       }
     }
   }
-  return { pieces, runs, every };
+  return { pieces, runs, every, kx };
 }
 
 /**
@@ -164,8 +294,9 @@ function cell(x: number, y: number): string {
 }
 
 /** The Lines on a piece and beside it within WIDE, from its right to its left. */
-function neighbours(p: Piece, pieces: Piece[], cells: Map<string, number[]>): Neighbour[] {
-  const found = [...p.on].map(([line, way]) => ({ line, left: 0, on: true, alongside: true, way }));
+function neighbours(index: number, pieces: Piece[], cells: Map<string, number[]>): Neighbour[] {
+  const p = pieces[index] ?? { x: 0, y: 0, ux: 0, uy: 0, length: 0, on: new Map() };
+  const found = [...p.on].map(([line, way]) => ({ line, piece: index, left: 0, on: true, alongside: true, way }));
   for (let i = -1; i <= 1; i++) {
     for (let j = -1; j <= 1; j++) {
       for (const k of cells.get(cell(p.x + i * WIDE, p.y + j * WIDE)) ?? []) {
@@ -177,7 +308,7 @@ function neighbours(p: Piece, pieces: Piece[], cells: Map<string, number[]>): Ne
         const left = p.ux * dy - p.uy * dx;
         if (Math.abs(dx * p.ux + dy * p.uy) > STEP / 2 || Math.abs(left) > WIDE) continue;
         const cos = p.ux * o.ux + p.uy * o.uy;
-        for (const [line, way] of o.on) found.push({ line, left, on: false, alongside: Math.abs(cos) >= PARALLEL, way: way * Math.sign(cos) });
+        for (const [line, way] of o.on) found.push({ line, piece: k, left, on: false, alongside: Math.abs(cos) >= PARALLEL, way: way * Math.sign(cos) });
       }
     }
   }
@@ -185,20 +316,25 @@ function neighbours(p: Piece, pieces: Piece[], cells: Map<string, number[]>): Ne
 }
 
 /**
- * The Lines beside a piece: on it, alongside it NEAR it, or NEAR those; each where it's nearest the
- * piece. Once Lines are `turned`, those on another track that run the other way to the piece's own
+ * The Lines beside a piece, on each piece of theirs there: on it, alongside it NEAR it, or NEAR
+ * those. Once Lines are `turned`, those on another track that run the other way to the piece's own
  * aren't beside it: that's another line of route passing by, as R1 and R4 pass the Lines for
  * Estació de França, and moving either over for the other only makes them jump.
  */
-function cluster(nearby: Neighbour[], turned?: number[]): Map<number, Neighbour> {
+function cluster(nearby: Neighbour[], turned?: number[]): Neighbour[] {
   const way = (n: Neighbour) => n.way * (turned?.[n.line] ?? 1);
   const ahead = Math.sign(nearby.reduce((sum, n) => sum + (n.on ? way(n) : 0), 0)) || 1;
   const found = nearby.filter((n) => n.alongside && (n.on || !turned || way(n) === ahead));
   let [from, to] = [found.findIndex((n) => n.on), found.findLastIndex((n) => n.on)];
   while (from > 0 && (found[from]?.left ?? 0) - (found[from - 1]?.left ?? 0) <= NEAR) from--;
   while (to >= 0 && (found[to + 1]?.left ?? Infinity) - (found[to]?.left ?? 0) <= NEAR) to++;
+  return found.slice(from, to + 1);
+}
+
+/** Each Line among these, where it's nearest the piece. */
+function byLine(beside: Neighbour[]): Map<number, Neighbour> {
   const lines = new Map<number, Neighbour>();
-  for (const n of found.slice(from, to + 1).sort((a, b) => Math.abs(a.left) - Math.abs(b.left))) {
+  for (const n of beside.toSorted((a, b) => Math.abs(a.left) - Math.abs(b.left))) {
     if (!lines.has(n.line)) lines.set(n.line, n);
   }
   return lines;

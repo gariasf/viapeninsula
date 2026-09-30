@@ -3,7 +3,7 @@ import './style.css';
 import type { ExpressionFilterSpecification, ExpressionSpecification, LineLayerSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { AttributionControl, MapLibreMap, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { along, APART, atZoom, beside, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Place, type DayTrips, type Line, type Manifest, type Network, type Point, type Shape, type Snapshot, type Stroke, type Track, WIDTH } from '../bundle.ts';
+import { along, APART, atZoom, STRETCH, beside, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Place, type DayTrips, type Line, type Manifest, type Network, type Point, type Shape, type Snapshot, type Stroke, type Track, WIDTH } from '../bundle.ts';
 import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Received } from '../engine.ts';
 import { language, LANGUAGES, setLanguage, t, trainCount, type Language } from './i18n.ts';
 import { alongside, namedTwice, nameOffset, nearestSide, type Side, type Spot } from './names.ts';
@@ -406,6 +406,7 @@ let names: { dot: Point; sides: (bearing: number) => Side[]; name: string; size:
 /** The map's bearing when the names were last put beside their tracks. */
 let namesBearing = NaN;
 map.addSource('lines', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+map.addSource('rails', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 map.addSource('stations', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 map.addSource('station-names', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 // Today's Lines and Stations are drawn as soon as its track comes, before the Trips, which are most of the bundle.
@@ -422,50 +423,57 @@ const lineLayout: LineLayerSpecification['layout'] = { 'line-cap': 'round', 'lin
 const lineOffset = byZoom(APART, (px) => ['*', ['get', 'side'], px]);
 // The casing sets each Line off the basemap's roads and rivers, 1 px either side of it. It's one layer
 // under every Line, so none shows between Lines side by side on shared track, and where Lines cross it
-// cuts no gap.
-map.addLayer(
-  {
-    id: 'line-casing',
-    type: 'line',
-    source: 'lines',
-    layout: lineLayout,
-    paint: { 'line-color': PAPER, 'line-width': byZoom(WIDTH, (px) => px + 2), 'line-offset': lineOffset },
-  },
-  firstLabel,
-);
-map.addLayer(
-  {
-    id: 'lines',
-    type: 'line',
-    source: 'lines',
-    layout: lineLayout,
-    paint: {
-      'line-color': ['get', 'colour'],
-      'line-width': byZoom(WIDTH, (px) => px),
-      'line-offset': lineOffset,
+// cuts no gap. The Lines are drawn along their stretches until they're back on the rails, and then
+// each on its own track (ADR-0006).
+const railsZoom = APART.at(-1)?.[0] ?? 15;
+for (const [source, prefix, zooms] of [['lines', 'line', { maxzoom: railsZoom }], ['rails', 'rail', { minzoom: railsZoom }]] as const) {
+  map.addLayer(
+    {
+      id: `${prefix}-casing`,
+      type: 'line',
+      source,
+      ...zooms,
+      layout: lineLayout,
+      paint: { 'line-color': PAPER, 'line-width': byZoom(WIDTH, (px) => px + 2), 'line-offset': lineOffset },
     },
-  },
-  firstLabel,
-);
-map.addLayer({
-  id: 'line-names',
-  type: 'symbol',
-  source: 'lines',
-  layout: {
-    'symbol-placement': 'line',
-    'text-field': ['get', 'name'],
-    'text-font': FONT,
-    'text-size': NAME_SIZE,
-    'text-offset': byZoom(APART, (_, zoom) => ['array', 'number', 2, ['get', `textOffset${zoom}`]]),
-  },
-  paint: {
-    'text-color': ['get', 'colour'],
-    'text-halo-color': '#fff',
-    'text-halo-width': 2,
-    // MapLibre offsets names by whole zoom levels, so while the Lines slide onto the rails, names hide.
-    'text-opacity': ['interpolate', ['linear'], ['zoom'], 14, 1, 14.1, 0, 14.9, 0, 15, 1],
-  },
-});
+    firstLabel,
+  );
+  map.addLayer(
+    {
+      id: source,
+      type: 'line',
+      source,
+      ...zooms,
+      layout: lineLayout,
+      paint: {
+        'line-color': ['get', 'colour'],
+        'line-width': byZoom(WIDTH, (px) => px),
+        'line-offset': lineOffset,
+      },
+    },
+    firstLabel,
+  );
+  map.addLayer({
+    id: `${prefix}-names`,
+    type: 'symbol',
+    source,
+    ...zooms,
+    layout: {
+      'symbol-placement': 'line',
+      'text-field': ['get', 'name'],
+      'text-font': FONT,
+      'text-size': NAME_SIZE,
+      'text-offset': byZoom(APART, (_, zoom) => ['array', 'number', 2, ['get', `textOffset${zoom}`]]),
+    },
+    paint: {
+      'text-color': ['get', 'colour'],
+      'text-halo-color': '#fff',
+      'text-halo-width': 2,
+      // MapLibre offsets names by whole zoom levels, so while the Lines slide onto the rails, names hide.
+      'text-opacity': ['interpolate', ['linear'], ['zoom'], 14, 1, 14.1, 0, 14.9, 0, 15, 1],
+    },
+  });
+}
 // A tier's dots are larger than the rest, and drawn over them where they meet.
 map.addLayer({
   id: 'stations',
@@ -671,9 +679,9 @@ function show(days: Track | Bundle) {
   const keep = new Map(days.networks.map((n) => [n.id, n.runningSide === 'left' ? -1 : 1]));
   placing = { shapes, sides, keep: new Map(days.lines.map((l) => [l.id, keep.get(l.network) ?? 1])) };
   pills = new Map(days.lines.map((l) => [l.id, pillOf(l)]));
-  map.getSource<GeoJSONSource>('lines')?.setData({
+  const drawn = (strokes: Stroke[]): GeoJSON.FeatureCollection => ({
     type: 'FeatureCollection',
-    features: days.strokes.flatMap(({ line: id, shape: shapeId, from, to, side }): GeoJSON.Feature[] => {
+    features: strokes.flatMap(({ line: id, shape: shapeId, from, to, side }): GeoJSON.Feature[] => {
       const [line, shape] = [lines.get(id), shapes.get(shapeId)];
       if (!line || !shape) return [];
       const properties = {
@@ -688,6 +696,8 @@ function show(days: Track | Bundle) {
       return [{ type: 'Feature', properties, geometry: { type: 'LineString', coordinates: along(shape, from, to) } }];
     }),
   });
+  map.getSource<GeoJSONSource>('lines')?.setData(drawn(days.strokes));
+  map.getSource<GeoJSONSource>('rails')?.setData(drawn(days.rails));
   const tiered = [...shownPlaces.values()].map((p) => {
     const { nameZoom, larger, size } = TIERS.find((tier) => tier.places.includes(p.id)) ?? UNTIERED;
     return { ...p, nameZoom, larger, style: { bold: BOLD.has(p.id), size } };
@@ -699,7 +709,9 @@ function show(days: Track | Bundle) {
     type: 'FeatureCollection',
     features: tiered.map(({ id, larger, lon, lat }) => ({ type: 'Feature', properties: { id, larger }, geometry: { type: 'Point', coordinates: [lon, lat] } })),
   });
-  const spots = alongside(days.shapes, days.sides, (line) => placing.keep.get(line) ?? 1, days.lines);
+  // Names go beside the track, not the stretches' centrelines.
+  const track = days.shapes.filter((s) => !s.id.startsWith(STRETCH));
+  const spots = alongside(track, days.sides, (line) => placing.keep.get(line) ?? 1, days.lines);
   names = tiered.map(({ name, stations, nameZoom, larger, style, lon, lat }) => {
     const rows = nameLines(name, style);
     return { dot: [lon, lat], sides: spots([lon, lat], stations), name: rows.join('\n'), size: [Math.max(...rows.map((row) => placeWidth(row, style))), rows.length * LINE_HEIGHT * style.size], nameZoom, larger, style };

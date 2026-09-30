@@ -1,7 +1,7 @@
 // Yardsticks for how the Lines are drawn side by side, the same before and after a change: how often
 // they break up (#138), and how faithfully they follow their track (#160).
 
-import { along, APART, atZoom, DEGREE, direction, EARTH, pointAt, type Point, type Shape, type Stroke, type Track } from '../bundle.ts';
+import { along, APART, atZoom, DEGREE, direction, EARTH, pointAt, STRETCH, type Point, type Shape, type Stroke, type Track } from '../bundle.ts';
 
 /** Strokes shorter than this, in metres, are stubs: sideBySide()'s SHORT before #138. */
 const STUB = 150;
@@ -240,5 +240,7 @@ if (import.meta.main) {
   const { sideBySide } = await import('./sideBySide.ts');
   const track = JSON.parse(await readFile(process.argv[2] ?? '', 'utf8')) as Track;
   console.log('drawn:', summary(measures(track)));
-  console.log('now:  ', summary(measures({ shapes: track.shapes, strokes: sideBySide(track.lines, track.shapes).strokes })));
+  const shapes = track.shapes.filter((s) => !s.id.startsWith(STRETCH));
+  const now = sideBySide(track.lines, shapes);
+  console.log('now:  ', summary(measures({ shapes: [...shapes, ...now.centrelines], strokes: now.strokes })));
 }
