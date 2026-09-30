@@ -75,21 +75,26 @@ const RING: [zoom: number, px: number][] = [[7, 0.5], [14, 1.5]];
 const TRAIN_DOT: [zoom: number, px: number, followed: number][] = [[7, 2.5, 5], [14, 6, 10]];
 /** The size of a place's name, in px, and how long a line of it can be, in ems, as MapLibre wraps names. */
 const [PLACE_TEXT, PLACE_WRAP] = [11, 10];
-/** How a place's name is lettered: in Noto Sans Bold or Regular, how large, in px, in what colour, and how wide its white halo is, in px. */
+/**
+ * How a place's name is lettered: in Noto Sans Bold or Regular, how large, in px, in what colour, how
+ * wide its white halo is, in px, and whether it's on a white plate reaching as far, which hides the
+ * tracks and dots under it.
+ */
 interface NameStyle {
   bold: boolean;
   size: number;
   colour: string;
   halo: number;
+  plate: boolean;
 }
 /** How every place's name was lettered before #144. */
-const PLAIN_NAME: NameStyle = { bold: false, size: PLACE_TEXT, colour: '#333', halo: 1.5 };
+const PLAIN_NAME: NameStyle = { bold: false, size: PLACE_TEXT, colour: '#333', halo: 1.5, plate: false };
 /**
  * #144's styles for places' names, one picked by the page's `?names=`: `bold`, in Noto Sans Bold;
  * `tiers`, bolder and larger by tier, as railisland's (TIER_STYLE: 800 at 12.5 px, 700 at 12 px), in
  * Bold, as Noto Sans has no weights between, and the rest as before, not railisland's 10.5 px, so as
  * not to lose names at zoom 12 (#144); `ink`, a dark blue of their own with a
- * stronger halo. Without it, PLAIN_NAME.
+ * stronger halo; `plate`, tiers' sizes in ink's colour, on a plate. Without it, PLAIN_NAME.
  * ponytail: for the maintainer to pick one of on the PR; the one picked stays, and the rest and the
  * parameter go before merge.
  */
@@ -97,6 +102,7 @@ const NAME_STYLES: Record<string, (nameZoom: number) => NameStyle> = {
   bold: () => ({ ...PLAIN_NAME, bold: true }),
   tiers: (nameZoom) => [12.5, 12].map((size) => ({ ...PLAIN_NAME, bold: true, size }))[TIERS.findIndex((tier) => tier.nameZoom === nameZoom)] ?? PLAIN_NAME,
   ink: () => ({ ...PLAIN_NAME, colour: '#14305a', halo: 2.5 }),
+  plate: (nameZoom) => ({ ...NAME_STYLES.tiers!(nameZoom), colour: '#14305a', halo: 2.5, plate: true }),
 };
 /** How a place's name is lettered, by the zoom it shows from: in the style the page's `?names=` picks, or PLAIN_NAME. */
 const nameStyle = NAME_STYLES[new URLSearchParams(location.search).get('names') ?? ''] ?? (() => PLAIN_NAME);
@@ -530,12 +536,18 @@ map.addLayer(
 );
 // Each place's name beside its track (showNames()), from its tier's zoom, and where names collide, the
 // one named from further out. Right of a track, a name's lines line up along the track's side.
+// The plate is the same for every name in a style.
+const { plate, halo } = nameStyle(UNTIERED.nameZoom);
+// Its outline fits the name across its full width and all but PILL_EDGE of its height, so it reaches halo px beyond it.
+// Only the names collide, as before: MapLibre draws a layer's names after all its plates, so no plate covers a name.
+if (plate) addOutline('plate', { w: 15, h: 15, across: 15, outside: roundedSquare(7.5, 2) });
 map.addLayer({
   id: 'station-names',
   type: 'symbol',
   source: 'station-names',
   filter: ['>=', ['zoom'], ['get', 'nameZoom']],
   layout: {
+    ...(plate ? { 'icon-image': 'train-plate', 'icon-text-fit': 'both' as const, 'icon-text-fit-padding': [halo - PILL_EDGE, halo, halo - PILL_EDGE, halo], 'icon-allow-overlap': true, 'icon-ignore-placement': true } : {}),
     'symbol-sort-key': ['get', 'nameZoom'],
     'text-field': ['get', 'name'],
     'text-font': ['case', ['get', 'bold'], ['literal', ['Noto Sans Bold']], ['literal', FONT]],
@@ -549,7 +561,7 @@ map.addLayer({
       (_, zoom) => ['array', 'number', 2, ['get', `offset${zoom}`]],
     ),
   },
-  paint: { 'text-color': ['get', 'colour'], 'text-halo-color': '#fff', 'text-halo-width': ['get', 'halo'] },
+  paint: { 'text-color': ['get', 'colour'], 'text-halo-color': '#fff', 'text-halo-width': ['get', 'halo'], ...(plate ? { 'icon-color': '#fff' } : {}) },
 });
 // Zoomed in (pillOf()), each Train is a pill with its Line's name, over the Stations' names too,
 // outlined by its Line's kind of service: a Live one's filled with its Line's colour and edged in
