@@ -1,0 +1,272 @@
+[
+[
+"f-gornal",
+41.3593,
+2.1165,
+"fold: Rodalies bundle over FGC Llobregat, Can Tries-Gornal"
+],
+[
+"f-martorell-vila",
+41.479,
+1.9391,
+"fold: FGC R5/R6 curve at Martorell Vila"
+],
+[
+"f-sant-boi",
+41.3482,
+2.0447,
+"fold: FGC + L8 at Sant Boi"
+],
+[
+"f-zona-universitaria",
+41.3837,
+2.1139,
+"fold: T1-T3 at Zona Universitària"
+],
+[
+"f-besos",
+41.4203,
+2.2113,
+"fold: T5/T6 at Besòs"
+],
+[
+"f-sant-vicenc",
+41.193,
+1.53,
+"fold + step: R4/R2S/R14-16 junction at Sant Vicenç de Calders"
+],
+[
+"s-torrassa",
+41.368,
+2.117,
+"step: R1/R4 cross the bundle at Torrassa"
+],
+[
+"s-urgell",
+41.3865,
+2.16,
+"step: R1/R4 at Urgell-Universitat"
+],
+[
+"s-encants",
+41.4054,
+2.1825,
+"step: R2/R2N/R11 out and back at Encants"
+],
+[
+"s-sicilia",
+41.4,
+2.178,
+"step: T4/T5 at Sicília-Monumental"
+],
+[
+"b-sants",
+41.3799,
+2.141,
+"busy: Barcelona-Sants"
+],
+[
+"b-catalunya",
+41.388,
+2.167,
+"busy: Pl. Catalunya / Passeig de Gràcia"
+],
+[
+"b-arc-triomf",
+41.391,
+2.181,
+"busy: Arc de Triomf / Estació de França approaches"
+],
+[
+"b-clot",
+41.4093,
+2.1872,
+"busy: El Clot"
+],
+[
+"b-sagrera",
+41.4218,
+2.1871,
+"busy: La Sagrera"
+],
+[
+"b-espanya",
+41.3747,
+2.1485,
+"busy: Plaça Espanya"
+],
+[
+"b-hospitalet",
+41.3642,
+2.1009,
+"busy: L'Hospitalet"
+],
+[
+"b-cornella",
+41.356,
+2.0705,
+"busy: Cornellà (Rodalies, FGC, TRAM)"
+],
+[
+"b-montcada",
+41.4839,
+2.1854,
+"busy: Montcada junctions"
+],
+[
+"b-sant-cugat",
+41.47,
+2.08,
+"busy: FGC Vallès branches, Sant Cugat"
+],
+[
+"b-granollers",
+41.5997,
+2.2913,
+"busy: Granollers"
+],
+[
+"b-girona",
+41.9794,
+2.8169,
+"busy: Girona"
+],
+[
+"b-lleida",
+41.6201,
+0.6337,
+"busy: Lleida"
+],
+[
+"b-tarragona",
+41.1116,
+1.2532,
+"busy: Tarragona"
+],
+[
+"b-reus",
+41.1605,
+1.1001,
+"busy: Reus"
+],
+[
+"g-garraf",
+41.248,
+1.875,
+"geography: Garraf coast tunnels and curves"
+],
+[
+"g-montserrat",
+41.5912,
+1.8534,
+"geography: Montserrat rack and FGC R5"
+],
+[
+"g-vallvidrera",
+41.41,
+2.108,
+"geography: Collserola, FGC S1/S2 and funicular"
+],
+[
+"g-airport",
+41.303,
+2.076,
+"geography: airport, R2N and L9S"
+],
+[
+"g-el-prat",
+41.3309,
+2.0893,
+"geography: Llobregat delta, El Prat"
+],
+[
+"g-diagonal",
+41.389,
+2.135,
+"tram: Diagonal T1-T3 with metro nearby"
+],
+[
+"g-glories-trams",
+41.403,
+2.188,
+"tram: Glòries T4-T6"
+],
+[
+"g-mataro",
+41.5334,
+2.4455,
+"coast: Maresme R1 at Mataró"
+],
+[
+"g-manresa",
+41.7204,
+1.8265,
+"curves: Manresa R4 and FGC"
+],
+[
+"z-rubi-r8",
+41.47,
+1.99,
+"ladder: R8 Castellbisbal-Rubí, jagged at z10.5"
+],
+[
+"z-garraf",
+41.24,
+1.83,
+"ladder: Garraf coast curves"
+],
+[
+"z-montcada",
+41.49,
+2.18,
+"ladder: Montcada, R3/R4/R7/R8/R2N curves"
+],
+[
+"z-llobregat",
+41.42,
+2.0,
+"ladder: FGC Llobregat valley curves"
+],
+[
+"z-maresme",
+41.48,
+2.32,
+"ladder: Maresme coast R1"
+],
+[
+"z-vic",
+41.79,
+2.25,
+"ladder: R3 curves to Vic"
+],
+[
+"l-el-prat",
+41.336,
+2.095,
+"hub ladder: El Prat, R2N/R11 leave the bundle"
+],
+[
+"l-bellvitge",
+41.356,
+2.112,
+"hub ladder: Bellvitge-Gornal crossing"
+],
+[
+"l-sants",
+41.379,
+2.142,
+"hub ladder: Sants"
+],
+[
+"l-glories",
+41.404,
+2.188,
+"hub ladder: Clot-Glòries"
+],
+[
+"l-martorell",
+41.478,
+1.933,
+"hub ladder: Martorell"
+]
+]
