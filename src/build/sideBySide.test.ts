@@ -34,8 +34,8 @@ function shapeEvery(every: number, id: string, corners: [x: number, y: number][]
 
 const line = (name: string, ...shapes: string[]): Line => ({ id: name, network: 'rodalies', name, colour: '#000', shapes });
 
-function draw(lines: Line[], shapes: Shape[], on: 'strokes' | 'rails' = 'strokes') {
-  const found = sideBySide(lines, shapes);
+async function draw(lines: Line[], shapes: Shape[], on: 'strokes' | 'rails' = 'strokes') {
+  const found = await sideBySide(lines, shapes);
   const drawn = found[on];
   const byId = new Map([...shapes, ...found.centrelines].map((s) => [s.id, s]));
   /** A Line's strokes: their points in metres east and north, and how far north of its track each is drawn. */
@@ -67,13 +67,13 @@ function draw(lines: Line[], shapes: Shape[], on: 'strokes' | 'rails' = 'strokes
   return { strokes, north, at };
 }
 
-test('draws a Line on track of its own as one stroke on its track, for both its directions', () => {
-  const { strokes } = draw([line('R3', 'R3', 'R3_INV')], [shape('R3', [0, 0], [5000, 0]), shape('R3_INV', [5000, 0], [0, 0])]);
+test('draws a Line on track of its own as one stroke on its track, for both its directions', async () => {
+  const { strokes } = await draw([line('R3', 'R3', 'R3_INV')], [shape('R3', [0, 0], [5000, 0]), shape('R3_INV', [5000, 0], [0, 0])]);
   expect(strokes('R3')).toEqual([{ from: 0, to: 5000, north: 0 }]);
 });
 
-test('draws Lines that share track side by side, a line width apart', () => {
-  const { strokes } = draw(
+test('draws Lines that share track side by side, a line width apart', async () => {
+  const { strokes } = await draw(
     [line('R2', 'R2'), line('R11', 'R11'), line('R14', 'R14')],
     [shape('R2', [0, 0], [5000, 0]), shape('R11', [0, 0], [5000, 0]), shape('R14', [0, 0], [5000, 0])],
   );
@@ -82,9 +82,9 @@ test('draws Lines that share track side by side, a line width apart', () => {
   expect(drawn.map((s) => s.north).sort((a, b) => a - b)).toEqual([-1, 0, 1]);
 });
 
-test('keeps Lines that run the track opposite ways on their sides, where another joins', () => {
+test('keeps Lines that run the track opposite ways on their sides, where another joins', async () => {
   // R2 runs east and R11 west; R14, which joins them halfway, runs west too.
-  const { north } = draw(
+  const { north } = await draw(
     [line('R14', 'R14'), line('R2', 'R2'), line('R11', 'R11')],
     [shape('R2', [0, 0], [5000, 0]), shape('R11', [5000, 0], [0, 0]), shape('R14', [5000, 0], [2500, 0])],
   );
@@ -93,27 +93,27 @@ test('keeps Lines that run the track opposite ways on their sides, where another
   expect(after).toBe(before);
 });
 
-test('draws Lines on tracks too close to tell apart zoomed out side by side too, however many tracks there are', () => {
+test('draws Lines on tracks too close to tell apart zoomed out side by side too, however many tracks there are', async () => {
   // As between L'Hospitalet and Sants: R4 is 40 m from R2's track and R1 40 m beyond, 80 m from R2.
-  const { strokes } = draw(
+  const { strokes } = await draw(
     [line('R2', 'R2'), line('R4', 'R4'), line('R1', 'R1')],
     [shape('R2', [0, 0], [5000, 0]), shape('R4', [0, 40], [5000, 40]), shape('R1', [0, 80], [5000, 80])],
   );
   expect(['R2', 'R4', 'R1'].flatMap(strokes).map((s) => s.north).sort((a, b) => a - b)).toEqual([-1, 0, 1]);
 });
 
-test('puts each Line on the side it branches off to, so that none crosses the others there', () => {
+test('puts each Line on the side it branches off to, so that none crosses the others there', async () => {
   // As at El Clot: R2 carries straight on, R11 turns off north and R14 south.
-  const { north } = draw(
+  const { north } = await draw(
     [line('R14', 'R14'), line('R2', 'R2'), line('R11', 'R11')],
     [shape('R2', [0, 0], [8000, 0]), shape('R11', [0, 0], [5000, 0], [8000, 1500]), shape('R14', [0, 0], [5000, 0], [8000, -1500])],
   );
   expect(['R11', 'R2', 'R14'].map((name) => north(name, 2500))).toEqual([1, 0, -1]);
 });
 
-test("doesn't shift a Line over where another's track only brushes past it", () => {
+test("doesn't shift a Line over where another's track only brushes past it", async () => {
   // R1 comes within 45 m of R2's track for under 100 m, then heads off again.
-  const { strokes } = draw(
+  const { strokes } = await draw(
     [line('R2', 'R2'), line('R1', 'R1')],
     [shape('R2', [0, 0], [5000, 0]), shape('R1', [1000, 400], [2400, 35], [3800, 400])],
   );
@@ -121,10 +121,10 @@ test("doesn't shift a Line over where another's track only brushes past it", () 
   expect(strokes('R1').map((s) => s.north)).toEqual([0]);
 });
 
-test.for(['R4', 'R7'])("draws a Line's two directions once, between their tracks, where each has a track of a double track (%s first)", (first) => {
+test.for(['R4', 'R7'])("draws a Line's two directions once, between their tracks, where each has a track of a double track (%s first)", async (first) => {
   // R4 runs east on the south track and back west on the north one, and R7 shares the south one.
   const [r4, r7] = [line('R4', 'R4', 'R4_INV'), line('R7', 'R7')];
-  const { strokes, at } = draw(
+  const { strokes, at } = await draw(
     first === 'R4' ? [r4, r7] : [r7, r4],
     [shape('R4', [0, 0], [5000, 0]), shape('R4_INV', [5000, 20], [0, 20]), shape('R7', [0, 0], [5000, 0])],
   );
@@ -134,14 +134,14 @@ test.for(['R4', 'R7'])("draws a Line's two directions once, between their tracks
   expect([...at('R4'), ...at('R7')]).toEqual([[10, 10], [10, 10]]);
 });
 
-test('draws Lines on tracks side by side along one line between their tracks', () => {
-  const { strokes, at } = draw([line('R2', 'R2'), line('R11', 'R11')], [shape('R2', [0, 0], [5000, 0]), shape('R11', [5000, 40], [0, 40])]);
+test('draws Lines on tracks side by side along one line between their tracks', async () => {
+  const { strokes, at } = await draw([line('R2', 'R2'), line('R11', 'R11')], [shape('R2', [0, 0], [5000, 0]), shape('R11', [5000, 40], [0, 40])]);
   expect([...strokes('R2'), ...strokes('R11')].map((s) => [s.from, s.to, s.north])).toEqual([[0, 5000, -0.5], [0, 5000, 0.5]]);
   expect([...at('R2'), ...at('R11')]).toEqual([[20, 20], [20, 20]]);
 });
 
-test('zoomed right in, draws each Line on its own track, once', () => {
-  const { strokes, at } = draw(
+test('zoomed right in, draws each Line on its own track, once', async () => {
+  const { strokes, at } = await draw(
     [line('R4', 'R4', 'R4_INV'), line('R7', 'R7')],
     [shape('R4', [0, 0], [5000, 0]), shape('R4_INV', [5000, 20], [0, 20]), shape('R7', [0, 0], [5000, 0])],
     'rails',
@@ -150,10 +150,10 @@ test('zoomed right in, draws each Line on its own track, once', () => {
   expect([...at('R4'), ...at('R7')].sort()).toEqual([[0, 0], [0, 0], [20, 20]]);
 });
 
-test('keeps Lines on their sides along a long straight, whichever way each runs it', () => {
+test('keeps Lines on their sides along a long straight, whichever way each runs it', async () => {
   // As in the Aragó tunnel, one straight 1.25 km segment: R2 runs it east, R11 west, and R14, which
   // turns off partway along it, east.
-  const { north } = draw(
+  const { north } = await draw(
     [line('R2', 'R2'), line('R11', 'R11'), line('R14', 'R14')],
     [straight('R2', [0, 0], [1250, 0]), straight('R11', [1250, 0], [0, 0]), shape('R14', [0, 0], [600, 0], [1250, -300])],
   );
@@ -163,12 +163,12 @@ test('keeps Lines on their sides along a long straight, whichever way each runs 
   expect(Math.sign((north('R2', 100) ?? NaN) - (north('R11', 100) ?? NaN))).toBe(Math.sign((north('R2', 1100) ?? NaN) - (north('R11', 1100) ?? NaN)));
 });
 
-test('keeps Lines where they are while another runs past them the other way, and sides it with them where it joins their track', () => {
+test('keeps Lines where they are while another runs past them the other way, and sides it with them where it joins their track', async () => {
   // R4 shares R2S's and R14's track east for 4 km, turns off north and loops round. It comes back
   // west along a track of its own 20 m north of theirs, as R1 and R4 run past the Lines for Estació
   // de França, then joins their track to its terminus, as R13 does into Lleida: under 4 km in all,
   // so there it runs the other way to them.
-  const { north } = draw(
+  const { north } = await draw(
     [line('R4', 'R4'), line('R2S', 'R2S'), line('R14', 'R14')],
     [
       shape('R2S', [0, 0], [12000, 0]),
@@ -184,10 +184,10 @@ test('keeps Lines where they are while another runs past them the other way, and
   expect(north('R4', 8000)).toBeGreaterThan(Math.max(north('R2S', 8000) ?? NaN, north('R14', 8000) ?? NaN));
 });
 
-test("gives each of a Line's shapes the side its stroke is drawn at all along it, though a stroke draws their track once", () => {
+test("gives each of a Line's shapes the side its stroke is drawn at all along it, though a stroke draws their track once", async () => {
   // R2 and R11 share track; R2's Trains run it back on R2_INV, which isn't drawn again.
   const shapes = [shape('R2', [0, 0], [5000, 0]), shape('R2_INV', [5000, 0], [0, 0]), shape('R11', [0, 0], [5000, 0])];
-  const { rails: strokes, sides } = sideBySide([line('R2', 'R2', 'R2_INV'), line('R11', 'R11')], shapes);
+  const { rails: strokes, sides } = await sideBySide([line('R2', 'R2', 'R2_INV'), line('R11', 'R11')], shapes);
   expect(strokes.map((s) => s.shape)).toEqual(['R2', 'R11']);
   const side = (id: string) => sides.filter((s) => s.shape === id).map(({ line, from, to, side }) => ({ line, from, to, side }));
   const [r2] = side('R2');
@@ -197,9 +197,9 @@ test("gives each of a Line's shapes the side its stroke is drawn at all along it
   expect(side('R11')).toEqual([{ line: 'R11', from: 0, to: 5000, side: strokes[1]?.side }]);
 });
 
-test('moves the Lines on a stretch over together, at the one place where another joins them', () => {
+test('moves the Lines on a stretch over together, at the one place where another joins them', async () => {
   // R2 and R11 share track east; R14 comes in from the north and joins them halfway.
-  const { strokes } = draw(
+  const { strokes } = await draw(
     [line('R2', 'R2'), line('R11', 'R11'), line('R14', 'R14')],
     [shape('R2', [0, 0], [5000, 0]), shape('R11', [0, 0], [5000, 0]), shape('R14', [1000, 1500], [2500, 0], [5000, 0])],
   );
@@ -209,22 +209,37 @@ test('moves the Lines on a stretch over together, at the one place where another
   expect(Math.abs((steps[0]?.[0] ?? NaN) - 2500)).toBeLessThanOrEqual(50);
 });
 
-test("doesn't move the Lines on a stretch over where another runs along their track for under SHORT", () => {
+test("doesn't move the Lines on a stretch over where another runs along their track for under SHORT", async () => {
   // R14 crosses R2's and R11's track, sharing it for 100 m.
-  const { strokes } = draw(
+  const { strokes } = await draw(
     [line('R2', 'R2'), line('R11', 'R11'), line('R14', 'R14')],
     [shape('R2', [0, 0], [5000, 0]), shape('R11', [0, 0], [5000, 0]), shape('R14', [1000, 1500], [2450, 0], [2550, 0], [4000, -1500])],
   );
   expect(['R2', 'R11'].map((name) => strokes(name).map(({ from, to }) => [from, to]))).toEqual([[[0, 5000]], [[0, 5000]]]);
 });
 
-test('keeps a Line at one side where it steps off a stretch for under SHORT and back', () => {
+test('keeps a Line at one side where it steps off a stretch for under SHORT and back', async () => {
   // R11 shares R2's track but for a 100 m loop 60 m off it.
-  const { strokes } = draw(
+  const { strokes } = await draw(
     [line('R2', 'R2'), line('R11', 'R11')],
     [shape('R2', [0, 0], [5000, 0]), shape('R11', [0, 0], [2450, 0], [2450, 60], [2550, 60], [2550, 0], [5000, 0])],
   );
   expect(strokes('R2')).toEqual([{ from: 0, to: 5000, north: strokes('R2')[0]?.north }]);
   expect(new Set(strokes('R11').filter((s) => s.to - s.from > 1000).map((s) => s.north)).size).toBe(1);
   expect(Math.abs(strokes('R2')[0]?.north ?? 0)).toBe(0.5);
+});
+
+test('puts two Lines in each Stretch in the order that suits it, where the order that suits one crosses them on another', async () => {
+  // A and B leave their first Stretch, A to the north-east and B to the south-east, and come back
+  // together on their second, A from the south-west and B from the north-west, crossing tracks on
+  // the way. So on the first A is north of B, and on the second south, crossing nowhere.
+  const { north } = await draw(
+    [line('A', 'A'), line('B', 'B')],
+    [
+      shape('A', [0, 0], [5000, 0], [7000, 2000], [12000, 2000], [14000, -3000], [18000, -3000], [20000, 0], [25000, 0]),
+      shape('B', [0, 0], [5000, 0], [7000, -2000], [12000, -2000], [14000, 3000], [18000, 3000], [20000, 0], [25000, 0]),
+    ],
+  );
+  const aNorth = (x: number) => Math.sign((north('A', x) ?? NaN) - (north('B', x) ?? NaN));
+  expect([1000, 4000, 21000, 24000].map(aNorth)).toEqual([1, 1, -1, -1]);
 });
