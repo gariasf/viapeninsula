@@ -1,7 +1,7 @@
-// Where each place's name goes: beside the track nearest its dot, clear of the Trains running along it (#120),
-// and which of the basemap's labels it says again (#121).
+// Where each place's name goes: beside its own Network's track nearest its dot, clear of the Trains
+// running along it (#120, #143), and which of the basemap's labels it says again (#121).
 import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
-import { closestOnSegment, DEGREE, direction, type Place, type Point, type Shape, type Stroke } from '../bundle.ts';
+import { closestOnSegment, DEGREE, direction, type Line, type Place, type Point, type Shape, type Stroke } from '../bundle.ts';
 
 /** How near up and down a track runs on screen, in degrees, for a name to go right of it rather than above it. */
 const STEEP = 30;
@@ -21,18 +21,26 @@ const NEAR = 200;
 const CELL = 0.005;
 /** How near a place a basemap label with its name is, in metres, to name the same place (#121). */
 const TWICE = 2000;
+/**
+ * The Network whose Stations each operator runs, by what their IDs start with (`Feed.operator` in
+ * `src/build/networks.ts`): a place's own Network, whose track its name goes beside (#143).
+ */
+export const NETWORK_OF: Record<string, string> = { adif: 'rodalies', fgc: 'fgc', tram: 'tram', tmb: 'metro' };
 /** The classes of the basemap's place labels that a place's name can say again: its towns', from cities to villages, and suburbs'. */
 const TOWNS = ['city', 'town', 'village', 'suburb'];
 
-/** Where a place's name goes, beside the track nearest its dot, as railisland's do (#120). */
+/** Where a place's name goes, beside its own Network's track nearest its dot, as railisland's do (#120, #143). */
 export interface Spot {
   /**
-   * Where it's measured from: the place's dot, or where the track nearest it, or one alongside it, comes
+   * Where it's measured from: the place's dot, or where its own Network's track nearest it, or one alongside it, comes
    * nearest the dot, whichever lies furthest the name's way.
    */
   from: Point;
-  /** The side of it MapLibre anchors there: its bottom above the track, or its left right of it. */
-  anchor: 'bottom' | 'left';
+  /**
+   * The side of it MapLibre anchors there: its bottom above the track, or its left right of it, or,
+   * where another track crosses that side, its top below the track, or its right left of it.
+   */
+  anchor: 'bottom' | 'left' | 'top' | 'right';
   /** The way it goes from the track, on screen: 1 px along the track's normal, x right and y down. */
   normal: [x: number, y: number];
   /** How far behind `from` the place's dot lies, in metres the name's way. */
@@ -46,11 +54,17 @@ export interface Spot {
 }
 
 /**
- * Where each place's name goes, for a track's shapes, the sides its Lines are drawn at along them, and
- * the side each Line's Trains keep to, 1 right and -1 left: given a place's dot, which finds its tracks
- * once, and then the map's bearing, in degrees clockwise from north, as often as the map turns.
+ * Where each place's name goes, for a track's shapes, the sides its Lines are drawn at along them, the
+ * side each Line's Trains keep to, 1 right and -1 left, and the Lines' Networks and shapes: given a
+ * place's dot and its Stations' IDs, which finds its tracks once, and then the map's bearing, in
+ * degrees clockwise from north, as often as the map turns.
  */
-export function alongside(shapes: Shape[], sides: Stroke[], keep: (line: string) => number): (dot: Point) => (bearing: number) => Spot {
+export function alongside(
+  shapes: Shape[],
+  sides: Stroke[],
+  keep: (line: string) => number,
+  networks: Pick<Line, 'network' | 'shapes'>[] = [],
+): (dot: Point, stations?: string[]) => (bearing: number) => Spot {
   // Each shape's segments, by the cells their bounding boxes cross.
   const cells = new Map<number, [shape: Shape, i: number][]>();
   for (const shape of shapes) {
@@ -67,10 +81,12 @@ export function alongside(shapes: Shape[], sides: Stroke[], keep: (line: string)
   }
   const sidesOf = new Map<string, Stroke[]>();
   for (const s of sides) sidesOf.set(s.shape, [...(sidesOf.get(s.shape) ?? []), s]);
-  return (dot) => {
+  const networkOf = new Map(networks.flatMap((l) => l.shapes.map((shape) => [shape, l.network])));
+  return (dot, stations = []) => {
+    const own = new Set(stations.map((id) => NETWORK_OF[id.split(':')[0] ?? '']));
     const kx = DEGREE * Math.cos((dot[1] * Math.PI) / 180);
     // Where each shape within NEAR comes nearest the dot, looking in the dot's cell and those round it.
-    const found = new Map<Shape, { at: Point; dist: number; metres: number }>();
+    const found = new Map<Shape, { at: Point; dist: number; metres: number; segments: [Point, Point][] }>();
     const [cx, cy] = [Math.floor(dot[0] / CELL), Math.floor(dot[1] / CELL)];
     for (let x = cx - 1; x <= cx + 1; x++) {
       for (let y = cy - 1; y <= cy + 1; y++) {
@@ -78,15 +94,47 @@ export function alongside(shapes: Shape[], sides: Stroke[], keep: (line: string)
           const [a, b, start = 0, stop = 0] = [shape.coords[i - 1], shape.coords[i], shape.dist[i - 1], shape.dist[i]];
           if (!a || !b) continue;
           const [t, metres] = closestOnSegment(a, b, dot, kx);
-          if (metres <= NEAR && metres < (found.get(shape)?.metres ?? Infinity)) found.set(shape, { at: [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])], dist: start + t * (stop - start), metres });
+          if (metres > NEAR) continue;
+          const f = found.get(shape) ?? { at: a, dist: 0, metres: Infinity, segments: [] };
+          // A segment crossing several cells is found in each.
+          if (!f.segments.some(([sa, sb]) => sa === a && sb === b)) f.segments.push([a, b]);
+          if (metres < f.metres) Object.assign(f, { at: [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])], dist: start + t * (stop - start), metres });
+          found.set(shape, f);
         }
       }
     }
     // And which way each runs there.
     const near = [...found].map(([shape, f]) => ({ ...f, shape, heading: headingAt(shape, f.dist) }));
-    const nearest = near.reduce<(typeof near)[number] | undefined>((best, n) => (best && best.metres <= n.metres ? best : n), undefined);
+    // The nearest of its own Network's, or where it has none near, of any.
+    const closest = (among: typeof near) => among.reduce<(typeof near)[number] | undefined>((best, n) => (best && best.metres <= n.metres ? best : n), undefined);
+    const nearest = closest(near.filter((n) => own.has(networkOf.get(n.shape.id)))) ?? closest(near);
     // The tracks alongside it there: those not much further from the dot, running much the same way, either way.
     const tracks = near.filter((n) => nearest && n.metres <= nearest.metres + ALONGSIDE_METRES && Math.abs(Math.cos(((n.heading - nearest.heading) * Math.PI) / 180)) >= Math.cos((ALONGSIDE_DEGREES * Math.PI) / 180));
+    // Which sides of it, right and left, the other tracks near the place cross it on, by where their
+    // stretches within NEAR of the dot lie from its line there.
+    const crossed = { right: false, left: false };
+    if (nearest) {
+      const local = ([lon, lat]: Point) => [(lon - dot[0]) * kx, (lat - dot[1]) * DEGREE] as const;
+      const [qx, qy] = local(nearest.at);
+      const h = (nearest.heading * Math.PI) / 180;
+      const [rx, ry] = [Math.cos(h), -Math.sin(h)];
+      for (const { segments } of near.filter((n) => !tracks.includes(n))) {
+        for (const [a, b] of segments) {
+          const [[ax, ay], [bx, by]] = [local(a), local(b)];
+          const [dx, dy] = [bx - ax, by - ay];
+          // Where the segment runs within NEAR of the dot, from t0 to t1 of the way along it.
+          const [qa, qb, qc] = [dx * dx + dy * dy, ax * dx + ay * dy, ax * ax + ay * ay - NEAR * NEAR];
+          const root = Math.sqrt(qb * qb - qa * qc);
+          if (!(qa > 0) || Number.isNaN(root)) continue;
+          for (const t of [Math.max(0, (-qb - root) / qa), Math.min(1, (-qb + root) / qa)]) {
+            // ponytail: takes the track's line as straight over NEAR. Measure from the track's nearest point to each if a curve misleads.
+            const right = (ax + t * dx - qx) * rx + (ay + t * dy - qy) * ry;
+            // Within a metre of it, it only meets it.
+            if (Math.abs(right) > 1) crossed[right > 0 ? 'right' : 'left'] = true;
+          }
+        }
+      }
+    }
     // Each Line drawn along them there, and how many line widths to the track's right its Trains are drawn.
     const lines = tracks.flatMap((track) =>
       (sidesOf.get(track.shape.id) ?? []).filter((s) => s.from <= track.dist && track.dist <= s.to).map((s) => ({ track, line: s.line, widths: s.side + 0.5 * keep(s.line) })),
@@ -96,7 +144,10 @@ export function alongside(shapes: Shape[], sides: Stroke[], keep: (line: string)
       // The track's right on screen, which lies within STEEP of across where the track runs within STEEP of up and down.
       const [x, y] = rightOf(nearest.heading, bearing);
       const steep = Math.abs(x) >= Math.cos((STEEP * Math.PI) / 180);
-      const normal: Spot['normal'] = (steep ? x < 0 : y > 0) ? [-x, -y] : [x, y];
+      // Up or right on screen, the track's left or right, unless another track crosses that side and not the other.
+      const left = steep ? x < 0 : y > 0;
+      const flip = left ? crossed.left && !crossed.right : crossed.right && !crossed.left;
+      const normal: Spot['normal'] = left !== flip ? [-x, -y] : [x, y];
       // How far a point lies from the track the name's way, in metres.
       const [cos, sin] = [Math.cos((bearing * Math.PI) / 180), Math.sin((bearing * Math.PI) / 180)];
       const out = ([lon, lat]: Point) => {
@@ -108,7 +159,8 @@ export function alongside(shapes: Shape[], sides: Stroke[], keep: (line: string)
         const [rx, ry] = rightOf(track.heading, bearing);
         return { line, toward: widths * (rx * normal[0] + ry * normal[1]), behind: out(from) - out(track.at) };
       });
-      return { from, anchor: steep ? 'left' : 'bottom', normal, dot: out(from) - out(dot), lines: toward };
+      const anchor = steep ? (flip ? 'right' : 'left') : flip ? 'top' : 'bottom';
+      return { from, anchor, normal, dot: out(from) - out(dot), lines: toward };
     };
   };
 }
@@ -118,7 +170,7 @@ export function alongside(shapes: Shape[], sides: Stroke[], keep: (line: string)
  * track: out along the normal, and further the more the track slants across the name's side.
  */
 export function nameOffset({ anchor, normal: [x, y] }: Spot, clear: number, [width, height]: [number, number]): [x: number, y: number] {
-  const out = clear + (anchor === 'left' ? (height / 2) * Math.abs(y) : (width / 2) * Math.abs(x));
+  const out = clear + (anchor === 'left' || anchor === 'right' ? (height / 2) * Math.abs(y) : (width / 2) * Math.abs(x));
   return [out * x, out * y];
 }
 

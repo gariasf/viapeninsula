@@ -684,10 +684,10 @@ function show(days: Track | Bundle) {
     type: 'FeatureCollection',
     features: tiered.map(({ id, larger, lon, lat }) => ({ type: 'Feature', properties: { id, larger }, geometry: { type: 'Point', coordinates: [lon, lat] } })),
   });
-  const spots = alongside(days.shapes, days.sides, (line) => placing.keep.get(line) ?? 1);
-  names = tiered.map(({ name, nameZoom, larger, lon, lat }) => {
+  const spots = alongside(days.shapes, days.sides, (line) => placing.keep.get(line) ?? 1, days.lines);
+  names = tiered.map(({ name, stations, nameZoom, larger, lon, lat }) => {
     const rows = nameLines(name);
-    return { spot: spots([lon, lat]), name: rows.join('\n'), size: [Math.max(...rows.map(placeWidth)), rows.length * LINE_HEIGHT * PLACE_TEXT], nameZoom, larger };
+    return { spot: spots([lon, lat], stations), name: rows.join('\n'), size: [Math.max(...rows.map(placeWidth)), rows.length * LINE_HEIGHT * PLACE_TEXT], nameZoom, larger };
   });
   showNames();
   credited = days.networks;
@@ -742,7 +742,7 @@ function trains(): GeoJSON.FeatureCollection {
 }
 
 /**
- * Puts each place's name beside its track (alongside()) as the track lies on screen now, at each of
+ * Puts each place's name beside its own Network's track (alongside()) as the track lies on screen now, at each of
  * NAME_ZOOMS as far out as clearance() says.
  * ponytail: laid out flat, so on a tilted map a name sits a little nearer its track or further than
  * NAME_GAP. Work each normal out on screen with map.project() if that shows.
