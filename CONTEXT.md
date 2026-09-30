@@ -44,6 +44,10 @@ _Avoid_: Service type, train type, category, class, product
 Which track of a double track a Network's Trains run on, looking the way they go. Every Network in Catalonia keeps right.
 _Avoid_: Handedness, traffic side
 
+**Stretch**:
+A length of track, or of tracks too close together to tell apart zoomed out, that one set of Lines runs along. The map draws them side by side along it, in one order, and a Line counts once on it whichever way and whichever of its tracks it runs (ADR-0006).
+_Avoid_: Bundle (that's the data the map loads), corridor, edge
+
 **Station**:
 A place where Trains stop for passengers, as published by whoever runs it (Adif for Renfe, FGC, TMB, TRAM). Tram stops are Stations too; a metro station next to a railway station is a separate Station, and one served by several Lines is a Station for each, which the map shows as one place.
 _Avoid_: Stop, halt

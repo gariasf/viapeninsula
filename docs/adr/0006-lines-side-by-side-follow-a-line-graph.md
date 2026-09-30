@@ -1,0 +1,20 @@
+# Lines side by side follow a line graph
+
+Where Lines share track, or run on tracks too close together to tell apart zoomed out, the map draws them side by side, a line width apart, as a transit map does. Until now `sideBySide()` offset each Line from its own track, and chose its side for each 50 m piece of that track, a Line at a time, from the Lines within NEAR of the piece. The study for #138 ([Lines side by side](../research/lines-side-by-side.md)) traced most of the faults it found to that: a Line drawn twice, where its two directions have tracks of their own and get different sides; steps and gaps, where a neighbour's track comes in and out of NEAR; and Lines crossing each other inside a bundle, because the offsets from neighbouring tracks don't nest. Tuning NEAR, SHORT or #159's ALONG moved those faults rather than removing them: #159 halved the breaks and drew Lines off a track they have alone for about 28 km. So the daily build draws Lines side by side from a line graph, as LOOM does (Bast, Brosi and Storandt, SIGSPATIAL 2018 and ACM TSAS 2019). Each edge is a stretch: a length of track, or of tracks within NEAR of each other and running alongside, that one set of Lines takes, drawn along one centreline averaged from its tracks. A node sits wherever that set changes. Every Line on a stretch is offset from its centreline by its place in the stretch's order, and it counts once on it, whichever way and whichever of its tracks it runs.
+
+The graph is built from the traced shapes (ADR-0004), which stay the Trips' track: only how the Lines are drawn changes. Tracks join a stretch as they join a piece's cluster now, within NEAR and running alongside, with LOOM's tolerance for short excursions beyond it. Short stretches merge into their neighbours on the graph, which replaces SHORT and #159's `steady()`. Which Lines may share a stretch, and how wide one may get, stay as now until #165 decides them.
+
+## Considered Options
+
+- **Keep offsetting each Line from its own track, and tune the thresholds.** Rejected: every tuning the study tried traded one fault for another. SHORT at 800 m halved the breaks and drew Lines on top of each other for 3.5 km; #159's ALONG kept Lines beside a bundle they had left.
+- **Draw each track once, and never offset (railisland's way).** Rejected: zoomed out, shared track is one pixel, and Lines side by side are what make the map read as a transit map.
+- **Simplify or smooth the geometry the map is given.** Rejected: a GeoJSON tolerance of 2 px trades folds on tight curves for corners and slivers, and does nothing for the other faults.
+- **Build the graph in the page.** Rejected: the graph is the same all day, the build has the time, and the page only draws.
+
+## Consequences
+
+- The build gains a stage between tracing and drawing. It replaces `sideBySide()` a step at a time: the graph, with today's order and a stroke per stretch for each Line on it (#161); one order per stretch, with crossings at Stations and forks (#162); curves across nodes instead of steps (#163); centrelines smoothed at the scale of their offset (#164); and who may share a stretch (#165).
+- #161's first slice still writes today's `Stroke`s, one for each Line on each stretch, so the map draws them unchanged. Their shape is the stretch's centreline, which the track carries as a shape of its own. `sides` stays each Line's side along its own shapes, so its Trains stay on their own track until they move onto their stretch's place.
+- A Line on a stretch is drawn off its own rails by its offset and by how far its track is from the centreline, at most NEAR, and its Trains can be that far from it. The Stations' dots stay on the rails. Zoomed right in, where APART goes to 0 and people follow a Train, the map draws each Line on its own track again, not its stretch's centreline.
+- Every change to how Lines are drawn reports #160's measures on the same track before and after.
+- CONTEXT.md names an edge of the graph a **Stretch**, since "bundle" is the data bundle.
