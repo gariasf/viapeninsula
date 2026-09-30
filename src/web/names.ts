@@ -18,7 +18,7 @@ const [ALONGSIDE_METRES, ALONGSIDE_DEGREES] = [50, 30];
  * their Trains, before it clears only its own track's Lines (#147).
  */
 export const CAP = 12;
-/** How near 0 a normal's x or y is, in px, for its track to run level with a name's side. */
+/** How near 0 a normal's x or y is for its track to run level with a name's side. */
 const LEVEL = 1e-6;
 /** How near a place's dot a track passes, in metres, to be its track at all. */
 const NEAR = 200;
@@ -171,10 +171,10 @@ export function alongside(
       const up: [Spot['normal'], Spot['anchor']] = [left ? [-x, -y] : [x, y], steep ? 'left' : 'bottom'];
       const down: [Spot['normal'], Spot['anchor']] = [left ? [x, y] : [-x, -y], steep ? 'right' : 'top'];
       // Both, up first, unless another track crosses one side and not the other.
-      const sides = crossed.left === crossed.right ? [up, down] : [(left ? crossed.left : crossed.right) ? down : up];
+      const ways = crossed.left === crossed.right ? [up, down] : [(left ? crossed.left : crossed.right) ? down : up];
       const [cos, sin] = [Math.cos((bearing * Math.PI) / 180), Math.sin((bearing * Math.PI) / 180)];
       // The spot on one side, measured from the dot or these tracks, clear of their Lines' Trains or strokes.
-      const spot = ([normal, anchor]: (typeof sides)[number], among: typeof tracks, stroke: boolean): Spot => {
+      const spot = ([normal, anchor]: (typeof ways)[number], among: typeof tracks, stroke: boolean): Spot => {
         // How far a point lies from the track the name's way, in metres.
         const out = ([lon, lat]: Point) => {
           const [east, north] = [(lon - nearest.at[0]) * kx, (lat - nearest.at[1]) * DEGREE];
@@ -190,7 +190,7 @@ export function alongside(
           });
         return { from, anchor, normal, dot: out(from) - out(dot), lines: toward };
       };
-      return sides.map((side) => ({ clear: spot(side, tracks, false), near: spot(side, [nearest], true) }));
+      return ways.map((side) => ({ clear: spot(side, tracks, false), near: spot(side, [nearest], true) }));
     };
   };
 }
@@ -198,16 +198,14 @@ export function alongside(
 /**
  * Of the sides a name can go, the one where it's clear nearest its dot, its near edge `far` px from
  * the dot, and how far that is; or, further than CAP on every side, the nearest clear of only its own
- * track's Lines. Where two are as near, the first.
+ * track's Lines. Where two are as near, the first. alongside() gives every place a side at least.
+ * ponytail: past CAP a name can lie over the Trains on its own track and the Lines alongside it.
+ * Clear them too where CAP allows, a side at a time, if names on them show.
  */
 export function nearestSide(sides: Side[], far: (spot: Spot) => number): { spot: Spot; far: number } {
-  const nearest = (spots: Spot[]) =>
-    spots.reduce<{ spot: Spot; far: number } | undefined>((best, spot) => {
-      const px = far(spot);
-      return best && best.far <= px ? best : { spot, far: px };
-    }, undefined);
+  const nearest = (spots: Spot[]) => spots.map((spot) => ({ spot, far: far(spot) })).reduce((best, s) => (s.far < best.far ? s : best));
   const clear = nearest(sides.map((s) => s.clear));
-  return (clear && clear.far <= CAP ? clear : nearest(sides.map((s) => s.near))) ?? { spot: { from: [0, 0], anchor: 'bottom', normal: [0, -1], dot: 0, lines: [] }, far: 0 };
+  return clear.far <= CAP ? clear : nearest(sides.map((s) => s.near));
 }
 
 /**

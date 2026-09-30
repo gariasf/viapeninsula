@@ -769,8 +769,8 @@ function showNames() {
 /**
  * How far out from its dot a place's name goes at a zoom, in px: NAME_GAP clear of the dot, `larger`
  * px larger than the smallest, and of each Train drawn along its tracks there, as a pill, or below its
- * Line's pill zoom a dot about as large as the place's, beside its Line's stroke zoomed out, or where
- * the spot says so, of each Line's stroke. MapLibre lays names out at whole zooms, so it's as far out as the map needs until the
+ * Line's pill zoom a dot about as large as the place's, beside its Line's stroke zoomed out; or, for
+ * a Line the spot marks `stroke`, of its stroke. MapLibre lays names out at whole zooms, so it's as far out as the map needs until the
  * next, where the Lines are drawn furthest apart and dots largest.
  * ponytail: clear of every Train but the followed one, which is drawn larger. Take in its pill too if
  * the names it covers show.
