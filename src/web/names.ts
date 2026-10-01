@@ -2,7 +2,7 @@
 // running along it, on the side where that's nearest the dot (#120, #143, #147), and which of the
 // basemap's labels it says again (#121).
 import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
-import { closestOnSegment, DEGREE, direction, type Line, type Place, type Point, type Shape, type Stroke } from '../bundle.ts';
+import { closestOnSegment, DEGREE, direction, pointAt, slotAt, type Line, type Place, type Point, type Shape, type Slot } from '../bundle.ts';
 import { simplify } from '../build/offset.ts';
 
 /** How near up and down a track runs on screen, in degrees, for a name to go right of it rather than above it. */
@@ -64,7 +64,8 @@ export interface Spot {
   /**
    * Each Line drawn along its tracks there: how many line widths the name's way its Trains are drawn
    * zoomed out, beside the Line's stroke and half a line width to their running side, negative where
-   * they're drawn the other way, from a track that lies `behind` metres behind `from`. Or, where
+   * they're drawn the other way, from a point `behind` metres behind `from`: on their track, or on the
+   * centreline of the Stretch their stroke is drawn along (#176). Or, where
    * `stroke` is set, how many its stroke is, which the name clears rather than the Trains.
    */
   lines: { line: string; toward: number; behind: number; stroke?: true }[];
@@ -93,16 +94,19 @@ export interface Side {
 }
 
 /**
- * Where each place's name goes, for a track's shapes, the sides its Lines are drawn at along them, the
- * side each Line's Trains keep to, 1 right and -1 left, and the Lines' Networks and shapes: given a
- * place's dot and its Stations' IDs, which finds its tracks once, and then the map's bearing, in
- * degrees clockwise from north, as often as the map turns.
+ * Where each place's name goes, for a track's shapes, where its Lines' Trains go along them zoomed out
+ * (`Slot`), the side each Line's Trains keep to, 1 right and -1 left, the Lines' Networks and shapes,
+ * and the centrelines the Trains go along: given a place's dot and its Stations' IDs, which finds its
+ * tracks once, and then the map's bearing, in degrees clockwise from north, as often as the map turns.
+ * ponytail: takes the Trains to be on the centrelines as they are, not as each zoom band smooths them,
+ * up to a line width off. Take the band's if names over Trains show.
  */
 export function alongside(
   shapes: Shape[],
-  sides: Stroke[],
+  slots: Slot[],
   keep: (line: string) => number,
   networks: Pick<Line, 'network' | 'shapes'>[] = [],
+  centrelines = new Map<string, Shape>(),
 ): (dot: Point, stations?: string[]) => (bearing: number) => Side[] {
   // Each shape's segments, by the cells their bounding boxes cross.
   const cells = new Map<number, [shape: Shape, i: number][]>();
@@ -135,8 +139,8 @@ export function alongside(
       }
     }
   }
-  const sidesOf = new Map<string, Stroke[]>();
-  for (const s of sides) sidesOf.set(s.shape, [...(sidesOf.get(s.shape) ?? []), s]);
+  const slotsOf = new Map<string, Slot[]>();
+  for (const s of slots) slotsOf.set(s.shape, [...(slotsOf.get(s.shape) ?? []), s]);
   const networkOf = new Map(networks.flatMap((l) => l.shapes.map((shape) => [shape, l.network])));
   return (dot, stations = []) => {
     const own = new Set(stations.map((id) => NETWORK_OF[id.split(':')[0] ?? '']));
@@ -169,7 +173,7 @@ export function alongside(
     // A point's metres east and north of the dot.
     const local = ([lon, lat]: Point): [number, number] => [(lon - dot[0]) * kx, (lat - dot[1]) * DEGREE];
     // The Lines drawn along a track from `from` to `to` metres along it.
-    const drawnOn = (shape: Shape, from: number, to: number) => (sidesOf.get(shape.id) ?? []).filter((s) => s.from <= to && from <= s.to);
+    const drawnOn = (shape: Shape, from: number, to: number) => (slotsOf.get(shape.id) ?? []).filter((s) => s.from <= to && from <= s.to);
     // The tracks with Lines drawn along them, by their segments within REACH of the dot: those not
     // alongside its own, those alongside but its own, which a name near its dot can lie on, and where
     // its own or one alongside bends away from beside the dot, the rest of it, which can come back under the name.
@@ -181,7 +185,7 @@ export function alongside(
     for (let x = cx - wx; x <= cx + wx; x++) {
       for (let y = cy - wy; y <= cy + wy; y++) {
         for (const { shape, a, b, start, stop } of straight.get(cell(x, y)) ?? []) {
-          if (!sidesOf.has(shape.id)) continue;
+          if (!slotsOf.has(shape.id)) continue;
           // A segment crossing several cells is filed in each: take it in the first of them looked in.
           if (x !== Math.max(cx - wx, Math.floor(Math.min(a[0], b[0]) / CELL)) || y !== Math.max(cy - wy, Math.floor(Math.min(a[1], b[1]) / CELL))) continue;
           const d = closestOnSegment(a, b, dot, kx)[1];
@@ -192,17 +196,27 @@ export function alongside(
           const [[ae, an], [be, bn], heading] = [local(a), local(b), besideHeading.get(shape)];
           const beside = heading !== undefined && Math.cos(Math.atan2(be - ae, bn - an) - (heading * Math.PI) / 180) >= Math.cos((ALONGSIDE_DEGREES * Math.PI) / 180);
           if (!drawn.length || (beside && shape === nearest?.shape)) continue;
-          for (const side of new Set(drawn.map((s) => s.side))) {
-            (beside ? besides : crossings).push({ lines: drawn.filter((s) => s.side === side).map((s) => s.line), a: local(a), b: local(b), side, d });
+          // Each Line's side of the track, where the line its stroke is drawn along runs back the other way.
+          const sides = drawn.map((s) => ({ line: s.line, side: slotAt(s, start).way * s.side }));
+          for (const side of new Set(sides.map((s) => s.side))) {
+            (beside ? besides : crossings).push({ lines: sides.filter((s) => s.side === side).map((s) => s.line), a: local(a), b: local(b), side, d });
           }
         }
       }
     }
     const byNearest = (list: Spot['crossing']) => list.sort((p, q) => p.d - q.d);
     const [nearCrossings, nearBesides] = [byNearest(crossings), byNearest([...crossings, ...besides])];
-    // Each Line drawn along them there, and how many line widths to the track's right its Trains are drawn.
+    // Each Line drawn along them there, the point on the line its stroke is drawn beside there, and
+    // how many line widths to the track's right its stroke and its Trains are drawn from that point.
     const lines = tracks.flatMap((track) =>
-      (sidesOf.get(track.shape.id) ?? []).filter((s) => s.from <= track.dist && track.dist <= s.to).map((s) => ({ track, line: s.line, side: s.side, widths: s.side + 0.5 * keep(s.line) })),
+      (slotsOf.get(track.shape.id) ?? [])
+        .filter((s) => s.from <= track.dist && track.dist <= s.to)
+        .map((slot) => {
+          const { at: along, way } = slotAt(slot, track.dist);
+          const centreline = centrelines.get(slot.on);
+          // Where its line runs back the way the track runs, its right is the track's left.
+          return { track, line: slot.line, at: centreline ? pointAt(centreline, along) : track.at, side: way * slot.side, widths: way * slot.side + 0.5 * keep(slot.line) };
+        }),
     );
     return (bearing) => {
       if (!nearest) {
@@ -228,9 +242,9 @@ export function alongside(
         const from = among.reduce((furthest, { at }) => (out(at) > out(furthest) ? at : furthest), dot);
         const toward = lines
           .filter(({ track }) => among.includes(track))
-          .map(({ track, line, side, widths }) => {
+          .map(({ track, line, at, side, widths }) => {
             const [rx, ry] = rightOf(track.heading, bearing);
-            const along = { line, toward: (stroke ? side : widths) * (rx * normal[0] + ry * normal[1]), behind: out(from) - out(track.at) };
+            const along = { line, toward: (stroke ? side : widths) * (rx * normal[0] + ry * normal[1]), behind: out(from) - out(at) };
             return stroke ? { ...along, stroke: true as const } : along;
           });
         return { from, anchor, normal, dot: out(from) - out(dot), lines: toward, crossing: stroke ? nearBesides : nearCrossings, widest, bearing };

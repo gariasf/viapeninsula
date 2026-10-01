@@ -1,6 +1,6 @@
 import { featureFilter, type Feature, type ICanonicalTileID } from '@maplibre/maplibre-gl-style-spec';
 import { assert, expect, test, vi } from 'vitest';
-import { DEGREE, type Point, type Shape, type Stroke } from '../bundle.ts';
+import { DEGREE, type Point, type Shape, type Slot, type Stroke } from '../bundle.ts';
 import { alongside, CAP, namedTwice, nameOffset, nearestSide, NETWORK_OF, underName, type Side, type Spot } from './names.ts';
 
 // Made up, on the equator, where a degree is DEGREE metres both ways.
@@ -27,8 +27,10 @@ function first(...args: Parameters<typeof alongside>) {
   };
 }
 
+/** Trains placed beside their own track, along it, at these sides. */
+const own = (sides: Stroke[]): Slot[] => sides.map((s) => ({ ...s, on: s.shape, at: [s.from, s.to] }));
 /** A Line drawn along each track, all of it, named after it. */
-const drawn = (tracks: Shape[]): Stroke[] => tracks.map((t) => ({ line: t.id, shape: t.id, from: 0, to: t.dist.at(-1) ?? 0, side: 0 }));
+const drawn = (tracks: Shape[]): Slot[] => own(tracks.map((t) => ({ line: t.id, shape: t.id, from: 0, to: t.dist.at(-1) ?? 0, side: 0 })));
 
 /**
  * alongside(), then the side nearestSide() takes for a name 100×20 px that goes 10 px out from its
@@ -155,7 +157,7 @@ test('where its own track bends back under its name, it takes the side clear of 
 test("a crossing track counts within as many px of a name as it's given, and where its Lines are drawn", () => {
   // The name goes above its own, from 10 to 30 px north, and 50 either way; the other passes 3 px east of it.
   const tracks = [track('own', [-500, 0], [500, 0]), track('other', [53, 5], [53, 300])];
-  const northOfR = (side: number) => alongside(tracks, [{ line: 'R', shape: 'other', from: 0, to: 1000, side }], right)(at(0, 0))(0)[0]?.clear ?? assert.fail('no side');
+  const northOfR = (side: number) => alongside(tracks, own([{ line: 'R', shape: 'other', from: 0, to: 1000, side }]), right)(at(0, 0))(0)[0]?.clear ?? assert.fail('no side');
   expect(underName(northOfR(1), 10, [100, 20], 1, 0, 2)).toBe(0);
   expect(underName(northOfR(1), 10, [100, 20], 1, 0, 4)).toBe(1);
   // Drawn a line width west of it, its right as it runs north, 3 px apart puts R's stroke's middle 3 px west of it, on the name's edge.
@@ -185,7 +187,7 @@ test("where it goes from a track beyond the dot, it keeps how far behind that, i
     { line: 'R1', shape: 'near', from: 0, to: 1000, side: 0 },
     { line: 'R2', shape: 'far', from: 0, to: 1000, side: 0 },
   ];
-  const place = first(station, sides, right)(at(0, 5));
+  const place = first(station, own(sides), right)(at(0, 5));
   const behind = (bearing: number) => {
     const spot = place(bearing);
     return [metres(spot.from), rounded([spot.dot]), spot.lines.map(({ line, behind }) => `${line} ${rounded([behind])}`).sort()];
@@ -208,9 +210,25 @@ test("zoomed out, where Lines are drawn side by side, it takes each Line's Train
     { line: 'R1', shape: 'w', from: 0, to: 1000, side: 2 },
     { line: 'R2', shape: 'w', from: 0, to: 1000, side: -1 },
   ];
-  const { lines } = first(tracks, sides, (line) => (line === 'L' ? -1 : 1))(at(0, 3))(0);
+  const { lines } = first(tracks, own(sides), (line) => (line === 'L' ? -1 : 1))(at(0, 3))(0);
   const sorted = lines.map(({ line, toward }) => `${line} ${rounded([toward])}`).sort();
   expect(sorted).toEqual(['L 0.5', 'R1 1.5', 'R1 2.5', 'R2 -0.5', 'R2 -1.5']);
+});
+
+test("zoomed out, it takes a Line's Trains to be on its stroke along the Stretch's centreline, not beside its own track", () => {
+  // R1 runs east along 0°, and is drawn a line width right of a centreline 30 m north, which runs
+  // back west: north of it, and so its Trains half a line width south of that, to their right.
+  const tracks = [track('e', [-500, 0], [500, 0])];
+  const centreline = track('stretch:0', [500, 30], [-500, 30]);
+  const slots: Slot[] = [{ line: 'R1', shape: 'e', from: 0, to: 1000, side: 1, on: 'stretch:0', at: [1000, 0] }];
+  const [north, south] = alongside(tracks, slots, right, [], new Map([[centreline.id, centreline]]))(at(0, -10))(0);
+  expect(north?.clear.lines.map(({ line, toward, behind }) => [line, ...rounded([toward, behind])])).toEqual([['R1', 0.5, -30]]);
+  expect(south?.clear.lines.map(({ line, toward, behind }) => [line, ...rounded([toward, behind])])).toEqual([['R1', -0.5, 40]]);
+  // Clearing its stroke, a line width north of the centreline.
+  expect(north?.near.lines.map(({ toward, behind }) => rounded([toward, behind]))).toEqual([[1, -30]]);
+  // Crossing another place's track, it's drawn a line width to that track's left, as it runs east.
+  const across = alongside([track('ns', [-300, -500], [-300, 500]), ...tracks], slots, right, [], new Map([[centreline.id, centreline]]))(at(-300, 200))(0);
+  expect(across[0]?.clear.crossing.map(({ lines, side }) => [lines, side])).toEqual([[['R1'], -1]]);
 });
 
 test("its box keeps a given distance from its track, however the track slants, its nearest corner straight out along its normal", () => {
@@ -259,7 +277,7 @@ test("near its dot, it goes from the dot or its nearest track, clear of only tha
     { line: 'R1', shape: 'near', from: 0, to: 1000, side: -1 },
     { line: 'R2', shape: 'far', from: 0, to: 1000, side: 0 },
   ];
-  const [north, south] = alongside(station, sides, right)(at(0, 5))(0);
+  const [north, south] = alongside(station, own(sides), right)(at(0, 5))(0);
   expect(metres(north?.near.from ?? [0, 0])).toEqual([0, 5]);
   expect(north?.near.dot).toBe(0);
   expect(north?.near.lines.map(({ line, toward, behind, stroke }) => [line, rounded([toward, behind]), stroke])).toEqual([['R1', [1, 5], true]]);
@@ -272,7 +290,7 @@ test("near its dot, it goes from the dot or its nearest track, clear of only tha
   expect(north?.near.crossing.map(({ a, b }) => rounded([...a, ...b]))).toEqual([[-500, 25, 500, 25]]);
   // And where it carries only the Lines of the track nearest the dot, as a double track's other track does, drawn apart zoomed in.
   const double: Stroke[] = [...sides, { line: 'R1', shape: 'far', from: 0, to: 1000, side: 0 }].filter((s) => s.line === 'R1');
-  const [doubleNorth, doubleSouth] = alongside(station, double, right)(at(0, 5))(0);
+  const [doubleNorth, doubleSouth] = alongside(station, own(double), right)(at(0, 5))(0);
   expect(doubleNorth?.near.crossing.map(({ lines, a, b }) => [lines, rounded([...a, ...b])])).toEqual([[['R1'], [-500, 25, 500, 25]]]);
   expect(doubleNorth?.clear.crossing).toEqual([]);
   // Not the track nearest the dot itself, beside it.

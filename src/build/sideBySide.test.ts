@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { along, APART, atZoom, BANDS, beside, inBand, LINK, pieces, pixelMetres, pointAt, SMOOTH, type Line, type Shape, type Stroke } from '../bundle.ts';
+import { along, APART, atZoom, BANDS, beside, inBand, LINK, onStroke, pieces, pixelMetres, pointAt, SMOOTH, type Line, type Shape, type Stroke } from '../bundle.ts';
 import { measures } from './measures.ts';
 import { sideBySide } from './sideBySide.ts';
 
@@ -229,17 +229,32 @@ test('keeps Lines where they are while another runs past them the other way, and
   expect(north('R4', 8000)).toBeGreaterThan(Math.max(north('R2S', 8000) ?? NaN, north('R14', 8000) ?? NaN));
 });
 
-test("gives each of a Line's shapes the side its stroke is drawn at all along it, though a stroke draws their track once", async () => {
-  // R2 and R11 share track; R2's Trains run it back on R2_INV, which isn't drawn again.
-  const shapes = [shape('R2', [0, 0], [5000, 0]), shape('R2_INV', [5000, 0], [0, 0]), shape('R11', [0, 0], [5000, 0])];
-  const { rails: strokes, sides } = await sideBySide([line('R2', 'R2', 'R2_INV'), line('R11', 'R11')], shapes);
-  expect(strokes.map((s) => s.shape)).toEqual(['R2', 'R11']);
-  const side = (id: string) => sides.filter((s) => s.shape === id).map(({ line, from, to, side }) => ({ line, from, to, side }));
-  const [r2] = side('R2');
-  expect(r2).toEqual({ line: 'R2', from: 0, to: 5000, side: strokes[0]?.side });
-  // Running back the other way, the same side of the track is the other side of the shape.
-  expect(side('R2_INV')).toEqual([{ line: 'R2', from: 0, to: 5000, side: -(r2?.side ?? NaN) }]);
-  expect(side('R11')).toEqual([{ line: 'R11', from: 0, to: 5000, side: strokes[1]?.side }]);
+test("puts each of a Line's shapes' Trains on its stroke at every zoom it's drawn side by side, half a line width to their side", async () => {
+  // R2 and R11 are drawn between their tracks, 40 m apart; R2's Trains run back on R2_INV, on R2's track.
+  const shapes = [shape('R2', [0, 0], [5000, 0]), shape('R2_INV', [5000, 0], [0, 0]), shape('R11', [0, 40], [5000, 40])];
+  const { strokes, centrelines, slots } = await sideBySide([line('R2', 'R2', 'R2_INV'), line('R11', 'R11')], shapes);
+  const byId = new Map([...shapes, ...centrelines].map((s) => [s.id, s]));
+  const xy = ([lon, lat]: [number, number]): [number, number] => [(lon - LON) * M * COS, (lat - LAT) * M];
+  for (const zoom of [12, 13, 14]) {
+    const [band, width] = [BANDS.findIndex((z) => z === Math.min(zoom, 13)), atZoom(APART, zoom) * pixelMetres(zoom, LAT)];
+    for (const [name, id] of [['R2', 'R2'], ['R2', 'R2_INV'], ['R11', 'R11']] as const) {
+      // Where the Line's strokes are drawn, every 5 m.
+      const drawn = strokes
+        .filter((s) => s.line === name && !s.shape.startsWith(LINK))
+        .flatMap((s) => Array.from({ length: Math.floor((s.to - s.from) / 5) + 1 }, (_, i) => xy(beside(inBand(byId, s.shape, band) ?? { coords: [], dist: [] }, s.from + i * 5, s.side * width))));
+      const mine = slots.filter((s) => s.line === name && s.shape === id);
+      for (let d = 500; d <= 4500; d += 250) {
+        const at = onStroke(mine, byId, d, zoom, 1);
+        expect(at).toBeDefined();
+        const [x, y] = xy(at ?? [NaN, NaN]);
+        // Give or take a metre, for rounding.
+        expect(Math.abs(Math.min(...drawn.map(([sx, sy]) => Math.hypot(sx - x, sy - y))) - width / 2)).toBeLessThan(1);
+      }
+    }
+  }
+  // Running back the other way, R2's Trains go on the other side of its stroke.
+  const north = (id: string) => xy(onStroke(slots.filter((s) => s.shape === id), byId, 2500, 13, 1) ?? [NaN, NaN])[1];
+  expect(Math.abs(north('R2') - north('R2_INV'))).toBeCloseTo(atZoom(APART, 13) * pixelMetres(13, LAT), 0);
 });
 
 test('moves the Lines on a stretch over together, at the one place where another joins them', async () => {

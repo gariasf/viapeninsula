@@ -120,7 +120,7 @@ function bundleOf(serviceDay: string, network: Omit<Network, 'runningSide'>, tri
     }),
     strokes: [],
     rails: [],
-    sides: [],
+    slots: [],
     trips: Object.entries(trips).map(([id, { line, headsign, calls }]) => ({
       id,
       line,
