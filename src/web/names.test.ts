@@ -142,15 +142,27 @@ test('where tracks cross its own on both sides, it takes the side where none lie
   expect(placed(far, drawn(far), right)(at(0, 0))(0, 20).anchor).toBe('top');
 });
 
-test("a crossing track counts within as many px of a name as it's given, and its Lines' widths", () => {
+test('where its own track bends back under its name, it takes the side clear of the bend', () => {
+  // Its own runs east past the dot, then loops back west 25 m north of it, under a name above it, as at Besòs.
+  const own = track('own', [-500, 0], [30, 0], [30, 25], [-300, 25]);
+  const place = placed([own], drawn([own]), right)(at(0, 0));
+  expect(place(0).anchor).toBe('top');
+  // But not by the stretch it runs along beside the dot, however many segments it's in.
+  const straight = track('own', [-500, 0], [-20, 0], [20, 10], [500, 10]);
+  expect(alongside([straight], drawn([straight]), right)(at(0, 0))(0).map(({ clear, near }) => [clear.crossing, near.crossing])).toEqual([[[], []], [[], []]]);
+});
+
+test("a crossing track counts within as many px of a name as it's given, and where its Lines are drawn", () => {
   // The name goes above its own, from 10 to 30 px north, and 50 either way; the other passes 3 px east of it.
   const tracks = [track('own', [-500, 0], [500, 0]), track('other', [53, 5], [53, 300])];
-  const [north] = alongside(tracks, [{ line: 'R', shape: 'other', from: 0, to: 1000, side: 1 }], right)(at(0, 0))(0);
-  const spot = north?.clear ?? assert.fail('no side');
-  expect(underName(spot, 10, [100, 20], 1, 0, 2)).toBe(0);
-  expect(underName(spot, 10, [100, 20], 1, 0, 4)).toBe(1);
-  // R is drawn a line width east of it, out to 1.5 line widths: 3 px apart puts it 4.5 px out.
-  expect(underName(spot, 10, [100, 20], 1, 3, 0)).toBe(1);
+  const northOfR = (side: number) => alongside(tracks, [{ line: 'R', shape: 'other', from: 0, to: 1000, side }], right)(at(0, 0))(0)[0]?.clear ?? assert.fail('no side');
+  expect(underName(northOfR(1), 10, [100, 20], 1, 0, 2)).toBe(0);
+  expect(underName(northOfR(1), 10, [100, 20], 1, 0, 4)).toBe(1);
+  // Drawn a line width west of it, its right as it runs north, 3 px apart puts R's stroke's middle 3 px west of it, on the name's edge.
+  expect(underName(northOfR(-1), 10, [100, 20], 1, 3, 0)).toBe(1);
+  // A line width east of it, 6 px out, it lies under the name only within 6 px of it.
+  expect(underName(northOfR(1), 10, [100, 20], 1, 3, 5)).toBe(0);
+  expect(underName(northOfR(1), 10, [100, 20], 1, 3, 6)).toBe(1);
 });
 
 test('where the dot lies the other side of its track, it goes from the track', () => {
@@ -258,9 +270,13 @@ test("near its dot, it goes from the dot or its nearest track, clear of only tha
   // Clear of only that track's Lines, it can lie on the one alongside, 25 m north of the dot, so that counts as under it too.
   expect(north?.clear.crossing).toEqual([]);
   expect(north?.near.crossing.map(({ a, b }) => rounded([...a, ...b]))).toEqual([[-500, 25, 500, 25]]);
-  // But not where it carries only the Lines of the track nearest the dot, as a double track's other track does.
+  // And where it carries only the Lines of the track nearest the dot, as a double track's other track does, drawn apart zoomed in.
   const double: Stroke[] = [...sides, { line: 'R1', shape: 'far', from: 0, to: 1000, side: 0 }].filter((s) => s.line === 'R1');
-  expect(alongside(station, double, right)(at(0, 5))(0)[0]?.near.crossing).toEqual([]);
+  const [doubleNorth, doubleSouth] = alongside(station, double, right)(at(0, 5))(0);
+  expect(doubleNorth?.near.crossing.map(({ lines, a, b }) => [lines, rounded([...a, ...b])])).toEqual([[['R1'], [-500, 25, 500, 25]]]);
+  expect(doubleNorth?.clear.crossing).toEqual([]);
+  // Not the track nearest the dot itself, beside it.
+  expect(doubleSouth?.near.crossing.map(({ a }) => rounded(a))).toEqual([[-500, 25]]);
 });
 
 test(`it takes the side where it's clear nearest its dot, and past ${CAP} px on both, the nearest clear of its own track's Lines`, () => {
