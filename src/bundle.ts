@@ -150,6 +150,13 @@ export interface Stroke {
   /** Zoomed right in, on its own track (`rails`): where another Line runs on that track too (#139). */
   shared?: true;
   /**
+   * In a tunnel, this many of OpenStreetMap's layers below the ground: the map draws it below the
+   * Lines on the street and those less deep, and where one covers it, shows it through (#178).
+   */
+  under?: number;
+  /** Along a Stretch with more than CROWD Lines, closer together than a line width, so that each covers some of the next. */
+  crowded?: true;
+  /**
    * A curve's: the centreline it leaves and the one it comes onto, and from how far along each to how
    * far, the way it goes, the Line's strokes there are cut back to make room for it (#176).
    */

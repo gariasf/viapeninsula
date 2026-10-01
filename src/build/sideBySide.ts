@@ -92,7 +92,7 @@ export async function sideBySide(lines: Line[], shapes: Shape[]): Promise<{ stro
   const sideOf = (s: Step) => side(s, beside[s.piece] ?? new Map(), turned, left, place);
   const draw = (run: Step[], by: (s: Step) => number, shares = false) => {
     const line = lines[run[0]?.line ?? -1]?.id ?? '';
-    return strokes(run, by, pieces, shares).map((s) => ({ line, ...s }));
+    return strokes(line, run, by, pieces, shares);
   };
   const kept = lasting(every, pieces, tracks);
   const keptBeside = kept.map(byLine);
@@ -128,7 +128,7 @@ export async function sideBySide(lines: Line[], shapes: Shape[]): Promise<{ stro
       // Only on a Stretch it goes along: beside one it doesn't, it's drawn on its own.
       if (!visited.has(`${e} ${line}`)) return [];
       const [list, metres] = [[] as Step[][], new Map<number, number>()];
-      let run: Step[] | undefined;
+      let [run, crowded]: [Step[] | undefined, boolean] = [undefined, false];
       for (const s of steps) {
         if (!keptBeside[s.piece]?.has(line)) {
           run = undefined;
@@ -138,11 +138,13 @@ export async function sideBySide(lines: Line[], shapes: Shape[]): Promise<{ stro
         run.push({ ...s, line });
         const here = orders[e]?.filter((l) => keptBeside[s.piece]?.has(l) && visited.has(`${e} ${l}`)) ?? [];
         const at = spread(here.indexOf(line), here.length);
+        crowded ||= here.length > CROWD;
         metres.set(at, (metres.get(at) ?? 0) + (pieces[s.piece]?.length ?? 0));
       }
       const at = most(metres);
       sideOn.set(`${e} ${line}`, at);
       const made = list.flatMap((run) => draw(run, () => at));
+      if (crowded) for (const s of made) s.crowded = true;
       onStretch.set(`${e} ${line}`, made);
       return made;
     }),
@@ -170,7 +172,7 @@ export async function sideBySide(lines: Line[], shapes: Shape[]): Promise<{ stro
     })).map((slot) => ({ line, shape: shape[0]?.shape ?? '', ...slot }));
   });
   // Not flatMap(draw): that would pass each run's index as its sides.
-  return { strokes: [...drawn, ...linked.strokes], centrelines: [...centrelines, ...smooth, ...linked.shapes], rails: runs.flatMap((run) => draw(run, sideOf, /* shares */ true)), slots };
+  return { strokes: split([...drawn, ...linked.strokes]), centrelines: [...centrelines, ...smooth, ...linked.shapes], rails: split(runs.flatMap((run) => draw(run, sideOf, /* shares */ true))), slots };
 }
 
 /**
@@ -295,9 +297,11 @@ function curves(joins: Join[], byId: Map<string, Shape>, lines: Line[], kx: numb
   const made = joins.map((j) => {
     const [a, b] = [j.out ? j.from.to : j.from.from, j.into ? j.to.to : j.to.from];
     const sides = [j.from.side * (j.out ? 1 : -1), j.to.side * (j.into ? -1 : 1)] as const;
+    // Or, where the Line moves over less than its side changes, as its Stretches' centrelines are apart,
+    // as far as its side moves it, so that its offset eases over as long a curve and doesn't kink (#178).
     const apart = widths.map((width, band) => {
       const [p, q] = [flat(beside(shapeOf(j.from, band), a, j.from.side * width)), flat(beside(shapeOf(j.to, band), b, j.to.side * width))];
-      return Math.hypot(q[0] - p[0], q[1] - p[1]);
+      return Math.max(Math.hypot(q[0] - p[0], q[1] - p[1]), Math.abs(sides[1] - sides[0]) * width);
     });
     const own = (s: Stroke) => byId.get(s.shape) ?? { coords: [], dist: [] };
     const gap = Math.hypot(...[0, 1].map((k) => (flat(pointAt(own(j.to), b))[k] ?? 0) - (flat(pointAt(own(j.from), a))[k] ?? 0)));
@@ -341,7 +345,8 @@ function curves(joins: Join[], byId: Map<string, Shape>, lines: Line[], kx: numb
       const id = `${LINK}${shapes.length}`;
       shapes.push({ id, coords, dist });
       const across: Stroke['across'] = [[from.shape, Math.round(d0), Math.round(a)], [to.shape, Math.round(b), Math.round(d3)]];
-      strokes.push({ line: lines[line]?.id ?? '', shape: id, from: 0, to: length, side: start, ...(stop !== start && { ease: stop }), band, across });
+      const below = Math.min(depthAt(from, a), depthAt(to, b));
+      strokes.push({ line: lines[line]?.id ?? '', shape: id, from: 0, to: length, side: start, ...(stop !== start && { ease: stop }), band, across, ...(below && { under: below }), ...((from.crowded || to.crowded) && { crowded: true as const }) });
     }
   }
   return { shapes, strokes };
@@ -928,18 +933,67 @@ interface Span<Key = number> {
 
 /**
  * A run's strokes: its steps at each side, and where `shares`, on track another Line runs on too or
- * not (#139), the SHORT ones merged into their neighbours.
+ * not (#139), the SHORT ones merged into their neighbours; with where each goes into a tunnel, in
+ * `depths`, for split() (#178).
  */
-function strokes(run: Step[], sideOf: (s: Step) => number, pieces: Piece[], shares = false): Omit<Stroke, 'line'>[] {
+function strokes(line: string, run: Step[], sideOf: (s: Step) => number, pieces: Piece[], shares = false): Stroke[] {
   const spans: Span<string>[] = [];
   for (const s of run) {
     const [key, last] = [`${sideOf(s)} ${shares && (pieces[s.piece]?.on.size ?? 0) > 1}`, spans.at(-1)];
     if (last?.key === key) last.steps.push(s);
     else spans.push({ key, steps: [s] });
   }
-  return merge(spans, pieces).flatMap(({ key, steps: [first, ...rest] }) => {
-    const [last, [side, shared]] = [rest.at(-1) ?? first, key.split(' ')];
-    return first && last ? [{ shape: first.shape, from: Math.round(first.from), to: Math.round(last.to), side: Number(side), ...(shared === 'true' && { shared: true as const }) }] : [];
+  return merge(spans, pieces).flatMap(({ key, steps }) => {
+    const [first, last, [side, shared]] = [steps[0], steps.at(-1), key.split(' ')];
+    if (!first || !last) return [];
+    const stroke = { line, shape: first.shape, from: Math.round(first.from), to: Math.round(last.to), side: Number(side), ...(shared === 'true' && { shared: true as const }) };
+    const runs: [from: number, depth: number][] = [];
+    for (const s of steps) {
+      const below = depth(pieces[s.piece]?.level ?? '');
+      if (runs.at(-1)?.[1] !== below) runs.push([runs.length ? Math.round(s.from) : stroke.from, below]);
+    }
+    if (runs.some(([, below]) => below)) depths.set(stroke, runs);
+    return [stroke];
+  });
+}
+
+/**
+ * Where each stroke that goes into a tunnel does: from each distance along its shape on, how deep
+ * (depth()), until split() cuts it there. Kept on the very strokes strokes() makes, which curves()
+ * and split() are given, so that none of their copies carries it into the bundle.
+ */
+const depths = new WeakMap<Stroke, [from: number, depth: number][]>();
+
+/** How far below the ground a level (Piece's `level`) is, in OpenStreetMap's layers: a tunnel at least 1; 0 on or above it. */
+function depth(level: string): number {
+  const layer = Number(level.split(' ')[1]) || 0;
+  return level.startsWith('tunnel') ? Math.max(1, -layer) : Math.max(0, -layer);
+}
+
+/** How deep a stroke is this far along its shape. */
+function depthAt(stroke: Stroke, d: number): number {
+  return depths.get(stroke)?.findLast(([from]) => from <= d)?.[1] ?? 0;
+}
+
+/**
+ * Strokes cut where they go into a tunnel or come out, or deeper, each piece `under` as deep as it is,
+ * so that the map draws it below the Lines above it (#178). Only once the curves are made, so that they
+ * join the strokes as they would on one level; each piece is cut back as far as the stroke it's part
+ * of is, for the curves there.
+ */
+function split(strokes: Stroke[]): Stroke[] {
+  return strokes.flatMap((s) => {
+    const runs = depths.get(s);
+    if (!runs) return [s];
+    return runs.map(([from, below], i): Stroke => {
+      const to = runs[i + 1]?.[0] ?? s.to;
+      const length = to - from;
+      const cut = s.cut?.map(([start, end]): [number, number] => {
+        const a = Math.min(length, Math.max(0, s.from + start - from));
+        return [a, Math.min(length - a, Math.max(0, to - (s.to - end)))];
+      });
+      return { ...s, from, to, ...(cut && { cut }), ...(below && { under: below }) };
+    });
   });
 }
 

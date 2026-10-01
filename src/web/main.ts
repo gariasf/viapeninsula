@@ -425,13 +425,17 @@ setInterval(refreshDays, 60_000);
 const firstLabel = map.getStyle().layers.find((l) => l.type === 'symbol')?.id;
 /** How each Line's stroke is laid out, and its casing alike, so that MapLibre builds their geometry once. */
 const lineLayout: LineLayerSpecification['layout'] = { 'line-cap': 'round', 'line-join': 'round', 'line-sort-key': ['get', 'above'] };
+/** The colour each Line's stroke is drawn in. */
+const lineColour: ExpressionSpecification = ['case', ['to-boolean', ['get', 'shared']], SHARED, ['get', 'colour']];
 /** How far right of its track each Line's stroke is drawn, and its casing: `side` line widths, zoomed out. */
 const lineOffset = byZoom(APART, (px) => ['*', ['get', 'side'], px]);
 // The casing sets each Line off the basemap's roads and rivers, 1 px either side of it. It's one layer
 // under every Line, so none shows between Lines side by side on shared track, and where Lines cross it
-// cuts no gap. The Lines are drawn along their stretches until they're back on the rails, and then
-// each on its own track (ADR-0006). Along their stretches, each zoom band has layers of its own, for
-// its curves across the nodes and its strokes cut back to make room for them (#163).
+// cuts no gap, nor where a Line goes into a tunnel. The Lines in tunnels go below the rest, the deeper
+// the lower, and where one above covers one, it shows through, dashed (#178). The Lines are drawn
+// along their stretches until they're back on the rails, and then each on its own track (ADR-0006).
+// Along their stretches, each zoom band has layers of its own, for its curves across the nodes and
+// its strokes cut back to make room for them (#163).
 const railsZoom = APART.at(-1)?.[0] ?? 15;
 const layered = [
   ...BANDS.map((_, band) => {
@@ -439,7 +443,7 @@ const layered = [
     const filter: ExpressionFilterSpecification = ['any', ['!', ['has', 'band']], ['==', ['get', 'band'], band]];
     return { source: 'lines', id: band ? `lines-${band}` : 'lines', prefix: band ? `line-${band}` : 'line', zooms: { minzoom, maxzoom: Math.min(maxzoom, railsZoom), filter } };
   }),
-  { source: 'rails', id: 'rails', prefix: 'rail', zooms: { minzoom: railsZoom } },
+  { source: 'rails', id: 'rails', prefix: 'rail', zooms: { minzoom: railsZoom, filter: true as ExpressionFilterSpecification } },
 ];
 for (const { source, id, prefix, zooms } of layered) {
   map.addLayer(
@@ -461,10 +465,24 @@ for (const { source, id, prefix, zooms } of layered) {
       ...zooms,
       layout: lineLayout,
       paint: {
-        'line-color': ['case', ['to-boolean', ['get', 'shared']], SHARED, ['get', 'colour']],
+        'line-color': lineColour,
         'line-width': byZoom(WIDTH, (px) => px),
         'line-offset': lineOffset,
       },
+    },
+    firstLabel,
+  );
+  // Over its own stroke, in its own colour, it doesn't show: only where another Line covers it. Not
+  // where Lines on one level cover each other: crowded, or sliding onto the rails.
+  map.addLayer(
+    {
+      id: `${id}-through`,
+      type: 'line',
+      source,
+      ...zooms,
+      filter: ['all', zooms.filter, ['has', 'under'], ['!', ['has', 'crowded']]],
+      layout: { ...lineLayout, 'line-cap': 'butt' },
+      paint: { 'line-color': lineColour, 'line-width': byZoom(WIDTH, (px) => px / 2), 'line-offset': lineOffset, 'line-dasharray': [2, 2], 'line-opacity': ['interpolate', ['linear'], ['zoom'], 14, 1, 14.1, 0, 14.9, 0, 15, 1] },
     },
     firstLabel,
   );
@@ -702,17 +720,20 @@ function show(days: Track | Bundle) {
     features: strokes.flatMap((s) => {
       const cut = s.cut ?? (BANDS.some((_, band) => shapes.has(smoothId(s.shape, band))) ? BANDS.map((): [number, number] => [0, 0]) : undefined);
       return cut ? cut.map(([start, end], band) => ({ ...s, from: s.from + start, to: s.to - end, band })) : pieces(s);
-    }).flatMap(({ line: id, shape: shapeId, from, to, side, band, shared }): GeoJSON.Feature[] => {
+    }).flatMap(({ line: id, shape: shapeId, from, to, side, band, shared, under, crowded }): GeoJSON.Feature[] => {
       const [line, shape] = [lines.get(id), band === undefined ? shapes.get(shapeId) : inBand(shapes, shapeId, band)];
       if (!line || !shape) return [];
       const properties = {
         name: line.name,
         colour: line.colour,
         // Zoomed right in, where Lines share track, Barcelona's commuter lines (R1–R8) are drawn over the regional ones.
-        above: /^R\d[NS]?$/.test(line.name) ? 1 : 0,
+        // And those in tunnels below the rest, the deeper the lower (#178).
+        above: (/^R\d[NS]?$/.test(line.name) ? 1 : 0) - 2 * (under ?? 0),
         side,
         ...(band !== undefined && { band }),
         ...(shared && { shared }),
+        ...(under && { under }),
+        ...(crowded && { crowded }),
         // Each Line's name goes on its own stroke: text-offset is in ems.
         ...Object.fromEntries(APART.map(([zoom, px]) => [`textOffset${zoom}`, [0, (side * px) / NAME_SIZE]])),
       };

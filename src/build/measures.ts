@@ -47,9 +47,23 @@ export interface Measures {
   dangling: number;
 }
 
-export function measures({ shapes, strokes }: Pick<Track, 'shapes' | 'strokes'>): Measures {
+export function measures({ shapes, strokes: pieces }: Pick<Track, 'shapes' | 'strokes'>): Measures {
+  const strokes = joined(pieces);
   const drawn = strokes.filter((s) => !s.shape.startsWith(LINK));
   return { breaks: breaks(drawn, shapes), ...faithful(drawn, shapes), folds: folds(drawn, shapes), dangling: dangling(strokes, shapes) };
+}
+
+/** Strokes joined up again where sideBySide() cut them at a tunnel's ends (#178), as they're drawn the same either side. */
+function joined(strokes: Stroke[]): Stroke[] {
+  const same = (a: Stroke, b: Stroke) => a.line === b.line && a.shape === b.shape && a.side === b.side && a.shared === b.shared && a.to === b.from && !a.band && !b.band;
+  return strokes.reduce<Stroke[]>((all, s) => {
+    const last = all.at(-1);
+    if (last && same(last, s)) {
+      const cut = last.cut && s.cut && last.cut.map(([start], band): [number, number] => [start, s.cut?.[band]?.[1] ?? 0]);
+      all[all.length - 1] = { ...last, to: s.to, ...(cut && { cut }) };
+    } else all.push(s);
+    return all;
+  }, []);
 }
 
 /** Measures in a line for the build's log. */
