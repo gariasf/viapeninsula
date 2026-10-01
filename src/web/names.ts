@@ -74,7 +74,7 @@ export interface Spot {
    * north of the dot, and how many line widths either side of it its Lines are drawn out to, nearest
    * the dot first, `d` metres from it at their nearest (#154).
    */
-  crossing: { a: [east: number, north: number]; b: [east: number, north: number]; widths: number; d: number }[];
+  crossing: { lines: string[]; a: [east: number, north: number]; b: [east: number, north: number]; widths: number; d: number }[];
   /** The most line widths either side of any of them its Lines are drawn out to. */
   widest: number;
   /** The map's bearing, in degrees clockwise from north, that the spot is for. */
@@ -188,7 +188,7 @@ export function alongside(
           const drawn = drawnOn(shape, start, stop);
           const alongsideIt = alongsideShapes.has(shape);
           if (!drawn.length || (alongsideIt && drawn.every((s) => nearestLines.has(s.line)))) continue;
-          (alongsideIt ? besides : crossings).push({ a: local(a), b: local(b), widths: Math.max(...drawn.map((s) => Math.abs(s.side))) + 0.5, d });
+          (alongsideIt ? besides : crossings).push({ lines: drawn.map((s) => s.line), a: local(a), b: local(b), widths: Math.max(...drawn.map((s) => Math.abs(s.side))) + 0.5, d });
         }
       }
     }
@@ -238,7 +238,7 @@ export function alongside(
 /**
  * Of the sides a name can go, the one where it's clear nearest its dot, its near edge `far` px from
  * the dot, and how far that is; or, further than CAP on every side, the nearest clear of only its own
- * track's Lines. Where two are as near, the first. Of those, only the sides with the fewest of the
+ * track's Lines. Where two are as near, the first. Of those, only the sides with the fewest Lines on the
  * tracks crossing its own `under` the name (#143, #154). alongside() gives every place a side at least.
  * ponytail: past CAP a name can lie over the Trains on its own track and the Lines alongside it.
  * Clear them too where CAP allows, a side at a time, if names on them show.
@@ -257,7 +257,7 @@ export function nearestSide(sides: Side[], far: (spot: Spot) => number, under: (
 }
 
 /**
- * How many segments of the tracks crossing its own lie under a name `width`×`height` px, `far` px out from its spot
+ * How many Lines on the tracks crossing its own lie under a name `width`×`height` px, `far` px out from its spot
  * as nameOffset() puts it, where a px is `metresPerPx` metres and Lines are drawn `apart` px apart, or
  * within `gap` px of it (#154).
  */
@@ -269,13 +269,13 @@ export function underName(spot: Spot, far: number, size: [number, number], metre
   // A point's px from the dot on screen, x right and y down.
   const [cos, sin] = [Math.cos((spot.bearing * Math.PI) / 180) / metresPerPx, Math.sin((spot.bearing * Math.PI) / 180) / metresPerPx];
   const screen = ([east, north]: [number, number]): [number, number] => [east * cos - north * sin, -(north * cos + east * sin)];
-  let under = 0;
-  for (const { a, b, widths, d } of spot.crossing) {
+  const under = new Set<string>();
+  for (const { lines, a, b, widths, d } of spot.crossing) {
     if (d / metresPerPx > furthest) break;
     const pad = widths * apart + gap;
-    if (meets(screen(a), screen(b), [ox + x0 - pad, oy + y0 - pad, ox + x1 + pad, oy + y1 + pad])) under++;
+    if (lines.some((line) => !under.has(line)) && meets(screen(a), screen(b), [ox + x0 - pad, oy + y0 - pad, ox + x1 + pad, oy + y1 + pad])) for (const line of lines) under.add(line);
   }
-  return under;
+  return under.size;
 }
 
 /**
