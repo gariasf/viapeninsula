@@ -39,6 +39,11 @@ test('counts nothing for Lines drawn in one stroke each', () => {
   expect(breaks([stroke('R2', 'a', 0, 2000, -0.5), stroke('R11', 'b', 0, 2000, 0.5)], [east('a', 2000), east('b', 2000)])).toEqual({ steps: 0, stubs: 0, swaps: 0, joins: 0 });
 });
 
+test('measures a stroke cut where it goes into a tunnel as the one stroke it is drawn as (#178)', () => {
+  const tunnel = [stroke('R2', 'a', 0, 1990, 0.5), { ...stroke('R2', 'a', 1990, 2010, 0.5), under: 1 }, stroke('R2', 'a', 2010, 4000, 0.5)];
+  expect(measures({ shapes: [east('a', 4000)], strokes: tunnel }).breaks.stubs).toBe(0);
+});
+
 test('counts steps, stubs, swaps and short joins', () => {
   const found = breaks(
     [

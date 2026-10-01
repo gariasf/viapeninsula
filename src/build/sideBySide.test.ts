@@ -126,11 +126,56 @@ test("draws a Line's two directions once where OpenStreetMap maps their tracks a
   expect(strokes('R2')).toHaveLength(1);
 });
 
+test('marks where a Line runs in a tunnel, and how deep, so that the map draws it below those above it (#178)', async () => {
+  // R2 on the ground for 2 km, then in a tunnel two layers down under T4 on the street.
+  const r2 = { ...shape('R2', [0, 0], [5000, 0]), levels: [[2000, 'tunnel -2']] as [number, string][] };
+  const shapes = [r2, shape('T4', [2000, 0], [5000, 0])];
+  for (const on of ['strokes', 'rails'] as const) {
+    const drawn = (await sideBySide([line('R2', 'R2'), line('T4', 'T4')], shapes))[on].filter((s) => !s.shape.startsWith(LINK));
+    const under = (name: string) => drawn.filter((s) => s.line === name).map((s) => [s.from, s.to, s.under ?? 0]);
+    // From the piece the tunnel starts in.
+    expect(under('R2')).toEqual([[0, expect.closeTo(2000, -2), 0], [expect.closeTo(2000, -2), 5000, 2]]);
+    expect(under('T4').map(([, , below]) => below)).toEqual([0]);
+  }
+});
+
+test('draws a Line going into a tunnel just where it would be drawn on the ground, its curves too (#178)', async () => {
+  // R2 and R11 are drawn between their tracks for 2.5 km, both going into a tunnel 500 m before R2 goes on alone.
+  const shapes = [shape('R2', [0, 0], [5000, 0]), shape('R11', [2500, 40], [0, 40])];
+  const tunnel: Shape[] = shapes.map((s, i) => ({ ...s, levels: i ? [[0, 'tunnel -1'], [500, '']] : [[2000, 'tunnel -1'], [3500, '']] }));
+  // Each stroke's metres drawn in each band, cut back for curves, joined where they meet.
+  const drawn = (strokes: Stroke[]) =>
+    BANDS.map((_, band) =>
+      strokes
+        .filter((s) => s.band === undefined || s.band === band)
+        .map((s) => [s.line, s.shape, s.side, s.from + (s.cut?.[band]?.[0] ?? 0), s.to - (s.cut?.[band]?.[1] ?? 0)] as const)
+        .filter(([, , , from, to]) => to > from)
+        .sort((a, b) => `${a.slice(0, 3)}`.localeCompare(`${b.slice(0, 3)}`) || a[3] - b[3])
+        .reduce<(string | number)[][]>((all, s) => {
+          const last = all.at(-1);
+          if (last && `${last.slice(0, 3)}` === `${s.slice(0, 3)}` && last[4] === s[3]) last[4] = s[4];
+          else all.push([...s]);
+          return all;
+        }, []),
+    );
+  const [ground, levelled] = [await sideBySide([line('R2', 'R2'), line('R11', 'R11')], shapes), await sideBySide([line('R2', 'R2'), line('R11', 'R11')], tunnel)];
+  expect(levelled.strokes.some((s) => s.under)).toBe(true);
+  expect(drawn(levelled.strokes)).toEqual(drawn(ground.strokes));
+  expect(drawn(levelled.rails)).toEqual(drawn(ground.rails));
+});
+
 test('narrows the gap between Lines past six side by side, so that a stretch gets no wider', async () => {
   const names = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
   const { strokes } = await draw(names.map((n) => line(n, n)), names.map((n) => shape(n, [0, 0], [5000, 0])));
   const sides = names.flatMap(strokes).map((s) => s.north).sort((a, b) => a - b);
   expect(sides.map((n) => n.toFixed(3))).toEqual(names.map((_, i) => ((i - 4) * (5 / 8)).toFixed(3)));
+});
+
+test('marks the strokes of a stretch with more than six Lines as crowded, as each covers some of the next (#178)', async () => {
+  for (const names of [['A', 'B', 'C', 'D', 'E', 'F'], ['A', 'B', 'C', 'D', 'E', 'F', 'G']]) {
+    const { strokes } = await sideBySide(names.map((n) => line(n, n)), names.map((n) => shape(n, [0, 0], [5000, 0])));
+    expect(strokes.map((s) => !!s.crowded)).toEqual(names.map(() => names.length > 6));
+  }
 });
 
 test('puts each Line on the side it branches off to, so that none crosses the others there', async () => {
