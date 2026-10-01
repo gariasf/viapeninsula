@@ -97,7 +97,7 @@ export interface Bundle {
   shapes: Shape[];
   /** How the map draws the Lines: each Line once on each stretch it runs along, beside the other Lines on it (ADR-0006). */
   strokes: Stroke[];
-  /** How the map draws the Lines zoomed right in, where they're back on the rails: each Line's own track once. */
+  /** How the map draws the Lines zoomed right in, where they're back on the rails: each Line's own track once, marked where Lines share it, which the map draws grey (#139). */
   rails: Stroke[];
   /**
    * Where the map puts each Line's Trains zoomed out: every one of its shapes, all along it, at the

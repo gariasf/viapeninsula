@@ -74,8 +74,9 @@ interface Neighbour {
  * centreline: its Lines go side by side along it, a line width apart, in one order all along, and
  * each is drawn once, whichever way and whichever of its tracks it runs (ADR-0006). The centrelines
  * are shapes of their own. `rails` draws each Line on its own track instead, its shapes' track once,
- * for zoomed right in, marking where another Line runs on that track too (#139). And the sides of every one of each Line's shapes, all along it, where its
- * stroke on its own track would be drawn, for the map to put the Line's Trains on it.
+ * for zoomed right in, marking where another Line runs on that track too (#139). And the sides of
+ * every one of each Line's shapes, all along it, where its stroke on its own track would be drawn,
+ * for the map to put the Line's Trains on it.
  */
 export async function sideBySide(lines: Line[], shapes: Shape[]): Promise<{ strokes: Stroke[]; centrelines: Shape[]; rails: Stroke[]; sides: Stroke[] }> {
   const { pieces, runs, every, kx } = walk(lines, shapes);
@@ -150,7 +151,7 @@ export async function sideBySide(lines: Line[], shapes: Shape[]): Promise<{ stro
   for (const c of smooth) byId.set(c.id, c);
   const linked = curves(joins, byId, lines, kx);
   // Not flatMap(draw): that would pass each run's index as its sides.
-  return { strokes: [...drawn, ...linked.strokes], centrelines: [...centrelines, ...smooth, ...linked.shapes], rails: runs.flatMap((run) => draw(run, sideOf, true)), sides: every.flatMap((run) => draw(run)) };
+  return { strokes: [...drawn, ...linked.strokes], centrelines: [...centrelines, ...smooth, ...linked.shapes], rails: runs.flatMap((run) => draw(run, sideOf, /* shares */ true)), sides: every.flatMap((run) => draw(run)) };
 }
 
 /** A shape's time on a Stretch it goes along: how far along the Stretch's centreline it comes in and goes out, and how far it goes. */
