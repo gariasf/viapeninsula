@@ -1314,6 +1314,21 @@ test("a Block too early for the closest Trip no Block keeps runs it once it's du
   expect(liveMetro('13:09:00', received)).toEqual([INTO_FONDO, NEXT_INTO_FONDO]);
 });
 
+test("a Trip whose Block TMB then has out of its first Station too early turns Scheduled at once, and waits for a Block as one never placed does", () => {
+  // Made up: at 13:01:00 TMB expects L1's 112 at Trinitat Vella at 13:02:00, 9 minutes before the Trip
+  // into Fondo is due there, so it runs that Trip. At 13:02:30 it expects 112 at Baró de Viver at
+  // 13:03:30, so out of Trinitat Vella since 13:02:22, while the Trip is due to leave there 9 minutes on.
+  const received = [intoFondo('13:01:00', ['112', 'tmb:1.137', '13:02:00']), intoFondo('13:02:30', ['112', 'tmb:1.138', '13:03:30']), intoFondo('13:03:10', ['112', 'tmb:1.139', '13:05:00'])];
+  expect(metro(INTO_FONDO, '13:01:10', received)).toMatchObject({ live: true });
+  // Scheduled, it isn't drawn before its timetable has it at Trinitat Vella, rather than Live where the Block was.
+  expect(metro(INTO_FONDO, '13:02:40', received)).toBeUndefined();
+  // Not drawn out of Trinitat Vella ahead of its timetable, near Santa Coloma at 19,138 m, on the refused report's Delay.
+  expect(metro(INTO_FONDO, '13:05:00', received)).toBeUndefined();
+  expect(metro(INTO_FONDO, '13:11:20', received)).toMatchObject({ live: false, dist: 17896 });
+  // Then it waits there for a Block, as one live data never placed does while TMB's feed works (#125).
+  for (const time of ['13:11:20', '13:12:00']) expect(metro(INTO_FONDO, time, received)).toEqual(metro(INTO_FONDO, time, elsewhere('13:01:00', '13:03:00')));
+});
+
 test("a Block waiting at the end of its Line, expected at the Station after, runs the Trip back from there however long before it's due to leave", () => {
   // Made up: at 13:02:00, 11 minutes before the Trip out of Fondo is due to leave it, TMB expects L1's
   // 112 at Santa Coloma at 13:14:30, as that Trip is due there at 13:14:23.

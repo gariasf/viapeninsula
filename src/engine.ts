@@ -537,8 +537,12 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
   for (let i = folding ? had : 0; i < received.length; i++) {
     const r = received[i] as Received;
     const [arrived, upTo] = [(r.at + clock - bundle.noonMinus12h) / 1000, heardTo(received.slice(0, i + 1), r.at + clock)];
-    const { reports, ran } = reportsByTrip(bundle, r.snapshot, received[i - 1]?.snapshot);
-    // A Train whose Block has gone on to run another Trip turns Scheduled at once, rather than staying
+    const { reports, ran, refused } = reportsByTrip(bundle, r.snapshot, received[i - 1]?.snapshot);
+    // A Train whose Block can't keep it, as TMB's ETA has the Block out of its first Station too early,
+    // turns Scheduled at once and drops its Delay, as early as the Block's last report for it was: it
+    // waits for a Block as one live data never placed does (#125, #152).
+    for (const id of refused) if (!reports.has(id)) [heard, eases, dwelt].forEach((m) => m.delete(id));
+    // A Train whose Block has gone on to run another Trip turns Scheduled at once too, rather than staying
     // Live for two more of its feed's updates where the Block was, beside the Block's new Train. But
     // TMB lists a Block under its way back as it passes the Station before the end of its Line, naming
     // the end as the Station it comes to next, so the Trip it runs in on stays Live, on its last Delay,
@@ -615,11 +619,16 @@ function linesByBlock(snapshot: Snapshot): string[] {
   return known;
 }
 
-/** What a replay makes of a snapshot, for a bundle: its reports by the Trip each is about, and the Trip each of the Metro's Blocks in it runs, by blockOf(). */
+/**
+ * What a replay makes of a snapshot, for a bundle: its reports by the Trip each is about, the Trip each
+ * of the Metro's Blocks in it runs, by blockOf(), and the Trips their Blocks can't keep, as TMB's ETA
+ * has each Block out of its Trip's first Station too early (#152).
+ */
 interface Matched {
   bundle: Bundle;
   reports: Map<string, Report>;
   ran: Map<string, string>;
+  refused: Set<string>;
 }
 
 /**
@@ -672,7 +681,7 @@ const canRun = (trip: Trip, next: NonNullable<Report['expected']>, reported: num
 };
 
 /**
- * A snapshot's reports by the Trip each is about, and the Trip each of the Metro's Blocks runs, given
+ * A snapshot's reports by the Trip each is about, the Trip each of the Metro's Blocks runs, and those they can't keep, given
  * the snapshot before it the first time a replay comes to it (`matched`). TMB's timetable names no
  * Blocks, so each of the Metro's keeps the Trip it ran in the snapshot before, where TMB reported it
  * there under FOLLOWS earlier, while that Trip, headed its way, still calls at the Station the Block
@@ -682,7 +691,7 @@ const canRun = (trip: Trip, next: NonNullable<Report['expected']>, reported: num
  * closest to when TMB expects it there, within MATCH, and where two come closest to one Trip, the
  * closer runs it. A Block neither keeps nor runs a Trip that TMB's ETA has it out of the first Station of
  * already, while that Trip is due to leave there more than EARLY after the report: unmatched, it
- * isn't drawn, and the Trip waits there Scheduled (#146). A report that names a Line, as FGC's for
+ * isn't drawn, and the Trip waits there Scheduled (#146), as one it ran does (`refused`, #152). A report that names a Line, as FGC's for
  * its rack Trains do, runs that Line's Trip whose trip_id ends as its own does, after the `|`. A
  * report naming a Trip that runs on more than one of the days joined is about the one whose
  * timetable runs nearest when it was reported. A report that matches no Trip is dropped.
@@ -693,6 +702,7 @@ function reportsByTrip(bundle: Bundle, snapshot: Snapshot, before?: Snapshot): M
   const prior = before && matched.get(before);
   const ran = prior?.bundle === bundle ? prior.ran : new Map<string, string>();
   const [reports, offs, headed, named, kept] = [new Map<string, Report>(), new Map<string, number>(), new Map<string, Trip[]>(), new Map<string, Trip[]>(), new Set<string>()];
+  const refused = new Set<string>();
   for (const trip of bundle.trips) {
     add(headed, `${trip.line} ${trip.headsign}`, trip);
     // As its operator names it, without the service day joinDays leads an earlier day's ID with.
@@ -711,7 +721,9 @@ function reportsByTrip(bundle: Bundle, snapshot: Snapshot, before?: Snapshot): M
     // Not after a gap in TMB's data, or in what the map received, as while its tab was hidden: by
     // then the Block may have run its Trip to the end and come back along it.
     const follows = id !== undefined && report.at - (prior?.reports.get(id)?.at ?? -Infinity) < FOLLOWS;
-    const keeps = follows ? trips.find((t) => t.id === id && t.calls.some((c) => c.station === position.next.station) && canRun(t, position.next, report.at, bundle.noonMinus12h)) : undefined;
+    const running = follows ? trips.find((t) => t.id === id && t.calls.some((c) => c.station === position.next.station)) : undefined;
+    const keeps = running && canRun(running, position.next, report.at, bundle.noonMinus12h) ? running : undefined;
+    if (running && !keeps) refused.add(running.id);
     if (!keeps) rest.push([report, trips, position.next]);
     else {
       reports.set(keeps.id, report);
@@ -730,7 +742,7 @@ function reportsByTrip(bundle: Bundle, snapshot: Snapshot, before?: Snapshot): M
       offs.set(found, off);
     }
   }
-  const decided = { bundle, reports, ran: new Map([...reports].flatMap(([id, { block }]) => (block ? [[blockOf(block), id] as const] : []))) };
+  const decided = { bundle, reports, ran: new Map([...reports].flatMap(([id, { block }]) => (block ? [[blockOf(block), id] as const] : []))), refused };
   matched.set(snapshot, decided);
   return decided;
 }
