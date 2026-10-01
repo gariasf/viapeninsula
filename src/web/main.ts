@@ -6,7 +6,7 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { along, APART, atZoom, BANDS, bandZooms, STRETCH, smoothId, beside, inBand, pieces, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Place, type DayTrips, type Line, type Manifest, type Network, type Point, type Shape, type Snapshot, type Stroke, type Track, WIDTH } from '../bundle.ts';
 import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Received } from '../engine.ts';
 import { language, LANGUAGES, setLanguage, t, trainCount, type Language } from './i18n.ts';
-import { alongside, namedTwice, nameOffset, nearestSide, type Side, type Spot } from './names.ts';
+import { alongside, namedTwice, nameOffset, nearestSide, underName, type Side, type Spot } from './names.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
 setWorkerUrl(workerUrl);
@@ -785,7 +785,10 @@ function trains(): GeoJSON.FeatureCollection {
 
 /**
  * Puts each place's name beside its own Network's track (alongside()) as the track lies on screen now, at each of
- * NAME_ZOOMS on the side nearestSide() takes, as far out from its dot as clearance() says.
+ * NAME_ZOOMS on the side nearestSide() takes, as far out from its dot as clearance() says, and off any track
+ * crossing its own there (underName()).
+ * ponytail: tries a name under a crossing track at the zoom and the next, not in between, and as far
+ * out at the next as at this one. Try more steps if a name lies across one mid-zoom.
  * ponytail: laid out flat, so on a tilted map a name sits a little nearer its track or further than
  * NAME_GAP. Work each normal out on screen with map.project() if that shows.
  */
@@ -796,7 +799,12 @@ function showNames() {
     features: names.map(({ dot, sides, name, size, nameZoom, larger, style }): GeoJSON.Feature => {
       const at = sides(namesBearing);
       const properties = NAME_ZOOMS.flatMap((zoom) => {
-        const { spot, far } = nearestSide(at, (s) => clearance(s, larger, zoom));
+        // MapLibre lays names out at whole zooms, so a track crossing its own lies under one from this zoom to the next, at half the metres a px.
+        const metresPerPx = pixelMetres(zoom) * Math.cos((dot[1] * Math.PI) / 180);
+        const apart = Math.max(atZoom(APART, zoom), atZoom(APART, zoom + 1));
+        // Below the zoom it shows from, no name lies anywhere.
+        const under = (s: Spot, far: number) => (zoom < nameZoom ? 0 : underName(s, far, size, metresPerPx, apart, NAME_GAP) + underName(s, far, size, metresPerPx / 2, apart, NAME_GAP));
+        const { spot, far } = nearestSide(at, (s) => clearance(s, larger, zoom), under);
         // MapLibre offsets names in ems.
         return [
           [`anchor${zoom}`, spot.anchor],
