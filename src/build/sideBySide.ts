@@ -297,9 +297,11 @@ function curves(joins: Join[], byId: Map<string, Shape>, lines: Line[], kx: numb
   const made = joins.map((j) => {
     const [a, b] = [j.out ? j.from.to : j.from.from, j.into ? j.to.to : j.to.from];
     const sides = [j.from.side * (j.out ? 1 : -1), j.to.side * (j.into ? -1 : 1)] as const;
+    // Or, where the Line moves over less than its side changes, as its Stretches' centrelines are apart,
+    // as far as its side moves it, so that its offset eases over as long a curve and doesn't kink (#178).
     const apart = widths.map((width, band) => {
       const [p, q] = [flat(beside(shapeOf(j.from, band), a, j.from.side * width)), flat(beside(shapeOf(j.to, band), b, j.to.side * width))];
-      return Math.hypot(q[0] - p[0], q[1] - p[1]);
+      return Math.max(Math.hypot(q[0] - p[0], q[1] - p[1]), Math.abs(sides[1] - sides[0]) * width);
     });
     const own = (s: Stroke) => byId.get(s.shape) ?? { coords: [], dist: [] };
     const gap = Math.hypot(...[0, 1].map((k) => (flat(pointAt(own(j.to), b))[k] ?? 0) - (flat(pointAt(own(j.from), a))[k] ?? 0)));

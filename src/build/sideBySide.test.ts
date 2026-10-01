@@ -411,6 +411,21 @@ test('curves a Line from its side on one Stretch to its side on the next, in eac
   expect(lengths.every((l, i) => l > (lengths[i + 1] ?? 0))).toBe(true);
 });
 
+test("makes a curve long enough for its side to change, however little the Line moves over, so that it doesn't kink (#178)", async () => {
+  // As at Torrassa: C and D come in from the south-west onto track 30 m off A and B's, and the four
+  // go on side by side. C changes side where it comes onto the stretch, but hardly moves over.
+  const join = (id: string) => shape(id, [0, -2500], [2500, -30], [5000, -30]);
+  const shapes = [shape('A', [0, 0], [5000, 0]), shape('B', [0, 0], [5000, 0]), join('C'), join('D')];
+  const { strokes } = await sideBySide(['A', 'B', 'C', 'D'].map((n) => line(n, n)), shapes);
+  const curves = strokes.filter((s) => s.line === 'C' && s.shape.startsWith(LINK));
+  expect(curves).toHaveLength(BANDS.length);
+  for (const c of curves) {
+    const zoom = BANDS[c.band ?? -1] ?? NaN;
+    // Four times as long as its side moves it, give or take its ends' cutting across.
+    expect(c.to - c.from).toBeGreaterThan(0.8 * 4 * Math.abs((c.ease ?? c.side) - c.side) * atZoom(APART, zoom) * pixelMetres(zoom, LAT));
+  }
+});
+
 test('ends Lines that end together at one point across their Stretch', async () => {
   // A and B share track to a terminus; B's track stops 100 m short of A's.
   const { strokes } = await draw([line('A', 'A'), line('B', 'B')], [shape('A', [0, 0], [5000, 0]), shape('B', [0, 0], [4900, 0])]);
