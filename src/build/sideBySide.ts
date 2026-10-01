@@ -74,8 +74,9 @@ interface Neighbour {
  * centreline: its Lines go side by side along it, a line width apart, in one order all along, and
  * each is drawn once, whichever way and whichever of its tracks it runs (ADR-0006). The centrelines
  * are shapes of their own. `rails` draws each Line on its own track instead, its shapes' track once,
- * for zoomed right in. And the sides of every one of each Line's shapes, all along it, where its
- * stroke on its own track would be drawn, for the map to put the Line's Trains on it.
+ * for zoomed right in, marking where another Line runs on that track too (#139). And the sides of
+ * every one of each Line's shapes, all along it, where its stroke on its own track would be drawn,
+ * for the map to put the Line's Trains on it.
  */
 export async function sideBySide(lines: Line[], shapes: Shape[]): Promise<{ strokes: Stroke[]; centrelines: Shape[]; rails: Stroke[]; sides: Stroke[] }> {
   const { pieces, runs, every, kx } = walk(lines, shapes);
@@ -87,9 +88,9 @@ export async function sideBySide(lines: Line[], shapes: Shape[]): Promise<{ stro
   const left = sides(lines.length, pieces, nearby, turned);
   const place = rank(left);
   const sideOf = (s: Step) => side(s, beside[s.piece] ?? new Map(), turned, left, place);
-  const draw = (run: Step[], by = sideOf) => {
+  const draw = (run: Step[], by = sideOf, shares = false) => {
     const line = lines[run[0]?.line ?? -1]?.id ?? '';
-    return strokes(run, by, pieces).map((s) => ({ line, ...s }));
+    return strokes(run, by, pieces, shares).map((s) => ({ line, ...s }));
   };
   const kept = lasting(every, pieces, tracks);
   const keptBeside = kept.map(byLine);
@@ -150,7 +151,7 @@ export async function sideBySide(lines: Line[], shapes: Shape[]): Promise<{ stro
   for (const c of smooth) byId.set(c.id, c);
   const linked = curves(joins, byId, lines, kx);
   // Not flatMap(draw): that would pass each run's index as its sides.
-  return { strokes: [...drawn, ...linked.strokes], centrelines: [...centrelines, ...smooth, ...linked.shapes], rails: runs.flatMap((run) => draw(run)), sides: every.flatMap((run) => draw(run)) };
+  return { strokes: [...drawn, ...linked.strokes], centrelines: [...centrelines, ...smooth, ...linked.shapes], rails: runs.flatMap((run) => draw(run, sideOf, /* shares */ true)), sides: every.flatMap((run) => draw(run)) };
 }
 
 /** A shape's time on a Stretch it goes along: how far along the Stretch's centreline it comes in and goes out, and how far it goes. */
@@ -866,17 +867,20 @@ interface Span<Key = number> {
   steps: Step[];
 }
 
-/** A run's strokes: its steps at each side, the SHORT ones merged into their neighbours. */
-function strokes(run: Step[], sideOf: (s: Step) => number, pieces: Piece[]): Omit<Stroke, 'line'>[] {
-  const spans: Span[] = [];
+/**
+ * A run's strokes: its steps at each side, and where `shares`, on track another Line runs on too or
+ * not (#139), the SHORT ones merged into their neighbours.
+ */
+function strokes(run: Step[], sideOf: (s: Step) => number, pieces: Piece[], shares = false): Omit<Stroke, 'line'>[] {
+  const spans: Span<string>[] = [];
   for (const s of run) {
-    const [side, last] = [sideOf(s), spans.at(-1)];
-    if (last?.key === side) last.steps.push(s);
-    else spans.push({ key: side, steps: [s] });
+    const [key, last] = [`${sideOf(s)} ${shares && (pieces[s.piece]?.on.size ?? 0) > 1}`, spans.at(-1)];
+    if (last?.key === key) last.steps.push(s);
+    else spans.push({ key, steps: [s] });
   }
-  return merge(spans, pieces).flatMap(({ key: side, steps: [first, ...rest] }) => {
-    const last = rest.at(-1) ?? first;
-    return first && last ? [{ shape: first.shape, from: Math.round(first.from), to: Math.round(last.to), side }] : [];
+  return merge(spans, pieces).flatMap(({ key, steps: [first, ...rest] }) => {
+    const [last, [side, shared]] = [rest.at(-1) ?? first, key.split(' ')];
+    return first && last ? [{ shape: first.shape, from: Math.round(first.from), to: Math.round(last.to), side: Number(side), ...(shared === 'true' && { shared: true as const }) }] : [];
   });
 }
 

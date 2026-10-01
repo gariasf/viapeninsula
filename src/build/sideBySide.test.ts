@@ -181,6 +181,20 @@ test('zoomed right in, draws each Line on its own track, once', async () => {
   expect([...at('R4'), ...at('R7')].sort()).toEqual([[0, 0], [0, 0], [20, 20]]);
 });
 
+test('zoomed right in, marks where Lines share a track, and not where a Line has its track to itself (#139)', async () => {
+  // R2 and R11 share track east for 3 km; there R11 turns off on its own, and R2 goes on alone. R4 runs beside them on its own track, 20 m north.
+  const { rails } = await sideBySide(
+    [line('R2', 'R2'), line('R11', 'R11'), line('R4', 'R4')],
+    [shape('R2', [0, 0], [3000, 0], [6000, 0]), shape('R11', [0, 0], [3000, 0], [4000, -2000]), shape('R4', [0, 20], [6000, 20])],
+  );
+  const shared = (name: string) => rails.filter((s) => s.line === name).map(({ shared }) => !!shared);
+  expect([shared('R2'), shared('R11')]).toEqual([[true, false], [true, false]]);
+  expect(shared('R4').every((s) => !s)).toBe(true);
+  // Where they part, to within a piece of track.
+  const parted = ['R2', 'R11'].map((name) => rails.find((s) => s.line === name && s.shared)?.to ?? NaN);
+  for (const at of parted) expect(Math.abs(at - 3000)).toBeLessThanOrEqual(50);
+});
+
 test('keeps Lines on their sides along a long straight, whichever way each runs it', async () => {
   // As in the Aragó tunnel, one straight 1.25 km segment: R2 runs it east, R11 west, and R14, which
   // turns off partway along it, east.

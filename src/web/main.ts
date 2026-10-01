@@ -95,6 +95,8 @@ const NAME_GAP = NAME_HALO + 0.5;
  * OpenFreeMap changed it. Take it from the style's background layer if that ever shows.
  */
 const PAPER = '#f2f3f0';
+/** The colour of a track Lines share, zoomed right in, where their strokes lie one over another: their names along it and their Trains tell them apart (#139). */
+const SHARED = '#9a9b9e';
 
 /**
  * The places drawn larger than the rest and named from further out, by their IDs in places(), as the
@@ -455,7 +457,7 @@ for (const { source, id, prefix, zooms } of layered) {
       ...zooms,
       layout: lineLayout,
       paint: {
-        'line-color': ['get', 'colour'],
+        'line-color': ['case', ['to-boolean', ['get', 'shared']], SHARED, ['get', 'colour']],
         'line-width': byZoom(WIDTH, (px) => px),
         'line-offset': lineOffset,
       },
@@ -695,7 +697,7 @@ function show(days: Track | Bundle) {
     features: strokes.flatMap((s) => {
       const cut = s.cut ?? (BANDS.some((_, band) => shapes.has(smoothId(s.shape, band))) ? BANDS.map((): [number, number] => [0, 0]) : undefined);
       return cut ? cut.map(([start, end], band) => ({ ...s, from: s.from + start, to: s.to - end, band })) : pieces(s);
-    }).flatMap(({ line: id, shape: shapeId, from, to, side, band }): GeoJSON.Feature[] => {
+    }).flatMap(({ line: id, shape: shapeId, from, to, side, band, shared }): GeoJSON.Feature[] => {
       const [line, shape] = [lines.get(id), band === undefined ? shapes.get(shapeId) : inBand(shapes, shapeId, band)];
       if (!line || !shape) return [];
       const properties = {
@@ -705,6 +707,7 @@ function show(days: Track | Bundle) {
         above: /^R\d[NS]?$/.test(line.name) ? 1 : 0,
         side,
         ...(band !== undefined && { band }),
+        ...(shared && { shared }),
         // Each Line's name goes on its own stroke: text-offset is in ems.
         ...Object.fromEntries(APART.map(([zoom, px]) => [`textOffset${zoom}`, [0, (side * px) / NAME_SIZE]])),
       };
