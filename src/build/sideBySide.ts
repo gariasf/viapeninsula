@@ -1,6 +1,6 @@
 // How the map draws each Line: where Lines share track, side by side, as a transit map does.
 
-import { APART, atZoom, BANDS, beside, DEGREE, inBand, LINK, pixelMetres, pointAt, smoothId, STRETCH, type Line, type Point, type Shape, type Stroke } from '../bundle.ts';
+import { APART, atZoom, BANDS, beside, DEGREE, inBand, LINK, pixelMetres, pointAt, smoothId, STRETCH, type Line, type Point, type Shape, type Slot, type Stroke } from '../bundle.ts';
 import { order, type Node } from './order.ts';
 import { folded, simplify, TOLERANCE } from './offset.ts';
 import { distances, nearest } from './track.ts';
@@ -33,6 +33,8 @@ const MOVE = 1;
 const ROUNDS = 30;
 /** Past this many Lines side by side, the gap between them narrows, so that a stretch gets no wider (#165). */
 const CROWD = 6;
+/** How far, in metres along its stroke, a Train may be put from where its own track would put it, so that a Line's slots come in fewer pieces. */
+const ALONG = 25;
 
 /** A piece of track: where its middle is and which way it points, in local metres, and the Lines on it. */
 interface Piece {
@@ -74,11 +76,11 @@ interface Neighbour {
  * centreline: its Lines go side by side along it, a line width apart, in one order all along, and
  * each is drawn once, whichever way and whichever of its tracks it runs (ADR-0006). The centrelines
  * are shapes of their own. `rails` draws each Line on its own track instead, its shapes' track once,
- * for zoomed right in, marking where another Line runs on that track too (#139). And the sides of
- * every one of each Line's shapes, all along it, where its stroke on its own track would be drawn,
- * for the map to put the Line's Trains on it.
+ * for zoomed right in, marking where another Line runs on that track too (#139). And the slots of
+ * every one of each Line's shapes, all along it, where the map puts the Line's Trains zoomed out: on
+ * its stroke, along the centreline of the Stretch each piece of it is drawn on (#176).
  */
-export async function sideBySide(lines: Line[], shapes: Shape[]): Promise<{ strokes: Stroke[]; centrelines: Shape[]; rails: Stroke[]; sides: Stroke[] }> {
+export async function sideBySide(lines: Line[], shapes: Shape[]): Promise<{ strokes: Stroke[]; centrelines: Shape[]; rails: Stroke[]; slots: Slot[] }> {
   const { pieces, runs, every, kx } = walk(lines, shapes);
   const cells = grid(pieces);
   const nearby = pieces.map((_, i) => neighbours(i, pieces, cells));
@@ -88,7 +90,7 @@ export async function sideBySide(lines: Line[], shapes: Shape[]): Promise<{ stro
   const left = sides(lines.length, pieces, nearby, turned);
   const place = rank(left);
   const sideOf = (s: Step) => side(s, beside[s.piece] ?? new Map(), turned, left, place);
-  const draw = (run: Step[], by = sideOf, shares = false) => {
+  const draw = (run: Step[], by: (s: Step) => number, shares = false) => {
     const line = lines[run[0]?.line ?? -1]?.id ?? '';
     return strokes(run, by, pieces, shares).map((s) => ({ line, ...s }));
   };
@@ -150,8 +152,64 @@ export async function sideBySide(lines: Line[], shapes: Shape[]): Promise<{ stro
   const smooth = smoothed(centrelines, drawn, kx);
   for (const c of smooth) byId.set(c.id, c);
   const linked = curves(joins, byId, lines, kx);
+  // Each step of each shape on its Line's stroke along the Stretch its piece is drawn on, or where the
+  // Line has none there, beside its own track, at the side its own stroke would be drawn.
+  const wayOn = new Map(found.flatMap(({ steps }) => steps.map((s): [number, number] => [s.piece, s.way])));
+  const slots = every.flatMap((shape) => {
+    const line = lines[shape[0]?.line ?? -1]?.id ?? '';
+    return slotted(shape.map((s) => {
+      const drawnOn = drawer[s.piece] ?? s.piece;
+      const [edge, middle] = edgeOf.get(drawnOn) ?? [];
+      const [side, on] = [sideOn.get(`${edge} ${s.line}`), found[edge ?? -1]?.steps[0]?.shape];
+      if (middle === undefined || side === undefined || !on) return { on: s.shape, side: sideOf(s), from: s.from, to: s.to, at: [s.from, s.to] };
+      // Which way the centreline runs, against the shape.
+      const [p, q] = [pieces[s.piece], pieces[drawnOn]];
+      const way = Math.sign(s.way * (wayOn.get(drawnOn) ?? 1) * ((p?.ux ?? 0) * (q?.ux ?? 0) + (p?.uy ?? 0) * (q?.uy ?? 0))) || 1;
+      const half = (way * (s.to - s.from)) / 2;
+      return { on, side, from: s.from, to: s.to, at: [middle - half, middle + half] };
+    })).map((slot) => ({ line, shape: shape[0]?.shape ?? '', ...slot }));
+  });
   // Not flatMap(draw): that would pass each run's index as its sides.
-  return { strokes: [...drawn, ...linked.strokes], centrelines: [...centrelines, ...smooth, ...linked.shapes], rails: runs.flatMap((run) => draw(run, sideOf, /* shares */ true)), sides: every.flatMap((run) => draw(run)) };
+  return { strokes: [...drawn, ...linked.strokes], centrelines: [...centrelines, ...smooth, ...linked.shapes], rails: runs.flatMap((run) => draw(run, sideOf, /* shares */ true)), slots };
+}
+
+/**
+ * A shape's slots, from where each of its steps goes, in order: one for each length of it that goes
+ * along one line at one side, in as few pieces as put no Train more than ALONG from where its step
+ * would.
+ */
+function slotted(steps: Omit<Slot, 'line' | 'shape'>[]): Omit<Slot, 'line' | 'shape'>[] {
+  const found: Omit<Slot, 'line' | 'shape'>[] = [];
+  let points: { d: number; at: number }[] = [];
+  let key = '';
+  const flush = (on: string, side: number) => {
+    // From each point, as far as the line to it passes within ALONG of every point between.
+    for (let i = 0; i < points.length - 1; ) {
+      const [a = { d: 0, at: 0 }] = [points[i]];
+      let j = i + 1;
+      const fits = (k: number) => {
+        const b = points[k] ?? a;
+        return points.slice(i + 1, k).every((p) => Math.abs(a.at + ((b.at - a.at) * (p.d - a.d)) / (b.d - a.d || 1) - p.at) <= ALONG);
+      };
+      while (j + 1 < points.length && fits(j + 1)) j++;
+      const b = points[j] ?? a;
+      found.push({ on, side, from: Math.round(a.d), to: Math.round(b.d), at: [Math.round(a.at), Math.round(b.at)] });
+      i = j;
+    }
+    points = [];
+  };
+  for (const [n, step] of steps.entries()) {
+    const here = `${step.on} ${step.side} ${Math.sign(step.at[1] - step.at[0])}`;
+    if (here !== key && points.length) flush(steps[n - 1]?.on ?? '', steps[n - 1]?.side ?? 0);
+    key = here;
+    // Where one step ends and the next starts, halfway between where each puts it.
+    const last = points.at(-1);
+    if (last && last.d === step.from) last.at = (last.at + step.at[0]) / 2;
+    else points.push({ d: step.from, at: step.at[0] });
+    points.push({ d: step.to, at: step.at[1] });
+  }
+  if (points.length) flush(steps.at(-1)?.on ?? '', steps.at(-1)?.side ?? 0);
+  return found;
 }
 
 /** A shape's time on a Stretch it goes along: how far along the Stretch's centreline it comes in and goes out, and how far it goes. */
@@ -282,7 +340,8 @@ function curves(joins: Join[], byId: Map<string, Shape>, lines: Line[], kx: numb
       const length = dist.at(-1) ?? 0;
       const id = `${LINK}${shapes.length}`;
       shapes.push({ id, coords, dist });
-      strokes.push({ line: lines[line]?.id ?? '', shape: id, from: 0, to: length, side: start, ...(stop !== start && { ease: stop }), band });
+      const across: Stroke['across'] = [[from.shape, Math.round(d0), Math.round(a)], [to.shape, Math.round(b), Math.round(d3)]];
+      strokes.push({ line: lines[line]?.id ?? '', shape: id, from: 0, to: length, side: start, ...(stop !== start && { ease: stop }), band, across });
     }
   }
   return { shapes, strokes };

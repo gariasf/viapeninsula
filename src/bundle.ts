@@ -77,7 +77,7 @@ export interface ManifestDay {
  * What the map draws before any Train, which it loads first: the Networks, Lines, Stations and track,
  * one file that every day a build publishes shares.
  */
-export type Track = Pick<Bundle, 'networks' | 'lines' | 'stations' | 'shapes' | 'strokes' | 'rails' | 'sides'>;
+export type Track = Pick<Bundle, 'networks' | 'lines' | 'stations' | 'shapes' | 'strokes' | 'rails' | 'slots'>;
 
 /** A service day's Trips, which the map loads after its track. */
 export type DayTrips = Pick<Bundle, 'serviceDay' | 'noonMinus12h' | 'trips'>;
@@ -99,11 +99,8 @@ export interface Bundle {
   strokes: Stroke[];
   /** How the map draws the Lines zoomed right in, where they're back on the rails: each Line's own track once, marked where Lines share it, which the map draws grey (#139). */
   rails: Stroke[];
-  /**
-   * Where the map puts each Line's Trains zoomed out: every one of its shapes, all along it, at the
-   * side of its track the Line's stroke there would be drawn on its own track.
-   */
-  sides: Stroke[];
+  /** Where the map puts each Line's Trains zoomed out: every one of its shapes, all along it, on the Line's stroke (#176). */
+  slots: Slot[];
   trips: Trip[];
 }
 
@@ -152,6 +149,26 @@ export interface Stroke {
   cut?: [start: number, end: number][];
   /** Zoomed right in, on its own track (`rails`): where another Line runs on that track too (#139). */
   shared?: true;
+  /**
+   * A curve's: the centreline it leaves and the one it comes onto, and from how far along each to how
+   * far, the way it goes, the Line's strokes there are cut back to make room for it (#176).
+   */
+  across?: [from: [shape: string, start: number, end: number], to: [shape: string, start: number, end: number]];
+}
+
+/**
+ * Where a Line's Trains go zoomed out along part of one of its shapes, from `from` to `to` metres along
+ * it: on its stroke there, `side` line widths right of `on`, the centreline of the Stretch it's drawn
+ * along, or its own shape where it's drawn on that, from `at[0]` to `at[1]` metres along it (#176).
+ */
+export interface Slot {
+  line: string;
+  shape: string;
+  from: number;
+  to: number;
+  side: number;
+  on: string;
+  at: [from: number, to: number];
 }
 
 /** Identified by whoever runs it: `adif:<code>` for Renfe's Stations. */
@@ -304,6 +321,69 @@ export function inBand(shapes: Map<string, Shape>, id: string, band: number): Sh
 /** The zoom band a zoom is in. */
 export function bandAt(zoom: number): number {
   return BANDS.findIndex((_, band) => zoom < bandZooms(band)[1]);
+}
+
+/**
+ * Where a Line is drawn on a curve across a node in a zoom band instead of along a centreline (`on`),
+ * from `at[0]` to `at[1]` metres along it: on the curve's stroke (`link`), from `along[0]` to
+ * `along[1]` metres along it, on its way to or from the centreline `other` (#176).
+ */
+export interface Zone {
+  on: string;
+  at: [from: number, to: number];
+  link: Stroke;
+  along: [from: number, to: number];
+  other: string;
+}
+
+/** Where each Line is drawn on its curves, by `<line> <band>`: the stretch of centreline each curve takes over at either end, and the part of the curve that stands for it, in proportion. */
+export function zones(strokes: Stroke[]): Map<string, Zone[]> {
+  const found = new Map<string, Zone[]>();
+  for (const link of strokes) {
+    if (!link.across || link.band === undefined) continue;
+    const [[from, d0, a], [to, b, d3]] = link.across;
+    const middle = (link.to * Math.abs(a - d0)) / (Math.abs(a - d0) + Math.abs(d3 - b) || 1);
+    const key = `${link.line} ${link.band}`;
+    found.set(key, [...(found.get(key) ?? []), { on: from, at: [d0, a], link, along: [0, middle], other: to }, { on: to, at: [b, d3], link, along: [middle, link.to], other: from }]);
+  }
+  return found;
+}
+
+/** How near, in metres along its shape, a Train's Line goes onto a centreline for it to be on its way there, across a node. */
+const NEXT = 500;
+
+/**
+ * Where a Train `dist` metres along its shape is drawn at a zoom, from its Line's slots along that
+ * shape: on the Line's stroke, along the centreline the stroke follows in the zoom's band, at its
+ * side, or across a node, on its curve (`zones()`), and half a line width to the side its Network's
+ * Trains keep to, 1 right and -1 left, so that Trains going opposite ways show apart (#176). Or
+ * nowhere, where the Line has no slot there.
+ */
+export function onStroke(slots: Slot[] | undefined, shapes: Map<string, Shape>, dist: number, zoom: number, keep: number, curves = new Map<string, Zone[]>()): Point | undefined {
+  const slot = slots?.find((s) => s.from <= dist && dist <= s.to);
+  const band = bandAt(zoom);
+  const line = slot && inBand(shapes, slot.on, band);
+  if (!slot || !line) return undefined;
+  const { at, way } = slotAt(slot, dist);
+  const width = atZoom(APART, zoom) * pixelMetres(zoom, pointAt(line, at)[1]);
+  // On a curve, where the Line is: of those at a fork, the one to or from where the Train goes next or came from.
+  const here = (curves.get(`${slot.line} ${band}`) ?? []).filter((z) => z.on === slot.on && Math.min(...z.at) <= at && at <= Math.max(...z.at) && z.at[0] !== z.at[1]);
+  const zone = here.find((z) => slots?.some((s) => s.on === z.other && s.from - NEXT <= dist && dist <= s.to + NEXT)) ?? here[0];
+  const curve = zone && shapes.get(zone.link.shape);
+  if (zone && curve) {
+    const [[a0, a1], [x0, x1]] = [zone.at, zone.along];
+    const x = x0 + ((x1 - x0) * (at - a0)) / (a1 - a0);
+    const side = pieces(zone.link).find((p) => p.from <= x && x <= p.to)?.side ?? zone.link.side;
+    // The Train goes along the curve the way it goes along the centreline, or back.
+    return beside(curve, x, (side + 0.5 * keep * way * Math.sign((x1 - x0) * (a1 - a0) || 1)) * width);
+  }
+  // The Train runs its shape forwards: its right is the centreline's where that runs the same way.
+  return beside(line, at, (slot.side + 0.5 * keep * way) * width);
+}
+
+/** How far along its line a slot puts a distance along its shape, and which way that line runs against the shape, 1 the same way and -1 back. */
+export function slotAt({ from, to, at: [start, stop] }: Slot, dist: number): { at: number; way: number } {
+  return { at: start + ((stop - start) * (dist - from)) / (to - from || 1), way: stop < start ? -1 : 1 };
 }
 
 /** How many line widths a curve moves over from one of its pieces to the next, at most. */

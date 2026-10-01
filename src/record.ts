@@ -74,7 +74,7 @@ const cut: Bundle = {
   shapes: bundle.shapes.filter((s) => shapes.has(s.id)),
   strokes: [],
   rails: [],
-  sides: [],
+  slots: [],
   trips,
 };
 await writeFile(join(dir, 'replay.json.gz'), gzipSync(JSON.stringify({ bundle: cut, received })));

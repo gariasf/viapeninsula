@@ -15,7 +15,7 @@ const day = (serviceDay: string, ...trips: [from: number, to: number][]): Bundle
   shapes: [],
   strokes: [],
   rails: [],
-  sides: [],
+  slots: [],
   trips: trips.map(([from, to], i) => ({
     id: `${i}`,
     line: 'rodalies:R1',
