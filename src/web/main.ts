@@ -212,10 +212,14 @@ const BOLD = new Set([
 ]);
 /**
  * The whole zooms a place's name is laid out at, as MapLibre offsets names by whole zoom levels: from
- * the first a tier's names show at to the last the Lines move beside their track at (APART).
+ * the first a tier's names show at to NAME_ZOOM_MAX. Its offset is in px, so laid out at one zoom only,
+ * a name moved half as far from its dot at the next, onto a track that crosses its own (#154).
+ * ponytail: past NAME_ZOOM_MAX, where a px is under half a metre, a name keeps its layout there. Lay
+ * names out further in if one lies across a track zoomed in that far.
  */
+const NAME_ZOOM_MAX = 18;
 const NAME_ZOOMS: number[] = [];
-for (let zoom = Math.min(...TIERS.map((tier) => tier.nameZoom)); zoom <= (APART.at(-1)?.[0] ?? 0); zoom++) NAME_ZOOMS.push(zoom);
+for (let zoom = Math.min(...TIERS.map((tier) => tier.nameZoom)); zoom <= NAME_ZOOM_MAX; zoom++) NAME_ZOOMS.push(zoom);
 
 /** How many metres wide a pixel is at a zoom, at the equator: MapLibre's tiles are 512 px. */
 const pixelMetres = (zoom: number) => (2 * Math.PI * EARTH) / (512 * 2 ** zoom);
@@ -804,9 +808,11 @@ function showNames() {
       const properties = NAME_ZOOMS.flatMap((zoom) => {
         // MapLibre lays names out at whole zooms, so a track crossing its own lies under one from this zoom to the next, at half the metres a px.
         const metresPerPx = pixelMetres(zoom) * Math.cos((dot[1] * Math.PI) / 180);
-        const apart = Math.max(atZoom(APART, zoom), atZoom(APART, zoom + 1));
-        // Below the zoom it shows from, no name lies anywhere.
-        const under = (s: Spot, far: number) => (zoom < nameZoom ? 0 : underName(s, far, size, metresPerPx, apart, NAME_GAP) + underName(s, far, size, metresPerPx / 2, apart, NAME_GAP));
+        // The Lines whose strokes lie under a name, or within `gap` px of it, at this zoom's Lines' spacing and width and the next's.
+        const underAt = (s: Spot, far: number, gap: number) =>
+          [0, 1].reduce((sum, step) => sum + underName(s, far, size, metresPerPx / 2 ** step, atZoom(APART, zoom + step), gap + atZoom(WIDTH, zoom + step) / 2), 0);
+        // Below the zoom it shows from, no name lies anywhere; from it, fewest under it first, then fewest within NAME_GAP.
+        const under = (s: Spot, far: number) => (zoom < nameZoom ? 0 : 1000 * underAt(s, far, 0) + underAt(s, far, NAME_GAP));
         const { spot, far } = nearestSide(at, (s) => clearance(s, larger, zoom), under);
         // MapLibre offsets names in ems.
         return [
