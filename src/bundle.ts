@@ -150,6 +150,8 @@ export interface Stroke {
   ease?: number;
   /** In each zoom band, how many metres less of its shape it's drawn along at its start and at its end, where a curve takes over (#163). */
   cut?: [start: number, end: number][];
+  /** Zoomed right in, on its own track (`rails`): where another Line runs on that track too (#139). */
+  shared?: true;
 }
 
 /** Identified by whoever runs it: `adif:<code>` for Renfe's Stations. */
