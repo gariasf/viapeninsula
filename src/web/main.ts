@@ -210,10 +210,14 @@ const BOLD = new Set([
 ]);
 /**
  * The whole zooms a place's name is laid out at, as MapLibre offsets names by whole zoom levels: from
- * the first a tier's names show at to the last the Lines move beside their track at (APART).
+ * the first a tier's names show at to NAME_ZOOM_MAX. Its offset is in px, so laid out at one zoom only,
+ * a name moved half as far from its dot at the next, onto a track that crosses its own (#154).
+ * ponytail: past NAME_ZOOM_MAX, where a px is under half a metre, a name keeps its layout there. Lay
+ * names out further in if one lies across a track zoomed in that far.
  */
+const NAME_ZOOM_MAX = 18;
 const NAME_ZOOMS: number[] = [];
-for (let zoom = Math.min(...TIERS.map((tier) => tier.nameZoom)); zoom <= (APART.at(-1)?.[0] ?? 0); zoom++) NAME_ZOOMS.push(zoom);
+for (let zoom = Math.min(...TIERS.map((tier) => tier.nameZoom)); zoom <= NAME_ZOOM_MAX; zoom++) NAME_ZOOMS.push(zoom);
 
 /** How many metres wide a pixel is at a zoom, at the equator: MapLibre's tiles are 512 px. */
 const pixelMetres = (zoom: number) => (2 * Math.PI * EARTH) / (512 * 2 ** zoom);
