@@ -3,7 +3,7 @@ import './style.css';
 import type { ExpressionFilterSpecification, ExpressionSpecification, LineLayerSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { AttributionControl, MapLibreMap, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { along, APART, atZoom, BANDS, bandZooms, STRETCH, smoothId, inBand, onStroke, pieces, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Place, type DayTrips, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, WIDTH } from '../bundle.ts';
+import { along, APART, atZoom, BANDS, bandZooms, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Place, type DayTrips, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, WIDTH } from '../bundle.ts';
 import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Received } from '../engine.ts';
 import { language, LANGUAGES, setLanguage, t, trainCount, type Language } from './i18n.ts';
 import { alongside, namedTwice, nameOffset, nearestSide, underName, type Side, type Spot } from './names.ts';
@@ -400,8 +400,8 @@ let lines = new Map<string, Line>();
 let stationNames = new Map<string, string>();
 /** Where the map shows the Stations, by their IDs in places(). */
 let shownPlaces = new Map<string, Place>();
-/** What places each Line's Trains on its stroke zoomed out: the shapes, its slots by `<line> <shape>`, and which side its Trains keep to, 1 right and -1 left. */
-let placing = { shapes: new Map<string, Shape>(), slots: new Map<string, Slot[]>(), keep: new Map<string, number>() };
+/** What places each Line's Trains on its stroke zoomed out: the shapes, its slots by `<line> <shape>`, its curves (zones()), and which side its Trains keep to, 1 right and -1 left. */
+let placing = { shapes: new Map<string, Shape>(), slots: new Map<string, Slot[]>(), curves: new Map<string, Zone[]>(), keep: new Map<string, number>() };
 /** How each Line's Trains are drawn as pills, by the Line's ID. */
 let pills = new Map<string, Pill>();
 /**
@@ -693,7 +693,7 @@ function show(days: Track | Bundle) {
   // A track built before #176 has none: its Trains go on their own track.
   for (const s of days.slots ?? []) slots.set(`${s.line} ${s.shape}`, [...(slots.get(`${s.line} ${s.shape}`) ?? []), s]);
   const keep = new Map(days.networks.map((n) => [n.id, n.runningSide === 'left' ? -1 : 1]));
-  placing = { shapes, slots, keep: new Map(days.lines.map((l) => [l.id, keep.get(l.network) ?? 1])) };
+  placing = { shapes, slots, curves: zones(days.strokes), keep: new Map(days.lines.map((l) => [l.id, keep.get(l.network) ?? 1])) };
   pills = new Map(days.lines.map((l) => [l.id, pillOf(l)]));
   const drawn = (strokes: Stroke[]): GeoJSON.FeatureCollection => ({
     type: 'FeatureCollection',
@@ -759,7 +759,7 @@ function trains(): GeoJSON.FeatureCollection {
       // ponytail: takes the Network's running side, so L2's Trains between Tetuan and Paral·lel, which
       // keep left, sit half a line width to the wrong side zoomed out. Publish each shape's side of
       // its double track from the trace if that ever shows.
-      const placed = zoom < railsZoom ? onStroke(placing.slots.get(`${trip.line} ${trip.shape}`), placing.shapes, dist, zoom, placing.keep.get(trip.line) ?? 1) : undefined;
+      const placed = zoom < railsZoom ? onStroke(placing.slots.get(`${trip.line} ${trip.shape}`), placing.shapes, dist, zoom, placing.keep.get(trip.line) ?? 1, placing.curves) : undefined;
       const coordinates: Point = placed ?? [lon, lat];
       if (following && trip.id === followed) following.at = coordinates;
       const pill = pills.get(trip.line);

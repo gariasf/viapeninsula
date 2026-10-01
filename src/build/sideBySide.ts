@@ -340,7 +340,8 @@ function curves(joins: Join[], byId: Map<string, Shape>, lines: Line[], kx: numb
       const length = dist.at(-1) ?? 0;
       const id = `${LINK}${shapes.length}`;
       shapes.push({ id, coords, dist });
-      strokes.push({ line: lines[line]?.id ?? '', shape: id, from: 0, to: length, side: start, ...(stop !== start && { ease: stop }), band });
+      const across: Stroke['across'] = [[from.shape, Math.round(d0), Math.round(a)], [to.shape, Math.round(b), Math.round(d3)]];
+      strokes.push({ line: lines[line]?.id ?? '', shape: id, from: 0, to: length, side: start, ...(stop !== start && { ease: stop }), band, across });
     }
   }
   return { shapes, strokes };
