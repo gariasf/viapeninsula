@@ -801,9 +801,11 @@ function showNames() {
       const properties = NAME_ZOOMS.flatMap((zoom) => {
         // MapLibre lays names out at whole zooms, so a track crossing its own lies under one from this zoom to the next, at half the metres a px.
         const metresPerPx = pixelMetres(zoom) * Math.cos((dot[1] * Math.PI) / 180);
-        // Below the zoom it shows from, no name lies anywhere; from it, none within NAME_GAP of a stroke, at this zoom's Lines' spacing and width and the next's.
-        const underAt = (step: number) => (s: Spot, far: number) => underName(s, far, size, metresPerPx / 2 ** step, atZoom(APART, zoom + step), NAME_GAP + atZoom(WIDTH, zoom + step) / 2);
-        const under = (s: Spot, far: number) => (zoom < nameZoom ? 0 : underAt(0)(s, far) + underAt(1)(s, far));
+        // The Lines whose strokes lie under a name, or within `gap` px of it, at this zoom's Lines' spacing and width and the next's.
+        const underAt = (s: Spot, far: number, gap: number) =>
+          [0, 1].reduce((sum, step) => sum + underName(s, far, size, metresPerPx / 2 ** step, atZoom(APART, zoom + step), gap + atZoom(WIDTH, zoom + step) / 2), 0);
+        // Below the zoom it shows from, no name lies anywhere; from it, fewest under it first, then fewest within NAME_GAP.
+        const under = (s: Spot, far: number) => (zoom < nameZoom ? 0 : 1000 * underAt(s, far, 0) + underAt(s, far, NAME_GAP));
         const { spot, far } = nearestSide(at, (s) => clearance(s, larger, zoom), under);
         // MapLibre offsets names in ems.
         return [
