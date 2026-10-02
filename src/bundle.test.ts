@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { APART, atZoom, beside, daysNeeded, DEGREE, onStroke, pixelMetres, smoothId, type ManifestDay, type Shape, type Slot } from './bundle.ts';
+import { APART, atZoom, BANDS, beside, daysNeeded, DEGREE, onStroke, pixelMetres, smoothId, type ManifestDay, type Shape, type Slot } from './bundle.ts';
 
 test('finds the point a distance along a line, moved to its right, or its left where negative', () => {
   // 1 km east along the equator, where a degree is DEGREE metres both ways.
@@ -16,8 +16,8 @@ test("zoomed out, a Train goes on its Line's stroke: along the centreline it fol
   // Its own track runs 1 km east along the equator, 30 m south of a centreline running back west.
   const own: Shape = { id: 'own', coords: [[0, -30 / DEGREE], [1000 / DEGREE, -30 / DEGREE]], dist: [0, 1000] };
   const west: Shape = { id: 'stretch:0', coords: [[1000 / DEGREE, 0], [0, 0]], dist: [0, 1000] };
-  // Smoothed for band 2 (zoom 12), 5 m further north.
-  const smoothed: Shape = { id: smoothId('stretch:0', 2), coords: [[1000 / DEGREE, 5 / DEGREE], [0, 5 / DEGREE]], dist: [0, 1000] };
+  // Smoothed for zoom 12's band, 5 m further north.
+  const smoothed: Shape = { id: smoothId('stretch:0', BANDS.indexOf(12)), coords: [[1000 / DEGREE, 5 / DEGREE], [0, 5 / DEGREE]], dist: [0, 1000] };
   const shapes = new Map([own, west, smoothed].map((s) => [s.id, s]));
   const slots: Slot[] = [{ line: 'R1', shape: 'own', from: 0, to: 1000, side: 1, on: 'stretch:0', at: [1000, 0] }];
   const metres = (p: [number, number] | undefined) => p && [p[0] * DEGREE, p[1] * DEGREE].map((m) => Math.round(m * 10) / 10);
@@ -30,6 +30,11 @@ test("zoomed out, a Train goes on its Line's stroke: along the centreline it fol
   // Where its Line has no slot, nowhere.
   expect(onStroke(slots, shapes, 1200, 12, 1)).toBeUndefined();
   expect(onStroke(undefined, shapes, 400, 12, 1)).toBeUndefined();
+  // Below zoom 10, on its slot on the band's own graph, here along its own track, and no other's.
+  const own9: Slot = { line: 'R1', shape: 'own', from: 0, to: 1000, side: 0, on: 'own', at: [0, 1000], band: BANDS.indexOf(9) };
+  expect(metres(onStroke([...slots, own9], shapes, 400, 9, 1))).toEqual([400, Math.round((-30 - width(9) * 0.5) * 10) / 10]);
+  expect(onStroke(slots, shapes, 400, 9, 1)).toBeUndefined();
+  expect(metres(onStroke([own9, ...slots], shapes, 400, 11, 1))).toEqual(metres(onStroke(slots, shapes, 400, 11, 1)));
 });
 
 // Made up: Friday's first Train comes onto the map at 05:00 and its last leaves it at 00:40, Saturday's

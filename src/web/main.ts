@@ -3,7 +3,7 @@ import './style.css';
 import type { ExpressionFilterSpecification, ExpressionSpecification, LineLayerSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { AttributionControl, MapLibreMap, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { along, APART, atZoom, BANDS, bandZooms, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Place, type DayTrips, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, WIDTH } from '../bundle.ts';
+import { along, APART, atZoom, BANDS, bandZooms, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Place, type DayTrips, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, WIDTH } from '../bundle.ts';
 import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Received } from '../engine.ts';
 import { language, LANGUAGES, setLanguage, t, trainCount, type Language } from './i18n.ts';
 import { alongside, namedTwice, nameOffset, nearestSide, underName, type Side, type Spot } from './names.ts';
@@ -435,12 +435,13 @@ const lineOffset = byZoom(APART, (px) => ['*', ['get', 'side'], px]);
 // the lower, and where one above covers one, it shows through, dashed (#178). The Lines are drawn
 // along their stretches until they're back on the rails, and then each on its own track (ADR-0006).
 // Along their stretches, each zoom band has layers of its own, for its curves across the nodes and
-// its strokes cut back to make room for them (#163).
+// its strokes cut back to make room for them (#163), and below GRAPH_BAND, for its own line graph's
+// strokes (ADR-0007).
 const railsZoom = APART.at(-1)?.[0] ?? 15;
 const layered = [
   ...BANDS.map((_, band) => {
     const [minzoom, maxzoom] = bandZooms(band);
-    const filter: ExpressionFilterSpecification = ['any', ['!', ['has', 'band']], ['==', ['get', 'band'], band]];
+    const filter: ExpressionFilterSpecification = band < GRAPH_BAND ? ['==', ['get', 'band'], band] : ['any', ['!', ['has', 'band']], ['==', ['get', 'band'], band]];
     return { source: 'lines', id: band ? `lines-${band}` : 'lines', prefix: band ? `line-${band}` : 'line', zooms: { minzoom, maxzoom: Math.min(maxzoom, railsZoom), filter } };
   }),
   { source: 'rails', id: 'rails', prefix: 'rail', zooms: { minzoom: railsZoom, filter: true as ExpressionFilterSpecification } },
@@ -715,12 +716,16 @@ function show(days: Track | Bundle) {
   pills = new Map(days.lines.map((l) => [l.id, pillOf(l)]));
   const drawn = (strokes: Stroke[]): GeoJSON.FeatureCollection => ({
     type: 'FeatureCollection',
-    // A stroke cut back for curves, or along a centreline smoothed for a zoom band, once for each band,
-    // as it is there; a curve in its pieces.
+    // A stroke cut back for curves, or along a centreline smoothed for a zoom band, once for each band
+    // it's drawn in, as it is there; a curve in its pieces.
     features: strokes.flatMap((s) => {
-      const cut = s.cut ?? (BANDS.some((_, band) => shapes.has(smoothId(s.shape, band))) ? BANDS.map((): [number, number] => [0, 0]) : undefined);
+      const bands = s.band !== undefined ? [s.band] : BANDS.flatMap((_, band) => (band >= GRAPH_BAND ? [band] : []));
+      if (!s.cut && !bands.some((band) => shapes.has(smoothId(s.shape, band)))) return pieces(s);
       // Not in a band where a node absorbed its Stretch (ADR-0007).
-      return cut ? cut.flatMap(([start, end], band) => (start + end < s.to - s.from ? [{ ...s, from: s.from + start, to: s.to - end, band }] : [])) : pieces(s);
+      return bands.flatMap((band) => {
+        const [start, end] = cutIn(s, band);
+        return start + end < s.to - s.from ? [{ ...s, from: s.from + start, to: s.to - end, band }] : [];
+      });
     }).flatMap(({ line: id, shape: shapeId, from, to, side, band, shared, under, crowded }): GeoJSON.Feature[] => {
       const [line, shape] = [lines.get(id), band === undefined ? shapes.get(shapeId) : inBand(shapes, shapeId, band)];
       if (!line || !shape) return [];
@@ -756,7 +761,7 @@ function show(days: Track | Bundle) {
   });
   // Names go beside the track, not the stretches' centrelines, clear of the Trains on their Lines' strokes along those.
   const [track, centrelines] = [days.shapes.filter((s) => !s.id.startsWith(STRETCH)), days.shapes.filter((s) => s.id.startsWith(STRETCH))];
-  const spots = alongside(track, days.slots ?? [], (line) => placing.keep.get(line) ?? 1, days.lines, new Map(centrelines.map((c) => [c.id, c])));
+  const spots = alongside(track, (days.slots ?? []).filter((s) => s.band === undefined), (line) => placing.keep.get(line) ?? 1, days.lines, new Map(centrelines.map((c) => [c.id, c])));
   names = tiered.map(({ name, stations, nameZoom, larger, style, lon, lat }) => {
     const rows = nameLines(name, style);
     return { dot: [lon, lat], sides: spots([lon, lat], stations), name: rows.join('\n'), size: [Math.max(...rows.map((row) => placeWidth(row, style))), rows.length * LINE_HEIGHT * style.size], nameZoom, larger, style };

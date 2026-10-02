@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest';
-import { along, APART, atZoom, BANDS, beside, inBand, LINK, onStroke, pieces, zones, pixelMetres, pointAt, SMOOTH, type Line, type Shape, type Stroke } from '../bundle.ts';
+import { along, APART, atZoom, BANDS, beside, cutIn, drawnIn, inBand, LINK, onStroke, pieces, zones, pixelMetres, pointAt, SMOOTH, type Line, type Shape, type Stroke } from '../bundle.ts';
 import { measures } from './measures.ts';
+import { offset } from './offset.ts';
 import { sideBySide } from './sideBySide.ts';
 
 // Track drawn in metres east (x) and north (y) of a point in Barcelona.
@@ -35,10 +36,10 @@ function shapeEvery(every: number, id: string, corners: [x: number, y: number][]
 
 const line = (name: string, ...shapes: string[]): Line => ({ id: name, network: 'rodalies', name, colour: '#000', shapes });
 
-async function draw(lines: Line[], shapes: Shape[], on: 'strokes' | 'rails' = 'strokes') {
+async function draw(lines: Line[], shapes: Shape[], on: 'strokes' | 'rails' = 'strokes', band?: number) {
   const found = await sideBySide(lines, shapes);
-  // Without the links between strokes, which only join them up.
-  const drawn = found[on].filter((s) => !s.shape.startsWith(LINK));
+  // On the line graph from zoom 10 up, or a band's own below, without the links between strokes, which only join them up.
+  const drawn = found[on].filter((s) => s.band === band && !s.shape.startsWith(LINK));
   const byId = new Map([...shapes, ...found.centrelines].map((s) => [s.id, s]));
   /** A Line's strokes: their points in metres east and north, and how far north of its track each is drawn. */
   const placed = (name: string) =>
@@ -82,6 +83,23 @@ test('draws Lines that share track side by side, a line width apart', async () =
   const drawn = ['R2', 'R11', 'R14'].flatMap(strokes);
   expect(drawn.map(({ from, to }) => [from, to])).toEqual([[0, 5000], [0, 5000], [0, 5000]]);
   expect(drawn.map((s) => s.north).sort((a, b) => a - b)).toEqual([-1, 0, 1]);
+});
+
+test('below zoom 10, draws Lines on tracks about a line width apart there side by side, on a graph for each band, its Trains on it (ADR-0007)', async () => {
+  // R2's and R11's tracks run 120 m apart: further apart than NEAR, but under half a line width at zoom 9, 127 m.
+  const lines = [line('R2', 'R2'), line('R11', 'R11')];
+  const shapes = [shape('R2', [0, 0], [5000, 0]), shape('R11', [0, 120], [5000, 120])];
+  const own = await draw(lines, shapes);
+  expect([...own.strokes('R2'), ...own.strokes('R11')]).toEqual([{ from: 0, to: 5000, north: 0 }, { from: 0, to: 5000, north: 0 }]);
+  for (const zoom of [7, 8, 9]) {
+    const { strokes, at } = await draw(lines, shapes, 'strokes', BANDS.indexOf(zoom));
+    expect([...strokes('R2'), ...strokes('R11')]).toEqual([{ from: 0, to: 5000, north: -0.5 }, { from: 0, to: 5000, north: 0.5 }]);
+    // Along one line halfway between their tracks.
+    expect([...at('R2'), ...at('R11')]).toEqual([[60, 60], [60, 60]]);
+  }
+  const { strokes, centrelines } = await sideBySide(lines, shapes);
+  expect(measures({ shapes: [...shapes, ...centrelines], strokes }).covered).toEqual(Object.fromEntries(BANDS.map((zoom) => [zoom, 0])));
+  expect(Math.max(...(await offStroke(lines, shapes, [['R2', 'R2'], ['R11', 'R11']], [7, 8, 9, 10])))).toBeLessThan(1);
 });
 
 test('keeps Lines that run the track opposite ways on their sides, where another joins', async () => {
@@ -131,7 +149,7 @@ test('marks where a Line runs in a tunnel, and how deep, so that the map draws i
   const r2 = { ...shape('R2', [0, 0], [5000, 0]), levels: [[2000, 'tunnel -2']] as [number, string][] };
   const shapes = [r2, shape('T4', [2000, 0], [5000, 0])];
   for (const on of ['strokes', 'rails'] as const) {
-    const drawn = (await sideBySide([line('R2', 'R2'), line('T4', 'T4')], shapes))[on].filter((s) => !s.shape.startsWith(LINK));
+    const drawn = (await sideBySide([line('R2', 'R2'), line('T4', 'T4')], shapes))[on].filter((s) => s.band === undefined);
     const under = (name: string) => drawn.filter((s) => s.line === name).map((s) => [s.from, s.to, s.under ?? 0]);
     // From the piece the tunnel starts in.
     expect(under('R2')).toEqual([[0, expect.closeTo(2000, -2), 0], [expect.closeTo(2000, -2), 5000, 2]]);
@@ -147,8 +165,8 @@ test('draws a Line going into a tunnel just where it would be drawn on the groun
   const drawn = (strokes: Stroke[]) =>
     BANDS.map((_, band) =>
       strokes
-        .filter((s) => s.band === undefined || s.band === band)
-        .map((s) => [s.line, s.shape, s.side, s.from + (s.cut?.[band]?.[0] ?? 0), s.to - (s.cut?.[band]?.[1] ?? 0)] as const)
+        .filter((s) => drawnIn(s, band))
+        .map((s) => [s.line, s.shape, s.side, s.from + cutIn(s, band)[0], s.to - cutIn(s, band)[1]] as const)
         .filter(([, , , from, to]) => to > from)
         .sort((a, b) => `${a.slice(0, 3)}`.localeCompare(`${b.slice(0, 3)}`) || a[3] - b[3])
         .reduce<(string | number)[][]>((all, s) => {
@@ -174,7 +192,9 @@ test('narrows the gap between Lines past six side by side, so that a stretch get
 test('marks the strokes of a stretch with more than six Lines as crowded, as each covers some of the next (#178)', async () => {
   for (const names of [['A', 'B', 'C', 'D', 'E', 'F'], ['A', 'B', 'C', 'D', 'E', 'F', 'G']]) {
     const { strokes } = await sideBySide(names.map((n) => line(n, n)), names.map((n) => shape(n, [0, 0], [5000, 0])));
-    expect(strokes.map((s) => !!s.crowded)).toEqual(names.map(() => names.length > 6));
+    // On the line graph from zoom 10 up, and each band's own below.
+    expect(strokes.filter((s) => s.band === undefined).map((s) => !!s.crowded)).toEqual(names.map(() => names.length > 6));
+    expect(strokes.every((s) => !!s.crowded === names.length > 6)).toBe(true);
   }
 });
 
@@ -279,18 +299,18 @@ test('keeps Lines where they are while another runs past them the other way, and
  * ends, is drawn beyond half a line width from where its stroke is drawn, as they go that far to their
  * side, at zooms 12, 13 and 14, in metres.
  */
-async function offStroke(lines: Line[], shapes: Shape[], runs: [line: string, shape: string][]): Promise<number[]> {
+async function offStroke(lines: Line[], shapes: Shape[], runs: [line: string, shape: string][], zooms = [12, 13, 14]): Promise<number[]> {
   const { strokes, centrelines, slots } = await sideBySide(lines, shapes);
   const byId = new Map([...shapes, ...centrelines].map((s) => [s.id, s]));
   const across = zones(strokes);
   const xy = ([lon, lat]: [number, number]): [number, number] => [(lon - LON) * M * COS, (lat - LAT) * M];
-  return [12, 13, 14].flatMap((zoom) => {
-    const [band, width] = [BANDS.findIndex((z) => z === Math.min(zoom, 13)), atZoom(APART, zoom) * pixelMetres(zoom, LAT)];
+  return zooms.flatMap((zoom) => {
+    const [band, width] = [BANDS.indexOf(zoom), atZoom(APART, zoom) * pixelMetres(zoom, LAT)];
     return runs.flatMap(([name, id]) => {
       // Where the Line's strokes are drawn in the band, cut back for its curves, and its curves, every metre.
       const drawn = strokes
-        .filter((s) => s.line === name && (s.band ?? band) === band)
-        .flatMap((s) => pieces({ ...s, from: s.from + (s.cut?.[band]?.[0] ?? 0), to: s.to - (s.cut?.[band]?.[1] ?? 0) }))
+        .filter((s) => s.line === name && drawnIn(s, band))
+        .flatMap((s) => pieces({ ...s, from: s.from + cutIn(s, band)[0], to: s.to - cutIn(s, band)[1] }))
         .flatMap((s) => Array.from({ length: Math.floor(s.to - s.from) + 1 }, (_, i) => xy(beside(inBand(byId, s.shape, band) ?? { coords: [], dist: [] }, s.from + i, s.side * width))));
       const mine = slots.filter((s) => s.line === name && s.shape === id);
       const length = byId.get(id)?.dist.at(-1) ?? 0;
@@ -391,18 +411,20 @@ test('curves a Line from its side on one Stretch to its side on the next, in eac
   const lengths = BANDS.map((zoom, band) => {
     const px = pixelMetres(zoom, LAT);
     const width = atZoom(APART, zoom) * px;
-    // Where a stroke is drawn at an end, in metres east and north, at the band's zoom.
-    const at = (s: Stroke, d: number): [number, number] => {
-      const [lon, lat] = beside(inBand(byId, s.shape, band) ?? { coords: [], dist: [] }, d, s.side * width);
-      return [(lon - LON) * M * COS, (lat - LAT) * M];
+    // Where a stroke is drawn from one distance along its line to another at the band's zoom, at its ends, in metres east
+    // and north: as the map offsets it, along its first and last segments.
+    const at = (s: Stroke, from: number, to: number): [start: [number, number], end: [number, number]] => {
+      const points = along(inBand(byId, s.shape, band) ?? { coords: [], dist: [] }, from, to).map(([lon, lat]): [number, number] => [(lon - LON) * M * COS, (lat - LAT) * M]);
+      const drawn = offset(points, s.side * width);
+      return [drawn[0] ?? [NaN, NaN], drawn.at(-1) ?? [NaN, NaN]];
     };
-    const edges = strokes.filter((s) => s.line === 'R2' && !s.shape.startsWith(LINK));
-    const ends = edges.flatMap((s) => [at(s, s.from + (s.cut?.[band]?.[0] ?? 0)), at(s, s.to - (s.cut?.[band]?.[1] ?? 0))]);
+    const edges = strokes.filter((s) => s.line === 'R2' && !s.shape.startsWith(LINK) && drawnIn(s, band));
+    const ends = edges.flatMap((s) => at(s, s.from + cutIn(s, band)[0], s.to - cutIn(s, band)[1]));
     const curve = strokes.filter((s) => s.line === 'R2' && s.shape.startsWith(LINK) && s.band === band).flatMap(pieces);
     const [first, last] = [curve[0], curve.at(-1)];
     if (!first || !last) return NaN;
     // Its ends meet the strokes it joins, within a quarter of a pixel, wherever the Line is drawn at that zoom.
-    for (const p of [at(first, first.from), at(last, last.to)]) {
+    for (const p of [at(first, first.from, first.to)[0], at(last, last.from, last.to)[1]]) {
       expect(Math.min(...ends.map((e) => Math.hypot(e[0] - p[0], e[1] - p[1])))).toBeLessThan(px / 4);
     }
     return last.to - first.from;
@@ -434,14 +456,15 @@ test("absorbs a Stretch too short for its nodes' curves, zoomed out, and crosses
   const found = measures({ shapes: [...shapes, ...centrelines], strokes, lines });
   for (const zoom of BANDS) expect([found.kinks[zoom], found.weaves[zoom]]).toEqual([0, 0]);
   // At zoom 10 a line width is 147 m: the shared Stretch isn't drawn, and B crosses its node on one curve, along it.
-  const shared = strokes.filter((s) => s.line === 'B' && !s.shape.startsWith(LINK) && s.to - s.from < 400);
+  const [z10, z13] = [BANDS.indexOf(10), BANDS.indexOf(13)];
+  const shared = strokes.filter((s) => s.line === 'B' && s.band === undefined && s.to - s.from < 400);
   expect(shared.length).toBeGreaterThan(0);
-  for (const s of shared) expect((s.cut?.[0]?.[0] ?? 0) + (s.cut?.[0]?.[1] ?? 0)).toBe(s.to - s.from);
-  const curves = strokes.filter((s) => s.line === 'B' && s.shape.startsWith(LINK) && s.band === 0);
+  for (const s of shared) expect(cutIn(s, z10)[0] + cutIn(s, z10)[1]).toBe(s.to - s.from);
+  const curves = strokes.filter((s) => s.line === 'B' && s.shape.startsWith(LINK) && s.band === z10);
   expect(curves).toHaveLength(1);
   expect(curves[0]?.across?.length).toBeGreaterThan(2);
   // At zoom 13, 26 m, it's long enough to draw.
-  for (const s of shared) expect((s.cut?.[3]?.[0] ?? 0) + (s.cut?.[3]?.[1] ?? 0)).toBeLessThan(s.to - s.from);
+  for (const s of shared) expect(cutIn(s, z13)[0] + cutIn(s, z13)[1]).toBeLessThan(s.to - s.from);
   expect(Math.max(...(await offStroke(lines, shapes, [['A', 'A'], ['B', 'B']])))).toBeLessThan(1);
 });
 
@@ -458,7 +481,7 @@ test('smooths each centreline for each zoom band where Lines drawn off it would 
   const names = ['R1', 'R2', 'R3', 'R4'];
   const shapes = names.map(track);
   const { strokes, centrelines } = await sideBySide(names.map((n) => line(n, n)), shapes);
-  expect(measures({ shapes: [...shapes, ...centrelines], strokes }).folds).toEqual({ 10: 0, 11: 0, 12: 0, 13: 0 });
+  expect(measures({ shapes: [...shapes, ...centrelines], strokes }).folds).toEqual(Object.fromEntries(BANDS.map((zoom) => [zoom, 0])));
   // Each band's centreline stays within a line width of the Stretch's own, which its Trains are placed by.
   const byId = new Map(centrelines.map((c) => [c.id, c]));
   const smoothed = BANDS.flatMap((zoom, band) => centrelines.filter((c) => c.id.endsWith(`${SMOOTH}${band}`)).map((c) => ({ c, width: atZoom(APART, zoom) * pixelMetres(zoom, LAT) })));
