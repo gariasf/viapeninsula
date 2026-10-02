@@ -68,8 +68,11 @@ const LATE = 60 * 60_000;
  */
 const [MOVED, IDLE_EVERY, IDLE_MOST] = [1500, 30, 250];
 
-/** How far from a Line's stroke a tap still names its Lines, in px: a target 44 px across. */
-const STROKE_TAP = 22;
+/**
+ * How far from a Line's stroke a tap still names its Lines, in px: a target 44 px across. Strokes
+ * within STROKE_NEAREST of it, if any, are taken first, so that one beside another is the one named.
+ */
+const [STROKE_NEAREST, STROKE_TAP] = [5, 22];
 /** A place's dot's radius, in px at each zoom, for a place in neither tier. */
 const DOT: [zoom: number, px: number][] = [[7, 1.5], [14, 5]];
 /** The width of the ring round a place's dot, in px at each zoom. */
@@ -652,8 +655,9 @@ for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', tr
 // will do, and a Train standing at a Station is the one tapped. A tap nothing else takes, on a Line's
 // stroke or within STROKE_TAP of one, names the Lines drawn there, by their pills (#193), the strokes
 // nearest the tap first: but not on a place's name, which takes no tap.
+/** The layers the Lines' strokes are drawn in, which a tap names the Lines of. */
 const strokeLayers = layered.map((l) => l.id);
-// Each tap closes the last one's Lines.
+/** Where a tap names the Lines drawn there. Each tap closes the last one's. */
 const linesPopup = new Popup({ closeButton: false, closeOnClick: false, className: 'lines-at', maxWidth: 'none' });
 map.on('click', ({ point: { x, y }, lngLat }) => {
   linesPopup.remove();
@@ -663,7 +667,7 @@ map.on('click', ({ point: { x, y }, lngLat }) => {
   if (typeof train === 'string') follow(train);
   else if (typeof place === 'string') showBoard(place);
   else if (!within(0, ['station-names']).length) {
-    const tapped = [STROKE_TAP / 4, STROKE_TAP].map((r) => within(r, strokeLayers)).find((hits) => hits.length) ?? [];
+    const tapped = [STROKE_NEAREST, STROKE_TAP].map((r) => within(r, strokeLayers)).find((hits) => hits.length) ?? [];
     const named = linesAt(tapped.map((f) => ({ line: String(f.properties.line), shape: String(f.properties.shape) })), shownStrokes).flatMap((id) => {
       const [line, pill] = [lines.get(id), pills.get(id)];
       return line && pill ? [linePill(line, pill)] : [];
