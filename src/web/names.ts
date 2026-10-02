@@ -357,7 +357,7 @@ function meets([ax, ay]: [number, number], [bx, by]: [number, number], [x0, y0, 
 }
 
 /** The way right of a track heading so many degrees clockwise from north is on screen, where the map's bearing is up: 1 px, x right and y down. */
-function rightOf(heading: number, bearing: number): [x: number, y: number] {
+export function rightOf(heading: number, bearing: number): [x: number, y: number] {
   // The track runs `a` clockwise from up on screen, and its right is a quarter turn on.
   const a = ((heading - bearing) * Math.PI) / 180;
   return [Math.cos(a), Math.sin(a)];
