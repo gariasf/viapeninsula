@@ -59,7 +59,7 @@ const [lines, traced] = [networks.flatMap((n) => n.lines), networks.flatMap((n) 
 const { strokes, centrelines, rails: ownTrack, slots } = await sideBySide(lines, traced);
 const shapes = [...traced, ...centrelines];
 // How the Lines are drawn, for comparing one day's track, or one change to sideBySide(), with another (#160).
-console.log(`Lines drawn: ${summary(measures({ shapes, strokes }))}`);
+console.log(`Lines drawn: ${summary(measures({ shapes, strokes, lines }))}`);
 
 await mkdir('out/days', { recursive: true });
 const track: Track = {

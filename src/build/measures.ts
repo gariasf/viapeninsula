@@ -1,7 +1,7 @@
 // Yardsticks for how the Lines are drawn side by side, the same before and after a change: how often
 // they break up (#138), and how faithfully they follow their track (#160).
 
-import { along, APART, atZoom, bandAt, DEGREE, direction, EARTH, inBand, LINK, pieces, pixelMetres, pointAt, STRETCH, type Point, type Shape, type Stroke, type Track } from '../bundle.ts';
+import { along, APART, atZoom, bandAt, BANDS, beside, DEGREE, direction, EARTH, inBand, LENGTH, LINK, pieces, pixelMetres, pointAt, STRETCH, type Line, type Point, type Shape, type Stroke, type Track } from '../bundle.ts';
 import { folded, offset, simplify, TOLERANCE } from './offset.ts';
 
 /** Strokes shorter than this, in metres, are stubs: sideBySide()'s SHORT before #138. */
@@ -26,6 +26,12 @@ const LOOSE_ZOOM = 14;
 const LOOSE = 20;
 /** A stroke end this close, in metres, to where a track ends is at a terminus. */
 const TERMINUS = 60;
+/** Fronts this close, in metres, are at one node. */
+const TOUCH = 5;
+/** How much shorter, in metres, a curve or a stroke may be than it needs, as the track rounds where they start and end. */
+const ROUNDING = 2;
+/** How far apart, in metres, a curve is looked at for how far off its Line's own track it's drawn. */
+const LOOK = 5;
 
 /**
  * How the Lines are drawn. `breaks`: how often they break up. `twice`: metres where a Line shows
@@ -36,7 +42,11 @@ const TERMINUS = 60;
  * offset turns back on itself, on the inside of a curve tighter than its offset. `dangling`: stroke
  * ends drawn at LOOSE_ZOOM further than LOOSE from any other stroke of their Line, and not at a
  * terminus (#172). Links (LINK), the curves that join a Line's stroke on one Stretch to its next, count only
- * there, in LOOSE_ZOOM's band.
+ * there, in LOOSE_ZOOM's band, and in the measures of nodes, at each zoom in BANDS (ADR-0007, #186).
+ * `kinks`: curves shorter than LENGTH × their side change × the band's line width. `weaves`: a Line's
+ * strokes shorter than the room() of the nodes at their ends, where it changes side at either.
+ * `inside`: metres of curve drawn further off its Line's own track, by more than half a line width,
+ * than at either of its ends.
  */
 export interface Measures {
   breaks: Breaks;
@@ -45,12 +55,16 @@ export interface Measures {
   over: number;
   folds: Record<number, number>;
   dangling: number;
+  kinks: Record<number, number>;
+  weaves: Record<number, number>;
+  inside: Record<number, number>;
 }
 
-export function measures({ shapes, strokes: pieces }: Pick<Track, 'shapes' | 'strokes'>): Measures {
+/** The measures of a day's track; `inside` only for the Lines given. */
+export function measures({ shapes, strokes: pieces, lines = [] }: Pick<Track, 'shapes' | 'strokes'> & Partial<Pick<Track, 'lines'>>): Measures {
   const strokes = joined(pieces);
   const drawn = strokes.filter((s) => !s.shape.startsWith(LINK));
-  return { breaks: breaks(drawn, shapes), ...faithful(drawn, shapes), folds: folds(drawn, shapes), dangling: dangling(strokes, shapes) };
+  return { breaks: breaks(drawn, shapes), ...faithful(drawn, shapes), folds: folds(drawn, shapes), dangling: dangling(strokes, shapes), ...nodes(strokes, shapes, lines) };
 }
 
 /** Strokes joined up again where sideBySide() cut them at a tunnel's ends (#178), as they're drawn the same either side. */
@@ -67,10 +81,10 @@ function joined(strokes: Stroke[]): Stroke[] {
 }
 
 /** Measures in a line for the build's log. */
-export function summary({ breaks: b, twice, alone, over, folds: f, dangling: loose }: Measures): string {
+export function summary({ breaks: b, twice, alone, over, folds: f, dangling: loose, kinks, weaves, inside }: Measures): string {
   const km = (m: number) => `${(m / 1000).toFixed(1)} km`;
-  const folds = Object.entries(f).map(([zoom, n]) => `${n} at zoom ${zoom}`).join(', ');
-  return `${b.steps + b.stubs + b.swaps + b.joins} breaks (${b.steps} steps, ${b.stubs} stubs, ${b.swaps} swaps, ${b.joins} joins), ${km(twice)} drawn twice, ${km(alone)} off a track they have alone, ${Math.round(over)} m over each other, folds ${folds}, ${loose} dangling ends`;
+  const per = (found: Record<number, number>, as: (n: number) => string = String) => Object.entries(found).map(([zoom, n]) => `${as(n)} at zoom ${zoom}`).join(', ');
+  return `${b.steps + b.stubs + b.swaps + b.joins} breaks (${b.steps} steps, ${b.stubs} stubs, ${b.swaps} swaps, ${b.joins} joins), ${km(twice)} drawn twice, ${km(alone)} off a track they have alone, ${Math.round(over)} m over each other, folds ${per(f)}, ${loose} dangling ends, kinks ${per(kinks)}, weaves ${per(weaves)}, off track inside nodes ${per(inside, (m) => `${Math.round(m)} m`)}`;
 }
 
 /**
@@ -251,6 +265,190 @@ function folds(strokes: Stroke[], shapes: Shape[]): Record<number, number> {
   return found;
 }
 
+/**
+ * Where a bundle of Lines leaves a node along a Stretch (ADR-0007): its centreline from the node on,
+ * in local metres, how many line widths the Lines on it reach to its left and right, looking the way
+ * it goes, and the most any Line changes side on a curve onto it there.
+ */
+export interface Front {
+  points: [x: number, y: number][];
+  left: number;
+  right: number;
+  change: number;
+}
+
+/**
+ * Each front's room at its node, in metres along its Stretch, at a line width of `width` metres: the
+ * more of its curves' (LENGTH × their side change × the line width, half from each Stretch) and its
+ * clearance, how far along its centreline its front goes before it stops overlapping the others'
+ * bundles, as LOOM pushes them back (ADR-0007). Up to as far as its centreline goes.
+ */
+export function room(fronts: Front[], width: number): number[] {
+  return fronts.map((f, i) => {
+    const curves = (LENGTH / 2) * f.change * width;
+    const end = length(f.points);
+    const clear = (d: number) => fronts.every((g, j) => j === i || !overlaps(f, g, d, width));
+    // ponytail: takes a front to stay clear once it is, so doubling then halving finds where; a walk
+    // along it if bundles that part ever come back together.
+    let [lo, hi] = [0, Math.min(1, end)];
+    while (hi < end && !clear(hi)) [lo, hi] = [hi, Math.min(end, hi * 2)];
+    while (hi - lo > 0.5) {
+      const mid = (lo + hi) / 2;
+      if (clear(mid)) hi = mid;
+      else lo = mid;
+    }
+    return Math.max(curves, hi);
+  });
+}
+
+/** How long a line through points is. */
+function length(points: [number, number][]): number {
+  return points.reduce((sum, p, k) => sum + Math.hypot(p[0] - (points[k - 1] ?? p)[0], p[1] - (points[k - 1] ?? p)[1]), 0);
+}
+
+/** Where a line through points is, `d` along it, and which way it goes there. */
+function heading(points: [number, number][], d: number): { at: [number, number]; way: [number, number] } {
+  let left = d;
+  for (const [k, b] of points.entries()) {
+    const a = points[k - 1];
+    if (!a) continue;
+    const step = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (!step) continue;
+    const way: [number, number] = [(b[0] - a[0]) / step, (b[1] - a[1]) / step];
+    if (left <= step || k === points.length - 1) return { at: [a[0] + way[0] * Math.min(left, step), a[1] + way[1] * Math.min(left, step)], way };
+    left -= step;
+  }
+  return { at: points[0] ?? [0, 0], way: [1, 0] };
+}
+
+/** Whether `f`'s front, `d` along it, crosses `g`'s bundle, its centreline drawn out to its Lines' reach, at a line width of `width` metres. */
+function overlaps(f: Front, g: Front, d: number, width: number): boolean {
+  const right = ([x, y]: [number, number]): [number, number] => [y, -x];
+  const dot = (u: [number, number], v: [number, number]) => u[0] * v[0] + u[1] * v[1];
+  const { at, way } = heading(f.points, d);
+  const nf = right(way);
+  const reach = (Math.max(f.left, f.right) + Math.max(g.left, g.right)) * width;
+  return g.points.some((b, k) => {
+    const a = g.points[k - 1];
+    const step = a && Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (!a || !step || Math.hypot(at[0] - a[0], at[1] - a[1]) > step + reach) return false;
+    const ug: [number, number] = [(b[0] - a[0]) / step, (b[1] - a[1]) / step];
+    const ng = right(ug);
+    const r: [number, number] = [at[0] - a[0], at[1] - a[1]];
+    // The front from its left edge to its right, t metres right of its middle, narrowed to where k + c·t ≥ min holds.
+    let [lo, hi] = [-f.left * width, f.right * width];
+    const keep = (k: number, c: number, min: number) => {
+      if (Math.abs(c) < 1e-9) hi = k < min ? -Infinity : hi;
+      else if (c > 0) lo = Math.max(lo, (min - k) / c);
+      else hi = Math.min(hi, (min - k) / c);
+    };
+    keep(dot(r, ug), dot(nf, ug), 0); // along this piece of g
+    keep(-dot(r, ug), -dot(nf, ug), -step);
+    keep(dot(r, ng), dot(nf, ng), -g.left * width); // right of g's left edge
+    keep(-dot(r, ng), -dot(nf, ng), -g.right * width); // left of its right edge
+    return lo <= hi;
+  });
+}
+
+/** At each zoom in BANDS, the kinks, weaves and metres off track inside nodes (see Measures). */
+function nodes(strokes: Stroke[], shapes: Shape[], lines: Line[]): Pick<Measures, 'kinks' | 'weaves' | 'inside'> {
+  const byId = new Map(shapes.map((s) => [s.id, s]));
+  const lat = shapes[0]?.coords[0]?.[1] ?? 0;
+  const kx = DEGREE * Math.cos((lat * Math.PI) / 180);
+  const flat = ([lon, lat]: Point): [x: number, y: number] => [lon * kx, lat * DEGREE];
+  const drawn = strokes.filter((s) => !s.shape.startsWith(LINK));
+  const own = new Map(lines.map((l) => [l.id, l.shapes.flatMap((id) => byId.get(id)?.coords.map(flat) ?? [])]));
+  const found: Pick<Measures, 'kinks' | 'weaves' | 'inside'> = { kinks: {}, weaves: {}, inside: {} };
+  for (const [band, zoom] of BANDS.entries()) {
+    const width = atZoom(APART, zoom) * pixelMetres(zoom, lat);
+    const curves = strokes.filter((s) => s.shape.startsWith(LINK) && s.band === band && s.across);
+    const change = (c: Stroke) => Math.abs((c.ease ?? c.side) - c.side);
+    found.kinks[zoom] = curves.filter((c) => {
+      const taken = (c.across ?? []).reduce((sum, [, start, end]) => sum + Math.abs(end - start), 0);
+      return taken + ROUNDING < LENGTH * change(c) * width;
+    }).length;
+
+    // Each curve's two fronts, by the Stretch, which way from the node, and where along it the node is.
+    const fronts = new Map<string, { shape: string; at: number; way: number; change: number }>();
+    const changes = new Map<string, number>(); // each Line's, at each front
+    const parent = new Map<string, string>();
+    const root = (k: string): string => {
+      const p = parent.get(k) ?? k;
+      return p === k ? k : root(p);
+    };
+    for (const c of curves) {
+      const ends = (c.across ?? []).map(([shape, start, end], i) => {
+        // The node is at the curve's end on the Stretch it leaves, at its start on the one it comes onto.
+        const [at, other] = i ? [start, end] : [end, start];
+        const way = Math.sign(other - at) || (at < (byId.get(shape)?.dist.at(-1) ?? 0) / 2 ? 1 : -1);
+        const key = `${shape} ${way} ${at}`;
+        const front = fronts.get(key) ?? { shape, at, way, change: 0 };
+        fronts.set(key, { ...front, change: Math.max(front.change, change(c)) });
+        changes.set(`${c.line} ${key}`, Math.max(changes.get(`${c.line} ${key}`) ?? 0, change(c)));
+        return key;
+      });
+      const [a, b] = ends.map(root);
+      if (a && b && a !== b) parent.set(a, b);
+    }
+    // ponytail: every pair of fronts, fine for a few hundred in a band; a grid if the map grows.
+    const keys = [...fronts.keys()];
+    const placed = new Map(keys.map((k): [string, Front] => {
+      const f = fronts.get(k) ?? { shape: '', at: 0, way: 1, change: 0 };
+      const shape = inBand(byId, f.shape, band) ?? { coords: [], dist: [] };
+      const end = shape.dist.at(-1) ?? 0;
+      const points = (f.way > 0 ? along(shape, f.at, end) : along(shape, 0, f.at).toReversed()).map(flat);
+      // How far the Lines on it reach, looking the way it goes: from the strokes a metre into it.
+      const sides = drawn.filter((s) => s.shape === f.shape && s.from <= f.at + f.way && f.at + f.way <= s.to).map((s) => s.side * f.way);
+      return [k, { points, left: 0.5 - Math.min(0, ...sides), right: 0.5 + Math.max(0, ...sides), change: f.change }];
+    }));
+    for (const [i, a] of keys.entries()) {
+      for (const b of keys.slice(i + 1)) {
+        const [p = [0, 0], q = [0, 0]] = [placed.get(a)?.points[0], placed.get(b)?.points[0]];
+        const [ra, rb] = [root(a), root(b)];
+        if (ra !== rb && Math.hypot(p[0] - q[0], p[1] - q[1]) <= TOUCH) parent.set(ra, rb);
+      }
+    }
+    const byNode = new Map<string, string[]>();
+    for (const k of keys) byNode.set(root(k), [...(byNode.get(root(k)) ?? []), k]);
+    const roomOf = new Map<string, number>();
+    for (const at of byNode.values()) {
+      const rooms = room(at.map((k) => placed.get(k) as Front), width);
+      for (const [i, k] of at.entries()) roomOf.set(k, rooms[i] ?? 0);
+    }
+    found.weaves[zoom] = drawn.filter((s) => {
+      const ends = [`${s.shape} 1 ${s.from}`, `${s.shape} -1 ${s.to}`];
+      const turns = ends.some((k) => (changes.get(`${s.line} ${k}`) ?? 0) > 0);
+      return turns && s.to - s.from + ROUNDING < ends.reduce((sum, k) => sum + (roomOf.get(k) ?? 0), 0);
+    }).length;
+
+    // ponytail: each look at a curve against every segment of its Line's track, about a second for the
+    // map; a grid as in faithful() if it grows.
+    const off = (line: [number, number][], p: [number, number]) => {
+      let best = Infinity;
+      for (const [k, b] of line.entries()) {
+        const a = line[k - 1] ?? b;
+        const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
+        const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)));
+        best = Math.min(best, Math.hypot(a[0] + t * dx - p[0], a[1] + t * dy - p[1]));
+      }
+      return best;
+    };
+    found.inside[zoom] = 0;
+    for (const c of curves) {
+      const [shape, track] = [byId.get(c.shape), own.get(c.line)];
+      if (!shape || !track?.length) continue;
+      const drawnAt = pieces(c);
+      const at = (d: number) => {
+        const piece = drawnAt.find((p) => d <= p.to) ?? drawnAt.at(-1) ?? c;
+        return off(track, flat(beside(shape, d, piece.side * width)));
+      };
+      const ends = Math.max(at(c.from), at(c.to));
+      for (let d = c.from + LOOK / 2; d < c.to; d += LOOK) if (at(d) - ends > width / 2) found.inside[zoom] += Math.min(LOOK, c.to - d + LOOK / 2);
+    }
+  }
+  return found;
+}
+
 // Run as `node src/build/measures.ts <track.json>`, on a day's track the daily build wrote or the map
 // downloads: the measures of its strokes, and of the strokes sideBySide() draws from its Lines now.
 if (import.meta.main) {
@@ -260,5 +458,5 @@ if (import.meta.main) {
   console.log('drawn:', summary(measures(track)));
   const shapes = track.shapes.filter((s) => !s.id.startsWith(STRETCH));
   const now = await sideBySide(track.lines, shapes);
-  console.log('now:  ', summary(measures({ shapes: [...shapes, ...now.centrelines], strokes: now.strokes })));
+  console.log('now:  ', summary(measures({ shapes: [...shapes, ...now.centrelines], strokes: now.strokes, lines: track.lines })));
 }

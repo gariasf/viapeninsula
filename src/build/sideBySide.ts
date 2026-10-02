@@ -1,6 +1,6 @@
 // How the map draws each Line: where Lines share track, side by side, as a transit map does.
 
-import { APART, atZoom, BANDS, beside, DEGREE, inBand, LINK, pixelMetres, pointAt, smoothId, STRETCH, type Line, type Point, type Shape, type Slot, type Stroke } from '../bundle.ts';
+import { APART, atZoom, BANDS, beside, DEGREE, inBand, LENGTH, LINK, pixelMetres, pointAt, smoothId, STRETCH, type Line, type Point, type Shape, type Slot, type Stroke } from '../bundle.ts';
 import { order, type Node } from './order.ts';
 import { folded, simplify, TOLERANCE } from './offset.ts';
 import { distances, nearest } from './track.ts';
@@ -19,8 +19,6 @@ const SHORT = 150;
 const ANGLE = 300;
 /** How far, in metres, a Line's stroke may end from where its shape leaves a Stretch or comes onto it, for a curve to join it there. */
 const REACH = 2 * STEP;
-/** How long a curve across a node is, for each metre a Line moves over on it, half from each stroke it joins. */
-const LENGTH = 4;
 /** The most of a stroke a curve takes at either end. */
 const TAKE = 0.45;
 /** How many segments a curve is drawn with. */
