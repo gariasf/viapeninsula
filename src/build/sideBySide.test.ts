@@ -260,6 +260,19 @@ test('zoomed right in, marks where Lines share a track, and not where a Line has
   for (const at of parted) expect(Math.abs(at - 3000)).toBeLessThanOrEqual(50);
 });
 
+test("below zoom 7, draws each Network's track once, however many of its Lines run on it (#190)", async () => {
+  // R2 and R11 share track east for 3 km; there R11 turns off on its own, 2236 m, and R2 goes on
+  // alone. R2 runs back the other way too. FGC's S1 runs on that very track for 3 km.
+  const { tracks } = await sideBySide(
+    [line('R2', 'R2', 'R2_INV'), line('R11', 'R11'), { ...line('S1', 'S1'), network: 'fgc' }],
+    [shape('R2', [0, 0], [3000, 0], [6000, 0]), shape('R2_INV', [6000, 0], [3000, 0], [0, 0]), shape('R11', [0, 0], [3000, 0], [4000, -2000]), shape('S1', [0, 0], [3000, 0])],
+  );
+  const metres = (lines: string[]) => tracks.filter((s) => lines.includes(s.line)).reduce((sum, s) => sum + s.to - s.from, 0);
+  expect(Math.abs(metres(['R2', 'R11']) - 8236)).toBeLessThanOrEqual(2);
+  expect(metres(['S1'])).toBe(3000);
+  expect(tracks.every((s) => s.side === 0)).toBe(true);
+});
+
 test('keeps Lines on their sides along a long straight, whichever way each runs it', async () => {
   // As in the Aragó tunnel, one straight 1.25 km segment: R2 runs it east, R11 west, and R14, which
   // turns off partway along it, east.

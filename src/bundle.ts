@@ -77,7 +77,7 @@ export interface ManifestDay {
  * What the map draws before any Train, which it loads first: the Networks, Lines, Stations and track,
  * one file that every day a build publishes shares.
  */
-export type Track = Pick<Bundle, 'networks' | 'lines' | 'stations' | 'shapes' | 'strokes' | 'rails' | 'slots'>;
+export type Track = Pick<Bundle, 'networks' | 'lines' | 'stations' | 'shapes' | 'strokes' | 'rails' | 'slots' | 'tracks'>;
 
 /** A service day's Trips, which the map loads after its track. */
 export type DayTrips = Pick<Bundle, 'serviceDay' | 'noonMinus12h' | 'trips'>;
@@ -101,6 +101,8 @@ export interface Bundle {
   rails: Stroke[];
   /** Where the map puts each Line's Trains zoomed out: every one of its shapes, all along it, on the Line's stroke (#176). */
   slots: Slot[];
+  /** How the map draws the track below zoom 7: each Network's once, in its colour, on the shapes of its Lines that run it (#190). */
+  tracks: Stroke[];
   trips: Trip[];
 }
 
@@ -110,6 +112,8 @@ export interface Network {
   profile: SpeedProfile;
   /** Which track of a double track its Trains run on, looking the way they go. */
   runningSide: 'left' | 'right';
+  /** The colour its track is drawn in below zoom 7 (#190), near its brand's. */
+  colour: string;
   /** The day its operator last updated its timetable (YYYY-MM-DD), where their terms ask the map to show it. */
   updated?: string;
 }

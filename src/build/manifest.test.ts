@@ -9,13 +9,14 @@ const PROFILE = { acceleration: 1, braking: 1, topSpeed: 44, dwell: 30 };
 const day = (serviceDay: string, ...trips: [from: number, to: number][]): Bundle => ({
   serviceDay,
   noonMinus12h: noonMinus12h(serviceDay),
-  networks: [{ id: 'rodalies', name: 'Rodalies de Catalunya', profile: PROFILE, runningSide: 'right' }],
+  networks: [{ id: 'rodalies', name: 'Rodalies de Catalunya', profile: PROFILE, runningSide: 'right', colour: '#000' }],
   lines: [{ id: 'rodalies:R1', network: 'rodalies', name: 'R1', colour: '#000', shapes: [] }],
   stations: [],
   shapes: [],
   strokes: [],
   rails: [],
   slots: [],
+  tracks: [],
   trips: trips.map(([from, to], i) => ({
     id: `${i}`,
     line: 'rodalies:R1',

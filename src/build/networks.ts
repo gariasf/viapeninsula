@@ -18,6 +18,8 @@ const RODALIES: Network = {
   // railway:preferred_direction tags have Trains on the right on 94% of the 268 km of Adif's
   // Iberian-gauge double track they cover (seen 2026-09-26).
   runningSide: 'right',
+  // Near Rodalies' orange, as the maintainer chose it by its logo: no source publishes one (#190).
+  colour: '#F26E21',
 };
 
 /** Rodalies runs on Iberian-gauge rails, which keeps it off the standard-gauge high-speed line. */
@@ -51,6 +53,8 @@ const FGC: Network = {
   // (seen 2026-09-26), and so does Geotren: of 61 FGC positions within a metre of one track of a
   // double track, 56 were on the right one (25 September).
   runningSide: 'right',
+  // Near FGC's green, as the maintainer chose it by its logo: no source publishes one (#190).
+  colour: '#8BB83E',
 };
 
 /** FGC runs on rails of its own, of three gauges. */
@@ -83,6 +87,8 @@ const TRAM: Network = {
   // As the traffic beside it does: OpenStreetMap has TRAM's Trains on the right on 99% of the 32 km
   // of its double track it tags.
   runningSide: 'right',
+  // Near TRAM's teal, as the maintainer chose it by its logo: no source publishes one (#190).
+  colour: '#00A99D',
 };
 
 export function onTramRails(way: OsmWay): boolean {
@@ -107,6 +113,8 @@ const METRO: Network = {
   // tags. Most of the rest is L2 between Tetuan and Paral·lel, which runs on the left, and where
   // its tags say so, the trace follows them.
   runningSide: 'right',
+  // Near the Metro's red, as the maintainer chose it by its logo: no source publishes one (#190).
+  colour: '#E2001A',
 };
 
 /** The Metro runs underground, but for the Montjuïc funicular, on rails that aren't FGC's. */
