@@ -677,9 +677,11 @@ map.on('click', ({ point: { x, y }, lngLat }) => {
   // Where pills overlap, the one under the tap, the topmost, before one near it.
   const under: unknown = within(0, ['train-pills-followed', 'train-pills'])[0]?.properties.id;
   const [train, place] = [under ?? near('train-pills-followed') ?? near('train-pills') ?? near('trains'), near('stations')];
-  // A tap on a pill standing over others spreads them, and any tap but on one of them folds them (#129).
-  const spreads = typeof train === 'string' && !spreadState.group?.ids.has(train) ? groupOf(standingPills.map((p) => ({ ...p, at: projected(p.at) })), train) : undefined;
-  if (spreads || (spreadState.group && !(typeof train === 'string' && spreadState.group.ids.has(train)))) {
+  // A tap on a pill standing over others spreads them, and while they're spread, any tap but on one of them folds them (#129).
+  const { group } = spreadState;
+  const inGroup = typeof train === 'string' && group?.ids.has(train);
+  const spreads = typeof train === 'string' && !group ? groupOf(standingPills.map((p) => ({ ...p, at: projected(p.at) })), train) : undefined;
+  if (spreads || (group && !inGroup)) {
     spreadState.group = spreads;
     trainSource?.setData(trains());
   }
@@ -869,14 +871,14 @@ function trains(): GeoJSON.FeatureCollection {
   if (group && standingPills.filter((p) => group.ids.has(p.id) && p.standsAt === group.station).length < 2) spreadState.group = undefined;
   // Only the group's Trains, and those moved aside, easing back, are put on screen.
   const spreadable = placed.flatMap(({ asPill, at }): Drawn[] => (asPill && (spreadState.group?.ids.has(asPill.id) || spreadState.moved.has(asPill.id)) ? [{ ...asPill, at: projected(at) }] : []));
-  const moved = spread(spreadable, performance.now(), spreadState.group);
-  spreadState = { group: spreadState.group, moved, easing: [...moved].some(([id, px]) => spreadState.moved.get(id) !== px) || moved.size !== spreadState.moved.size };
+  const aside = spread(spreadable, performance.now(), spreadState.group);
+  spreadState = { group: spreadState.group, moved: aside, easing: [...aside].some(([id, px]) => spreadState.moved.get(id) !== px) || aside.size !== spreadState.moved.size };
   return {
     type: 'FeatureCollection',
     features: placed.map(({ train: { trip, heading, live }, pill, box, at }) => {
-      const [out, drawnAt] = [moved.get(trip.id), spreadable.find((d) => d.id === trip.id)?.at];
+      const [out, onScreen] = [aside.get(trip.id), spreadable.find((d) => d.id === trip.id)?.at];
       const right = rightOf(heading, bearing);
-      const coordinates: Point = out && drawnAt ? map.unproject([drawnAt[0] + out * right[0], drawnAt[1] + out * right[1]]).toArray() as Point : at;
+      const coordinates: Point = out && onScreen ? (map.unproject([onScreen[0] + out * right[0], onScreen[1] + out * right[1]]).toArray() as Point) : at;
       if (following && trip.id === followed) following.at = coordinates;
       return {
         type: 'Feature',
@@ -1057,10 +1059,9 @@ function textWidth(text: string, font: string): number {
 /**
  * How far ahead of its Train an arrow goes, in px: just outside a pill reaching `box` px either side
  * and above and below, where the Train's heading leaves it on screen, `angle` degrees clockwise from
- * straight up, as the pill stays level while the map turns.
- * ponytail: to the pill's box, so a heading that leaves off the level by a pointed or rounded end puts
- * its arrow a few px further out; and laid out flat, so on a tilted map an arrow sits nearer its
- * pill's far side. Aim at the outline itself, tilted with the pill, if either shows.
+ * straight up, as the pill stays level while the map turns (toEdge()).
+ * ponytail: laid out flat, so on a tilted map an arrow sits nearer its pill's far side. Aim at the
+ * outline tilted with the pill if that shows.
  */
 function reach(box: [number, number], angle: number): number {
   return toEdge(box, angle) + ARROW_GAP;

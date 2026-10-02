@@ -65,15 +65,14 @@ export function spreading(): (drawn: Drawn[], now: number, group?: Group) => Map
 
 /**
  * How far further right of where it's drawn to draw each Train of a group still standing at its
- * Station whose pill touches another's of it there, in px: in the group's order, each as near its own
- * track as it goes, its pill's edge there, clear of each of the group's pills, moved already or
- * staying put. Others, as one coming in after the tap, aren't moved, nor moved round.
+ * Station, in px: in the group's order, each as near its own track as it goes, its pill's edge there,
+ * clear of the group's pills moved already. Others, as one coming in after the tap, aren't moved, nor
+ * moved round, so that nothing moves of itself.
  */
 function apart(drawn: Drawn[], { station, ids }: Group): Map<string, number> {
   const there = [...ids].flatMap((id) => drawn.find((t) => t.id === id && t.standsAt === station) ?? []);
-  const moving = there.filter((t) => there.some((o) => o !== t && touches(t, o)));
-  const [target, placed] = [new Map<string, number>(), there.filter((t) => !moving.includes(t))];
-  for (const t of moving) {
+  const [target, placed] = [new Map<string, number>(), [] as Drawn[]];
+  for (const t of there) {
     const right = rightOf(t.heading, 0);
     let out = toEdge(t.box, t.heading + 90);
     for (let past = true; past; ) {

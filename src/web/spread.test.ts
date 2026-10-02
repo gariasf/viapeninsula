@@ -85,3 +85,10 @@ test('how far apart they go comes from their pills, as the track lies across the
   expect(moved.first).toBeCloseTo(7.071, 3);
   expect(moved.second).toBeCloseTo(21.213, 3);
 });
+
+test('spread, they stay so where they no longer touch where drawn, as zoomed in, where their tracks lie further apart', () => {
+  const spread = spreading();
+  const group = groupOf([pill('first', [0, 0], 90), pill('second', [0, 0], 90)], 'first');
+  expect(settled(spread, [pill('first', [0, 0], 90), pill('second', [0, 0], 90)], 0, group)).toEqual({ first: 5, second: 15 });
+  expect(settled(spread, [pill('first', [0, -20], 90), pill('second', [0, 20], 90)], 10_000, group)).toEqual({ first: 5, second: 5 });
+});
