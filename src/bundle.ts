@@ -157,10 +157,11 @@ export interface Stroke {
   /** Along a Stretch with more than CROWD Lines, closer together than a line width, so that each covers some of the next. */
   crowded?: true;
   /**
-   * A curve's: the centreline it leaves and the one it comes onto, and from how far along each to how
-   * far, the way it goes, the Line's strokes there are cut back to make room for it (#176).
+   * A curve's: the centreline it leaves, those of the Stretches its node absorbed, and the one it comes
+   * onto, and from how far along each to how far, the way it goes, the Line's strokes there are cut
+   * back, or not drawn, to make room for it (#176, ADR-0007).
    */
-  across?: [from: [shape: string, start: number, end: number], to: [shape: string, start: number, end: number]];
+  across?: [shape: string, start: number, end: number][];
 }
 
 /**
@@ -343,18 +344,27 @@ export interface Zone {
   at: [from: number, to: number];
   link: Stroke;
   along: [from: number, to: number];
-  other: string;
+  /** The centrelines at the curve's other ends. */
+  others: string[];
 }
 
-/** Where each Line is drawn on its curves, by `<line> <band>`: the stretch of centreline each curve takes over at either end, and the part of the curve that stands for it, in proportion. */
+/** Where each Line is drawn on its curves, by `<line> <band>`: each stretch of centreline a curve takes over, and the part of the curve that stands for it, in proportion. */
 export function zones(strokes: Stroke[]): Map<string, Zone[]> {
   const found = new Map<string, Zone[]>();
   for (const link of strokes) {
     if (!link.across || link.band === undefined) continue;
-    const [[from, d0, a], [to, b, d3]] = link.across;
-    const middle = (link.to * Math.abs(a - d0)) / (Math.abs(a - d0) + Math.abs(d3 - b) || 1);
+    const parts = link.across;
+    const total = parts.reduce((sum, [, a, b]) => sum + Math.abs(b - a), 0) || 1;
     const key = `${link.line} ${link.band}`;
-    found.set(key, [...(found.get(key) ?? []), { on: from, at: [d0, a], link, along: [0, middle], other: to }, { on: to, at: [b, d3], link, along: [middle, link.to], other: from }]);
+    const list = found.get(key) ?? [];
+    let gone = 0;
+    for (const [i, [on, a, b]] of parts.entries()) {
+      const start = gone;
+      gone += (link.to * Math.abs(b - a)) / total;
+      const others = [parts[0]?.[0] ?? '', parts.at(-1)?.[0] ?? ''].filter((_, k) => (k ? i !== parts.length - 1 : i !== 0));
+      list.push({ on, at: [a, b], link, along: [start, gone], others });
+    }
+    found.set(key, list);
   }
   return found;
 }
@@ -378,7 +388,8 @@ export function onStroke(slots: Slot[] | undefined, shapes: Map<string, Shape>, 
   const width = atZoom(APART, zoom) * pixelMetres(zoom, pointAt(line, at)[1]);
   // On a curve, where the Line is: of those at a fork, the one to or from where the Train goes next or came from.
   const here = (curves.get(`${slot.line} ${band}`) ?? []).filter((z) => z.on === slot.on && Math.min(...z.at) <= at && at <= Math.max(...z.at) && z.at[0] !== z.at[1]);
-  const zone = here.find((z) => slots?.some((s) => s.on === z.other && s.from - NEXT <= dist && dist <= s.to + NEXT)) ?? here[0];
+  const goes = (other: string) => slots?.some((s) => s.on === other && s.from - NEXT <= dist && dist <= s.to + NEXT);
+  const zone = here.find((z) => z.others.every(goes)) ?? here.find((z) => z.others.some(goes)) ?? here[0];
   const curve = zone && shapes.get(zone.link.shape);
   if (zone && curve) {
     const [[a0, a1], [x0, x1]] = [zone.at, zone.along];
