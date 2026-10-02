@@ -76,9 +76,10 @@ interface Neighbour {
  * are shapes of their own. `rails` draws each Line on its own track instead, its shapes' track once,
  * for zoomed right in, marking where another Line runs on that track too (#139). And the slots of
  * every one of each Line's shapes, all along it, where the map puts the Line's Trains zoomed out: on
- * its stroke, along the centreline of the Stretch each piece of it is drawn on (#176).
+ * its stroke, along the centreline of the Stretch each piece of it is drawn on (#176). And `tracks`,
+ * each Network's track once, for below zoom 7 (#190).
  */
-export async function sideBySide(lines: Line[], shapes: Shape[]): Promise<{ strokes: Stroke[]; centrelines: Shape[]; rails: Stroke[]; slots: Slot[] }> {
+export async function sideBySide(lines: Line[], shapes: Shape[]): Promise<{ strokes: Stroke[]; centrelines: Shape[]; rails: Stroke[]; slots: Slot[]; tracks: Stroke[] }> {
   const walked = walk(lines, shapes);
   // Line widths at the track's first point, as measures() takes them.
   const lat = shapes[0]?.coords[0]?.[1] ?? 0;
@@ -90,7 +91,22 @@ export async function sideBySide(lines: Line[], shapes: Shape[]): Promise<{ stro
     below.push(await graphed(walked, lines, lat, { near: atZoom(APART, zoom) * pixelMetres(zoom, lat), bands: [band], own: band, prefix: `${zoom}-` }));
   }
   const all = [main, ...below];
-  return { strokes: all.flatMap((g) => g.strokes), centrelines: all.flatMap((g) => g.centrelines), rails: main.rails, slots: all.flatMap((g) => g.slots) };
+  return { strokes: all.flatMap((g) => g.strokes), centrelines: all.flatMap((g) => g.centrelines), rails: main.rails, slots: all.flatMap((g) => g.slots), tracks: networkTrack(lines, shapes) };
+}
+
+/**
+ * Each Network's track once, however many of its Lines run on it (#190): walked as if its Lines were
+ * one, each length of it is drawn on its track, along the first of their shapes to run it.
+ */
+function networkTrack(lines: Line[], shapes: Shape[]): Stroke[] {
+  const [owner, networks] = [new Map(lines.flatMap((l) => l.shapes.map((s): [string, string] => [s, l.id]))), new Map<string, Line>()];
+  for (const l of lines) {
+    const network = networks.get(l.network);
+    if (network) network.shapes.push(...l.shapes);
+    else networks.set(l.network, { ...l, shapes: [...l.shapes] });
+  }
+  const { pieces, runs } = walk([...networks.values()], shapes);
+  return runs.flatMap((run) => strokes(owner.get(run[0]?.shape ?? '') ?? '', run, () => 0, pieces));
 }
 
 /**

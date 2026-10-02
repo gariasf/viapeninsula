@@ -413,6 +413,7 @@ let names: { dot: Point; sides: (bearing: number) => Side[]; name: string; size:
 let namesBearing = NaN;
 map.addSource('lines', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 map.addSource('rails', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+map.addSource('tracks', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 map.addSource('stations', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 map.addSource('station-names', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 // Today's Lines and Stations are drawn as soon as its track comes, before the Trips, which are most of the bundle.
@@ -438,11 +439,18 @@ const lineOffset = byZoom(APART, (px) => ['*', ['get', 'side'], px]);
 // its strokes cut back to make room for them (#163), and below GRAPH_BAND, for its own line graph's
 // strokes (ADR-0007).
 const railsZoom = APART.at(-1)?.[0] ?? 15;
+// Below the first band's zoom, Lines side by side can't be read: each Network's track is drawn once
+// instead, in its colour, and no Trains (#190).
+const linesZoom = BANDS[0] ?? 7;
+map.addLayer(
+  { id: 'tracks', type: 'line', source: 'tracks', maxzoom: linesZoom, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ['get', 'colour'], 'line-width': atZoom(WIDTH, linesZoom) } },
+  firstLabel,
+);
 const layered = [
   ...BANDS.map((_, band) => {
     const [minzoom, maxzoom] = bandZooms(band);
     const filter: ExpressionFilterSpecification = band < GRAPH_BAND ? ['==', ['get', 'band'], band] : ['any', ['!', ['has', 'band']], ['==', ['get', 'band'], band]];
-    return { source: 'lines', id: band ? `lines-${band}` : 'lines', prefix: band ? `line-${band}` : 'line', zooms: { minzoom, maxzoom: Math.min(maxzoom, railsZoom), filter } };
+    return { source: 'lines', id: band ? `lines-${band}` : 'lines', prefix: band ? `line-${band}` : 'line', zooms: { minzoom: Math.max(minzoom, linesZoom), maxzoom: Math.min(maxzoom, railsZoom), filter } };
   }),
   { source: 'rails', id: 'rails', prefix: 'rail', zooms: { minzoom: railsZoom, filter: true as ExpressionFilterSpecification } },
 ];
@@ -531,6 +539,7 @@ map.addLayer({
   id: 'trains',
   type: 'circle',
   source: 'trains',
+  minzoom: linesZoom,
   filter: AS_DOT,
   // A Live Train is filled with its Line's colour; a Scheduled one is only ringed with it.
   layout: { 'circle-sort-key': ['case', ['get', 'followed'], 1, 0] },
@@ -555,6 +564,7 @@ map.addLayer(
     id: 'train-halos',
     type: 'circle',
     source: 'trains',
+    minzoom: linesZoom,
     filter: ['get', 'live'],
     paint: { 'circle-radius': ['get', 'haloRadius'], 'circle-color': ['get', 'colour'], 'circle-blur': HALO_BLUR, 'circle-opacity': HALO_OPACITY, 'circle-pitch-scale': 'viewport' },
   },
@@ -748,6 +758,15 @@ function show(days: Track | Bundle) {
   });
   map.getSource<GeoJSONSource>('lines')?.setData(drawn(days.strokes));
   map.getSource<GeoJSONSource>('rails')?.setData(drawn(days.rails));
+  // A track built before #190 has none.
+  const colours = new Map(days.networks.map((n) => [n.id, n.colour]));
+  map.getSource<GeoJSONSource>('tracks')?.setData({
+    type: 'FeatureCollection',
+    features: (days.tracks ?? []).flatMap(({ line: id, shape: shapeId, from, to }): GeoJSON.Feature[] => {
+      const [line, shape] = [lines.get(id), shapes.get(shapeId)];
+      return line && shape ? [{ type: 'Feature', properties: { colour: colours.get(line.network) }, geometry: { type: 'LineString', coordinates: along(shape, from, to) } }] : [];
+    }),
+  });
   const tiered = [...shownPlaces.values()].map((p) => {
     const { nameZoom, larger, size } = TIERS.find((tier) => tier.places.includes(p.id)) ?? UNTIERED;
     return { ...p, nameZoom, larger, style: { bold: BOLD.has(p.id), size } };

@@ -367,7 +367,7 @@ export function unavailable(bundle: Bundle | undefined, at: number, received: Re
 }
 
 /** A service day with no Trips, as the map has before the day's have come. */
-const NO_TRIPS: Bundle = { serviceDay: '', noonMinus12h: 0, networks: [], lines: [], stations: [], shapes: [], strokes: [], rails: [], slots: [], trips: [] };
+const NO_TRIPS: Bundle = { serviceDay: '', noonMinus12h: 0, networks: [], lines: [], stations: [], shapes: [], strokes: [], rails: [], slots: [], tracks: [], trips: [] };
 
 /**
  * How many of a Network's Trains its timetable has to have on the map for a feed that works but has

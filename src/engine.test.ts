@@ -106,12 +106,12 @@ const TRIPS: Record<string, { line: string; calls: Row[] }> = {
 const seconds = (time: string) => time.split(':').reduce((sum, part) => sum * 60 + Number(part), 0);
 
 /** A service day's bundle of these Trips, on one Network, each on a track of its own, headed for its last Station unless it says. */
-function bundleOf(serviceDay: string, network: Omit<Network, 'runningSide'>, trips: Record<string, { line: string; headsign?: string; calls: Row[] }>): Bundle {
+function bundleOf(serviceDay: string, network: Omit<Network, 'runningSide' | 'colour'>, trips: Record<string, { line: string; headsign?: string; calls: Row[] }>): Bundle {
   return {
     serviceDay,
     // Midnight in Barcelona, which is noon less 12 hours on any day the clocks don't change.
     noonMinus12h: Date.parse(`${serviceDay}T00:00:00+02:00`),
-    networks: [{ ...network, runningSide: 'right' }],
+    networks: [{ ...network, runningSide: 'right', colour: '#000' }],
     lines: [...new Set(Object.values(trips).map((t) => t.line))].map((name) => ({ id: name, network: network.id, name, colour: '#000', shapes: [] })),
     stations: [],
     shapes: Object.entries(trips).map(([id, { calls }]) => {
@@ -121,6 +121,7 @@ function bundleOf(serviceDay: string, network: Omit<Network, 'runningSide'>, tri
     strokes: [],
     rails: [],
     slots: [],
+    tracks: [],
     trips: Object.entries(trips).map(([id, { line, headsign, calls }]) => ({
       id,
       line,
@@ -1806,7 +1807,7 @@ const R1_EARLY: Row[] = [
   ['Badalona', '00:05:00', '00:05:00', 18429, 2.24892096, 41.4458838],
   ['El Masnou', '00:30:00', '00:30:00', 24701, 2.3103772, 41.4770363],
 ];
-const RODALIES: Network = { id: 'rodalies', name: 'Rodalies de Catalunya', profile: PROFILE, runningSide: 'right' };
+const RODALIES: Network = { id: 'rodalies', name: 'Rodalies de Catalunya', profile: PROFILE, runningSide: 'right', colour: '#000' };
 const [FRIDAY, SATURDAY] = [
   bundleOf('2026-09-25', RODALIES, { night: { line: 'R1', calls: R1_NIGHT } }),
   bundleOf('2026-09-26', RODALIES, { night: { line: 'R1', calls: R1_NIGHT }, early: { line: 'R1', calls: R1_EARLY } }),
