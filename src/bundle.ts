@@ -141,11 +141,17 @@ export interface Stroke {
   from: number;
   to: number;
   side: number;
-  /** Only in this zoom band (BANDS): a curve across a node, which is made for each (#163). */
+  /**
+   * Only in this zoom band (BANDS): a curve across a node, which is made for each (#163), or below
+   * GRAPH_BAND, a stroke on the band's own line graph (ADR-0007).
+   */
   band?: number;
   /** A curve's side at its end, which it's eased to from `side` at its start: it's drawn in pieces(). */
   ease?: number;
-  /** In each zoom band, how many metres less of its shape it's drawn along at its start and at its end, where a curve takes over (#163). */
+  /**
+   * In each zoom band it's drawn in, from its first (`band`, or else GRAPH_BAND), how many metres less
+   * of its shape it's drawn along at its start and at its end, where a curve takes over (#163): cutIn().
+   */
   cut?: [start: number, end: number][];
   /** Zoomed right in, on its own track (`rails`): where another Line runs on that track too (#139). */
   shared?: true;
@@ -177,6 +183,8 @@ export interface Slot {
   side: number;
   on: string;
   at: [from: number, to: number];
+  /** Only in this zoom band, below GRAPH_BAND: on the band's own line graph (ADR-0007). */
+  band?: number;
 }
 
 /** Identified by whoever runs it: `adif:<code>` for Renfe's Stations. */
@@ -300,9 +308,26 @@ export const LINK = `${STRETCH}link`;
 
 /**
  * The zoom bands the curves across the line graph's nodes are made for, by the zoom each is made at:
- * each shows from halfway between its zoom and the one before to halfway to the next (#163).
+ * each shows from halfway between its zoom and the one before to halfway to the next (#163), a band
+ * for each whole zoom (ADR-0007).
  */
-export const BANDS = [10, 11, 12, 13];
+export const BANDS = [7, 8, 9, 10, 11, 12, 13, 14];
+
+/**
+ * The first band drawn on the one line graph every band from zoom 10 up shares, in one order. Each
+ * band below draws a graph of its own, where tracks about a line width apart are one Stretch (ADR-0007).
+ */
+export const GRAPH_BAND = BANDS.indexOf(10);
+
+/** Whether a stroke, or a slot, is drawn in a zoom band: in its own band, or without one, in each from GRAPH_BAND on. */
+export function drawnIn({ band: own }: { band?: number }, band: number): boolean {
+  return own === undefined ? band >= GRAPH_BAND : own === band;
+}
+
+/** How many metres less of its shape a stroke is drawn along in a zoom band, at its start and at its end (Stroke's `cut`). */
+export function cutIn(s: Pick<Stroke, 'band' | 'cut'>, band: number): [start: number, end: number] {
+  return s.cut?.[band - (s.band ?? GRAPH_BAND)] ?? [0, 0];
+}
 
 /** How long a curve across a node is, for each metre a Line moves over on it, half from each stroke it joins (#163). */
 export const LENGTH = 4;
@@ -374,14 +399,14 @@ const NEXT = 500;
 
 /**
  * Where a Train `dist` metres along its shape is drawn at a zoom, from its Line's slots along that
- * shape: on the Line's stroke, along the centreline the stroke follows in the zoom's band, at its
+ * shape drawn in the zoom's band: on the Line's stroke, along the centreline the stroke follows in the zoom's band, at its
  * side, or across a node, on its curve (`zones()`), and half a line width to the side its Network's
  * Trains keep to, 1 right and -1 left, so that Trains going opposite ways show apart (#176). Or
  * nowhere, where the Line has no slot there.
  */
 export function onStroke(slots: Slot[] | undefined, shapes: Map<string, Shape>, dist: number, zoom: number, keep: number, curves = new Map<string, Zone[]>()): Point | undefined {
-  const slot = slots?.find((s) => s.from <= dist && dist <= s.to);
   const band = bandAt(zoom);
+  const slot = slots?.find((s) => s.from <= dist && dist <= s.to && drawnIn(s, band));
   const line = slot && inBand(shapes, slot.on, band);
   if (!slot || !line) return undefined;
   const { at, way } = slotAt(slot, dist);

@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { BANDS, LINK, STRETCH, type Line, type Shape, type Stroke } from '../bundle.ts';
+import { BANDS, GRAPH_BAND, LINK, STRETCH, type Line, type Shape, type Stroke } from '../bundle.ts';
 import { breaks, measures } from './measures.ts';
 import { room, type Front } from './sideBySide.ts';
 
@@ -35,6 +35,10 @@ function back(s: Shape): Shape {
 }
 
 const stroke = (line: string, shape: string, from: number, to: number, side: number): Stroke => ({ line, shape, from, to, side });
+
+/** At each zoom in BANDS: n on the line graph from GRAPH_BAND on, 0 on the bands' own below it, which these strokes aren't on. */
+const every = (n: number) => Object.fromEntries(BANDS.map((zoom, band) => [zoom, band >= GRAPH_BAND ? n : 0]));
+const none = every(0);
 
 test('counts nothing for Lines drawn in one stroke each', () => {
   expect(breaks([stroke('R2', 'a', 0, 2000, -0.5), stroke('R11', 'b', 0, 2000, 0.5)], [east('a', 2000), east('b', 2000)])).toEqual({ steps: 0, stubs: 0, swaps: 0, joins: 0 });
@@ -84,7 +88,8 @@ test("doesn't count Lines stepping side by side the same way as a swap", () => {
 
 test('measures nothing amiss for Lines side by side on one track, each drawn once', () => {
   const found = measures({ shapes: [east('a', 2000), east('b', 2000)], strokes: [stroke('R2', 'a', 0, 2000, -0.5), stroke('R11', 'b', 0, 2000, 0.5)] });
-  expect(found).toEqual({ breaks: { steps: 0, stubs: 0, swaps: 0, joins: 0 }, twice: 0, alone: 0, over: 0, folds: { 10: 0, 11: 0, 12: 0, 13: 0 }, dangling: 0, kinks: { 10: 0, 11: 0, 12: 0, 13: 0 }, weaves: { 10: 0, 11: 0, 12: 0, 13: 0 }, inside: { 10: 0, 11: 0, 12: 0, 13: 0 }, largest: { 10: [], 11: [], 12: [], 13: [] } });
+  const zero = Object.fromEntries(BANDS.map((zoom) => [zoom, 0]));
+  expect(found).toEqual({ breaks: { steps: 0, stubs: 0, swaps: 0, joins: 0 }, twice: 0, alone: 0, over: 0, folds: zero, covered: zero, dangling: 0, kinks: zero, weaves: zero, inside: zero, largest: Object.fromEntries(BANDS.map((zoom) => [zoom, []])) });
 });
 
 test('measures a Line drawn twice, where its two directions have tracks of their own and different sides', () => {
@@ -124,14 +129,26 @@ test("doesn't count Lines changing places as drawn over each other where they ch
   expect(found.over).toBe(0);
 });
 
+test("measures, in each band, Lines drawn over each other on tracks too close together to tell apart there", () => {
+  // R11's track runs 60 m north of R2's, and each is drawn on its own: half a line width is 74 m at zoom 10, 42 m at zoom 11.
+  const found = (strokes: Stroke[]) => measures({ shapes: [east('a', 2000), east('b', 2000, 0, 60)], strokes }).covered;
+  const own = [stroke('R2', 'a', 0, 2000, 0), stroke('R11', 'b', 0, 2000, 0)];
+  expect(found(own)[10]).toBeCloseTo(2000, -2);
+  expect(found(own)[11]).toBe(0);
+  // Drawn side by side, a line width apart, between their tracks, they aren't.
+  expect(found([stroke('R2', 'a', 0, 2000, 0.5), stroke('R11', 'a', 0, 2000, -0.5)])).toEqual(none);
+  // On zoom 9's own graph, only there.
+  expect(found(own.map((s) => ({ ...s, band: BANDS.indexOf(9) })))).toEqual({ ...none, 9: 2000 });
+});
+
 test('measures folds where a stroke is drawn inside a curve tighter than its offset, zoomed out', () => {
   const folds = (radius: number, side: number) => measures({ shapes: [curve('a', radius)], strokes: [stroke('R2', 'a', 0, curve('a', radius).dist.at(-1) ?? 0, side)] }).folds;
   // Three widths out, the offset is about 440 m at zoom 10 and 80 m at zoom 13.
   const tight = folds(300, -3);
   expect(tight[10]).toBeGreaterThan(0);
   expect(tight[13]).toBe(0);
-  expect(folds(300, 3)).toEqual({ 10: 0, 11: 0, 12: 0, 13: 0 });
-  expect(folds(3000, -3)).toEqual({ 10: 0, 11: 0, 12: 0, 13: 0 });
+  expect(folds(300, 3)).toEqual(none);
+  expect(folds(3000, -3)).toEqual(none);
 });
 
 test("counts a Line's stroke ends left loose, away from its other strokes and its terminus", () => {
@@ -148,9 +165,6 @@ test("counts a Line's stroke ends left loose, away from its other strokes and it
   // A link isn't a break, however short.
   expect(found(true).breaks).toEqual(found(false).breaks);
 });
-
-const none = { 10: 0, 11: 0, 12: 0, 13: 0 };
-const every = (n: number) => ({ 10: n, 11: n, 12: n, 13: n });
 
 /** A bundle leaving a node at a point, in metres east and north, so many degrees north of east, for 2 km, as wide as so many Lines side by side. */
 function front(at: [number, number], north: number, lines: number, change = 0): Front {
@@ -170,11 +184,17 @@ test("gives a node's fronts the room their curves need, or to clear each other's
   const [fork] = room([front([0, 0], 0, 1), front([0, 0], 10, 1)], 100);
   expect(fork).toBeGreaterThan(500);
   expect(fork).toBeLessThan(1200);
+  // Bundles that part at 10° and then run side by side, 300 m apart, still overlapping, clear each other only as far as they part, about 1.7 km on (#196).
+  const tan = Math.tan((10 * Math.PI) / 180);
+  const parting: Front = { points: Array.from({ length: 201 }, (_, i): [number, number] => [i * 10, Math.min(300, i * 10 * tan)]), left: 2, right: 2, change: 0 };
+  const [parted] = room([front([0, 0], 0, 4), parting], 100);
+  expect(parted).toBeGreaterThan(1600);
+  expect(parted).toBeLessThan(1800);
 });
 
-/** A curve across a node in each band, from `start` to `end` metres along shape 'a', where R2 moves over from one side to another. */
+/** A curve across a node in each band from GRAPH_BAND on, from `start` to `end` metres along shape 'a', where R2 moves over from one side to another. */
 function curves(start: number, end: number, side: number, ease: number): Stroke[] {
-  return BANDS.map((_, band) => ({ ...stroke('R2', `${LINK}0`, 0, end - start, side), ease, band, across: [['a', start, (start + end) / 2], ['a', (start + end) / 2, end]] as Stroke['across'] }));
+  return BANDS.flatMap((_, band) => (band < GRAPH_BAND ? [] : [{ ...stroke('R2', `${LINK}0`, 0, end - start, side), ease, band, across: [['a', start, (start + end) / 2], ['a', (start + end) / 2, end]] as Stroke['across'] }]));
 }
 
 test('counts curves too short for how far their Line moves over as kinks, in each band', () => {
@@ -185,7 +205,7 @@ test('counts curves too short for how far their Line moves over as kinks, in eac
     }).kinks;
   // A curve over a line width is 4 widths long: 105 m at zoom 13, 188 m at zoom 12, 590 m at zoom 10.
   expect(kinks(1000, 1020)).toEqual(every(1));
-  expect(kinks(1000, 1200)).toEqual({ 10: 1, 11: 1, 12: 0, 13: 0 });
+  expect(kinks(1000, 1200)).toEqual({ ...none, 10: 1, 11: 1 });
   expect(kinks(1000, 1700)).toEqual(none);
 });
 
@@ -193,7 +213,7 @@ test("counts a Line's stroke shorter than the room the nodes at its ends need, w
   // R2 steps out a line width and back, on a stroke so many metres long; or, staying put, R11 runs alongside.
   const weaves = (long: number, ease = 1) => {
     const [a, b] = [1000, 1000 + 100 + long];
-    const back = BANDS.map((_, band) => ({ ...stroke('R2', `${LINK}1`, 0, 100, ease), ease: 0, band, across: [['a', b - 50, b], ['a', b, b + 50]] as Stroke['across'] }));
+    const back = curves(b - 50, b + 50, ease, 0).map((c) => ({ ...c, shape: `${LINK}1` }));
     return measures({
       shapes: [east('a', 8000), east(`${LINK}0`, 100), east(`${LINK}1`, 100)],
       strokes: [
@@ -206,9 +226,9 @@ test("counts a Line's stroke shorter than the room the nodes at its ends need, w
       ],
     }).weaves;
   };
-  // Each node takes 2 widths each way: a stroke needs 105 m at zoom 13, 188 m at zoom 12, 336 m at zoom 11, 590 m at zoom 10.
-  expect(weaves(50)).toEqual(every(1));
-  expect(weaves(200)).toEqual({ 10: 1, 11: 1, 12: 0, 13: 0 });
+  // Each node takes 2 widths each way: a stroke needs 56 m at zoom 14, 105 m at zoom 13, 188 m at zoom 12, 336 m at zoom 11, 590 m at zoom 10.
+  expect(weaves(50)).toEqual({ ...every(1), 14: 0 });
+  expect(weaves(200)).toEqual({ ...none, 10: 1, 11: 1 });
   expect(weaves(3000)).toEqual(none);
   expect(weaves(50, 0)).toEqual(none);
 });

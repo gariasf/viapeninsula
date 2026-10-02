@@ -1,7 +1,7 @@
 // Yardsticks for how the Lines are drawn side by side, the same before and after a change: how often
 // they break up (#138), and how faithfully they follow their track (#160).
 
-import { along, APART, atZoom, bandAt, BANDS, beside, DEGREE, direction, EARTH, inBand, LENGTH, LINK, pieces, pixelMetres, pointAt, STRETCH, type Line, type Point, type Shape, type Stroke, type Track } from '../bundle.ts';
+import { along, APART, atZoom, bandAt, BANDS, beside, cutIn, DEGREE, direction, drawnIn, EARTH, inBand, LENGTH, LINK, pieces, pixelMetres, pointAt, STRETCH, type Line, type Point, type Shape, type Stroke, type Track } from '../bundle.ts';
 import { folded, offset, simplify, TOLERANCE } from './offset.ts';
 import { room, sideBySide, type Front } from './sideBySide.ts';
 
@@ -19,8 +19,6 @@ const TWIN = 30;
 const SAME = 2;
 /** Tracks closer to parallel than this (a cosine) run alongside each other: sideBySide()'s PARALLEL. */
 const PARALLEL = Math.cos(Math.PI / 6);
-/** The zooms folds are looked for at: where bundles are widest on the ground. */
-const FOLD_ZOOMS = [10, 11, 12, 13];
 /** The zoom a stroke end is judged loose at: the widest a Line is drawn off its rails, in metres, before APART goes to 0. */
 const LOOSE_ZOOM = 14;
 /** A stroke end further than this, in metres, from any other stroke of its Line is loose. */
@@ -41,8 +39,11 @@ const LARGEST = 10;
  * twice, its strokes on two of its shapes within TWIN of each other, alongside, but drawn at least
  * half a line width apart. `alone`: metres of Line drawn off a track no other Line's is beside,
  * within NEAR and alongside. `over`: metres where two Lines on one track are drawn on top of each
- * other, less than half a line width apart. `folds`: at each of FOLD_ZOOMS, where a stroke's
- * offset turns back on itself, on the inside of a curve tighter than its offset. `dangling`: stroke
+ * other, less than half a line width apart. These four on the line graph from GRAPH_BAND on. `folds`:
+ * at each zoom in BANDS, where a stroke's offset turns back on itself, on the inside of a curve
+ * tighter than its offset. `covered`: at each zoom in BANDS, metres where a Line is drawn over
+ * another's, alongside it less than half the band's line width apart, as tracks further apart than
+ * NEAR are, zoomed out (ADR-0007). `dangling`: stroke
  * ends drawn at LOOSE_ZOOM further than LOOSE from any other stroke of their Line, and not at a
  * terminus (#172). Links (LINK), the curves that join a Line's stroke on one Stretch to its next, count only
  * there, in LOOSE_ZOOM's band, and in the measures of nodes, at each zoom in BANDS (ADR-0007, #186).
@@ -58,6 +59,7 @@ export interface Measures {
   alone: number;
   over: number;
   folds: Record<number, number>;
+  covered: Record<number, number>;
   dangling: number;
   kinks: Record<number, number>;
   weaves: Record<number, number>;
@@ -69,12 +71,13 @@ export interface Measures {
 export function measures({ shapes, strokes: pieces, lines = [] }: Pick<Track, 'shapes' | 'strokes'> & Partial<Pick<Track, 'lines'>>): Measures {
   const strokes = joined(pieces);
   const drawn = strokes.filter((s) => !s.shape.startsWith(LINK));
-  return { breaks: breaks(drawn, shapes), ...faithful(drawn, shapes), folds: folds(drawn, shapes), dangling: dangling(strokes, shapes), ...nodes(strokes, shapes, lines) };
+  const graph = drawn.filter((s) => s.band === undefined);
+  return { breaks: breaks(graph, shapes), ...faithful(graph, shapes), folds: folds(drawn, shapes), covered: covered(strokes, shapes), dangling: dangling(strokes, shapes), ...nodes(strokes, shapes, lines) };
 }
 
 /** Strokes joined up again where sideBySide() cut them at a tunnel's ends (#178), as they're drawn the same either side. */
 function joined(strokes: Stroke[]): Stroke[] {
-  const same = (a: Stroke, b: Stroke) => a.line === b.line && a.shape === b.shape && a.side === b.side && a.shared === b.shared && a.to === b.from && !a.band && !b.band;
+  const same = (a: Stroke, b: Stroke) => a.line === b.line && a.shape === b.shape && a.side === b.side && a.shared === b.shared && a.to === b.from && a.band === b.band && !a.shape.startsWith(LINK);
   return strokes.reduce<Stroke[]>((all, s) => {
     const last = all.at(-1);
     if (last && same(last, s)) {
@@ -86,10 +89,10 @@ function joined(strokes: Stroke[]): Stroke[] {
 }
 
 /** Measures in a line for the build's log. */
-export function summary({ breaks: b, twice, alone, over, folds: f, dangling: loose, kinks, weaves, inside, largest }: Measures): string {
+export function summary({ breaks: b, twice, alone, over, folds: f, covered, dangling: loose, kinks, weaves, inside, largest }: Measures): string {
   const km = (m: number) => `${(m / 1000).toFixed(1)} km`;
   const per = (found: Record<number, number>, as: (n: number) => string = String) => Object.entries(found).map(([zoom, n]) => `${as(n)} at zoom ${zoom}`).join(', ');
-  return `${b.steps + b.stubs + b.swaps + b.joins} breaks (${b.steps} steps, ${b.stubs} stubs, ${b.swaps} swaps, ${b.joins} joins), ${km(twice)} drawn twice, ${km(alone)} off a track they have alone, ${Math.round(over)} m over each other, folds ${per(f)}, ${loose} dangling ends, kinks ${per(kinks)}, weaves ${per(weaves)}, off track inside nodes ${per(inside, (m) => `${Math.round(m)} m`)}${Object.entries(largest).map(([zoom, list]) => `\n  largest nodes at zoom ${zoom}, in line widths: ${list.map(({ size, at: [lon, lat] }) => `${size.toFixed(1)} at ${lat.toFixed(5)},${lon.toFixed(5)}`).join(', ')}`).join('')}`;
+  return `${b.steps + b.stubs + b.swaps + b.joins} breaks (${b.steps} steps, ${b.stubs} stubs, ${b.swaps} swaps, ${b.joins} joins), ${km(twice)} drawn twice, ${km(alone)} off a track they have alone, ${Math.round(over)} m over each other, folds ${per(f)}, covered ${per(covered, (m) => `${(m / 1000).toFixed(1)} km`)}, ${loose} dangling ends, kinks ${per(kinks)}, weaves ${per(weaves)}, off track inside nodes ${per(inside, (m) => `${Math.round(m)} m`)}${Object.entries(largest).map(([zoom, list]) => `\n  largest nodes at zoom ${zoom}, in line widths: ${list.map(({ size, at: [lon, lat] }) => `${size.toFixed(1)} at ${lat.toFixed(5)},${lon.toFixed(5)}`).join(', ')}`).join('')}`;
 }
 
 /**
@@ -219,8 +222,8 @@ function dangling(strokes: Stroke[], shapes: Shape[]): number {
   const byLine = new Map<string, [number, number][][]>();
   for (const s of strokes.flatMap(pieces)) {
     const shape = inBand(byId, s.shape, band);
-    if (!shape || (s.band !== undefined && s.band !== band)) continue;
-    const [start, end] = s.cut?.[band] ?? [0, 0];
+    if (!shape || !drawnIn(s, band)) continue;
+    const [start, end] = cutIn(s, band);
     // Not drawn in the band: a node absorbed its Stretch.
     if (start + end >= s.to - s.from) continue;
     const points = along(shape, s.from + start, s.to - end).map(flat);
@@ -247,19 +250,19 @@ function dangling(strokes: Stroke[], shapes: Shape[]): number {
 }
 
 /**
- * At each of FOLD_ZOOMS, how many segments of the strokes, as MapLibre draws them, run back the other
+ * At each zoom in BANDS, how many segments of the strokes, as MapLibre draws them, run back the other
  * way once offset: it simplifies each stroke by TOLERANCE px, then moves each point along its join's
  * miter, as its line shader does.
  */
 function folds(strokes: Stroke[], shapes: Shape[]): Record<number, number> {
   const byId = new Map(shapes.map((s) => [s.id, s]));
-  const found = Object.fromEntries(FOLD_ZOOMS.map((z) => [z, 0]));
+  const found = Object.fromEntries(BANDS.map((z) => [z, 0]));
   for (const s of strokes) {
     if (!s.side) continue;
-    for (const z of FOLD_ZOOMS) {
+    for (const [band, z] of BANDS.entries()) {
       // Along its centreline smoothed for the zoom's band, where it is.
-      const shape = inBand(byId, s.shape, bandAt(z));
-      if (!shape) continue;
+      const shape = inBand(byId, s.shape, band);
+      if (!shape || !drawnIn(s, band)) continue;
       const coords = along(shape, s.from, s.to);
       const lat = coords[0]?.[1] ?? 0;
       const kx = DEGREE * Math.cos((lat * Math.PI) / 180);
@@ -272,17 +275,75 @@ function folds(strokes: Stroke[], shapes: Shape[]): Record<number, number> {
   return found;
 }
 
+/** At each zoom in BANDS, the metres where a Line is drawn over another's (see Measures), judged every EVERY along each of its strokes as drawn there: each point once however many it's over, and halved, as two Lines over each other are found from both. */
+function covered(strokes: Stroke[], shapes: Shape[]): Record<number, number> {
+  const byId = new Map(shapes.map((s) => [s.id, s]));
+  const lat = shapes[0]?.coords[0]?.[1] ?? 0;
+  const kx = DEGREE * Math.cos((lat * Math.PI) / 180);
+  const flat = ([lon, lat]: Point): [x: number, y: number] => [lon * kx, lat * DEGREE];
+  const found: Record<number, number> = {};
+  for (const [band, zoom] of BANDS.entries()) {
+    const width = atZoom(APART, zoom) * pixelMetres(zoom, lat);
+    // Each Line's strokes as drawn in the band, cut back where its curves take over, and its curves, in their pieces.
+    const lines = strokes.filter((s) => drawnIn(s, band)).flatMap((s) => {
+      const [start, end] = cutIn(s, band);
+      const shape = inBand(byId, s.shape, band);
+      if (!shape || start + end >= s.to - s.from) return [];
+      return pieces({ ...s, from: s.from + start, to: s.to - end }).map((p) => ({ line: s.line, points: offset(along(shape, p.from, p.to).map(flat), p.side * width) }));
+    });
+    // Each segment, in every cell a line width across that it comes within half a line width of.
+    const cells = new Map<string, { line: string; a: [number, number]; b: [number, number] }[]>();
+    for (const { line, points } of lines) {
+      for (const [i, b] of points.entries()) {
+        const a = points[i - 1];
+        if (!a) continue;
+        for (let x = Math.floor((Math.min(a[0], b[0]) - width / 2) / width); x <= Math.floor((Math.max(a[0], b[0]) + width / 2) / width); x++) {
+          for (let y = Math.floor((Math.min(a[1], b[1]) - width / 2) / width); y <= Math.floor((Math.max(a[1], b[1]) + width / 2) / width); y++) {
+            const list = cells.get(`${x} ${y}`);
+            if (list) list.push({ line, a, b });
+            else cells.set(`${x} ${y}`, [{ line, a, b }]);
+          }
+        }
+      }
+    }
+    found[zoom] = 0;
+    for (const { line, points } of lines) {
+      // From the first point looked at, EVERY / 2 along, every EVERY, segment by segment.
+      let next = EVERY / 2;
+      for (const [i, q] of points.entries()) {
+        const p = points[i - 1];
+        const length = p && Math.hypot(q[0] - p[0], q[1] - p[1]);
+        if (!p || !length) continue;
+        const [ux, uy] = [(q[0] - p[0]) / length, (q[1] - p[1]) / length];
+        for (; next < length; next += EVERY) {
+          const [x, y] = [p[0] + ux * next, p[1] + uy * next];
+          const over = (cells.get(`${Math.floor(x / width)} ${Math.floor(y / width)}`) ?? []).some(({ line: other, a, b }) => {
+            const step = Math.hypot(b[0] - a[0], b[1] - a[1]);
+            if (other === line || !step) return false;
+            const [vx, vy] = [(b[0] - a[0]) / step, (b[1] - a[1]) / step];
+            const ahead = (x - a[0]) * vx + (y - a[1]) * vy;
+            return ahead >= 0 && ahead <= step && Math.abs((x - a[0]) * vy - (y - a[1]) * vx) < width / 2 && Math.abs(ux * vx + uy * vy) >= PARALLEL;
+          });
+          if (over) found[zoom] += EVERY / 2;
+        }
+        next -= length;
+      }
+    }
+  }
+  return found;
+}
+
 /** At each zoom in BANDS, the kinks, weaves and metres off track inside nodes (see Measures). */
 function nodes(strokes: Stroke[], shapes: Shape[], lines: Line[]): Pick<Measures, 'kinks' | 'weaves' | 'inside' | 'largest'> {
   const byId = new Map(shapes.map((s) => [s.id, s]));
   const lat = shapes[0]?.coords[0]?.[1] ?? 0;
   const kx = DEGREE * Math.cos((lat * Math.PI) / 180);
   const flat = ([lon, lat]: Point): [x: number, y: number] => [lon * kx, lat * DEGREE];
-  const drawn = strokes.filter((s) => !s.shape.startsWith(LINK));
   const own = new Map(lines.map((l) => [l.id, l.shapes.flatMap((id) => byId.get(id)?.coords.map(flat) ?? [])]));
   const found: Pick<Measures, 'kinks' | 'weaves' | 'inside' | 'largest'> = { kinks: {}, weaves: {}, inside: {}, largest: {} };
   for (const [band, zoom] of BANDS.entries()) {
     const width = atZoom(APART, zoom) * pixelMetres(zoom, lat);
+    const drawn = strokes.filter((s) => !s.shape.startsWith(LINK) && drawnIn(s, band));
     const curves = strokes.filter((s) => s.shape.startsWith(LINK) && s.band === band && s.across);
     const change = (c: Stroke) => Math.abs((c.ease ?? c.side) - c.side);
     found.kinks[zoom] = curves.filter((c) => {
@@ -300,7 +361,7 @@ function nodes(strokes: Stroke[], shapes: Shape[], lines: Line[]): Pick<Measures
     };
     // The strokes a node absorbed, not drawn in the band: a curve that starts or ends on one has no front there, as its Line ends inside the node.
     const hidden = new Map<string, Stroke[]>();
-    for (const s of drawn) if ((s.cut?.[band]?.[0] ?? 0) + (s.cut?.[band]?.[1] ?? 0) >= s.to - s.from) hidden.set(`${s.line} ${s.shape}`, [...(hidden.get(`${s.line} ${s.shape}`) ?? []), s]);
+    for (const s of drawn) if (cutIn(s, band).reduce((a, b) => a + b) >= s.to - s.from) hidden.set(`${s.line} ${s.shape}`, [...(hidden.get(`${s.line} ${s.shape}`) ?? []), s]);
     for (const c of curves) {
       const parts = c.across ?? [];
       const ends = [parts[0], parts.at(-1)].flatMap((part, i) => {
