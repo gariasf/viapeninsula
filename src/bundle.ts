@@ -303,6 +303,9 @@ export const LINK = `${STRETCH}link`;
  */
 export const BANDS = [10, 11, 12, 13];
 
+/** How long a curve across a node is, for each metre a Line moves over on it, half from each stroke it joins (#163). */
+export const LENGTH = 4;
+
 /** The zoom a band starts at, and the zoom the next starts at. */
 export function bandZooms(band: number): [from: number, to: number] {
   const [zoom = 0, before, next] = [BANDS[band], BANDS[band - 1], BANDS[band + 1]];

@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
-import { LINK, STRETCH, type Shape, type Stroke } from '../bundle.ts';
-import { breaks, measures } from './measures.ts';
+import { BANDS, LINK, STRETCH, type Line, type Shape, type Stroke } from '../bundle.ts';
+import { breaks, measures, room, type Front } from './measures.ts';
 
 const degree = (6_371_008.8 * Math.PI) / 180;
 const kx = degree * Math.cos((41.39 * Math.PI) / 180);
@@ -83,7 +83,7 @@ test("doesn't count Lines stepping side by side the same way as a swap", () => {
 
 test('measures nothing amiss for Lines side by side on one track, each drawn once', () => {
   const found = measures({ shapes: [east('a', 2000), east('b', 2000)], strokes: [stroke('R2', 'a', 0, 2000, -0.5), stroke('R11', 'b', 0, 2000, 0.5)] });
-  expect(found).toEqual({ breaks: { steps: 0, stubs: 0, swaps: 0, joins: 0 }, twice: 0, alone: 0, over: 0, folds: { 10: 0, 11: 0, 12: 0, 13: 0 }, dangling: 0 });
+  expect(found).toEqual({ breaks: { steps: 0, stubs: 0, swaps: 0, joins: 0 }, twice: 0, alone: 0, over: 0, folds: { 10: 0, 11: 0, 12: 0, 13: 0 }, dangling: 0, kinks: { 10: 0, 11: 0, 12: 0, 13: 0 }, weaves: { 10: 0, 11: 0, 12: 0, 13: 0 }, inside: { 10: 0, 11: 0, 12: 0, 13: 0 } });
 });
 
 test('measures a Line drawn twice, where its two directions have tracks of their own and different sides', () => {
@@ -146,4 +146,89 @@ test("counts a Line's stroke ends left loose, away from its other strokes and it
   expect(found(true).dangling).toBe(0);
   // A link isn't a break, however short.
   expect(found(true).breaks).toEqual(found(false).breaks);
+});
+
+const none = { 10: 0, 11: 0, 12: 0, 13: 0 };
+const every = (n: number) => ({ 10: n, 11: n, 12: n, 13: n });
+
+/** A bundle leaving a node at a point, in metres east and north, so many degrees north of east, for 2 km, as wide as so many Lines side by side. */
+function front(at: [number, number], north: number, lines: number, change = 0): Front {
+  const [cos, sin] = [Math.cos((north * Math.PI) / 180), Math.sin((north * Math.PI) / 180)];
+  return { points: Array.from({ length: 201 }, (_, i) => [at[0] + i * 10 * cos, at[1] + i * 10 * sin]), left: lines / 2, right: lines / 2, change };
+}
+
+test("gives a node's fronts the room their curves need, or to clear each other's bundles", () => {
+  // Across a junction at right angles, a front clears the other bundle half its width on; straight
+  // through, at once.
+  const [junction] = room([front([0, 0], 0, 2), front([0, 0], 90, 3)], 100);
+  expect(junction).toBeCloseTo(150, -1);
+  expect(room([front([0, 0], 0, 2), front([0, 0], 180, 2)], 100)[0]).toBeLessThan(1);
+  // A Line moving over two widths on a curve takes four on each side.
+  expect(room([front([0, 0], 0, 2, 2), front([0, 0], 180, 2, 2)], 100)).toEqual([400, 400]);
+  // Bundles parting at 10° clear each other where they're as far apart as they're wide, about 1.1 km on.
+  const [fork] = room([front([0, 0], 0, 1), front([0, 0], 10, 1)], 100);
+  expect(fork).toBeGreaterThan(500);
+  expect(fork).toBeLessThan(1200);
+});
+
+/** A curve across a node in each band, from `start` to `end` metres along shape 'a', where R2 moves over from one side to another. */
+function curves(start: number, end: number, side: number, ease: number): Stroke[] {
+  return BANDS.map((_, band) => ({ ...stroke('R2', `${LINK}0`, 0, end - start, side), ease, band, across: [['a', start, (start + end) / 2], ['a', (start + end) / 2, end]] as Stroke['across'] }));
+}
+
+test('counts curves too short for how far their Line moves over as kinks, in each band', () => {
+  const kinks = (start: number, end: number) =>
+    measures({
+      shapes: [east('a', 4000), east(`${LINK}0`, end - start)],
+      strokes: [stroke('R2', 'a', 0, start, 0), ...curves(start, end, 0, 1), stroke('R2', 'a', end, 4000, 1)],
+    }).kinks;
+  // A curve over a line width is 4 widths long: 105 m at zoom 13, 188 m at zoom 12, 590 m at zoom 10.
+  expect(kinks(1000, 1020)).toEqual(every(1));
+  expect(kinks(1000, 1200)).toEqual({ 10: 1, 11: 1, 12: 0, 13: 0 });
+  expect(kinks(1000, 1700)).toEqual(none);
+});
+
+test("counts a Line's stroke shorter than the room the nodes at its ends need, where it changes side there, as a weave", () => {
+  // R2 steps out a line width and back, on a stroke so many metres long; or, staying put, R11 runs alongside.
+  const weaves = (long: number, ease = 1) => {
+    const [a, b] = [1000, 1000 + 100 + long];
+    const back = BANDS.map((_, band) => ({ ...stroke('R2', `${LINK}1`, 0, 100, ease), ease: 0, band, across: [['a', b - 50, b], ['a', b, b + 50]] as Stroke['across'] }));
+    return measures({
+      shapes: [east('a', 8000), east(`${LINK}0`, 100), east(`${LINK}1`, 100)],
+      strokes: [
+        stroke('R2', 'a', 0, a + 50, 0),
+        ...curves(a, a + 100, 0, ease).map((c) => ({ ...c, across: [['a', a, a + 50], ['a', a + 50, a + 100]] as Stroke['across'] })),
+        stroke('R2', 'a', a + 50, b, ease),
+        ...back,
+        stroke('R2', 'a', b, 8000, 0),
+        stroke('R11', 'a', 0, 8000, -1),
+      ],
+    }).weaves;
+  };
+  // Each node takes 2 widths each way: a stroke needs 105 m at zoom 13, 188 m at zoom 12, 336 m at zoom 11, 590 m at zoom 10.
+  expect(weaves(50)).toEqual(every(1));
+  expect(weaves(200)).toEqual({ 10: 1, 11: 1, 12: 0, 13: 0 });
+  expect(weaves(3000)).toEqual(none);
+  expect(weaves(50, 0)).toEqual(none);
+});
+
+test('measures metres of curve drawn further off its own track than at its ends, only for the Lines given', () => {
+  // R2's track runs east, and its curve swings so many metres north of it halfway.
+  const inside = (north: number, lines: Line[] = [{ id: 'R2', network: 'r', name: 'R2', colour: '#000', shapes: ['own'] }]) => {
+    const swing = shape(`${LINK}0`, Array.from({ length: 21 }, (_, i) => [1000 + i * 10, north * Math.sin((Math.PI * i) / 20)]));
+    return measures({
+      shapes: [east('own', 4000), east('a', 4000), swing],
+      strokes: [stroke('R2', 'a', 0, 1000, 0), ...curves(1000, 1200, 0, 0).map((c) => ({ ...c, to: swing.dist.at(-1) ?? 0 })), stroke('R2', 'a', 1200, 4000, 0)],
+      lines,
+    }).inside;
+  };
+  const far = inside(400);
+  expect(far[13]).toBeGreaterThan(100);
+  expect(far[10]).toBeGreaterThan(100);
+  expect(far[13]).toBeGreaterThan(far[10] ?? 0);
+  // Half a line width at zoom 13 is 13 m, and at zoom 10, 74 m.
+  expect(inside(40)[13]).toBeGreaterThan(0);
+  expect(inside(40)[10]).toBe(0);
+  expect(inside(0)).toEqual(none);
+  expect(inside(400, [])).toEqual(none);
 });
