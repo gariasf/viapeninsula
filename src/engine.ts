@@ -19,6 +19,8 @@ export interface Train {
    * and may not be running. Not where that live data names Blocks but none on its Line, as on L9.
    */
   unreported: boolean;
+  /** The Station it stands at, while it stands at one: from when it comes in there until it leaves. */
+  standsAt?: string;
 }
 
 /**
@@ -86,8 +88,6 @@ export interface Followed extends Train {
    * for its Block at its first Station after that has it leave, as late as it's held.
    */
   upcoming: { station: string; arrival: number; departure: number }[];
-  /** Whether it stands at the first of them. */
-  standing: boolean;
   /** How long ago live data last placed it, in ms, as of when its operator reported it there: none where the snapshots kept don't. */
   since?: number;
   /** How fast it's drawn running, in m/s, as its speed profile has it: an estimate, not a measurement. */
@@ -111,7 +111,6 @@ export function trainAt(bundle: Bundle, at: number, received: Received[], id: st
     ...train,
     delay: shown(network, delay),
     upcoming: upcoming.map((c) => ({ station: c.station, arrival: expected(c.arrival), departure: expected(c.departure) })),
-    standing: (upcoming[0]?.arrival ?? Infinity) <= time,
     since: said?.confirmed === undefined ? undefined : bundle.noonMinus12h + now * 1000 - said.confirmed,
     speed: Math.abs(drawn(now + 0.5) - drawn(now - 0.5)),
     unitType: said?.report.unitType,
@@ -312,7 +311,10 @@ function onMap(bundle: Bundle, at: number, received: Received[]): { of: (trip: T
     if (!onTrack(shape, dist)) return off;
     const [lon, lat] = pointAt(shape, dist);
     const unreported = available.has(network.id) && !recent(said, upTo) && (!blockNetworks.has(network.id) || blockLines.has(trip.line));
-    return { ...off, train: { trip, dist, lon, lat, heading: headingAt(shape, calls, time, dist), live, unreported } };
+    // The first Station it has still to leave, where it has come in there already.
+    const call = calls.find((c) => toLeave(c, time));
+    const standsAt = call && call.arrival <= time ? call.station : undefined;
+    return { ...off, train: { trip, dist, lon, lat, heading: headingAt(shape, calls, time, dist), live, unreported, standsAt } };
   };
   return { of, now, available };
 }

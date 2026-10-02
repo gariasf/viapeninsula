@@ -7,7 +7,8 @@ import { along, APART, atZoom, BANDS, bandZooms, cutIn, GRAPH_BAND, STRETCH, smo
 import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Received } from '../engine.ts';
 import { language, LANGUAGES, setLanguage, t, trainCount, type Language } from './i18n.ts';
 import { linesAt } from './tap.ts';
-import { alongside, namedTwice, nameOffset, nearestSide, underName, type Side, type Spot } from './names.ts';
+import { alongside, namedTwice, nameOffset, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
+import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
 setWorkerUrl(workerUrl);
@@ -412,6 +413,16 @@ let placing = { shapes: new Map<string, Shape>(), slots: new Map<string, Slot[]>
 let shownStrokes: Stroke[] = [];
 /** How each Line's Trains are drawn as pills, by the Line's ID. */
 let pills = new Map<string, Pill>();
+/** What moves a tapped group of Trains standing together at a Station apart (#129). */
+const spread = spreading();
+/**
+ * The group of Trains a tap spread, until a tap elsewhere, a zoom out from their pills, or once fewer
+ * than two of them stand at their Station; the Trains it moves aside, eased or easing, and by how
+ * far, in px; and whether they're still easing.
+ */
+let spreadState: { group?: Group; moved: Map<string, number>; easing: boolean } = { moved: new Map(), easing: false };
+/** The Trains last drawn as pills standing at a Station, where they're drawn before any moves aside, which a tap on one spreads (groupOf()). */
+let standingPills: { id: string; at: Point; heading: number; box: [number, number]; standsAt: string }[] = [];
 /**
  * Each place's name: its dot, the sides of its track it can go, once the map's bearing is known, broken
  * into its lines, how wide and high those are, in px, the zoom it shows from, how much larger its dot is, and how it's lettered.
@@ -663,7 +674,18 @@ map.on('click', ({ point: { x, y }, lngLat }) => {
   linesPopup.remove();
   const within = (r: number, layers: string[]) => map.queryRenderedFeatures([[x - r, y - r], [x + r, y + r]], { layers });
   const near = (layer: string): unknown => within(10, [layer])[0]?.properties.id;
-  const [train, place] = [near('train-pills-followed') ?? near('train-pills') ?? near('trains'), near('stations')];
+  // Where pills overlap, the one under the tap, the topmost, before one near it.
+  const under: unknown = within(0, ['train-pills-followed', 'train-pills'])[0]?.properties.id;
+  const [train, place] = [under ?? near('train-pills-followed') ?? near('train-pills') ?? near('trains'), near('stations')];
+  // A tap on a pill standing over others spreads them, and while they're spread, any tap but on one of them folds them (#129).
+  const { group } = spreadState;
+  const inGroup = typeof train === 'string' && group?.ids.has(train);
+  const spreads = typeof train === 'string' && !group ? groupOf(standingPills.map((p) => ({ ...p, at: projected(p.at) })), train) : undefined;
+  if (spreads || (group && !inGroup)) {
+    spreadState.group = spreads;
+    trainSource?.setData(trains());
+  }
+  if (spreads) return;
   if (typeof train === 'string') follow(train);
   else if (typeof place === 'string') showBoard(place);
   else if (!within(0, ['station-names']).length) {
@@ -694,7 +716,7 @@ requestAnimationFrame(function move(now) {
   const view = `${map.getZoom()} ${map.getBearing()}`;
   // ponytail: no more often than IDLE_EVERY once the map stands, so zoomed right in, at 18, a Train at
   // 110 km/h then steps about 4.5 px at a time. Let the rate rise with the zoom there too if that shows.
-  const every = following || view !== drawnAt ? 0 : Math.min(IDLE_MOST, now - moved > MOVED ? Math.max(IDLE_EVERY, quarterPixel()) : quarterPixel());
+  const every = following || spreadState.easing || view !== drawnAt ? 0 : Math.min(IDLE_MOST, now - moved > MOVED ? Math.max(IDLE_EVERY, quarterPixel()) : quarterPixel());
   if (now - drawn < every) return requestAnimationFrame(move);
   [drawn, drawnAt] = [now, view];
   const drawing = trains();
@@ -823,23 +845,41 @@ function show(days: Track | Bundle) {
 /**
  * Every Train on the map now, in its Line's colour, Live or Scheduled. Zoomed out, until the Lines
  * are back on the rails, each sits on its Line's stroke, half a line width to the side its Network's
- * Trains keep to, so that Trains going opposite ways show apart (onStroke()).
+ * Trains keep to, so that Trains going opposite ways show apart (onStroke()). A tapped group of
+ * Trains standing together at a Station goes side by side across their track (spreading()), so that
+ * each can be seen and tapped (#129).
  */
 function trains(): GeoJSON.FeatureCollection {
   const zoom = map.getZoom();
   const [followed, bearing] = [followedId(), map.getBearing()];
   if (following) following.at = undefined;
+  const placed = (bundle ? trainsAt(bundle, Date.now(), received) : []).map((train) => {
+    const { trip, dist, lon, lat, heading, standsAt } = train;
+    // ponytail: takes the Network's running side, so L2's Trains between Tetuan and Paral·lel, which
+    // keep left, sit half a line width to the wrong side zoomed out. Publish each shape's side of
+    // its double track from the trace if that ever shows.
+    const on = zoom < railsZoom ? onStroke(placing.slots.get(`${trip.line} ${trip.shape}`), placing.shapes, dist, zoom, placing.keep.get(trip.line) ?? 1, placing.curves) : undefined;
+    const pill = pills.get(trip.line);
+    const box = pill && (trip.id === followed ? pill.followedBox : pill.box);
+    // As a pill, with its edge, on screen.
+    const asPill = pill && box && zoom >= pill.zoom ? { id: trip.id, heading: heading - bearing, box: [box[0] + PILL_HALO, box[1] + PILL_HALO] as [number, number], standsAt } : undefined;
+    return { train, pill, box, asPill, at: on ?? ([lon, lat] as Point) };
+  });
+  standingPills = placed.flatMap(({ asPill, at }) => (asPill?.standsAt ? [{ ...asPill, standsAt: asPill.standsAt, at }] : []));
+  // A spread group folds once fewer than two of its Trains stand at its Station drawn as pills, as zoomed out.
+  const { group } = spreadState;
+  if (group && standingPills.filter((p) => group.ids.has(p.id) && p.standsAt === group.station).length < 2) spreadState.group = undefined;
+  // Only the group's Trains, and those moved aside, easing back, are put on screen.
+  const spreadable = placed.flatMap(({ asPill, at }): Drawn[] => (asPill && (spreadState.group?.ids.has(asPill.id) || spreadState.moved.has(asPill.id)) ? [{ ...asPill, at: projected(at) }] : []));
+  const aside = spread(spreadable, performance.now(), spreadState.group);
+  spreadState = { group: spreadState.group, moved: aside, easing: [...aside].some(([id, px]) => spreadState.moved.get(id) !== px) || aside.size !== spreadState.moved.size };
   return {
     type: 'FeatureCollection',
-    features: (bundle ? trainsAt(bundle, Date.now(), received) : []).map(({ trip, dist, lon, lat, heading, live }) => {
-      // ponytail: takes the Network's running side, so L2's Trains between Tetuan and Paral·lel, which
-      // keep left, sit half a line width to the wrong side zoomed out. Publish each shape's side of
-      // its double track from the trace if that ever shows.
-      const placed = zoom < railsZoom ? onStroke(placing.slots.get(`${trip.line} ${trip.shape}`), placing.shapes, dist, zoom, placing.keep.get(trip.line) ?? 1, placing.curves) : undefined;
-      const coordinates: Point = placed ?? [lon, lat];
+    features: placed.map(({ train: { trip, heading, live }, pill, box, at }) => {
+      const [out, onScreen] = [aside.get(trip.id), spreadable.find((d) => d.id === trip.id)?.at];
+      const right = rightOf(heading, bearing);
+      const coordinates: Point = out && onScreen ? (map.unproject([onScreen[0] + out * right[0], onScreen[1] + out * right[1]]).toArray() as Point) : at;
       if (following && trip.id === followed) following.at = coordinates;
-      const pill = pills.get(trip.line);
-      const box = pill && (trip.id === followed ? pill.followedBox : pill.box);
       return {
         type: 'Feature',
         properties: {
@@ -1019,14 +1059,18 @@ function textWidth(text: string, font: string): number {
 /**
  * How far ahead of its Train an arrow goes, in px: just outside a pill reaching `box` px either side
  * and above and below, where the Train's heading leaves it on screen, `angle` degrees clockwise from
- * straight up, as the pill stays level while the map turns.
- * ponytail: to the pill's box, so a heading that leaves off the level by a pointed or rounded end puts
- * its arrow a few px further out; and laid out flat, so on a tilted map an arrow sits nearer its
- * pill's far side. Aim at the outline itself, tilted with the pill, if either shows.
+ * straight up, as the pill stays level while the map turns (toEdge()).
+ * ponytail: laid out flat, so on a tilted map an arrow sits nearer its pill's far side. Aim at the
+ * outline tilted with the pill if that shows.
  */
-function reach([halfWidth, halfHeight]: [number, number], angle: number): number {
-  const a = (angle * Math.PI) / 180;
-  return Math.min(halfWidth / Math.abs(Math.sin(a)), halfHeight / Math.abs(Math.cos(a))) + ARROW_GAP;
+function reach(box: [number, number], angle: number): number {
+  return toEdge(box, angle) + ARROW_GAP;
+}
+
+/** Where a point is on screen, in px, x right and y down. */
+function projected(point: Point): [number, number] {
+  const { x, y } = map.project(point);
+  return [x, y];
 }
 
 /** How far outside a square `half` px either side of its middle, with its corners rounded `r` px, a point is, in px. */
@@ -1227,7 +1271,7 @@ function showPanel() {
 function followedPanel(): Node[] | undefined {
   const train = bundle && trainAt(bundle, Date.now(), received, followedId() ?? '');
   if (!train) return undefined;
-  const { trip, live, unreported, since, delay, speed, unitType, upcoming, standing } = train;
+  const { trip, live, unreported, since, delay, speed, unitType, upcoming, standsAt } = train;
   const status = [t(live ? 'live' : 'scheduled')];
   if (unreported) status.push(t('noLiveTrain'));
   else if (since !== undefined) status.push(t(live ? 'confirmed' : 'lastConfirmed').replace('{ago}', ago(since)));
@@ -1244,7 +1288,7 @@ function followedPanel(): Node[] | undefined {
       'ol',
       {},
       // Standing at a Station, it's when it leaves that's still to come.
-      ...upcoming.map((u, i) => el('li', {}, el('time', { textContent: time.format(i === 0 && standing ? u.departure : u.arrival) }), ` ${stationNames.get(u.station) ?? u.station}`)),
+      ...upcoming.map((u, i) => el('li', {}, el('time', { textContent: time.format(i === 0 && standsAt ? u.departure : u.arrival) }), ` ${stationNames.get(u.station) ?? u.station}`)),
     ),
   ];
 }
