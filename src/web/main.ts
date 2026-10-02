@@ -3,17 +3,17 @@ import './style.css';
 import type { ExpressionFilterSpecification, ExpressionSpecification, LineLayerSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { AttributionControl, MapLibreMap, Popup, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { along, APART, atZoom, BANDS, bandZooms, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Place, type DayTrips, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, WIDTH } from '../bundle.ts';
+import { along, APART, atZoom, BANDS, bandZooms, cutIn, direction, GRAPH_BAND, LINK, pointAt, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Place, type DayTrips, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, WIDTH } from '../bundle.ts';
 import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Received } from '../engine.ts';
 import { language, LANGUAGES, setLanguage, t, trainCount, type Language } from './i18n.ts';
 import { linesAt } from './tap.ts';
+import { type Drawn, stretches } from './badges.ts';
 import { alongside, namedTwice, nameOffset, nearestSide, underName, type Side, type Spot } from './names.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
 setWorkerUrl(workerUrl);
 
 const FONT = ['Noto Sans Regular'];
-const NAME_SIZE = 12;
 /** The size of a Line's name on its Trains' pills, in px, and on the followed Train's, which is larger. */
 const [PILL_TEXT, FOLLOWED_TEXT] = [10, 12];
 /** How far a pill reaches beyond its Line's name either side, and above and below the name's line, in px. */
@@ -73,6 +73,14 @@ const [MOVED, IDLE_EVERY, IDLE_MOST] = [1500, 30, 250];
  * within STROKE_NEAREST of it, if any, are taken first, so that one beside another is the one named.
  */
 const [STROKE_NEAREST, STROKE_TAP] = [5, 22];
+/**
+ * How far apart badges repeat along a long Stretch, and zoomed right in along a Line's own track, about
+ * a screen, in px (#191): MapLibre's `symbol-spacing`. Between a badge's pills, and between it and the
+ * end of its Stretch, BADGE_GAP px.
+ */
+const [BADGE_SPACING, RAIL_BADGE_SPACING, BADGE_GAP] = [600, 800, 1];
+/** What a badge's image ID starts with, and then whether its pills go down a `col` or along a `row`, and their Lines, in that order, all after a `|`. */
+const BADGE = 'badge';
 /** A place's dot's radius, in px at each zoom, for a place in neither tier. */
 const DOT: [zoom: number, px: number][] = [[7, 1.5], [14, 5]];
 /** The width of the ring round a place's dot, in px at each zoom. */
@@ -88,8 +96,8 @@ interface NameStyle {
 }
 /**
  * The colour of places' names, a dark blue of their own, and how wide their white halo is, in px, which
- * with each tier's lettering sets them apart from the basemap's labels, the Lines' names and the pills'
- * lettering (#144).
+ * with each tier's lettering sets them apart from the basemap's labels and the pills'
+ * lettering on Trains and badges (#144).
  */
 const [NAME_COLOUR, NAME_HALO] = ['#14305a', 2.5];
 /** How far a place's name stays clear of its dot and of the Trains drawn along its track, in px: its halo and half a px. */
@@ -101,7 +109,7 @@ const NAME_GAP = NAME_HALO + 0.5;
  * OpenFreeMap changed it. Take it from the style's background layer if that ever shows.
  */
 const PAPER = '#f2f3f0';
-/** The colour of a track Lines share, zoomed right in, where their strokes lie one over another: their names along it and their Trains tell them apart (#139). */
+/** The colour of a track Lines share, zoomed right in, where their strokes lie one over another: their badges along it and their Trains tell them apart (#139, #191). */
 const SHARED = '#9a9b9e';
 
 /**
@@ -402,6 +410,11 @@ if (!document.hidden) poll();
 const [needed] = await Promise.all([neededDays().then((n) => n ?? Promise.reject(new Error('No service day to show'))), map.once('load')]);
 /** The days on the map, whose Trains move, once their Trips have come. */
 let bundle: Bundle | undefined;
+// The zoom the Lines are back on the rails from (ADR-0006).
+const railsZoom = APART.at(-1)?.[0] ?? 15;
+// Below the first band's zoom, Lines side by side can't be read: each Network's track is drawn once
+// instead, in its colour, and no Trains (#190).
+const linesZoom = BANDS[0] ?? 7;
 let lines = new Map<string, Line>();
 let stationNames = new Map<string, string>();
 /** Where the map shows the Stations, by their IDs in places(). */
@@ -421,6 +434,7 @@ let names: { dot: Point; sides: (bearing: number) => Side[]; name: string; size:
 let namesBearing = NaN;
 map.addSource('lines', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 map.addSource('rails', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+map.addSource('badges', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 map.addSource('tracks', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 map.addSource('stations', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 map.addSource('station-names', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
@@ -446,10 +460,6 @@ const lineOffset = byZoom(APART, (px) => ['*', ['get', 'side'], px]);
 // Along their stretches, each zoom band has layers of its own, for its curves across the nodes and
 // its strokes cut back to make room for them (#163), and below GRAPH_BAND, for its own line graph's
 // strokes (ADR-0007).
-const railsZoom = APART.at(-1)?.[0] ?? 15;
-// Below the first band's zoom, Lines side by side can't be read: each Network's track is drawn once
-// instead, in its colour, and no Trains (#190).
-const linesZoom = BANDS[0] ?? 7;
 map.addLayer(
   { id: 'tracks', type: 'line', source: 'tracks', maxzoom: linesZoom, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ['get', 'colour'], 'line-width': atZoom(WIDTH, linesZoom) } },
   firstLabel,
@@ -503,27 +513,26 @@ for (const { source, id, prefix, zooms } of layered) {
     },
     firstLabel,
   );
-  map.addLayer({
-    id: `${prefix}-names`,
-    type: 'symbol',
-    source,
-    ...zooms,
-    layout: {
-      'symbol-placement': 'line',
-      'text-field': ['get', 'name'],
-      'text-font': FONT,
-      'text-size': NAME_SIZE,
-      'text-offset': byZoom(APART, (_, zoom) => ['array', 'number', 2, ['get', `textOffset${zoom}`]]),
-    },
-    paint: {
-      'text-color': ['get', 'colour'],
-      'text-halo-color': '#fff',
-      'text-halo-width': 2,
-      // MapLibre offsets names by whole zoom levels, so while the Lines slide onto the rails, names hide.
-      'text-opacity': ['interpolate', ['linear'], ['zoom'], 14, 1, 14.1, 0, 14.9, 0, 15, 1],
-    },
-  });
 }
+// Lines are named by badges, pills in their colours as their Trains' are, stacked in their Stretch's
+// order (#191, ADR-0008): where Lines come onto a Stretch or leave it, and at their termini, which
+// are placed first, and now and then along a long Stretch; zoomed right in, along each Line's own
+// track. A badge is one image (addBadge()), so where badges collide, MapLibre leaves a whole one out.
+for (const [band, { prefix, zooms }] of layered.entries()) {
+  const { filter: _, ...range } = zooms;
+  const rails = prefix === 'rail';
+  for (const placement of rails ? (['line'] as const) : (['line', 'point'] as const)) {
+    map.addLayer({
+      id: `${prefix}-badges${placement === 'line' ? '-along' : ''}`,
+      type: 'symbol',
+      source: 'badges',
+      ...range,
+      filter: ['all', rails ? ['has', 'rails'] : ['==', ['get', 'band'], band], ['==', ['geometry-type'], placement === 'line' ? 'LineString' : 'Point']],
+      layout: { 'symbol-placement': placement, 'symbol-spacing': rails ? RAIL_BADGE_SPACING : BADGE_SPACING, 'icon-image': ['get', 'badge'], 'icon-rotation-alignment': 'viewport' },
+    });
+  }
+}
+map.setMissingStyleImageResolver((id) => (id.startsWith(`${BADGE}|`) ? addBadge(id) : undefined));
 // A tier's dots are larger than the rest, and drawn over them where they meet.
 map.addLayer({
   id: 'stations',
@@ -563,7 +572,7 @@ map.addLayer({
 // that it's Live and sets it further apart from a Scheduled one, which has none (#91). It grows with
 // the marker, the followed Train's too, as trains() works its radius out for the zoom: a plain
 // number for each Train is quicker for the map to draw with, each time it draws Trains, than an
-// expression of the zoom. It lies under the Lines' names, which it would veil, and the places' dots,
+// expression of the zoom. It lies under the Lines' badges, which it would veil, and the places' dots,
 // which it would blur. On a tilted map it keeps its size, as a pill does more than a circle.
 // ponytail: a circle, so under a long pill it reaches further above and below it than past its ends,
 // whatever its outline. Blur each outline, drawn larger, if that shows.
@@ -576,7 +585,7 @@ map.addLayer(
     filter: ['get', 'live'],
     paint: { 'circle-radius': ['get', 'haloRadius'], 'circle-color': ['get', 'colour'], 'circle-blur': HALO_BLUR, 'circle-opacity': HALO_OPACITY, 'circle-pitch-scale': 'viewport' },
   },
-  'line-names',
+  'line-badges-along',
 );
 // Each place's name beside its track (showNames()), from its tier's zoom, and where names collide, the
 // one named from further out. Right of a track, a name's lines line up along the track's side.
@@ -780,14 +789,13 @@ function show(days: Track | Bundle) {
         ...(shared && { shared }),
         ...(under && { under }),
         ...(crowded && { crowded }),
-        // Each Line's name goes on its own stroke: text-offset is in ems.
-        ...Object.fromEntries(APART.map(([zoom, px]) => [`textOffset${zoom}`, [0, (side * px) / NAME_SIZE]])),
       };
       return [{ type: 'Feature', properties, geometry: { type: 'LineString', coordinates: along(shape, from, to) } }];
     }),
   });
   map.getSource<GeoJSONSource>('lines')?.setData(drawn(days.strokes));
   map.getSource<GeoJSONSource>('rails')?.setData(drawn(days.rails));
+  map.getSource<GeoJSONSource>('badges')?.setData({ type: 'FeatureCollection', features: badges(days, shapes) });
   // A track built before #190 has none.
   const colours = new Map(days.networks.map((n) => [n.id, n.colour]));
   map.getSource<GeoJSONSource>('tracks')?.setData({
@@ -1333,6 +1341,100 @@ function closeButton(label: string, onclick = closePanel) {
   const close = el('button', { className: 'close', title: label, textContent: '×', onclick });
   close.setAttribute('aria-label', label);
   return close;
+}
+
+/**
+ * Where the Lines' badges go (#191): at each end of each Stretch as it's drawn in each band, as far in
+ * as the badge reaches along it, or once in its middle where it's too short for two; along each, which
+ * MapLibre repeats every BADGE_SPACING; and along each Line's own track zoomed right in.
+ */
+function badges({ strokes, rails }: Pick<Track, 'strokes' | 'rails'>, shapes: Map<string, Shape>): GeoJSON.Feature[] {
+  const bands = BANDS.flatMap((_, band) => (band >= GRAPH_BAND ? [band] : []));
+  // Along their Stretches only, not across the nodes between them.
+  const drawn = strokes.flatMap((s): Drawn[] => (s.ease !== undefined || s.shape.startsWith(LINK) ? [] : (s.band !== undefined ? [s.band] : bands).map((band) => ({ ...s, band, cut: cutIn(s, band) }))));
+  const stretched = stretches(drawn).flatMap(({ shape: id, band, from, to, lines: on }): GeoJSON.Feature[] => {
+    const shape = inBand(shapes, id, band);
+    if (!shape) return [];
+    // Metres a px at the band's first zoom, where a badge reaches furthest along its Stretch.
+    const metres = pixelMetres(Math.max(bandZooms(band)[0], linesZoom)) * Math.cos((pointAt(shape, from)[1] * Math.PI) / 180);
+    const point = (at: number, way: [number, number]): GeoJSON.Feature => ({ type: 'Feature', properties: { band, badge: badgeId(on, way) }, geometry: { type: 'Point', coordinates: pointAt(shape, at) } });
+    const whole = direction(shape, from, to);
+    const reach = (way: [number, number]) => (badgeOf(badgeId(on, way)).reach + BADGE_GAP) * metres;
+    const [start, end] = [direction(shape, from, Math.min(to, from + 20 * metres)), direction(shape, Math.max(from, to - 20 * metres), to)];
+    const ends = reach(start) + reach(end) < to - from ? [point(from + reach(start), start), point(to - reach(end), end)] : [point((from + to) / 2, whole)];
+    return [...ends, { type: 'Feature', properties: { band, badge: badgeId(on, whole) }, geometry: { type: 'LineString', coordinates: along(shape, from, to) } }];
+  });
+  const railed = rails.flatMap(({ line, shape: id, from, to }): GeoJSON.Feature[] => {
+    const shape = shapes.get(id);
+    return shape ? [{ type: 'Feature', properties: { rails: true, badge: badgeId([line], [1, 0]) }, geometry: { type: 'LineString', coordinates: along(shape, from, to) } }] : [];
+  });
+  return [...stretched, ...railed];
+}
+
+/**
+ * A badge's image ID, for Lines in their Stretch's order, from its left to its right, where it runs
+ * `way` (direction()): their pills go across it as its strokes do on screen, down a column where it
+ * runs more east or west, along a row where it runs more north or south.
+ * ponytail: on screen as the map is unturned. Turn badges with the map, as places' names are, if a
+ * turned map's read across.
+ */
+function badgeId(on: string[], [east, north]: [number, number]): string {
+  const down = Math.abs(east) >= Math.abs(north);
+  return [BADGE, down ? 'col' : 'row', ...((down ? east : north) < 0 ? [...on].reverse() : on)].join('|');
+}
+
+/**
+ * A badge's pills, each where it goes in px from the badge's top left, as its Line's Trains' are
+ * edged in white (pillOf()), how large the badge is, and how far it reaches along its Stretch from its middle.
+ */
+function badgeOf(id: string): { size: [number, number]; reach: number; pills: { line: Line; pill: Pill; x: number; y: number; w: number; h: number }[] } {
+  const [, way, ...ids] = id.split('|');
+  const down = way === 'col';
+  const stack: { line: Line; pill: Pill; x: number; y: number; w: number; h: number }[] = [];
+  let at = 0;
+  for (const line of ids.flatMap((l) => lines.get(l) ?? [])) {
+    const pill = pills.get(line.id) ?? pillOf(line);
+    const [w, h] = pill.box.map((half) => 2 * (half + PILL_HALO)) as [number, number];
+    stack.push({ line, pill, ...(down ? { x: 0, y: at } : { x: at, y: 0 }), w, h });
+    at += (down ? h : w) + BADGE_GAP;
+  }
+  const size: [number, number] = down ? [Math.max(0, ...stack.map((p) => p.w)), at - BADGE_GAP] : [at - BADGE_GAP, Math.max(0, ...stack.map((p) => p.h))];
+  // Centred across the badge.
+  for (const p of stack) down ? (p.x = (size[0] - p.w) / 2) : (p.y = (size[1] - p.h) / 2);
+  return { size, reach: (down ? size[0] : size[1]) / 2, pills: stack };
+}
+
+/** Adds a badge's image to the map (badgeOf()), drawn for the screen's pixels. */
+function addBadge(id: string) {
+  const { size, pills } = badgeOf(id);
+  const ratio = Math.max(2, Math.ceil(devicePixelRatio));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.ceil(size[0] * ratio));
+  canvas.height = Math.max(1, Math.ceil(size[1] * ratio));
+  const g = canvas.getContext('2d');
+  if (!g) return;
+  g.scale(ratio, ratio);
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.font = `bold ${PILL_TEXT}px sans-serif`;
+  for (const { line, pill, x, y, w, h } of pills) {
+    const [left, top, width, height] = [x + PILL_HALO, y + PILL_HALO, w - 2 * PILL_HALO, h - 2 * PILL_HALO];
+    g.beginPath();
+    if (pill.outline === 'pointed') {
+      // Its ends 5 px long, to a point 2 px across, as OUTLINES has it.
+      const middle = top + height / 2;
+      for (const [px, py] of [[left, middle - 1], [left + 5, top], [left + width - 5, top], [left + width, middle - 1], [left + width, middle + 1], [left + width - 5, top + height], [left + 5, top + height], [left, middle + 1]] as const) g.lineTo(px, py);
+      g.closePath();
+    } else g.roundRect(left, top, width, height, pill.outline === 'round' ? 6.5 : 3);
+    g.lineWidth = 2 * PILL_HALO;
+    g.strokeStyle = '#fff';
+    g.stroke();
+    g.fillStyle = line.colour;
+    g.fill();
+    g.fillStyle = pill.dark ? INK : '#fff';
+    g.fillText(line.name, x + w / 2, y + h / 2);
+  }
+  map.addImage(id, g.getImageData(0, 0, canvas.width, canvas.height), { pixelRatio: ratio });
 }
 
 /** A Line's name on a pill in its colour, outlined as its Trains' are (pillOf()). */
