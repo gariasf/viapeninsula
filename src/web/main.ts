@@ -1,11 +1,12 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
 import type { ExpressionFilterSpecification, ExpressionSpecification, LineLayerSpecification } from '@maplibre/maplibre-gl-style-spec';
-import { AttributionControl, MapLibreMap, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
+import { AttributionControl, MapLibreMap, Popup, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { along, APART, atZoom, BANDS, bandZooms, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Place, type DayTrips, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, WIDTH } from '../bundle.ts';
 import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Received } from '../engine.ts';
 import { language, LANGUAGES, setLanguage, t, trainCount, type Language } from './i18n.ts';
+import { linesAt } from './tap.ts';
 import { alongside, namedTwice, nameOffset, nearestSide, underName, type Side, type Spot } from './names.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
@@ -67,6 +68,8 @@ const LATE = 60 * 60_000;
  */
 const [MOVED, IDLE_EVERY, IDLE_MOST] = [1500, 30, 250];
 
+/** How far from a Line's stroke a tap still names its Lines, in px: a target 44 px across. */
+const STROKE_TAP = 22;
 /** A place's dot's radius, in px at each zoom, for a place in neither tier. */
 const DOT: [zoom: number, px: number][] = [[7, 1.5], [14, 5]];
 /** The width of the ring round a place's dot, in px at each zoom. */
@@ -402,6 +405,8 @@ let stationNames = new Map<string, string>();
 let shownPlaces = new Map<string, Place>();
 /** What places each Line's Trains on its stroke zoomed out: the shapes, its slots by `<line> <shape>`, its curves (zones()), and which side its Trains keep to, 1 right and -1 left. */
 let placing = { shapes: new Map<string, Shape>(), slots: new Map<string, Slot[]>(), curves: new Map<string, Zone[]>(), keep: new Map<string, number>() };
+/** The Lines' strokes along their Stretches, which a tap on one names (linesAt()). */
+let shownStrokes: Stroke[] = [];
 /** How each Line's Trains are drawn as pills, by the Line's ID. */
 let pills = new Map<string, Pill>();
 /**
@@ -644,14 +649,29 @@ for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', tr
 }
 
 // Tapping a Train follows it, and tapping a Station shows its board. Both are small, so a tap near one
-// will do, and a Train standing at a Station is the one tapped.
-map.on('click', ({ point: { x, y } }) => {
-  const near = (layer: string): unknown => map.queryRenderedFeatures([[x - 10, y - 10], [x + 10, y + 10]], { layers: [layer] })[0]?.properties.id;
+// will do, and a Train standing at a Station is the one tapped. A tap nothing else takes, on a Line's
+// stroke or within STROKE_TAP of one, names the Lines drawn there, by their pills (#193), the strokes
+// nearest the tap first: but not on a place's name, which takes no tap.
+const strokeLayers = layered.map((l) => l.id);
+// Each tap closes the last one's Lines.
+const linesPopup = new Popup({ closeButton: false, closeOnClick: false, className: 'lines-at', maxWidth: 'none' });
+map.on('click', ({ point: { x, y }, lngLat }) => {
+  linesPopup.remove();
+  const within = (r: number, layers: string[]) => map.queryRenderedFeatures([[x - r, y - r], [x + r, y + r]], { layers });
+  const near = (layer: string): unknown => within(10, [layer])[0]?.properties.id;
   const [train, place] = [near('train-pills-followed') ?? near('train-pills') ?? near('trains'), near('stations')];
   if (typeof train === 'string') follow(train);
   else if (typeof place === 'string') showBoard(place);
+  else if (!within(0, ['station-names']).length) {
+    const tapped = [STROKE_TAP / 4, STROKE_TAP].map((r) => within(r, strokeLayers)).find((hits) => hits.length) ?? [];
+    const named = linesAt(tapped.map((f) => ({ line: String(f.properties.line), shape: String(f.properties.shape) })), shownStrokes).flatMap((id) => {
+      const [line, pill] = [lines.get(id), pills.get(id)];
+      return line && pill ? [linePill(line, pill)] : [];
+    });
+    if (named.length) linesPopup.setLngLat(lngLat).setDOMContent(el('div', {}, ...named)).addTo(map);
+  }
 });
-for (const layer of ['trains', 'train-pills', 'train-pills-followed', 'stations']) {
+for (const layer of ['trains', 'train-pills', 'train-pills-followed', 'stations', ...strokeLayers]) {
   map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'));
   map.on('mouseleave', layer, () => (map.getCanvas().style.cursor = ''));
 }
@@ -724,6 +744,7 @@ function show(days: Track | Bundle) {
   const keep = new Map(days.networks.map((n) => [n.id, n.runningSide === 'left' ? -1 : 1]));
   placing = { shapes, slots, curves: zones(days.strokes), keep: new Map(days.lines.map((l) => [l.id, keep.get(l.network) ?? 1])) };
   pills = new Map(days.lines.map((l) => [l.id, pillOf(l)]));
+  shownStrokes = days.strokes;
   const drawn = (strokes: Stroke[]): GeoJSON.FeatureCollection => ({
     type: 'FeatureCollection',
     // A stroke cut back for curves, or along a centreline smoothed for a zoom band, once for each band
@@ -740,6 +761,8 @@ function show(days: Track | Bundle) {
       const [line, shape] = [lines.get(id), band === undefined ? shapes.get(shapeId) : inBand(shapes, shapeId, band)];
       if (!line || !shape) return [];
       const properties = {
+        line: id,
+        shape: shapeId,
         name: line.name,
         colour: line.colour,
         // Zoomed right in, where Lines share track, Barcelona's commuter lines (R1–R8) are drawn over the regional ones.
@@ -1303,6 +1326,13 @@ function closeButton(label: string, onclick = closePanel) {
   const close = el('button', { className: 'close', title: label, textContent: '×', onclick });
   close.setAttribute('aria-label', label);
   return close;
+}
+
+/** A Line's name on a pill in its colour, outlined as its Trains' are (pillOf()). */
+function linePill(line: Line, { outline, dark }: Pill) {
+  const name = el('span', { className: `pill ${outline}${dark ? ' dark' : ''}`, textContent: line.name });
+  name.style.setProperty('--line', line.colour);
+  return name;
 }
 
 /** A Line's name, in its colour. */

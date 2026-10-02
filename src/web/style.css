@@ -191,3 +191,37 @@ body,
 .follow .cancelled small {
   color: #c00;
 }
+
+/* The Lines a tap on their strokes names (#193): pills in each Line's colour, outlined as its Trains' are on the map. */
+.lines-at .maplibregl-popup-content {
+  max-width: min(320px, calc(100vw - 32px));
+  padding: 6px;
+}
+
+.lines-at .maplibregl-popup-content > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.lines-at .pill {
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--line, #555);
+  color: #fff;
+  font: bold 12px/18px sans-serif;
+}
+
+.lines-at .badge {
+  border-radius: 3px;
+}
+
+.lines-at .pointed {
+  padding: 0 9px;
+  border-radius: 0;
+  clip-path: polygon(6px 0, calc(100% - 6px) 0, 100% 50%, calc(100% - 6px) 100%, 6px 100%, 0 50%);
+}
+
+.lines-at .dark {
+  color: #111;
+}
