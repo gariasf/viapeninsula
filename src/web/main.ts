@@ -719,7 +719,8 @@ function show(days: Track | Bundle) {
     // as it is there; a curve in its pieces.
     features: strokes.flatMap((s) => {
       const cut = s.cut ?? (BANDS.some((_, band) => shapes.has(smoothId(s.shape, band))) ? BANDS.map((): [number, number] => [0, 0]) : undefined);
-      return cut ? cut.map(([start, end], band) => ({ ...s, from: s.from + start, to: s.to - end, band })) : pieces(s);
+      // Not in a band where a node absorbed its Stretch (ADR-0007).
+      return cut ? cut.flatMap(([start, end], band) => (start + end < s.to - s.from ? [{ ...s, from: s.from + start, to: s.to - end, band }] : [])) : pieces(s);
     }).flatMap(({ line: id, shape: shapeId, from, to, side, band, shared, under, crowded }): GeoJSON.Feature[] => {
       const [line, shape] = [lines.get(id), band === undefined ? shapes.get(shapeId) : inBand(shapes, shapeId, band)];
       if (!line || !shape) return [];

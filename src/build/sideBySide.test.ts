@@ -426,6 +426,25 @@ test("makes a curve long enough for its side to change, however little the Line 
   }
 });
 
+test("absorbs a Stretch too short for its nodes' curves, zoomed out, and crosses it on one curve, its Trains on it (ADR-0007)", async () => {
+  // As at Auditori: B comes in from the south-west onto A's track for 200 m, and leaves it north-east, crossing it.
+  const shapes = [shape('A', [0, 0], [5000, 0]), shape('B', [0, -2500], [2400, 0], [2600, 0], [5000, 2500])];
+  const lines = [line('A', 'A'), line('B', 'B')];
+  const { strokes, centrelines } = await sideBySide(lines, shapes);
+  const found = measures({ shapes: [...shapes, ...centrelines], strokes, lines });
+  for (const zoom of BANDS) expect([found.kinks[zoom], found.weaves[zoom]]).toEqual([0, 0]);
+  // At zoom 10 a line width is 147 m: the shared Stretch isn't drawn, and B crosses its node on one curve, along it.
+  const shared = strokes.filter((s) => s.line === 'B' && !s.shape.startsWith(LINK) && s.to - s.from < 400);
+  expect(shared.length).toBeGreaterThan(0);
+  for (const s of shared) expect((s.cut?.[0]?.[0] ?? 0) + (s.cut?.[0]?.[1] ?? 0)).toBe(s.to - s.from);
+  const curves = strokes.filter((s) => s.line === 'B' && s.shape.startsWith(LINK) && s.band === 0);
+  expect(curves).toHaveLength(1);
+  expect(curves[0]?.across?.length).toBeGreaterThan(2);
+  // At zoom 13, 26 m, it's long enough to draw.
+  for (const s of shared) expect((s.cut?.[3]?.[0] ?? 0) + (s.cut?.[3]?.[1] ?? 0)).toBeLessThan(s.to - s.from);
+  expect(Math.max(...(await offStroke(lines, shapes, [['A', 'A'], ['B', 'B']])))).toBeLessThan(1);
+});
+
 test('ends Lines that end together at one point across their Stretch', async () => {
   // A and B share track to a terminus; B's track stops 100 m short of A's.
   const { strokes } = await draw([line('A', 'A'), line('B', 'B')], [shape('A', [0, 0], [5000, 0]), shape('B', [0, 0], [4900, 0])]);

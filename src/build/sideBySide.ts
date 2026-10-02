@@ -1,6 +1,6 @@
 // How the map draws each Line: where Lines share track, side by side, as a transit map does.
 
-import { APART, atZoom, BANDS, beside, DEGREE, inBand, LENGTH, LINK, pixelMetres, pointAt, smoothId, STRETCH, type Line, type Point, type Shape, type Slot, type Stroke } from '../bundle.ts';
+import { along, APART, atZoom, BANDS, beside, DEGREE, inBand, LENGTH, LINK, pieces, pixelMetres, pointAt, smoothId, STRETCH, type Line, type Point, type Shape, type Slot, type Stroke } from '../bundle.ts';
 import { order, type Node } from './order.ts';
 import { folded, simplify, TOLERANCE } from './offset.ts';
 import { distances, nearest } from './track.ts';
@@ -19,8 +19,6 @@ const SHORT = 150;
 const ANGLE = 300;
 /** How far, in metres, a Line's stroke may end from where its shape leaves a Stretch or comes onto it, for a curve to join it there. */
 const REACH = 2 * STEP;
-/** The most of a stroke a curve takes at either end. */
-const TAKE = 0.45;
 /** How many segments a curve is drawn with. */
 const SEGMENTS = 8;
 /** How far apart, in metres, a centreline is looked at to smooth it. */
@@ -151,7 +149,8 @@ export async function sideBySide(lines: Line[], shapes: Shape[]): Promise<{ stro
   together(found, onStretch, joins);
   const smooth = smoothed(centrelines, drawn, kx);
   for (const c of smooth) byId.set(c.id, c);
-  const linked = curves(joins, byId, lines, kx);
+  // Line widths at the track's first point, as measures() takes them.
+  const linked = curves(joins, found, onStretch, byId, kx, shapes[0]?.coords[0]?.[1] ?? 0);
   // Each step of each shape on its Line's stroke along the Stretch its piece is drawn on, or where the
   // Line has none there, beside its own track, at the side its own stroke would be drawn.
   const wayOn = new Map(found.flatMap(({ steps }) => steps.map((s): [number, number] => [s.piece, s.way])));
@@ -277,77 +276,247 @@ function together(found: Stretch[], onStretch: Map<string, Stroke[]>, joins: Joi
   }
 }
 
+/** A Line's way across a node: the strokes it goes along, in order, each by its end it leaves at (the first) or comes in at (the rest). */
+type Leg = { stroke: Stroke; end: 0 | 1 };
+
 /**
- * The curves across the line graph's nodes (#163): for each join, in each zoom band, a cubic Bézier
- * from the centreline under the Line's stroke on one Stretch to the one under its stroke on the next,
- * leaving and coming in the way they run, as LOOM does. Each is LENGTH times as long as the Line moves
- * over, at the band's zoom, and the strokes it joins are cut back to make room. It eases from one
- * stroke's side to the other's (pieces()), and so meets each at any zoom in its band.
+ * The curves across the line graph's nodes (ADR-0007), in each zoom band. A node takes the room its
+ * curves and its fronts need on each Stretch (room()), and a Stretch too short for its nodes' room is
+ * absorbed into one node with them, until none is left; its strokes aren't drawn in the band. Each
+ * Line crossing a node is drawn on one curve, from its stroke on the Stretch it leaves, cut back by
+ * the room there, to its stroke on the next, eased from one side to the other (pieces()). Where the
+ * node absorbed none, or the chain of centrelines the Line goes along inside it runs straight, the
+ * curve is a cubic Bézier, leaving and coming in the way the strokes run, as LOOM does; else it's that
+ * chain, blurred so that it doesn't step from one centreline to the next and smoothed as centrelines
+ * are (smooth()). Where it neither moves over nor changes side, the Line goes on without a curve.
  */
-function curves(joins: Join[], byId: Map<string, Shape>, lines: Line[], kx: number): { shapes: Shape[]; strokes: Stroke[] } {
-  const lat = [...byId.values()][0]?.coords[0]?.[1] ?? 0;
-  const widths = BANDS.map((zoom) => atZoom(APART, zoom) * pixelMetres(zoom, lat));
+function curves(joins: Join[], found: Stretch[], onStretch: Map<string, Stroke[]>, byId: Map<string, Shape>, kx: number, lat: number): { shapes: Shape[]; strokes: Stroke[] } {
   const shapeOf = (s: Stroke, band: number) => inBand(byId, s.shape, band) ?? { coords: [], dist: [] };
   const flat = ([lon, lat]: Point): [number, number] => [lon * kx, lat * DEGREE];
-  const cuts = new Map<Stroke, [number, number][]>(); // each stroke's, in each band, at its start and its end
-  const cutOf = (s: Stroke) => cuts.get(s) ?? (cuts.set(s, BANDS.map(() => [0, 0])), cuts.get(s) ?? []);
-  // The Line's side at each end, looking the way it goes, and how far apart its strokes' ends are drawn in each band.
-  const made = joins.map((j) => {
-    const [a, b] = [j.out ? j.from.to : j.from.from, j.into ? j.to.to : j.to.from];
-    const sides = [j.from.side * (j.out ? 1 : -1), j.to.side * (j.into ? -1 : 1)] as const;
-    // Or, where the Line moves over less than its side changes, as its Stretches' centrelines are apart,
-    // as far as its side moves it, so that its offset eases over as long a curve and doesn't kink (#178).
-    const apart = widths.map((width, band) => {
-      const [p, q] = [flat(beside(shapeOf(j.from, band), a, j.from.side * width)), flat(beside(shapeOf(j.to, band), b, j.to.side * width))];
-      return Math.max(Math.hypot(q[0] - p[0], q[1] - p[1]), Math.abs(sides[1] - sides[0]) * width);
-    });
-    const own = (s: Stroke) => byId.get(s.shape) ?? { coords: [], dist: [] };
-    const gap = Math.hypot(...[0, 1].map((k) => (flat(pointAt(own(j.to), b))[k] ?? 0) - (flat(pointAt(own(j.from), a))[k] ?? 0)));
-    const skip = gap < 5 && sides[0] === sides[1];
-    if (!skip) {
-      for (const [band, metres] of apart.entries()) {
-        for (const [s, e] of [[j.from, j.out], [j.to, j.into]] as const) {
-          const cut = cutOf(s)[band] ?? [0, 0];
-          cut[e] = Math.max(cut[e], Math.min((LENGTH / 2) * metres, TAKE * (s.to - s.from)));
+  const ends = (s: Stroke, end: 0 | 1) => (end ? s.to : s.from);
+  const edgeOf = new Map<Stroke, number>();
+  for (const [key, list] of onStretch) for (const s of list) edgeOf.set(s, Number(key.split(' ')[0]));
+  const at = new Map<Stroke, [Leg[], Leg[]]>(); // the strokes each stroke's ends join, at its start and its end
+  const atEnd = (s: Stroke, end: 0 | 1) => (at.get(s) ?? (at.set(s, [[], []]), at.get(s) ?? [[], []]))[end];
+  for (const j of joins) {
+    atEnd(j.from, j.out).push({ stroke: j.to, end: j.into });
+    atEnd(j.to, j.into).push({ stroke: j.from, end: j.out });
+  }
+  const id = new Map([...edgeOf.keys()].map((s, i) => [s, i]));
+  const [shapes, strokes]: [Shape[], Stroke[]] = [[], []];
+  for (const [band, zoom] of BANDS.entries()) {
+    const [px, width] = [pixelMetres(zoom, lat), atZoom(APART, zoom) * pixelMetres(zoom, lat)];
+    // Each front where a Line leaves a Stretch, by where its stroke ends: its centreline from there on, and how far its Lines reach either side, looking that way.
+    const fronts = new Map<string, Omit<Front, 'change'>>(); // `<Stretch> <end> <metres along>`
+    const keyOf = ({ stroke, end }: Leg) => `${edgeOf.get(stroke)} ${end} ${Math.round(ends(stroke, end))}`;
+    const frontOf = (key: string) => {
+      const known = fronts.get(key);
+      if (known) return known;
+      const [e = 0, end = 0, d = 0] = key.split(' ').map(Number);
+      const { steps, lines: onIt } = found[e] ?? { steps: [], lines: [] };
+      const [shape, way] = [inBand(byId, steps[0]?.shape ?? '', band) ?? { coords: [], dist: [] }, end ? -1 : 1];
+      const points = (end ? along(shape, 0, d).toReversed() : along(shape, d, shape.dist.at(-1) ?? 0)).map(flat);
+      const sides = onIt.flatMap((l) => onStretch.get(`${e} ${l}`) ?? []).map((s) => s.side * way);
+      const front = { points, left: 0.5 - Math.min(0, ...sides), right: 0.5 + Math.max(0, ...sides) };
+      fronts.set(key, front);
+      return front;
+    };
+    // The Stretches absorbed, and strokes along only part of a Stretch, too short for their curves, hidden on their own.
+    const [absorbed, alone] = [new Set<number>(), new Set<Stroke>()];
+    const hidden = (s: Stroke) => absorbed.has(edgeOf.get(s) ?? -1) || alone.has(s);
+    /** How many line widths a Line crossing a node moves over: its side change, or where it goes from one Stretch straight to the next, as far as their centrelines are apart if that's more (#178). 0 where it goes on without a curve. */
+    const moved = (legs: Leg[]): number => {
+      const [first, last] = [legs[0], legs.at(-1)];
+      if (!first || !last) return 0;
+      const [start, stop] = sidesOf(legs, hidden);
+      if (legs.some((l) => hidden(l.stroke))) return Math.abs(stop - start);
+      const [a, b] = [ends(first.stroke, first.end), ends(last.stroke, last.end)];
+      const [p, q] = [flat(beside(shapeOf(first.stroke, band), a, first.stroke.side * width)), flat(beside(shapeOf(last.stroke, band), b, last.stroke.side * width))];
+      const own = (s: Stroke) => byId.get(s.shape) ?? { coords: [], dist: [] };
+      const [g0, g1] = [flat(pointAt(own(first.stroke), a)), flat(pointAt(own(last.stroke), b))];
+      if (Math.hypot(g1[0] - g0[0], g1[1] - g0[1]) < 5 && start === stop) return 0;
+      return Math.max(Math.hypot(q[0] - p[0], q[1] - p[1]) / width, Math.abs(stop - start));
+    };
+    let made: ReturnType<typeof across> = [];
+    for (;;) {
+      made = across(at, hidden, id);
+      // The most each Line crossing a node changes side, or moves over, at each front, and the node's room there.
+      const change = new Map<string, number>();
+      const curved = new Set<string>(); // each stroke end a curve takes over at, `<stroke> <end>`
+      const parent = new Map<string, string>();
+      const root = (k: string): string => {
+        const p = parent.get(k) ?? k;
+        return p === k ? k : root(p);
+      };
+      const unite = (a: string, b: string) => {
+        const [ra, rb] = [root(a), root(b)];
+        if (ra !== rb) parent.set(ra, rb);
+      };
+      for (const legs of made) {
+        const [first, last] = [legs[0], legs.at(-1)];
+        if (!first || !last) continue;
+        const keys = [keyOf(first), keyOf(last)];
+        // One node for every Line across a Stretch absorbed, or a stroke hidden.
+        for (const { stroke } of legs) if (hidden(stroke)) unite(keys[0] ?? '', alone.has(stroke) ? `alone ${id.get(stroke)}` : `absorbed ${edgeOf.get(stroke)}`);
+        unite(keys[0] ?? '', keys[1] ?? '');
+        const moves = moved(legs);
+        if (!moves && !legs.some((l) => hidden(l.stroke))) continue;
+        for (const [k, leg] of [[keys[0], first], [keys[1], last]] as const) {
+          if (!k || hidden(leg.stroke)) continue;
+          change.set(k, Math.max(change.get(k) ?? 0, moves));
+          curved.add(`${id.get(leg.stroke)} ${leg.end}`);
         }
       }
+      const byNode = new Map<string, string[]>();
+      for (const k of change.keys()) byNode.set(root(k), [...(byNode.get(root(k)) ?? []), k]);
+      const roomOf = new Map<string, number>();
+      for (const keys of byNode.values()) {
+        const rooms = room(keys.map((k) => ({ ...frontOf(k), change: change.get(k) ?? 0 })), width);
+        for (const [i, k] of keys.entries()) roomOf.set(k, rooms[i] ?? 0);
+      }
+      // Each stroke's cut at either end, for the curves there; a Stretch with a stroke too short for its cuts is absorbed.
+      const cut = (stroke: Stroke, end: 0 | 1) => {
+        const k = keyOf({ stroke, end });
+        return curved.has(`${id.get(stroke)} ${end}`) ? (roomOf.get(k) ?? 0) : 0;
+      };
+      const short = [...edgeOf].filter(([s]) => !hidden(s) && s.to - s.from + 0.5 < cut(s, 0) + cut(s, 1));
+      if (!short.length) {
+        for (const s of edgeOf.keys()) {
+          const length = s.to - s.from;
+          const [start, end] = hidden(s) && made.some((legs) => legs.some((l) => l.stroke === s)) ? [length, 0] : [Math.min(length, cut(s, 0)), Math.min(length - Math.min(length, cut(s, 0)), cut(s, 1))];
+          if (!start && !end && !s.cut) continue;
+          s.cut ??= BANDS.map(() => [0, 0]);
+          s.cut[band] = [Math.round(start), Math.round(end)];
+        }
+        break;
+      }
+      for (const [s, e] of short) {
+        const steps = found[e]?.steps ?? [];
+        if (s.from - (steps[0]?.from ?? 0) < 1 && (steps.at(-1)?.to ?? 0) - s.to < 1) absorbed.add(e);
+        else alone.add(s);
+      }
     }
-    return { ...j, a, b, sides, skip };
-  });
-  for (const [s, cut] of cuts) s.cut = cut.map(([start, end]) => [Math.round(start), Math.round(end)]);
-  const [shapes, strokes]: [Shape[], Stroke[]] = [[], []];
-  for (const { line, from, out, to, into, a, b, sides: [start, stop], skip } of made) {
-    if (skip) continue;
-    for (const band of BANDS.keys()) {
-      // Where the curve starts and ends, and which way it leaves the one and comes onto the other.
-      const [d0, d3] = [out ? a - (from.cut?.[band]?.[1] ?? 0) : a + (from.cut?.[band]?.[0] ?? 0), into ? b - (to.cut?.[band]?.[1] ?? 0) : b + (to.cut?.[band]?.[0] ?? 0)];
-      const [p0, p3] = [flat(pointAt(shapeOf(from, band), d0)), flat(pointAt(shapeOf(to, band), d3))];
+    for (const legs of made) {
+      const [first, last] = [legs[0], legs.at(-1)];
+      if (!first || !last || (!moved(legs) && !legs.some((l) => hidden(l.stroke)))) continue;
+      // Each stroke's part of the curve, the way it goes: from its cut on the one it leaves, across those absorbed, to its cut on the one it comes onto.
+      const parts = legs.map(({ stroke: s, end }, i): [shape: string, start: number, end: number] => {
+        const [d, other] = [ends(s, end), ends(s, end ? 0 : 1)];
+        if (hidden(s)) return i ? [s.shape, d, other] : [s.shape, other, d];
+        const cut = (s.cut?.[band]?.[end] ?? 0) * (end ? -1 : 1);
+        return i ? [s.shape, d, d + cut] : [s.shape, d + cut, d];
+      });
+      const chain = parts.flatMap(([, a, b], i) => {
+        const s = legs[i]?.stroke ?? first.stroke;
+        const points = along(shapeOf(s, band), Math.min(a, b), Math.max(a, b));
+        return a > b ? points.toReversed() : points;
+      });
+      const [d0, d3] = [parts[0]?.[1] ?? 0, parts.at(-1)?.[2] ?? 0];
+      const [p0, p3] = [flat(pointAt(shapeOf(first.stroke, band), d0)), flat(pointAt(shapeOf(last.stroke, band), d3))];
       const way = (s: Stroke, d: number, ahead: number) => {
         const [p, q] = [flat(pointAt(shapeOf(s, band), d)), flat(pointAt(shapeOf(s, band), d + ahead))];
         const length = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1;
         return [(q[0] - p[0]) / length, (q[1] - p[1]) / length] as const;
       };
-      const [t0, t3] = [way(from, d0, out ? 5 : -5), way(to, d3, into ? -5 : 5)];
+      const [t0, t3] = [way(first.stroke, d0, first.end ? 5 : -5), way(last.stroke, d3, last.end ? -5 : 5)];
       const h = Math.hypot(p3[0] - p0[0], p3[1] - p0[1]) / 3;
       const [p1, p2] = [[p0[0] + t0[0] * h, p0[1] + t0[1] * h], [p3[0] - t3[0] * h, p3[1] - t3[1] * h]];
       const round = (degrees: number) => Math.round(degrees * 1e5) / 1e5;
-      const coords = Array.from({ length: SEGMENTS + 1 }, (_, k): Point => {
+      const bezier = (segments: number) => Array.from({ length: segments + 1 }, (_, k): [number, number] => {
         // Closer together at the ends, so that the first and last segments leave and come in the way the strokes run.
-        const t = (1 - Math.cos((Math.PI * k) / SEGMENTS)) / 2;
+        const t = (1 - Math.cos((Math.PI * k) / segments)) / 2;
         const [u, v, w, z] = [(1 - t) ** 3, 3 * (1 - t) ** 2 * t, 3 * (1 - t) * t ** 2, t ** 3];
         const at = (i: 0 | 1) => u * p0[i] + v * (p1[i] ?? 0) + w * (p2[i] ?? 0) + z * p3[i];
-        return [round(at(0) / kx), round(at(1) / DEGREE)];
+        return [at(0), at(1)];
       });
+      const [start, stop] = sidesOf(legs, hidden);
+      // The chain runs straight where it's all within half a line width of the Bézier.
+      const curve = bezier(4 * SEGMENTS);
+      const straight = !legs.some((l) => hidden(l.stroke)) || chain.map(flat).every((p) => near(curve, p) <= width / 2);
+      let coords = bezier(SEGMENTS).map(([x, y]): Point => [round(x / kx), round(y / DEGREE)]);
+      if (!straight) {
+        // Blurred over half of LENGTH line widths, so that it doesn't step where one centreline gives way to the next, then smoothed where it still folds.
+        const kept = { coords: chain.filter((p, i) => !i || p[0] !== chain[i - 1]?.[0] || p[1] !== chain[i - 1]?.[1]), dist: [] as number[] };
+        kept.dist = distances(kept.coords);
+        const length = kept.dist.at(-1) ?? 0;
+        const samples = Array.from({ length: Math.ceil(length / SAMPLE) + 1 }, (_, i) => flat(pointAt(kept, Math.min(length, i * SAMPLE))));
+        const coordsOf = (points: [number, number][]) => points.map(([x, y]): Point => [x / kx, y / DEGREE]);
+        const line = { coords: coordsOf(blur(samples, samples.map(() => (LENGTH / 2) * width / SAMPLE))), dist: [] as number[] };
+        line.dist = distances(line.coords);
+        const eased = pieces({ line: '', shape: '', from: 0, to: length, side: start, ...(stop !== start && { ease: stop }) }).map((p) => ({ from: p.from, to: p.to, metres: p.side * width }));
+        coords = (smooth(line, eased, MOVE * width, TOLERANCE * px, kx) ?? line).coords.map(([lon, lat]): Point => [round(lon), round(lat)]);
+      }
       const dist = distances(coords).map((d) => Math.round(d * 10) / 10);
-      const length = dist.at(-1) ?? 0;
-      const id = `${LINK}${shapes.length}`;
-      shapes.push({ id, coords, dist });
-      const across: Stroke['across'] = [[from.shape, Math.round(d0), Math.round(a)], [to.shape, Math.round(b), Math.round(d3)]];
-      const below = Math.min(depthAt(from, a), depthAt(to, b));
-      strokes.push({ line: lines[line]?.id ?? '', shape: id, from: 0, to: length, side: start, ...(stop !== start && { ease: stop }), band, across, ...(below && { under: below }), ...((from.crowded || to.crowded) && { crowded: true as const }) });
+      const shape = `${LINK}${shapes.length}`;
+      shapes.push({ id: shape, coords, dist });
+      const below = Math.min(depthAt(first.stroke, ends(first.stroke, first.end)), depthAt(last.stroke, ends(last.stroke, last.end)));
+      const crowded = legs.some((l) => l.stroke.crowded);
+      strokes.push({ line: first.stroke.line, shape, from: 0, to: dist.at(-1) ?? 0, side: start, ...(stop !== start && { ease: stop }), band, across: parts.map(([s, a, b]) => [s, Math.round(a), Math.round(b)]), ...(below && { under: below }), ...(crowded && { crowded: true as const }) });
     }
   }
   return { shapes, strokes };
+}
+
+/**
+ * A Line's side as it leaves a node and as it comes in, looking the way it goes. Where it ends inside
+ * the node, on a `hidden` stroke, it keeps the side it has at its other end: there's no stroke to
+ * meet, and no room to change side on.
+ */
+function sidesOf(legs: Leg[], hidden: (s: Stroke) => boolean): [number, number] {
+  const [first, last] = [legs[0], legs.at(-1)];
+  const [start, stop] = [(first?.stroke.side ?? 0) * (first?.end ? 1 : -1), (last?.stroke.side ?? 0) * (last?.end ? -1 : 1)];
+  if (first && hidden(first.stroke)) return [stop, stop];
+  return [start, last && hidden(last.stroke) ? start : stop];
+}
+
+/** How far a point is from a line through points. */
+function near(line: [number, number][], p: [number, number]): number {
+  let best = Infinity;
+  for (const [k, b] of line.entries()) {
+    const a = line[k - 1] ?? b;
+    const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
+    const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)));
+    best = Math.min(best, Math.hypot(a[0] + t * dx - p[0], a[1] + t * dy - p[1]));
+  }
+  return best;
+}
+
+/**
+ * Each Line's ways across the nodes, once each: from a stroke end it leaves at, through the joins, along
+ * the `hidden` strokes, of the Stretches absorbed, to the next stroke it comes onto. A Line that ends
+ * inside a node starts or stops at the end of its hidden stroke there; one that only touches a hidden
+ * stroke, coming and going at one end, passes it by.
+ */
+function across(at: Map<Stroke, [Leg[], Leg[]]>, hidden: (s: Stroke) => boolean, id: Map<Stroke, number>): Leg[][] {
+  const found = new Map<string, Leg[]>();
+  const key = (legs: Leg[]) => legs.map((l) => `${id.get(l.stroke)}.${l.end}`).join(' ');
+  const go = (legs: Leg[], next: Leg) => {
+    const here = [...legs, next];
+    const out = at.get(next.stroke)?.[next.end ? 0 : 1] ?? [];
+    // A hidden stroke the Line only touches, going on from the end it came in at, it passes by.
+    const back = (at.get(next.stroke)?.[next.end] ?? []).filter((leg) => !here.some((l) => l.stroke === leg.stroke));
+    if (hidden(next.stroke) && !out.length && back.length) {
+      for (const leg of back) go(legs, leg);
+      return;
+    }
+    if (!hidden(next.stroke) || !out.length) {
+      // Found from either end: kept once, the way its key sorts first.
+      const back = here.map((l, i) => (i && i < here.length - 1 ? { ...l, end: l.end ? 0 : 1 } : l)).toReversed() as Leg[];
+      const [k, b] = [key(here), key(back)];
+      if (!found.has(k) && !found.has(b)) found.set(k < b ? k : b, k < b ? here : back);
+      return;
+    }
+    for (const leg of out) if (!here.some((l) => l.stroke === leg.stroke)) go(here, leg);
+  };
+  for (const [s, [start, end]] of at) {
+    for (const [e, list] of [[0, start], [1, end]] as const) {
+      // A hidden stroke is started from only where the Line ends inside the node, at its other end, and
+      // not where it only touches it.
+      if (hidden(s) && ((at.get(s)?.[e ? 0 : 1].length ?? 0) || list.length > 1)) continue;
+      for (const leg of list) go([{ stroke: s, end: e }], leg);
+    }
+  }
+  return [...found.values()];
 }
 
 /**
@@ -1014,4 +1183,89 @@ function merge<Key>(spans: Span<Key>[], pieces: Piece[]): Span<Key>[] {
     else if (prev && (!next || before(next, prev) < 0)) spans = spans.toSpliced(i - 1, 2, joined(prev.key, prev, short));
     else if (next) spans = spans.toSpliced(i, 2, joined(next.key, short, next));
   }
+}
+
+/**
+ * Where a bundle of Lines leaves a node along a Stretch (ADR-0007): its centreline from the node on,
+ * in local metres, how many line widths the Lines on it reach to its left and right, looking the way
+ * it goes, and the most any Line changes side on a curve onto it there.
+ */
+export interface Front {
+  points: [x: number, y: number][];
+  left: number;
+  right: number;
+  change: number;
+}
+
+/**
+ * Each front's room at its node, in metres along its Stretch, at a line width of `width` metres: the
+ * more of its curves' (LENGTH × their side change × the line width, half from each Stretch) and its
+ * clearance, how far along its centreline its front goes before it stops overlapping the others'
+ * bundles, as LOOM pushes them back (ADR-0007). Up to as far as its centreline goes.
+ */
+export function room(fronts: Front[], width: number): number[] {
+  return fronts.map((f, i) => {
+    const curves = (LENGTH / 2) * f.change * width;
+    const end = length(f.points);
+    const clear = (d: number) => fronts.every((g, j) => j === i || !overlaps(f, g, d, width));
+    // ponytail: takes a front to stay clear once it is, so doubling then halving finds where; a walk
+    // along it if bundles that part ever come back together.
+    let [lo, hi] = [0, Math.min(1, end)];
+    while (hi < end && !clear(hi)) [lo, hi] = [hi, Math.min(end, hi * 2)];
+    while (hi - lo > 0.5) {
+      const mid = (lo + hi) / 2;
+      if (clear(mid)) hi = mid;
+      else lo = mid;
+    }
+    return Math.max(curves, hi);
+  });
+}
+
+/** How long a line through points is. */
+function length(points: [number, number][]): number {
+  return points.reduce((sum, p, k) => sum + Math.hypot(p[0] - (points[k - 1] ?? p)[0], p[1] - (points[k - 1] ?? p)[1]), 0);
+}
+
+/** Where a line through points is, `d` along it, and which way it goes there. */
+function heading(points: [number, number][], d: number): { at: [number, number]; way: [number, number] } {
+  let left = d;
+  for (const [k, b] of points.entries()) {
+    const a = points[k - 1];
+    if (!a) continue;
+    const step = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (!step) continue;
+    const way: [number, number] = [(b[0] - a[0]) / step, (b[1] - a[1]) / step];
+    if (left <= step || k === points.length - 1) return { at: [a[0] + way[0] * Math.min(left, step), a[1] + way[1] * Math.min(left, step)], way };
+    left -= step;
+  }
+  return { at: points[0] ?? [0, 0], way: [1, 0] };
+}
+
+/** Whether `f`'s front, `d` along it, crosses `g`'s bundle, its centreline drawn out to its Lines' reach, at a line width of `width` metres. */
+function overlaps(f: Front, g: Front, d: number, width: number): boolean {
+  const right = ([x, y]: [number, number]): [number, number] => [y, -x];
+  const dot = (u: [number, number], v: [number, number]) => u[0] * v[0] + u[1] * v[1];
+  const { at, way } = heading(f.points, d);
+  const nf = right(way);
+  const reach = (Math.max(f.left, f.right) + Math.max(g.left, g.right)) * width;
+  return g.points.some((b, k) => {
+    const a = g.points[k - 1];
+    const step = a && Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (!a || !step || Math.hypot(at[0] - a[0], at[1] - a[1]) > step + reach) return false;
+    const ug: [number, number] = [(b[0] - a[0]) / step, (b[1] - a[1]) / step];
+    const ng = right(ug);
+    const r: [number, number] = [at[0] - a[0], at[1] - a[1]];
+    // The front from its left edge to its right, t metres right of its middle, narrowed to where k + c·t ≥ min holds.
+    let [lo, hi] = [-f.left * width, f.right * width];
+    const keep = (k: number, c: number, min: number) => {
+      if (Math.abs(c) < 1e-9) hi = k < min ? -Infinity : hi;
+      else if (c > 0) lo = Math.max(lo, (min - k) / c);
+      else hi = Math.min(hi, (min - k) / c);
+    };
+    keep(dot(r, ug), dot(nf, ug), 0); // along this piece of g
+    keep(-dot(r, ug), -dot(nf, ug), -step);
+    keep(dot(r, ng), dot(nf, ng), -g.left * width); // right of g's left edge
+    keep(-dot(r, ng), -dot(nf, ng), -g.right * width); // left of its right edge
+    return lo <= hi;
+  });
 }

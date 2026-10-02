@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest';
 import { BANDS, LINK, STRETCH, type Line, type Shape, type Stroke } from '../bundle.ts';
-import { breaks, measures, room, type Front } from './measures.ts';
+import { breaks, measures } from './measures.ts';
+import { room, type Front } from './sideBySide.ts';
 
 const degree = (6_371_008.8 * Math.PI) / 180;
 const kx = degree * Math.cos((41.39 * Math.PI) / 180);
@@ -83,7 +84,7 @@ test("doesn't count Lines stepping side by side the same way as a swap", () => {
 
 test('measures nothing amiss for Lines side by side on one track, each drawn once', () => {
   const found = measures({ shapes: [east('a', 2000), east('b', 2000)], strokes: [stroke('R2', 'a', 0, 2000, -0.5), stroke('R11', 'b', 0, 2000, 0.5)] });
-  expect(found).toEqual({ breaks: { steps: 0, stubs: 0, swaps: 0, joins: 0 }, twice: 0, alone: 0, over: 0, folds: { 10: 0, 11: 0, 12: 0, 13: 0 }, dangling: 0, kinks: { 10: 0, 11: 0, 12: 0, 13: 0 }, weaves: { 10: 0, 11: 0, 12: 0, 13: 0 }, inside: { 10: 0, 11: 0, 12: 0, 13: 0 } });
+  expect(found).toEqual({ breaks: { steps: 0, stubs: 0, swaps: 0, joins: 0 }, twice: 0, alone: 0, over: 0, folds: { 10: 0, 11: 0, 12: 0, 13: 0 }, dangling: 0, kinks: { 10: 0, 11: 0, 12: 0, 13: 0 }, weaves: { 10: 0, 11: 0, 12: 0, 13: 0 }, inside: { 10: 0, 11: 0, 12: 0, 13: 0 }, largest: { 10: [], 11: [], 12: [], 13: [] } });
 });
 
 test('measures a Line drawn twice, where its two directions have tracks of their own and different sides', () => {
