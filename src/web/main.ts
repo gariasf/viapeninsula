@@ -668,7 +668,7 @@ map.on('click', ({ point: { x, y }, lngLat }) => {
   else if (typeof place === 'string') showBoard(place);
   else if (!within(0, ['station-names']).length) {
     const tapped = [STROKE_NEAREST, STROKE_TAP].map((r) => within(r, strokeLayers)).find((hits) => hits.length) ?? [];
-    const named = linesAt(tapped.map((f) => ({ line: String(f.properties.line), shape: String(f.properties.shape) })), shownStrokes).flatMap((id) => {
+    const named = linesAt(tapped.map((f) => ({ line: String(f.properties.line), shape: String(f.properties.shape), from: Number(f.properties.from), to: Number(f.properties.to) })), shownStrokes).flatMap((id) => {
       const [line, pill] = [lines.get(id), pills.get(id)];
       return line && pill ? [linePill(line, pill)] : [];
     });
@@ -765,8 +765,11 @@ function show(days: Track | Bundle) {
       const [line, shape] = [lines.get(id), band === undefined ? shapes.get(shapeId) : inBand(shapes, shapeId, band)];
       if (!line || !shape) return [];
       const properties = {
+        // Which Lines a tap on it names (linesAt()).
         line: id,
         shape: shapeId,
+        from,
+        to,
         name: line.name,
         colour: line.colour,
         // Zoomed right in, where Lines share track, Barcelona's commuter lines (R1–R8) are drawn over the regional ones.
