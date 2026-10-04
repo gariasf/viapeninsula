@@ -337,7 +337,7 @@ legend.className = 'maplibregl-ctrl maplibregl-ctrl-group legend';
 map.addControl({ onAdd: () => legend, onRemove: () => legend.remove() }, 'top-left');
 /** The legend's count of the Trains on the map, which showCount() fills once their Trips have come. */
 const countRow = el('div');
-// The banner under it, which showBanner() fills: each Network whose live data is unavailable.
+// The banner under it, which showBanner() fills: each Network whose live data is unavailable, or with no Trips today.
 const banner = document.createElement('div');
 banner.className = 'maplibregl-ctrl maplibregl-ctrl-group banner';
 banner.setAttribute('role', 'status');
@@ -377,6 +377,8 @@ let credits: AttributionControl | undefined;
 let credited: Network[] = [];
 /** The Networks whose live data is unavailable, by their ids. */
 let unavailableIds: string[] = [];
+/** The Networks with no Trips today, by their ids, as the manifest names them (#226). */
+let noTripsIds: string[] = [];
 // Live data: the fetcher's snapshot, about every 20 s while the tab is visible (ADR-0003). The
 // engine replays what the map had each time it looked, over the last KEEP, which also corrects the device's clock.
 let received: Received[] = [];
@@ -754,8 +756,8 @@ openLink();
 addEventListener('hashchange', openLink);
 
 /**
- * Draws the Lines and Stations of the days on the map, and credits their Networks, where they've
- * changed, and once their Trips have come, moves their Trains.
+ * Draws the Lines and Stations of the days on the map, and credits their Networks and names them in
+ * the banner, where they've changed, and once their Trips have come, moves their Trains.
  */
 function show(days: Track | Bundle) {
   if ('trips' in days) bundle = days;
@@ -844,6 +846,7 @@ function show(days: Track | Bundle) {
   showNames();
   credited = days.networks;
   showCredits();
+  showBanner();
 }
 
 /**
@@ -1418,23 +1421,18 @@ function ago(ms: number): string {
 /**
  * Names each Network on the map whose live data is unavailable, in the viewer's language. Once the
  * map has looked EMPTY_POLLS times and never got a snapshot, it says live data is unavailable
- * instead, naming no Network. Hides the banner while there's neither.
+ * instead, naming no Network. Names too, apart, each Network on the map with no Trips today (#226).
+ * Hides the banner while there's none of these.
  */
 function showBanner() {
-  const networks = credited.filter((n) => unavailableIds.includes(n.id));
+  const row = (name: string, says: string) => el('div', {}, el('b', { textContent: name }), `: ${says}`);
   const neverLive = !received.length && emptyPolls >= EMPTY_POLLS;
-  banner.hidden = !networks.length && !neverLive;
-  if (neverLive) {
-    banner.replaceChildren(t('noLive'));
-    return;
-  }
-  banner.replaceChildren(
-    ...networks.map(({ name }) => {
-      const row = document.createElement('div');
-      row.append(Object.assign(document.createElement('b'), { textContent: name }), `: ${t('liveUnavailable')}`);
-      return row;
-    }),
-  );
+  const rows = [
+    ...(neverLive ? [el('div', {}, t('noLive'))] : credited.filter((n) => unavailableIds.includes(n.id)).map((n) => row(n.name, t('liveUnavailable')))),
+    ...credited.filter((n) => noTripsIds.includes(n.id)).map((n) => row(n.name, t('noTimetable'))),
+  ];
+  banner.hidden = !rows.length;
+  banner.replaceChildren(...rows);
 }
 
 /**
@@ -1496,7 +1494,8 @@ function showCredits() {
 /**
  * The service days the map needs now (daysNeeded()), joined, where they aren't the ones it shows. A
  * day whose bundle fails to come is left out, and fetched again next time.
- * Today's track comes on its own first, so the map can draw it before the Trips come.
+ * Today's track comes on its own first, so the map can draw it before the Trips come. Notes today's
+ * Networks with no Trips, which the banner names.
  */
 async function neededDays(): Promise<{ track: Promise<Track>; days: Promise<Bundle> } | undefined> {
   try {
@@ -1509,6 +1508,7 @@ async function neededDays(): Promise<{ track: Promise<Track>; days: Promise<Bund
   const needed = daysNeeded(manifest.days, Date.now(), { early: SOON, late: LATE, emptyBoard });
   if (!needed) throw new Error('The manifest names no service day');
   const { today, days } = needed;
+  noTripsIds = today.noTrips ?? [];
   const keys = days.flatMap((d) => [d.track, d.trips]);
   if (keys.join() === shown) return undefined;
   for (const key of fetched.keys()) if (!keys.includes(key)) fetched.delete(key);

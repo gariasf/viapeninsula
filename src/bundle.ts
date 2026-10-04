@@ -71,6 +71,8 @@ export interface ManifestDay {
   trips: string;
   from: number;
   to: number;
+  /** The Networks with no Trips that day, by their IDs, where there are any: they're built without them, and the map says so (#226). */
+  noTrips?: string[];
 }
 
 /**

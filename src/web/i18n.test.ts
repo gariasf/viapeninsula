@@ -31,6 +31,12 @@ test('counts one Train in the singular, and none in the plural', () => {
   expect(trainCount(0, 0, 'en')).toBe('0 trains, 0 live');
 });
 
+test('says in the banner that a Network has no timetable today, in each language', () => {
+  expect(t('noTimetable', 'ca')).toBe('sense horari avui');
+  expect(t('noTimetable', 'es')).toBe('sin horario hoy');
+  expect(t('noTimetable', 'en')).toBe('no timetable today');
+});
+
 test('labels the button that follows a random Train in each language', () => {
   expect(t('followRandom', 'ca')).toBe("Segueix un tren a l'atzar");
   expect(t('followRandom', 'es')).toBe('Seguir un tren al azar');
