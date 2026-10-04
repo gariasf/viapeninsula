@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import type { Shape, Station } from '../bundle.ts';
 import type { OsmWay } from './osm.ts';
-import { eachWay, onOwnTrack, traceShapes } from './track.ts';
+import { eachWay, fine, onOwnTrack, traceShapes } from './track.ts';
 
 // A small railway, drawn in metres east (x) and north (y) of a point near Manresa.
 const M = (6_371_008.8 * Math.PI) / 180; // metres in a degree of latitude
@@ -61,11 +61,11 @@ function traceKeeping(side: 'left' | 'right', rails: OsmWay[], stations: Station
 /** A traced shape's points, back in metres and rounded to the metre. */
 const points = (shape: Shape) => shape.coords.map((c) => metres(c).map(Math.round));
 
-/** Whether a traced shape passes within a couple of metres of a point. */
+/** Whether a traced shape passes within a metre and a half of a point: crossovers here are 2 m off either track. */
 const passes = (shape: Shape, x: number, y: number) =>
   shape.coords.some((c) => {
     const [px = NaN, py = NaN] = metres(c);
-    return Math.hypot(px - x, py - y) < 2;
+    return Math.hypot(px - x, py - y) < 1.5;
   });
 
 /** A line d metres left of a centre line through corners given in metres, or right where negative. */
@@ -484,4 +484,15 @@ test("moves a Station published at another Network's point onto its own track, a
   expect(moved).toMatchObject({ id: 'adif:1', place: 'adif:1' });
   expect(theirs?.[0]).toEqual({ ...fgc, place: 'adif:1' });
   expect([ours?.[1], theirs?.[1]]).toEqual([lleida, fgcLleida]);
+});
+
+test('drops the points a way carries on straight through, and keeps its ends, its bends and where another way meets it', () => {
+  const ways = rails(
+    { a: [0, 0], b: [100, 0.1], c: [200, 0], d: [300, 0.1], e: [400, 50], f: [300, 100] },
+    'a b c d e',
+    'c f',
+  );
+  const [main] = fine(ways);
+  expect(main?.nodes).toEqual([1, 3, 4, 5]);
+  expect(main?.geometry.map(({ lon, lat }) => metres([lon, lat]).map(Math.round))).toEqual([[0, 0], [200, 0], [300, 0], [400, 50]]);
 });

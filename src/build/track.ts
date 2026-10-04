@@ -1,6 +1,7 @@
 // The track each Line's Trains run on, traced along OpenStreetMap's rails (ADR-0004).
 
 import { along, closestOnSegment, DEGREE, EARTH, type Network, type Point, type Shape, type Station } from '../bundle.ts';
+import { simplify } from './offset.ts';
 import type { OsmWay } from './osm.ts';
 
 /** A shape as the feed draws it, and the Stations its Trips serve. */
@@ -645,7 +646,39 @@ function shape(id: string, all: Point[], levels: string[] = []): Shape {
   const runs = merged(at.slice(1).map((level, i) => ({ key: level, metres: (dist[i + 1] ?? 0) - (dist[i] ?? 0), from: dist[i] ?? 0 })), BRIEF);
   // The ground at its start goes without saying.
   const found = runs.filter((r, i) => r.key || i).map((r): [number, string] => [r.from, r.key]);
-  return { id, coords: points.map(([lon, lat]) => [round(lon), round(lat)]), dist, ...(found.length && { levels: found }) };
+  return { id, coords: points.map(([lon, lat]) => [round(lon, 1e6), round(lat, 1e6)]), dist, ...(found.length && { levels: found }) };
+}
+
+/**
+ * Each way without the points less than FINE off its line, mostly along straight track; done to
+ * the rails rather than to each shape, so Lines on the same rails keep the same points. Its ends,
+ * and where it meets another, stay. It pays for the sixth decimal shapes take (#203).
+ */
+export function fine(rails: OsmWay[]): OsmWay[] {
+  const plain = carriesOn(rails);
+  return rails.map((way) => {
+    const kx = Math.cos(((way.geometry[0]?.lat ?? 0) * Math.PI) / 180);
+    const flat = way.geometry.map(({ lon, lat }): Point => [lon * kx * DEGREE, lat * DEGREE]);
+    const kept = new Set(simplify(flat, FINE));
+    const keep = (_: unknown, i: number) => kept.has(flat[i] as Point) || !plain(way, i);
+    return { ...way, nodes: way.nodes.filter(keep), geometry: way.geometry.filter(keep) };
+  });
+}
+
+/**
+ * How far off a way's line a point may be and go, in metres: under a pixel at zoom 18, the rails
+ * source's last, where a pixel is 0.45 m in Catalonia.
+ */
+const FINE = 0.3;
+
+/** Whether a way's i-th node only carries it on: in no other way, or the end of it and of one other. */
+function carriesOn(rails: OsmWay[]): (way: OsmWay, i: number) => boolean {
+  const ends = new Map<number, boolean[]>(); // for each node, at each of its ways, whether it's that way's end
+  for (const way of rails) for (const [i, id] of way.nodes.entries()) ends.set(id, [...(ends.get(id) ?? []), i === 0 || i === way.nodes.length - 1]);
+  return (way, i) => {
+    const at = ends.get(way.nodes[i] ?? NaN) ?? [];
+    return (at.length === 1 && !at[0]) || (at.length === 2 && at.every(Boolean));
+  };
 }
 
 /** A way's level: `tunnel`, `bridge` or, off the ground, `layer`, and its layer, which OpenStreetMap takes as -1 in a tunnel and 1 on a bridge where it's untagged; or '' on the ground. */
@@ -702,7 +735,7 @@ function metres(a: Point, b: Point): number {
   return 2 * EARTH * Math.asin(Math.sqrt(h));
 }
 
-/** Five decimals is about a metre. */
-function round(degrees: number): number {
-  return Math.round(degrees * 1e5) / 1e5;
+/** Five decimals is about a metre; a shape's points take six, so that the map's curves don't zig-zag zoomed in (#203). */
+function round(degrees: number, places = 1e5): number {
+  return Math.round(degrees * places) / places;
 }
