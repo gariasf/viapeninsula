@@ -12,5 +12,5 @@ Beyond Catalonia (#214), the daily build needs OpenStreetMap's rails for all of 
 - The daily workflow installs `osmium-tool` and downloads only the extracts the Lines reach: for Catalonia, Spain plus Languedoc-Roussillon and Midi-Pyrénées; Portugal and Aquitaine come with the Lines that cross there.
 - The filtered rails are the cache, kept as `.cache` is today: a copy less than 7 days old is used without downloading; if Geofabrik fails, the last copy is used with a warning; with none, the build fails and the days already published stay in R2. Geofabrik is one host, but each extract also has dated files to fall back to.
 - An edit fixed upstream in OpenStreetMap reaches the map with the next day's extract, rather than minutes later, and with the week-old rule up to a week later, as now.
-- Catalonia's border (`catalonia()`) can come from the same extract, as the `ES-CT` relation; until it does, it stays on Overpass.
+- Spain's border, where the build cuts the Lines (ADR-0010), comes from the same extracts, as the ways of Spain's relation (#244), so the build no longer asks Overpass for anything.
 - `osmium extract` cut to Catalonia lost ways in a test, so the build filters by tag and crops in its own code (`crop()`), not with osmium's polygons.

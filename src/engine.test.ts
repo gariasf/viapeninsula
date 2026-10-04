@@ -161,7 +161,7 @@ test('a Train appears at its first Station just before it leaves, and leaves the
   expect(where(R2S, at('22:51:31'))).toBeUndefined();
 });
 
-test("is off the map where its track isn't, as beyond Catalonia's border, and comes back onto it where the track does", () => {
+test("is off the map where its track isn't, as beyond Spain's border, and comes back onto it where the track does", () => {
   // The build cuts track at the border, and it counts on from where it started: say it started at Vilanova.
   const VILANOVA = 128092;
   const cut = (s: Bundle['shapes'][number]) => ({ ...s, coords: s.coords.filter((_, i) => (s.dist[i] ?? 0) >= VILANOVA), dist: s.dist.filter((d) => d >= VILANOVA) });

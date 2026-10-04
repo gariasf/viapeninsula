@@ -33,7 +33,7 @@ jobs:
       - run: npm ci
       # The build filters OpenStreetMap's rails out of Geofabrik's extracts with osmium (ADR-0009).
       - run: sudo apt-get update && sudo apt-get install -y osmium-tool
-      # OpenStreetMap's rails and Catalonia's border, which the build keeps for a week. Each run saves
+      # OpenStreetMap's rails and Spain's border, which the build keeps for a week. Each run saves
       # its own copy and restores the newest one.
       - uses: actions/cache@v4
         with:

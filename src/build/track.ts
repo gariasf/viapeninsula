@@ -278,18 +278,36 @@ interface Waypoint {
   station: Station;
   along: number;
   metres: number;
-  /** Where it comes in the shape: along it, or before or after it by how far beyond its end it is. */
+  /** Where it comes in the shape: along it, or before or after it by how far out from that end it is, Station by Station. */
   order: number;
 }
 
-/** The Stations a shape's Trips serve, in order along the feed's shape. */
+/**
+ * The Stations a shape's Trips serve, in order along the feed's shape. Beyond either end of it, the
+ * next is the nearest to the one before, out from that end, as the line beyond needn't head straight
+ * away from it: past R15's shape's end at Riba-roja d'Ebre, La Zaida-Sástago is nearer to it than La
+ * Puebla de Híjar, the Station before.
+ * ponytail: a line beyond that bends back past a Station it has left, as a horseshoe can, still comes
+ * out of order; order by the Trips' calls if one ever does.
+ */
 function inOrder(feed: FeedShape, stations: Station[]): Waypoint[] {
-  return stations
-    .map((station) => {
-      const n = nearest(feed.coords, [station.lon, station.lat]);
-      return { station, along: n.along, metres: n.metres, order: orderAlong(feed.coords, n) };
-    })
-    .sort((a, b) => a.order - b.order);
+  const all = stations.map((station) => {
+    const n = nearest(feed.coords, [station.lon, station.lat]);
+    return { station, along: n.along, metres: n.metres, order: orderAlong(feed.coords, n) };
+  });
+  const pointOf = (w: Waypoint): Point => [w.station.lon, w.station.lat];
+  for (const [end, way] of [[feed.coords.at(-1), 1], [feed.coords[0], -1]] as const) {
+    let [at, out] = [end, 0];
+    const rest = new Set(all.filter((w) => Math.sign(w.order - w.along) === way));
+    while (at && rest.size) {
+      const from = at;
+      const next = [...rest].reduce((a, b) => (metres(from, pointOf(a)) <= metres(from, pointOf(b)) ? a : b));
+      [at, out] = [pointOf(next), out + metres(from, pointOf(next))];
+      next.order = next.along + way * out;
+      rest.delete(next);
+    }
+  }
+  return all.sort((a, b) => a.order - b.order);
 }
 
 /**
