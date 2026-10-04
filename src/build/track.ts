@@ -154,7 +154,9 @@ export function onOwnTrack(networks: { stations: Station[]; shapes: Shape[] }[])
       // ponytail: onto the nearest of any of its Network's track, not only its own Lines'; keep to the
       // shapes whose Trips call there if a Line that doesn't passes nearer one day.
       let own: ReturnType<typeof closest> | undefined;
+      // Another Network's Station of the same ID is the same Station, where both Networks' Trains stop (#243).
       const onTheirs = (o: Station, other: Shape[]) =>
+        o.id !== s.id &&
         metres([s.lon, s.lat], [o.lon, o.lat]) <= SAME_POINT &&
         closest(o, other).metres <= SAME_POINT &&
         closest(s, other).metres < (own ??= closest(s, shapes)).metres;
@@ -163,6 +165,8 @@ export function onOwnTrack(networks: { stations: Station[]; shapes: Shape[] }[])
       const [lon, lat] = lerp(own.shape.coords[own.i] ?? [NaN, NaN], own.shape.coords[own.i + 1] ?? [NaN, NaN], own.t);
       // A second Station published at the same point joins the place the first made.
       const place = there.place ?? places.get(there.id) ?? s.place ?? s.id;
+      // ponytail: by ID, so where two Networks share a Station published at a third's, both copies go
+      // onto the track of the last to move it. Key the moves by Network too if their tracks lie apart there.
       moved.set(s.id, { ...s, lon: round(lon), lat: round(lat), place });
       places.set(there.id, place);
     }
@@ -173,6 +177,24 @@ export function onOwnTrack(networks: { stations: Station[]; shapes: Shape[] }[])
       return moved.get(s.id) ?? (place ? { ...s, place } : s);
     }),
   );
+}
+
+/**
+ * Every Network's Stations, each once, as onOwnTrack() places them: a Station two Networks share, as
+ * both Renfe timetables have Sants as `adif:71801`, is one Station, as the first of them has it, naming
+ * every Network whose Trains stop there (#243).
+ */
+export function stationsOf(networks: { network: Pick<Network, 'id'>; stations: Station[]; shapes: Shape[] }[]): Station[] {
+  const byId = new Map<string, Station & { networks: string[] }>();
+  for (const [n, stations] of onOwnTrack(networks).entries()) {
+    const id = networks[n]?.network.id ?? '';
+    for (const s of stations) {
+      const known = byId.get(s.id);
+      if (!known) byId.set(s.id, { ...s, networks: [id] });
+      else if (!known.networks.includes(id)) known.networks.push(id);
+    }
+  }
+  return [...byId.values()];
 }
 
 /**

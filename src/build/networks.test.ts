@@ -204,22 +204,22 @@ test("gives the Metro TMB's stops as Stations, one for each Line calling there, 
 
 test('draws the Stations TMB groups in one station as one place, at the middle of its Lines, and every other Station as its own', () => {
   const stations = [
-    { id: 'tmb:1.327', name: 'Passeig de Gràcia', lon: 2.1649, lat: 41.3918, place: 'tmb:P.6660327' }, // L3
-    { id: 'tmb:1.437', name: 'Passeig de Gràcia', lon: 2.1683, lat: 41.3915, place: 'tmb:P.6660327' }, // L4
-    { id: 'tmb:1.225', name: 'Passeig de Gràcia', lon: 2.1693, lat: 41.3927, place: 'tmb:P.6660327' }, // L2
-    { id: 'tmb:1.1136', name: 'Trinitat Nova', lon: 2.1832, lat: 41.4499, place: 'tmb:P.6660339' },
+    { id: 'tmb:1.327', name: 'Passeig de Gràcia', lon: 2.1649, lat: 41.3918, place: 'tmb:P.6660327', networks: ['metro'] }, // L3
+    { id: 'tmb:1.437', name: 'Passeig de Gràcia', lon: 2.1683, lat: 41.3915, place: 'tmb:P.6660327', networks: ['metro'] }, // L4
+    { id: 'tmb:1.225', name: 'Passeig de Gràcia', lon: 2.1693, lat: 41.3927, place: 'tmb:P.6660327', networks: ['metro'] }, // L2
+    { id: 'tmb:1.1136', name: 'Trinitat Nova', lon: 2.1832, lat: 41.4499, place: 'tmb:P.6660339', networks: ['metro'] },
     // Renfe's station beside the Metro's goes by Adif's code, in no group of TMB's.
-    { id: 'adif:71802', name: 'Barcelona-Passeig de Gràcia', lon: 2.1652, lat: 41.3919 },
+    { id: 'adif:71802', name: 'Barcelona-Passeig de Gràcia', lon: 2.1652, lat: 41.3919, networks: ['rodalies'] },
   ];
   const drawn = places(stations);
   expect(drawn).toHaveLength(3);
   // Its board lists each of its Lines' Stations.
-  expect(drawn[0]).toMatchObject({ id: 'tmb:P.6660327', name: 'Passeig de Gràcia', stations: ['tmb:1.327', 'tmb:1.437', 'tmb:1.225'] });
+  expect(drawn[0]).toMatchObject({ id: 'tmb:P.6660327', name: 'Passeig de Gràcia', stations: ['tmb:1.327', 'tmb:1.437', 'tmb:1.225'], networks: ['metro'] });
   expect(drawn[0]?.lon).toBeCloseTo(2.1675);
   expect(drawn[0]?.lat).toBeCloseTo(41.392);
   expect(drawn.slice(1)).toEqual([
-    { id: 'tmb:P.6660339', name: 'Trinitat Nova', stations: ['tmb:1.1136'], lon: 2.1832, lat: 41.4499 },
-    { id: 'adif:71802', name: 'Barcelona-Passeig de Gràcia', stations: ['adif:71802'], lon: 2.1652, lat: 41.3919 },
+    { id: 'tmb:P.6660339', name: 'Trinitat Nova', stations: ['tmb:1.1136'], networks: ['metro'], lon: 2.1832, lat: 41.4499 },
+    { id: 'adif:71802', name: 'Barcelona-Passeig de Gràcia', stations: ['adif:71802'], networks: ['rodalies'], lon: 2.1652, lat: 41.3919 },
   ]);
 });
 

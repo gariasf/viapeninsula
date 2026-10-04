@@ -836,9 +836,10 @@ function show(days: Track | Bundle) {
   // Names go beside the track, not the stretches' centrelines, clear of the Trains on their Lines' strokes along those.
   const [track, centrelines] = [days.shapes.filter((s) => !s.id.startsWith(STRETCH)), days.shapes.filter((s) => s.id.startsWith(STRETCH))];
   const spots = alongside(track, (days.slots ?? []).filter((s) => s.band === undefined), (line) => placing.keep.get(line) ?? 1, days.lines, new Map(centrelines.map((c) => [c.id, c])));
-  names = tiered.map(({ name, stations, nameZoom, larger, style, lon, lat }) => {
+  // A track built before #243 names no Station's Networks: its names go beside the nearest track of any.
+  names = tiered.map(({ name, networks, nameZoom, larger, style, lon, lat }) => {
     const rows = nameLines(name, style);
-    return { dot: [lon, lat], sides: spots([lon, lat], stations), name: rows.join('\n'), size: [Math.max(...rows.map((row) => placeWidth(row, style))), rows.length * LINE_HEIGHT * style.size], nameZoom, larger, style };
+    return { dot: [lon, lat], sides: spots([lon, lat], networks), name: rows.join('\n'), size: [Math.max(...rows.map((row) => placeWidth(row, style))), rows.length * LINE_HEIGHT * style.size], nameZoom, larger, style };
   });
   showNames();
   credited = days.networks;
@@ -907,7 +908,7 @@ function trains(): GeoJSON.FeatureCollection {
 }
 
 /**
- * Puts each place's name beside its own Network's track (alongside()) as the track lies on screen now, at each of
+ * Puts each place's name beside its own Networks' track (alongside()) as the track lies on screen now, at each of
  * NAME_ZOOMS on the side nearestSide() takes, as far out from its dot as clearance() says, and off any track
  * crossing its own there (underName()).
  * ponytail: tries a name under a crossing track at the zoom and the next, not in between, and as far
