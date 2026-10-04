@@ -31,6 +31,8 @@ const STRINGS = {
     es: 'datos en tiempo real no disponibles, posiciones según el horario',
     en: 'live data unavailable, positions from the timetable',
   },
+  // After a Network's name in the banner, while its timetable has no Trips today, so it has no Trains on the map (#226).
+  noTimetable: { ca: 'sense horari avui', es: 'sin horario hoy', en: 'no timetable today' },
   // The banner alone, while the map has never got live data, and so can't name a Network.
   noLive: {
     ca: "Dades en temps real no disponibles, posicions segons l'horari",

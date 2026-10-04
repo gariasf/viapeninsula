@@ -11,9 +11,9 @@ import { createHash } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { brotliCompressSync, constants } from 'node:zlib';
-import { addDays, LIVE_URL, madridDate, type DayTrips, type Manifest, type Network, type Track } from '../bundle.ts';
-import { download, feedStart, noonMinus12h, type Source } from './gtfs.ts';
-import { manifestDay, manifestOf } from './manifest.ts';
+import { addDays, LIVE_URL, madridDate, type Manifest, type Network, type Track } from '../bundle.ts';
+import { download, feedStart, type Source } from './gtfs.ts';
+import { dayTrips, manifestDay, manifestOf } from './manifest.ts';
 import {
   FGC_FEED,
   METRO_FEED,
@@ -55,6 +55,7 @@ const networks = [
   await build([[TRAMBAIX_FEED, trambaix], [TRAMBESOS_FEED, trambesos]], onTramRails),
   await build([[METRO_FEED, tmb]], onMetroRails, { updated: published < today ? published : today }),
 ];
+const eachDay = dayTrips(DAYS, networks);
 const [lines, traced] = [networks.flatMap((n) => n.lines), networks.flatMap((n) => n.shapes)];
 const { strokes, centrelines, rails: ownTrack, slots, tracks } = await sideBySide(lines, traced);
 const shapes = [...traced, ...centrelines];
@@ -74,9 +75,8 @@ const track: Track = {
 };
 const trackKey = await write('days/track', track, `${track.lines.length} Lines, ${track.stations.length} Stations, ${track.shapes.length} shapes`);
 const built = await Promise.all(
-  DAYS.map(async (serviceDay, i) => {
-    const trips: DayTrips = { serviceDay, noonMinus12h: noonMinus12h(serviceDay), trips: networks.flatMap((n) => n.trips[i] ?? []) };
-    const key = await write(`days/${serviceDay}`, trips, `${trips.trips.length} Trips`);
+  eachDay.map(async (trips) => {
+    const key = await write(`days/${trips.serviceDay}`, trips, `${trips.trips.length} Trips`);
     return manifestDay({ ...track, ...trips }, { track: trackKey, trips: key });
   }),
 );
@@ -100,8 +100,9 @@ if (!process.argv.includes('--dry-run')) {
 /**
  * A Network from its operator's feeds, with the day they were last updated where its terms ask the
  * map to show it: its Lines, Stations and track traced along OpenStreetMap's rails of its own kind
- * (ADR-0004), which are those of every day in its feeds, and its Trips on each of DAYS, all within
- * Catalonia: its Trips are placed on their whole track, which is then cut at the border.
+ * (ADR-0004), which are those of every day in its feeds, and its Trips on each of DAYS, none where
+ * its timetable has none (dayTrips()), all within Catalonia: its Trips are placed on their whole
+ * track, which is then cut at the border.
  * ponytail: reads each feed once for each day, about 5 s a day for the lot; read stop_times once for
  * every day if the build grows slow.
  */
@@ -112,13 +113,7 @@ async function build(feeds: [[Feed, Source], ...[Feed, Source][]], onRails: (way
   const [lines, stations] = [parts.flatMap((p) => p.lines), parts.flatMap((p) => p.stations)];
   const shapes = traceShapes(parts.flatMap((p) => p.shapes), stations, fine(rails.filter(onRails)), network.runningSide);
   const cropped = crop(border, stations, shapes, days.map((day) => day.flatMap((p) => p.trips)));
-  const trips = cropped.days.map((trips, i) => {
-    // No Trips at all today means a broken download or a changed feed, not a day without Trains. On a
-    // later day it can mean a timetable that ends before it, and the next one comes before that day.
-    if (!trips.length && !i) throw new Error(`${network.name}'s timetable has no Trips on ${DAYS[i]}`);
-    if (!trips.length) console.warn(`${network.name}'s timetable has no Trips on ${DAYS[i]}`);
-    return placeTrips(trips, lines, shapes, stations, network.profile.topSpeed);
-  });
+  const trips = cropped.days.map((trips) => placeTrips(trips, lines, shapes, stations, network.profile.topSpeed));
   return { network, lines, stations: cropped.stations, shapes: cropped.shapes, trips };
 }
 

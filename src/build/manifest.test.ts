@@ -1,15 +1,30 @@
 import { expect, test } from 'vitest';
-import type { Bundle, ManifestDay } from '../bundle.ts';
+import type { Bundle, ManifestDay, Network, Trip } from '../bundle.ts';
 import { noonMinus12h } from './gtfs.ts';
-import { manifestDay, manifestOf } from './manifest.ts';
+import { dayTrips, manifestDay, manifestOf } from './manifest.ts';
 
 const PROFILE = { acceleration: 1, braking: 1, topSpeed: 44, dwell: 30 };
+const RODALIES: Network = { id: 'rodalies', name: 'Rodalies de Catalunya', profile: PROFILE, runningSide: 'right', colour: '#000' };
+const FGC: Network = { ...RODALIES, id: 'fgc', name: 'FGC' };
+
+/** A Trip on a Line from one Station to another, from one time to the other, in seconds into its service day. */
+const trip = (id: string, line: string, from = 18000, to = 20000): Trip => ({
+  id,
+  line,
+  shape: 's',
+  direction: 0,
+  headsign: '',
+  calls: [
+    { station: 'a', arrival: from, departure: from, dist: 0 },
+    { station: 'b', arrival: to, departure: to, dist: 1000 },
+  ],
+});
 
 /** A day's bundle with Trips from one time to another, in seconds into its service day. */
 const day = (serviceDay: string, ...trips: [from: number, to: number][]): Bundle => ({
   serviceDay,
   noonMinus12h: noonMinus12h(serviceDay),
-  networks: [{ id: 'rodalies', name: 'Rodalies de Catalunya', profile: PROFILE, runningSide: 'right', colour: '#000' }],
+  networks: [RODALIES],
   lines: [{ id: 'rodalies:R1', network: 'rodalies', name: 'R1', colour: '#000', shapes: [] }],
   stations: [],
   shapes: [],
@@ -17,17 +32,30 @@ const day = (serviceDay: string, ...trips: [from: number, to: number][]): Bundle
   rails: [],
   slots: [],
   tracks: [],
-  trips: trips.map(([from, to], i) => ({
-    id: `${i}`,
-    line: 'rodalies:R1',
-    shape: 's',
-    direction: 0,
-    headsign: '',
-    calls: [
-      { station: 'a', arrival: from, departure: from, dist: 0 },
-      { station: 'b', arrival: to, departure: to, dist: 1000 },
+  trips: trips.map(([from, to], i) => trip(`${i}`, 'rodalies:R1', from, to)),
+});
+
+test("builds each day's Trips from the other Networks where one's timetable has none that day, today's included, and logs it", () => {
+  const log: string[] = [];
+  const days = dayTrips(
+    ['2026-10-05', '2026-10-06'],
+    [
+      { network: RODALIES, trips: [[], []] },
+      { network: FGC, trips: [[trip('1', 'fgc:S1')], [trip('2', 'fgc:S1')]] },
     ],
-  })),
+    (l) => log.push(l),
+  );
+  expect(days).toEqual([
+    { serviceDay: '2026-10-05', noonMinus12h: Date.parse('2026-10-05T00:00:00+02:00'), trips: [trip('1', 'fgc:S1')] },
+    { serviceDay: '2026-10-06', noonMinus12h: Date.parse('2026-10-06T00:00:00+02:00'), trips: [trip('2', 'fgc:S1')] },
+  ]);
+  expect(log).toEqual(["Rodalies de Catalunya's timetable has no Trips on 2026-10-05", "Rodalies de Catalunya's timetable has no Trips on 2026-10-06"]);
+});
+
+test("fails when no Network has Trips today, which is a broken build rather than a day without Trains, but not on a later day", () => {
+  const both = (days: Trip[][]) => [{ network: RODALIES, trips: days }, { network: FGC, trips: days }];
+  expect(() => dayTrips(['2026-10-05', '2026-10-06'], both([[], [trip('2', 'fgc:S1')]]), () => {})).toThrow("No Network's timetable has Trips on 2026-10-05");
+  expect(dayTrips(['2026-10-05', '2026-10-06'], both([[trip('1', 'fgc:S1')], []]), () => {}).map((d) => d.trips.length)).toEqual([2, 0]);
 });
 
 test("names each day's track and Trips with when its first Train comes onto the map and its last leaves it, past midnight", () => {
@@ -38,6 +66,21 @@ test("names each day's track and Trips with when its first Train comes onto the 
     ...files,
     from: Date.parse('2026-09-25T04:59:30+02:00'),
     to: Date.parse('2026-09-26T00:30:30+02:00'),
+  });
+});
+
+test('names the Networks with no Trips that day, and times the day by the others', () => {
+  const files = { track: 'days/track-t.json', trips: 'days/2026-10-05-abc.json' };
+  const bundle = day('2026-10-05');
+  bundle.networks.push(FGC);
+  bundle.lines.push({ id: 'fgc:S1', network: 'fgc', name: 'S1', colour: '#000', shapes: [] });
+  bundle.trips.push(trip('1', 'fgc:S1', 18000, 20000));
+  expect(manifestDay(bundle, files)).toEqual({
+    date: '2026-10-05',
+    ...files,
+    from: Date.parse('2026-10-05T04:59:30+02:00'),
+    to: Date.parse('2026-10-05T05:33:50+02:00'),
+    noTrips: ['rodalies'],
   });
 });
 
