@@ -1,5 +1,4 @@
-// OpenStreetMap's rails, from Geofabrik's extracts filtered with osmium (ADR-0009), and Catalonia's
-// border, from Overpass.
+// OpenStreetMap's rails and Spain's border, from Geofabrik's extracts filtered with osmium (ADR-0009).
 
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -27,13 +26,9 @@ const EXTRACTS = ['europe/spain', 'europe/france/languedoc-roussillon', 'europe/
 /** How long all of EXTRACTS may take to download: Spain's 1.5 GB took 4 min on a home line, and the daily job has an hour. */
 const DOWNLOAD = 20 * 60_000;
 
-const MIRRORS = [
-  'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter',
-  'https://overpass.private.coffee/api/interpreter',
-];
+/** The relation OpenStreetMap maps Spain's border by, by land and by sea, as osmium matches it. */
+const SPAIN = 'r/ISO3166-1=ES';
 
-// overpass-api.de refuses requests without one.
 const USER_AGENT = 'viapeninsula (https://github.com/gariasf/viapeninsula)';
 
 /** Rails change slowly, so a copy less than a week old saves downloading them again. */
@@ -41,20 +36,12 @@ const FRESH = 7 * 24 * 60 * 60 * 1000;
 
 const run = promisify(execFile);
 
-/** The ways in Geofabrik's EXTRACTS whose `railway` tag is one of these, from the cache or from Geofabrik. */
-export async function osmRails(railways: string[], cache = '.cache'): Promise<OsmWay[]> {
-  return kept(join(cache, `rails-${hash(JSON.stringify([EXTRACTS, railways]))}.opl`), "OpenStreetMap's rails", () => geofabrik(railways), rails);
-}
-
-/** Catalonia's border, as the ways that make it up, in no order, from the cache or from Overpass. */
-export async function catalonia(cache = '.cache'): Promise<Point[][]> {
-  const query = '[out:json][timeout:180];rel["ISO3166-2"="ES-CT"];way(r);out skel geom qt;';
-  const read = (text: string) => {
-    const { elements } = JSON.parse(text) as { elements: Pick<OsmWay, 'geometry'>[] };
-    if (!elements.length) throw new Error("Overpass found no border for Catalonia");
-    return elements.map((way) => way.geometry.map((g): Point => [g.lon, g.lat]));
-  };
-  return kept(join(cache, `osm-${hash(query)}.json`), "Catalonia's border", () => overpass(query, read), read);
+/**
+ * The ways in Geofabrik's EXTRACTS whose `railway` tag is one of these, and Spain's border, as the ways
+ * that make it up, in no order, from the cache or from Geofabrik.
+ */
+export async function osm(railways: string[], cache = '.cache') {
+  return kept(join(cache, `osm-${hash(JSON.stringify([EXTRACTS, railways, SPAIN]))}.opl`), "OpenStreetMap's rails and Spain's border", () => geofabrik(railways), readOpl);
 }
 
 /**
@@ -79,8 +66,8 @@ async function kept<T>(file: string, what: string, get: () => Promise<string>, r
 }
 
 /**
- * The ways in EXTRACTS whose `railway` tag is one of these, with their nodes' positions, as osmium
- * writes them in its text format, OPL.
+ * The ways in EXTRACTS whose `railway` tag is one of these, and those of Spain's border, with their
+ * nodes' positions, as osmium writes them in its text format, OPL.
  */
 async function geofabrik(railways: string[]): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'viapeninsula-'));
@@ -93,47 +80,39 @@ async function geofabrik(railways: string[]): Promise<string> {
       const url = `https://download.geofabrik.de/${extract}-latest.osm.pbf`;
       const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT }, signal });
       if (!res.ok || !res.body) throw new Error(`${url}: HTTP ${res.status}`);
-      await writeFile(join(dir, 'extract.osm.pbf'), res.body);
-      const part = join(dir, `${i}.osm.pbf`);
-      await run('osmium', ['tags-filter', '-o', part, join(dir, 'extract.osm.pbf'), `w/railway=${railways.join(',')}`]);
-      parts.push(part);
+      const file = join(dir, 'extract.osm.pbf');
+      await writeFile(file, res.body);
+      const [rails, border] = [join(dir, `${i}.osm.pbf`), join(dir, `${i}-border.osm.pbf`)];
+      await run('osmium', ['tags-filter', '-o', rails, file, `w/railway=${railways.join(',')}`]);
+      // Spain's relation alone, as tags-filter would bring the regions it lists within it too, and
+      // theirs, down to each town's; then the ways it's made of. getid exits 1 when the extract lacks
+      // some, as each lacks those round the Canary Islands and the islets off Morocco.
+      const { stdout } = await run('osmium', ['tags-filter', '-R', '-f', 'opl', file, SPAIN]);
+      // Each of EXTRACTS borders Spain, so has its relation. Another so tagged would add rings that
+      // turn the land inside them out.
+      const relations = stdout.split('\n').filter((line) => line.startsWith('r'));
+      if (relations.length !== 1) throw new Error(`${extract} has ${relations.length} relations matching ${SPAIN}, not Spain's alone`);
+      await run('osmium', ['getid', '-r', '-o', border, file, ...(relations[0]?.match(/(?<=[M,])w\d+(?=@)/g) ?? [])]).catch((error: { code?: unknown }) => {
+        if (error.code !== 1) throw error;
+      });
+      parts.push(rails, border);
     }
     // Neighbouring extracts overlap, and merging keeps one copy of what they share, unless they're
     // from different days: then it keeps both versions of what changed in between, the newer last.
-    await run('osmium', ['merge', '-o', join(dir, 'rails.osm.pbf'), ...parts]);
-    await run('osmium', ['add-locations-to-ways', '-f', 'opl,add_metadata=false', '-o', join(dir, 'rails.opl'), join(dir, 'rails.osm.pbf')]);
-    return await readFile(join(dir, 'rails.opl'), 'utf8');
+    await run('osmium', ['merge', '-o', join(dir, 'merged.osm.pbf'), ...parts]);
+    await run('osmium', ['add-locations-to-ways', '-f', 'opl,add_metadata=false', '-o', join(dir, 'merged.opl'), join(dir, 'merged.osm.pbf')]);
+    return await readFile(join(dir, 'merged.opl'), 'utf8');
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
 }
 
-/** What the first Overpass mirror to answer a query answers, if `read` can read it. */
-async function overpass(query: string, read: (text: string) => unknown): Promise<string> {
-  for (const mirror of MIRRORS) {
-    try {
-      const res = await fetch(mirror, {
-        method: 'POST',
-        body: new URLSearchParams({ data: query }),
-        headers: { 'User-Agent': USER_AGENT },
-        signal: AbortSignal.timeout(200_000),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const text = await res.text();
-      read(text);
-      return text;
-    } catch (error) {
-      console.warn(`${mirror}: ${error instanceof Error ? error.message : error}`);
-    }
-  }
-  throw new Error('no Overpass mirror answered');
-}
-
 /**
- * The ways in OPL, each a line of fields that start with a letter: `w` its id, `T` its tags and `N`
- * its nodes, as n<id>x<lon>y<lat>. Characters that would break a line up are escaped as %<hex>%.
+ * The rails and Spain's border in OPL, where each way is a line of fields that start with a letter:
+ * `w` its id, `T` its tags and `N` its nodes, as n<id>x<lon>y<lat>. Characters that would break a line
+ * up are escaped as %<hex>%.
  */
-function rails(opl: string): OsmWay[] {
+function readOpl(opl: string): { rails: OsmWay[]; border: Point[][] } {
   const unescape = (s: string) => s.replace(/%([0-9a-f]+)%/g, (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)));
   const ways = opl.split('\n').flatMap((line): OsmWay[] => {
     if (!line.startsWith('w')) return [];
@@ -151,12 +130,24 @@ function rails(opl: string): OsmWay[] {
     }
     return [way];
   });
-  if (!ways.length) throw new Error("Geofabrik's extracts have no rails");
   // Each way's last version, the newest, where two extracts from different days both have it.
-  const newest = new Map(ways.map((way) => [way.id, way]));
+  const newest = [...new Map(ways.map((way) => [way.id, way])).values()];
+  const rails = newest.filter((way) => way.tags.railway);
+  if (!rails.length) throw new Error("Geofabrik's extracts have no rails");
+  // Each ring of Spain's border closes, where every way's ends meet another's, or its own: across a gap,
+  // crop() would take the land on one side of it for the other. Rings no extract reaches are missing whole.
+  // ponytail: the border's ways are those that aren't rails, so one also tagged as a railway would read
+  // as a gap; take them by Spain's relation, merged in with them, if one ever is.
+  const border = newest.filter((way) => !way.tags.railway);
+  const ends = new Map<number | undefined, number>();
+  for (const { nodes } of border) for (const node of [nodes[0], nodes.at(-1)]) ends.set(node, (ends.get(node) ?? 0) + 1);
+  if (!border.length || [...ends.values()].some((n) => n % 2)) throw new Error("Spain's border isn't whole in Geofabrik's extracts");
   // Some lines are mapped as rail before they open, with the date they will: 2027 for El Prat airport's new tunnel.
   const today = madridDate(new Date());
-  return [...newest.values()].filter((way) => !(way.tags.opening_date && way.tags.opening_date > today));
+  return {
+    rails: rails.filter((way) => !(way.tags.opening_date && way.tags.opening_date > today)),
+    border: border.map((way) => way.geometry.map((g): Point => [g.lon, g.lat])),
+  };
 }
 
 /** A short name for some text, the start of its SHA-256, which changes when the text does. */

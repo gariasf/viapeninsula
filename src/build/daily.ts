@@ -18,7 +18,7 @@ import { dayTrips, manifestDay, manifestOf } from './manifest.ts';
 import { onRails, readFeed, type Feed } from './networks.ts';
 import { crop } from './border.ts';
 import { measures, summary } from './measures.ts';
-import { catalonia, osmRails } from './osm.ts';
+import { osm } from './osm.ts';
 import { sideBySide } from './sideBySide.ts';
 import { fine, stationsOf, traceShapes } from './track.ts';
 import { placeTrips } from './trips.ts';
@@ -34,8 +34,9 @@ const downloaded = await Promise.all(
     feeds: await Promise.all(network.timetables.map(async (t) => ({ ...t, network, gtfs: await download(address(t), `${t.prefix}.zip`) }))),
   })),
 );
-// The rails of every kind any Network runs on, sorted, so the copy osmRails() keeps isn't named by the Networks' order.
-const [rails, border] = await Promise.all([osmRails([...new Set(NETWORKS.flatMap((n) => n.rails.railway))].sort()), catalonia()]);
+// The rails of every kind any Network runs on, and Spain's border. The kinds are sorted, so the copy
+// osm() keeps isn't named by the Networks' order.
+const { rails, border } = await osm([...new Set(NETWORKS.flatMap((n) => n.rails.railway))].sort());
 const networks = [];
 for (const { network, feeds } of downloaded) networks.push(await build(network, feeds));
 const eachDay = dayTrips(DAYS, networks);
@@ -84,8 +85,8 @@ if (!process.argv.includes('--dry-run')) {
  * A Network from its operator's timetables, with the day they were last updated where its terms ask
  * the map to show it: its Lines, Stations and track traced along OpenStreetMap's rails of its own kind
  * (ADR-0004), which are those of every day in its timetables, and its Trips on each of DAYS, none where
- * its timetable has none (dayTrips()), all within Catalonia: its Trips are placed on their whole
- * track, which is then cut at the border.
+ * its timetable has none (dayTrips()), all within Spain: its Trips are placed on their whole track,
+ * which is then cut at the border.
  * ponytail: reads each feed once for each day, about 5 s a day for the lot; read stop_times once for
  * every day if the build grows slow.
  */

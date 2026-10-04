@@ -163,6 +163,17 @@ test("traces the Stations its Trips serve beyond either end of the feed's shape,
   expect(log).toEqual(['line: 5.0 km long. Where the feed has the track: 1.0 km traced against its 1.0 km (+0.0%)']);
 });
 
+test("traces the Stations beyond the end of the feed's shape in the order the line reaches them, where it bends back toward that end", () => {
+  // As R15's line does past its shape's end at Riba-roja: it turns north at La Puebla de Híjar (P),
+  // and La Zaida-Sástago (Z), the next Station on, is the nearer of the two to Riba-roja.
+  const { shape } = trace(
+    rails({ a: [0, 0], b: [2000, 0], s: [6000, 0], p: [8000, 0], z: [7800, 1500] }, 'a b s p z'),
+    [station('A', 0, 10), station('B', 2000, 10), station('S', 6000, 10), station('P', 8000, -10), station('Z', 7800, 1500)],
+    { id: 'line', feed: [[0, 1], [2000, 1]], stations: 'A B S P Z' },
+  );
+  expect(points(shape('line'))).toEqual([[0, 0], [2000, 0], [6000, 0], [8000, 0], [7800, 1500]]);
+});
+
 // A main line with a branch north to a terminus T, which trains reach from either side by the legs of a triangle.
 const branch = () =>
   rails(

@@ -320,7 +320,7 @@ function onMap(bundle: Bundle, at: number, received: Received[]): { of: (trip: T
   return { of, now, available };
 }
 
-/** Whether a Train so far along its shape, in metres, is on the map: not where it's off it, before its first Station or after its last, nor beyond where its track starts or ends, as past Catalonia's border. */
+/** Whether a Train so far along its shape, in metres, is on the map: not where it's off it, before its first Station or after its last, nor beyond where its track starts or ends, as past Spain's border. */
 const onTrack = (shape: Shape, dist: number | undefined): dist is number => dist !== undefined && dist >= (shape.dist[0] ?? 0) && dist <= (shape.dist.at(-1) ?? 0);
 
 /**
@@ -967,7 +967,7 @@ function passing(calls: Call[], profile: SpeedProfile, d: number, around: number
 
 /**
  * The stretches of a shape within `radius` metres of a point, from and to how far along it they are,
- * in metres. Beyond where its track starts or ends, as past Catalonia's border, a Train is off the map.
+ * in metres. Beyond where its track starts or ends, as past Spain's border, a Train is off the map.
  */
 function stretchesWithin({ coords, dist }: Shape, point: Point, radius: number): [from: number, to: number][] {
   const kx = DEGREE * Math.cos((point[1] * Math.PI) / 180);

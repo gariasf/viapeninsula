@@ -1,4 +1,4 @@
-// Catalonia's border: the map draws no track and no Stations beyond it, and Trains leave it there.
+// Spain's border: the map draws no track and no Stations beyond it, and Trains leave it there (ADR-0010).
 
 import { pointAt, type Point, type Shape, type Station } from '../bundle.ts';
 import { nearest } from './track.ts';
@@ -66,7 +66,7 @@ function within(border: Point[][]): (p: Point) => boolean {
 /**
  * A shape from where it first comes within the border to where it last leaves it, or none if it
  * never does.
- * ponytail: keeps any stretch that strays beyond the border in between; none of Catalonia's does.
+ * ponytail: keeps any stretch that strays beyond the border in between; none of today's Lines does.
  * Split a shape into its pieces within the border if one ever does.
  */
 function clip(shape: Shape, inside: (p: Point) => boolean): Shape | undefined {
