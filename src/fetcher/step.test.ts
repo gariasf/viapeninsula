@@ -3,7 +3,8 @@ import { gzipSync } from 'node:zlib';
 import { PbfWriter } from 'pbf';
 import { expect, test } from 'vitest';
 import { unavailable } from '../engine.ts';
-import { START, step, TIMEOUT, UNSET, type Fetched, type Responses, type Stored } from './step.ts';
+import { LIVE_SOURCES } from '../networks.ts';
+import { fetchDue, START, step, TIMEOUT, UNSET, type Fetched, type FgcOwn, type FgcResponses, type Get, type RenfeResponses, type Responses, type State, type Stored, type TramOwn, type TramResponses } from './step.ts';
 
 // Renfe's Cercanías feeds as recorded at 15:57 on Friday 25 September 2026, cut down to Rodalies'
 // Trains and a few of other núcleos'.
@@ -14,7 +15,7 @@ const RENFE = { positions: recorded('vehicle_positions.json'), updates: recorded
 const NOW = Date.parse('2026-09-25T15:57:11+02:00');
 
 /** The fetcher's first run, fetching Renfe's feeds. */
-const run = (rodalies: Responses['rodalies'] = RENFE) => step(START.state, { rodalies }, NOW);
+const run = (renfe: RenfeResponses = RENFE) => step(START.state, { renfe }, NOW);
 
 test("makes one report for each Rodalies Train in Renfe's feeds, and none for other núcleos' Trains", () => {
   const trips = run().snapshot.reports.map((r) => r.trip);
@@ -72,19 +73,19 @@ test('writes a snapshot of a few kilobytes, as the CDN compresses it', () => {
 test("records when Renfe's feeds were last tried and last read, how the last try went, and how often they're tried", () => {
   const fine = { lastSuccess: NOW, lastAttempt: NOW, status: 'ok', every: 20_000 };
   expect(run().snapshot.feeds).toEqual({ rodalies: fine });
-  expect(run().state.feeds).toEqual({ rodalies: fine });
+  expect(run().state.freshness).toEqual({ renfe: fine });
 
   // Each run after, 20 s apart, finds one of the feeds down, garbled or empty.
-  const failures: [Responses['rodalies'], string][] = [
+  const failures: [RenfeResponses, string][] = [
     [{ ...RENFE, positions: { status: 503, body: '' } }, 'vehicle_positions: HTTP 503'],
     [{ ...RENFE, positions: { error: 'Error: no answer in 10 s' } }, 'vehicle_positions: Error: no answer in 10 s'],
     [{ ...RENFE, updates: { status: 200, body: '<html>' } }, 'trip_updates: not JSON'],
     [{ ...RENFE, updates: { status: 200, body: '' } }, 'trip_updates: empty'],
   ];
   let state = run().state;
-  for (const [i, [rodalies, status]] of failures.entries()) {
+  for (const [i, [renfe, status]] of failures.entries()) {
     const later = NOW + (i + 1) * 20_000;
-    const failed = step(state, { rodalies }, later);
+    const failed = step(state, { renfe }, later);
     expect(failed.snapshot.feeds).toEqual({ rodalies: { lastSuccess: NOW, lastAttempt: later, status, every: 20_000 } });
     state = failed.state;
   }
@@ -93,25 +94,25 @@ test("records when Renfe's feeds were last tried and last read, how the last try
 test("keeps Renfe's last good reports through runs whose responses fail", () => {
   const good = run();
   // Each run after, 20 s apart, finds one of the feeds down, garbled or empty.
-  const failures: Responses['rodalies'][] = [
+  const failures: RenfeResponses[] = [
     { ...RENFE, positions: { status: 503, body: '' } },
     { ...RENFE, updates: { error: 'Error: no answer in 10 s' } },
     { ...RENFE, updates: { status: 200, body: '<html>' } },
     { ...RENFE, positions: { status: 200, body: '' } },
   ];
   let state = good.state;
-  for (const [i, rodalies] of failures.entries()) {
-    const failed = step(state, { rodalies }, NOW + (i + 1) * 20_000);
+  for (const [i, renfe] of failures.entries()) {
+    const failed = step(state, { renfe }, NOW + (i + 1) * 20_000);
     expect(failed.snapshot.reports).toEqual(good.snapshot.reports);
     state = failed.state;
   }
   // The next run that works replaces them, even where Renfe's feeds report no Trains at all.
   const none = { status: 200, body: '{"header": {"timestamp": "1790344660"}}' };
-  expect(step(state, { rodalies: { positions: none, updates: none } }, NOW + 100_000).snapshot.reports).toEqual([]);
+  expect(step(state, { renfe: { positions: none, updates: none } }, NOW + 100_000).snapshot.reports).toEqual([]);
 });
 
 /** Renfe's feeds as recorded, with both headers saying a moment, in ms since 1970, rather than 15:57:09. */
-function renfeAt(moment: number): NonNullable<Responses['rodalies']> {
+function renfeAt(moment: number): RenfeResponses {
   const at = ({ body }: { body: string }) => ({ status: 200, body: body.replace('"timestamp": "1790344629"', `"timestamp": "${moment / 1000}"`) });
   return { positions: at(RENFE.positions), updates: at(RENFE.updates) };
 }
@@ -123,12 +124,12 @@ test("counts a run whose Renfe feed says it hasn't been updated since the last a
   const good = run();
   const later = NOW + 20_000;
   // 20 s later, one of the feeds still has the header it had.
-  const stuck: [Responses['rodalies'], string][] = [
+  const stuck: [RenfeResponses, string][] = [
     [{ ...renfeAt(RENFE_WRITTEN + 20_000), positions: RENFE.positions }, 'vehicle_positions: not updated since 13:57:09 UTC'],
     [{ ...renfeAt(RENFE_WRITTEN + 20_000), updates: RENFE.updates }, 'trip_updates: not updated since 13:57:09 UTC'],
   ];
-  for (const [rodalies, status] of stuck) {
-    const failed = step(good.state, { rodalies }, later);
+  for (const [renfe, status] of stuck) {
+    const failed = step(good.state, { renfe }, later);
     expect(failed.snapshot.feeds).toEqual({ rodalies: { lastSuccess: NOW, lastAttempt: later, status, every: 20_000 } });
     expect(failed.snapshot.reports).toEqual(good.snapshot.reports);
   }
@@ -138,7 +139,7 @@ test("counts a run whose Renfe feed says it hasn't been updated since the last a
 function renfeRuns(headers: number[]): ReturnType<typeof step>[] {
   let state = START.state;
   return headers.map((header, i) => {
-    const done = step(state, { rodalies: renfeAt(RENFE_WRITTEN + header * 1000) }, NOW + i * 20_000);
+    const done = step(state, { renfe: renfeAt(RENFE_WRITTEN + header * 1000) }, NOW + i * 20_000);
     state = done.state;
     return done;
   });
@@ -162,8 +163,54 @@ test("while Renfe's headers stay put, Rodalies' live data is unavailable from th
 });
 
 test('fetches Renfe on every run', () => {
-  expect(START.due).toContain('rodalies');
-  expect(run().due).toContain('rodalies');
+  expect(START.due).toContain('renfe');
+  expect(run().due).toContain('renfe');
+});
+
+/** The live sources, with Renfe's feeding Cercanías Sevilla too, whose trip_ids start with its núcleo, 30. */
+const WITH_SEVILLA = LIVE_SOURCES.map((s) => (s.id === 'renfe' ? { ...s, networks: { ...s.networks, '30': 'cercanias-sevilla' } } : s));
+
+test("sends each of Renfe's Trains to the Network its source names by how its trip_id starts", () => {
+  const { reports } = step(START.state, { renfe: RENFE }, NOW, WITH_SEVILLA).snapshot;
+  // Sevilla's two Trains, both coming into a Station late, besides Rodalies' 67. Núcleo 46's
+  // cancelled Trip goes to no Network, as the sources name none for it.
+  const reported = Date.parse('2026-09-25T15:57:06+02:00');
+  expect(reports.filter((r) => !r.trip?.startsWith('rodalies:'))).toEqual([
+    { trip: 'cercanias-sevilla:3066V23639C4', at: reported, position: { near: 'adif:51009' }, delay: 900 },
+    { trip: 'cercanias-sevilla:3066V23551C1', at: reported, position: { near: 'adif:51112' }, delay: 840 },
+  ]);
+  expect(reports).toHaveLength(67 + 2);
+});
+
+test("sends a Train to the Network of the longest start its trip_id has, whichever order its source's config names them in", () => {
+  // Made up: a Network for every trip_id that starts with 5, named before Rodalies' 51.
+  const nested = LIVE_SOURCES.map((s) => (s.id === 'renfe' ? { ...s, networks: { '5': 'other', ...s.networks } } : s));
+  const networks = step(START.state, { renfe: RENFE }, NOW, nested).snapshot.reports.map((r) => r.trip?.split(':')[0]);
+  expect(new Set(networks)).toEqual(new Set(['rodalies']));
+});
+
+test('fetches a source as often as its config says, counted in runs however long they take, and says so in its freshness', () => {
+  // Made up: Renfe's feeds fetched every minute, every third run, though each answer takes 10 s.
+  const slower = LIVE_SOURCES.map((s) => (s.id === 'renfe' ? { ...s, every: 60_000 } : s));
+  let stored: ReturnType<typeof step> | undefined;
+  const fetched: number[] = [];
+  for (let t = NOW; t < NOW + 3 * 60_000; t += 20_000) {
+    const due = (stored ?? START).due.includes('renfe');
+    if (due) fetched.push((t - NOW) / 1000);
+    stored = step((stored ?? START).state, due ? { renfe: renfeAt(RENFE_WRITTEN + t - NOW) } : {}, due ? t + TIMEOUT : t, slower);
+  }
+  expect(fetched).toEqual([0, 60, 120]);
+  expect(stored?.snapshot.feeds.rodalies).toMatchObject({ status: 'ok', every: 60_000 });
+});
+
+test("writes how fresh Renfe's feeds are under each Network they feed, so the map tells each one's Trains as it does Rodalies'", () => {
+  const good = step(START.state, { renfe: RENFE }, NOW, WITH_SEVILLA);
+  const fine = { lastSuccess: NOW, lastAttempt: NOW, status: 'ok', every: 20_000 };
+  expect(good.snapshot.feeds).toEqual({ rodalies: fine, 'cercanias-sevilla': fine });
+  // A try that fails, fails for both.
+  const failed = step(good.state, { renfe: { ...RENFE, positions: { status: 503, body: '' } } }, NOW + 20_000, WITH_SEVILLA);
+  const down = { lastSuccess: NOW, lastAttempt: NOW + 20_000, status: 'vehicle_positions: HTTP 503', every: 20_000 };
+  expect(failed.snapshot.feeds).toEqual({ rodalies: down, 'cercanias-sevilla': down });
 });
 
 // FGC's live data as recorded at 10:31 on Friday 25 September 2026: Geotren's positions, which FGC
@@ -179,7 +226,7 @@ const FGC = {
 const FGC_NOW = Date.parse('2026-09-25T10:31:15+02:00');
 
 /** The fetcher's first run, fetching FGC, for which it looks up where the trip-updates file is. */
-const fgcRun = (fgc: Responses['fgc'] = FGC) => step(START.state, { fgc }, FGC_NOW);
+const fgcRun = (fgc: FgcResponses = FGC) => step(START.state, { fgc }, FGC_NOW);
 
 /** What the run reports about an FGC Trip. */
 const fgcReport = (trip: string) => fgcRun().snapshot.reports.find((r) => r.trip === `fgc:${trip}`);
@@ -251,7 +298,7 @@ test('writes a snapshot of a few kilobytes with every Network, as the CDN compre
   // These 195 Trains take 3,457 bytes. The production snapshots in the engine tests' replay, of 272
   // to 311 Trains each, took 4,456 to 5,146.
   const three = step(step(run().state, { fgc: FGC }, NOW + 20_000).state, { tram: { token: TOKEN, ...TRAM } }, NOW + 40_000);
-  const all = step(three.state, { metro: METRO }, NOW + 60_000).snapshot;
+  const all = step(three.state, { tmb: METRO }, NOW + 60_000).snapshot;
   expect(all.reports).toHaveLength(67 + 62 + 24 + 42);
   expect(gzipSync(JSON.stringify(all)).length).toBeLessThan(4000);
 });
@@ -285,6 +332,9 @@ interface Answer {
   remaining?: number;
 }
 
+/** What FGC's adapter keeps, as the step stores it. */
+const fgcOwn = (state: State) => state.own?.fgc as FgcOwn | undefined;
+
 /**
  * The fetcher's runs every 20 s from a moment, for so many minutes, each fetching FGC where it's due,
  * as the Worker does: the trip-updates file from where the step has it, or where the run looks it up.
@@ -298,7 +348,7 @@ function refreshes(from: number, minutes: number, answer: (moment: number) => An
     const responses: Responses = {};
     if (stored.due.includes('fgc')) {
       const { remaining, positions = { ...geotrenAt(t - 60_000), remaining }, updates = { status: 200, body: writtenAt(t - 60_000), remaining } } = answer(t);
-      const lookup = stored.state.fgc?.file ? undefined : { ...FGC.lookup, remaining };
+      const lookup = fgcOwn(stored.state)?.file ? undefined : { ...FGC.lookup, remaining };
       responses.fgc = { positions, updates, lookup };
       made.push({ at: t, requests: [...(lookup ? ['lookup'] : []), 'positions', 'updates'] });
     }
@@ -355,7 +405,7 @@ test('fetches FGC every 2 minutes, from its first run, with 2 requests: Geotren 
 test('slows FGC to every 5 minutes once its API has fewer than 1,000 requests left today', () => {
   const { made, stored } = refreshes(FGC_NOW, 12, () => ({ remaining: 999 }));
   expect(seconds(FGC_NOW, made)).toEqual([0, 300, 600]);
-  expect(stored.state.feeds.fgc).toMatchObject({ status: 'ok', every: 300_000 });
+  expect(stored.state.freshness.fgc).toMatchObject({ status: 'ok', every: 300_000 });
   // At 1,000 left, it's every 2 minutes.
   expect(seconds(FGC_NOW, refreshes(FGC_NOW, 5, () => ({ remaining: 1000 })).made)).toEqual([0, 120, 240]);
 });
@@ -365,14 +415,14 @@ test("stops fetching FGC once its API has no requests left, until the quota rese
   const { made, stored } = refreshes(from, 9.5, () => ({ remaining: 0 }));
   expect(seconds(from, made)).toEqual([0]);
   // Its Trains turn Scheduled 6 minutes after, as they would with FGC fetched every 2 minutes and failing.
-  expect(stored.state.feeds.fgc).toEqual({ lastSuccess: from, lastAttempt: from, status: 'no requests left until 00:00 UTC', every: 120_000 });
+  expect(stored.state.freshness.fgc).toEqual({ lastSuccess: from, lastAttempt: from, status: 'no requests left until 00:00 UTC', every: 120_000 });
   // The first run after 00:00 UTC fetches it again.
   expect(seconds(from, refreshes(from + 580_000, 1, undefined, stored).made)).toEqual([600]);
   // Where that refresh gets no answers, the day before's count is no longer what FGC has left.
   const unanswered = { error: 'Error: no answer in 10 s' };
   const cut = refreshes(from + 580_000, 3, () => ({ positions: unanswered, updates: unanswered }), stored);
   expect(seconds(from, cut.made)).toEqual([600, 720]);
-  expect(cut.stored.state.feeds.fgc).toMatchObject({ status: 'geotren: Error: no answer in 10 s', every: 120_000 });
+  expect(cut.stored.state.freshness.fgc).toMatchObject({ status: 'geotren: Error: no answer in 10 s', every: 120_000 });
   // A request turned away as Too Many Requests, whose answer doesn't say none are left, is tried again 2 minutes later.
   const refused = refreshes(from, 3, (t) => (t > from ? {} : { positions: { status: 429, body: '{}' } }));
   expect(seconds(from, refused.made)).toEqual([0, 120]);
@@ -428,7 +478,7 @@ const TOKEN = { status: 200, body: JSON.stringify({ resource: 'resource_server',
 const TRAM_NOW = Date.parse('2026-09-25T11:44:50+02:00');
 
 /** The fetcher's first run, fetching TRAM, for which it asks for an access token. */
-const tramRun = (tram: Responses['tram'] = { token: TOKEN, ...TRAM }) => step(START.state, { tram }, TRAM_NOW);
+const tramRun = (tram: TramResponses = { token: TOKEN, ...TRAM }) => step(START.state, { tram }, TRAM_NOW);
 
 test('makes one report for each Train TRAM has in service whose trip update names its Trip', () => {
   // Trambaix has 16 Units in service and Trambesòs 12. The trip updates name the Trips of 15 and 9:
@@ -463,7 +513,7 @@ test('never reports a Unit out of service, which TRAM puts on line 0, even where
 });
 
 /** Some of what TRAM answers a run with. */
-type TramAnswer = Partial<NonNullable<Responses['tram']>>;
+type TramAnswer = Partial<TramResponses>;
 
 test("records when TRAM was last tried and last read, how the last try went, and how often it's tried", () => {
   const fine = { lastSuccess: TRAM_NOW, lastAttempt: TRAM_NOW, status: 'ok', every: 20_000 };
@@ -520,6 +570,9 @@ test('fetches TRAM on every run', () => {
   expect(run().due).toContain('tram');
 });
 
+/** What TRAM's adapter keeps, as the step stores it. */
+const tramOwn = (state: State) => state.own?.tram as TramOwn | undefined;
+
 /**
  * The fetcher's runs every 20 s from a moment, for so many minutes, each fetching TRAM where it's
  * due, as the Worker does: asking for an access token first where the step keeps none. TRAM answers
@@ -529,7 +582,7 @@ test('fetches TRAM on every run', () => {
 function tramRuns(from: number, minutes: number, answer: (moment: number) => TramAnswer = () => ({}), stored: Stored = START) {
   const asked: { at: number }[] = [];
   for (let t = from; t < from + minutes * 60_000; t += 20_000) {
-    const token = stored.state.tram?.token ? undefined : TOKEN;
+    const token = tramOwn(stored.state)?.access ? undefined : TOKEN;
     if (token && stored.due.includes('tram')) asked.push({ at: t });
     stored = step(stored.state, stored.due.includes('tram') ? { tram: { token, ...TRAM, ...answer(t) } } : {}, t);
   }
@@ -555,19 +608,19 @@ test('asks for another access token as soon as TRAM refuses the one it has', () 
 test('says where TRAM refuses its access token, and that it waits before trying again', () => {
   const afterRefusal = step(tramRuns(TRAM_NOW, 1).stored.state, { tram: { ...TRAM, ...REFUSED } }, TRAM_NOW + 60_000);
   expect(afterRefusal.snapshot.feeds.tram?.status).toBe('TBS gtfsrealtime: HTTP 401; backing off, next try at 09:46:10 UTC');
-  expect(afterRefusal.state.tramBackoff).toEqual({ failed: TRAM_NOW + 60_000, wait: 20_000 });
+  expect(tramOwn(afterRefusal.state)?.backoff).toEqual({ failed: TRAM_NOW + 60_000, wait: 20_000 });
   expect(afterRefusal.due).toContain('tram');
 });
 
 test('waits twice as long after each run whose access token TRAM refuses, though it issued it, up to 30 minutes', () => {
   const { asked, stored } = tramRuns(TRAM_NOW, 120, () => REFUSED);
   expect(seconds(TRAM_NOW, asked)).toEqual([0, 20, 60, 140, 300, 620, 1260, 2540, 4340, 6140]);
-  expect(stored.state.tramBackoff).toEqual({ failed: TRAM_NOW + 6_140_000, wait: 1_800_000 });
-  expect(stored.state.feeds.tram?.status).toBe('TBS gtfsrealtime: HTTP 401; backing off, next try at 11:57:10 UTC');
+  expect(tramOwn(stored.state)?.backoff).toEqual({ failed: TRAM_NOW + 6_140_000, wait: 1_800_000 });
+  expect(stored.state.freshness.tram?.status).toBe('TBS gtfsrealtime: HTTP 401; backing off, next try at 11:57:10 UTC');
 });
 
 /** What TRAM gives a run whose request for an access token gets this answer, and no token: the Worker then asks it for no data. */
-const noToken = (token: Fetched): NonNullable<Responses['tram']> => {
+const noToken = (token: Fetched): TramResponses => {
   const none = { error: 'no access token' };
   return { token, TBX: { positions: none, updates: none }, TBS: { positions: none, updates: none } };
 };
@@ -581,7 +634,7 @@ test('says why where TRAM answers with no access token, and that it waits before
   for (const [token, status] of unissued) {
     const failed = step(START.state, { tram: noToken(token) }, TRAM_NOW);
     expect(failed.snapshot.feeds).toEqual({ tram: { lastAttempt: TRAM_NOW, status: `${status}; backing off, next try at 09:45:10 UTC`, every: 20_000 } });
-    expect(failed.state.tramBackoff).toEqual({ failed: TRAM_NOW, wait: 20_000 });
+    expect(tramOwn(failed.state)?.backoff).toEqual({ failed: TRAM_NOW, wait: 20_000 });
   }
 });
 
@@ -592,8 +645,8 @@ test('waits twice as long after each request for an access token TRAM refuses, u
   const { asked, stored } = tramRuns(TRAM_NOW, 120, () => UNISSUED);
   // 20 s, 40 s, 80 s and so on, until 2,560 s is capped at 1,800 s.
   expect(seconds(TRAM_NOW, asked)).toEqual([0, 20, 60, 140, 300, 620, 1260, 2540, 4340, 6140]);
-  expect(stored.state.tramBackoff).toEqual({ failed: TRAM_NOW + 6_140_000, wait: 1_800_000 });
-  expect(stored.state.feeds.tram?.status).toBe('token: HTTP 401; backing off, next try at 11:57:10 UTC');
+  expect(tramOwn(stored.state)?.backoff).toEqual({ failed: TRAM_NOW + 6_140_000, wait: 1_800_000 });
+  expect(stored.state.freshness.tram?.status).toBe('token: HTTP 401; backing off, next try at 11:57:10 UTC');
 });
 
 /** Requests for an access token that TRAM gives no answer, or a server error, and what its status then says. */
@@ -606,9 +659,9 @@ test("asks for an access token on every run while TRAM gives its requests no ans
   for (const [token, status] of UNANSWERED) {
     const { asked, stored } = tramRuns(TRAM_NOW, 2, () => noToken(token));
     expect(seconds(TRAM_NOW, asked)).toEqual([0, 20, 40, 60, 80, 100]);
-    expect(stored.state.tramBackoff).toBeUndefined();
+    expect(tramOwn(stored.state)?.backoff).toBeUndefined();
     // It says why, and not that it's backing off.
-    expect(stored.state.feeds.tram?.status).toBe(status);
+    expect(stored.state.freshness.tram?.status).toBe(status);
   }
 });
 
@@ -620,7 +673,7 @@ test("waits twice as long after credentials TRAM refuses again, as if a request 
     expect(between.snapshot.feeds.tram?.status).toBe(status);
     expect(between.due).toContain('tram');
     const again = step(between.state, { tram: noToken(UNISSUED.token) }, TRAM_NOW + 40_000);
-    expect(again.state.tramBackoff).toEqual({ failed: TRAM_NOW + 40_000, wait: 40_000 });
+    expect(tramOwn(again.state)?.backoff).toEqual({ failed: TRAM_NOW + 40_000, wait: 40_000 });
     expect(again.snapshot.feeds.tram?.status).toBe('token: HTTP 401; backing off, next try at 09:46:10 UTC');
   }
 });
@@ -635,7 +688,7 @@ test("keeps the wait as it was where TRAM gives a token's data requests no answe
     // or a server error, and refuses its token on the run after.
     const { asked, stored } = tramRuns(TRAM_NOW, 1, (t) => (t === TRAM_NOW + 20_000 ? answer : REFUSED));
     expect(seconds(TRAM_NOW, asked)).toEqual([0, 20]);
-    expect(stored.state.tramBackoff).toEqual({ failed: TRAM_NOW + 40_000, wait: 40_000 });
+    expect(tramOwn(stored.state)?.backoff).toEqual({ failed: TRAM_NOW + 40_000, wait: 40_000 });
   }
 });
 
@@ -643,13 +696,13 @@ test("waits only 20 s again where TRAM answers any of a token's data requests wi
   // As above, but TRAM answers Trambesòs' data requests on the run between.
   const { TBX } = both({ error: 'Error: no answer in 10 s' }, { error: 'Error: no answer in 10 s' });
   const { stored } = tramRuns(TRAM_NOW, 1, (t) => (t === TRAM_NOW + 20_000 ? { TBX } : REFUSED));
-  expect(stored.state.tramBackoff).toEqual({ failed: TRAM_NOW + 40_000, wait: 20_000 });
+  expect(tramOwn(stored.state)?.backoff).toEqual({ failed: TRAM_NOW + 40_000, wait: 20_000 });
 });
 
 test('never waits where the Worker has no credentials for TRAM, since it asks TRAM for nothing', () => {
   const unset = step(START.state, { tram: noToken({ error: UNSET }) }, TRAM_NOW);
   expect(unset.snapshot.feeds.tram?.status).toBe('token: its credentials are not set');
-  expect(unset.state.tramBackoff).toBeUndefined();
+  expect(tramOwn(unset.state)?.backoff).toBeUndefined();
   expect(unset.due).toContain('tram');
 });
 
@@ -659,12 +712,12 @@ test('waits only 20 s again after failed tries, once TRAM accepts a token', () =
   const answer = (t: number): TramAnswer => (t < TRAM_NOW + 60_000 ? UNISSUED : t === TRAM_NOW + 60_000 || t === TRAM_NOW + 240_000 ? REFUSED : {});
   const { asked, stored } = tramRuns(TRAM_NOW, 5, answer);
   expect(seconds(TRAM_NOW, asked)).toEqual([0, 20, 60, 140, 260]);
-  expect(stored.state.tramBackoff).toBeUndefined();
+  expect(tramOwn(stored.state)?.backoff).toBeUndefined();
 });
 
 test('never writes the access token into the snapshot', () => {
   const { stored } = tramRuns(TRAM_NOW, 1);
-  expect(stored.state.tram?.token).toBe('made-up token');
+  expect(tramOwn(stored.state)?.access?.token).toBe('made-up token');
   expect(JSON.stringify(step(stored.state, { tram: TRAM }, TRAM_NOW + 60_000).snapshot)).not.toContain('made-up token');
 });
 
@@ -678,7 +731,7 @@ const METRO = metroRecorded('estacions.json');
 const METRO_NOW = Date.parse('2026-09-25T13:14:09+02:00');
 
 /** The fetcher's first run, fetching the Metro. */
-const metroRun = (metro: Fetched = METRO) => step(START.state, { metro }, METRO_NOW);
+const metroRun = (metro: Fetched = METRO) => step(START.state, { tmb: metro }, METRO_NOW);
 
 test("makes one report for each Block TMB's predictions name, by its Line and TMB's number for it, which another Line's can share", () => {
   // L1 has 24 trains in its predictions, L4 16 and L11 2. L4 and L11 both have a 401 and a 402.
@@ -709,7 +762,7 @@ test("heads each Block the way it runs along its Line, even coming into the Line
 
 test('heads a Block back the other way once it has come to the end of its Line, from where TMB next expects it', () => {
   // By 13:15:40 L1's 112 has come into Fondo, and TMB expects it back at Santa Coloma at 13:17:31.
-  const later = step(metroRun().state, { metro: metroRecorded('estacions-1315.json') }, Date.parse('2026-09-25T13:15:41+02:00'));
+  const later = step(metroRun().state, { tmb: metroRecorded('estacions-1315.json') }, Date.parse('2026-09-25T13:15:41+02:00'));
   expect(metroReport('L1', '112', later)).toMatchObject({ headsign: 'Hospital de Bellvitge', position: { next: { station: 'tmb:1.139', at: Date.parse('2026-09-25T13:17:31+02:00') } } });
 });
 
@@ -728,7 +781,7 @@ test("records when the Metro was last tried and last read, how the last try went
   let state = metroRun().state;
   for (const [i, [metro, status]] of failures.entries()) {
     const later = METRO_NOW + (i + 1) * 40_000;
-    const failed = step(state, { metro }, later);
+    const failed = step(state, { tmb: metro }, later);
     expect(failed.snapshot.feeds).toEqual({ metro: { lastSuccess: METRO_NOW, lastAttempt: later, status, every: 40_000 } });
     state = failed.state;
   }
@@ -739,7 +792,7 @@ test("keeps the Metro's last good reports through runs whose responses fail", ()
   const failures: Fetched[] = [{ status: 503, body: '' }, { error: 'Error: no answer in 10 s' }, { status: 200, body: '' }];
   let state = good.state;
   for (const [i, metro] of failures.entries()) {
-    const failed = step(state, { metro }, METRO_NOW + (i + 1) * 40_000);
+    const failed = step(state, { tmb: metro }, METRO_NOW + (i + 1) * 40_000);
     expect(failed.snapshot.reports).toEqual(good.snapshot.reports);
     state = failed.state;
   }
@@ -754,9 +807,9 @@ function metroRuns(from: number, minutes: number, taking = 0) {
   const fetched: { at: number }[] = [];
   let stored = START;
   for (let t = from; t < from + minutes * 60_000; t += 20_000) {
-    const due = stored.due.includes('metro');
+    const due = stored.due.includes('tmb');
     if (due) fetched.push({ at: t });
-    stored = step(stored.state, due ? { metro: METRO } : {}, due ? t + taking : t);
+    stored = step(stored.state, due ? { tmb: METRO } : {}, due ? t + taking : t);
   }
   return fetched;
 }
@@ -765,4 +818,66 @@ test('fetches the Metro no more often than every 30 s, the rate declared to TMB:
   expect(seconds(METRO_NOW, metroRuns(METRO_NOW, 3))).toEqual([0, 40, 80, 120, 160]);
   // TMB took up to 16 s to answer when recorded, and the Worker waits for 10 at most, so a run fetching it can end much later than the runs without.
   expect(seconds(METRO_NOW, metroRuns(METRO_NOW, 3, TIMEOUT))).toEqual([0, 40, 80, 120, 160]);
+});
+
+/** The Worker's secrets, made up. */
+const SECRETS: Record<string, string> = { TRAM_CLIENT_ID: 'tram-id', TRAM_CLIENT_SECRET: 'tram-secret', TMB_APP_ID: 'tmb-id', TMB_APP_KEY: 'tmb-key' };
+
+/** FGC's open data, and where its lookup says its trip-updates file is. */
+const FGC_API = 'https://dadesobertes.fgc.cat/api/explore/v2.1/catalog/datasets';
+const FGC_FILE = `${FGC_API}/trip-updates-gtfs_realtime/files/735985017f62fd33b2fe46e31ce53829`;
+
+/**
+ * A Worker's `get` that answers FGC's lookup, the trip-updates file it names, and TRAM's request for
+ * an access token as recorded, and gives every other request no answer. It notes each request it's
+ * asked for: its method, URL, form and bearer token.
+ */
+function answering(asked: string[]): Get {
+  const recorded: Record<string, BodyInit> = {
+    [`${FGC_API}/trip-updates-gtfs_realtime/records?limit=1`]: FGC.lookup.body,
+    [FGC_FILE]: FGC.updates.body,
+    'https://opendata.tram.cat/connect/token': TOKEN.body,
+  };
+  return async (url, read, init) => {
+    asked.push([init?.method ?? 'GET', url, init?.body && String(init.body), new Headers(init?.headers).get('authorization')].filter(Boolean).join(' '));
+    const body = recorded[url];
+    return body === undefined ? { error: `no answer from ${url}` } : { status: 200, body: await read(new Response(body)) };
+  };
+}
+
+/** TRAM's data requests for both its halves, with the access token TRAM issued. */
+const TRAM_DATA = [1, 2].flatMap((half) => [`GET https://opendata.tram.cat/api/v1/activevehicles?networkId=${half} Bearer made-up token`, `GET https://opendata.tram.cat/api/v1/gtfsrealtime?networkId=${half} Bearer made-up token`]);
+
+test("asks each source for what its adapter needs, with the Worker's secrets its config names, which no error shows", async () => {
+  const asked: string[] = [];
+  const responses = await fetchDue(START, (name) => SECRETS[name], answering(asked));
+  expect(asked.sort()).toEqual(
+    [
+      'GET https://gtfsrt.renfe.com/vehicle_positions.json',
+      'GET https://gtfsrt.renfe.com/trip_updates.json',
+      `GET ${FGC_API}/trip-updates-gtfs_realtime/records?limit=1`,
+      `GET ${FGC_API}/posicionament-dels-trens/records?limit=100&select=id,lin,geo_point_2d,estacionat_a,tipus_unitat,record_timestamp`,
+      `GET ${FGC_FILE}`,
+      'POST https://opendata.tram.cat/connect/token grant_type=client_credentials&client_id=tram-id&client_secret=tram-secret',
+      ...TRAM_DATA,
+      'GET https://api.tmb.cat/v1/itransit/metro/estacions?app_id=tmb-id&app_key=tmb-key',
+    ].sort(),
+  );
+  // TMB's key goes in the query, so it's taken out of the error, which the snapshot's status repeats.
+  expect(responses.tmb).toEqual({ error: 'no answer from https://api.tmb.cat/v1/itransit/metro/estacions?app_id=…&app_key=…' });
+});
+
+test('asks FGC for no lookup, and TRAM for no access token, while the step keeps where the file is and the token', async () => {
+  const kept = step(START.state, await fetchDue(START, (name) => SECRETS[name], answering([])), NOW);
+  const asked: string[] = [];
+  await fetchDue({ ...kept, due: ['fgc', 'tram'] }, (name) => SECRETS[name], answering(asked));
+  expect(asked.sort()).toEqual([`GET ${FGC_API}/posicionament-dels-trens/records?limit=100&select=id,lin,geo_point_2d,estacionat_a,tipus_unitat,record_timestamp`, `GET ${FGC_FILE}`, ...TRAM_DATA].sort());
+});
+
+test("asks TRAM and TMB for nothing where the Worker hasn't their secrets, and says so", async () => {
+  const asked: string[] = [];
+  const { feeds } = step(START.state, await fetchDue(START, () => undefined, answering(asked)), NOW).snapshot;
+  expect(asked.filter((request) => request.includes('tram') || request.includes('tmb'))).toEqual([]);
+  expect(feeds.tram?.status).toBe('token: its credentials are not set');
+  expect(feeds.metro?.status).toBe('itransit: its credentials are not set');
 });

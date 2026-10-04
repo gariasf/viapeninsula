@@ -1,9 +1,14 @@
-// The fetcher step: each run's raw responses in, the live snapshot out (ADR-0003). It's pure, so
-// the Worker around it stays thin and tests replay recorded responses through it. It never loads
-// timetable data: matching reports to Trips is the engine's work.
+// The fetcher step: each run's raw responses in, the live snapshot out (ADR-0003). Each live source in
+// src/networks.ts is fetched and read by the adapter for its format, which keeps what that format needs
+// from one run to the next. The step keeps what's common to them all: each source's freshness, its
+// last good reports, the check for files that have stopped updating, and the snapshot. The step is
+// pure, and the adapters make their requests through the Worker's `get`, so the Worker around them
+// stays thin and tests replay recorded responses through the step. It never loads timetable data:
+// matching reports to Trips is the engine's work.
 
 import { PbfReader } from 'pbf';
 import type { Freshness, Report, Snapshot } from '../bundle.ts';
+import { LIVE_SOURCES, type LiveSource } from '../networks.ts';
 
 /** How often the fetcher runs, in ms. */
 export const EVERY = 20_000;
@@ -11,219 +16,170 @@ export const EVERY = 20_000;
 /** How long the Worker waits for an answer to a request before it gives up, in ms. */
 export const TIMEOUT = 10_000;
 
-/**
- * How often FGC is fetched, in ms: every 2 minutes, about as often as FGC updates its live data, or
- * every 5 while its API has fewer than 1,000 requests left today. The API allows 5,000 a day to each
- * IP, and others on Cloudflare's IPs may share them.
- */
-const [FGC_EVERY, FGC_SLOW, FGC_FEW] = [120_000, 300_000, 1000];
-
-/** How often the Metro is fetched, in ms: every other run, as often as keeps to the one request every 30 s declared to TMB. */
-const METRO_EVERY = 2 * EVERY;
-
-/** The longest the fetcher waits to try TRAM again after a try fails, where TRAM answers and issues no access token or refuses it, in ms. */
-const TRAM_WAIT_MAX = 1_800_000;
-
-/** Why a feed wasn't fetched, where the Worker has no credentials for its API: it asks it for nothing. */
+/** Why a source wasn't fetched, where the Worker hasn't every secret its config names: it asks it for nothing. */
 export const UNSET = 'its credentials are not set';
-
-/** A day in ms. FGC's API counts its requests by day in UTC. */
-const DAY = 86_400_000;
-
-/** A live feed, by the Network whose Trains it reports. */
-export type Feed = 'rodalies' | 'fgc' | 'tram' | 'metro';
-
-/** TRAM's two halves, Trambaix and Trambesòs, as its timetable's feeds name them. */
-const HALVES = ['TBX', 'TBS'] as const;
-type Half = (typeof HALVES)[number];
 
 /** What one request got back: its HTTP status, its body, and how many requests its API has left today where it says; or why it got nothing. */
 export type Fetched<Body = string> = { status: number; body: Body; remaining?: number } | { error: string };
 
-/** This run's raw responses, for each feed that was due. */
-export interface Responses {
-  /** Renfe's Cercanías vehicle positions and trip updates, as JSON. */
-  rodalies?: { positions: Fetched; updates: Fetched };
-  /** FGC's positions from Geotren, as JSON, and its trip updates, as GTFS-RT; and where the run looked up the trip-updates file, if it had to. */
-  fgc?: { positions: Fetched; updates: Fetched<Uint8Array>; lookup?: Fetched };
-  /**
-   * For each of TRAM's halves, where its Units are, from activevehicles, as JSON, and its trip updates,
-   * as GTFS-RT, which name the Trip each Unit runs; and the access token the run asked for, if it had to.
-   */
-  tram?: { token?: Fetched } & Record<Half, { positions: Fetched; updates: Fetched<Uint8Array> }>;
-  /** TMB's predictions for the whole Metro, from iTransit, as JSON. */
-  metro?: Fetched;
+/** One request, as the Worker makes it, with its answer's body read by `asText` or `asBytes`. */
+export type Get = <Body>(url: string, read: (res: Response) => Promise<Body>, init?: RequestInit) => Promise<Fetched<Body>>;
+
+/** An answer's body as text, as JSON comes. */
+const asText = (res: Response) => res.text();
+/** An answer's body as bytes, as GTFS-RT's protocol buffers come. */
+const asBytes = async (res: Response) => new Uint8Array(await res.arrayBuffer());
+
+/** This run's raw responses, for each source that was due, by its ID: what its adapter fetched. */
+export type Responses = Record<string, unknown>;
+
+/**
+ * How the fetcher reads one format of live data: what a source of that format is asked for on a run,
+ * what its answers say, and when it waits. What the adapter keeps from one run to the next is its own:
+ * the step only stores it.
+ */
+interface LiveAdapter<Source extends LiveSource, Answers, Own = undefined> {
+  /** This run's requests, with the secrets the source's config names, where every one is set. */
+  fetch(given: Given<Source, Own> & { secrets: Record<string, string> | undefined; get: Get }): Promise<Answers>;
+  /** What this run's answers say, given the source's freshness after its last try. */
+  read(answers: Answers, given: Given<Source, Own> & { last: Freshness | undefined; now: number }): Reading<Own>;
+  /** Whether the adapter holds the source back from the run at a moment, though its `every` makes it due, given its freshness after this run. */
+  held?(given: Given<Source, Own> & { last: Freshness | undefined; at: number }): boolean;
 }
 
-/** What the step keeps between runs: each feed's freshness, its reports from the last run it worked, when its data was last updated, and what fetching FGC and TRAM needs. */
+/** A source of one format. */
+type SourceOf<Format extends LiveSource['format']> = Extract<LiveSource, { format: Format }>;
+
+/** A source, and what its adapter kept from the last run that fetched it. */
+interface Given<Source extends LiveSource, Own> {
+  source: Source;
+  own: Own | undefined;
+}
+
+/** What a source's answers say. */
+interface Reading<Own> {
+  /** Its Trains' reports, saying when each of its files was last updated where it says; or an error that says why they can't be read. */
+  reports(said: (file: string, at: number) => void): Report[];
+  /** What its adapter keeps until the next run that fetches it, whether or not its reports could be read. */
+  own?: Own;
+  /** How often it's fetched now, where its adapter has slowed it down. */
+  every?: number;
+  /** Its status after this try, from the one the step gives it, where its adapter has more to say. */
+  status?(status: string): string;
+}
+
+/** What the step keeps between runs, for each live source, by its ID. */
 export interface State {
-  feeds: Record<string, Freshness>;
+  /** Its freshness after its last try, which the snapshot gives as each Network's the source feeds. */
+  freshness: Record<string, Freshness>;
+  /** Its reports from the last run it worked. */
   reports: Record<string, Report[]>;
   /**
-   * For each feed, when its files said on the last try that they were last updated, in ms since 1970,
-   * by the file's name in its statuses: Renfe's headers, Geotren's `record_timestamp` and TRAM's trip
-   * updates' headers. A try that finds one unchanged is a failed one, as the feed has stopped updating.
+   * When its files said on the last try that they were last updated, in ms since 1970, by the file's
+   * name in its statuses: Renfe's headers, Geotren's `record_timestamp` and TRAM's trip updates'
+   * headers. A try that finds one unchanged is a failed one, as the source has stopped updating.
    */
-  updated?: Partial<Record<Feed, Record<string, number>>>;
-  fgc?: {
-    /** Where its trip-updates file is, until it has to be looked up again. */
-    file?: string;
-    /** When FGC wrote the file, in seconds since 1970, as it said on the last refresh that read it, even where that's earlier than the one before. */
-    written?: number;
-    /** The time the file stays at even after it was looked up again, in seconds since 1970: it isn't looked up again while it stays at that time, which is forgotten once FGC writes the file again. */
-    stalled?: number;
-    /** How many requests its API had left today, as its last answers said. */
-    remaining?: number;
-  };
-  /** TRAM's access token, and when it runs out, in ms since 1970, until a run has to ask for another. */
-  tram?: { token: string; expires: number };
-  /**
-   * After a try at TRAM fails, where it answers and issues no access token or refuses it on its
-   * data: when it did, in ms since 1970, and how long the fetcher waits from then before it tries
-   * again, which doubles with each failed try until TRAM accepts a token. Tries it gives no answer,
-   * or a server error, don't count.
-   */
-  tramBackoff?: { failed: number; wait: number };
+  updated?: Record<string, Record<string, number>>;
+  /** What its adapter keeps, such as where FGC's trip-updates file is, or TRAM's access token. */
+  own?: Record<string, unknown>;
+  /** How many runs have passed since it was last fetched, which its `every` counts: none where it never was. */
+  waited?: Record<string, number>;
 }
 
-/** What the fetcher stores between runs: the step's state, and the feeds due on the next run. */
+/** What the fetcher stores between runs: the step's state, and the sources due on the next run, by their IDs. */
 export interface Stored {
   state: State;
-  due: Feed[];
+  due: string[];
 }
 
-/** What the fetcher starts from. */
-export const START: Stored = { state: { feeds: {}, reports: {} }, due: ['rodalies', 'fgc', 'tram', 'metro'] };
+/** What the fetcher starts from: every source is due. */
+export const START: Stored = { state: { freshness: {}, reports: {} }, due: LIVE_SOURCES.map((s) => s.id) };
+
+/**
+ * This run's raw responses from each source that's due, by its ID, fetched by its adapter with the
+ * secrets its config names, which the Worker gives by name.
+ */
+export async function fetchDue({ state, due }: Stored, secret: (name: string) => string | undefined, get: Get): Promise<Responses> {
+  const asked = LIVE_SOURCES.filter((source) => due.includes(source.id)).map(async (source) => {
+    const named = Object.entries(source.secrets ?? {});
+    const set = named.flatMap(([param, name]) => {
+      const value = secret(name);
+      return value ? [[param, value] as const] : [];
+    });
+    const secrets = set.length === named.length ? Object.fromEntries(set) : undefined;
+    return [source.id, await adapterOf(source).fetch({ source, own: state.own?.[source.id], secrets, get })] as const;
+  });
+  return Object.fromEntries(await Promise.all(asked));
+}
 
 /**
  * One run: the stored state, this run's raw responses and the time now (ms since 1970) go in; the
- * snapshot, the next stored state and the feeds due on the next run come out.
+ * snapshot, the next stored state and the sources due on the next run come out.
  */
-export function step(state: State, responses: Responses, now: number): Stored & { snapshot: Snapshot } {
-  // A response that fails never replaces the last good one: that feed's reports stay as they were.
-  const [feeds, reports, updated] = [{ ...state.feeds }, { ...state.reports }, { ...state.updated }];
-  /**
-   * Reads a feed's reports from this run's responses where they can be, and gives its freshness after
-   * this try. Reading them says when each of its files was last updated, where the file says.
-   */
-  const refresh = (feed: Feed, every: number, reported: (said: (file: string, at: number) => void) => Report[]): Freshness => {
-    let freshness: Freshness;
-    try {
-      const said: [string, number][] = [];
-      // A file that gives no time, or none that can be read, can't say it's stuck.
-      const got = reported((file, at) => {
-        if (at > 0) said.push([file, at]);
-      });
-      // Only once every file is read, so a file that can't be read says so first.
-      const last = { ...updated[feed] };
-      updated[feed] = { ...last, ...Object.fromEntries(said) };
-      // Only a time unchanged since the last try is stuck: one earlier, as from a server whose clock is behind, is news.
-      const stuck = said.find(([file, at]) => at === last[file]);
-      if (stuck) throw new Error(`${stuck[0]}: not updated since ${clock(stuck[1])}`);
-      reports[feed] = got;
-      freshness = { lastSuccess: now, lastAttempt: now, status: 'ok', every };
-    } catch (error) {
-      freshness = { ...feeds[feed], lastAttempt: now, status: (error as Error).message, every };
+export function step(state: State, responses: Responses, now: number, sources = LIVE_SOURCES): Stored & { snapshot: Snapshot } {
+  const next: Required<State> = { freshness: {}, reports: {}, updated: {}, own: {}, waited: {} };
+  // How fresh each Network's live data is: as fresh as the source that feeds it.
+  const feeds: Record<string, Freshness> = {};
+  const due: string[] = [];
+  for (const source of sources) {
+    const { id } = source;
+    const adapter = adapterOf(source);
+    const fetched = responses[id] !== undefined;
+    // A source not fetched this run, or whose answers fail, keeps its last good reports.
+    let [freshness, reports, updated, own] = [state.freshness[id], state.reports[id], state.updated?.[id], state.own?.[id]];
+    if (fetched) {
+      const last = freshness;
+      const reading = adapter.read(responses[id], { source, own, last, now });
+      const every = reading.every ?? source.every;
+      own = reading.own;
+      try {
+        const said: [string, number][] = [];
+        // A file that gives no time, or none that can be read, can't say it's stuck.
+        const got = reading.reports((file, at) => {
+          if (at > 0) said.push([file, at]);
+        });
+        // Only once every file is read, so a file that can't be read says so first.
+        const before = updated ?? {};
+        updated = { ...before, ...Object.fromEntries(said) };
+        // Only a time unchanged since the last try is stuck: one earlier, as from a server whose clock is behind, is news.
+        const stuck = said.find(([file, at]) => at === before[file]);
+        if (stuck) throw new Error(`${stuck[0]}: not updated since ${clock(stuck[1])}`);
+        reports = got;
+        freshness = { lastSuccess: now, lastAttempt: now, status: 'ok', every };
+      } catch (error) {
+        freshness = { ...last, lastAttempt: now, status: (error as Error).message, every };
+      }
+      if (reading.status) freshness.status = reading.status(freshness.status);
     }
-    return (feeds[feed] = freshness);
-  };
-  let fgc = state.fgc;
-  if (responses.rodalies) {
-    const { positions, updates } = responses.rodalies;
-    refresh('rodalies', EVERY, (said) => {
-      const [vehicles, trips] = [read<GtfsRt>('vehicle_positions', positions), read<GtfsRt>('trip_updates', updates)];
-      said('vehicle_positions', ms(vehicles.header.timestamp));
-      said('trip_updates', ms(trips.header.timestamp));
-      return rodalies(vehicles, trips);
-    });
+    if (freshness) {
+      next.freshness[id] = freshness;
+      for (const network of Object.values(source.networks)) feeds[network] = freshness;
+    }
+    if (reports) next.reports[id] = reports;
+    if (updated) next.updated[id] = updated;
+    if (own !== undefined) next.own[id] = own;
+    const waitedBefore = state.waited?.[id];
+    const waited = fetched ? 0 : waitedBefore === undefined ? undefined : waitedBefore + 1;
+    if (waited !== undefined) next.waited[id] = waited;
+    // Due once the runs since it was last fetched add up to how often it's fetched, unless its adapter
+    // holds it back. Counted in runs, not in time, as a run's `now` comes up to TIMEOUT after it starts.
+    const onTime = waited === undefined || (waited + 1) * EVERY >= (freshness?.every ?? source.every);
+    if (onTime && !adapter.held?.({ source, own, last: freshness, at: now + EVERY })) due.push(id);
   }
-  if (responses.fgc) {
-    const { positions, updates, lookup } = responses.fgc;
-    const tripUpdates = readTripUpdates(state.fgc, updates, lookup);
-    // Where no answer says how many requests are left, the last count holds until 00:00 UTC.
-    const remaining = requestsLeft([lookup, positions, updates]) ?? leftToday(state, now);
-    fgc = { ...tripUpdates.fgc, remaining };
-    // With none left, its Trains were last placed as often as before, and it isn't tried again.
-    const every = remaining === 0 ? (state.feeds.fgc?.every ?? FGC_EVERY) : fgcEvery(remaining);
-    const freshness = refresh('fgc', every, (said) => {
-      const trains = read<Geotren>('geotren', positions);
-      if (!tripUpdates.feed) throw tripUpdates.error;
-      const got = fgcReports(trains, tripUpdates.feed);
-      // FGC updates all of Geotren's records at once.
-      said('geotren', Math.max(...(trains.results ?? []).map((r) => Date.parse(r.record_timestamp))));
-      return got;
-    });
-    if (remaining === 0) freshness.status = 'no requests left until 00:00 UTC';
-  }
-  // A token the run asked for replaces the last, or where TRAM didn't issue one, a later run asks again.
-  let [tram, tramBackoff] = [responses.tram?.token ? undefined : state.tram, state.tramBackoff];
-  if (responses.tram) {
-    const { token, ...halves } = responses.tram;
-    const freshness = refresh('tram', EVERY, (said) => {
-      if (token) tram = issued(token, now);
-      return HALVES.flatMap((half) => tramReports(half, halves[half], now, said));
-    });
-    // A try fails only where TRAM answers and refuses: it issues no token, or refuses it on its data.
-    // The next waits 20 s, then twice as long each time, until TRAM answers its data requests without
-    // refusing the token. No answer, a server error, or a run without credentials, which asks for
-    // nothing, neither counts nor resets the wait: the next run asks again once any wait under way
-    // is over.
-    const data = HALVES.flatMap((half) => [halves[half].positions, halves[half].updates]);
-    const refused = data.some((f) => 'status' in f && f.status === 401);
-    // Where the run asked for a token, it has one only where TRAM issued it, and TRAM refused one only where it judged the request.
-    const unissued = token !== undefined && !tram && judged(token);
-    if (refused || unissued) {
-      tramBackoff = { failed: now, wait: Math.min(2 * (state.tramBackoff?.wait ?? EVERY / 2), TRAM_WAIT_MAX) };
-      freshness.status += `; backing off, next try at ${clock(now + tramBackoff.wait)}`;
-    } else if (data.some(judged)) tramBackoff = undefined;
-    // The token is kept for as long as it lasts through the next run's answers, and TRAM accepts it.
-    if (refused || (tram && tram.expires < now + EVERY + TIMEOUT)) tram = undefined;
-  }
-  const { metro } = responses;
-  if (metro) refresh('metro', METRO_EVERY, () => metroReports(read('itransit', metro)));
-  const next: State = { feeds, reports, updated, fgc, tram, tramBackoff };
-  const due: Feed[] = ['rodalies'];
-  if (tramDue(next, now + EVERY)) due.push('tram');
-  if (fgcDue(next, now + EVERY)) due.push('fgc');
-  // Every other run, however long TMB takes to answer, so two requests are never less than 30 s apart.
-  if (!metro) due.push('metro');
-  return { snapshot: { generated: now, feeds, reports: Object.values(reports).flat() }, state: next, due };
-}
-
-/** Whether TRAM judged a request, answering it with a status under 500: no answer, or a server error, says nothing of its credentials or its token. */
-const judged = (fetched: Fetched<unknown>) => 'status' in fetched && fetched.status < 500;
-
-/** Whether TRAM is due on the run at a moment: on every run, but after a try fails, not until its wait is over. */
-function tramDue({ tramBackoff: backoff }: State, at: number): boolean {
-  // On the run nearest its time, as with FGC.
-  return !backoff || at > backoff.failed + backoff.wait - EVERY / 2;
+  return { snapshot: { generated: now, feeds, reports: sources.flatMap((s) => next.reports[s.id] ?? []) }, state: next, due };
 }
 
 /**
- * Whether FGC is due on the run at a moment: every 2 minutes, or 5 while its API has few requests
- * left today, and while it has none, not until its quota resets at 00:00 UTC.
+ * The adapter that reads a source's format, typed for any source and any answers: the step gives each
+ * adapter only sources of its own format, and the answers its own `fetch` made.
  */
-function fgcDue(state: State, at: number): boolean {
-  const tried = state.feeds.fgc?.lastAttempt;
-  if (tried === undefined) return true;
-  const left = leftToday(state, at);
-  // On the run nearest its time: runs come about EVERY apart, each ending when its slowest answer comes.
-  return left !== 0 && at - tried > fgcEvery(left) - EVERY / 2;
+function adapterOf(source: LiveSource): LiveAdapter<LiveSource, unknown, unknown> {
+  return ADAPTERS[source.format];
 }
 
-/** How many requests FGC's API has left on the day of a moment, as its last answers said: its quota resets at 00:00 UTC. */
-function leftToday({ feeds, fgc }: State, at: number): number | undefined {
-  const tried = feeds.fgc?.lastAttempt;
-  return tried !== undefined && Math.floor(tried / DAY) === Math.floor(at / DAY) ? fgc?.remaining : undefined;
-}
-
-/** How often FGC is fetched while its API has so many requests left today, in ms. */
-const fgcEvery = (left: number | undefined) => (left !== undefined && left < FGC_FEW ? FGC_SLOW : FGC_EVERY);
-
-/** How many requests an API has left today, by the fewest its answers say. */
-function requestsLeft(answers: (Fetched<unknown> | undefined)[]): number | undefined {
-  const counts = answers.flatMap((a) => (a && 'status' in a && a.remaining !== undefined ? [a.remaining] : []));
-  return counts.length ? Math.min(...counts) : undefined;
+/** The Network a source's Train is, by the longest start of the ID the source gives it that the source's config names. */
+function networkOf({ networks }: LiveSource, id: string): string | undefined {
+  return Object.entries(networks).sort(([a], [b]) => b.length - a.length).find(([start]) => id.startsWith(start))?.[1];
 }
 
 /** A response's body, or an error that says why there's none to read. */
@@ -234,8 +190,8 @@ function body<Body extends string | Uint8Array>(file: string, fetched: Fetched<B
   return fetched.body;
 }
 
-/** One of a feed's JSON files, read from its response, or an error that says why it can't be. */
-function read<T>(file: string, fetched: Fetched): T {
+/** One of a source's JSON files, read from its response, or an error that says why it can't be. */
+function json<T>(file: string, fetched: Fetched): T {
   const text = body(file, fetched);
   try {
     return JSON.parse(text) as T;
@@ -243,6 +199,33 @@ function read<T>(file: string, fetched: Fetched): T {
     throw new Error(`${file}: not JSON`);
   }
 }
+
+const ms = (seconds: string | undefined) => Number(seconds) * 1000;
+
+/** A moment's time of day in UTC, such as 09:12:40 UTC. */
+const clock = (moment: number) => `${new Date(moment).toISOString().slice(11, 19)} UTC`;
+
+/** Renfe's live data, as JSON: its vehicle positions and its trip updates. */
+export interface RenfeResponses {
+  positions: Fetched;
+  updates: Fetched;
+}
+
+/** Renfe's: GTFS-RT as JSON, both files on each run it's due. */
+const renfe: LiveAdapter<SourceOf<'renfe'>, RenfeResponses> = {
+  async fetch({ source: { urls }, get }) {
+    const [positions, updates] = await Promise.all([get(urls.positions, asText), get(urls.updates, asText)]);
+    return { positions, updates };
+  },
+  read: ({ positions, updates }, { source }) => ({
+    reports(said) {
+      const [vehicles, trips] = [json<GtfsRt>('vehicle_positions', positions), json<GtfsRt>('trip_updates', updates)];
+      said('vehicle_positions', ms(vehicles.header.timestamp));
+      said('trip_updates', ms(trips.header.timestamp));
+      return renfeReports(source, vehicles, trips);
+    },
+  }),
+};
 
 /** GTFS-RT as Renfe's JSON has it, with times in seconds since 1970: the parts the step reads. */
 interface GtfsRt {
@@ -259,23 +242,24 @@ interface Vehicle {
 }
 
 /**
- * Rodalies' Trains from Renfe's Cercanías feeds, which cover every núcleo: Rodalies' Trips' IDs
- * start with its own, 51. Each Train gets one report, with its Delay from its trip update, and its
- * position from the vehicle positions.
+ * The Trains in Renfe's files of the Networks its source names, by their trip_ids. Each Train gets one
+ * report, with its Delay from its trip update, and its position from the vehicle positions.
  */
-function rodalies(positions: GtfsRt, updates: GtfsRt): Report[] {
+function renfeReports(source: LiveSource, positions: GtfsRt, updates: GtfsRt): Report[] {
   const reports = new Map<string, Report>();
   // Renfe's timetable pads its IDs with spaces, and untrimmed they don't join.
   for (const { tripUpdate: update } of updates.entity ?? []) {
     const id = update?.trip?.tripId?.trim() ?? '';
-    if (!id.startsWith('51')) continue;
+    const network = networkOf(source, id);
+    if (!network) continue;
     const cancelled = update?.trip?.scheduleRelationship === 'CANCELED' || undefined;
     // Renfe's trip updates carry no time of their own, only the feed's.
-    reports.set(id, { trip: `rodalies:${id}`, at: ms(updates.header.timestamp), delay: update?.delay, cancelled });
+    reports.set(id, { trip: `${network}:${id}`, at: ms(updates.header.timestamp), delay: update?.delay, cancelled });
   }
   for (const { vehicle } of positions.entity ?? []) {
     const id = vehicle?.trip?.tripId?.trim() ?? '';
-    if (id.startsWith('51')) reports.set(id, { ...reports.get(id), trip: `rodalies:${id}`, at: ms(vehicle?.timestamp), position: position(vehicle ?? {}) });
+    const network = networkOf(source, id);
+    if (network) reports.set(id, { ...reports.get(id), trip: `${network}:${id}`, at: ms(vehicle?.timestamp), position: position(vehicle ?? {}) });
   }
   return [...reports.values()];
 }
@@ -292,10 +276,80 @@ function position(vehicle: Vehicle): Report['position'] {
   return stop && stop !== '00000' ? { near: `adif:${stop}` } : undefined;
 }
 
-const ms = (seconds: string | undefined) => Number(seconds) * 1000;
+/** FGC's live data: its positions from Geotren, as JSON, and its trip updates, as GTFS-RT; and where the run looked up the trip-updates file, if it had to. */
+export interface FgcResponses {
+  positions: Fetched;
+  updates: Fetched<Uint8Array>;
+  lookup?: Fetched;
+}
 
-/** A moment's time of day in UTC, such as 09:12:40 UTC. */
-const clock = (moment: number) => `${new Date(moment).toISOString().slice(11, 19)} UTC`;
+/** What FGC's adapter keeps between runs. */
+export interface FgcOwn {
+  /** Where its trip-updates file is, until it has to be looked up again. */
+  file?: string;
+  /** When FGC wrote the file, in seconds since 1970, as it said on the last refresh that read it, even where that's earlier than the one before. */
+  written?: number;
+  /** The time the file stays at even after it was looked up again, in seconds since 1970: it isn't looked up again while it stays at that time, which is forgotten once FGC writes the file again. */
+  stalled?: number;
+  /** How many requests its API had left today, as its last answers said. */
+  remaining?: number;
+}
+
+/**
+ * How often FGC is fetched while its API has fewer than 1,000 requests left today, in ms: every 5
+ * minutes. The API allows 5,000 a day to each IP, and others on Cloudflare's IPs may share them.
+ */
+const [FGC_SLOW, FGC_FEW] = [300_000, 1000];
+
+/** A day in ms. FGC's API counts its requests by day in UTC. */
+const DAY = 86_400_000;
+
+/** FGC's: Geotren, and its trip updates from a file it looks up. */
+const fgc: LiveAdapter<SourceOf<'fgc'>, FgcResponses, FgcOwn> = {
+  /** Its trip-updates file from where it was last found, or where it's looked up again. */
+  async fetch({ source: { urls }, own, get }) {
+    const lookup = own?.file ? undefined : await get(urls.lookup, asText);
+    const found = lookup ? address(lookup) : own?.file;
+    const [positions, updates] = await Promise.all([get(urls.positions, asText), found ? get(found, asBytes) : { error: "couldn't look up where it is" }]);
+    return { positions, updates, lookup };
+  },
+  read({ positions, updates, lookup }, { source, own, last, now }) {
+    const tripUpdates = readTripUpdates(own, updates, lookup);
+    // Where no answer says how many requests are left, the last count holds until 00:00 UTC.
+    const remaining = requestsLeft([lookup, positions, updates]) ?? leftToday(own, last, now);
+    return {
+      own: { ...tripUpdates.fgc, remaining },
+      // With none left, its Trains were last placed as often as before, and it isn't tried again.
+      every: remaining === 0 ? (last?.every ?? source.every) : fgcEvery(source, remaining),
+      reports(said) {
+        const trains = json<Geotren>('geotren', positions);
+        if (!tripUpdates.feed) throw tripUpdates.error;
+        const got = fgcReports(source, trains, tripUpdates.feed);
+        // FGC updates all of Geotren's records at once.
+        said('geotren', Math.max(...(trains.results ?? []).map((r) => Date.parse(r.record_timestamp))));
+        return got;
+      },
+      status: remaining === 0 ? () => 'no requests left until 00:00 UTC' : undefined,
+    };
+  },
+  /** While its API has no requests left today, until its quota resets at 00:00 UTC. */
+  held: ({ own, last, at }) => leftToday(own, last, at) === 0,
+};
+
+/** How many requests FGC's API has left on the day of a moment, as its last answers said: its quota resets at 00:00 UTC. */
+function leftToday(own: FgcOwn | undefined, last: Freshness | undefined, at: number): number | undefined {
+  const tried = last?.lastAttempt;
+  return tried !== undefined && Math.floor(tried / DAY) === Math.floor(at / DAY) ? own?.remaining : undefined;
+}
+
+/** How often FGC is fetched while its API has so many requests left today, in ms. */
+const fgcEvery = (source: LiveSource, left: number | undefined) => (left !== undefined && left < FGC_FEW ? FGC_SLOW : source.every);
+
+/** How many requests an API has left today, by the fewest its answers say. */
+function requestsLeft(answers: (Fetched<unknown> | undefined)[]): number | undefined {
+  const counts = answers.flatMap((a) => (a && 'status' in a && a.remaining !== undefined ? [a.remaining] : []));
+  return counts.length ? Math.min(...counts) : undefined;
+}
 
 /** Geotren's records, as the Worker asks for them: each Train's Trip and Line, where it is, the Station it stands at, its Unit type, and when FGC last updated them. */
 interface Geotren {
@@ -317,22 +371,26 @@ interface TripUpdates {
  * report: from Geotren, where it is and its Unit type, as of when FGC last updated Geotren, and
  * from its trip update, when FGC expects it at the Station it stands at or comes to next.
  */
-function fgcReports(positions: Geotren, updates: TripUpdates): Report[] {
+function fgcReports(source: LiveSource, positions: Geotren, updates: TripUpdates): Report[] {
   const reports = new Map<string, Report>();
   for (const { id, updated, platform, expected } of updates.trips) {
+    const network = networkOf(source, id);
+    if (!network) continue;
     // A platform is named for its Station, such as PC1 at Plaça Catalunya (PC): the Station's code, then the platform's number.
     const station = platform?.replace(/\d+$/, '');
-    reports.set(id, { trip: `fgc:${id}`, at: (updated ?? updates.written) * 1000, expected: station && expected ? { station: `fgc:${station}`, at: expected * 1000 } : undefined });
+    reports.set(id, { trip: `${network}:${id}`, at: (updated ?? updates.written) * 1000, expected: station && expected ? { station: `fgc:${station}`, at: expected * 1000 } : undefined });
   }
   for (const { id, lin, geo_point_2d: gps, estacionat_a: standing, tipus_unitat: unitType, record_timestamp } of positions.results ?? []) {
     // Its Delay is measured from when it was where Geotren has it.
     const at = Date.parse(record_timestamp);
     if (Number.isNaN(at)) throw new Error('geotren: no record_timestamp');
+    const network = networkOf(source, id);
+    if (!network) continue;
     // One standing at a Station is only there, as Renfe's are (ADR-0002).
     const position = standing ? { near: `fgc:${standing}` } : gps ? { lon: gps.lon, lat: gps.lat } : undefined;
     // Montserrat's rack Trains run under a calendar the timetable doesn't have, on lines M1 and M2, which it has as one, MM.
-    const line = lin === 'M1' || lin === 'M2' ? 'fgc:MM' : undefined;
-    reports.set(id, { ...reports.get(id), trip: `fgc:${id}`, line, at, position, unitType: unitType || undefined });
+    const line = lin === 'M1' || lin === 'M2' ? `${network}:MM` : undefined;
+    reports.set(id, { ...reports.get(id), trip: `${network}:${id}`, line, at, position, unitType: unitType || undefined });
   }
   return [...reports.values()];
 }
@@ -344,7 +402,7 @@ function fgcReports(positions: Geotren, updates: TripUpdates): Report[] {
  * Any other time means FGC wrote it again, even one earlier than the last, as from a server whose
  * clock is behind.
  */
-function readTripUpdates(fgc: State['fgc'] = {}, updates: Fetched<Uint8Array>, lookup: Fetched | undefined): { fgc: NonNullable<State['fgc']>; feed?: TripUpdates; error?: unknown } {
+function readTripUpdates(fgc: FgcOwn = {}, updates: Fetched<Uint8Array>, lookup: Fetched | undefined): { fgc: FgcOwn; feed?: TripUpdates; error?: unknown } {
   let feed: TripUpdates;
   try {
     feed = gtfsRt('trip_updates', updates);
@@ -358,16 +416,107 @@ function readTripUpdates(fgc: State['fgc'] = {}, updates: Fetched<Uint8Array>, l
 }
 
 /** Where FGC's trip-updates file is, as its lookup found it. */
-export function address(lookup: Fetched): string | undefined {
+function address(lookup: Fetched): string | undefined {
   try {
-    return read<{ results?: { file?: { url?: string } }[] }>('lookup', lookup).results?.[0]?.file?.url;
+    return json<{ results?: { file?: { url?: string } }[] }>('lookup', lookup).results?.[0]?.file?.url;
   } catch {
     return undefined;
   }
 }
 
+/** TRAM's two halves, Trambaix and Trambesòs, as its timetable's feeds name them. */
+const HALVES = ['TBX', 'TBS'] as const;
+type Half = (typeof HALVES)[number];
+
+/**
+ * For each of TRAM's halves, where its Units are, from activevehicles, as JSON, and its trip updates,
+ * as GTFS-RT, which name the Trip each Unit runs; and the access token the run asked for, if it had to.
+ */
+export type TramResponses = { token?: Fetched } & Record<Half, { positions: Fetched; updates: Fetched<Uint8Array> }>;
+
+/** What TRAM's adapter keeps between runs. */
+export interface TramOwn {
+  /** Its access token, and when it runs out, in ms since 1970, until a run has to ask for another. */
+  access?: { token: string; expires: number };
+  /**
+   * After a try at TRAM fails, where it answers and issues no access token or refuses it on its
+   * data: when it did, in ms since 1970, and how long the fetcher waits from then before it tries
+   * again, which doubles with each failed try until TRAM accepts a token. Tries it gives no answer,
+   * or a server error, don't count.
+   */
+  backoff?: { failed: number; wait: number };
+}
+
+/** The longest the fetcher waits to try TRAM again after a try fails, where TRAM answers and issues no access token or refuses it, in ms. */
+const TRAM_WAIT_MAX = 1_800_000;
+
+/** TRAM's: both its halves' Units and trip updates, with an access token it keeps for as long as it lasts. */
+const tram: LiveAdapter<SourceOf<'tram'>, TramResponses, TramOwn> = {
+  /** Both halves' live data, with the access token it keeps, or where it keeps none, a new one. */
+  async fetch({ source: { urls }, own, secrets, get }) {
+    const form = new URLSearchParams({ grant_type: 'client_credentials', ...secrets });
+    const token = own?.access ? undefined : secrets ? await get(urls.token, asText, { method: 'POST', body: form }) : { error: UNSET };
+    const bearer = token ? accessToken(token) : own?.access?.token;
+    // TRAM's API numbers Trambaix 1 and Trambesòs 2.
+    const half = async (networkId: number): Promise<TramResponses[Half]> => {
+      if (!bearer) return { positions: { error: 'no access token' }, updates: { error: 'no access token' } };
+      const init = { headers: { authorization: `Bearer ${bearer}` } };
+      const [positions, updates] = await Promise.all([get(`${urls.positions}?networkId=${networkId}`, asText, init), get(`${urls.updates}?networkId=${networkId}`, asBytes, init)]);
+      return { positions, updates };
+    };
+    const [TBX, TBS] = await Promise.all([half(1), half(2)]);
+    return { token, TBX, TBS };
+  },
+  read({ token, ...halves }, { source, own, now }) {
+    // A token the run asked for replaces the last, or where TRAM didn't issue one, a later run asks again.
+    let access = token ? undefined : own?.access;
+    let noToken: unknown;
+    if (token) {
+      try {
+        access = issued(token, now);
+      } catch (error) {
+        noToken = error;
+      }
+    }
+    // A try fails only where TRAM answers and refuses: it issues no token, or refuses it on its data.
+    // The next waits 20 s, then twice as long each time, until TRAM answers its data requests without
+    // refusing the token. No answer, a server error, or a run without credentials, which asks for
+    // nothing, neither counts nor resets the wait: the next run asks again once any wait under way
+    // is over.
+    const data = HALVES.flatMap((half) => [halves[half].positions, halves[half].updates]);
+    const refused = data.some((f) => 'status' in f && f.status === 401);
+    // Where the run asked for a token, it has one only where TRAM issued it, and TRAM refused one only where it judged the request.
+    const unissued = token !== undefined && !access && judged(token);
+    let backoff = own?.backoff;
+    let backingOff: Reading<TramOwn>['status'];
+    if (refused || unissued) {
+      const wait = Math.min(2 * (own?.backoff?.wait ?? EVERY / 2), TRAM_WAIT_MAX);
+      backoff = { failed: now, wait };
+      backingOff = (status) => `${status}; backing off, next try at ${clock(now + wait)}`;
+    } else if (data.some(judged)) backoff = undefined;
+    // The token is kept for as long as it lasts through the next run's answers, and TRAM accepts it.
+    if (refused || (access && access.expires < now + EVERY + TIMEOUT)) access = undefined;
+    return {
+      own: { access, backoff },
+      reports(said) {
+        if (noToken) throw noToken;
+        return HALVES.flatMap((half) => tramReports(source, half, halves[half], now, said));
+      },
+      status: backingOff,
+    };
+  },
+  /** After a try fails, until its wait is over: on the run nearest its time. */
+  held({ own, at }) {
+    const backoff = own?.backoff;
+    return backoff !== undefined && at <= backoff.failed + backoff.wait - EVERY / 2;
+  },
+};
+
+/** Whether TRAM judged a request, answering it with a status under 500: no answer, or a server error, says nothing of its credentials or its token. */
+const judged = (fetched: Fetched<unknown>) => 'status' in fetched && fetched.status < 500;
+
 /** The access token TRAM issued in answer to a request for one, if it did. */
-export function accessToken(answer: Fetched): string | undefined {
+function accessToken(answer: Fetched): string | undefined {
   try {
     return issued(answer, 0).token;
   } catch {
@@ -376,8 +525,8 @@ export function accessToken(answer: Fetched): string | undefined {
 }
 
 /** The access token TRAM issued a run that asked for one, and when it runs out, in ms since 1970, or an error that says why there's none. */
-function issued(answer: Fetched, now: number): NonNullable<State['tram']> {
-  const { access_token: token, expires_in: lasts } = read<{ access_token?: string; expires_in?: number } | null>('token', answer) ?? {};
+function issued(answer: Fetched, now: number): NonNullable<TramOwn['access']> {
+  const { access_token: token, expires_in: lasts } = json<{ access_token?: string; expires_in?: number } | null>('token', answer) ?? {};
   if (!token || !lasts) throw new Error('token: none issued');
   return { token, expires: now + lasts * 1000 };
 }
@@ -402,18 +551,30 @@ interface ActiveVehicle {
  * no report. Each report is as of the run, since TRAM's figures carry no time of their own, though
  * the trip updates say when TRAM wrote them.
  */
-function tramReports(half: Half, { positions, updates }: NonNullable<Responses['tram']>[Half], now: number, said: (file: string, at: number) => void): Report[] {
+function tramReports(source: LiveSource, half: Half, { positions, updates }: TramResponses[Half], now: number, said: (file: string, at: number) => void): Report[] {
   const feed = gtfsRt(`${half} gtfsrealtime`, updates);
   said(`${half} gtfsrealtime`, feed.written * 1000);
   const trips = new Map(feed.trips.map((t) => [t.unit, t.id]));
-  const units = read<ActiveVehicle[]>(`${half} activevehicles`, positions);
+  const units = json<ActiveVehicle[]>(`${half} activevehicles`, positions);
   if (!Array.isArray(units)) throw new Error(`${half} activevehicles: not a list`);
   return units.flatMap(({ vehicleId, lineName, originStopCode, vehiclePosition, delay }) => {
     const trip = trips.get(String(vehicleId));
+    const network = trip && networkOf(source, trip);
     const position = vehiclePosition ? { along: vehiclePosition } : { near: `tram:${originStopCode}` };
-    return trip && lineName !== '0' ? [{ trip: `tram:${half}:${trip}`, at: now, position, delay }] : [];
+    return network && lineName !== '0' ? [{ trip: `${network}:${half}:${trip}`, at: now, position, delay }] : [];
   });
 }
+
+/** TMB's: its predictions for the whole Metro, from iTransit, as JSON. */
+const tmb: LiveAdapter<SourceOf<'tmb'>, Fetched> = {
+  /** Its key goes in the query string, so it's taken out of any error, which the snapshot's status repeats; the step never sees the URL. */
+  async fetch({ source: { urls }, secrets, get }) {
+    if (!secrets) return { error: UNSET };
+    const fetched = await get(`${urls.predictions}?${new URLSearchParams(secrets)}`, asText);
+    return 'error' in fetched ? { error: Object.values(secrets).reduce((error, secret) => error.replaceAll(secret, '…'), fetched.error) } : fetched;
+  },
+  read: (predictions, { source }) => ({ reports: () => metroReports(source, json('itransit', predictions)) }),
+};
 
 /**
  * TMB's predictions for the Metro, as iTransit has them: the parts the step reads. For each Line,
@@ -438,7 +599,7 @@ interface ITransit {
  * of when TMB made them. It's headed where its way along its Line goes, which is where most of that
  * way's Stations say: coming into a Line's end, TMB lists a train under its next Trip's headsign.
  */
-function metroReports({ timestamp, linies }: ITransit): Report[] {
+function metroReports(source: LiveSource, { timestamp, linies }: ITransit): Report[] {
   if (!Array.isArray(linies)) throw new Error('itransit: no Lines');
   const [heading, next] = [new Map<string, Map<string, number>>(), new Map<string, { line: string; way: string; number: string; station: number; at: number }>()];
   for (const { estacions } of linies) for (const { id_sentit, codi_estacio: station, linies_trajectes: trajectes } of estacions) {
@@ -453,13 +614,14 @@ function metroReports({ timestamp, linies }: ITransit): Report[] {
     }
   }
   const headsign = (way: string) => [...(heading.get(way) ?? [])].reduce((a, b) => (b[1] > a[1] ? b : a))[0];
-  return [...next.values()].map(({ line, way, number, station, at }) => ({
-    block: { line: `metro:${line}`, number },
-    headsign: headsign(way),
-    at: timestamp,
-    position: { next: { station: `tmb:1.${station}`, at } },
-  }));
+  return [...next.entries()].flatMap(([block, { line, way, number, station, at }]) => {
+    const network = networkOf(source, block);
+    return network ? [{ block: { line: `${network}:${line}`, number }, headsign: headsign(way), at: timestamp, position: { next: { station: `tmb:1.${station}`, at } } }] : [];
+  });
 }
+
+/** Each format's adapter. */
+const ADAPTERS = { renfe, fgc, tram, tmb };
 
 /**
  * The parts of a GTFS-RT feed of trip updates the step reads, from its protocol buffers in a response:
