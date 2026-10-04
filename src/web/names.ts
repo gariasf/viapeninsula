@@ -1,4 +1,4 @@
-// Where each place's name goes: beside its own Network's track nearest its dot, clear of the Trains
+// Where each place's name goes: beside its own Networks' track nearest its dot, clear of the Trains
 // running along it, on the side where that's nearest the dot (#120, #143, #147), and which of the
 // basemap's labels it says again (#121).
 import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
@@ -37,18 +37,13 @@ const STRAIGHT = 3;
 const CELL = 0.005;
 /** How near a place a basemap label with its name is, in metres, to name the same place (#121). */
 const TWICE = 2000;
-/**
- * The Network whose Stations each operator runs, by what their IDs start with (`Timetable.operator` in
- * `src/networks.ts`): a place's own Network, whose track its name goes beside (#143).
- */
-export const NETWORK_OF: Record<string, string> = { adif: 'rodalies', fgc: 'fgc', tram: 'tram', tmb: 'metro' };
 /** The classes of the basemap's place labels that a place's name can say again: its towns', from cities to villages, and suburbs'. */
 const TOWNS = ['city', 'town', 'village', 'suburb'];
 
-/** Where a place's name goes, beside its own Network's track nearest its dot, as railisland's do (#120, #143). */
+/** Where a place's name goes, beside its own Networks' track nearest its dot, as railisland's do (#120, #143). */
 export interface Spot {
   /**
-   * Where it's measured from: the place's dot, or where its own Network's track nearest it, or one alongside it, comes
+   * Where it's measured from: the place's dot, or where its own Networks' track nearest it, or one alongside it, comes
    * nearest the dot, whichever lies furthest the name's way.
    */
   from: Point;
@@ -96,8 +91,9 @@ export interface Side {
 /**
  * Where each place's name goes, for a track's shapes, where its Lines' Trains go along them zoomed out
  * (`Slot`), the side each Line's Trains keep to, 1 right and -1 left, the Lines' Networks and shapes,
- * and the centrelines the Trains go along: given a place's dot and its Stations' IDs, which finds its
- * tracks once, and then the map's bearing, in degrees clockwise from north, as often as the map turns.
+ * and the centrelines the Trains go along: given a place's dot and the Networks it serves, its own
+ * (Place's `networks`), which finds its tracks once, and then the map's bearing, in degrees clockwise
+ * from north, as often as the map turns.
  * ponytail: takes the Trains to be on the centrelines as they are, not as each zoom band smooths them,
  * up to a line width off. Take the band's if names over Trains show.
  */
@@ -107,7 +103,7 @@ export function alongside(
   keep: (line: string) => number,
   networks: Pick<Line, 'network' | 'shapes'>[] = [],
   centrelines = new Map<string, Shape>(),
-): (dot: Point, stations?: string[]) => (bearing: number) => Side[] {
+): (dot: Point, served?: string[]) => (bearing: number) => Side[] {
   // Each shape's segments, by the cells their bounding boxes cross.
   const cells = new Map<number, [shape: Shape, i: number][]>();
   for (const shape of shapes) {
@@ -142,8 +138,8 @@ export function alongside(
   const slotsOf = new Map<string, Slot[]>();
   for (const s of slots) slotsOf.set(s.shape, [...(slotsOf.get(s.shape) ?? []), s]);
   const networkOf = new Map(networks.flatMap((l) => l.shapes.map((shape) => [shape, l.network])));
-  return (dot, stations = []) => {
-    const own = new Set(stations.map((id) => NETWORK_OF[id.split(':')[0] ?? '']));
+  return (dot, served = []) => {
+    const own = new Set(served);
     const kx = DEGREE * Math.cos((dot[1] * Math.PI) / 180);
     // Where each shape within NEAR comes nearest the dot, looking in the dot's cell and those round it.
     const found = new Map<Shape, { at: Point; dist: number; metres: number; segments: [Point, Point][] }>();
@@ -165,9 +161,9 @@ export function alongside(
     }
     // And which way each runs there.
     const near = [...found].map(([shape, f]) => ({ ...f, shape, heading: headingAt(shape, f.dist) }));
-    // The nearest of its own Network's, or where it has none near, of any.
+    // The nearest of its own Networks', or where it has none near, of any.
     const closest = (among: typeof near) => among.reduce<(typeof near)[number] | undefined>((best, n) => (best && best.metres <= n.metres ? best : n), undefined);
-    const nearest = closest(near.filter((n) => own.has(networkOf.get(n.shape.id)))) ?? closest(near);
+    const nearest = closest(near.filter((n) => own.has(networkOf.get(n.shape.id) ?? ''))) ?? closest(near);
     // The tracks alongside it there: those not much further from the dot, running much the same way, either way.
     const tracks = near.filter((n) => nearest && n.metres <= nearest.metres + ALONGSIDE_METRES && Math.abs(Math.cos(((n.heading - nearest.heading) * Math.PI) / 180)) >= Math.cos((ALONGSIDE_DEGREES * Math.PI) / 180));
     // A point's metres east and north of the dot.

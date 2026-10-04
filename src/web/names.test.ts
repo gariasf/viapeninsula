@@ -1,8 +1,8 @@
 import { featureFilter, type Feature, type ICanonicalTileID } from '@maplibre/maplibre-gl-style-spec';
 import { assert, expect, test, vi } from 'vitest';
-import { DEGREE, type Point, type Shape, type Slot, type Stroke } from '../bundle.ts';
-import { NETWORKS } from '../networks.ts';
-import { alongside, CAP, namedTwice, nameOffset, nearestSide, NETWORK_OF, underName, type Side, type Spot } from './names.ts';
+import { stationsOf } from '../build/track.ts';
+import { DEGREE, places, type Place, type Point, type Shape, type Slot, type Station, type Stroke } from '../bundle.ts';
+import { alongside, CAP, namedTwice, nameOffset, nearestSide, underName, type Side, type Spot } from './names.ts';
 
 // Made up, on the equator, where a degree is DEGREE metres both ways.
 /** The point so many metres east and north of 0°, 0°. */
@@ -22,8 +22,8 @@ const metres = ([lon, lat]: Point) => [lon * DEGREE, lat * DEGREE].map((m) => Ma
 /** alongside(), but only the side it tries first, clear of every track alongside its own. */
 function first(...args: Parameters<typeof alongside>) {
   const spots = alongside(...args);
-  return (dot: Point, stations?: string[]) => {
-    const place = spots(dot, stations);
+  return (dot: Point, served?: string[]) => {
+    const place = spots(dot, served);
     return (bearing: number): Spot => place(bearing)[0]?.clear ?? assert.fail('no side');
   };
 }
@@ -99,15 +99,40 @@ test("it follows its own Network's nearest track, even where another Network's p
     { network: 'rodalies', shapes: ['rodalies:R1'] },
   ];
   const spots = first(tracks, [], right, lines);
-  expect(spots(at(0, 0), ['adif:78805'])(0).anchor).toBe('bottom');
-  expect(spots(at(0, 0), ['tmb:1'])(0).anchor).toBe('left');
+  expect(spots(at(0, 0), ['rodalies'])(0).anchor).toBe('bottom');
+  expect(spots(at(0, 0), ['metro'])(0).anchor).toBe('left');
   // With no track of its own Network within 200 m, it goes by the nearest of any.
-  expect(spots(at(0, 0), ['fgc:EN'])(0).anchor).toBe('left');
+  expect(spots(at(0, 0), ['fgc'])(0).anchor).toBe('left');
 });
 
-test("each Station's operator runs one Network", () => {
-  const operators = NETWORKS.flatMap((n) => n.timetables.map((t) => [t.operator, n.id]));
-  expect(Object.fromEntries(operators)).toEqual(NETWORK_OF);
+test('two Networks on the same Stations make one Station of each, and one place, named beside the nearest track of either', () => {
+  // Made up, as Adif's Stations serve both Rodalies and AVE y Larga Distancia: Sants, which serves
+  // both, 5 m from AVE's track, 13 m from Rodalies' and 1 m from the Metro's; and 2 km east, a
+  // Station only AVE serves, 8 m from its track and 3 m from Rodalies'.
+  const sants: Station = { id: 'adif:71801', name: 'Barcelona-Sants', lon: 0, lat: 0 };
+  const [lon, lat] = at(2000, 0);
+  const alone: Station = { id: 'adif:2', name: 'AVE only', lon, lat };
+  const tracks = {
+    metro: [track('metro', [1, -500], [1, 500])],
+    rodalies: [track('rodalies', [-13, -500], [-13, 500]), track('rodalies:east', [1500, 3], [2500, 3])],
+    ave: [track('ave', [-500, 5], [500, 5]), track('ave:east', [2008, -500], [2008, 500])],
+  };
+  const stations = stationsOf([
+    { network: { id: 'rodalies' }, stations: [sants], shapes: tracks.rodalies },
+    { network: { id: 'ave' }, stations: [sants, alone], shapes: tracks.ave },
+  ]);
+  // Sants stays where Adif publishes it, as both Networks' Trains stop there.
+  expect(stations).toEqual([{ ...sants, networks: ['rodalies', 'ave'] }, { ...alone, networks: ['ave'] }]);
+  const [shared, aveOnly, ...more] = places(stations);
+  expect(more).toEqual([]);
+  expect(shared).toMatchObject({ id: 'adif:71801', stations: ['adif:71801'] });
+  const lines = Object.entries(tracks).map(([network, shapes]) => ({ network, shapes: shapes.map((s) => s.id) }));
+  const spots = first(Object.values(tracks).flat(), [], right, lines);
+  const anchor = (place?: Place) => spots([place?.lon ?? NaN, place?.lat ?? NaN], place?.networks)(0).anchor;
+  // Sants' name goes above AVE's track, the nearest of its own Networks', not right of the Metro's, nearer still.
+  expect(anchor(shared)).toBe('bottom');
+  // The Station only AVE serves: right of AVE's track, not above Rodalies', which passes nearer.
+  expect(anchor(aveOnly)).toBe('left');
 });
 
 test("where another track crossing its own lies under its name, it takes the side of its own that's clear", () => {

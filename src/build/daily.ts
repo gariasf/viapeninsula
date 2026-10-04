@@ -20,7 +20,7 @@ import { crop } from './border.ts';
 import { measures, summary } from './measures.ts';
 import { catalonia, osmRails } from './osm.ts';
 import { sideBySide } from './sideBySide.ts';
-import { fine, onOwnTrack, traceShapes } from './track.ts';
+import { fine, stationsOf, traceShapes } from './track.ts';
 import { placeTrips } from './trips.ts';
 
 const BUCKET = 'viapeninsula-live';
@@ -49,7 +49,7 @@ await mkdir('out/days', { recursive: true });
 const track: Track = {
   networks: networks.map((n) => n.network),
   lines,
-  stations: onOwnTrack(networks).flat(),
+  stations: stationsOf(networks),
   shapes,
   strokes,
   rails: ownTrack,

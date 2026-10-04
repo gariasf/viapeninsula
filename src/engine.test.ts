@@ -1,8 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { expect, test } from 'vitest';
-import { beside, DEGREE, pointAt, type Bundle, type Network, type Point, type Report, type Shape, type Snapshot, type Trip } from './bundle.ts';
+import { beside, DEGREE, places, pointAt, type Bundle, type Network, type Point, type Report, type Shape, type Snapshot, type Trip } from './bundle.ts';
 import { noonMinus12h } from './build/gtfs.ts';
+import { stationsOf } from './build/track.ts';
 import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Received } from './engine.ts';
 import { jumps } from './jumps.ts';
 import { NETWORKS } from './networks.ts';
@@ -827,6 +828,30 @@ test("a board lists only its own Stations' departures, soonest first", () => {
   // Passeig de Gràcia's L2 and L3 Stations, and Diagonal's L5.
   expect(ids(['tmb:1.225', 'tmb:1.327'])).toEqual(['l3', 'l2']);
   expect(ids(['tmb:1.532'])).toEqual(['l5']);
+});
+
+test("a board at a Station two Networks serve lists both Networks' departures", () => {
+  // Made up, as Rodalies' and AVE y Larga Distancia's Trains both stop at Sants, which both timetables name `adif:71801`.
+  const rodalies = bundleOf('2026-09-24', { id: 'rodalies', name: 'Rodalies de Catalunya', profile: PROFILE }, {
+    r2: { line: 'R2S', calls: [['adif:71801', '12:05:00', '12:05:00', 0, 2.141, 41.38], ['adif:71802', '12:09:00', '12:09:00', 2500, 2.165, 41.392]] },
+  });
+  const ave = bundleOf('2026-09-24', { id: 'ave', name: 'AVE y Larga Distancia', profile: PROFILE }, {
+    ave: { line: 'AVE', calls: [['adif:71801', '12:02:00', '12:02:00', 0, 2.141, 41.38], ['adif:79300', '12:40:00', '12:40:00', 90000, 2.825, 41.979]] },
+  });
+  const sants = { id: 'adif:71801', name: 'Barcelona-Sants', lon: 2.141, lat: 41.38 };
+  const stations = stationsOf([rodalies, ave].map((day) => ({ network: day.networks[0] as Network, stations: [sants], shapes: [] })));
+  const both: Bundle = {
+    ...rodalies,
+    networks: [...rodalies.networks, ...ave.networks],
+    lines: [...rodalies.lines, ...ave.lines],
+    stations,
+    shapes: [...rodalies.shapes, ...ave.shapes],
+    trips: [...rodalies.trips, ...ave.trips],
+  };
+  // One place, whose board lists both Networks' Trains.
+  const [place, ...more] = places(stations);
+  expect(more).toEqual([]);
+  expect(boardAt(both, at('12:00:00'), [], place?.stations ?? []).map((d) => [d.trip.id, d.trip.line])).toEqual([['ave', 'AVE'], ['r2', 'R2S']]);
 });
 
 /** The Trains passing within a radius of a point, 1.5 km unless it says, in the next hour, at a moment by the device's clock, with the live data received by then. */

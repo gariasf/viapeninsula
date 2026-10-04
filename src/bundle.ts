@@ -225,7 +225,7 @@ export interface Slot {
   band?: number;
 }
 
-/** Identified by whoever runs it: `adif:<code>` for Renfe's Stations. */
+/** Identified by whoever runs it: `adif:<code>` for Renfe's Stations, one Station however many Networks it serves. */
 export interface Station {
   id: string;
   name: string;
@@ -233,6 +233,11 @@ export interface Station {
   lat: number;
   /** The station its operator groups it in with other Lines' Stations, which the map shows as one place: `tmb:P.6660327` at Passeig de Gràcia (ADR-0005). */
   place?: string;
+  /**
+   * The Networks whose Trains stop there, by their IDs, as Rodalies' and AVE y Larga Distancia's do at
+   * Sants (#243). The build names them once it has every Network's Stations (stationsOf()); a track built before #243 names none.
+   */
+  networks?: string[];
 }
 
 /** Where the map shows one or more Stations as one, known by their place, or a lone Station's ID: one Station board lists them all. */
@@ -240,6 +245,8 @@ export interface Place {
   id: string;
   name: string;
   stations: string[];
+  /** The Networks whose Trains stop at its Stations, by their IDs: its own, whose track its name goes beside (#143). */
+  networks: string[];
   lon: number;
   lat: number;
 }
@@ -252,6 +259,7 @@ export function places(stations: Station[]): Place[] {
     id,
     name: group[0]?.name ?? '',
     stations: group.map((s) => s.id),
+    networks: [...new Set(group.flatMap((s) => s.networks ?? []))],
     lon: group.reduce((sum, s) => sum + s.lon, 0) / group.length,
     lat: group.reduce((sum, s) => sum + s.lat, 0) / group.length,
   }));
