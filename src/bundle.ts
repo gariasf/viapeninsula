@@ -116,8 +116,35 @@ export interface Network {
   runningSide: 'left' | 'right';
   /** The colour its track is drawn in below zoom 7 (#190), near its brand's. */
   colour: string;
-  /** The day its operator last updated its timetable (YYYY-MM-DD), where their terms ask the map to show it. */
+  /** The zoom its Trains are drawn as pills from, with their Line's name, and as dots below it (#90). */
+  pillZoom: number;
+  /** Who its data comes from, credited as their terms ask: the same for each Network a source feeds, which the map credits once (ADR-0010). */
+  credit: Credit;
+  /** How the engine reads its live data, where it has any. */
+  live?: LiveTraits;
+}
+
+/** A source's credit: its name, or the words its terms ask for instead, linked to its data. */
+export interface Credit {
+  text: string;
+  url: string;
+  /** Its data's licence, where its terms ask for it to be named. */
+  licence?: 'CC BY 4.0';
+  /** The day it last updated its timetable (YYYY-MM-DD), where its terms ask the map to show it. */
   updated?: string;
+}
+
+/** How the engine reads a Network's live data. */
+export interface LiveTraits {
+  /**
+   * The Delay a Train carries where its position measures none: its operator's (`operator`); its last
+   * GPS Delay, as Renfe's own figure is often minutes off, where GPS unchanged since its report before
+   * counts as no position (`gps`, #33); or its operator's, but shown nowhere (`none`), as TMB runs the
+   * Metro by headway (#103).
+   */
+  delay: 'operator' | 'gps' | 'none';
+  /** A Train reported near a Station stands there (`standing`), or may still be coming in, as Renfe pins Trains coming into a Station too (`pinned`). */
+  near: 'standing' | 'pinned';
 }
 
 /** How a Network's Trains run between Stations, in metres and seconds. */
@@ -135,7 +162,12 @@ export interface Line {
   name: string;
   colour: string;
   shapes: string[];
+  /** What it runs as, which its Trains' pills are outlined by. */
+  kind: Kind;
 }
+
+/** A Line's kind of service (CONTEXT.md). */
+export type Kind = 'commuter' | 'regional' | 'metro' | 'tram' | 'rack' | 'funicular';
 
 /**
  * Part of one of a Line's shapes, from one distance along it to another in metres, drawn `side`

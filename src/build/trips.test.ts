@@ -24,7 +24,7 @@ const station = (id: string, x: number, y: number): Station => {
   return { id, name: id, lon, lat };
 };
 
-const line = (id: string, ...shapes: string[]): Line => ({ id, network: 'rodalies', name: id, colour: '#000', shapes });
+const line = (id: string, ...shapes: string[]): Line => ({ id, network: 'rodalies', name: id, colour: '#000', shapes, kind: 'commuter' });
 
 /** A Trip calling at the named Stations, ten minutes apart, a minute at each. */
 const trip = (id: string, line: string, shape: string, stations: string): FeedTrip => ({

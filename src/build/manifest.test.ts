@@ -4,7 +4,7 @@ import { noonMinus12h } from './gtfs.ts';
 import { dayTrips, manifestDay, manifestOf } from './manifest.ts';
 
 const PROFILE = { acceleration: 1, braking: 1, topSpeed: 44, dwell: 30 };
-const RODALIES: Network = { id: 'rodalies', name: 'Rodalies de Catalunya', profile: PROFILE, runningSide: 'right', colour: '#000' };
+const RODALIES: Network = { id: 'rodalies', name: 'Rodalies de Catalunya', profile: PROFILE, runningSide: 'right', colour: '#000', pillZoom: 10, credit: { text: '', url: '' } };
 const FGC: Network = { ...RODALIES, id: 'fgc', name: 'FGC' };
 
 /** A Trip on a Line from one Station to another, from one time to the other, in seconds into its service day. */
@@ -25,7 +25,7 @@ const day = (serviceDay: string, ...trips: [from: number, to: number][]): Bundle
   serviceDay,
   noonMinus12h: noonMinus12h(serviceDay),
   networks: [RODALIES],
-  lines: [{ id: 'rodalies:R1', network: 'rodalies', name: 'R1', colour: '#000', shapes: [] }],
+  lines: [{ id: 'rodalies:R1', network: 'rodalies', name: 'R1', colour: '#000', shapes: [], kind: 'commuter' }],
   stations: [],
   shapes: [],
   strokes: [],
@@ -73,7 +73,7 @@ test('names the Networks with no Trips that day, and times the day by the others
   const files = { track: 'days/track-t.json', trips: 'days/2026-10-05-abc.json' };
   const bundle = day('2026-10-05');
   bundle.networks.push(FGC);
-  bundle.lines.push({ id: 'fgc:S1', network: 'fgc', name: 'S1', colour: '#000', shapes: [] });
+  bundle.lines.push({ id: 'fgc:S1', network: 'fgc', name: 'S1', colour: '#000', shapes: [], kind: 'commuter' });
   bundle.trips.push(trip('1', 'fgc:S1', 18000, 20000));
   expect(manifestDay(bundle, files)).toEqual({
     date: '2026-10-05',

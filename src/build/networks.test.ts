@@ -1,8 +1,8 @@
 import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
 import { places } from '../bundle.ts';
-import { dirSource } from './gtfs.ts';
-import { FGC_FEED, METRO_FEED, onFgcRails, onMetroRails, onRodaliesRails, readFeed, RODALIES_FEED, TRAMBAIX_FEED } from './networks.ts';
+import { dirSource, type Source } from './gtfs.ts';
+import { FGC_FEED, METRO_FEED, onFgcRails, onMetroRails, onRodaliesRails, readFeed, RODALIES_FEED, TRAMBAIX_FEED, type Feed } from './networks.ts';
 
 // Rows cut verbatim from Renfe's Cercanías feed of 2026-09-24: an R2S and an R7 Trip, an R3
 // rail-replacement bus, and a C1 Trip in Madrid, all running on Thursday 24 September.
@@ -161,6 +161,14 @@ test("keeps TMB's metro and funicular Trips, and none of its buses", async () =>
   expect(lines.map((l) => l.id)).toEqual(['metro:L11', 'metro:FM']);
   expect(new Set(trips.map((t) => t.line))).toEqual(new Set(['metro:L11', 'metro:FM']));
   expect(stations.map((s) => s.name)).not.toContain('Poble Espanyol'); // a stop on line 13
+});
+
+test("gives each Line its kind of service: its Network's, but for the Lines it names otherwise", async () => {
+  const kinds = async (gtfs: Source, feed: Feed) => Object.fromEntries((await readFeed(gtfs, '2026-10-01', feed)).lines.map((l) => [l.name, l.kind]));
+  expect(await kinds(renfe, RODALIES_FEED)).toEqual({ R2S: 'commuter', R7: 'commuter' });
+  expect(await kinds(fgc, FGC_FEED)).toEqual({ L12: 'commuter', MM: 'rack', FV: 'funicular', R5: 'regional' });
+  expect(await kinds(tram, TRAMBAIX_FEED)).toEqual({ T2: 'tram' });
+  expect(await kinds(tmb, METRO_FEED)).toEqual({ L11: 'metro', FM: 'funicular' });
 });
 
 test('runs the Montjuïc funicular every 10 minutes, from 07:30 on weekdays and 09:00 at weekends, as frequencies.txt has it', async () => {

@@ -1,16 +1,23 @@
-// Each Network, as plain data: how its Trains run, which of OpenStreetMap's rails they run on, and
-// where its operator's timetables are and how to read them. The daily build reads its Networks from
-// here alone (docs/research/network-config.md).
+// Each Network, as plain data: how its Trains run and are drawn, which of OpenStreetMap's rails they
+// run on, where its operator's timetables are and how to read them, who to credit, and how its live
+// data reads. The daily build reads its Networks from here alone, and the map what it needs of them
+// from the bundle (docs/research/network-config.md).
 
-import type { Network } from './bundle.ts';
+import type { Credit, Kind, Network } from './bundle.ts';
 
-/** One Network: what the daily build needs to know of it. */
-export interface NetworkConfig extends Omit<Network, 'updated'> {
+/** One Network: what the daily build needs to know of it, and through the bundle, the map. */
+export interface NetworkConfig extends Omit<Network, 'credit'> {
+  /** Its source's credit: the day it was last updated comes from its timetable (Timetable's `updated`). */
+  credit: Omit<Credit, 'updated'>;
   rails: Rails;
   /** Its operator's timetables, each a GTFS feed: TRAM has two. */
   timetables: [Timetable, ...Timetable[]];
-  /** Its Lines, where its timetables name or colour them otherwise than the public knows them. */
-  lines?: {
+  /** Its Lines: what they run as, and where its timetables name or colour them otherwise than the public knows them. */
+  lines: {
+    /** What its Lines run as, but for those `kinds` names. */
+    kind: Kind;
+    /** What each of its Lines that doesn't run as `kind` runs as, by the Line's name. */
+    kinds?: Record<string, Kind>;
     /** The Line each route runs on, by the route's name, where a timetable names some of a Line's Trips apart (#29). */
     names?: Record<string, string>;
     /** Colours for the Lines a timetable gets wrong, by the Line's name, written as `colour` is. */
@@ -45,7 +52,7 @@ export interface Timetable {
   routes?: { idPrefix: string };
   /** A Trip's Train number, where the operator publishes one: what this pattern first matches in its trip_id after the service_id. */
   number?: string;
-  /** Its terms ask the map to show the day it was last updated: its feed's start date. */
+  /** Its terms ask the map to show the day it was last updated, in its credit: its feed's start date. */
   updated?: true;
 }
 
@@ -66,6 +73,8 @@ export const RODALIES: NetworkConfig = {
   runningSide: 'right',
   // Near Rodalies' orange, as the maintainer chose it by its logo: no source publishes one (#190).
   colour: '#F26E21',
+  // Main-line Trains are pills before metros' and trams', as railisland shows them (#90).
+  pillZoom: 10,
   // Iberian-gauge rails, which keeps it off the standard-gauge high-speed line.
   rails: { railway: ['rail'], gauge: ['1668'] },
   timetables: [
@@ -79,7 +88,15 @@ export const RODALIES: NetworkConfig = {
       number: '^\\d{5}',
     },
   ],
+  // Renfe's open data is CC BY 4.0, which asks for its source to be named, and the licence.
+  credit: { text: 'Renfe', url: 'https://data.renfe.com/', licence: 'CC BY 4.0' },
+  // Renfe's own Delay moves in whole minutes and is often minutes off, so a Train carries on from the
+  // last Delay its GPS gave it (#33). And Renfe pins Trains coming into a Station to it too, and late.
+  live: { delay: 'gps', near: 'pinned' },
   lines: {
+    // R1–R8, RG1, RT1, RT2, RL3 and RL4 are commuter Lines, and R11–R17 regional ones.
+    kind: 'commuter',
+    kinds: { R11: 'regional', R12: 'regional', R13: 'regional', R14: 'regional', R15: 'regional', R16: 'regional', R17: 'regional' },
     // Renfe's feed gives two Lines the wrong colour on the routes their Trips run on (seen 2026-09-24).
     // R7's carry R2's green, though Renfe's other R7 routes say B57CBB. R13's carry R2S's green, but R13
     // is pink (Wikidata Q6018166).
@@ -101,11 +118,20 @@ export const FGC: NetworkConfig = {
   runningSide: 'right',
   // Near FGC's green, as the maintainer chose it by its logo: no source publishes one (#190).
   colour: '#8BB83E',
+  pillZoom: 10,
   // Rails of its own, of three gauges.
   rails: { railway: ['rail', 'narrow_gauge', 'subway', 'funicular'], operator: FGC_OPERATOR },
   // FGC's feed makes each platform a stop of its own; its Stations go by FGC's codes.
   timetables: [{ url: 'https://www.fgc.cat/google/google_transit.zip', prefix: 'fgc', operator: 'fgc', parents: true }],
+  // FGC's open data is CC BY 4.0.
+  credit: { text: 'FGC', url: 'https://dadesobertes.fgc.cat/', licence: 'CC BY 4.0' },
+  // Geotren has a Train standing at a Station where it puts it near one.
+  live: { delay: 'operator', near: 'standing' },
   lines: {
+    // Its S and L Lines are commuter ones, and R5, R50, R6, R60, RL1 and RL2 regional. MM is
+    // Montserrat's rack railway, and FV the Vallvidrera funicular.
+    kind: 'commuter',
+    kinds: { R5: 'regional', R50: 'regional', R6: 'regional', R60: 'regional', RL1: 'regional', RL2: 'regional', MM: 'rack', FV: 'funicular' },
     // R53 and R63 are FGC's names for R5's and R6's late Trips, which call at every Station: Martorell
     // Vila and Colònia Güell too, and Santa Coloma de Cervelló on R53. The public knows them as R5 and
     // R6: their route URLs point to R5's and R6's pages (seen 2026-09-25).
@@ -124,6 +150,8 @@ export const TRAM: NetworkConfig = {
   runningSide: 'right',
   // Near TRAM's teal, as the maintainer chose it by its logo: no source publishes one (#190).
   colour: '#00A99D',
+  // Metros' and trams' Trains are pills only from where they're far enough apart to read (#90).
+  pillZoom: 12,
   rails: { railway: ['tram'] },
   // TRAM publishes a feed for each of its halves, Trambaix (T1–T3) and Trambesòs (T4–T6), and their
   // shapes' IDs clash. Each feed makes each platform a stop of its own.
@@ -131,6 +159,10 @@ export const TRAM: NetworkConfig = {
     { url: 'https://opendata.tram.cat/GTFS/zip/TBX.zip', prefix: 'tram:TBX', operator: 'tram', parents: true },
     { url: 'https://opendata.tram.cat/GTFS/zip/TBS.zip', prefix: 'tram:TBS', operator: 'tram', parents: true },
   ],
+  // TRAM's terms ask for these words, and a link.
+  credit: { text: 'Powered by TRAM Barcelona', url: 'https://www.tram.cat/' },
+  live: { delay: 'operator', near: 'standing' },
+  lines: { kind: 'tram' },
 };
 
 export const METRO: NetworkConfig = {
@@ -146,6 +178,7 @@ export const METRO: NetworkConfig = {
   runningSide: 'right',
   // Near the Metro's red, as the maintainer chose it by its logo: no source publishes one (#190).
   colour: '#E2001A',
+  pillZoom: 12,
   // Underground, but for the Montjuïc funicular, on rails that aren't FGC's.
   rails: { railway: ['subway', 'funicular'], notOperator: FGC_OPERATOR },
   timetables: [
@@ -161,6 +194,12 @@ export const METRO: NetworkConfig = {
       updated: true,
     },
   ],
+  credit: { text: 'TMB', url: 'https://www.tmb.cat/' },
+  // TMB runs the Metro by headway, and its timetable names no Blocks, so a Metro Train's Delay is only
+  // against whichever Trip its Block runs, which can be minutes off its own time (#103).
+  live: { delay: 'none', near: 'standing' },
+  // FM is the Montjuïc funicular.
+  lines: { kind: 'metro', kinds: { FM: 'funicular' } },
 };
 
 /** Every Network, in the order the bundle lists them. */

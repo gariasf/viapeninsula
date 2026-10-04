@@ -34,7 +34,7 @@ function shapeEvery(every: number, id: string, corners: [x: number, y: number][]
   return { id, coords: points.map(([x, y]) => [round(LON + x / (M * COS)), round(LAT + y / M)]), dist };
 }
 
-const line = (name: string, ...shapes: string[]): Line => ({ id: name, network: 'rodalies', name, colour: '#000', shapes });
+const line = (name: string, ...shapes: string[]): Line => ({ id: name, network: 'rodalies', name, colour: '#000', shapes, kind: 'commuter' });
 
 async function draw(lines: Line[], shapes: Shape[], on: 'strokes' | 'rails' = 'strokes', band?: number) {
   const found = await sideBySide(lines, shapes);
