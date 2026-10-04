@@ -27,4 +27,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+      # The build's tests run osmium, as the build does.
+      - run: sudo apt-get update && sudo apt-get install -y osmium-tool
       - run: npm test
