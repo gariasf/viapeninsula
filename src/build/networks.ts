@@ -1,152 +1,33 @@
-// Each Network: how its Trains run, which rails they run on, and how to read its operator's feed.
+// Reading a Network's timetables, and finding its rails, as src/networks.ts has them.
 
-import type { Line, Network, Station } from '../bundle.ts';
+import type { Line, Station } from '../bundle.ts';
+import { FGC, METRO, RODALIES, TRAM, type NetworkConfig, type Rails, type Timetable } from '../networks.ts';
 import { rows, seconds, serviceIdsOn, type Source } from './gtfs.ts';
 import type { OsmWay } from './osm.ts';
 import { eachWay, type FeedShape } from './track.ts';
 import type { FeedTrip } from './trips.ts';
 
-const RODALIES: Network = {
-  id: 'rodalies',
-  name: 'Rodalies de Catalunya',
-  // Every stretch between Stations in Renfe's timetable of 24 September 2026 fits 1 m/s² (138 don't
-  // fit 0.7), and the fastest Units on the regional lines run at 160 km/h. Small Stations get half a minute.
-  profile: { acceleration: 1, braking: 1, topSpeed: 160 / 3.6, dwell: 30 },
-  // Catalonia's lines came from MZA, which ran on the right, but for Manresa–Barcelona, a Norte line
-  // run on the left until December 1971 (García Álvarez, "La vía doble en España y el sentido de
-  // circulación de los trenes por ella", FFE, 2010, table 3). OpenStreetMap agrees: its
-  // railway:preferred_direction tags have Trains on the right on 94% of the 268 km of Adif's
-  // Iberian-gauge double track they cover (seen 2026-09-26).
-  runningSide: 'right',
-  // Near Rodalies' orange, as the maintainer chose it by its logo: no source publishes one (#190).
-  colour: '#F26E21',
-};
-
-/** Rodalies runs on Iberian-gauge rails, which keeps it off the standard-gauge high-speed line. */
-export function onRodaliesRails(way: OsmWay): boolean {
-  return way.tags.railway === 'rail' && (way.tags.gauge ?? '').split(';').includes('1668');
+/** Whether a way is one of these rails. */
+export function onRails({ railway, gauge, operator, notOperator }: Rails): (way: OsmWay) => boolean {
+  return ({ tags }) =>
+    railway.includes(tags.railway ?? '') &&
+    (!gauge || (tags.gauge ?? '').split(';').some((g) => gauge.includes(g))) &&
+    (!operator || operator.includes(tags.operator ?? '')) &&
+    !notOperator?.includes(tags.operator ?? '');
 }
 
-/** Rodalies, including its regional lines, from Renfe's Cercanías GTFS: núcleo 51 only. Its Stations are Adif's. */
-export const RODALIES_FEED: Feed = {
-  network: RODALIES,
-  prefix: 'rodalies',
-  operator: 'adif',
-  routes: (id) => id.startsWith('51'),
-  // A trip_id is the service_id, then the Train number's five digits, then the Line.
-  number: (trip) => trip.trip_id.slice(trip.service_id.length).match(/^\d{5}/)?.[0],
-  // Renfe's feed gives two Lines the wrong colour on the routes their Trips run on (seen 2026-09-24).
-  // R7's carry R2's green, though Renfe's other R7 routes say B57CBB. R13's carry R2S's green, but R13
-  // is pink (Wikidata Q6018166).
-  colours: { R7: 'B57CBB', R13: 'E52E87' },
-};
+/** One of a Network's timetables, to read as that Network's. */
+export type Feed = Timetable & { network: NetworkConfig };
 
-const FGC: Network = {
-  id: 'fgc',
-  name: 'Ferrocarrils de la Generalitat de Catalunya',
-  // FGC's timetable is in quarter minutes, so a tenth of the stretches it runs on 1 October 2026 fit
-  // no train at 1 m/s², such as Baixador de Vallvidrera to Les Planes, 933 m in 30 s: those Trains
-  // accelerate and brake harder. Its fastest Units, on the line to La Pobla, run at 120 km/h. Most of
-  // its Stations get half a minute.
-  profile: { acceleration: 1, braking: 1, topSpeed: 120 / 3.6, dwell: 30 },
-  // OpenStreetMap has FGC's Trains on the right on 99% of the 93 km of its double track it tags
-  // (seen 2026-09-26), and so does Geotren: of 61 FGC positions within a metre of one track of a
-  // double track, 56 were on the right one (25 September).
-  runningSide: 'right',
-  // Near FGC's green, as the maintainer chose it by its logo: no source publishes one (#190).
-  colour: '#8BB83E',
-};
-
-/** FGC runs on rails of its own, of three gauges. */
-export function onFgcRails(way: OsmWay): boolean {
-  return ['rail', 'narrow_gauge', 'subway', 'funicular'].includes(way.tags.railway ?? '') && isFgc(way);
-}
-
-function isFgc(way: OsmWay): boolean {
-  return ['FGC', 'Ferrocarrils de la Generalitat de Catalunya'].includes(way.tags.operator ?? '');
-}
-
-/** FGC's feed makes each platform a stop of its own; its Stations go by FGC's codes. */
-export const FGC_FEED: Feed = {
-  network: FGC,
-  prefix: 'fgc',
-  operator: 'fgc',
-  parents: true,
-  // R53 and R63 are FGC's names for R5's and R6's late Trips, which call at every Station: Martorell
-  // Vila and Colònia Güell too, and Santa Coloma de Cervelló on R53. The public knows them as R5 and
-  // R6: their route URLs point to R5's and R6's pages (seen 2026-09-25).
-  names: { R53: 'R5', R63: 'R6' },
-};
-
-const TRAM: Network = {
-  id: 'tram',
-  name: 'TRAM',
-  // Every stretch TRAM runs on 1 October 2026 fits 1.2 m/s² (312 don't fit 1), and its Units, Citadis
-  // trams, run at 70 km/h. It gives every Station 10 seconds.
-  profile: { acceleration: 1.2, braking: 1.2, topSpeed: 70 / 3.6, dwell: 10 },
-  // As the traffic beside it does: OpenStreetMap has TRAM's Trains on the right on 99% of the 32 km
-  // of its double track it tags.
-  runningSide: 'right',
-  // Near TRAM's teal, as the maintainer chose it by its logo: no source publishes one (#190).
-  colour: '#00A99D',
-};
-
-export function onTramRails(way: OsmWay): boolean {
-  return way.tags.railway === 'tram';
-}
-
-/**
- * TRAM publishes a feed for each of its halves, Trambaix (T1–T3) and Trambesòs (T4–T6), and their
- * shapes' IDs clash. Each feed makes each platform a stop of its own.
- */
-export const TRAMBAIX_FEED: Feed = { network: TRAM, prefix: 'tram:TBX', operator: 'tram', parents: true };
-export const TRAMBESOS_FEED: Feed = { network: TRAM, prefix: 'tram:TBS', operator: 'tram', parents: true };
-
-const METRO: Network = {
-  id: 'metro',
-  name: 'Metro de Barcelona',
-  // Every stretch the Metro runs on 1 October 2026 fits 1.3 m/s² (689 don't fit 1.2), but for one L1
-  // Trip's 894 m from Santa Coloma to Fondo in 30 s. Its Units run at 80 km/h. TMB gives each Station
-  // about 20 seconds.
-  profile: { acceleration: 1.3, braking: 1.3, topSpeed: 80 / 3.6, dwell: 20 },
-  // OpenStreetMap has the Metro's Trains on the right on 96% of the 116 km of its double track it
-  // tags. Most of the rest is L2 between Tetuan and Paral·lel, which runs on the left, and where
-  // its tags say so, the trace follows them.
-  runningSide: 'right',
-  // Near the Metro's red, as the maintainer chose it by its logo: no source publishes one (#190).
-  colour: '#E2001A',
-};
-
-/** The Metro runs underground, but for the Montjuïc funicular, on rails that aren't FGC's. */
-export function onMetroRails(way: OsmWay): boolean {
-  return ['subway', 'funicular'].includes(way.tags.railway ?? '') && !isFgc(way);
-}
-
-/**
- * TMB's feed, whose metro and funicular are the Metro's. Its Stations are TMB's stops, one for each
- * Line calling there: the stations TMB groups them in can hold Lines 270 m apart, as at Passeig de
- * Gràcia, too far from some of their rails for one place to stand for them all (ADR-0005).
- */
-export const METRO_FEED: Feed = { network: METRO, prefix: 'metro', operator: 'tmb' };
-
-/** How to read one operator's GTFS feed: which of its Trains are this Network's, and what to call what it publishes. */
-export interface Feed {
-  network: Network;
-  /** What its Trips' and shapes' IDs start with, as in `rodalies:<trip_id>`. */
-  prefix: string;
-  /** What its Stations' IDs start with: whoever runs them, as in `adif:<stop_id>` for Renfe's. */
-  operator: string;
-  /** Whether a stop's Station is its parent station, where the feed makes each platform a stop of its own. */
-  parents?: boolean;
-  /** Which of its rail routes are this Network's, where not all are. */
-  routes?: (routeId: string) => boolean;
-  /** A Trip's Train number, where the operator publishes one. */
-  number?: (trip: { trip_id: string; service_id: string }) => string | undefined;
-  /** Colours for the Lines the feed gets wrong, by the Line's name. */
-  colours?: Record<string, string>;
-  /** The Line each route runs on, by the route's name, where the feed names some of a Line's Trips apart. */
-  names?: Record<string, string>;
-}
+// ponytail: today's Networks' timetables and rails, by the names networks.test.ts imports, kept so it
+// runs unchanged (#240); they can go once it reads src/networks.ts.
+export const RODALIES_FEED: Feed = { network: RODALIES, ...RODALIES.timetables[0] };
+export const FGC_FEED: Feed = { network: FGC, ...FGC.timetables[0] };
+export const TRAMBAIX_FEED: Feed = { network: TRAM, ...TRAM.timetables[0] };
+export const METRO_FEED: Feed = { network: METRO, ...METRO.timetables[0] };
+export const onRodaliesRails = onRails(RODALIES.rails);
+export const onFgcRails = onRails(FGC.rails);
+export const onMetroRails = onRails(METRO.rails);
 
 /** The route types that run Trains: tram, metro, rail and funicular. Buses (3) and cable cars (6) don't. */
 const RAIL = new Set(['0', '1', '2', '7']);
@@ -161,11 +42,12 @@ export async function readFeed(
   feed: Feed,
 ): Promise<{ lines: Line[]; stations: Station[]; shapes: FeedShape[]; trips: FeedTrip[] }> {
   const { network, prefix, operator } = feed;
+  const pattern = feed.number && new RegExp(feed.number);
   const services = await serviceIdsOn(gtfs, day);
   const routes = new Map<string, { name: string; colour: string }>();
   for await (const r of rows(gtfs, 'routes.txt', ['route_id', 'route_short_name', 'route_type', 'route_color'])) {
-    if (RAIL.has(r.route_type) && (feed.routes?.(r.route_id) ?? true)) {
-      routes.set(r.route_id, { name: feed.names?.[r.route_short_name] ?? r.route_short_name, colour: r.route_color });
+    if (RAIL.has(r.route_type) && r.route_id.startsWith(feed.routes?.idPrefix ?? '')) {
+      routes.set(r.route_id, { name: network.lines?.names?.[r.route_short_name] ?? r.route_short_name, colour: r.route_color });
     }
   }
 
@@ -192,7 +74,7 @@ export async function readFeed(
     line.shapes.add(t.shape_id);
     lines.set(route.name, line);
     if (!services.has(t.service_id)) continue;
-    const number = feed.number?.(t);
+    const number = pattern && t.trip_id.slice(t.service_id.length).match(pattern)?.[0];
     const trip = { id: `${prefix}:${t.trip_id}`, line: `${network.id}:${route.name}`, shape: `${prefix}:${t.shape_id}`, headsign: t.trip_headsign };
     dayTrips.set(t.trip_id, { ...trip, ...(number && { number }), calls: [] });
   }
@@ -260,7 +142,7 @@ export async function readFeed(
       id: `${network.id}:${name}`,
       network: network.id,
       name,
-      colour: `#${feed.colours?.[name] ?? line.colour}`,
+      colour: network.lines?.colours?.[name] ?? `#${line.colour}`,
       shapes: [...line.shapes].flatMap((id) => [`${prefix}:${id}`, `${prefix}:${id}:back`].filter((way) => ids.has(way))),
     })),
     stations: [...stations.values()],

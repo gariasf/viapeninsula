@@ -2,9 +2,9 @@
 // days, today's first, and publishes them to R2, so a build that fails leaves the map the days before
 // it published. Each day's bundle comes in two files, so the map can draw the Lines before the Trips
 // come: the track, which is the same file for each day, and the day's Trips.
-// `npm run daily` publishes; `npm run daily -- --dry-run` only writes the files to out/. TMB's
-// timetable needs TMB_APP_ID and TMB_APP_KEY in the environment, which `npm run daily` loads from
-// .env.local.
+// `npm run daily` publishes; `npm run daily -- --dry-run` only writes the files to out/. The secrets
+// a timetable's URL needs, as TMB's TMB_APP_ID and TMB_APP_KEY, come from the environment, which
+// `npm run daily` loads from .env.local.
 
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -12,24 +12,13 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { brotliCompressSync, constants } from 'node:zlib';
 import { addDays, LIVE_URL, madridDate, type Manifest, type Network, type Track } from '../bundle.ts';
+import { NETWORKS, type NetworkConfig, type Timetable } from '../networks.ts';
 import { download, feedStart, type Source } from './gtfs.ts';
 import { dayTrips, manifestDay, manifestOf } from './manifest.ts';
-import {
-  FGC_FEED,
-  METRO_FEED,
-  onFgcRails,
-  onMetroRails,
-  onRodaliesRails,
-  onTramRails,
-  readFeed,
-  RODALIES_FEED,
-  TRAMBAIX_FEED,
-  TRAMBESOS_FEED,
-  type Feed,
-} from './networks.ts';
+import { onRails, readFeed, type Feed } from './networks.ts';
 import { crop } from './border.ts';
 import { measures, summary } from './measures.ts';
-import { catalonia, osmRails, type OsmWay } from './osm.ts';
+import { catalonia, osmRails } from './osm.ts';
 import { sideBySide } from './sideBySide.ts';
 import { fine, onOwnTrack, traceShapes } from './track.ts';
 import { placeTrips } from './trips.ts';
@@ -38,23 +27,17 @@ const BUCKET = 'viapeninsula-live';
 
 const today = madridDate(new Date());
 const DAYS = [0, 1, 2].map((n) => addDays(today, n));
-const [renfe, fgc, trambaix, trambesos, tmb] = await Promise.all([
-  download('https://ssl.renfe.com/ftransit/Fichero_CER_FOMENTO/fomento_transit.zip', 'renfe-cercanias.zip'),
-  download('https://www.fgc.cat/google/google_transit.zip', 'fgc.zip'),
-  download('https://opendata.tram.cat/GTFS/zip/TBX.zip', 'tram-tbx.zip'),
-  download('https://opendata.tram.cat/GTFS/zip/TBS.zip', 'tram-tbs.zip'),
-  download(`https://api.tmb.cat/v1/static/datasets/gtfs.zip?${new URLSearchParams({ app_id: secret('TMB_APP_ID'), app_key: secret('TMB_APP_KEY') })}`, 'tmb.zip'),
-]);
-// TMB's terms ask for the day its data was last updated to be shown. Its feed starts the day TMB
-// publishes it, and it can't have been published after today.
-const published = await feedStart(tmb);
-const [rails, border] = await Promise.all([osmRails(['rail', 'narrow_gauge', 'subway', 'tram', 'funicular']), catalonia()]);
-const networks = [
-  await build([[RODALIES_FEED, renfe]], onRodaliesRails),
-  await build([[FGC_FEED, fgc]], onFgcRails),
-  await build([[TRAMBAIX_FEED, trambaix], [TRAMBESOS_FEED, trambesos]], onTramRails),
-  await build([[METRO_FEED, tmb]], onMetroRails, { updated: published < today ? published : today }),
-];
+// Every Network's timetables, downloaded at once.
+const downloaded = await Promise.all(
+  NETWORKS.map(async (network) => ({
+    network,
+    feeds: await Promise.all(network.timetables.map(async (t) => ({ ...t, network, gtfs: await download(address(t), `${t.prefix}.zip`) }))),
+  })),
+);
+// The rails of every kind any Network runs on, sorted, so the copy osmRails() keeps isn't named by the Networks' order.
+const [rails, border] = await Promise.all([osmRails([...new Set(NETWORKS.flatMap((n) => n.rails.railway))].sort()), catalonia()]);
+const networks = [];
+for (const { network, feeds } of downloaded) networks.push(await build(network, feeds));
 const eachDay = dayTrips(DAYS, networks);
 const [lines, traced] = [networks.flatMap((n) => n.lines), networks.flatMap((n) => n.shapes)];
 const { strokes, centrelines, rails: ownTrack, slots, tracks } = await sideBySide(lines, traced);
@@ -98,23 +81,32 @@ if (!process.argv.includes('--dry-run')) {
 }
 
 /**
- * A Network from its operator's feeds, with the day they were last updated where its terms ask the
- * map to show it: its Lines, Stations and track traced along OpenStreetMap's rails of its own kind
- * (ADR-0004), which are those of every day in its feeds, and its Trips on each of DAYS, none where
+ * A Network from its operator's timetables, with the day they were last updated where its terms ask
+ * the map to show it: its Lines, Stations and track traced along OpenStreetMap's rails of its own kind
+ * (ADR-0004), which are those of every day in its timetables, and its Trips on each of DAYS, none where
  * its timetable has none (dayTrips()), all within Catalonia: its Trips are placed on their whole
  * track, which is then cut at the border.
  * ponytail: reads each feed once for each day, about 5 s a day for the lot; read stop_times once for
  * every day if the build grows slow.
  */
-async function build(feeds: [[Feed, Source], ...[Feed, Source][]], onRails: (way: OsmWay) => boolean, extra: Pick<Network, 'updated'> = {}) {
-  const network: Network = { ...feeds[0][0].network, ...extra };
-  const days = await Promise.all(DAYS.map((day) => Promise.all(feeds.map(([feed, gtfs]) => readFeed(gtfs, day, feed)))));
+async function build(config: NetworkConfig, feeds: (Feed & { gtfs: Source })[]) {
+  // A feed starts the day its operator publishes it, which can't be after today.
+  const dated = feeds.find((f) => f.updated);
+  const published = dated && (await feedStart(dated.gtfs));
+  const { id, name, profile, runningSide, colour } = config;
+  const network: Network = { id, name, profile, runningSide, colour, ...(published && { updated: published < today ? published : today }) };
+  const days = await Promise.all(DAYS.map((day) => Promise.all(feeds.map((feed) => readFeed(feed.gtfs, day, feed)))));
   const parts = days[0] ?? [];
   const [lines, stations] = [parts.flatMap((p) => p.lines), parts.flatMap((p) => p.stations)];
-  const shapes = traceShapes(parts.flatMap((p) => p.shapes), stations, fine(rails.filter(onRails)), network.runningSide);
+  const shapes = traceShapes(parts.flatMap((p) => p.shapes), stations, fine(rails.filter(onRails(config.rails))), network.runningSide);
   const cropped = crop(border, stations, shapes, days.map((day) => day.flatMap((p) => p.trips)));
   const trips = cropped.days.map((trips) => placeTrips(trips, lines, shapes, stations, network.profile.topSpeed));
   return { network, lines, stations: cropped.stations, shapes: cropped.shapes, trips };
+}
+
+/** A timetable's URL, with the secrets its query needs. */
+function address({ url, query }: Timetable): string {
+  return query ? `${url}?${new URLSearchParams(Object.entries(query).map(([param, name]) => [param, secret(name)]))}` : url;
 }
 
 /** A secret from the environment, which must never be printed. */

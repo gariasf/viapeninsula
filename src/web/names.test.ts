@@ -1,6 +1,7 @@
 import { featureFilter, type Feature, type ICanonicalTileID } from '@maplibre/maplibre-gl-style-spec';
 import { assert, expect, test, vi } from 'vitest';
 import { DEGREE, type Point, type Shape, type Slot, type Stroke } from '../bundle.ts';
+import { NETWORKS } from '../networks.ts';
 import { alongside, CAP, namedTwice, nameOffset, nearestSide, NETWORK_OF, underName, type Side, type Spot } from './names.ts';
 
 // Made up, on the equator, where a degree is DEGREE metres both ways.
@@ -104,9 +105,8 @@ test("it follows its own Network's nearest track, even where another Network's p
   expect(spots(at(0, 0), ['fgc:EN'])(0).anchor).toBe('left');
 });
 
-test("each Station's operator runs one Network", async () => {
-  const feeds = await import('../build/networks.ts');
-  const operators = [feeds.RODALIES_FEED, feeds.FGC_FEED, feeds.TRAMBAIX_FEED, feeds.TRAMBESOS_FEED, feeds.METRO_FEED].map((f) => [f.operator, f.network.id]);
+test("each Station's operator runs one Network", () => {
+  const operators = NETWORKS.flatMap((n) => n.timetables.map((t) => [t.operator, n.id]));
   expect(Object.fromEntries(operators)).toEqual(NETWORK_OF);
 });
 
