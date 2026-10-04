@@ -38,8 +38,8 @@ const CELL = 0.005;
 /** How near a place a basemap label with its name is, in metres, to name the same place (#121). */
 const TWICE = 2000;
 /**
- * The Network whose Stations each operator runs, by what their IDs start with (`Feed.operator` in
- * `src/build/networks.ts`): a place's own Network, whose track its name goes beside (#143).
+ * The Network whose Stations each operator runs, by what their IDs start with (`Timetable.operator` in
+ * `src/networks.ts`): a place's own Network, whose track its name goes beside (#143).
  */
 export const NETWORK_OF: Record<string, string> = { adif: 'rodalies', fgc: 'fgc', tram: 'tram', tmb: 'metro' };
 /** The classes of the basemap's place labels that a place's name can say again: its towns', from cities to villages, and suburbs'. */

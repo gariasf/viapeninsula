@@ -1,6 +1,6 @@
 # Deploys the app and the fetcher on every push to main, and from the button in the Actions tab.
-# Typecheck and tests run first. When the build (src/build/, src/bundle.ts) has changed since the
-# last deploy that succeeded, the daily build publishes the new bundles before the app that reads
+# Typecheck and tests run first. When the build (src/build/, src/bundle.ts, src/networks.ts) has
+# changed since the last deploy that succeeded, the daily build publishes the new bundles before the app that reads
 # them goes out, and if it fails nothing deploys.
 name: Deploy
 
@@ -38,7 +38,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           last=$(gh run list --workflow deploy.yml --branch main --status success --limit 1 --json headSha --jq '.[0].headSha // empty')
-          if [ -n "$last" ] && git cat-file -e "$last^{commit}" 2>/dev/null && git diff --quiet "$last" HEAD -- src/build src/bundle.ts; then
+          if [ -n "$last" ] && git cat-file -e "$last^{commit}" 2>/dev/null && git diff --quiet "$last" HEAD -- src/build src/bundle.ts src/networks.ts; then
             echo build=false >> "$GITHUB_OUTPUT"
           else
             echo build=true >> "$GITHUB_OUTPUT"
