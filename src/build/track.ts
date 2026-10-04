@@ -650,26 +650,9 @@ function shape(id: string, all: Point[], levels: string[] = []): Shape {
 }
 
 /**
- * A traced shape with its bends rounded (#203), before Trips are placed on it. A point where rails
- * meet or part is left as it is (`junctions`), so that every Line through a bend rounds it the same.
- */
-export function curve(traced: Shape, junctions: Set<string>): Shape {
-  // The level of the track up to each point.
-  const levels = traced.dist.map((_, i) => traced.levels?.findLast(([from]) => from <= (traced.dist[i - 1] ?? 0))?.[1] ?? '');
-  return shape(traced.id, ...rounded(traced.coords, levels, junctions));
-}
-
-/** Where OpenStreetMap's rails meet or part, by key(): each node but those that only carry a way on. */
-export function junctions(rails: OsmWay[]): Set<string> {
-  const [all, plain] = [new Set<string>(), carriesOn(rails)];
-  for (const way of rails) for (const [i, g] of way.geometry.entries()) if (!plain(way, i)) all.add(key([g.lon, g.lat]));
-  return all;
-}
-
-/**
- * Each way without the points the map would leave out anyway, mostly along straight track, to pay
- * for the curves (#203); done to the rails rather than to each shape, so Lines on the same rails
- * keep the same points. Its ends, and where it meets another, stay.
+ * Each way without the points less than FINE off its line, mostly along straight track; done to
+ * the rails rather than to each shape, so Lines on the same rails keep the same points. Its ends,
+ * and where it meets another, stay. It pays for the sixth decimal shapes take (#203).
  */
 export function fine(rails: OsmWay[]): OsmWay[] {
   const plain = carriesOn(rails);
@@ -682,6 +665,12 @@ export function fine(rails: OsmWay[]): OsmWay[] {
   });
 }
 
+/**
+ * How far off a way's line a point may be and go, in metres: under a pixel at zoom 18, the rails
+ * source's last, where a pixel is 0.45 m in Catalonia.
+ */
+const FINE = 0.3;
+
 /** Whether a way's i-th node only carries it on: in no other way, or the end of it and of one other. */
 function carriesOn(rails: OsmWay[]): (way: OsmWay, i: number) => boolean {
   const ends = new Map<number, boolean[]>(); // for each node, at each of its ways, whether it's that way's end
@@ -690,85 +679,6 @@ function carriesOn(rails: OsmWay[]): (way: OsmWay, i: number) => boolean {
     const at = ends.get(way.nodes[i] ?? NaN) ?? [];
     return (at.length === 1 && !at[0]) || (at.length === 2 && at.every(Boolean));
   };
-}
-
-/** A point as shapes are written. */
-function key([lon, lat]: Point): string {
-  return `${round(lon, 1e6)} ${round(lat, 1e6)}`;
-}
-
-/** How far a bend's curve may stray from the rails' corner, in metres (#203). */
-const ROUND = 2;
-/** A bend gentler than this is left as it is: 8°. */
-const GENTLE = Math.PI / 22.5;
-/** How much a bend's curve turns from one point to the next, at most: 8°. */
-const ARC = Math.PI / 22.5;
-/** How far apart a curve's points are, at least, in metres. */
-const ARC_STEP = 3;
-/**
- * How far off a way's line a point may be and go, in metres: under a pixel at zoom 18, its GeoJSON
- * sources' last, where a pixel is 0.45 m in Catalonia. MapLibre leaves out 0.375 px itself (TOLERANCE).
- */
-const FINE = 0.3;
-/** A corner sharper than this is a turn back, not a bend, and stays as it is. */
-const SHARP = (2 * Math.PI) / 3;
-
-/**
- * A line with each bend but those at `fixed` points rounded into a circular arc that strays from
- * its corner by up to ROUND, and takes up no more than half of either side, so that the arcs of two
- * bends in a row meet at most. Each point of an arc takes the level of the side it's on.
- * OpenStreetMap maps a curve as a few corners where it has few points, which zoomed in show as kinks.
- */
-function rounded(points: Point[], levels: string[], fixed: Set<string>): [Point[], string[]] {
-  const [out, at]: [Point[], string[]] = [points.slice(0, 1), levels.slice(0, 1)];
-  for (let i = 1; i < points.length - 1; i++) {
-    const [a, b, c] = [points[i - 1], points[i], points[i + 1]] as [Point, Point, Point];
-    // Worked from the same end whichever way a shape runs, so both get the same points.
-    const backwards = a[0] > c[0] || (a[0] === c[0] && a[1] > c[1]);
-    const arc = fixed.has(key(b)) ? [] : backwards ? fillet(c, b, a).reverse() : fillet(a, b, c);
-    if (!arc.length) {
-      out.push(b);
-      at.push(levels[i] ?? '');
-    }
-    for (const [k, p] of arc.entries()) {
-      out.push(p);
-      at.push(k < arc.length / 2 ? (levels[i] ?? '') : (levels[i + 1] ?? ''));
-    }
-  }
-  if (points.length > 1) {
-    out.push(points.at(-1) as Point);
-    at.push(levels.at(-1) ?? '');
-  }
-  return [out, at];
-}
-
-/** The arc that rounds the corner at b from a to c, from a's side to c's, or none if it stays a corner. */
-function fillet(a: Point, b: Point, c: Point): Point[] {
-  const kx = Math.cos((b[1] * Math.PI) / 180);
-  // In metres from the corner.
-  const [u, v] = [a, c].map((p): Point => [(p[0] - b[0]) * kx * DEGREE, (p[1] - b[1]) * DEGREE]) as [Point, Point];
-  const [lu, lv] = [Math.hypot(...u), Math.hypot(...v)];
-  const turn = Math.PI - Math.acos(Math.max(-1, Math.min(1, (u[0] * v[0] + u[1] * v[1]) / (lu * lv))));
-  const half = turn / 2;
-  // How far from the corner the arc starts on either side: as far as ROUND allows, or half the shorter side.
-  const t = Math.min((ROUND / (1 / Math.cos(half) - 1)) * Math.tan(half), lu / 2, lv / 2);
-  if (!(turn >= GENTLE && turn < SHARP && t > 0.5)) return [];
-  const r = t / Math.tan(half);
-  const steps = Math.max(1, Math.min(Math.ceil(turn / ARC), Math.floor((r * turn) / ARC_STEP)));
-  // The arc's centre, on the corner's bisector, and the way the arc turns.
-  const [ux, uy, vx, vy] = [u[0] / lu, u[1] / lu, v[0] / lv, v[1] / lv];
-  const [bx, by] = [ux + vx, uy + vy];
-  const lb = Math.hypot(bx, by);
-  const far = r / Math.cos(half);
-  const centre: Point = [(bx / lb) * far, (by / lb) * far];
-  const way = Math.sign(ux * vy - uy * vx) || 1;
-  const start: Point = [ux * t - centre[0], uy * t - centre[1]];
-  return Array.from({ length: steps + 1 }, (_, k) => {
-    const angle = -way * turn * (k / steps);
-    const [cos, sin] = [Math.cos(angle), Math.sin(angle)];
-    const p: Point = [centre[0] + start[0] * cos - start[1] * sin, centre[1] + start[0] * sin + start[1] * cos];
-    return [b[0] + p[0] / (kx * DEGREE), b[1] + p[1] / DEGREE];
-  });
 }
 
 /** A way's level: `tunnel`, `bridge` or, off the ground, `layer`, and its layer, which OpenStreetMap takes as -1 in a tunnel and 1 on a bridge where it's untagged; or '' on the ground. */
@@ -825,7 +735,7 @@ function metres(a: Point, b: Point): number {
   return 2 * EARTH * Math.asin(Math.sqrt(h));
 }
 
-/** Five decimals is about a metre; a shape's points take six, as its curves need them (#203). */
+/** Five decimals is about a metre; a shape's points take six, so that the map's curves don't zig-zag zoomed in (#203). */
 function round(degrees: number, places = 1e5): number {
   return Math.round(degrees * places) / places;
 }

@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import type { Shape, Station } from '../bundle.ts';
 import type { OsmWay } from './osm.ts';
-import { curve, eachWay, fine, junctions, onOwnTrack, traceShapes } from './track.ts';
+import { eachWay, fine, onOwnTrack, traceShapes } from './track.ts';
 
 // A small railway, drawn in metres east (x) and north (y) of a point near Manresa.
 const M = (6_371_008.8 * Math.PI) / 180; // metres in a degree of latitude
@@ -484,41 +484,6 @@ test("moves a Station published at another Network's point onto its own track, a
   expect(moved).toMatchObject({ id: 'adif:1', place: 'adif:1' });
   expect(theirs?.[0]).toEqual({ ...fgc, place: 'adif:1' });
   expect([ours?.[1], theirs?.[1]]).toEqual([lleida, fgcLleida]);
-});
-
-test('rounds a bend into an arc that strays at most 2 m and meets the rails on either side, the same either way, and leaves a turn back and a junction', () => {
-  // A right angle at Glòries, about 1 km each way.
-  const kx = Math.cos((41.4 * Math.PI) / 180);
-  const [a, b, c]: [[number, number], [number, number], [number, number]] = [[2.175, 41.4], [2.187, 41.4], [2.187, 41.409]];
-  const bend = (coords: [number, number][], levels?: Shape['levels']) => curve({ id: 'x', coords, dist: [0, 1000, 2000], ...(levels && { levels }) }, new Set());
-  const { coords: points, levels } = bend([a, b, c], [[0, 'tunnel -1'], [1000, '']]);
-  expect(points.length).toBe(5);
-  expect(points[0]).toEqual(a);
-  expect(points.at(-1)).toEqual(c);
-  // Every point within ~2 m of the corner's rails, the arc's middle 2 m from the corner, each side's level kept.
-  const metres = ([x, y]: [number, number]) => [(x - b[0]) * kx * 111_195, (y - b[1]) * 111_195] as const;
-  const off = points.map((p) => metres(p)).map(([x, y]) => Math.min(Math.abs(x), Math.abs(y)));
-  expect(Math.max(...off)).toBeLessThan(2.1);
-  const middle = points[Math.floor(points.length / 2)] as [number, number];
-  expect(Math.hypot(...metres(middle))).toBeCloseTo(2, 0);
-  // It bends one way: x never goes past the corner, y never below it.
-  for (const p of points) {
-    const [x, y] = metres(p);
-    expect(x).toBeLessThan(0.01);
-    expect(y).toBeGreaterThan(-0.01);
-  }
-  // The tunnel up to the corner, the ground from it on: the first leg is 1,001 m long.
-  expect(levels?.map(([, level]) => level)).toEqual(['tunnel -1', '']);
-  expect(Math.abs((levels?.[1]?.[0] ?? 0) - 1001)).toBeLessThan(3);
-
-  expect(bend([c, b, a]).coords).toEqual(points.toReversed());
-  const back: [number, number][] = [a, b, [2.181, 41.40001]];
-  expect(bend(back).coords).toEqual(back);
-  // Where a way branches off at the corner, it stays.
-  const way = (id: number, nodes: number[], at: [number, number][]): OsmWay => ({ id, nodes, geometry: at.map(([lon, lat]) => ({ lon, lat })), tags: {} });
-  const fixed = junctions([way(1, [1, 2, 3], [a, b, c]), way(2, [2, 4], [b, [2.19, 41.4]])]);
-  expect(curve({ id: 'x', coords: [a, b, c], dist: [0, 1000, 2000] }, fixed).coords).toEqual([a, b, c]);
-  expect(junctions([way(1, [1, 2, 3], [a, b, c])]).has(`${b[0]} ${b[1]}`)).toBe(false);
 });
 
 test('drops the points a way carries on straight through, and keeps its ends, its bends and where another way meets it', () => {

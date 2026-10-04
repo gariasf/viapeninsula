@@ -6,6 +6,7 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { along, APART, atZoom, BANDS, bandZooms, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Place, type DayTrips, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, WIDTH } from '../bundle.ts';
 import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Received } from '../engine.ts';
 import { language, LANGUAGES, setLanguage, t, trainCount, type Language } from './i18n.ts';
+import { rounded } from './curve.ts';
 import { linesAt } from './tap.ts';
 import { alongside, namedTwice, nameOffset, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
 import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
@@ -431,7 +432,8 @@ let names: { dot: Point; sides: (bearing: number) => Side[]; name: string; size:
 /** The map's bearing when the names were last put beside their tracks. */
 let namesBearing = NaN;
 map.addSource('lines', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-map.addSource('rails', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+// Simplified less than MapLibre's default 0.375 px, which would facet their curves again (#203).
+map.addSource('rails', { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, tolerance: 0.1 });
 map.addSource('tracks', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 map.addSource('stations', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 map.addSource('station-names', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
@@ -771,7 +773,8 @@ function show(days: Track | Bundle) {
   placing = { shapes, slots, curves: zones(days.strokes), keep: new Map(days.lines.map((l) => [l.id, keep.get(l.network) ?? 1])) };
   pills = new Map(days.lines.map((l) => [l.id, pillOf(l)]));
   shownStrokes = days.strokes;
-  const drawn = (strokes: Stroke[]): GeoJSON.FeatureCollection => ({
+  // Zoomed in, on its own rails, a Line's bends are rounded (#203).
+  const drawn = (strokes: Stroke[], round = false): GeoJSON.FeatureCollection => ({
     type: 'FeatureCollection',
     // A stroke cut back for curves, or along a centreline smoothed for a zoom band, once for each band
     // it's drawn in, as it is there; a curve in its pieces.
@@ -805,11 +808,12 @@ function show(days: Track | Bundle) {
         // Each Line's name goes on its own stroke: text-offset is in ems.
         ...Object.fromEntries(APART.map(([zoom, px]) => [`textOffset${zoom}`, [0, (side * px) / NAME_SIZE]])),
       };
-      return [{ type: 'Feature', properties, geometry: { type: 'LineString', coordinates: along(shape, from, to) } }];
+      const coordinates = along(shape, from, to);
+      return [{ type: 'Feature', properties, geometry: { type: 'LineString', coordinates: round ? rounded(coordinates) : coordinates } }];
     }),
   });
   map.getSource<GeoJSONSource>('lines')?.setData(drawn(days.strokes));
-  map.getSource<GeoJSONSource>('rails')?.setData(drawn(days.rails));
+  map.getSource<GeoJSONSource>('rails')?.setData(drawn(days.rails, true));
   // A track built before #190 has none.
   const colours = new Map(days.networks.map((n) => [n.id, n.colour]));
   map.getSource<GeoJSONSource>('tracks')?.setData({

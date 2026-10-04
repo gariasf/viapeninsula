@@ -31,7 +31,7 @@ import { crop } from './border.ts';
 import { measures, summary } from './measures.ts';
 import { catalonia, osmRails, type OsmWay } from './osm.ts';
 import { sideBySide } from './sideBySide.ts';
-import { curve, fine, junctions, onOwnTrack, traceShapes } from './track.ts';
+import { fine, onOwnTrack, traceShapes } from './track.ts';
 import { placeTrips } from './trips.ts';
 
 const BUCKET = 'viapeninsula-live';
@@ -110,9 +110,7 @@ async function build(feeds: [[Feed, Source], ...[Feed, Source][]], onRails: (way
   const days = await Promise.all(DAYS.map((day) => Promise.all(feeds.map(([feed, gtfs]) => readFeed(gtfs, day, feed)))));
   const parts = days[0] ?? [];
   const [lines, stations] = [parts.flatMap((p) => p.lines), parts.flatMap((p) => p.stations)];
-  const own = fine(rails.filter(onRails));
-  const fixed = junctions(own);
-  const shapes = traceShapes(parts.flatMap((p) => p.shapes), stations, own, network.runningSide).map((s) => curve(s, fixed));
+  const shapes = traceShapes(parts.flatMap((p) => p.shapes), stations, fine(rails.filter(onRails)), network.runningSide);
   const cropped = crop(border, stations, shapes, days.map((day) => day.flatMap((p) => p.trips)));
   const trips = cropped.days.map((trips, i) => {
     // No Trips at all today means a broken download or a changed feed, not a day without Trains. On a
