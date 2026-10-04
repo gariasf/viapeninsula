@@ -235,7 +235,7 @@ test("counts a Line's stroke shorter than the room the nodes at its ends need, w
 
 test('measures metres of curve drawn further off its own track than at its ends, only for the Lines given', () => {
   // R2's track runs east, and its curve swings so many metres north of it halfway.
-  const inside = (north: number, lines: Line[] = [{ id: 'R2', network: 'r', name: 'R2', colour: '#000', shapes: ['own'] }]) => {
+  const inside = (north: number, lines: Line[] = [{ id: 'R2', network: 'r', name: 'R2', colour: '#000', shapes: ['own'], kind: 'commuter' }]) => {
     const swing = shape(`${LINK}0`, Array.from({ length: 21 }, (_, i) => [1000 + i * 10, north * Math.sin((Math.PI * i) / 20)]));
     return measures({
       shapes: [east('own', 4000), east('a', 4000), swing],

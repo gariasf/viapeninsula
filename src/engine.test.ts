@@ -5,6 +5,7 @@ import { beside, DEGREE, pointAt, type Bundle, type Network, type Point, type Re
 import { noonMinus12h } from './build/gtfs.ts';
 import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Received } from './engine.ts';
 import { jumps } from './jumps.ts';
+import { NETWORKS } from './networks.ts';
 
 /** A speed profile like Rodalies', in metres and seconds, which the times below are worked out from. */
 const PROFILE = { acceleration: 1, braking: 1, topSpeed: 160 / 3.6, dwell: 30 };
@@ -105,14 +106,17 @@ const TRIPS: Record<string, { line: string; calls: Row[] }> = {
 
 const seconds = (time: string) => time.split(':').reduce((sum, part) => sum * 60 + Number(part), 0);
 
-/** A service day's bundle of these Trips, on one Network, each on a track of its own, headed for its last Station unless it says. */
-function bundleOf(serviceDay: string, network: Omit<Network, 'runningSide' | 'colour'>, trips: Record<string, { line: string; headsign?: string; calls: Row[] }>): Bundle {
+/** How a Network's live data reads, as src/networks.ts has it for its ID: the bundles these tests make, and those recorded before #241, don't say. */
+const liveOf = (network: string) => NETWORKS.find((n) => n.id === network)?.live;
+
+/** A service day's bundle of these Trips, on one Network, its live data read as liveOf() has it, each on a track of its own, headed for its last Station unless it says. */
+function bundleOf(serviceDay: string, network: Omit<Network, 'runningSide' | 'colour' | 'pillZoom' | 'credit'>, trips: Record<string, { line: string; headsign?: string; calls: Row[] }>): Bundle {
   return {
     serviceDay,
     // Midnight in Barcelona, which is noon less 12 hours on any day the clocks don't change.
     noonMinus12h: Date.parse(`${serviceDay}T00:00:00+02:00`),
-    networks: [{ ...network, runningSide: 'right', colour: '#000' }],
-    lines: [...new Set(Object.values(trips).map((t) => t.line))].map((name) => ({ id: name, network: network.id, name, colour: '#000', shapes: [] })),
+    networks: [{ live: liveOf(network.id), ...network, runningSide: 'right', colour: '#000', pillZoom: 10, credit: { text: '', url: '' } }],
+    lines: [...new Set(Object.values(trips).map((t) => t.line))].map((name) => ({ id: name, network: network.id, name, colour: '#000', shapes: [], kind: 'commuter' })),
     stations: [],
     shapes: Object.entries(trips).map(([id, { calls }]) => {
       const points = [...new Map(calls.map((c) => [c[3], c])).values()].sort((a, b) => a[3] - b[3]);
@@ -1725,6 +1729,7 @@ test("a Metro Train gives no Delay, however far its Block runs from its Trip's t
 // 45 minutes of production snapshots of all four Networks as the map received them, every 20 s from
 // 15:57 to 16:42 on Friday 25 September 2026, and that day's bundle cut to the Trips they could name.
 const RECORDED: { bundle: Bundle; received: Received[] } = JSON.parse(gunzipSync(readFileSync(new URL('fixtures/replay-2026-09-25.json.gz', import.meta.url))).toString());
+for (const network of RECORDED.bundle.networks) network.live = liveOf(network.id);
 
 test('folding each snapshot into the last replay draws the Trains as replaying every snapshot kept does, as those over KEEP old go', () => {
   const { bundle, received } = RECORDED;
@@ -1777,6 +1782,7 @@ test("counts each Network's jumps over 45 minutes of live data as the map receiv
 // could name. Renfe served its Cercanías feeds with no Trains in them all that time (#124), so the
 // replay has no Rodalies Train Live, and TRAM's feed stopped answering at 08:38.
 const MORNING: { bundle: Bundle; received: Received[] } = JSON.parse(gunzipSync(readFileSync(new URL('fixtures/replay-2026-09-28.json.gz', import.meta.url))).toString());
+for (const network of MORNING.bundle.networks) network.live = liveOf(network.id);
 
 test("counts each Network's jumps over 45 minutes of a weekday morning's live data as the map received it", () => {
   // Per Train-minute: FGC 0.040, TRAM none, the Metro 0.0015, against 0.053 before #45. The Metro's
@@ -1817,7 +1823,7 @@ const R1_EARLY: Row[] = [
   ['Badalona', '00:05:00', '00:05:00', 18429, 2.24892096, 41.4458838],
   ['El Masnou', '00:30:00', '00:30:00', 24701, 2.3103772, 41.4770363],
 ];
-const RODALIES: Network = { id: 'rodalies', name: 'Rodalies de Catalunya', profile: PROFILE, runningSide: 'right', colour: '#000' };
+const RODALIES: Network = { id: 'rodalies', name: 'Rodalies de Catalunya', profile: PROFILE, runningSide: 'right', colour: '#000', pillZoom: 10, credit: { text: '', url: '' } };
 const [FRIDAY, SATURDAY] = [
   bundleOf('2026-09-25', RODALIES, { night: { line: 'R1', calls: R1_NIGHT } }),
   bundleOf('2026-09-26', RODALIES, { night: { line: 'R1', calls: R1_NIGHT }, early: { line: 'R1', calls: R1_EARLY } }),

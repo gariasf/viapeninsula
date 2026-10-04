@@ -93,8 +93,8 @@ async function build(config: NetworkConfig, feeds: (Feed & { gtfs: Source })[]) 
   // A feed starts the day its operator publishes it, which can't be after today.
   const dated = feeds.find((f) => f.updated);
   const published = dated && (await feedStart(dated.gtfs));
-  const { id, name, profile, runningSide, colour } = config;
-  const network: Network = { id, name, profile, runningSide, colour, ...(published && { updated: published < today ? published : today }) };
+  const { id, name, profile, runningSide, colour, pillZoom, credit, live } = config;
+  const network: Network = { id, name, profile, runningSide, colour, pillZoom, credit: { ...credit, ...(published && { updated: published < today ? published : today }) }, live };
   const days = await Promise.all(DAYS.map((day) => Promise.all(feeds.map((feed) => readFeed(feed.gtfs, day, feed)))));
   const parts = days[0] ?? [];
   const [lines, stations] = [parts.flatMap((p) => p.lines), parts.flatMap((p) => p.stations)];

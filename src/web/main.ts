@@ -3,7 +3,7 @@ import './style.css';
 import type { ExpressionFilterSpecification, ExpressionSpecification, LineLayerSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { AttributionControl, MapLibreMap, Popup, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { along, APART, atZoom, BANDS, bandZooms, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Place, type DayTrips, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, WIDTH } from '../bundle.ts';
+import { along, APART, atZoom, BANDS, bandZooms, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Credit, type Place, type DayTrips, type Kind, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, WIDTH } from '../bundle.ts';
 import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Received } from '../engine.ts';
 import { language, LANGUAGES, setLanguage, t, trainCount, type Language } from './i18n.ts';
 import { rounded } from './curve.ts';
@@ -50,6 +50,12 @@ const OUTLINES: Record<Pill['outline'] | 'arrow', { w: number; h: number; across
   // Its tip 4.5 px ahead of its middle, and its base 2.25 px behind and 6 px across.
   arrow: { w: 12, h: 12, outside: (x, y) => Math.max(y - 2.25, (6.75 * Math.abs(x) - 3 * (y + 4.5)) / Math.hypot(3, 6.75)) },
 };
+/**
+ * Each kind of service's pills: rounded for commuter and suburban Lines, pointed at both ends for
+ * regional ones, and badges for metros and trams, as their operators badge their Lines, and for rack
+ * railways and funiculars (#90).
+ */
+const OUTLINES_OF: Record<Kind, Pill['outline']> = { commuter: 'round', regional: 'pointed', metro: 'badge', tram: 'badge', rack: 'badge', funicular: 'badge' };
 /** What measures names for textWidth(). */
 const measuring = document.createElement('canvas').getContext('2d');
 /** How many times the map looks for live data, never getting any, before it says live data is unavailable. */
@@ -260,20 +266,9 @@ const byLive = (live: string | number | ExpressionSpecification, scheduled: stri
  */
 const TRANSLATED: ExpressionSpecification = ['any', ['in', ['get', 'class'], ['literal', ['country', 'state', 'ocean', 'sea', 'river']]], ['has', 'iata']];
 
-/** CC BY 4.0, with the link to its text that it asks for. */
-const CC_BY = '<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank">CC BY 4.0</a>';
-
-/**
- * Each Network's credit, as the terms for its data ask: Renfe's and FGC's are CC BY 4.0, TRAM's asks
- * for its own words and a link, and TMB's for the day its data was last updated.
- */
-const CREDITS: Record<string, (network: Network) => string> = {
-  rodalies: () => `Rodalies: <a href="https://data.renfe.com/" target="_blank">Renfe</a>, ${CC_BY}`,
-  fgc: () => `<a href="https://dadesobertes.fgc.cat/" target="_blank">FGC</a>, ${CC_BY}`,
-  tram: () => '<a href="https://www.tram.cat/" target="_blank">Powered by TRAM Barcelona</a>',
-  metro: ({ updated }) =>
-    `Metro: <a href="https://www.tmb.cat/" target="_blank">TMB</a>` +
-    (updated ? `, ${t('updated')} ${new Intl.DateTimeFormat(language(), { dateStyle: 'medium', timeZone: 'UTC' }).format(Date.parse(updated))}` : ''),
+/** Each licence a source's data can be under, with the link to its text that it asks for. */
+const LICENCES: Record<NonNullable<Credit['licence']>, string> = {
+  'CC BY 4.0': '<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank">CC BY 4.0</a>',
 };
 
 const map = new MapLibreMap({
@@ -773,7 +768,9 @@ function show(days: Track | Bundle) {
   for (const s of days.slots ?? []) slots.set(`${s.line} ${s.shape}`, [...(slots.get(`${s.line} ${s.shape}`) ?? []), s]);
   const keep = new Map(days.networks.map((n) => [n.id, n.runningSide === 'left' ? -1 : 1]));
   placing = { shapes, slots, curves: zones(days.strokes), keep: new Map(days.lines.map((l) => [l.id, keep.get(l.network) ?? 1])) };
-  pills = new Map(days.lines.map((l) => [l.id, pillOf(l)]));
+  // A track built before #241 names no kinds of service and no pill zooms: its Trains are round pills from zoom 10.
+  const pillZoom = new Map(days.networks.map((n) => [n.id, n.pillZoom]));
+  pills = new Map(days.lines.map((l) => [l.id, pillOf(l, pillZoom.get(l.network) ?? 10)]));
   shownStrokes = days.strokes;
   // Zoomed in, on its own rails, a Line's bends are rounded (#203).
   const drawn = (strokes: Stroke[], round = false): GeoJSON.FeatureCollection => ({
@@ -1011,20 +1008,11 @@ interface Pill {
   followedBox: [number, number];
 }
 
-/**
- * How a Line's Trains are drawn as pills. The Metro's and TRAM's are badges, as their operators badge
- * their Lines, and pills from zoom 12, where their Trains are far enough apart to read. Rodalies' and
- * FGC's are pills from zoom 10, as main-line Trains show before metros: rounded for commuter and
- * suburban Lines, pointed at both ends for regional ones, and badges for the rack and the funicular.
- * ponytail: told apart by Network and name, as the bundle names no kind of service. Have the daily
- * build publish one if a Line comes that these don't place.
- */
-function pillOf({ network, name, colour }: Line): Pill {
-  const city = network === 'metro' || network === 'tram';
-  const regional = network === 'rodalies' ? /^R1\d$/.test(name) : network === 'fgc' && /^(R[56]0?|RL[12])$/.test(name);
-  const outline = city || name === 'MM' || name === 'FV' ? 'badge' : regional ? 'pointed' : 'round';
+/** How a Line's Trains are drawn as pills from a zoom, its Network's, outlined by its kind of service. */
+function pillOf({ name, colour, kind }: Line, zoom: number): Pill {
+  const outline = OUTLINES_OF[kind] ?? 'round';
   const width = textWidth(name, `bold ${PILL_TEXT}px sans-serif`);
-  return { name, outline, dark: darkInk(colour), zoom: city ? 12 : 10, box: boxOf(outline, width, PILL_TEXT), followedBox: boxOf(outline, width, FOLLOWED_TEXT) };
+  return { name, outline, dark: darkInk(colour), zoom, box: boxOf(outline, width, PILL_TEXT), followedBox: boxOf(outline, width, FOLLOWED_TEXT) };
 }
 
 /** How far a pill reaches either side of its Train and above and below it, in px, with its outline, around a name `width` px wide at PILL_TEXT, lettered at `size` px. */
@@ -1480,15 +1468,25 @@ function showCredits() {
     '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> ' +
       '<a href="https://www.openmaptiles.org/" target="_blank">© OpenMapTiles</a> ' +
       `<a href="https://www.openstreetmap.org/copyright" target="_blank">${t('osmContributors')}</a>`,
-    // A Network with no credit of its own here still gets its name.
-    ...credited.map((network) => CREDITS[network.id]?.(network) ?? network.name),
+    // Each source's once, however many Networks it feeds and credit it alike (ADR-0010). A track built
+    // before #241 has no credits: its Networks get their names.
+    ...new Set(credited.map((network) => (network.credit ? creditOf(network.credit) : network.name))),
   ];
   if (credits) map.removeControl(credits);
   credits = new AttributionControl({ customAttribution: html });
   map.addControl(credits);
   // MapLibre sanitizes its copy; this one goes in as it is, which is safe while it's all ours: these
-  // constants, t() and the Network names the daily build publishes.
+  // constants, t(), and the credits and Network names the daily build publishes.
   aboutCredits.replaceChildren(...html.map((credit) => el('li', { innerHTML: credit })));
+}
+
+/** A source's credit, as its terms ask. */
+function creditOf({ text, url, licence, updated }: Credit): string {
+  return (
+    `<a href="${url}" target="_blank">${text}</a>` +
+    (licence ? `, ${LICENCES[licence]}` : '') +
+    (updated ? `, ${t('updated')} ${new Intl.DateTimeFormat(language(), { dateStyle: 'medium', timeZone: 'UTC' }).format(Date.parse(updated))}` : '')
+  );
 }
 
 /**

@@ -201,11 +201,12 @@ export function nearbyAt(bundle: Bundle, at: number, received: Received[], point
 }
 
 /**
- * A Train's Delay, in seconds, as the follow panel, boards and Nearby give it: none for the Metro's.
- * TMB runs the Metro by headway, and its timetable names no Blocks, so a Metro Train's Delay is only
- * against whichever Trip its Block runs, which can be minutes off its own time (#103).
+ * A Train's Delay, in seconds, as the follow panel, boards and Nearby give it: none where its
+ * Network's live data has none shown, as the Metro's: TMB runs the Metro by headway, and its
+ * timetable names no Blocks, so a Metro Train's Delay is only against whichever Trip its Block runs,
+ * which can be minutes off its own time (#103).
  */
-const shown = (network: Network, delay: number) => (network.id === 'metro' ? undefined : delay);
+const shown = (network: Network, delay: number) => (network.live?.delay === 'none' ? undefined : delay);
 
 /** Whether a Train drawn at a time in its timetable has a call still to leave: the one it stands at too, as it leaves, or while it's held there (#107). */
 const toLeave = (call: Call, time: number) => call.departure >= time;
@@ -441,25 +442,25 @@ const FOLLOWS = 2 * 60_000;
 
 /**
  * What live data says about a Train each time a snapshot reports it, given what it said before,
- * when the fetcher got the report, by its clock in ms since 1970, the snapshot, whether it's one of
- * Renfe's, and how to work out a report's own Delay, as delayOf() does. A Train Renfe pins to a
- * Station or gives no position for carries on from the last Delay its GPS gave it that counts,
- * until that's CARRY old: Renfe's own figure moves in whole minutes and is often minutes off, so
- * going by it made Trains jump each time Renfe switched between the two (#33). Renfe's GPS
- * unchanged since the Train's report before is as old as that report, and counts as no position.
- * And GPS counts only where it follows on from the Train's GPS report before, within CONFIRM of
- * the Delay that one gave it: now and then Renfe's GPS has a Train, for a report or two, at a
- * Station it's nowhere near, such as Barcelona-Sants, often just after Renfe has pinned it to
- * Stations a while.
+ * when the fetcher got the report, by its clock in ms since 1970, the snapshot, whether its
+ * Network's live data carries the GPS Delay, as Renfe's does, and how to work out a report's own
+ * Delay, as delayOf() does. A Train Renfe pins to a Station or gives no position for carries on
+ * from the last Delay its GPS gave it that counts, until that's CARRY old: Renfe's own figure moves
+ * in whole minutes and is often minutes off, so going by it made Trains jump each time Renfe
+ * switched between the two (#33). Renfe's GPS unchanged since the Train's report before is as old
+ * as that report, and counts as no position. And GPS counts only where it follows on from the
+ * Train's GPS report before, within CONFIRM of the Delay that one gave it: now and then Renfe's GPS
+ * has a Train, for a report or two, at a Station it's nowhere near, such as Barcelona-Sants, often
+ * just after Renfe has pinned it to Stations a while.
  */
-function hear(before: Heard | undefined, report: Report, got: number, from: Received, renfe: boolean, ownDelay: (report: Report) => OwnDelay): Heard {
+function hear(before: Heard | undefined, report: Report, got: number, from: Received, carriesGpsDelay: boolean, ownDelay: (report: Report) => OwnDelay): Heard {
   const follows = <T extends { got: number }>(earlier: T | undefined): earlier is T => earlier !== undefined && got - earlier.got < FOLLOWS;
   // The same report again, as in a snapshot the map records twice or a feed's last good response the fetcher keeps, is unchanged too.
-  const frozen = renfe && follows(before) && sameSpot(before.report.position, report.position);
+  const frozen = carriesGpsDelay && follows(before) && sameSpot(before.report.position, report.position);
   const taken = frozen ? { ...report, position: undefined } : report;
   const { position } = taken;
   const heard = { report, got, placed: position ? got : before?.placed, confirmed: position ? report.at : before?.confirmed, from };
-  if (!renfe) return { ...heard, delay: ownDelay(taken).delay };
+  if (!carriesGpsDelay) return { ...heard, delay: ownDelay(taken).delay };
   const figure = ownDelay({ ...taken, position: undefined }).delay;
   const { gps, counted } = before ?? {};
   // GPS gives a Delay only where it puts the Train running between Stations, not standing at its first before it leaves.
@@ -570,7 +571,7 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
       if (report) {
         // A report the fetcher kept from a feed's last good response is as old as that response.
         const got = feed?.lastSuccess ?? NaN;
-        heard.set(id, hear(heard.get(id), report, got, r, network.id === 'rodalies', (given) => delayOf(trip, calls, shape, network, given, bundle.noonMinus12h)));
+        heard.set(id, hear(heard.get(id), report, got, r, network.live?.delay === 'gps', (given) => delayOf(trip, calls, shape, network, given, bundle.noonMinus12h)));
       }
       // A Train live data stops reporting keeps its last Delay until that's CARRY old.
       const said = recent(heard.get(id), upTo);
@@ -865,14 +866,14 @@ interface OwnDelay {
 
 /**
  * A report's Delay for its Train, in seconds: while it runs between Stations, from where its GPS
- * puts it on its Trip's track, or how far along it TRAM has it, and otherwise, standing at or pinned
- * to a Station or with no position, its operator's figure, or how late it is where its operator
- * expects it at a Station, as TMB does at the one each of the Metro's comes to next, though never
- * so late that it's drawn short of the Station before that. One standing at a Station, but for
- * Renfe's, is drawn there when it was reported, but at its Trip's first Station only held from
- * leaving.
+ * puts it on its Trip's track, or how far along it TRAM has it, and otherwise, standing at or
+ * pinned to a Station or with no position, its operator's figure, or how late it is where its
+ * operator expects it at a Station, as TMB does at the one each of the Metro's comes to next,
+ * though never so late that it's drawn short of the Station before that. One standing at a Station,
+ * but where its Network's live data pins Trains coming in too, as Renfe's does, is drawn there when
+ * it was reported, but at its Trip's first Station only held from leaving.
  */
-function delayOf(trip: Trip, calls: Call[], shape: Shape, { id, profile }: Network, report: Report, noonMinus12h: number): OwnDelay {
+function delayOf(trip: Trip, calls: Call[], shape: Shape, { profile, live }: Network, report: Report, noonMinus12h: number): OwnDelay {
   const known = delays.get(report);
   if (known?.trip === trip) return known;
   const [reported, { position }] = [(report.at - noonMinus12h) / 1000, report];
@@ -885,7 +886,7 @@ function delayOf(trip: Trip, calls: Call[], shape: Shape, { id, profile }: Netwo
     const before = calls[i - 1];
     if (before && i > 1) delay = Math.min(delay, reported - before.arrival);
   }
-  if (position && 'near' in position && id !== 'rodalies') {
+  if (position && 'near' in position && live?.near !== 'pinned') {
     // Standing at a Station, as Geotren has FGC's, it's there when it was reported, however long ago
     // the trip updates have it leave. Not Renfe's: it pins Trains coming into a Station too, and late.
     // At its Trip's first Station it can stand long before it leaves, off the map, so there it's

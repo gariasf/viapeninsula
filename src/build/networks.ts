@@ -47,7 +47,7 @@ export async function readFeed(
   const routes = new Map<string, { name: string; colour: string }>();
   for await (const r of rows(gtfs, 'routes.txt', ['route_id', 'route_short_name', 'route_type', 'route_color'])) {
     if (RAIL.has(r.route_type) && r.route_id.startsWith(feed.routes?.idPrefix ?? '')) {
-      routes.set(r.route_id, { name: network.lines?.names?.[r.route_short_name] ?? r.route_short_name, colour: r.route_color });
+      routes.set(r.route_id, { name: network.lines.names?.[r.route_short_name] ?? r.route_short_name, colour: r.route_color });
     }
   }
 
@@ -142,8 +142,9 @@ export async function readFeed(
       id: `${network.id}:${name}`,
       network: network.id,
       name,
-      colour: network.lines?.colours?.[name] ?? `#${line.colour}`,
+      colour: network.lines.colours?.[name] ?? `#${line.colour}`,
       shapes: [...line.shapes].flatMap((id) => [`${prefix}:${id}`, `${prefix}:${id}:back`].filter((way) => ids.has(way))),
+      kind: network.lines.kinds?.[name] ?? network.lines.kind,
     })),
     stations: [...stations.values()],
     shapes,
