@@ -1,6 +1,6 @@
 # Live data at the scale of Spain
 
-Research for #221, part of #214 (beyond Catalonia). It feeds the grill in #222. It builds on #215's list of feeds ([spain-feeds.md](spain-feeds.md), on branch `215-spain-feeds`, PR #224) and on ADR-0003.
+Research for #221, part of #214 (beyond Catalonia). It feeds the grill in #222. It builds on #215's list of feeds ([spain-feeds.md](spain-feeds.md)) and on ADR-0003.
 
 - **Date:** Sunday 4 October 2026, 10:45–10:55 CEST.
 - **Weekend caveat:** every live count below was taken on a Sunday morning. Weekday counts are Sunday's scaled by #215's ratios of Trips per day (Monday 5 Oct over Sunday 4 Oct). They are estimates, and a weekday peak will be higher still.
