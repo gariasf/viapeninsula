@@ -1,7 +1,7 @@
 // Each Network, as plain data: how its Trains run and are drawn, which of OpenStreetMap's rails they
 // run on, where its operator's timetables are and how to read them, who to credit, and how its live
 // data reads. The daily build reads its Networks from here alone, and the map what it needs of them
-// from the bundle (docs/research/network-config.md).
+// from the bundle (docs/research/network-config.md). The fetcher reads its live sources from here too.
 
 import type { Credit, Kind, Network } from './bundle.ts';
 
@@ -58,6 +58,9 @@ export interface Timetable {
 
 /** OpenStreetMap's names for FGC, as the operator of its rails. */
 const FGC_OPERATOR = ['FGC', 'Ferrocarrils de la Generalitat de Catalunya'];
+
+/** TMB's app ID and key, which its APIs take in the query, by the secrets holding them. */
+const TMB_APP = { app_id: 'TMB_APP_ID', app_key: 'TMB_APP_KEY' };
 
 export const RODALIES: NetworkConfig = {
   id: 'rodalies',
@@ -187,7 +190,7 @@ export const METRO: NetworkConfig = {
       // each Line calling there: the stations TMB groups them in can hold Lines 270 m apart, as at
       // Passeig de Gràcia, too far from some of their rails for one place to stand for them all (ADR-0005).
       url: 'https://api.tmb.cat/v1/static/datasets/gtfs.zip',
-      query: { app_id: 'TMB_APP_ID', app_key: 'TMB_APP_KEY' },
+      query: TMB_APP,
       prefix: 'metro',
       operator: 'tmb',
       // TMB's terms ask for it.
@@ -204,3 +207,85 @@ export const METRO: NetworkConfig = {
 
 /** Every Network, in the order the bundle lists them. */
 export const NETWORKS = [RODALIES, FGC, TRAM, METRO];
+
+/**
+ * A source of live data, read in the fetcher by the adapter for its format: its files, by what that
+ * adapter calls them, the Worker secrets it needs, how often it's fetched, and which Network each of
+ * its Trains is. One source can feed many Networks, as Renfe's Cercanías files have every núcleo's
+ * Trains in them.
+ */
+export type LiveSource = {
+  /** What the fetcher keeps its state under. */
+  id: string;
+  /** The Worker secrets its requests need, by the parameter each goes in: the secret's name. */
+  secrets?: Record<string, string>;
+  /**
+   * How often it's fetched, in ms, as its freshness says: on the fetcher's first run of 20 s after
+   * that long. Its adapter may slow it down, as FGC's does near its quota, or hold it back, as TRAM's
+   * does after a refusal.
+   */
+  every: number;
+  /** Which Network each of its Trains is, by the longest start of the ID it gives the Train named here, as Renfe's trip_ids start with their núcleo: '' for all of them. */
+  networks: Record<string, string>;
+} & (
+  | { format: 'renfe'; urls: { positions: string; updates: string } }
+  | { format: 'fgc'; urls: { positions: string; lookup: string } }
+  | { format: 'tram'; urls: { token: string; positions: string; updates: string } }
+  | { format: 'tmb'; urls: { predictions: string } }
+);
+
+/** FGC's open data. */
+const FGC_API = 'https://dadesobertes.fgc.cat/api/explore/v2.1/catalog/datasets';
+
+/** Every live source, in the order the snapshot lists their reports. */
+export const LIVE_SOURCES: LiveSource[] = [
+  {
+    // Renfe's Cercanías live data, as JSON, which has every núcleo's Trains in it: Rodalies' trip_ids
+    // start with its own, 51.
+    id: 'renfe',
+    format: 'renfe',
+    urls: { positions: 'https://gtfsrt.renfe.com/vehicle_positions.json', updates: 'https://gtfsrt.renfe.com/trip_updates.json' },
+    // Every run.
+    every: 20_000,
+    networks: { '51': RODALIES.id },
+  },
+  {
+    // Geotren, where FGC's Trains are, with only what the fetcher reads, and where to look up its
+    // trip-updates file. Its GTFS-RT vehicle positions, when not empty, are Geotren's of minutes
+    // before, so they're never fetched.
+    id: 'fgc',
+    format: 'fgc',
+    urls: {
+      positions: `${FGC_API}/posicionament-dels-trens/records?limit=100&select=id,lin,geo_point_2d,estacionat_a,tipus_unitat,record_timestamp`,
+      lookup: `${FGC_API}/trip-updates-gtfs_realtime/records?limit=1`,
+    },
+    // Every 2 minutes, about as often as FGC updates its live data.
+    every: 120_000,
+    networks: { '': FGC.id },
+  },
+  {
+    // TRAM's open data, which issues access tokens for an hour to the client its credentials name.
+    id: 'tram',
+    format: 'tram',
+    urls: {
+      token: 'https://opendata.tram.cat/connect/token',
+      positions: 'https://opendata.tram.cat/api/v1/activevehicles',
+      updates: 'https://opendata.tram.cat/api/v1/gtfsrealtime',
+    },
+    secrets: { client_id: 'TRAM_CLIENT_ID', client_secret: 'TRAM_CLIENT_SECRET' },
+    // Every run, but after TRAM refuses a try, as its adapter waits.
+    every: 20_000,
+    networks: { '': TRAM.id },
+  },
+  {
+    // TMB's predictions for every Station of the Metro, from iTransit, in one call, with its app's ID
+    // and key in the query.
+    id: 'tmb',
+    format: 'tmb',
+    urls: { predictions: 'https://api.tmb.cat/v1/itransit/metro/estacions' },
+    secrets: TMB_APP,
+    // Every other run, as often as keeps to the one request every 30 s declared to TMB.
+    every: 40_000,
+    networks: { '': METRO.id },
+  },
+];
