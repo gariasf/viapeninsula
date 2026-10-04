@@ -4,7 +4,7 @@ Research for #218, under #214: what is per-Network in the code today, a config s
 
 - **Date:** 2026-10-04, a Sunday.
 - **Code read:** `main` at d1cf921. Line numbers below are from that commit.
-- **Inputs:** #215's note on Spain's feeds (branch `215-spain-feeds`, `docs/research/spain-feeds.md`) and #217's on OpenStreetMap's rails for Spain (branch `217-osm-extracts`, `docs/research/osm-rails-spain.md`).
+- **Inputs:** #215's note on Spain's feeds ([spain-feeds.md](spain-feeds.md)) and #217's on OpenStreetMap's rails for Spain ([osm-rails-spain.md](osm-rails-spain.md)).
 - **Words:** "module", "interface", "seam" and "adapter" as in the codebase-design vocabulary. An adapter is code that fills a slot at a seam. A seam with one adapter is only a guess; one with two or more is real.
 
 ## TL;DR

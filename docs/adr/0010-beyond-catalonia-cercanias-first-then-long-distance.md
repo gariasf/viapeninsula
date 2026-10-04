@@ -1,0 +1,32 @@
+# Beyond Catalonia: Renfe's Cercanías first, a Network per núcleo, then long distance
+
+#214 takes the map beyond Catalonia. Its research (`docs/research/spain-feeds.md`, `high-speed.md`, `osm-rails-spain.md`, `network-config.md`, `build-report.md`, `bundle-at-scale.md`, `live-at-scale.md`, all 4 Oct 2026) found that Renfe's open feeds cover Cercanías in every núcleo, Media Distancia, and AVE and long distance, under CC BY 4.0, with no key, and that all of Cercanías builds and draws as v1 does. Long distance is the hard part: its timetable lists one Train as several Trips, it has no shapes, the line-order solver ran out of memory with a Line for each pair of ends, and its track file (8.1 MB) crashed the page. Decided with the maintainer in #222:
+
+- **Scope:** all of Renfe; Ouigo, Scheduled only, as its timetable is all it publishes; and Euskotren's trains. Iryo publishes nothing, so it's left out, and About says so. FGV, SFM, the metros and trams outside Catalonia, and Euskotren's L3, trams and funicular wait for a later spec.
+- **Order:** Cercanías Madrid first, as the first Network added by configuration only (#218); then the other 13 núcleos together; then AVE y Larga Distancia, Media Distancia y Avant and Ouigo, in that order; then Euskotren's trains. v1's open work goes on alongside, and only bugs that break the live map go ahead of this.
+- **Networks:** one for each Cercanías núcleo, with ids by name, so Madrid's C1 is `cercanias-madrid:C1` and Sevilla's `cercanias-sevilla:C1`. A núcleo's metre-gauge Lines are in it, and the metre-gauge-only núcleos (Cartagena, Ferrol, León) are Networks of their own. Renfe's long-distance timetable makes two Networks, as Renfe's own maps divide it: AVE y Larga Distancia, with AVE Francia, and Media Distancia y Avant. Their Lines are the names the timetable gives its Trips (AVE, Alvia, MD…), as it names no others. Catalonia's regionals stay Rodalies'. Ouigo is a Network of its own.
+- **Track:** Lines are cut at Spain's borders only, so R15 runs on to Caspe, and Lines into France and Portugal stop at the border.
+- **Data:** only feeds that are open or declared to their operator: not Renfe's web visor, nor Adif's app API.
+- **The map:** it opens on Barcelona the first time, then where the viewer last left it. AVE y Larga Distancia's and Ouigo's Trains show at every zoom; the rest from zoom 7, as today. One colour for each Network. Station and Line names as their operators publish them, and towns by OpenStreetMap's own names, as today. The interface stays in Catalan, Spanish and English, and a browser asking for Basque or Galician gets Spanish. Each source is credited once, however many Networks it feeds. A Station served by several Networks has one board for them all. A banner names an unavailable Network only while its Trains are in view.
+- **The build:** one Network's missing or broken timetable doesn't stop the others building.
+
+How long distance's Trains are made, traced and moved (one Train from its parts, Units joining and splitting, rails by gauge, speed and snap rules) is set out in its tickets, from `high-speed.md` and #222.
+
+## Considered Options
+
+- **Long distance first**, as v1's spec (#1) planned after launch. Rejected for now: it needs new work in every module before anything shows, where Cercanías reuses all of v1.
+- **All 14 núcleos at once.** Rejected: Madrid first proves on one Network that adding a Network is configuration only, before 13 more.
+- **One Cercanías Network, with Lines named "Madrid C1".** Rejected: the public knows each núcleo by its own brand and its Lines by their own names.
+- **One Network for long distance, one for each of AVE, Alvia and the rest, or one for each operator.** Rejected: Renfe's own maps draw the two; AVE, Alvia and the rest are what its timetable gives as Lines; and Iryo, with no data, would leave an operator's Network empty.
+- **Cutting each Network at its own region.** Rejected: Madrid's C2 runs to Guadalajara, in another region.
+- **Tracing into France and Portugal.** Rejected for now: it needs more extracts, and France's Trains keep left, which a Network's one running side can't describe.
+- **Renfe's visor, for how old a long-distance position is.** Rejected: it isn't in Renfe's open-data catalogue and has no licence.
+- **Basque and Galician interfaces.** Rejected for now: every string twice more, with no one to check them.
+
+## Consequences
+
+- The bundle stays one file through all of Cercanías. Before long distance it's split by region, loading the regions in view (`bundle-at-scale.md`), in an ADR of its own.
+- ADR-0003 is amended by the tickets that change the fetcher: Madrid's (Freshness for each Network, one feed filling many, and a Network that vanishes from a feed that still answers held for two runs), long distance's (its feeds and rates), and the split's (a snapshot for each region).
+- v1's story 14 changes: a Train leaves the map at Spain's border.
+- Ouigo's timetable comes from NAP, with a key and the credit its licence asks for ("Powered by MITRAMS", with the date of its last update).
+- What the map shows for a Network whose timetable is missing (#226) is decided there, within the rule above.

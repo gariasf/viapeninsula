@@ -1,6 +1,6 @@
 # The track file and Trips at the scale of Spain: how big, and how to load them
 
-Research for #220, under #214: how big the bundle gets for all of Spain, what the build costs at that size, what the page costs with many more Trains, and how the page should load it. It builds on #217's note ([osm-rails-spain.md](osm-rails-spain.md), on branch `217-osm-extracts`) and #215's ([spain-feeds.md](spain-feeds.md), on branch `215-spain-feeds`).
+Research for #220, under #214: how big the bundle gets for all of Spain, what the build costs at that size, what the page costs with many more Trains, and how the page should load it. It builds on #217's note ([osm-rails-spain.md](osm-rails-spain.md)) and #215's ([spain-feeds.md](spain-feeds.md)).
 
 - **Date:** 2026-10-04, a Sunday.
 - **Machine:** the maintainer's Mac (Apple M4 Pro, 12 cores, 24 GB). A GitHub runner is slower (#217: 4 CPUs, 16 GB).
