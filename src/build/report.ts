@@ -1,8 +1,9 @@
 // What the daily build reports, for a person to review: each spot its log names, once, by a key the
 // next build names it by too, so that it can tell what's new (docs/research/build-report.md). The
-// daily build writes them to out/report.json.
+// daily build writes them to out/report.json and publishes it, and the next build diffs its own
+// against it (diff()).
 
-import type { Point, Station } from '../bundle.ts';
+import { DEGREE, pixelMetres, type Point, type Station } from '../bundle.ts';
 import { round } from './track.ts';
 
 /** A spot in out/report.json. */
@@ -21,6 +22,8 @@ export interface Spot {
   stations?: { id: string; name: string }[];
   /** Where it is, to about a metre. */
   point?: Point;
+  /** The zoom the map shows it at, as docs/research/build-report.md's section 2 sets out. */
+  zoom?: number;
   /** The OpenStreetMap ways its Stations are on, of its Network's rails. */
   ways?: number[];
   /** Each line the log prints for it, once: for a node, its zoom's. */
@@ -45,10 +48,21 @@ export interface Found extends Omit<Spot, 'key' | 'stations'> {
   trip?: string;
   /** The day a Network has no Trips or a Trip is left out, as days after today. */
   day?: number;
-  /** The zoom a node is at. */
+  /** The zoom a node is at, which keys it, and which the map shows it at. */
   zoom?: number;
+  /** What the map fits in view to show it, where its Stations don't say: a shape. */
+  extent?: Point[];
   stations?: Station[];
 }
+
+/** The zoom the map shows a turn-back at, and Stations left out on a branch. */
+const ZOOM: Partial<Record<Spot['kind'], number>> = { turn: 16, branch: 15 };
+
+/** How many pixels across the map fits a run of legs kept, a shape's length or a Trip's Stations in: a phone's, less a margin. */
+const FIT = 300;
+
+/** The map, which keeps its view in its link, and OpenStreetMap. */
+const [MAP, OSM] = ['https://viapeninsula.gariasf.com', 'https://www.openstreetmap.org'];
 
 /**
  * Collects what the build finds as spots, each once: one found again, as a shape traced the other way
@@ -62,9 +76,10 @@ export function collect() {
       const key = keyOf(found);
       const { kind, network, line, stations, ways, text, numbers, trip, day = 0 } = found;
       const point = found.point ?? halfway(stations);
+      const zoom = point && (found.zoom ?? ZOOM[kind] ?? fit(found.extent ?? stations?.map((s): Point => [s.lon, s.lat]) ?? []));
       let known = spots.get(key);
       if (!known) {
-        known = { spot: { kind, key, network, line, stations: stations?.map(({ id, name }) => ({ id, name })), point: point && [round(point[0]), round(point[1])], text: [] }, trips: new Map() };
+        known = { spot: { kind, key, network, line, stations: stations?.map(({ id, name }) => ({ id, name })), point: point && [round(point[0]), round(point[1])], zoom, text: [] }, trips: new Map() };
         spots.set(key, known);
       }
       const { spot } = known;
@@ -108,9 +123,80 @@ function keyOf({ kind, network, line, why, shape, day, zoom, point, stations = [
   return [kind, ...parts].join(' ');
 }
 
+/** The closest zoom, at most 15, that fits these points across FIT pixels. */
+function fit(points: Point[]): number {
+  const [w, s, e, n] = points.reduce(([w, s, e, n], [lon, lat]) => [Math.min(w, lon), Math.min(s, lat), Math.max(e, lon), Math.max(n, lat)], [Infinity, Infinity, -Infinity, -Infinity]);
+  const lat = (s + n) / 2;
+  const across = Math.max((e - w) * Math.cos((lat * Math.PI) / 180), n - s) * DEGREE;
+  return Math.min(15, Math.floor(Math.log2((FIT * pixelMetres(0, lat)) / across)));
+}
+
 /** Halfway between the first and last of some Stations. */
 function halfway(stations: Station[] = []): Point | undefined {
   const [a, b] = [stations[0], stations.at(-1)];
   return a && b ? [(a.lon + b.lon) / 2, (a.lat + b.lat) / 2] : undefined;
 }
 
+/**
+ * What changed in the report since the last build's, in Markdown for the run's job summary: spots new
+ * since it, then those gone, then those whose numbers moved, a length by more than a point and any
+ * other number by any, each with its links and its lines of the log; or one line where none did.
+ * With no last report, every spot is new.
+ * ponytail: a spot is gone the first build without it, so one that comes and goes shows each time it
+ * does; count it gone only after two builds without it if one ever does (build-report.md, section 3).
+ */
+export function diff(last: Spot[] | undefined, spots: Spot[]): string {
+  const [before, now] = [new Map(last?.map((s) => [s.key, s])), new Set(spots.map((s) => s.key))];
+  const groups: [string, string[]][] = [
+    ['New', spots.filter((s) => !before.has(s.key)).map((s) => item(s))],
+    ['Gone', (last ?? []).filter((s) => !now.has(s.key)).map((s) => item(s))],
+    ['Changed', spots.flatMap((s) => {
+      const moves = moved(before.get(s.key), s);
+      return moves ? [item(s, moves)] : [];
+    })],
+  ];
+  const [added, gone, changed] = groups.map(([, items]) => items.length);
+  if (!added && !gone && !changed) return 'Nothing in the build report is new, gone or changed since the last build.';
+  return [
+    `### Build report: ${last ? `${added} new, ${gone} gone, ${changed} changed since the last build` : `no last report to diff against, so all ${added} spots are new`}`,
+    ...groups.flatMap(([title, items]) => (items.length ? ['', `#### ${title}`, '', ...items] : [])),
+  ].join('\n');
+}
+
+/**
+ * How a spot's numbers moved since the last report, as `name (was → now)`, or nothing where none did:
+ * a length's by more than a point, any other by any. Compared in tenths, which every number is
+ * rounded to, so 0.1 to 1.1 is a point.
+ */
+function moved(was: Spot | undefined, spot: Spot): string {
+  if (!was) return '';
+  const leeway = spot.kind === 'length' ? 10 : 0;
+  const names = new Set([...Object.keys(was.numbers ?? {}), ...Object.keys(spot.numbers ?? {})]);
+  return [...names]
+    .filter((name) => {
+      const [a, b] = [was.numbers?.[name], spot.numbers?.[name]];
+      return a === undefined || b === undefined || Math.abs(Math.round(a * 10) - Math.round(b * 10)) > leeway;
+    })
+    .map((name) => `${name} (${was.numbers?.[name] ?? 'none'} → ${spot.numbers?.[name] ?? 'none'})`)
+    .join(', ');
+}
+
+/** A spot in the summary: its key, how its numbers moved, its links, and its lines of the log. */
+function item(spot: Spot, moves = ''): string {
+  const head = [`\`${spot.key}\`${moves && `: ${moves}`}`, ...links(spot)].join(' · ');
+  return [`- ${head}`, ...spot.text.map((line) => `  - ${line}`)].join('\n');
+}
+
+/**
+ * Links to a spot on the map and on OpenStreetMap, to see it and to edit it, and to the ways its
+ * Stations are on. A Trip left out at a Station its feed doesn't list is nowhere: NaN where it's
+ * found, null once read back.
+ */
+function links({ point: [lon, lat] = [NaN, NaN], zoom, ways = [] }: Spot): string[] {
+  return [
+    ...(Number.isFinite(lon) && Number.isFinite(lat) && zoom !== undefined
+      ? [`[map](${MAP}/#map=${zoom}/${lat}/${lon})`, `[OpenStreetMap](${OSM}/#map=17/${lat}/${lon})`, `[edit](${OSM}/edit#map=18/${lat}/${lon})`]
+      : []),
+    ...(ways.length ? [`ways ${ways.map((id) => `[${id}](${OSM}/way/${id})`).join(', ')}`] : []),
+  ];
+}

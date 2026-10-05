@@ -2,14 +2,15 @@
 // days, today's first, and publishes them to R2, so a build that fails leaves the map the days before
 // it published. Each day's bundle comes in two files, so the map can draw the Lines before the Trips
 // come: the track, which is the same file for each day, and the day's Trips. Beside them it writes
-// out/report.json: each spot its log names, once (report.ts).
+// out/report.json, each spot its log names, once (report.ts), which it publishes after the manifest,
+// and it prints what changed since the last build's, in the run's job summary too.
 // `npm run daily` publishes; `npm run daily -- --dry-run` only writes the files to out/. The secrets
 // a timetable's URL needs, as TMB's TMB_APP_ID and TMB_APP_KEY, come from the environment, which
 // `npm run daily` loads from .env.local.
 
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { brotliCompressSync, constants } from 'node:zlib';
 import { addDays, LIVE_URL, madridDate, type Manifest, type Network, type Track } from '../bundle.ts';
@@ -22,7 +23,7 @@ import { measures, reported, summary } from './measures.ts';
 import { osm } from './osm.ts';
 import { sideBySide } from './sideBySide.ts';
 import { fine, railsBeside, stationsOf, traceShapes } from './track.ts';
-import { collect, type Found } from './report.ts';
+import { collect, diff, type Found, type Spot } from './report.ts';
 import { placeTrips } from './trips.ts';
 
 const BUCKET = 'viapeninsula-live';
@@ -70,15 +71,24 @@ const built = await Promise.all(
     return manifestDay({ ...track, ...trips }, { track: trackKey, trips: key });
   }),
 );
-// The last build's manifest names the bundle for yesterday, whose last Trains can still be running.
-const previous = await fetch(`${LIVE_URL}/manifest.json`)
-  .then((res) => (res.ok ? (res.json() as Promise<Manifest>) : undefined))
-  .catch((error: unknown) => {
-    console.warn("Couldn't read the last manifest, so yesterday's bundle goes unnamed:", error);
-    return undefined;
-  });
-await writeFile('out/manifest.json', JSON.stringify(manifestOf(built, previous)));
-await writeFile('out/report.json', JSON.stringify(report.spots()));
+// The last build's manifest names the bundle for yesterday, whose last Trains can still be running,
+// and its report is what this build's is diffed against.
+const [lastManifest, lastReport] = await Promise.all([
+  lastPublished<Manifest>('manifest.json', "yesterday's bundle goes unnamed"),
+  lastPublished<Spot[]>('report.json', 'every spot is new'),
+]);
+const spots = report.spots();
+await writeFile('out/manifest.json', JSON.stringify(manifestOf(built, lastManifest)));
+await writeFile('out/report.json', JSON.stringify(spots));
+// The diff only reports, so a last report it can't read, as one of an older shape, doesn't stop the build.
+let changes: string;
+try {
+  changes = diff(lastReport, spots);
+} catch (error) {
+  changes = `Couldn't diff the build report against the last one: ${error}`;
+}
+console.log(changes);
+if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, `${changes}\n`);
 
 if (!process.argv.includes('--dry-run')) {
   // The bundles go up first, so the manifest never names a file that isn't there yet. The CDN
@@ -86,6 +96,7 @@ if (!process.argv.includes('--dry-run')) {
   // twice as small as the CDN would on the fly.
   for (const key of [trackKey, ...built.map((d) => d.trips)]) publish(key, 'public, max-age=31536000, immutable', 'br');
   publish('manifest.json', 'public, max-age=60');
+  publish('report.json', 'public, max-age=60');
 }
 
 /**
@@ -114,6 +125,20 @@ async function build(config: NetworkConfig, feeds: (Feed & { gtfs: Source })[]) 
   const cropped = crop(border, stations, shapes, days.map((day) => day.flatMap((p) => p.trips)));
   const trips = cropped.days.map((trips, day) => placeTrips(trips, lines, shapes, stations, network.profile.topSpeed, console.log, (f) => found({ ...f, day })));
   return { network, lines, stations: cropped.stations, shapes: cropped.shapes, trips };
+}
+
+/** A file the last build published, or none where there's none, or where it can't be read, which is logged. */
+async function lastPublished<T>(file: string, otherwise: string): Promise<T | undefined> {
+  return fetch(`${LIVE_URL}/${file}`)
+    .then((res) => {
+      if (res.status === 404) return undefined;
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      return res.json() as Promise<T>;
+    })
+    .catch((error: unknown) => {
+      console.warn(`Couldn't read the last ${file}, so ${otherwise}:`, error);
+      return undefined;
+    });
 }
 
 /** A timetable's URL, with the secrets its query needs. */
