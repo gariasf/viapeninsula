@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest';
 import { BANDS, GRAPH_BAND, LINK, STRETCH, type Line, type Shape, type Stroke } from '../bundle.ts';
-import { breaks, measures } from './measures.ts';
+import { breaks, measures, reported, summary, type Measures } from './measures.ts';
+import { collect } from './report.ts';
 import { room, type Front } from './sideBySide.ts';
 
 const degree = (6_371_008.8 * Math.PI) / 180;
@@ -252,4 +253,58 @@ test('measures metres of curve drawn further off its own track than at its ends,
   expect(inside(40)[10]).toBe(0);
   expect(inside(0)).toEqual(none);
   expect(inside(400, [])).toEqual(none);
+});
+
+test('reports the measures as one spot with each of their numbers, in metres, and a spot for each of the largest nodes, each with its line of the log', () => {
+  const found: Measures = {
+    breaks: { steps: 181, stubs: 29, swaps: 6, joins: 20 },
+    twice: 3412.5,
+    alone: 100,
+    over: 1062.5,
+    folds: { 7: 3, 8: 0 },
+    covered: { 7: 271712.5, 8: 201800 },
+    dangling: 30,
+    kinks: { 7: 0, 8: 1 },
+    weaves: { 7: 2, 8: 0 },
+    inside: { 7: 9395, 8: 14055.5 },
+    largest: { 7: [{ size: 15.1, at: [-3.67716, 40.45778] }], 8: [{ size: 24.5, at: [-3.6773, 40.45782] }, { size: 19.1, at: [2.15024, 41.38278] }] },
+  };
+  const [first, seven, eight] = `Lines drawn: ${summary(found)}`.split('\n').map((line) => line.trim());
+  expect([seven, eight]).toEqual([
+    'largest nodes at zoom 7, in line widths: 15.1 at 40.45778,-3.67716',
+    'largest nodes at zoom 8, in line widths: 24.5 at 40.45782,-3.67730, 19.1 at 41.38278,2.15024',
+  ]);
+  const report = collect();
+  for (const f of reported(found, `Lines drawn: ${summary(found)}`)) report.add(f);
+  expect(report.spots()).toEqual([
+    {
+      kind: 'measures',
+      key: 'measures',
+      text: [first],
+      numbers: {
+        breaks: 236,
+        steps: 181,
+        stubs: 29,
+        swaps: 6,
+        joins: 20,
+        twice: 3413,
+        alone: 100,
+        over: 1063,
+        dangling: 30,
+        'folds 7': 3,
+        'folds 8': 0,
+        'covered 7': 271713,
+        'covered 8': 201800,
+        'kinks 7': 0,
+        'kinks 8': 1,
+        'weaves 7': 2,
+        'weaves 8': 0,
+        'inside 7': 9395,
+        'inside 8': 14056,
+      },
+    },
+    { kind: 'node', key: 'node 7 40.458 -3.677', point: [-3.67716, 40.45778], text: [seven], numbers: { size: 15.1 } },
+    { kind: 'node', key: 'node 8 40.458 -3.677', point: [-3.6773, 40.45782], text: [eight], numbers: { size: 24.5 } },
+    { kind: 'node', key: 'node 8 41.383 2.150', point: [2.15024, 41.38278], text: [eight], numbers: { size: 19.1 } },
+  ]);
 });

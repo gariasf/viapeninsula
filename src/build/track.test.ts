@@ -1,7 +1,8 @@
 import { expect, test } from 'vitest';
 import type { Shape, Station } from '../bundle.ts';
 import type { OsmWay } from './osm.ts';
-import { eachWay, fine, onOwnTrack, traceShapes } from './track.ts';
+import { collect, type Found } from './report.ts';
+import { eachWay, fine, onOwnTrack, railsBeside, traceShapes } from './track.ts';
 
 // A small railway, drawn in metres east (x) and north (y) of a point near Manresa.
 const M = (6_371_008.8 * Math.PI) / 180; // metres in a degree of latitude
@@ -34,7 +35,7 @@ const station = (id: string, x: number, y: number): Station => {
   return { id, name: id, lon, lat };
 };
 
-type FeedIn = { id: string; feed: [number, number][]; stations: string };
+type FeedIn = { id: string; line?: string; feed: [number, number][]; stations: string };
 
 function trace(rails: OsmWay[], stations: Station[], ...shapes: FeedIn[]) {
   return traceKeeping('right', rails, stations, ...shapes);
@@ -42,20 +43,21 @@ function trace(rails: OsmWay[], stations: Station[], ...shapes: FeedIn[]) {
 
 /** Traces shapes for a Network whose Trains keep to one side of double track. */
 function traceKeeping(side: 'left' | 'right', rails: OsmWay[], stations: Station[], ...shapes: FeedIn[]) {
-  const log: string[] = [];
+  const [log, found]: [string[], Found[]] = [[], []];
   const traced = traceShapes(
-    shapes.map((s) => ({ id: s.id, coords: s.feed.map(([x, y]) => at(x, y)), stations: s.stations.split(' ') })),
+    shapes.map((s) => ({ id: s.id, line: s.line ?? 'line', coords: s.feed.map(([x, y]) => at(x, y)), stations: s.stations.split(' ') })),
     stations,
     rails,
     side,
     (line) => log.push(line),
+    (f) => found.push(f),
   );
   const shape = (id: string) => {
-    const found = traced.find((s) => s.id === id);
-    if (!found) throw new Error(`No shape ${id}`);
-    return found;
+    const one = traced.find((s) => s.id === id);
+    if (!one) throw new Error(`No shape ${id}`);
+    return one;
   };
-  return { log, shape };
+  return { log, found, shape };
 }
 
 /** A traced shape's points, back in metres and rounded to the metre. */
@@ -213,19 +215,54 @@ test('turns back at a Station on the way between two others, as Trains do, and n
   expect(log).toContain('line: T → U turns back at L');
 });
 
+test("reports a shape, its way back and the feed's own shape the other way, each turning back at one Station, as one spot", () => {
+  // As R16's 51_R16, 51_R16:back and 51_R16_INV all turn back at L'Aldea.
+  const feed: [number, number][] = [[500, 1], [2000, 1], [2600, 301], [2600, 1401], [2600, 301], [2000, 1], [20000, 1]];
+  const { found } = trace(
+    rails({ a: [0, 0], j: [2000, 0], c: [20000, 0], k: [2600, 300], t: [2600, 1500] }, 'a j c', 'j k t'),
+    [station('A', 500, 10), station('L', 1600, 10), station('T', 2610, 1400), station('U', 19500, 10)],
+    { id: 'R16', line: 'rodalies:R16', feed, stations: 'A L T U' },
+    { id: 'R16:back', line: 'rodalies:R16', feed: feed.toReversed(), stations: 'A L T U' },
+    { id: 'R16_INV', line: 'rodalies:R16', feed: feed.toReversed(), stations: 'A L T U' },
+  );
+  const report = collect();
+  for (const f of found) report.add(f);
+  expect(report.spots().filter((s) => s.kind === 'turn')).toMatchObject([
+    {
+      key: 'turn rodalies:R16 L',
+      stations: [{ id: 'L', name: 'L' }],
+      text: ['R16: T → U turns back at L', 'R16:back: U → T turns back at L', 'R16_INV: U → T turns back at L'],
+    },
+  ]);
+  // A length is the feed's shape's, whichever way it's traced: the feed's shape the other way has its own.
+  expect(report.spots().filter((s) => s.kind === 'length').map((s) => s.key)).toEqual(['length rodalies:R16 R16', 'length rodalies:R16 R16_INV']);
+});
+
 test("leaves out a Station on a branch off the feed's shape, rather than run out to it and back", () => {
   // Like Estació de França, which a few R2N Trips run to off their shape's way through Barcelona.
-  const { shape, log } = trace(
+  const { shape, log, found } = trace(
     branch(),
     [station('A', 500, 10), station('T', 2010, 1490), station('C', 3500, 10)],
     { id: 'line', feed: [[0, 1], [4000, 1]], stations: 'A T C' },
   );
   expect(points(shape('line'))).toEqual([[500, 0], [1800, 0], [2200, 0], [3500, 0]]);
   expect(log).toContain("line leaves out T: it lies off the feed's shape, on a branch");
+  expect(found.filter((f) => f.kind === 'branch')).toMatchObject([{ line: 'line', shape: 'line', stations: [{ id: 'T' }], text: ["line leaves out T: it lies off the feed's shape, on a branch"] }]);
+});
+
+test('reports Stations left out one after another on a branch as one spot', () => {
+  const { log, found } = trace(
+    branch(),
+    [station('A', 500, 10), station('S', 1995, 900), station('T', 2010, 1490), station('C', 3500, 10)],
+    { id: 'line', feed: [[0, 1], [4000, 1]], stations: 'A S T C' },
+  );
+  const text = ["line leaves out S: it lies off the feed's shape, on a branch", "line leaves out T: it lies off the feed's shape, on a branch"];
+  expect(log.filter((line) => line.includes('leaves out'))).toEqual(text);
+  expect(found.filter((f) => f.kind === 'branch')).toMatchObject([{ stations: [{ id: 'S' }, { id: 'T' }], text }]);
 });
 
 test("keeps the feed's shape where the rails don't reach, and reports it", () => {
-  const { shape, log } = trace(
+  const { shape, log, found } = trace(
     // A gap in the rails between B and C, and nothing near D.
     rails({ a: [0, 0], b: [1000, 0], c: [2000, 0], d: [2100, 0], e: [4000, 0] }, 'a b c', 'd e'),
     [station('A', 500, 10), station('B', 1500, 10), station('C', 3000, 10), station('D', 9000, 10)],
@@ -237,6 +274,33 @@ test("keeps the feed's shape where the rails don't reach, and reports it", () =>
     "line: C → D keeps the feed's shape: D is off the network",
     'line: 8.5 km long. Where the feed has the track: 1.0 km traced against its 1.0 km (+0.0%)',
   ]);
+  expect(found.filter((f) => f.kind === 'kept')).toMatchObject([
+    { why: 'nopath', line: 'line', shape: 'line', stations: [{ id: 'B' }, { id: 'C' }], text: ["line: B → C keeps the feed's shape: no path along the rails"] },
+    { why: 'off', line: 'line', shape: 'line', stations: [{ id: 'C' }, { id: 'D' }], text: ["line: C → D keeps the feed's shape: D is off the network"] },
+  ]);
+});
+
+test("reports a run of legs between Stations keeping the feed's shape for one cause as one spot", () => {
+  // Like Cádiz T1's tram-train section, where C and D are off the network.
+  const { log, found } = trace(
+    rails({ a: [0, 0], b: [2000, 0], e: [9000, 0], f: [10000, 0] }, 'a b', 'e f'),
+    [station('A', 500, 10), station('B', 1500, 10), station('C', 5000, 3010), station('D', 7000, 3010), station('E', 9500, 10)],
+    { id: 'line', feed: [[0, 0], [2000, 0], [5000, 3000], [7000, 3000], [9000, 0], [10000, 0]], stations: 'A B C D E' },
+  );
+  const text = [
+    "line: B → C keeps the feed's shape: C is off the network",
+    "line: C → D keeps the feed's shape: C is off the network",
+    "line: D → E keeps the feed's shape: D is off the network",
+  ];
+  expect(log.filter((line) => line.includes("keeps the feed's shape"))).toEqual(text);
+  expect(found.filter((f) => f.kind === 'kept')).toMatchObject([{ why: 'off', stations: ['B', 'C', 'D', 'E'].map((id) => ({ id })), text }]);
+});
+
+test('gives the ways a Station is on: those within 50 m of its nearest, if that is within 200 m', () => {
+  // Three tracks 40 m and 100 m apart; C is half a kilometre off them.
+  const ways = rails({ a: [0, 0], b: [4000, 0], c: [0, 40], d: [4000, 40], e: [0, 100], f: [4000, 100] }, 'a b', 'c d', 'e f');
+  const near = railsBeside(ways, [station('A', 2000, 10), station('C', 2000, -500)]);
+  expect([...near].map(([id, list]) => [id, list.map((c) => c.way.id)])).toEqual([['A', [1, 2]]]);
 });
 
 test("draws nothing for Stations off the network beyond the end of the feed's shape", () => {
@@ -250,22 +314,28 @@ test("draws nothing for Stations off the network beyond the end of the feed's sh
 });
 
 test("keeps the feed's shape when its Trips serve fewer than two Stations", () => {
-  const { shape, log } = trace(
+  const { shape, log, found } = trace(
     rails({ a: [0, 0], b: [4000, 0] }, 'a b'),
     [station('A', 500, 10)],
     { id: 'line', feed: [[0, 1], [4000, 1]], stations: 'A' },
   );
   expect(points(shape('line'))).toEqual([[0, 1], [4000, 1]]);
   expect(log).toEqual(["line keeps the feed's shape: its Trips serve fewer than two Stations"]);
+  // At the middle of the feed's shape.
+  expect(found).toMatchObject([{ kind: 'kept', why: 'fewer', shape: 'line', stations: [{ id: 'A' }], text: log }]);
+  expect(metres(found[0]?.point ?? [NaN, NaN]).map(Math.round)).toEqual([2000, 1]);
 });
 
 test("reports each traced shape's length against the feed's, and fails when one is more than 5% off", () => {
-  const { log } = trace(
+  const { log, found } = trace(
     rails({ a: [0, 0], b: [1000, 0], c: [2000, 0], d: [3000, 0], e: [4000, 0] }, 'a b c d e'),
     [station('A', 500, 10), station('B', 3500, 10)],
     { id: 'line', feed: [[0, 1], [4000, 1]], stations: 'A B' },
   );
   expect(log).toEqual(['line: 3.0 km long. Where the feed has the track: 3.0 km traced against its 3.0 km (+0.0%)']);
+  // At the middle of the traced shape.
+  expect(found).toMatchObject([{ kind: 'length', shape: 'line', numbers: { percent: 0 }, text: log }]);
+  expect(metres(found[0]?.point ?? [NaN, NaN]).map(Math.round)).toEqual([2000, 0]);
 
   // The only rails between A and B take a long way round, as if OpenStreetMap had them on an old alignment.
   const detour = () =>
@@ -369,7 +439,7 @@ test('gives Lines that share track the same geometry there', () => {
 
 test('gives each shape once for each way its Trips run it, turned round for the way back', () => {
   const stations = [station('A', 0, 10), station('B', 2000, 10), station('C', 4000, 10)];
-  const feed = (id: string) => ({ id, coords: [at(0, 0), at(4000, 0)], stations: ['A', 'B', 'C'] });
+  const feed = (id: string) => ({ id, line: 'R7', coords: [at(0, 0), at(4000, 0)], stations: ['A', 'B', 'C'] });
   const { shapes, shapeOf } = eachWay([feed('both'), feed('back'), feed('ahead')], stations, [
     { shape: 'both', from: 'A', to: 'C' },
     { shape: 'both', from: 'C', to: 'B' },

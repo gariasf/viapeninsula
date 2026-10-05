@@ -1,12 +1,14 @@
 // The track each Line's Trains run on, traced along OpenStreetMap's rails (ADR-0004).
 
-import { along, closestOnSegment, DEGREE, EARTH, type Network, type Point, type Shape, type Station } from '../bundle.ts';
+import { along, closestOnSegment, DEGREE, EARTH, pointAt, type Network, type Point, type Shape, type Station } from '../bundle.ts';
 import { simplify } from './offset.ts';
 import type { OsmWay } from './osm.ts';
+import type { Cause, Found } from './report.ts';
 
-/** A shape as the feed draws it, and the Stations its Trips serve. */
+/** A shape as the feed draws it, the Line its Trips run, and the Stations they serve. */
 export interface FeedShape {
   id: string;
+  line: string;
   coords: Point[];
   stations: string[];
 }
@@ -109,17 +111,28 @@ const SLACK = 1000;
  * the way its Trips run it. Between Stations it takes the shortest path a train can, except that a
  * trace keeps to its track rather than change tracks for a few metres, to the track of a double
  * track on the Network's running side, and to the track Lines traced before it take the same way.
+ * What it logs, it reports too.
  */
-export function traceShapes(shapes: FeedShape[], stations: Station[], rails: OsmWay[], side: Network['runningSide'], log = console.log): Shape[] {
+export function traceShapes(
+  shapes: FeedShape[],
+  stations: Station[],
+  rails: OsmWay[],
+  side: Network['runningSide'],
+  log = console.log,
+  report: (found: Found) => void = () => {},
+): Shape[] {
   const byId = new Map(stations.map((s) => [s.id, s]));
   const graph = railGraph(rails, [...new Set(shapes.flatMap((s) => s.stations))].flatMap((id) => byId.get(id) ?? []), side);
   const wrong: string[] = [];
   const traced = shapes.map((feed) => {
-    const { shape, length } = traceShape(graph, feed, feed.stations.flatMap((id) => byId.get(id) ?? []), log);
+    const { shape, length } = traceShape(graph, feed, feed.stations.flatMap((id) => byId.get(id) ?? []), log, report);
     if (length.feed) {
       const [total, km, feedKm] = [shape.dist.at(-1) ?? 0, length.traced, length.feed].map((m) => (m / 1000).toFixed(1));
-      const off = `${length.traced >= length.feed ? '+' : ''}${((length.traced / length.feed - 1) * 100).toFixed(1)}%`;
-      log(`${feed.id}: ${total} km long. Where the feed has the track: ${km} km traced against its ${feedKm} km (${off})`);
+      const percent = (length.traced / length.feed - 1) * 100;
+      const off = `${length.traced >= length.feed ? '+' : ''}${percent.toFixed(1)}%`;
+      const line = `${feed.id}: ${total} km long. Where the feed has the track: ${km} km traced against its ${feedKm} km (${off})`;
+      log(line);
+      report({ kind: 'length', line: feed.line, shape: feed.id, point: middle(shape), text: [line], numbers: { percent: Number(percent.toFixed(1)) } });
       // Each end of a trace can stop anywhere on its Station's rails, up to BAND off the feed's: on a
       // shape less than 2 km long, as funiculars are, that's more than 5%.
       if (Math.abs(length.traced - length.feed) > Math.max(0.05 * length.feed, 2 * BAND)) {
@@ -199,19 +212,34 @@ export function stationsOf(networks: { network: Pick<Network, 'id'>; stations: S
 
 /**
  * One shape traced, and its length where both of a stretch's Stations are on the feed's shape, as
- * traced and in the feed: there the two should be about as long.
+ * traced and in the feed: there the two should be about as long. Stations left out one after another
+ * on a branch are one spot, as is a run of legs between Stations that keep the feed's shape for one cause.
  */
-function traceShape(graph: Graph, feed: FeedShape, stations: Station[], log: (line: string) => void) {
+function traceShape(graph: Graph, feed: FeedShape, stations: Station[], log: (line: string) => void, report: (found: Found) => void) {
   const all = inOrder(feed, stations);
   // A Station off the feed's shape partway along it is on a branch. Running out to it and back would
   // send every other Trip there too, so it's left out: its Trips can't place it on their shape.
   const branch = (w: Waypoint) => w.metres > ON_FEED && w.order === w.along;
-  for (const w of all.filter(branch)) log(`${feed.id} leaves out ${w.station.name}: it lies off the feed's shape, on a branch`);
+  const branches: Waypoint[][] = []; // each run of them, one after another along the shape
+  for (const [i, w] of all.entries()) {
+    const prev = all[i - 1];
+    if (!branch(w)) continue;
+    if (prev && branch(prev)) branches.at(-1)?.push(w);
+    else branches.push([w]);
+  }
+  for (const run of branches) {
+    const text = run.map((w) => `${feed.id} leaves out ${w.station.name}: it lies off the feed's shape, on a branch`);
+    for (const line of text) log(line);
+    report({ kind: 'branch', line: feed.line, shape: feed.id, stations: run.map((w) => w.station), text });
+  }
   const waypoints = all.filter((w) => !branch(w));
   const length = { traced: 0, feed: 0 };
   if (waypoints.length < 2) {
-    log(`${feed.id} keeps the feed's shape: its Trips serve fewer than two Stations`);
-    return { shape: shape(feed.id, feed.coords), length };
+    const line = `${feed.id} keeps the feed's shape: its Trips serve fewer than two Stations`;
+    log(line);
+    const asFed = shape(feed.id, feed.coords);
+    report({ kind: 'kept', why: 'fewer', line: feed.line, shape: feed.id, stations: waypoints.map((w) => w.station), point: middle(asFed), text: [line] });
+    return { shape: asFed, length };
   }
   const coords: Point[] = [];
   const levels: string[] = []; // of the track up to each point
@@ -234,7 +262,9 @@ function traceShape(graph: Graph, feed: FeedShape, stations: Station[], log: (li
         const f = a.edges[k + 1];
         if (f === undefined || onward(graph, e).next.includes(f)) continue;
         const at = waypoints.find((w) => graph.near.get(w.station.id)?.includes(target(graph, e)));
-        log(`${feed.id}: ${from?.station.name} → ${to?.station.name} turns back at ${at?.station.name}`);
+        const line = `${feed.id}: ${from?.station.name} → ${to?.station.name} turns back at ${at?.station.name}`;
+        log(line);
+        report({ kind: 'turn', line: feed.line, shape: feed.id, stations: at ? [at.station] : [], text: [line] });
       }
       if (!from || !to || from.metres > ON_FEED || to.metres > ON_FEED) continue;
       length.traced += a.edges.reduce((sum, e) => sum + (graph.metres[e] ?? 0), 0);
@@ -246,6 +276,9 @@ function traceShape(graph: Graph, feed: FeedShape, stations: Station[], log: (li
   // ponytail: at any of them, not only where its Trips do; tell them apart if a trace ever turns back
   // where no Trip does.
   const turnBacks = new Set(waypoints.flatMap((w) => graph.near.get(w.station.id) ?? []));
+  // The run of legs keeping the feed's shape that the last leg to keep it is in, reported once it ends.
+  let keeping: { why: Cause; stations: Station[]; text: string[] } | undefined;
+  const reportKept = () => keeping && report({ kind: 'kept', line: feed.line, shape: feed.id, ...keeping });
   let reached = starts(0);
   for (const [i, b] of waypoints.entries()) {
     const a = waypoints[i - 1];
@@ -265,10 +298,19 @@ function traceShape(graph: Graph, feed: FeedShape, stations: Station[], log: (li
       levels.push(...kept.map(() => ''));
     }
     const off = [a, b].find((w) => !graph.near.has(w.station.id));
-    const why = off ? `${off.station.name} is off the network` : 'no path along the rails';
-    log(`${feed.id}: ${a.station.name} → ${b.station.name} keeps the feed's shape: ${why}`);
+    const line = `${feed.id}: ${a.station.name} → ${b.station.name} keeps the feed's shape: ${off ? `${off.station.name} is off the network` : 'no path along the rails'}`;
+    log(line);
+    const why = off ? 'off' : 'nopath';
+    if (keeping?.why === why && keeping.stations.at(-1) === a.station) {
+      keeping.stations.push(b.station);
+      keeping.text.push(line);
+    } else {
+      reportKept();
+      keeping = { why, stations: [a.station, b.station], text: [line] };
+    }
     reached = starts(i);
   }
+  reportKept();
   draw(reached);
   return { shape: shape(feed.id, coords, levels), length };
 }
@@ -401,23 +443,8 @@ function railGraph(rails: OsmWay[], stations: Station[], side: Network['runningS
 
   // Where each Station comes closest to each way near it: segment i, a fraction t along it.
   const cuts = new Map<OsmWay, { i: number; t: number; station: string }[]>();
-  const polylines = rails.map((way) => ({ way, polyline: way.geometry.map((g): Point => [g.lon, g.lat]) }));
-  const boxes = polylines.map(({ polyline }) => [0, 1].map((k) => [Math.min(...polyline.map((p) => p[k] ?? 0)), Math.max(...polyline.map((p) => p[k] ?? 0))]));
-  for (const s of stations) {
-    // Rails further than REACH + BAND can't count, so skip the ways whose bounding box is.
-    const lat = (REACH + BAND) / DEGREE;
-    const lon = lat / Math.cos((s.lat * Math.PI) / 180);
-    const closest = polylines
-      .filter((_, i) => {
-        const [[west = 0, east = 0] = [], [south = 0, north = 0] = []] = boxes[i] ?? [];
-        return s.lon > west - lon && s.lon < east + lon && s.lat > south - lat && s.lat < north + lat;
-      })
-      .map(({ way, polyline }) => ({ way, ...nearest(polyline, [s.lon, s.lat]) }));
-    const first = Math.min(...closest.map((c) => c.metres));
-    if (first > REACH) continue;
-    for (const c of closest) {
-      if (c.metres <= first + BAND) cuts.set(c.way, [...(cuts.get(c.way) ?? []), { i: c.i, t: c.t, station: s.id }]);
-    }
+  for (const [station, near] of railsBeside(rails, stations)) {
+    for (const { way, i, t } of near) cuts.set(way, [...(cuts.get(way) ?? []), { i, t, station }]);
   }
 
   for (const way of rails) {
@@ -450,6 +477,30 @@ function railGraph(rails: OsmWay[], stations: Station[], side: Network['runningS
   }
   graph.wrong = wrongTracks(graph);
   return graph;
+}
+
+/**
+ * The ways each Station is on (see REACH), and where it comes closest to each: segment i, a fraction t
+ * along it. A Station off the rails has none.
+ */
+export function railsBeside(rails: OsmWay[], stations: Station[]): Map<string, ({ way: OsmWay } & ReturnType<typeof nearest>)[]> {
+  const polylines = rails.map((way) => ({ way, polyline: way.geometry.map((g): Point => [g.lon, g.lat]) }));
+  const boxes = polylines.map(({ polyline }) => [0, 1].map((k) => [Math.min(...polyline.map((p) => p[k] ?? 0)), Math.max(...polyline.map((p) => p[k] ?? 0))]));
+  const found = new Map<string, ({ way: OsmWay } & ReturnType<typeof nearest>)[]>();
+  for (const s of stations) {
+    // Rails further than REACH + BAND can't count, so skip the ways whose bounding box is.
+    const lat = (REACH + BAND) / DEGREE;
+    const lon = lat / Math.cos((s.lat * Math.PI) / 180);
+    const closest = polylines
+      .filter((_, i) => {
+        const [[west = 0, east = 0] = [], [south = 0, north = 0] = []] = boxes[i] ?? [];
+        return s.lon > west - lon && s.lon < east + lon && s.lat > south - lat && s.lat < north + lat;
+      })
+      .map(({ way, polyline }) => ({ way, ...nearest(polyline, [s.lon, s.lat]) }));
+    const first = Math.min(...closest.map((c) => c.metres));
+    if (first <= REACH) found.set(s.id, closest.filter((c) => c.metres <= first + BAND));
+  }
+  return found;
 }
 
 /**
@@ -667,6 +718,11 @@ export function nearest(polyline: Point[], p: Point): { i: number; t: number; al
   return best;
 }
 
+/** The point halfway along a shape. */
+function middle(shape: Shape): Point {
+  return pointAt(shape, (shape.dist.at(-1) ?? 0) / 2);
+}
+
 /** The part of a line from one distance along it to another. */
 function piece(polyline: Point[], from: number, to: number): Point[] {
   return along({ coords: polyline, dist: distances(polyline) }, from, to);
@@ -776,6 +832,6 @@ function metres(a: Point, b: Point): number {
 }
 
 /** Five decimals is about a metre; a shape's points take six, so that the map's curves don't zig-zag zoomed in (#203). */
-function round(degrees: number, places = 1e5): number {
+export function round(degrees: number, places = 1e5): number {
   return Math.round(degrees * places) / places;
 }

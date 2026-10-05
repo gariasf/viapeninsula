@@ -127,9 +127,12 @@ export async function readFeed(
   }
   for (const id of wanted) if (!points.has(id)) console.warn(`${network.name} shape ${id} has no points`);
 
+  // ponytail: a shape two Lines' Trips run goes with the last of them; no feed had one on 5 Oct 2026.
+  const lineOf = new Map([...lines].flatMap(([name, line]) => [...line.shapes].map((id): [string, string] => [id, `${network.id}:${name}`])));
   const { shapes, shapeOf: shapeFor } = eachWay(
     [...points].map(([id, pts]) => ({
       id: `${prefix}:${id}`,
+      line: lineOf.get(id) ?? '',
       coords: pts.sort((a, b) => a.seq - b.seq).map((p) => [p.lon, p.lat]),
       stations: [...(served.get(id) ?? [])],
     })),

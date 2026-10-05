@@ -1,7 +1,8 @@
 // The daily build: turns the operators' timetables into a bundle for each of the next three service
 // days, today's first, and publishes them to R2, so a build that fails leaves the map the days before
 // it published. Each day's bundle comes in two files, so the map can draw the Lines before the Trips
-// come: the track, which is the same file for each day, and the day's Trips.
+// come: the track, which is the same file for each day, and the day's Trips. Beside them it writes
+// out/report.json: each spot its log names, once (report.ts).
 // `npm run daily` publishes; `npm run daily -- --dry-run` only writes the files to out/. The secrets
 // a timetable's URL needs, as TMB's TMB_APP_ID and TMB_APP_KEY, come from the environment, which
 // `npm run daily` loads from .env.local.
@@ -17,16 +18,18 @@ import { download, feedStart, type Source } from './gtfs.ts';
 import { dayTrips, manifestDay, manifestOf } from './manifest.ts';
 import { onRails, readFeed, type Feed } from './networks.ts';
 import { crop } from './border.ts';
-import { measures, summary } from './measures.ts';
+import { measures, reported, summary } from './measures.ts';
 import { osm } from './osm.ts';
 import { sideBySide } from './sideBySide.ts';
-import { fine, stationsOf, traceShapes } from './track.ts';
+import { fine, railsBeside, stationsOf, traceShapes } from './track.ts';
+import { collect, type Found } from './report.ts';
 import { placeTrips } from './trips.ts';
 
 const BUCKET = 'viapeninsula-live';
 
 const today = madridDate(new Date());
 const DAYS = [0, 1, 2].map((n) => addDays(today, n));
+const report = collect();
 // Every Network's timetables, downloaded at once.
 const downloaded = await Promise.all(
   NETWORKS.map(async (network) => ({
@@ -39,12 +42,15 @@ const downloaded = await Promise.all(
 const { rails, border } = await osm([...new Set(NETWORKS.flatMap((n) => n.rails.railway))].sort());
 const networks = [];
 for (const { network, feeds } of downloaded) networks.push(await build(network, feeds));
-const eachDay = dayTrips(DAYS, networks);
+const eachDay = dayTrips(DAYS, networks, console.warn, report.add);
 const [lines, traced] = [networks.flatMap((n) => n.lines), networks.flatMap((n) => n.shapes)];
 const { strokes, centrelines, rails: ownTrack, slots, tracks } = await sideBySide(lines, traced);
 const shapes = [...traced, ...centrelines];
 // How the Lines are drawn, for comparing one day's track, or one change to sideBySide(), with another (#160).
-console.log(`Lines drawn: ${summary(measures({ shapes, strokes, lines }))}`);
+const drawn = measures({ shapes, strokes, lines });
+const logged = `Lines drawn: ${summary(drawn)}`;
+console.log(logged);
+for (const found of reported(drawn, logged)) report.add(found);
 
 await mkdir('out/days', { recursive: true });
 const track: Track = {
@@ -72,6 +78,7 @@ const previous = await fetch(`${LIVE_URL}/manifest.json`)
     return undefined;
   });
 await writeFile('out/manifest.json', JSON.stringify(manifestOf(built, previous)));
+await writeFile('out/report.json', JSON.stringify(report.spots()));
 
 if (!process.argv.includes('--dry-run')) {
   // The bundles go up first, so the manifest never names a file that isn't there yet. The CDN
@@ -86,7 +93,8 @@ if (!process.argv.includes('--dry-run')) {
  * the map to show it: its Lines, Stations and track traced along OpenStreetMap's rails of its own kind
  * (ADR-0004), which are those of every day in its timetables, and its Trips on each of DAYS, none where
  * its timetable has none (dayTrips()), all within Spain: its Trips are placed on their whole track,
- * which is then cut at the border.
+ * which is then cut at the border. What its tracing and placing log goes into the report too, with the
+ * OpenStreetMap ways its Stations are on.
  * ponytail: reads each feed once for each day, about 5 s a day for the lot; read stop_times once for
  * every day if the build grows slow.
  */
@@ -99,9 +107,12 @@ async function build(config: NetworkConfig, feeds: (Feed & { gtfs: Source })[]) 
   const days = await Promise.all(DAYS.map((day) => Promise.all(feeds.map((feed) => readFeed(feed.gtfs, day, feed)))));
   const parts = days[0] ?? [];
   const [lines, stations] = [parts.flatMap((p) => p.lines), parts.flatMap((p) => p.stations)];
-  const shapes = traceShapes(parts.flatMap((p) => p.shapes), stations, fine(rails.filter(onRails(config.rails))), network.runningSide);
+  const own = fine(rails.filter(onRails(config.rails)));
+  const near = railsBeside(own, stations);
+  const found = (f: Found) => report.add({ ...f, network: id, ways: [...new Set(f.stations?.flatMap((s) => near.get(s.id)?.map((c) => c.way.id) ?? []))] });
+  const shapes = traceShapes(parts.flatMap((p) => p.shapes), stations, own, network.runningSide, console.log, found);
   const cropped = crop(border, stations, shapes, days.map((day) => day.flatMap((p) => p.trips)));
-  const trips = cropped.days.map((trips) => placeTrips(trips, lines, shapes, stations, network.profile.topSpeed));
+  const trips = cropped.days.map((trips, day) => placeTrips(trips, lines, shapes, stations, network.profile.topSpeed, console.log, (f) => found({ ...f, day })));
   return { network, lines, stations: cropped.stations, shapes: cropped.shapes, trips };
 }
 

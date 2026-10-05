@@ -3,6 +3,7 @@
 
 import { along, APART, atZoom, bandAt, BANDS, beside, cutIn, DEGREE, direction, drawnIn, EARTH, inBand, LENGTH, LINK, pieces, pixelMetres, pointAt, STRETCH, type Line, type Point, type Shape, type Stroke, type Track } from '../bundle.ts';
 import { folded, offset, simplify, TOLERANCE } from './offset.ts';
+import type { Found } from './report.ts';
 import { room, sideBySide, type Front } from './sideBySide.ts';
 
 /** Strokes shorter than this, in metres, are stubs: sideBySide()'s SHORT before #138. */
@@ -92,7 +93,40 @@ function joined(strokes: Stroke[]): Stroke[] {
 export function summary({ breaks: b, twice, alone, over, folds: f, covered, dangling: loose, kinks, weaves, inside, largest }: Measures): string {
   const km = (m: number) => `${(m / 1000).toFixed(1)} km`;
   const per = (found: Record<number, number>, as: (n: number) => string = String) => Object.entries(found).map(([zoom, n]) => `${as(n)} at zoom ${zoom}`).join(', ');
-  return `${b.steps + b.stubs + b.swaps + b.joins} breaks (${b.steps} steps, ${b.stubs} stubs, ${b.swaps} swaps, ${b.joins} joins), ${km(twice)} drawn twice, ${km(alone)} off a track they have alone, ${Math.round(over)} m over each other, folds ${per(f)}, covered ${per(covered, (m) => `${(m / 1000).toFixed(1)} km`)}, ${loose} dangling ends, kinks ${per(kinks)}, weaves ${per(weaves)}, off track inside nodes ${per(inside, (m) => `${Math.round(m)} m`)}${Object.entries(largest).map(([zoom, list]) => `\n  largest nodes at zoom ${zoom}, in line widths: ${list.map(({ size, at: [lon, lat] }) => `${size.toFixed(1)} at ${lat.toFixed(5)},${lon.toFixed(5)}`).join(', ')}`).join('')}`;
+  return `${total(b)} breaks (${b.steps} steps, ${b.stubs} stubs, ${b.swaps} swaps, ${b.joins} joins), ${km(twice)} drawn twice, ${km(alone)} off a track they have alone, ${Math.round(over)} m over each other, folds ${per(f)}, covered ${per(covered, (m) => `${(m / 1000).toFixed(1)} km`)}, ${loose} dangling ends, kinks ${per(kinks)}, weaves ${per(weaves)}, off track inside nodes ${per(inside, (m) => `${Math.round(m)} m`)}${Object.entries(largest).map(([zoom, list]) => `\n  largest nodes at zoom ${zoom}, in line widths: ${list.map(({ size, at: [lon, lat] }) => `${size.toFixed(1)} at ${lat.toFixed(5)},${lon.toFixed(5)}`).join(', ')}`).join('')}`;
+}
+
+/**
+ * The measures as the build reports them, given the log's text of them, which ends in summary()'s:
+ * one spot with each of their numbers, in whole metres where they're metres, and its first line, and
+ * one for each of the largest nodes, with its zoom's line.
+ */
+export function reported(m: Measures, text: string): Found[] {
+  const [first = '', ...zooms] = text.split('\n');
+  const each = (name: string, found: Record<number, number>) => Object.entries(found).map(([zoom, n]) => [`${name} ${zoom}`, Math.round(n)]);
+  const numbers = Object.fromEntries([
+    ['breaks', total(m.breaks)],
+    ...Object.entries(m.breaks),
+    ['twice', Math.round(m.twice)],
+    ['alone', Math.round(m.alone)],
+    ['over', Math.round(m.over)],
+    ['dangling', m.dangling],
+    ...each('folds', m.folds),
+    ...each('covered', m.covered),
+    ...each('kinks', m.kinks),
+    ...each('weaves', m.weaves),
+    ...each('inside', m.inside),
+  ]);
+  // summary() gives the largest nodes a line for each zoom, in order, after its first.
+  const nodes = Object.entries(m.largest).flatMap(([zoom, list], i) =>
+    list.map(({ size, at }): Found => ({ kind: 'node', zoom: Number(zoom), point: at, text: [zooms[i]?.trim() ?? ''], numbers: { size } })),
+  );
+  return [{ kind: 'measures', text: [first], numbers }, ...nodes];
+}
+
+/** Every break, of each kind. */
+function total(b: Breaks): number {
+  return b.steps + b.stubs + b.swaps + b.joins;
 }
 
 /**
