@@ -11,11 +11,22 @@ test("speaks the first of the browser's languages it knows, whatever the region,
   expect(pickLanguage(null, [])).toBe('en');
 });
 
+test("speaks Spanish to a browser that prefers Basque or Galician, in the order of the browser's languages", () => {
+  expect(pickLanguage(null, ['eu-ES'])).toBe('es');
+  expect(pickLanguage(null, ['gl'])).toBe('es');
+  expect(pickLanguage(null, ['eu', 'en'])).toBe('es');
+  expect(pickLanguage(null, ['en', 'eu'])).toBe('en');
+  expect(pickLanguage(null, ['ca-ES', 'eu'])).toBe('ca');
+});
+
 test('speaks the language the viewer chose on this device, whatever their browser prefers', () => {
   expect(pickLanguage('es', ['ca-ES', 'ca'])).toBe('es');
   expect(pickLanguage('en', [])).toBe('en');
   // A stored language the interface doesn't speak is ignored.
   expect(pickLanguage('fr', ['ca-ES'])).toBe('ca');
+  // A chosen language wins over Basque and Galician too.
+  expect(pickLanguage('ca', ['eu-ES'])).toBe('ca');
+  expect(pickLanguage('en', ['gl', 'eu'])).toBe('en');
 });
 
 test('counts the Trains on the map, and how many of them are Live, in each language', () => {
