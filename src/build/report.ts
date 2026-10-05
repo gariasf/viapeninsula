@@ -1,7 +1,7 @@
 // What the daily build reports, for a person to review: each spot its log names, once, by a key the
 // next build names it by too, so that it can tell what's new (docs/research/build-report.md). The
 // daily build writes them to out/report.json and publishes it, and the next build diffs its own
-// against it (diff()).
+// against it (diff()), and tells the maintainer of the problem spots that are new (comment()).
 
 import { DEGREE, pixelMetres, type Point, type Station } from '../bundle.ts';
 import { round } from './track.ts';
@@ -161,6 +161,35 @@ export function diff(last: Spot[] | undefined, spots: Spot[]): string {
     `### Build report: ${last ? `${added} new, ${gone} gone, ${changed} changed since the last build` : `no last report to diff against, so all ${added} spots are new`}`,
     ...groups.flatMap(([title, items]) => (items.length ? ['', `#### ${title}`, '', ...items] : [])),
   ].join('\n');
+}
+
+/** Whether a kind of spot is a problem on the map: not a length, a node or the measures, which move with any change to it. */
+const PROBLEM: Record<Spot['kind'], boolean> = { kept: true, turn: true, branch: true, trip: true, notrips: true, length: false, node: false, measures: false };
+
+/** The most characters a GitHub comment holds, counted here as UTF-8's bytes, which are never fewer however GitHub counts them. */
+const COMMENT = 65536;
+
+/**
+ * The comment that tells the maintainer of the problem spots new since the last build, on the
+ * standing "Build report" issue: how many, with a link to the run, whose summary has the whole diff,
+ * then as many as a comment holds, each with its links and its first line of the log, which names
+ * its Stations, so that one with many Trips left out doesn't push the others out, and how many more
+ * there are. Nothing where none is new. With no last report, every one is new.
+ * ponytail: measures the whole comment again for each spot it cuts, 0.2 s for a thousand new spots
+ * and 1.4 s for three thousand; add up each spot's size if a build ever finds many more.
+ */
+export function comment(last: Spot[] | undefined, spots: Spot[], run: string): string | undefined {
+  const before = new Set(last?.map((s) => s.key));
+  const items = spots
+    .filter((s) => PROBLEM[s.kind] && !before.has(s.key))
+    .map((s) => item({ ...s, text: [...s.text.slice(0, 1), ...(s.text.length > 1 ? [`…and ${s.text.length - 1} more like it, in the run's summary`] : [])] }));
+  if (!items.length) return undefined;
+  const count = `${items.length} new problem spot${items.length === 1 ? '' : 's'}`;
+  const head = `${last ? `${count} since the last build` : `${count}: with no last report to diff against, every spot is new`}. The whole diff is in [the run's summary](${run}).`;
+  const body = (n: number) => [head, '', ...items.slice(0, n), ...(n < items.length ? [`- …and ${items.length - n} more, in the run's summary`] : [])].join('\n');
+  let n = items.length;
+  while (Buffer.byteLength(body(n)) > COMMENT) n--;
+  return body(n);
 }
 
 /**

@@ -2,6 +2,8 @@
 
 Each daily build, and each deploy whose build changed, diffs its report against the last one published and writes the diff to the run's job summary (#250): the spots new since the last build, those gone, and those whose numbers moved. Each spot comes with its key, its lines of the log, and links to the map there, to OpenStreetMap there, to edit OpenStreetMap there, and to the ways its Stations are on. On most days it's one line: nothing changed. Why it's built this way is in `docs/research/build-report.md`.
 
+Where a problem spot is new (a run of legs that keeps the feed's shape, a turn-back, a branch, Trips left out, or a Network with no Trips on a day), the build also comments on the standing [Build report](https://github.com/gariasf/viapeninsula/issues/290) issue, which notifies the maintainer: the new problem spots, with their links, and the run's link (#255). It never comments for a length, a node or the measures, which move with any change to the map, so those are only in the summary.
+
 ## A new spot
 
 1. Open its map link and its OpenStreetMap link.

@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { Station } from '../bundle.ts';
-import { collect, diff, type Found, type Spot } from './report.ts';
+import { collect, comment, diff, type Found, type Spot } from './report.ts';
 
 const station = (id: string, lon: number, lat: number): Station => ({ id, name: `${id}'s name`, lon, lat });
 const [A, B, C] = [station('adif:1', 2, 41), station('adif:2', 2.1, 41.1), station('adif:3', 2.2, 41.2)];
@@ -125,6 +125,8 @@ const LENGTH: Spot = {
   numbers: { percent: 0.1 },
 };
 const MEASURES: Spot = { kind: 'measures', key: 'measures', text: ['Lines drawn: 236 breaks (181 steps, 29 stubs, 6 swaps, 20 joins)'], numbers: { breaks: 236, steps: 181, 'folds 9': 8 } };
+const TRIP: Spot = { kind: 'trip', key: 'trip cercanias-madrid:C2 fast adif:70101 adif:98003', point: [-3.59852, 40.46375], zoom: 15, text: [], numbers: { trips: 5 } };
+const NODE: Spot = { kind: 'node', key: 'node 10 40.400 -3.681', point: [-3.68073, 40.4], zoom: 10, text: [], numbers: { size: 14.8 } };
 
 test('says in one line that nothing changed since the last build, where a length moves a point or less', () => {
   expect(diff([LENGTH, MEASURES, TURN], [{ ...LENGTH, numbers: { percent: 1.1 } }, MEASURES, TURN])).toBe('Nothing in the build report is new, gone or changed since the last build.');
@@ -156,12 +158,10 @@ test('lists the spots new since the last build, then those gone, then those whos
 });
 
 test('counts a Trip count, a node or any other measure as changed when it moves at all, a length only past a point', () => {
-  const trip: Spot = { kind: 'trip', key: 'trip cercanias-madrid:C2 fast adif:70101 adif:98003', point: [-3.59852, 40.46375], zoom: 15, text: [], numbers: { trips: 5 } };
-  const node: Spot = { kind: 'node', key: 'node 10 40.400 -3.681', point: [-3.68073, 40.4], zoom: 10, text: [], numbers: { size: 14.8 } };
   // In order of key, as reports are.
   const changed = diff(
-    [LENGTH, MEASURES, node, trip],
-    [{ ...LENGTH, numbers: { percent: -0.9 } }, { ...MEASURES, numbers: { ...MEASURES.numbers, 'folds 15': 0 } }, { ...node, numbers: { size: 14.9 } }, { ...trip, numbers: { trips: 6 } }],
+    [LENGTH, MEASURES, NODE, TRIP],
+    [{ ...LENGTH, numbers: { percent: -0.9 } }, { ...MEASURES, numbers: { ...MEASURES.numbers, 'folds 15': 0 } }, { ...NODE, numbers: { size: 14.9 } }, { ...TRIP, numbers: { trips: 6 } }],
   );
   expect(changed.split('\n').filter((line) => line.startsWith('- '))).toEqual([
     '- `measures`: folds 15 (none → 0)',
@@ -176,5 +176,68 @@ test('with no last report, every spot is new, and it says so', () => {
     '#### New',
     '- `notrips rodalies 0`',
     expect.stringMatching(/^- `turn rodalies:R16 adif:65402` · \[map\]/),
+  ]);
+});
+
+// The run a comment links to.
+const RUN = 'https://github.com/gariasf/viapeninsula/actions/runs/37330911997';
+/** The keys of the spots a comment lists, in its order. */
+const listed = (body?: string) => body?.split('\n').flatMap((line) => line.match(/^- `([^`]+)`/)?.[1] ?? []);
+
+test('comments only on problem spots new since the last build: a run kept, a turn-back, a branch, Trips left out or no Trips, never a length, a node or the measures', () => {
+  const kept: Spot = { kind: 'kept', key: 'kept rodalies:R3 adif:78600 adif:78605 nopath', text: [] };
+  const branch: Spot = { kind: 'branch', key: 'branch rodalies:R2N adif:79100 adif:79101', text: [] };
+  const trip: Spot = { kind: 'trip', key: 'trip metro:L1 fast tmb:1.111 tmb:1.112', text: [], numbers: { trips: 1 } };
+  const last = [LENGTH, MEASURES, TRIP];
+  // A new node, and numbers that moved, a known problem spot's too: nothing to comment.
+  expect(comment(last, [{ ...LENGTH, numbers: { percent: 3 } }, { ...MEASURES, numbers: { breaks: 1 } }, NODE, { ...TRIP, numbers: { trips: 6 } }], RUN)).toBeUndefined();
+  // In order of key, as reports are.
+  expect(listed(comment(last, [branch, kept, LENGTH, MEASURES, NODE, NO_TRIPS, { ...TRIP, numbers: { trips: 6 } }, trip, TURN], RUN))).toEqual([
+    'branch rodalies:R2N adif:79100 adif:79101',
+    'kept rodalies:R3 adif:78600 adif:78605 nopath',
+    'notrips rodalies 0',
+    'trip metro:L1 fast tmb:1.111 tmb:1.112',
+    'turn rodalies:R16 adif:65402',
+  ]);
+});
+
+test("says how many problem spots are new and links the run, whose summary has the whole diff, then lists each with its links and its lines of the log", () => {
+  expect(comment([LENGTH], [LENGTH, NO_TRIPS, TURN], RUN)?.split('\n')).toEqual([
+    "2 new problem spots since the last build. The whole diff is in [the run's summary](https://github.com/gariasf/viapeninsula/actions/runs/37330911997).",
+    '',
+    '- `notrips rodalies 0`',
+    "  - Rodalies de Catalunya's timetable has no Trips on 2026-10-05",
+    "- `turn rodalies:R16 adif:65402` · [map](https://viapeninsula.gariasf.com/#map=16/40.75356/0.61431) · [OpenStreetMap](https://www.openstreetmap.org/#map=17/40.75356/0.61431) · [edit](https://www.openstreetmap.org/edit#map=18/40.75356/0.61431) · ways [216952562](https://www.openstreetmap.org/way/216952562), [216952572](https://www.openstreetmap.org/way/216952572)",
+    "  - rodalies:51_R16: Camp-redó → Ulldecona-Alcanar-La Sénia turns back at L'Aldea-Amposta-Tortosa",
+  ]);
+  expect(comment([], [TURN], RUN)?.split('\n')[0]).toBe("1 new problem spot since the last build. The whole diff is in [the run's summary](https://github.com/gariasf/viapeninsula/actions/runs/37330911997).");
+});
+
+test("cuts the list to fit a GitHub comment's 65,536 characters, counted as UTF-8's bytes, and says how many more there are", () => {
+  // Each a kilobyte as listed, in 500 two-byte letters.
+  const turns = Array.from({ length: 100 }, (_, i): Spot => ({ kind: 'turn', key: `turn line:L ${String(i).padStart(3, '0')}`, text: ['é'.repeat(500)] }));
+  const body = comment([], turns, RUN) ?? '';
+  expect(Buffer.byteLength(body)).toBeLessThanOrEqual(65536);
+  expect(body.split('\n')[0]).toMatch(/^100 new problem spots since the last build\./);
+  expect(listed(body)).toEqual(turns.slice(0, 63).map((s) => s.key));
+  expect(body.split('\n').at(-1)).toBe("- …and 37 more, in the run's summary");
+});
+
+test('with no last report, every problem spot is new, and it says so', () => {
+  expect(listed(comment(undefined, [LENGTH, NO_TRIPS, TURN], RUN))).toEqual(['notrips rodalies 0', 'turn rodalies:R16 adif:65402']);
+  expect(comment(undefined, [LENGTH, NO_TRIPS, TURN], RUN)?.split('\n')[0]).toBe(
+    "2 new problem spots: with no last report to diff against, every spot is new. The whole diff is in [the run's summary](https://github.com/gariasf/viapeninsula/actions/runs/37330911997).",
+  );
+});
+
+test("gives each spot only its first line of the log and how many more it has, so one with many Trips left out doesn't push the others out", () => {
+  // 600 Trips left out between two Stations: about 72 KB of log.
+  const many: Spot = { ...TRIP, text: Array.from({ length: 600 }, (_, i) => `cercanias-madrid:${1000 + i}L20990C2 is left out: it would run Fuente de la Mora → San Fernando de Henares at 142 km/h along its track`), numbers: { trips: 200 } };
+  const body = comment([], [NO_TRIPS, many, TURN], RUN);
+  expect(listed(body)).toEqual(['notrips rodalies 0', 'trip cercanias-madrid:C2 fast adif:70101 adif:98003', 'turn rodalies:R16 adif:65402']);
+  // Under the Trips' spot, after its links.
+  expect(body?.split('\n').slice(5, 7)).toEqual([
+    '  - cercanias-madrid:1000L20990C2 is left out: it would run Fuente de la Mora → San Fernando de Henares at 142 km/h along its track',
+    "  - …and 599 more like it, in the run's summary",
   ]);
 });
