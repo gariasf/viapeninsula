@@ -94,6 +94,6 @@ test("reads the day a feed's timetable starts from feed_info.txt", async () => {
 
 test("fails a download without printing its query string, where TMB's key goes", async () => {
   vi.stubGlobal('fetch', async () => new Response('Authentication failed', { status: 401 }));
-  const error = await download('https://api.tmb.cat/v1/static/datasets/gtfs.zip?app_id=ID&app_key=KEY', 'tmb.zip').catch((e: unknown) => e);
+  const error = await download('https://api.tmb.cat/v1/static/datasets/gtfs.zip?app_id=ID&app_key=KEY', 'tmb').catch((e: unknown) => e);
   expect(String(error)).toBe('Error: https://api.tmb.cat/v1/static/datasets/gtfs.zip: HTTP 401');
 });

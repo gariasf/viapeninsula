@@ -824,7 +824,7 @@ function lerp(a: Point, b: Point, t: number): Point {
 }
 
 /** Great-circle distance, in metres. */
-function metres(a: Point, b: Point): number {
+export function metres(a: Point, b: Point): number {
   const rad = Math.PI / 180;
   const h =
     Math.sin(((b[1] - a[1]) * rad) / 2) ** 2 + Math.cos(a[1] * rad) * Math.cos(b[1] * rad) * Math.sin(((b[0] - a[0]) * rad) / 2) ** 2;

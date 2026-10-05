@@ -38,10 +38,12 @@ const run = promisify(execFile);
 
 /**
  * The ways in Geofabrik's EXTRACTS whose `railway` tag is one of these, and Spain's border, as the ways
- * that make it up, in no order, from the cache or from Geofabrik.
+ * that make it up, in no order, from the cache or from Geofabrik, and the day that copy was downloaded.
  */
 export async function osm(railways: string[], cache = '.cache') {
-  return kept(join(cache, `osm-${hash(JSON.stringify([EXTRACTS, railways, SPAIN]))}.opl`), "OpenStreetMap's rails and Spain's border", () => geofabrik(railways), readOpl);
+  const file = join(cache, `osm-${hash(JSON.stringify([EXTRACTS, railways, SPAIN]))}.opl`);
+  const got = await kept(file, "OpenStreetMap's rails and Spain's border", () => geofabrik(railways), readOpl);
+  return { ...got, downloaded: madridDate((await stat(file)).mtime) };
 }
 
 /**
