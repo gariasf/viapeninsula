@@ -1,7 +1,11 @@
+import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import type { Shape, Station } from '../bundle.ts';
+import { RODALIES } from '../networks.ts';
+import { ownRails } from './networks.ts';
 import type { OsmWay } from './osm.ts';
 import { collect, type Found } from './report.ts';
+import type { Snippet } from './snippet.ts';
 import { eachWay, fine, onOwnTrack, railsBeside, traceShapes } from './track.ts';
 
 // A small railway, drawn in metres east (x) and north (y) of a point near Manresa.
@@ -236,6 +240,19 @@ test("reports a shape, its way back and the feed's own shape the other way, each
   ]);
   // A length is the feed's shape's, whichever way it's traced: the feed's shape the other way has its own.
   expect(report.spots().filter((s) => s.kind === 'length').map((s) => s.key)).toEqual(['length rodalies:R16 R16', 'length rodalies:R16 R16_INV']);
+});
+
+test("turns back at L'Aldea on R16's way from Camp-redó to Ulldecona, on OpenStreetMap's rails as they were", () => {
+  // `npm run snippet -- 40.70163,0.48614 laldea 14`: 14 km round a point between Tortosa and Ulldecona,
+  // from the rails downloaded on 4 Oct 2026 and Renfe's timetable of 24 Sep 2026.
+  const { rails, shapes, stations } = JSON.parse(readFileSync(new URL('fixtures/osm/laldea.json', import.meta.url), 'utf8')) as Snippet;
+  const log: string[] = [];
+  traceShapes(shapes, stations, ownRails(rails, RODALIES), RODALIES.runningSide, (line) => log.push(line));
+  // Only the turns, as in the build's own log (#63): no Station left out, nor a leg keeping the feed's shape.
+  expect(log.filter((line) => !line.includes(' km long.'))).toEqual([
+    "rodalies:51_R16: Camp-redó → Ulldecona-Alcanar-La Sénia turns back at L'Aldea-Amposta-Tortosa",
+    "rodalies:51_R16_INV: Ulldecona-Alcanar-La Sénia → Camp-redó turns back at L'Aldea-Amposta-Tortosa",
+  ]);
 });
 
 test("leaves out a Station on a branch off the feed's shape, rather than run out to it and back", () => {

@@ -1,11 +1,17 @@
 // Reading a Network's timetables, and finding its rails, as src/networks.ts has them.
 
 import type { Line, Station } from '../bundle.ts';
-import { FGC, METRO, RODALIES, TRAM, type NetworkConfig, type Rails, type Timetable } from '../networks.ts';
+import { FGC, METRO, NETWORKS, RODALIES, TRAM, type NetworkConfig, type Rails, type Timetable } from '../networks.ts';
 import { rows, seconds, serviceIdsOn, type Source } from './gtfs.ts';
 import type { OsmWay } from './osm.ts';
-import { eachWay, type FeedShape } from './track.ts';
+import { eachWay, fine, type FeedShape } from './track.ts';
 import type { FeedTrip } from './trips.ts';
+
+/**
+ * The rails of every kind any Network runs on, as osm() is asked for them. The kinds are sorted, so the
+ * copy osm() keeps isn't named by the Networks' order.
+ */
+export const RAILWAYS = [...new Set(NETWORKS.flatMap((n) => n.rails.railway))].sort();
 
 /** Whether a way is one of these rails. */
 export function onRails({ railway, gauge, operator, notOperator }: Rails): (way: OsmWay) => boolean {
@@ -14,6 +20,11 @@ export function onRails({ railway, gauge, operator, notOperator }: Rails): (way:
     (!gauge || (tags.gauge ?? '').split(';').some((g) => gauge.includes(g))) &&
     (!operator || operator.includes(tags.operator ?? '')) &&
     !notOperator?.includes(tags.operator ?? '');
+}
+
+/** The rails a Network's Lines are traced along: the ways of its own kind, each without the points fine() drops. */
+export function ownRails(rails: OsmWay[], network: Pick<NetworkConfig, 'rails'>): OsmWay[] {
+  return fine(rails.filter(onRails(network.rails)));
 }
 
 /** One of a Network's timetables, to read as that Network's. */

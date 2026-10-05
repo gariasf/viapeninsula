@@ -8,14 +8,19 @@ import { createInterface } from 'node:readline';
 /** Yields the lines of one file of a GTFS feed, or nothing if the feed hasn't got that file. */
 export type Source = (file: string) => AsyncIterable<string> | undefined;
 
-/** Downloads a GTFS zip as `name` into the system's temporary folder, to read from there. */
-export async function download(url: string, name: string): Promise<Source> {
+/** Downloads the GTFS zip of the timetable whose IDs start with `prefix` to zipFile(prefix), to read from there. */
+export async function download(url: string, prefix: string): Promise<Source> {
   const res = await fetch(url);
   // Never print a query string: TMB's holds its key.
   if (!res.ok) throw new Error(`${url.split('?')[0]}: HTTP ${res.status}`);
-  const file = join(tmpdir(), name);
+  const file = zipFile(prefix);
   await writeFile(file, Buffer.from(await res.arrayBuffer()));
   return zipSource(file);
+}
+
+/** Where download() keeps a timetable's GTFS zip, in the system's temporary folder, until that's cleared. */
+export function zipFile(prefix: string): string {
+  return join(tmpdir(), `${prefix}.zip`);
 }
 
 /** Streams files straight out of a GTFS zip: Renfe's stop_times alone is 240 MB unzipped. */

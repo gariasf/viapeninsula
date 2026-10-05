@@ -17,12 +17,12 @@ import { addDays, LIVE_URL, madridDate, type Manifest, type Network, type Track 
 import { NETWORKS, type NetworkConfig, type Timetable } from '../networks.ts';
 import { download, feedStart, type Source } from './gtfs.ts';
 import { dayTrips, manifestDay, manifestOf } from './manifest.ts';
-import { onRails, readFeed, type Feed } from './networks.ts';
+import { ownRails, RAILWAYS, readFeed, type Feed } from './networks.ts';
 import { crop } from './border.ts';
 import { measures, reported, summary } from './measures.ts';
 import { osm } from './osm.ts';
 import { sideBySide } from './sideBySide.ts';
-import { fine, railsBeside, stationsOf, traceShapes } from './track.ts';
+import { railsBeside, stationsOf, traceShapes } from './track.ts';
 import { collect, diff, type Found, type Spot } from './report.ts';
 import { placeTrips } from './trips.ts';
 
@@ -35,12 +35,11 @@ const report = collect();
 const downloaded = await Promise.all(
   NETWORKS.map(async (network) => ({
     network,
-    feeds: await Promise.all(network.timetables.map(async (t) => ({ ...t, network, gtfs: await download(address(t), `${t.prefix}.zip`) }))),
+    feeds: await Promise.all(network.timetables.map(async (t) => ({ ...t, network, gtfs: await download(address(t), t.prefix) }))),
   })),
 );
-// The rails of every kind any Network runs on, and Spain's border. The kinds are sorted, so the copy
-// osm() keeps isn't named by the Networks' order.
-const { rails, border } = await osm([...new Set(NETWORKS.flatMap((n) => n.rails.railway))].sort());
+// The rails of every kind any Network runs on, and Spain's border.
+const { rails, border } = await osm(RAILWAYS);
 const networks = [];
 for (const { network, feeds } of downloaded) networks.push(await build(network, feeds));
 const eachDay = dayTrips(DAYS, networks, console.warn, report.add);
@@ -118,7 +117,7 @@ async function build(config: NetworkConfig, feeds: (Feed & { gtfs: Source })[]) 
   const days = await Promise.all(DAYS.map((day) => Promise.all(feeds.map((feed) => readFeed(feed.gtfs, day, feed)))));
   const parts = days[0] ?? [];
   const [lines, stations] = [parts.flatMap((p) => p.lines), parts.flatMap((p) => p.stations)];
-  const own = fine(rails.filter(onRails(config.rails)));
+  const own = ownRails(rails, config);
   const near = railsBeside(own, stations);
   const found = (f: Found) => report.add({ ...f, network: id, ways: [...new Set(f.stations?.flatMap((s) => near.get(s.id)?.map((c) => c.way.id) ?? []))] });
   const shapes = traceShapes(parts.flatMap((p) => p.shapes), stations, own, network.runningSide, console.log, found);
