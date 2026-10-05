@@ -1,0 +1,46 @@
+{
+  "header": {
+    "gtfsRealtimeVersion": "2.0",
+    "timestamp": "1791179078"
+  },
+  "entity": [
+    {
+      "id": "VP_C2-24007",
+      "vehicle": {
+        "trip": {
+          "tripId": "4076L24007C2"
+        },
+        "position": {
+          "latitude": 39.153164,
+          "longitude": -0.4508683
+        },
+        "currentStatus": "STOPPED_AT",
+        "timestamp": "1791179074",
+        "stopId": "64104",
+        "vehicle": {
+          "id": "24007",
+          "label": "C2-24007"
+        }
+      }
+    },
+    {
+      "id": "VP_C1-22001",
+      "vehicle": {
+        "trip": {
+          "tripId": "2076L22001C1"
+        },
+        "position": {
+          "latitude": 43.52077,
+          "longitude": -5.746301
+        },
+        "currentStatus": "INCOMING_AT",
+        "timestamp": "1791179075",
+        "stopId": "15302",
+        "vehicle": {
+          "id": "22001",
+          "label": "C1-22001-PLATF.(1)"
+        }
+      }
+    }
+  ]
+}

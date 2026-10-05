@@ -13,5 +13,7 @@
   // and at 00:30 UTC, after midnight in Madrid all year, which starts the daily build (worker.ts's DAILY).
   "triggers": { "crons": ["* * * * *", "30 0 * * *"] },
   // A run takes about 12 ms of CPU, so a bug can't cost more than a second of it each run.
-  "limits": { "cpu_ms": 1000 }
+  "limits": { "cpu_ms": 1000 },
+  // Workers Logs keeps each run's logs for 7 days, such as the Networks missing from a feed that works (#248).
+  "observability": { "enabled": true }
 }

@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { PbfWriter } from 'pbf';
 import { expect, test } from 'vitest';
+import type { Snapshot } from '../bundle.ts';
 import { unavailable } from '../engine.ts';
 import { LIVE_SOURCES } from '../networks.ts';
 import { fetchDue, START, step, TIMEOUT, UNSET, type Fetched, type FgcOwn, type FgcResponses, type Get, type RenfeResponses, type Responses, type State, type Stored, type TramOwn, type TramResponses } from './step.ts';
@@ -72,7 +73,7 @@ test('writes a snapshot of a few kilobytes, as the CDN compresses it', () => {
 
 test("records when Renfe's feeds were last tried and last read, how the last try went, and how often they're tried", () => {
   const fine = { lastSuccess: NOW, lastAttempt: NOW, status: 'ok', every: 20_000 };
-  expect(run().snapshot.feeds).toEqual({ rodalies: fine });
+  expect(run().snapshot.feeds.rodalies).toEqual(fine);
   expect(run().state.freshness).toEqual({ renfe: fine });
 
   // Each run after, 20 s apart, finds one of the feeds down, garbled or empty.
@@ -86,7 +87,7 @@ test("records when Renfe's feeds were last tried and last read, how the last try
   for (const [i, [renfe, status]] of failures.entries()) {
     const later = NOW + (i + 1) * 20_000;
     const failed = step(state, { renfe }, later);
-    expect(failed.snapshot.feeds).toEqual({ rodalies: { lastSuccess: NOW, lastAttempt: later, status, every: 20_000 } });
+    expect(failed.snapshot.feeds.rodalies).toEqual({ lastSuccess: NOW, lastAttempt: later, status, every: 20_000 });
     state = failed.state;
   }
 });
@@ -106,15 +107,21 @@ test("keeps Renfe's last good reports through runs whose responses fail", () => 
     expect(failed.snapshot.reports).toEqual(good.snapshot.reports);
     state = failed.state;
   }
-  // The next run that works replaces them, even where Renfe's feeds report no Trains at all.
-  const none = { status: 200, body: '{"header": {"timestamp": "1790344660"}}' };
-  expect(step(state, { renfe: { positions: none, updates: none } }, NOW + 100_000).snapshot.reports).toEqual([]);
+  // The runs that work after replace them, even where Renfe's feeds report no Trains at all: but as
+  // they feed several Networks, those of one that vanishes from them stay two runs more (below).
+  const kept = [60, 80, 100].map((header, i) => {
+    const none = { status: 200, body: `{"header": {"timestamp": "${1790344600 + header}"}}` };
+    const done = step(state, { renfe: { positions: none, updates: none } }, NOW + (5 + i) * 20_000);
+    state = done.state;
+    return done.snapshot.reports.length;
+  });
+  expect(kept).toEqual([67, 67, 0]);
 });
 
-/** Renfe's feeds as recorded, with both headers saying a moment, in ms since 1970, rather than 15:57:09. */
-function renfeAt(moment: number): RenfeResponses {
-  const at = ({ body }: { body: string }) => ({ status: 200, body: body.replace('"timestamp": "1790344629"', `"timestamp": "${moment / 1000}"`) });
-  return { positions: at(RENFE.positions), updates: at(RENFE.updates) };
+/** Renfe's feeds as recorded, those of 15:57:09 unless others are given, with both headers saying a moment, in ms since 1970. */
+function renfeAt(moment: number, { positions, updates }: RenfeResponses = RENFE): RenfeResponses {
+  const at = (fetched: Fetched) => ('body' in fetched ? { ...fetched, body: fetched.body.replace(/"timestamp": "\d+"/, `"timestamp": "${moment / 1000}"`) } : fetched);
+  return { positions: at(positions), updates: at(updates) };
 }
 
 /** When Renfe's headers say it wrote the recorded feeds. */
@@ -130,23 +137,26 @@ test("counts a run whose Renfe feed says it hasn't been updated since the last a
   ];
   for (const [renfe, status] of stuck) {
     const failed = step(good.state, { renfe }, later);
-    expect(failed.snapshot.feeds).toEqual({ rodalies: { lastSuccess: NOW, lastAttempt: later, status, every: 20_000 } });
+    expect(failed.snapshot.feeds.rodalies).toEqual({ lastSuccess: NOW, lastAttempt: later, status, every: 20_000 });
     expect(failed.snapshot.reports).toEqual(good.snapshot.reports);
   }
 });
 
-/** Each run, 20 s apart from the start, whose Renfe headers say these moments, in seconds after 15:57:09. */
-function renfeRuns(headers: number[]): ReturnType<typeof step>[] {
+/** Each run, 20 s apart from a moment, NOW unless another is given, fetching these files from Renfe. */
+function renfeRuns(files: RenfeResponses[], from = NOW): ReturnType<typeof step>[] {
   let state = START.state;
-  return headers.map((header, i) => {
-    const done = step(state, { renfe: renfeAt(RENFE_WRITTEN + header * 1000) }, NOW + i * 20_000);
+  return files.map((renfe, i) => {
+    const done = step(state, { renfe }, from + i * 20_000);
     state = done.state;
     return done;
   });
 }
 
+/** Renfe's feeds as recorded at 15:57:09, with headers that say these moments, in seconds after then. */
+const headersAt = (seconds: number[]) => seconds.map((s) => renfeAt(RENFE_WRITTEN + s * 1000));
+
 test("counts a Renfe header earlier than the last as updated, and real time again after a time in the future", () => {
-  const statuses = (headers: number[]) => renfeRuns(headers).map((done) => done.snapshot.feeds.rodalies?.status);
+  const statuses = (headers: number[]) => renfeRuns(headersAt(headers)).map((done) => done.snapshot.feeds.rodalies?.status);
   // Failover to a server whose clock is a minute behind, which then stops.
   expect(statuses([0, -60, -40, -40])).toEqual(['ok', 'ok', 'ok', 'vehicle_positions: not updated since 13:56:29 UTC']);
   // A time an hour in the future, then real time again.
@@ -154,9 +164,9 @@ test("counts a Renfe header earlier than the last as updated, and real time agai
 });
 
 test("while Renfe's headers stay put, Rodalies' live data is unavailable from the third run, and a header repeated once changes nothing", () => {
-  /** Which Networks' live data is unavailable after each run. */
+  /** Whether Rodalies' live data is unavailable after each run. */
   const unavailableAfter = (headers: number[]) =>
-    renfeRuns(headers).map(({ snapshot }, i, runs) => unavailable(undefined, snapshot.generated, runs.slice(0, i + 1).map((done) => ({ snapshot: done.snapshot, at: done.snapshot.generated }))));
+    renfeRuns(headersAt(headers)).map(({ snapshot }, i, runs) => unavailable(undefined, snapshot.generated, runs.slice(0, i + 1).map((done) => ({ snapshot: done.snapshot, at: done.snapshot.generated }))).filter((n) => n === 'rodalies'));
   expect(unavailableAfter([0, 0, 0, 0, 0])).toEqual([[], [], [], ['rodalies'], ['rodalies']]);
   // Renfe's headers move every 18-22 s, and the runs are 20 s apart, so one sometimes repeats.
   expect(unavailableAfter([0, 20, 20, 40, 60, 60, 80])).toEqual([[], [], [], [], [], [], []]);
@@ -189,6 +199,90 @@ test("sends a Train to the Network of the longest start its trip_id has, whichev
   expect(new Set(networks)).toEqual(new Set(['rodalies']));
 });
 
+// Renfe's Cercanías feeds as recorded at 07:44:01 on Monday 5 October 2026, and at 07:44:41, when
+// both came back with fresh headers and every núcleo's Trains but Madrid's, as about one fetch in
+// five does (docs/research/live-at-scale.md). Cut down to a Train of each of Madrid's Lines, and
+// one each of Asturias' and Valencia's.
+const WITH_MADRID = { positions: recorded('madrid/vehicle_positions.json'), updates: recorded('madrid/trip_updates.json') };
+const WITHOUT_MADRID = { positions: recorded('madrid/vehicle_positions-without.json'), updates: recorded('madrid/trip_updates-without.json') };
+
+/** When the run fetched the files with Madrid's Trains. */
+const MONDAY = Date.parse('2026-10-05T07:44:01+02:00');
+
+/** When Renfe's headers say it wrote the files without Madrid's Trains, and Renfe's next files 20 s, 40 s… after, without them too. */
+const WITHOUT_WRITTEN = Date.parse('2026-10-05T07:44:38+02:00');
+const stillWithout = (seconds: number) => renfeAt(WITHOUT_WRITTEN + seconds * 1000, WITHOUT_MADRID);
+
+test("reports Madrid's Trains in Renfe's feeds as Cercanías Madrid's, read as Rodalies' are, and gives both Networks Renfe's freshness", () => {
+  const { snapshot } = step(START.state, { renfe: WITH_MADRID }, MONDAY);
+  // A Train of each of Madrid's Lines, and none of Asturias' or Valencia's.
+  expect(snapshot.reports.map((r) => r.trip).sort()).toEqual([
+    'cercanias-madrid:1076L19530C5',
+    'cercanias-madrid:1076L19814C1',
+    'cercanias-madrid:1076L20012C3',
+    'cercanias-madrid:1076L20219C4a',
+    'cercanias-madrid:1076L20410C4b',
+    'cercanias-madrid:1076L20602C8b',
+    'cercanias-madrid:1076L21004C8a',
+    'cercanias-madrid:1076L21106C10',
+    'cercanias-madrid:1076L21509C2',
+    'cercanias-madrid:1076L21804C7',
+  ]);
+  // C8b's, running between Stations: its GPS, and its trip update's Delay.
+  expect(snapshot.reports).toContainEqual({ trip: 'cercanias-madrid:1076L20602C8b', at: Date.parse('2026-10-05T07:43:58+02:00'), position: { lon: -3.6947744, lat: 40.488266 }, delay: 960 });
+  // C1's, standing at Chamartín, which Renfe pins it to.
+  expect(snapshot.reports.find((r) => r.trip === 'cercanias-madrid:1076L19814C1')?.position).toEqual({ near: 'adif:17000' });
+  const fine = { lastSuccess: MONDAY, lastAttempt: MONDAY, status: 'ok', every: 20_000 };
+  expect(snapshot.feeds).toEqual({ rodalies: fine, 'cercanias-madrid': fine });
+});
+
+test("keeps a Network's last reports for two runs where it vanishes from a feed that still answers, and drops them on the third", () => {
+  const runs = renfeRuns([WITH_MADRID, WITHOUT_MADRID, stillWithout(20), stillWithout(40)], MONDAY);
+  const madrid = runs[0]?.snapshot.reports;
+  expect(madrid).toHaveLength(10);
+  expect(runs.map((r) => r.snapshot.reports)).toEqual([madrid, madrid, madrid, []]);
+  // Renfe's feeds worked all along.
+  expect(runs.map((r) => r.snapshot.feeds['cercanias-madrid']?.status)).toEqual(['ok', 'ok', 'ok', 'ok']);
+});
+
+test('holds a Network afresh each time it vanishes from its feed, once it has come back', () => {
+  // Madrid's Trains go for a run, come back, then go for good.
+  const back = renfeAt(WITHOUT_WRITTEN + 20_000, WITH_MADRID);
+  const runs = renfeRuns([WITH_MADRID, WITHOUT_MADRID, back, stillWithout(40), stillWithout(60), stillWithout(80)], MONDAY);
+  expect(runs.map((r) => r.snapshot.reports.length)).toEqual([10, 10, 10, 10, 10, 0]);
+});
+
+/** The live sources, with Renfe's feeding Cercanías Asturias too, whose trip_ids start with its núcleo, 20. */
+const WITH_ASTURIAS = LIVE_SOURCES.map((s) => (s.id === 'renfe' ? { ...s, networks: { ...s.networks, '20': 'cercanias-asturias' } } : s));
+
+test("keeps the last reports of only the Network that has vanished, and the others' from the feed", () => {
+  const first = step(START.state, { renfe: WITH_MADRID }, MONDAY, WITH_ASTURIAS);
+  const second = step(first.state, { renfe: WITHOUT_MADRID }, MONDAY + 20_000, WITH_ASTURIAS);
+  const of = (network: string, { reports }: Snapshot) => reports.filter((r) => r.trip?.startsWith(`${network}:`));
+  expect(of('cercanias-madrid', second.snapshot)).toEqual(of('cercanias-madrid', first.snapshot));
+  // Asturias' Train as the second files have it, coming into Serín.
+  expect(of('cercanias-asturias', second.snapshot)).toEqual([{ trip: 'cercanias-asturias:2076L22001C1', at: Date.parse('2026-10-05T07:44:35+02:00'), position: { near: 'adif:15302' }, delay: 660 }]);
+});
+
+test("drops a source's reports as soon as their Trains vanish from answers that work, where it feeds one Network", () => {
+  // Made up: Renfe's feeds for Rodalies alone. A feed of one Network can't drop its Trains but all at
+  // once, as Renfe's did on 28 September with a header and no Trains, which the map tells (#124).
+  const alone = LIVE_SOURCES.map((s) => (s.id === 'renfe' ? { ...s, networks: { '51': 'rodalies' } } : s));
+  const good = step(START.state, { renfe: RENFE }, NOW, alone);
+  const none = { status: 200, body: `{"header": {"timestamp": "${(RENFE_WRITTEN + 20_000) / 1000}"}}` };
+  const after = step(good.state, { renfe: { positions: none, updates: none } }, NOW + 20_000, alone);
+  expect(after.snapshot.reports).toEqual([]);
+  expect(after.missed).toEqual({});
+});
+
+test('says which Networks each try that worked found missing, and for how many tries in a row, once a try', () => {
+  // Madrid's Trains go for three tries in a row, with a try that fails after the first, and stay gone.
+  const failed = { ...WITH_MADRID, positions: { status: 503, body: '' } };
+  const runs = renfeRuns([WITH_MADRID, WITHOUT_MADRID, failed, stillWithout(40), stillWithout(60), stillWithout(80)], MONDAY);
+  const madrid = (tries: number) => ({ renfe: { 'cercanias-madrid': tries } });
+  expect(runs.map((r) => r.missed)).toEqual([{}, madrid(1), {}, madrid(2), madrid(3), {}]);
+});
+
 test('fetches a source as often as its config says, counted in runs however long they take, and says so in its freshness', () => {
   // Made up: Renfe's feeds fetched every minute, every third run, though each answer takes 10 s.
   const slower = LIVE_SOURCES.map((s) => (s.id === 'renfe' ? { ...s, every: 60_000 } : s));
@@ -206,11 +300,11 @@ test('fetches a source as often as its config says, counted in runs however long
 test("writes how fresh Renfe's feeds are under each Network they feed, so the map tells each one's Trains as it does Rodalies'", () => {
   const good = step(START.state, { renfe: RENFE }, NOW, WITH_SEVILLA);
   const fine = { lastSuccess: NOW, lastAttempt: NOW, status: 'ok', every: 20_000 };
-  expect(good.snapshot.feeds).toEqual({ rodalies: fine, 'cercanias-sevilla': fine });
+  expect(good.snapshot.feeds).toEqual({ rodalies: fine, 'cercanias-madrid': fine, 'cercanias-sevilla': fine });
   // A try that fails, fails for both.
   const failed = step(good.state, { renfe: { ...RENFE, positions: { status: 503, body: '' } } }, NOW + 20_000, WITH_SEVILLA);
   const down = { lastSuccess: NOW, lastAttempt: NOW + 20_000, status: 'vehicle_positions: HTTP 503', every: 20_000 };
-  expect(failed.snapshot.feeds).toEqual({ rodalies: down, 'cercanias-sevilla': down });
+  expect(failed.snapshot.feeds).toEqual({ rodalies: down, 'cercanias-madrid': down, 'cercanias-sevilla': down });
 });
 
 // FGC's live data as recorded at 10:31 on Friday 25 September 2026: Geotren's positions, which FGC
