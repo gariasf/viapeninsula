@@ -13,6 +13,8 @@ on:
 
 permissions:
   contents: read
+  # To comment on the standing "Build report" issue.
+  issues: write
 
 # Two starts close together run one after the other, never both at once. A deploy's run, named after
 # the workflow calling it, queues on its own, so a later start can't cancel it while it waits.
@@ -48,3 +50,11 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           # Not a secret: it names the account, and grants nothing without a token.
           CLOUDFLARE_ACCOUNT_ID: 701af81e8d0ab745a54d827f520f49cc
+      # Tells the maintainer when the build has a new problem spot, on the standing "Build report" issue,
+      # #290, which it finds by that number. The build writes the comment once it has published. One
+      # that fails to post doesn't fail the build.
+      - if: hashFiles('out/comment.md') != ''
+        continue-on-error: true
+        run: gh issue comment 290 --body-file out/comment.md
+        env:
+          GH_TOKEN: ${{ github.token }}

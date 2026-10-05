@@ -48,6 +48,10 @@ jobs:
     needs: [check, changes]
     if: needs.changes.outputs.build == 'true'
     uses: ./.github/workflows/daily.yml
+    # A called workflow can't have more than its caller's job grants, and it comments on an issue.
+    permissions:
+      contents: read
+      issues: write
     secrets: inherit
 
   deploy:

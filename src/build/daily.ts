@@ -3,7 +3,9 @@
 // it published. Each day's bundle comes in two files, so the map can draw the Lines before the Trips
 // come: the track, which is the same file for each day, and the day's Trips. Beside them it writes
 // out/report.json, each spot its log names, once (report.ts), which it publishes after the manifest,
-// and it prints what changed since the last build's, in the run's job summary too.
+// and it prints what changed since the last build's, in the run's job summary too. In Actions, once
+// it has published, it writes out/comment.md where a problem spot is new, which daily.yml posts on
+// the standing "Build report" issue.
 // `npm run daily` publishes; `npm run daily -- --dry-run` only writes the files to out/. The secrets
 // a timetable's URL needs, as TMB's TMB_APP_ID and TMB_APP_KEY, come from the environment, which
 // `npm run daily` loads from .env.local.
@@ -23,7 +25,7 @@ import { measures, reported, summary } from './measures.ts';
 import { osm } from './osm.ts';
 import { sideBySide } from './sideBySide.ts';
 import { railsBeside, stationsOf, traceShapes } from './track.ts';
-import { collect, diff, type Found, type Spot } from './report.ts';
+import { collect, comment, diff, type Found, type Spot } from './report.ts';
 import { placeTrips } from './trips.ts';
 
 const BUCKET = 'viapeninsula-live';
@@ -79,12 +81,19 @@ const [lastManifest, lastReport] = await Promise.all([
 const spots = report.spots();
 await writeFile('out/manifest.json', JSON.stringify(manifestOf(built, lastManifest)));
 await writeFile('out/report.json', JSON.stringify(spots));
-// The diff only reports, so a last report it can't read, as one of an older shape, doesn't stop the build.
+// The diff and the comment only report, so a last report they can't read, as one of an older shape,
+// doesn't stop the build, and the comment then tells of every problem spot, as with no last report,
+// so that none goes untold. The comment links this attempt at the run, so there's one only in Actions.
+const { GITHUB_SERVER_URL, GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_RUN_ATTEMPT } = process.env;
+const run = GITHUB_RUN_ID && `${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}`;
 let changes: string;
+let news: string | undefined;
 try {
   changes = diff(lastReport, spots);
+  if (run) news = comment(lastReport, spots, run);
 } catch (error) {
   changes = `Couldn't diff the build report against the last one: ${error}`;
+  if (run) news = comment(undefined, spots, run);
 }
 console.log(changes);
 if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, `${changes}\n`);
@@ -96,6 +105,8 @@ if (!process.argv.includes('--dry-run')) {
   for (const key of [trackKey, ...built.map((d) => d.trips)]) publish(key, 'public, max-age=31536000, immutable', 'br');
   publish('manifest.json', 'public, max-age=60');
   publish('report.json', 'public, max-age=60');
+  // Only once the report is up, as the next build diffs against it, so that it doesn't tell of the same spots again.
+  if (news) await writeFile('out/comment.md', news);
 }
 
 /**
