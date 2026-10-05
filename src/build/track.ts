@@ -132,7 +132,7 @@ export function traceShapes(
       const off = `${length.traced >= length.feed ? '+' : ''}${percent.toFixed(1)}%`;
       const line = `${feed.id}: ${total} km long. Where the feed has the track: ${km} km traced against its ${feedKm} km (${off})`;
       log(line);
-      report({ kind: 'length', line: feed.line, shape: feed.id, point: middle(shape), text: [line], numbers: { percent: Number(percent.toFixed(1)) } });
+      report({ kind: 'length', line: feed.line, shape: feed.id, point: middle(shape), extent: shape.coords, text: [line], numbers: { percent: Number(percent.toFixed(1)) } });
       // Each end of a trace can stop anywhere on its Station's rails, up to BAND off the feed's: on a
       // shape less than 2 km long, as funiculars are, that's more than 5%.
       if (Math.abs(length.traced - length.feed) > Math.max(0.05 * length.feed, 2 * BAND)) {
@@ -238,7 +238,7 @@ function traceShape(graph: Graph, feed: FeedShape, stations: Station[], log: (li
     const line = `${feed.id} keeps the feed's shape: its Trips serve fewer than two Stations`;
     log(line);
     const asFed = shape(feed.id, feed.coords);
-    report({ kind: 'kept', why: 'fewer', line: feed.line, shape: feed.id, stations: waypoints.map((w) => w.station), point: middle(asFed), text: [line] });
+    report({ kind: 'kept', why: 'fewer', line: feed.line, shape: feed.id, stations: waypoints.map((w) => w.station), point: middle(asFed), extent: asFed.coords, text: [line] });
     return { shape: asFed, length };
   }
   const coords: Point[] = [];

@@ -303,8 +303,8 @@ test('reports the measures as one spot with each of their numbers, in metres, an
         'inside 8': 14056,
       },
     },
-    { kind: 'node', key: 'node 7 40.458 -3.677', point: [-3.67716, 40.45778], text: [seven], numbers: { size: 15.1 } },
-    { kind: 'node', key: 'node 8 40.458 -3.677', point: [-3.6773, 40.45782], text: [eight], numbers: { size: 24.5 } },
-    { kind: 'node', key: 'node 8 41.383 2.150', point: [2.15024, 41.38278], text: [eight], numbers: { size: 19.1 } },
+    { kind: 'node', key: 'node 7 40.458 -3.677', point: [-3.67716, 40.45778], zoom: 7, text: [seven], numbers: { size: 15.1 } },
+    { kind: 'node', key: 'node 8 40.458 -3.677', point: [-3.6773, 40.45782], zoom: 8, text: [eight], numbers: { size: 24.5 } },
+    { kind: 'node', key: 'node 8 41.383 2.150', point: [2.15024, 41.38278], zoom: 8, text: [eight], numbers: { size: 19.1 } },
   ]);
 });

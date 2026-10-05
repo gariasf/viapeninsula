@@ -159,6 +159,7 @@ test('reports a Trip left out on more than one day as one spot, counting the mos
       line: 'R2N',
       stations: [{ id: 'França', name: 'França' }],
       point: [Math.round(lon * 1e5) / 1e5, Math.round(lat * 1e5) / 1e5],
+      zoom: 15,
       text: [
         'to França is left out: França is 1.8 km off its track',
         'Mon to França later is left out: França is 1.8 km off its track',
