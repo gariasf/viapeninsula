@@ -59,6 +59,15 @@ export interface Timetable {
 /** OpenStreetMap's names for FGC, as the operator of its rails. */
 const FGC_OPERATOR = ['FGC', 'Ferrocarrils de la Generalitat de Catalunya'];
 
+/** Renfe's Cercanías GTFS, with a núcleo for each of its Networks. Its Stations are Adif's. */
+const RENFE_CERCANIAS = 'https://ssl.renfe.com/ftransit/Fichero_CER_FOMENTO/fomento_transit.zip';
+
+/**
+ * Renfe's open data is CC BY 4.0, which asks for its source to be named, and the licence. Every
+ * Network of Renfe's credits it in these words, so the map credits Renfe once (ADR-0010).
+ */
+const RENFE = { text: 'Renfe', url: 'https://data.renfe.com/', licence: 'CC BY 4.0' } as const;
+
 /** TMB's app ID and key, which its APIs take in the query, by the secrets holding them. */
 const TMB_APP = { app_id: 'TMB_APP_ID', app_key: 'TMB_APP_KEY' };
 
@@ -82,8 +91,8 @@ export const RODALIES: NetworkConfig = {
   rails: { railway: ['rail'], gauge: ['1668'] },
   timetables: [
     {
-      // Renfe's Cercanías GTFS, of which Rodalies, including its regional lines, is núcleo 51. Its Stations are Adif's.
-      url: 'https://ssl.renfe.com/ftransit/Fichero_CER_FOMENTO/fomento_transit.zip',
+      // Rodalies, including its regional lines, is núcleo 51.
+      url: RENFE_CERCANIAS,
       prefix: 'rodalies',
       operator: 'adif',
       routes: { idPrefix: '51' },
@@ -91,8 +100,7 @@ export const RODALIES: NetworkConfig = {
       number: '^\\d{5}',
     },
   ],
-  // Renfe's open data is CC BY 4.0, which asks for its source to be named, and the licence.
-  credit: { text: 'Renfe', url: 'https://data.renfe.com/', licence: 'CC BY 4.0' },
+  credit: RENFE,
   // Renfe's own Delay moves in whole minutes and is often minutes off, so a Train carries on from the
   // last Delay its GPS gave it (#33). And Renfe pins Trains coming into a Station to it too, and late.
   live: { delay: 'gps', near: 'pinned' },
@@ -205,8 +213,47 @@ export const METRO: NetworkConfig = {
   lines: { kind: 'metro', kinds: { FM: 'funicular' } },
 };
 
+export const CERCANIAS_MADRID: NetworkConfig = {
+  id: 'cercanias-madrid',
+  name: 'Cercanías Madrid',
+  // Renfe's timetable for Madrid is in whole minutes, so 496 of the 18,853 stretches its Trains run on
+  // 5 October 2026 fit no train at 1 m/s², such as Villalba to San Yago, 2.2 km in a minute: those
+  // Trains accelerate and brake harder. Its fastest Units, the 450s, run at 140 km/h. Small Stations
+  // get half a minute, as Rodalies' do.
+  profile: { acceleration: 1, braking: 1, topSpeed: 140 / 3.6, dwell: 30 },
+  // Madrid's lines run on the right, but for the old Norte line beyond Pinar de las Rozas, km 18.5
+  // from Príncipe Pío, on to Villalba and El Escorial: from Príncipe Pío to there it changed to the
+  // right in November 1988, and from there on it still runs on the left (García Álvarez, "La vía
+  // doble en España y el sentido de circulación de los trenes por ella", FFE, 2010, table 3 and p. 24).
+  // There the trace follows OpenStreetMap's railway:preferred_direction tags, where they say so.
+  runningSide: 'right',
+  // The red of Cercanías' logo, as Wikimedia Commons has it (the logo Wikidata gives for Cercanías Madrid, Q1054785).
+  colour: '#EF2C30',
+  pillZoom: 10,
+  rails: { railway: ['rail'], gauge: ['1668'] },
+  timetables: [
+    {
+      // Madrid is núcleo 10. Its C9, Cercedilla–Cotos, which runs on metre gauge, has no Trips by train
+      // in núcleo 10 or 90, while buses run it during works (5 October 2026): once its Trains come back,
+      // Madrid's rails need metre gauge too (ADR-0010).
+      url: RENFE_CERCANIAS,
+      prefix: 'cercanias-madrid',
+      operator: 'adif',
+      routes: { idPrefix: '10' },
+      // A trip_id is the service_id, then the Train number's five digits, then the Line, as Rodalies' are.
+      number: '^\\d{5}',
+    },
+  ],
+  credit: RENFE,
+  // As Rodalies': Renfe's own Delay for Madrid's Trains moves in whole minutes, and it pins Trains
+  // coming into a Station too.
+  live: { delay: 'gps', near: 'pinned' },
+  // C1–C10 are commuter Lines.
+  lines: { kind: 'commuter' },
+};
+
 /** Every Network, in the order the bundle lists them. */
-export const NETWORKS = [RODALIES, FGC, TRAM, METRO];
+export const NETWORKS = [RODALIES, FGC, TRAM, METRO, CERCANIAS_MADRID];
 
 /**
  * A source of live data, read in the fetcher by the adapter for its format: its files, by what that
@@ -240,14 +287,14 @@ const FGC_API = 'https://dadesobertes.fgc.cat/api/explore/v2.1/catalog/datasets'
 /** Every live source, in the order the snapshot lists their reports. */
 export const LIVE_SOURCES: LiveSource[] = [
   {
-    // Renfe's Cercanías live data, as JSON, which has every núcleo's Trains in it: Rodalies' trip_ids
-    // start with its own, 51.
+    // Renfe's Cercanías live data, as JSON, which has every núcleo's Trains in it: their trip_ids start
+    // with their own, Rodalies' 51 and Madrid's 10.
     id: 'renfe',
     format: 'renfe',
     urls: { positions: 'https://gtfsrt.renfe.com/vehicle_positions.json', updates: 'https://gtfsrt.renfe.com/trip_updates.json' },
     // Every run.
     every: 20_000,
-    networks: { '51': RODALIES.id },
+    networks: { '51': RODALIES.id, '10': CERCANIAS_MADRID.id },
   },
   {
     // Geotren, where FGC's Trains are, with only what the fetcher reads, and where to look up its

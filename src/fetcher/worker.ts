@@ -39,6 +39,9 @@ export class Fetcher extends DurableObject<Env> {
     const stored = (await this.ctx.storage.get<Stored>(STORED)) ?? START;
     const responses = await fetchDue(stored, (name) => secret(this.env, name), get);
     const run = step(stored.state, responses, Date.now());
+    // Each try that finds a Network's Trains missing from a feed that works, up to the one that drops its
+    // last reports, goes in the Worker's logs, which count how often Renfe's files drop Madrid's (#248).
+    if (Object.keys(run.missed).length) console.log(JSON.stringify({ missing: run.missed }));
     await this.ctx.storage.put(STORED, { state: run.state, due: run.due } satisfies Stored);
     await this.env.LIVE.put('snapshot.json', JSON.stringify(run.snapshot), {
       httpMetadata: { contentType: 'application/json', cacheControl: 'public, max-age=15' },

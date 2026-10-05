@@ -1,0 +1,52 @@
+{
+  "header": {
+    "gtfsRealtimeVersion": "2.0",
+    "timestamp": "1791179078"
+  },
+  "entity": [
+    {
+      "id": "TUUPDATE_4076L24007C2",
+      "tripUpdate": {
+        "trip": {
+          "tripId": "4076L24007C2",
+          "scheduleRelationship": "SCHEDULED"
+        },
+        "stopTimeUpdate": [
+          {
+            "arrival": {
+              "delay": 660,
+              "time": "1791179157"
+            },
+            "stopId": "64103"
+          }
+        ],
+        "vehicle": {
+          "wheelchairAccessible": "WHEELCHAIR_INACCESSIBLE"
+        },
+        "delay": 660
+      }
+    },
+    {
+      "id": "TUUPDATE_2076L22001C1",
+      "tripUpdate": {
+        "trip": {
+          "tripId": "2076L22001C1",
+          "scheduleRelationship": "SCHEDULED"
+        },
+        "stopTimeUpdate": [
+          {
+            "arrival": {
+              "delay": 660,
+              "time": "1791179220"
+            },
+            "stopId": "15303"
+          }
+        ],
+        "vehicle": {
+          "wheelchairAccessible": "WHEELCHAIR_INACCESSIBLE"
+        },
+        "delay": 660
+      }
+    }
+  ]
+}

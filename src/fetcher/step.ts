@@ -84,7 +84,22 @@ export interface State {
   own?: Record<string, unknown>;
   /** How many runs have passed since it was last fetched, which its `every` counts: none where it never was. */
   waited?: Record<string, number>;
+  /**
+   * For a source that feeds several Networks, how many of its tries in a row that worked each of them
+   * has been missing from, by the Network's ID: while its last reports are kept, and on the try that
+   * drops them, the one after KEEP_MISSING.
+   */
+  missing?: Record<string, Record<string, number>>;
 }
+
+/**
+ * How many tries in a row that work keep the last reports of a Network whose Trains have all vanished
+ * from its source's answers, where that source feeds several Networks: Renfe's Cercanías files drop all
+ * of Madrid's now and then, with a fresh header and every other núcleo's Trains, in 15 of 154 fetches
+ * on the morning of 5 October 2026, never more than two in a row (#248). A source that feeds one
+ * Network can't drop it without dropping all its Trains, which the map tells on its own (#124).
+ */
+const KEEP_MISSING = 2;
 
 /** What the fetcher stores between runs: the step's state, and the sources due on the next run, by their IDs. */
 export interface Stored {
@@ -114,10 +129,13 @@ export async function fetchDue({ state, due }: Stored, secret: (name: string) =>
 
 /**
  * One run: the stored state, this run's raw responses and the time now (ms since 1970) go in; the
- * snapshot, the next stored state and the sources due on the next run come out.
+ * snapshot, the next stored state, the sources due on the next run, and what this run's tries that
+ * worked found missing come out.
  */
-export function step(state: State, responses: Responses, now: number, sources = LIVE_SOURCES): Stored & { snapshot: Snapshot } {
-  const next: Required<State> = { freshness: {}, reports: {}, updated: {}, own: {}, waited: {} };
+export function step(state: State, responses: Responses, now: number, sources = LIVE_SOURCES): Stored & { snapshot: Snapshot; missed: Record<string, Record<string, number>> } {
+  const next: Required<State> = { freshness: {}, reports: {}, updated: {}, own: {}, waited: {}, missing: {} };
+  // Each source's Networks this run's tries that worked found missing, as State's `missing` counts them, for the Worker's logs.
+  const missed: Record<string, Record<string, number>> = {};
   // How fresh each Network's live data is: as fresh as the source that feeds it.
   const feeds: Record<string, Freshness> = {};
   const due: string[] = [];
@@ -126,7 +144,7 @@ export function step(state: State, responses: Responses, now: number, sources = 
     const adapter = adapterOf(source);
     const fetched = responses[id] !== undefined;
     // A source not fetched this run, or whose answers fail, keeps its last good reports.
-    let [freshness, reports, updated, own] = [state.freshness[id], state.reports[id], state.updated?.[id], state.own?.[id]];
+    let [freshness, reports, updated, own, missing] = [state.freshness[id], state.reports[id], state.updated?.[id], state.own?.[id], state.missing?.[id]];
     if (fetched) {
       const last = freshness;
       const reading = adapter.read(responses[id], { source, own, last, now });
@@ -144,7 +162,8 @@ export function step(state: State, responses: Responses, now: number, sources = 
         // Only a time unchanged since the last try is stuck: one earlier, as from a server whose clock is behind, is news.
         const stuck = said.find(([file, at]) => at === before[file]);
         if (stuck) throw new Error(`${stuck[0]}: not updated since ${clock(stuck[1])}`);
-        reports = got;
+        ({ reports, missing } = keepMissing(source, got, reports, missing));
+        if (Object.keys(missing).length) missed[id] = missing;
         freshness = { lastSuccess: now, lastAttempt: now, status: 'ok', every };
       } catch (error) {
         freshness = { ...last, lastAttempt: now, status: (error as Error).message, every };
@@ -156,6 +175,7 @@ export function step(state: State, responses: Responses, now: number, sources = 
       for (const network of Object.values(source.networks)) feeds[network] = freshness;
     }
     if (reports) next.reports[id] = reports;
+    if (missing && Object.keys(missing).length) next.missing[id] = missing;
     if (updated) next.updated[id] = updated;
     if (own !== undefined) next.own[id] = own;
     const waitedBefore = state.waited?.[id];
@@ -166,7 +186,7 @@ export function step(state: State, responses: Responses, now: number, sources = 
     const onTime = waited === undefined || (waited + 1) * EVERY >= (freshness?.every ?? source.every);
     if (onTime && !adapter.held?.({ source, own, last: freshness, at: now + EVERY })) due.push(id);
   }
-  return { snapshot: { generated: now, feeds, reports: sources.flatMap((s) => next.reports[s.id] ?? []) }, state: next, due };
+  return { snapshot: { generated: now, feeds, reports: sources.flatMap((s) => next.reports[s.id] ?? []) }, state: next, due, missed };
 }
 
 /**
@@ -176,6 +196,31 @@ export function step(state: State, responses: Responses, now: number, sources = 
 function adapterOf(source: LiveSource): LiveAdapter<LiveSource, unknown, unknown> {
   return ADAPTERS[source.format];
 }
+
+/**
+ * A source's reports from answers that worked, keeping the last reports of each of its Networks that
+ * has vanished from them for KEEP_MISSING tries, where it feeds several, and how many tries in a row
+ * each has been missing from.
+ */
+function keepMissing(source: LiveSource, got: Report[], last: Report[] = [], missing: Record<string, number> = {}): { reports: Report[]; missing: Record<string, number> } {
+  const [reports, still]: [Report[], Record<string, number>] = [[...got], {}];
+  const networks = new Set(Object.values(source.networks));
+  for (const network of networks.size > 1 ? networks : []) {
+    const ofIt = (r: Report) => reportedNetwork(r) === network;
+    if (got.some(ofIt)) continue;
+    const tries = (missing[network] ?? 0) + 1;
+    const kept = last.filter(ofIt);
+    // Counted until the try that drops its last reports, the one after KEEP_MISSING. One that had no
+    // Trains in the last answers either has none to keep.
+    if (tries > KEEP_MISSING + 1 || (tries === 1 && !kept.length)) continue;
+    still[network] = tries;
+    if (tries <= KEEP_MISSING) reports.push(...kept);
+  }
+  return { reports, missing: still };
+}
+
+/** The Network a report is of, as its adapter named the Trip or Block it reports. */
+const reportedNetwork = (report: Report) => (report.trip ?? report.block?.line ?? '').split(':')[0];
 
 /** The Network a source's Train is, by the longest start of the ID the source gives it that the source's config names. */
 function networkOf({ networks }: LiveSource, id: string): string | undefined {

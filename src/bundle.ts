@@ -9,7 +9,11 @@ export interface Snapshot {
   generated: number;
   /** How fresh each Network's live data is. */
   feeds: Record<string, Freshness>;
-  /** What the operators report about each Train: for a feed whose last try failed, what it said when it last worked. */
+  /**
+   * What the operators report about each Train: for a feed whose last try failed, what it said when it
+   * last worked, and for a Network whose Trains have all just vanished from a feed that works and feeds
+   * other Networks too, what it last said of them, for two tries (src/fetcher/step.ts).
+   */
   reports: Report[];
 }
 
