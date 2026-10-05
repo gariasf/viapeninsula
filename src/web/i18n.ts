@@ -106,9 +106,10 @@ const speaks = (code: string): code is Language => Object.hasOwn(LANGUAGES, code
 /**
  * The language to speak to a viewer: the one they've `chosen` on this device, or else the first of
  * the languages their browser `prefers` that the interface speaks, in any region, or else English.
+ * Basque and Galician count as Spanish (ADR-0010).
  */
 export function pickLanguage(chosen: string | null, prefers: readonly string[]): Language {
-  const preferred = prefers.map((tag) => tag.toLowerCase().split('-')[0] ?? '');
+  const preferred = prefers.map((tag) => tag.toLowerCase().split('-')[0] ?? '').map((code) => (code === 'eu' || code === 'gl' ? 'es' : code));
   return [chosen ?? '', ...preferred].find(speaks) ?? 'en';
 }
 
