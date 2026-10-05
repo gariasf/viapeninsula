@@ -10,6 +10,7 @@ import { rounded } from './curve.ts';
 import { linesAt } from './tap.ts';
 import { alongside, namedTwice, nameOffset, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
 import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
+import { keepView, lastView, openingView } from './view.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
 setWorkerUrl(workerUrl);
@@ -273,12 +274,16 @@ const LICENCES: Record<NonNullable<Credit['licence']>, string> = {
 
 const map = new MapLibreMap({
   container: 'map',
-  center: [2.17, 41.39], // Barcelona, with the rest of Catalonia a zoom away
-  zoom: 11,
+  ...openingView(location.hash, lastView()),
   attributionControl: false,
   // The view goes in the page's link, as `#map=<zoom>/<lat>/<lon>`, beside what writeLink() adds.
   hash: 'map',
 });
+/** Keeps the map's view on the device, for the map to open on next time. */
+const keepShownView = () => keepView({ center: map.getCenter().toArray(), zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch() });
+// As the map opens, so that a link's view is kept too, and after each move.
+keepShownView();
+map.on('moveend', keepShownView);
 /** The basemap's place labels, by their layers' IDs, with the filters it gives them, which show() adds to. */
 const placeLabels = new Map<string, ExpressionFilterSpecification | undefined>();
 map.setStyle('https://tiles.openfreemap.org/styles/positron', {
