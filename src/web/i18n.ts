@@ -86,9 +86,9 @@ const STRINGS = {
   sourceCode: { ca: 'Codi font', es: 'Código fuente', en: 'Source code' },
   privacy: { ca: 'Privadesa', es: 'Privacidad', en: 'Privacy' },
   noCookies: {
-    ca: "Aquest web no fa servir galetes: només desa al teu dispositiu l'idioma que triïs.",
-    es: 'Esta web no usa cookies: solo guarda en tu dispositivo el idioma que elijas.',
-    en: 'This site uses no cookies: all it keeps on your device is the language you choose.',
+    ca: "Aquest web no fa servir galetes: només desa al teu dispositiu l'idioma que triïs i el lloc on deixis el mapa.",
+    es: 'Esta web no usa cookies: solo guarda en tu dispositivo el idioma que elijas y el lugar donde dejes el mapa.',
+    en: 'This site uses no cookies: all it keeps on your device is the language you choose and where you leave the map.',
   },
   // After noCookies. Cloudflare Web Analytics goes by that name in every language, and About links it where the sentence names it.
   visitsCounted: {
