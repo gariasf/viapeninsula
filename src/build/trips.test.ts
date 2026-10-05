@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest';
 import type { Line, Shape, Station } from '../bundle.ts';
+import { collect, type Found } from './report.ts';
 import { placeTrips, type FeedTrip } from './trips.ts';
 
 // Track drawn in metres east (x) and north (y) of a point near L'Aldea.
@@ -35,15 +36,22 @@ const trip = (id: string, line: string, shape: string, stations: string): FeedTr
   calls: stations.split(' ').map((station, i) => ({ station, arrival: i * 600, departure: i * 600 + 60 })),
 });
 
+/** R2N's track through Barcelona, which Estació de França is off. */
+const R2N: [Line[], Shape[], Station[]] = [
+  [line('R2N', 'R2N')],
+  [shape('R2N', [0, 0], [10000, 0])],
+  [station('Sants', 0, 0), station('Gràcia', 2500, 40), station('França', 3000, 1800)],
+];
+
 /** Rodalies' fastest Trains run at 160 km/h. */
 const TOP_SPEED = 160 / 3.6;
 
 function place(lines: Line[], shapes: Shape[], stations: Station[], ...trips: FeedTrip[]) {
-  const log: string[] = [];
-  const placed = placeTrips(trips, lines, shapes, stations, TOP_SPEED, (l) => log.push(l));
+  const [log, found]: [string[], Found[]] = [[], []];
+  const placed = placeTrips(trips, lines, shapes, stations, TOP_SPEED, (l) => log.push(l), (f) => found.push(f));
   /** How far along its track each of a Trip's Stations is placed, in metres. */
   const dist = (id: string) => placed.find((t) => t.id === id)?.calls.map((c) => c.dist);
-  return { placed, log, dist };
+  return { placed, log, found, dist };
 }
 
 test('places each Station a Trip calls at where it is along its track, whichever way the Trip runs it', () => {
@@ -130,21 +138,41 @@ test('follows a Trip that turns back at a Station, as R11 Trips do at Cerbère',
 });
 
 test("leaves out and reports a Trip calling at a Station off its track, as Estació de França is off R2N's", () => {
-  const { placed, log } = place(
-    [line('R2N', 'R2N')],
-    [shape('R2N', [0, 0], [10000, 0])],
-    [station('Sants', 0, 0), station('Gràcia', 2500, 40), station('França', 3000, 1800)],
-    trip('to França', 'R2N', 'R2N', 'Sants Gràcia França'),
-    trip('to Gràcia', 'R2N', 'R2N', 'Sants Gràcia'),
-  );
+  const { placed, log, found } = place(...R2N, trip('to França', 'R2N', 'R2N', 'Sants Gràcia França'), trip('to Gràcia', 'R2N', 'R2N', 'Sants Gràcia'));
   expect(placed.map((t) => t.id)).toEqual(['to Gràcia']);
   expect(log).toEqual(['to França is left out: França is 1.8 km off its track']);
+  expect(found).toMatchObject([{ kind: 'trip', why: 'off', trip: 'to França', line: 'R2N', stations: [{ id: 'França' }], text: log }]);
+});
+
+test('reports a Trip left out on more than one day as one spot, counting the most Trips left out on any one day', () => {
+  const report = collect();
+  // A Trip that runs every day, as TMB's do, and one with an ID of its own each day, as Renfe's do.
+  for (const [day, trips] of [['to França', 'Mon to França later'], ['to França', 'Tue to França later']].entries()) {
+    placeTrips(trips.map((id) => trip(id, 'R2N', 'R2N', 'Sants Gràcia França')), ...R2N, TOP_SPEED, () => {}, (f) => report.add({ ...f, network: 'rodalies', day }));
+  }
+  const [lon = NaN, lat = NaN] = at(3000, 1800);
+  expect(report.spots()).toEqual([
+    {
+      kind: 'trip',
+      key: 'trip R2N off França',
+      network: 'rodalies',
+      line: 'R2N',
+      stations: [{ id: 'França', name: 'França' }],
+      point: [Math.round(lon * 1e5) / 1e5, Math.round(lat * 1e5) / 1e5],
+      text: [
+        'to França is left out: França is 1.8 km off its track',
+        'Mon to França later is left out: França is 1.8 km off its track',
+        'Tue to França later is left out: França is 1.8 km off its track',
+      ],
+      numbers: { trips: 2 },
+    },
+  ]);
 });
 
 test("leaves out and reports a Trip that would have to run faster than its Network's top speed, as R16's past Tortosa", () => {
   // R16's track from Tortosa to Ulldecona comes back no nearer than a kilometre to L'Aldea, where its
   // Trains turn back, so a Trip from Tortosa would have to run past Tortosa again on its way south.
-  const { placed, log } = place(
+  const { placed, log, found } = place(
     [line('R16', 'R16')],
     [shape('R16', [0, 0], [12000, 0], [1000, -1000], [1000, -20000])],
     [station("L'Aldea", 0, 30), station('Tortosa', 12000, 25), station('Ulldecona', 1000, -20000)],
@@ -162,4 +190,5 @@ test("leaves out and reports a Trip that would have to run faster than its Netwo
   );
   expect(placed).toEqual([]);
   expect(log).toEqual(["from Tortosa is left out: it would run L'Aldea → Ulldecona at 180 km/h along its track"]);
+  expect(found).toMatchObject([{ kind: 'trip', why: 'fast', trip: 'from Tortosa', stations: [{ id: "L'Aldea" }, { id: 'Ulldecona' }], text: log }]);
 });

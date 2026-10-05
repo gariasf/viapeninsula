@@ -29,15 +29,17 @@ test('keeps the Stations Rodalies Trains serve, with Adif codes and names as pub
   expect(ids).not.toContain('adif:18000'); // Madrid-Atocha
 });
 
-test("gives each Line its shapes as the feed draws them, with the Stations their Trips serve", () => {
+test("gives each Line its shapes as the feed draws them, with the Stations their Trips serve, and each shape its Line", () => {
   expect(line('R2S')?.shapes).toEqual(['rodalies:51_R2S']);
   expect(rodalies.shapes.map((s) => s.id).sort()).toEqual(['rodalies:51_R2S', 'rodalies:51_R7:back']);
 
   const r2s = rodalies.shapes.find((s) => s.id === 'rodalies:51_R2S');
+  expect(r2s?.line).toBe('rodalies:R2S');
   expect(r2s?.coords).toHaveLength(338);
   expect(r2s?.coords[0]).toEqual([1.5229805, 41.1856559]);
   expect(r2s?.stations).toHaveLength(13);
   const r7 = rodalies.shapes.find((s) => s.id === 'rodalies:51_R7:back');
+  expect(r7?.line).toBe('rodalies:R7');
   expect([...(r7?.stations ?? [])].sort()).toEqual(['adif:72503', 'adif:78706', 'adif:78707', 'adif:78708', 'adif:78800']);
 });
 

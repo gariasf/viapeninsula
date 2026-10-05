@@ -2,6 +2,7 @@ import { expect, test } from 'vitest';
 import type { Bundle, ManifestDay, Network, Trip } from '../bundle.ts';
 import { noonMinus12h } from './gtfs.ts';
 import { dayTrips, manifestDay, manifestOf } from './manifest.ts';
+import type { Found } from './report.ts';
 
 const PROFILE = { acceleration: 1, braking: 1, topSpeed: 44, dwell: 30 };
 const RODALIES: Network = { id: 'rodalies', name: 'Rodalies de Catalunya', profile: PROFILE, runningSide: 'right', colour: '#000', pillZoom: 10, credit: { text: '', url: '' } };
@@ -35,8 +36,8 @@ const day = (serviceDay: string, ...trips: [from: number, to: number][]): Bundle
   trips: trips.map(([from, to], i) => trip(`${i}`, 'rodalies:R1', from, to)),
 });
 
-test("builds each day's Trips from the other Networks where one's timetable has none that day, today's included, and logs it", () => {
-  const log: string[] = [];
+test("builds each day's Trips from the other Networks where one's timetable has none that day, today's included, and logs and reports it", () => {
+  const [log, found]: [string[], Found[]] = [[], []];
   const days = dayTrips(
     ['2026-10-05', '2026-10-06'],
     [
@@ -44,12 +45,18 @@ test("builds each day's Trips from the other Networks where one's timetable has 
       { network: FGC, trips: [[trip('1', 'fgc:S1')], [trip('2', 'fgc:S1')]] },
     ],
     (l) => log.push(l),
+    (f) => found.push(f),
   );
   expect(days).toEqual([
     { serviceDay: '2026-10-05', noonMinus12h: Date.parse('2026-10-05T00:00:00+02:00'), trips: [trip('1', 'fgc:S1')] },
     { serviceDay: '2026-10-06', noonMinus12h: Date.parse('2026-10-06T00:00:00+02:00'), trips: [trip('2', 'fgc:S1')] },
   ]);
   expect(log).toEqual(["Rodalies de Catalunya's timetable has no Trips on 2026-10-05", "Rodalies de Catalunya's timetable has no Trips on 2026-10-06"]);
+  // By the day after today, not its date.
+  expect(found).toEqual([
+    { kind: 'notrips', network: 'rodalies', day: 0, text: [log[0]] },
+    { kind: 'notrips', network: 'rodalies', day: 1, text: [log[1]] },
+  ]);
 });
 
 test("fails when no Network has Trips today, which is a broken build rather than a day without Trains, but not on a later day", () => {

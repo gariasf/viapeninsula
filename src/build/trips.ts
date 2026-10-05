@@ -1,6 +1,7 @@
 // Each Trip placed on its track: how far along it each of its Stations is.
 
 import { closestOnSegment, DEGREE, type Line, type Point, type Shape, type Station, type Trip } from '../bundle.ts';
+import type { Cause, Found } from './report.ts';
 import { nearest, orderAlong } from './track.ts';
 
 /** A Trip as the feed times it, before its Stations are placed on its track. */
@@ -24,8 +25,8 @@ export const REACH = 300;
  * Places each Trip's Stations along its track. Where the track passes a Station more than once, a
  * Station goes where the Trip travels least to reach it and carry on: a Trip can turn back at a
  * Station, but not in between. A Trip calling at a Station off its track, or that would have to run
- * faster than its Network's top speed (in m/s) between two Stations, is left out and reported rather
- * than drawn wrong.
+ * faster than its Network's top speed (in m/s) between two Stations, is left out and logged rather
+ * than drawn wrong, and reported with the Stations its log names, or else its first.
  */
 export function placeTrips(
   trips: FeedTrip[],
@@ -34,6 +35,7 @@ export function placeTrips(
   stations: Station[],
   topSpeed: number,
   log = console.log,
+  report: (found: Found) => void = () => {},
 ): Trip[] {
   const byId = new Map(stations.map((s) => [s.id, s]));
   const byShape = new Map(shapes.map((s) => [s.id, s]));
@@ -48,26 +50,23 @@ export function placeTrips(
 
   return trips.flatMap(({ calls, ...trip }): Trip[] => {
     const shape = byShape.get(trip.shape);
-    if (!shape || calls.length < 2) {
-      log(`${trip.id} is left out: ${shape ? 'it calls at fewer than two Stations' : `its shape ${trip.shape} has no track`}`);
-      return [];
-    }
     const calledAt = calls.map((c) => byId.get(c.station) ?? { id: c.station, name: c.station, lon: NaN, lat: NaN });
+    const leave = (why: Cause, reason: string, at = calledAt.slice(0, 1)): Trip[] => {
+      const text = `${trip.id} is left out: ${reason}`;
+      log(text);
+      report({ kind: 'trip', why, trip: trip.id, line: trip.line, stations: at, text: [text] });
+      return [];
+    };
+    if (!shape) return leave('notrack', `its shape ${trip.shape} has no track`);
+    if (calls.length < 2) return leave('fewer', 'it calls at fewer than two Stations');
     const options = calledAt.map((s) => passesOf(shape, s));
     const off = calledAt.find((_, i) => !options[i]?.length);
-    if (off) {
-      const km = (nearest(shape.coords, [off.lon, off.lat]).metres / 1000).toFixed(1);
-      log(`${trip.id} is left out: ${off.name} is ${km} km off its track`);
-      return [];
-    }
+    if (off) return leave('off', `${off.name} is ${(nearest(shape.coords, [off.lon, off.lat]).metres / 1000).toFixed(1)} km off its track`, [off]);
     const dist = leastTravel(options);
     // A stretch faster than the Network's top speed is placed on the wrong track, say one that runs back past a Station.
     const speed = (i: number) => Math.abs((dist[i] ?? 0) - (dist[i - 1] ?? 0)) / ((calls[i]?.arrival ?? 0) - (calls[i - 1]?.departure ?? 0));
     const fast = calls.findIndex((_, i) => i > 0 && speed(i) > topSpeed);
-    if (fast > 0) {
-      log(`${trip.id} is left out: it would run ${calledAt[fast - 1]?.name} → ${calledAt[fast]?.name} at ${Math.round(speed(fast) * 3.6)} km/h along its track`);
-      return [];
-    }
+    if (fast > 0) return leave('fast', `it would run ${calledAt[fast - 1]?.name} → ${calledAt[fast]?.name} at ${Math.round(speed(fast) * 3.6)} km/h along its track`, calledAt.slice(fast - 1, fast + 1));
     // Which way it runs along its Line's first shape, from its first Station to its last.
     const first = firstShape.get(trip.line) ?? shape;
     const [from = 0, to = 0] = [calledAt[0], calledAt.at(-1)].map((s) => (s ? orderAlong(first.coords, nearest(first.coords, [s.lon, s.lat])) : 0));
