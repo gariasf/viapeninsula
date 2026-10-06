@@ -1,8 +1,8 @@
 // Each Trip placed on its track: how far along it each of its Stations is.
 
-import { closestOnSegment, DEGREE, type Line, type Point, type Shape, type Station, type Trip } from '../bundle.ts';
+import { closestOnSegment, DEGREE, type Point, type Shape, type Station, type Trip } from '../bundle.ts';
 import type { Cause, Found } from './report.ts';
-import { nearest, orderAlong } from './track.ts';
+import { nearest } from './track.ts';
 
 /** A Trip as the feed times it, before its Stations are placed on its track. */
 export interface FeedTrip {
@@ -30,7 +30,6 @@ export const REACH = 300;
  */
 export function placeTrips(
   trips: FeedTrip[],
-  lines: Line[],
   shapes: Shape[],
   stations: Station[],
   topSpeed: number,
@@ -39,7 +38,6 @@ export function placeTrips(
 ): Trip[] {
   const byId = new Map(stations.map((s) => [s.id, s]));
   const byShape = new Map(shapes.map((s) => [s.id, s]));
-  const firstShape = new Map(lines.map((l) => [l.id, byShape.get(l.shapes[0] ?? '')]));
   const cached = new Map<string, Pass[]>();
   const passesOf = (shape: Shape, station: Station) => {
     const key = `${shape.id} ${station.id}`;
@@ -67,10 +65,7 @@ export function placeTrips(
     const speed = (i: number) => Math.abs((dist[i] ?? 0) - (dist[i - 1] ?? 0)) / ((calls[i]?.arrival ?? 0) - (calls[i - 1]?.departure ?? 0));
     const fast = calls.findIndex((_, i) => i > 0 && speed(i) > topSpeed);
     if (fast > 0) return leave('fast', `it would run ${calledAt[fast - 1]?.name} → ${calledAt[fast]?.name} at ${Math.round(speed(fast) * 3.6)} km/h along its track`, calledAt.slice(fast - 1, fast + 1));
-    // Which way it runs along its Line's first shape, from its first Station to its last.
-    const first = firstShape.get(trip.line) ?? shape;
-    const [from = 0, to = 0] = [calledAt[0], calledAt.at(-1)].map((s) => (s ? orderAlong(first.coords, nearest(first.coords, [s.lon, s.lat])) : 0));
-    return [{ ...trip, direction: to < from ? 1 : 0, calls: calls.map((c, i) => ({ ...c, dist: Math.round(dist[i] ?? 0) })) }];
+    return [{ ...trip, calls: calls.map((c, i) => ({ ...c, dist: Math.round(dist[i] ?? 0) })) }];
   });
 }
 

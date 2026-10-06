@@ -23,21 +23,16 @@ interface TripEnds {
 /**
  * Each shape once for each way its Trips run it, so that each way is traced on its own track: the
  * way the feed draws it keeps its ID, and the way back, its points reversed, is `<id>:back`. A Trip
- * runs its shape back where its last Station comes before its first along it. Gives those shapes,
- * given every Trip on any day, and the one each Trip runs on.
+ * runs its shape back where its last Station comes before its first in the order its trace takes
+ * the shape's Stations, beyond its ends too (inOrder()). Gives those shapes, given every Trip on any
+ * day, and the one each Trip runs on.
  */
 export function eachWay(shapes: FeedShape[], stations: Station[], trips: TripEnds[]): { shapes: FeedShape[]; shapeOf: (trip: TripEnds) => string } {
-  const [byId, feeds] = [new Map(stations.map((s) => [s.id, s])), new Map(shapes.map((s) => [s.id, s]))];
-  const known = new Map<string, boolean>();
+  const byId = new Map(stations.map((s) => [s.id, s]));
+  const orders = new Map(shapes.map((s) => [s.id, new Map(inOrder(s, s.stations.flatMap((id) => byId.get(id) ?? [])).map((w) => [w.station.id, w.order]))]));
   const back = ({ shape, from, to }: TripEnds) => {
-    const key = `${shape} ${from} ${to}`;
-    const found = known.get(key);
-    if (found !== undefined) return found;
-    const [coords, a, b] = [feeds.get(shape)?.coords ?? [], byId.get(from), byId.get(to)];
-    const order = (s: Station) => orderAlong(coords, nearest(coords, [s.lon, s.lat]));
-    const is = !!a && !!b && order(b) < order(a);
-    known.set(key, is);
-    return is;
+    const [a, b] = [orders.get(shape)?.get(from), orders.get(shape)?.get(to)];
+    return a !== undefined && b !== undefined && b < a;
   };
   const ways = new Map<string, Set<boolean>>();
   for (const trip of trips) ways.set(trip.shape, (ways.get(trip.shape) ?? new Set()).add(back(trip)));
@@ -356,7 +351,7 @@ function inOrder(feed: FeedShape, stations: Station[]): Waypoint[] {
  * Where a point comes along a line, given where nearest() found it closest. Trips can run beyond a
  * shape, so a point beyond either end comes by how far beyond that end it is.
  */
-export function orderAlong(polyline: Point[], n: ReturnType<typeof nearest>): number {
+function orderAlong(polyline: Point[], n: ReturnType<typeof nearest>): number {
   return n.along + (n.i === 0 && n.t === 0 ? -n.metres : n.i === polyline.length - 2 && n.t === 1 ? n.metres : 0);
 }
 

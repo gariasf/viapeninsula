@@ -144,7 +144,7 @@ function build(config: NetworkConfig, { published, days }: Awaited<ReturnType<ty
   const found = (f: Found) => report.add({ ...f, network: id, ways: [...new Set(f.stations?.flatMap((s) => near.get(s.id)?.map((c) => c.way.id) ?? []))] });
   const shapes = traceShapes(parts.flatMap((p) => p.shapes), stations, own, network.runningSide, console.log, found);
   const cropped = crop(border, stations, shapes, days.map((day) => day.flatMap((p) => p.trips)));
-  const trips = cropped.days.map((trips, day) => placeTrips(trips, lines, shapes, stations, network.profile.topSpeed, console.log, (f) => found({ ...f, day })));
+  const trips = cropped.days.map((trips, day) => placeTrips(trips, shapes, stations, network.profile.topSpeed, console.log, (f) => found({ ...f, day })));
   return { network, lines, stations: cropped.stations, shapes: cropped.shapes, trips };
 }
 

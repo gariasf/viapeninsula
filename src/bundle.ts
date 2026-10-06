@@ -274,8 +274,6 @@ export interface Trip {
   id: string;
   line: string;
   shape: string;
-  /** 0 where it runs the way its Line's first shape does, 1 where it runs back the other way. */
-  direction: 0 | 1;
   /** Where it's headed. */
   headsign: string;
   /** Its Train number, where the operator publishes one. */

@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import type { Line, Shape, Station } from '../bundle.ts';
+import type { Shape, Station } from '../bundle.ts';
 import { collect, type Found } from './report.ts';
 import { placeTrips, type FeedTrip } from './trips.ts';
 
@@ -25,8 +25,6 @@ const station = (id: string, x: number, y: number): Station => {
   return { id, name: id, lon, lat };
 };
 
-const line = (id: string, ...shapes: string[]): Line => ({ id, network: 'rodalies', name: id, colour: '#000', shapes, kind: 'commuter' });
-
 /** A Trip calling at the named Stations, ten minutes apart, a minute at each. */
 const trip = (id: string, line: string, shape: string, stations: string): FeedTrip => ({
   id,
@@ -37,8 +35,7 @@ const trip = (id: string, line: string, shape: string, stations: string): FeedTr
 });
 
 /** R2N's track through Barcelona, which Estació de França is off. */
-const R2N: [Line[], Shape[], Station[]] = [
-  [line('R2N', 'R2N')],
+const R2N: [Shape[], Station[]] = [
   [shape('R2N', [0, 0], [10000, 0])],
   [station('Sants', 0, 0), station('Gràcia', 2500, 40), station('França', 3000, 1800)],
 ];
@@ -46,9 +43,9 @@ const R2N: [Line[], Shape[], Station[]] = [
 /** Rodalies' fastest Trains run at 160 km/h. */
 const TOP_SPEED = 160 / 3.6;
 
-function place(lines: Line[], shapes: Shape[], stations: Station[], ...trips: FeedTrip[]) {
+function place(shapes: Shape[], stations: Station[], ...trips: FeedTrip[]) {
   const [log, found]: [string[], Found[]] = [[], []];
-  const placed = placeTrips(trips, lines, shapes, stations, TOP_SPEED, (l) => log.push(l), (f) => found.push(f));
+  const placed = placeTrips(trips, shapes, stations, TOP_SPEED, (l) => log.push(l), (f) => found.push(f));
   /** How far along its track each of a Trip's Stations is placed, in metres. */
   const dist = (id: string) => placed.find((t) => t.id === id)?.calls.map((c) => c.dist);
   return { placed, log, found, dist };
@@ -56,7 +53,6 @@ function place(lines: Line[], shapes: Shape[], stations: Station[], ...trips: Fe
 
 test('places each Station a Trip calls at where it is along its track, whichever way the Trip runs it', () => {
   const { placed, dist, log } = place(
-    [line('R1', 'east')],
     [shape('east', [0, 0], [10000, 0])],
     [station('A', 0, 20), station('B', 4000, -30), station('C', 10000, 10)],
     trip('out', 'R1', 'east', 'A B C'),
@@ -66,7 +62,6 @@ test('places each Station a Trip calls at where it is along its track, whichever
     id: 'out',
     line: 'R1',
     shape: 'east',
-    direction: 0,
     headsign: 'C',
     calls: [
       { station: 'A', arrival: 0, departure: 60, dist: 0 },
@@ -78,44 +73,9 @@ test('places each Station a Trip calls at where it is along its track, whichever
   expect(log).toEqual([]);
 });
 
-test("tells a Line's two directions apart by which way they run along its first shape", () => {
-  // As with RL4, whose Trips both ways share one shape, a Trip can run its own shape backwards.
-  const { placed } = place(
-    [line('R4', 'R4', 'R4_INV')],
-    [shape('R4', [0, 0], [10000, 0]), shape('R4_INV', [10000, 0], [0, 0])],
-    [station('A', 0, 0), station('C', 10000, 0)],
-    trip('east', 'R4', 'R4', 'A C'),
-    trip('west', 'R4', 'R4_INV', 'C A'),
-    trip('east on R4_INV', 'R4', 'R4_INV', 'A C'),
-    trip('west on R4', 'R4', 'R4', 'C A'),
-  );
-  expect(placed.map((t) => [t.id, t.direction])).toEqual([
-    ['east', 0],
-    ['west', 1],
-    ['east on R4_INV', 0],
-    ['west on R4', 1],
-  ]);
-});
-
-test("tells them apart beyond the end of the Line's first shape too, as between Manresa and Rajadell", () => {
-  // R4_INV's track runs on from Manresa, where R4's first shape ends, to Rajadell.
-  const { placed } = place(
-    [line('R4', 'R4', 'R4_INV')],
-    [shape('R4', [0, 0], [10000, 0]), shape('R4_INV', [20000, 0], [0, 0])],
-    [station('Manresa', 10000, 12), station('Rajadell', 20000, 0)],
-    trip('on to Rajadell', 'R4', 'R4_INV', 'Manresa Rajadell'),
-    trip('from Rajadell', 'R4', 'R4_INV', 'Rajadell Manresa'),
-  );
-  expect(placed.map((t) => [t.id, t.direction])).toEqual([
-    ['on to Rajadell', 0],
-    ['from Rajadell', 1],
-  ]);
-});
-
 test("where its track passes a Station twice, places it where the Trip passes it, as at L'Aldea on the way to and from Tortosa", () => {
   // R16's track runs out to Tortosa and back to L'Aldea before it carries on south, to Ulldecona.
   const { dist } = place(
-    [line('R16', 'R16')],
     [shape('R16', [-5000, 0], [0, 0], [12000, 0], [0, 0], [0, -20000])],
     [station('Camarles', -5000, 10), station("L'Aldea", 0, 30), station('Tortosa', 12000, 25), station('Ulldecona', 20, -20000)],
     trip('from Tortosa', 'R16', 'R16', "Tortosa L'Aldea Ulldecona"),
@@ -129,7 +89,6 @@ test("where its track passes a Station twice, places it where the Trip passes it
 
 test('follows a Trip that turns back at a Station, as R11 Trips do at Cerbère', () => {
   const { dist } = place(
-    [line('R11', 'R11')],
     [shape('R11', [0, 0], [20000, 0], [22000, 0])],
     [station('Figueres', 0, 15), station('Portbou', 20000, -10), station('Cerbère', 22000, 30)],
     trip('turns back', 'R11', 'R11', 'Figueres Portbou Cerbère Portbou'),
@@ -174,7 +133,6 @@ test("leaves out and reports a Trip that would have to run faster than its Netwo
   // R16's track from Tortosa to Ulldecona comes back no nearer than a kilometre to L'Aldea, where its
   // Trains turn back, so a Trip from Tortosa would have to run past Tortosa again on its way south.
   const { placed, log, found } = place(
-    [line('R16', 'R16')],
     [shape('R16', [0, 0], [12000, 0], [1000, -1000], [1000, -20000])],
     [station("L'Aldea", 0, 30), station('Tortosa', 12000, 25), station('Ulldecona', 1000, -20000)],
     {
