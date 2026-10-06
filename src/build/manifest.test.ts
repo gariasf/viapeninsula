@@ -13,7 +13,6 @@ const trip = (id: string, line: string, from = 18000, to = 20000): Trip => ({
   id,
   line,
   shape: 's',
-  direction: 0,
   headsign: '',
   calls: [
     { station: 'a', arrival: from, departure: from, dist: 0 },

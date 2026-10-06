@@ -131,7 +131,6 @@ function bundleOf(serviceDay: string, network: Omit<Network, 'runningSide' | 'co
       id,
       line,
       shape: id,
-      direction: 0,
       headsign: headsign ?? calls.at(-1)?.[0] ?? '',
       calls: calls.map(([station, arrival, departure, dist]) => ({ station, arrival: seconds(arrival), departure: seconds(departure), dist })),
     })),
