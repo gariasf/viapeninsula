@@ -11,10 +11,11 @@ export interface Spot {
   /**
    * A run of a Line's legs between Stations that keep the feed's shape, a Station a Line's trace turns
    * back at, Stations left out on a branch, Trips left out, a Network with no Trips on a day, a
-   * Network's Trips on each day of the week, a traced shape's length against the feed's, one of the
-   * largest nodes at a zoom, or the line measures.
+   * Network's Trips on each day of the week, a Network built from the copy of its timetables that
+   * last built it, a traced shape's length against the feed's, one of the largest nodes at a zoom, or
+   * the line measures.
    */
-  kind: 'kept' | 'turn' | 'branch' | 'trip' | 'notrips' | 'trips' | 'length' | 'node' | 'measures';
+  kind: 'kept' | 'turn' | 'branch' | 'trip' | 'notrips' | 'trips' | 'copy' | 'length' | 'node' | 'measures';
   /** What the next build knows it by too (keyOf()): never a Trip's ID nor a date. */
   key: string;
   network?: string;
@@ -121,6 +122,7 @@ function keyOf({ kind, network, line, why, shape, day, zoom, point, stations = [
     trip: [line, why, ...ends],
     notrips: [network, day],
     trips: [network],
+    copy: [network],
     length: [line, shape?.replace(/:back$/, '')],
     node: [zoom, point?.[1].toFixed(3), point?.[0].toFixed(3)],
     measures: [],
@@ -172,7 +174,7 @@ export function diff(last: Spot[] | undefined, spots: Spot[]): string {
  * Whether a kind of spot is a problem on the map: not a Network's Trips, which the summary names where
  * they dropped (moved()), nor a length, a node or the measures, which move with any change to it.
  */
-const PROBLEM: Record<Spot['kind'], boolean> = { kept: true, turn: true, branch: true, trip: true, notrips: true, trips: false, length: false, node: false, measures: false };
+const PROBLEM: Record<Spot['kind'], boolean> = { kept: true, turn: true, branch: true, trip: true, notrips: true, trips: false, copy: true, length: false, node: false, measures: false };
 
 /** The most characters a GitHub comment holds, counted here as UTF-8's bytes, which are never fewer however GitHub counts them. */
 const COMMENT = 65536;

@@ -1,11 +1,13 @@
 // The daily build: turns the operators' timetables into a bundle for each of the next three service
-// days, today's first, and publishes them to R2, so a build that fails leaves the map the days before
-// it published. Each day's bundle comes in two files, so the map can draw the Lines before the Trips
-// come: the track, which is the same file for each day, and the day's Trips. Beside them it writes
-// out/report.json, each spot its log names, once (report.ts), which it publishes after the manifest,
-// and it prints what changed since the last build's, in the run's job summary too. In Actions, once
-// it has published, it writes out/comment.md where a problem spot is new, which daily.yml posts on
-// the standing "Build report" issue.
+// days, today's first, and publishes them to R2, so a build that fails leaves the map the days
+// before it published. A Network one of whose timetables can't be downloaded or read, or gives it
+// no Lines, is built from the copy of them that last built it, which the build keeps in .cache
+// (readTimetables()), so the others build as ever. Each day's bundle comes in two files, so the map
+// can draw the Lines before the Trips come: the track, which is the same file for each day, and the
+// day's Trips. Beside them it writes out/report.json, each spot its log names, once (report.ts),
+// which it publishes after the manifest, and it prints what changed since the last build's, in the
+// run's job summary too. In Actions, once it has published, it writes out/comment.md where a
+// problem spot is new, which daily.yml posts on the standing "Build report" issue.
 // `npm run daily` publishes; `npm run daily -- --dry-run` only writes the files to out/. The secrets
 // a timetable's URL needs, as TMB's TMB_APP_ID and TMB_APP_KEY, come from the environment, which
 // `npm run daily` loads from .env.local.
@@ -19,7 +21,7 @@ import { addDays, LIVE_URL, madridDate, type Manifest, type Network, type Track 
 import { NETWORKS, type NetworkConfig, type Timetable } from '../networks.ts';
 import { download, feedStart, type Source } from './gtfs.ts';
 import { dayTrips, manifestDay, manifestOf } from './manifest.ts';
-import { ownRails, RAILWAYS, readFeed, type Feed } from './networks.ts';
+import { ownRails, RAILWAYS, readFeed, readTimetables, type Feed } from './networks.ts';
 import { crop } from './border.ts';
 import { measures, reported, summary } from './measures.ts';
 import { osm } from './osm.ts';
@@ -33,17 +35,18 @@ const BUCKET = 'viapeninsula-live';
 const today = madridDate(new Date());
 const DAYS = [0, 1, 2].map((n) => addDays(today, n));
 const report = collect();
-// Every Network's timetables, downloaded at once.
-const downloaded = await Promise.all(
+// Every Network's timetables, downloaded at once, and why they couldn't be, where one couldn't: that
+// doesn't stop the others, and its Network's are read from their copy (readTimetables()).
+const downloads = await Promise.all(
   NETWORKS.map(async (network) => ({
     network,
-    feeds: await Promise.all(network.timetables.map(async (t) => ({ ...t, network, gtfs: await download(address(t), t.prefix) }))),
+    failed: await Promise.all(network.timetables.map(async (t) => download(address(t), t.prefix))).then(() => undefined, (error: unknown) => error),
   })),
 );
 // The rails of every kind any Network runs on, and Spain's border.
 const { rails, border } = await osm(RAILWAYS);
 const networks = [];
-for (const { network, feeds } of downloaded) networks.push(await build(network, feeds));
+for (const { network, failed } of downloads) networks.push(build(network, await readTimetables(network, failed, readDays, report.add)));
 // The last build's manifest names the bundle for yesterday, whose last Trains can still be running,
 // and its report is what this build's is diffed against, with each Network's Trips on each day of the week.
 const [lastManifest, lastReport] = await Promise.all([
@@ -110,22 +113,30 @@ if (!process.argv.includes('--dry-run')) {
 }
 
 /**
- * A Network from its operator's timetables, with the day they were last updated where its terms ask
- * the map to show it: its Lines, Stations and track traced along OpenStreetMap's rails of its own kind
- * (ADR-0004), which are those of every day in its timetables, and its Trips on each of DAYS, none where
- * its timetable has none (dayTrips()), all within Spain: its Trips are placed on their whole track,
- * which is then cut at the border. What its tracing and placing log goes into the report too, with the
- * OpenStreetMap ways its Stations are on.
- * ponytail: reads each feed once for each day, about 5 s a day for the lot; read stop_times once for
- * every day if the build grows slow.
+ * What a Network's timetables give it on each of DAYS, the Lines each gives it, which are those of
+ * every day in it, and the day they were last updated where its terms ask the map to show it.
+ * ponytail: reads each feed once for each day, about 5 s a day for the lot; read stop_times once
+ * for every day if the build grows slow.
  */
-async function build(config: NetworkConfig, feeds: (Feed & { gtfs: Source })[]) {
+async function readDays(feeds: (Feed & { gtfs: Source })[]) {
   // A feed starts the day its operator publishes it, which can't be after today.
   const dated = feeds.find((f) => f.updated);
   const published = dated && (await feedStart(dated.gtfs));
+  const days = await Promise.all(DAYS.map((day) => Promise.all(feeds.map((feed) => readFeed(feed.gtfs, day, feed)))));
+  return { published, days, lines: (days[0] ?? []).map((p) => p.lines) };
+}
+
+/**
+ * A Network from what its timetables give it (readDays()), with the day they were last updated
+ * where its terms ask the map to show it: its Lines, Stations and track traced along
+ * OpenStreetMap's rails of its own kind (ADR-0004), which are those of every day in its timetables,
+ * and its Trips on each of DAYS, none where its timetable has none (dayTrips()), all within Spain:
+ * its Trips are placed on their whole track, which is then cut at the border. What its tracing and
+ * placing log goes into the report too, with the OpenStreetMap ways its Stations are on.
+ */
+function build(config: NetworkConfig, { published, days }: Awaited<ReturnType<typeof readDays>>) {
   const { id, name, profile, runningSide, colour, pillZoom, credit, live } = config;
   const network: Network = { id, name, profile, runningSide, colour, pillZoom, credit: { ...credit, ...(published && { updated: published < today ? published : today }) }, live };
-  const days = await Promise.all(DAYS.map((day) => Promise.all(feeds.map((feed) => readFeed(feed.gtfs, day, feed)))));
   const parts = days[0] ?? [];
   const [lines, stations] = [parts.flatMap((p) => p.lines), parts.flatMap((p) => p.stations)];
   const own = ownRails(rails, config);

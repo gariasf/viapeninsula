@@ -30,3 +30,4 @@ How long distance's Trains are made, traced and moved (one Train from its parts,
 - v1's story 14 changes: a Train leaves the map at Spain's border.
 - Ouigo's timetable comes from NAP, with a key and the credit its licence asks for ("Powered by MITRAMS", with the date of its last update).
 - What the map shows for a Network whose timetable is missing (#226) is decided there, within the rule above.
+- A Network whose timetable can't be downloaded or read, or gives it no Lines, is built from the copy that last built it (#286). With no copy, as once the Actions cache is lost, the build still fails, and the days already published stay.

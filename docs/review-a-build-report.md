@@ -2,7 +2,7 @@
 
 Each daily build, and each deploy whose build changed, diffs its report against the last one published and writes the diff to the run's job summary (#250): the spots new since the last build, those gone, and those whose numbers moved. Each spot comes with its key, its lines of the log, and links to the map there, to OpenStreetMap there, to edit OpenStreetMap there, and to the ways its Stations are on. On most days it's one line: nothing changed. Why it's built this way is in `docs/research/build-report.md`.
 
-Where a problem spot is new (a run of legs that keeps the feed's shape, a turn-back, a branch, Trips left out, or a Network with no Trips on a day), the build also comments on the standing [Build report](https://github.com/gariasf/viapeninsula/issues/290) issue, which notifies the maintainer: the new problem spots, with their links, and the run's link (#255). It never comments for a length, a node or the measures, which move with any change to the map, nor for a Network's Trips, so those are only in the summary.
+Where a problem spot is new (a run of legs that keeps the feed's shape, a turn-back, a branch, Trips left out, a Network with no Trips on a day, or one built from its copy), the build also comments on the standing [Build report](https://github.com/gariasf/viapeninsula/issues/290) issue, which notifies the maintainer: the new problem spots, with their links, and the run's link (#255). It never comments for a length, a node or the measures, which move with any change to the map, nor for a Network's Trips, so those are only in the summary.
 
 ## A new spot
 
@@ -16,6 +16,10 @@ A fix in OpenStreetMap reaches the map when the build next downloads Geofabrik's
 ## A Network with fewer Trips
 
 A Network shows as changed when it has more than a quarter fewer Trips today than the last report has for the same day of the week (#252). The build keeps them all. A holiday runs a Sunday's timetable, so on one there's nothing to do. Otherwise, look in the same summary for Trips left out, as a gap in the rails leaves them, then at the operator's timetable, which may have lost them.
+
+## A Network built from its copy
+
+A Network one of whose timetables can't be downloaded or read, or gives it no Lines, is built from the copy of them that last built it, which the build keeps in `.cache` (#286). Its `copy <network>` spot gives the day the copy was kept and why, and stays until a new timetable gives the Network Lines again, when it shows as gone. A server that's down for a morning needs nothing. If it lasts, open the timetable's URL: a Network with no Lines, as Rodalies in Renfe's file of 5 Oct 2026, needs a new source; a moved file, a new URL in `src/networks.ts`.
 
 ## A spot as a test
 

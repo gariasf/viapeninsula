@@ -1,9 +1,12 @@
 // Reading a Network's timetables, and finding its rails, as src/networks.ts has them.
 
-import type { Line, Station } from '../bundle.ts';
+import { copyFile, mkdir, stat } from 'node:fs/promises';
+import { join } from 'node:path';
+import { madridDate, type Line, type Station } from '../bundle.ts';
 import { FGC, METRO, NETWORKS, RODALIES, TRAM, type NetworkConfig, type Rails, type Timetable } from '../networks.ts';
-import { rows, seconds, serviceIdsOn, type Source } from './gtfs.ts';
+import { rows, seconds, serviceIdsOn, zipFile, zipSource, type Source } from './gtfs.ts';
 import type { OsmWay } from './osm.ts';
+import type { Found } from './report.ts';
 import { eachWay, fine, type FeedShape } from './track.ts';
 import type { FeedTrip } from './trips.ts';
 
@@ -180,6 +183,51 @@ export async function readFeed(
       });
     }),
   };
+}
+
+/**
+ * A Network's timetables, read (`read`) from their downloads, in zipFile(), or where one couldn't be
+ * downloaded (`failed` says why) or read, or gives the Network no Lines, from the copy of them that
+ * last built it, kept in `cache` (#286), which is reported as a problem spot, with the day it was kept
+ * and why. `read` gives the Lines each timetable gives the Network. Timetables that each give it Lines
+ * replace its copy, which is its own, as one Renfe file can have one núcleo's Trips and not another's.
+ * With no copy, it fails.
+ */
+export async function readTimetables<T extends { lines: unknown[][] }>(
+  network: NetworkConfig,
+  failed: unknown,
+  read: (feeds: (Feed & { gtfs: Source })[]) => Promise<T>,
+  report: (found: Found) => void,
+  cache = '.cache',
+): Promise<T> {
+  const copy = (t: Timetable) => join(cache, `timetable-${t.prefix}.zip`);
+  const from = (zip: (t: Timetable) => string) => read(network.timetables.map((t) => ({ ...t, network, gtfs: zipSource(zip(t)) })));
+  let why = failed;
+  let got: T | undefined;
+  if (!failed) {
+    try {
+      got = await from((t) => zipFile(t.prefix));
+    } catch (error) {
+      why = error;
+    }
+  }
+  const empty = got && network.timetables.find((_, i) => !got.lines[i]?.length);
+  if (got && !empty) {
+    await mkdir(cache, { recursive: true });
+    for (const t of network.timetables) await copyFile(zipFile(t.prefix), copy(t));
+    return got;
+  }
+  // Never print a query string: TMB's holds its key.
+  if (empty) why = `${empty.url.split('?')[0]} gives it no Lines`;
+  // One line, for the summary's list: unzip prints the rest of its own to the log.
+  const reason = `${why instanceof Error ? why.message : why}`.replace(/\n.*/s, '');
+  // The day the copy was kept, none where one of the Network's timetables has none.
+  const day = await Promise.all(network.timetables.map((t) => stat(copy(t)))).then(([first]) => first && madridDate(first.mtime), () => undefined);
+  if (!day) throw new Error(`${network.name} has no copy of its timetables to build it from: ${reason}`);
+  const line = `${network.name} is built from the copy of its timetables kept on ${day}: ${reason}`;
+  console.warn(line);
+  report({ kind: 'copy', network: network.id, text: [line] });
+  return from(copy);
 }
 
 /** Seconds into the service day as a GTFS time, such as 25:10:00. */
