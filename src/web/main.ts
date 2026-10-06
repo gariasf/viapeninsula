@@ -11,6 +11,7 @@ import { linesAt } from './tap.ts';
 import { alongside, namedTwice, nameOffset, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
 import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
 import { keepView, lastView, openingView } from './view.ts';
+import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
 setWorkerUrl(workerUrl);
@@ -337,7 +338,8 @@ legend.className = 'maplibregl-ctrl maplibregl-ctrl-group legend';
 map.addControl({ onAdd: () => legend, onRemove: () => legend.remove() }, 'top-left');
 /** The legend's count of the Trains on the map, which showCount() fills once their Trips have come. */
 const countRow = el('div');
-// The banner under it, which showBanner() fills: each Network whose live data is unavailable, or with no Trips today.
+// The banner under it, which showBanner() fills: each Network whose live data is unavailable while its
+// Trains are in view, or with no Trips today while its track is (bannerNetworks()).
 const banner = document.createElement('div');
 banner.className = 'maplibregl-ctrl maplibregl-ctrl-group banner';
 banner.setAttribute('role', 'status');
@@ -372,13 +374,15 @@ let nearMe: Point | 'locating' | 'failed' | undefined;
 let panelShown = 0;
 /** When the legend's count was last filled, by performance.now(). */
 let countShown = -Infinity;
+/** When the Networks the banner names were last worked out, by performance.now(). */
+let bannerChecked = -Infinity;
 let credits: AttributionControl | undefined;
 /** The Networks on the map, whose data the credits name, and whose names the banner shows. */
 let credited: Network[] = [];
-/** The Networks whose live data is unavailable, by their ids. */
-let unavailableIds: string[] = [];
 /** The Networks with no Trips today, by their ids, as the manifest names them (#226). */
 let noTripsIds: string[] = [];
+/** The Networks the banner names, by their ids (bannerNetworks()). */
+let bannerIds: Banner = { unavailable: [], noTrips: [] };
 // Live data: the fetcher's snapshot, about every 20 s while the tab is visible (ADR-0003). The
 // engine replays what the map had each time it looked, over the last KEEP, which also corrects the device's clock.
 let received: Received[] = [];
@@ -414,6 +418,8 @@ let shownPlaces = new Map<string, Place>();
 let placing = { shapes: new Map<string, Shape>(), slots: new Map<string, Slot[]>(), curves: new Map<string, Zone[]>(), keep: new Map<string, number>() };
 /** The Lines' strokes along their Stretches, which a tap on one names (linesAt()). */
 let shownStrokes: Stroke[] = [];
+/** Each Network's track, drawn once zoomed out (#190), which the banner goes by for a Network with no Trips today (bannerNetworks()). */
+let shownTracks: NetworkTrack[] = [];
 /** How each Line's Trains are drawn as pills, by the Line's ID. */
 let pills = new Map<string, Pill>();
 /** What moves a tapped group of Trains standing together at a Station apart (#129). */
@@ -708,8 +714,8 @@ for (const layer of ['trains', 'train-pills', 'train-pills-followed', 'stations'
 // Escape closes the About dialog on its own, if it's open.
 document.addEventListener('keydown', (e) => e.key === 'Escape' && !about.open && (following || boardPlace || nearMe) && closePanel());
 
-// Moves the Trains, and names the Networks whose live data is unavailable as that changes, as often
-// as MOVED says. The browser stops asking while the tab is hidden.
+// Moves the Trains as often as MOVED says, and once a second works out which Networks the banner
+// names. The browser stops asking while the tab is hidden.
 const trainSource = map.getSource<GeoJSONSource>('trains');
 const trainButtons = el('div', { className: 'maplibregl-ctrl maplibregl-ctrl-group' }, nearbyButton, followRandomButton);
 map.addControl({ onAdd: () => trainButtons, onRemove: () => trainButtons.remove() }, 'top-right');
@@ -738,10 +744,20 @@ requestAnimationFrame(function move(now) {
   }
   // The panel's times and ages change by the second.
   if ((following || boardPlace || nearMe) && performance.now() - panelShown > 1000) showPanel();
-  const ids = unavailable(bundle, Date.now(), received);
-  if (ids.join() !== unavailableIds.join()) {
-    unavailableIds = ids;
-    showBanner();
+  // Which Networks the banner names changes as Trains and the view move, and the banner with it.
+  // Zoomed out, where no Trains are drawn, none of them is in view.
+  // ponytail: in view by the map's bounds, which on a turned or tilted map take in some of the map
+  // around the view too, as followRandom()'s do. Test where each Train and stretch of track is on
+  // screen, as keepInView() does, if a banner for a Network just out of view ever shows.
+  if (now - bannerChecked > 1000) {
+    bannerChecked = now;
+    const drawnTrains = map.getZoom() < linesZoom ? [] : drawing.features.map((f) => ({ network: f.properties?.network, at: f.geometry.coordinates as Point }));
+    const followedNetwork = drawing.features.find((f) => f.properties?.followed)?.properties?.network;
+    const named = bannerNetworks({ unavailable: unavailable(bundle, Date.now(), received), noTrips: noTripsIds }, { trains: drawnTrains, followedNetwork, tracks: shownTracks }, map.getBounds().toArray());
+    if (JSON.stringify(named) !== JSON.stringify(bannerIds)) {
+      bannerIds = named;
+      showBanner();
+    }
   }
   requestAnimationFrame(move);
 });
@@ -820,12 +836,13 @@ function show(days: Track | Bundle) {
   map.getSource<GeoJSONSource>('rails')?.setData(drawn(days.rails, true));
   // A track built before #190 has none.
   const colours = new Map(days.networks.map((n) => [n.id, n.colour]));
+  shownTracks = (days.tracks ?? []).flatMap(({ line: id, shape: shapeId, from, to }) => {
+    const [line, shape] = [lines.get(id), shapes.get(shapeId)];
+    return line && shape ? [{ network: line.network, coordinates: along(shape, from, to) }] : [];
+  });
   map.getSource<GeoJSONSource>('tracks')?.setData({
     type: 'FeatureCollection',
-    features: (days.tracks ?? []).flatMap(({ line: id, shape: shapeId, from, to }): GeoJSON.Feature[] => {
-      const [line, shape] = [lines.get(id), shapes.get(shapeId)];
-      return line && shape ? [{ type: 'Feature', properties: { colour: colours.get(line.network) }, geometry: { type: 'LineString', coordinates: along(shape, from, to) } }] : [];
-    }),
+    features: shownTracks.map(({ network, coordinates }) => ({ type: 'Feature', properties: { colour: colours.get(network) }, geometry: { type: 'LineString', coordinates } })),
   });
   const tiered = [...shownPlaces.values()].map((p) => {
     const { nameZoom, larger, size } = TIERS.find((tier) => tier.places.includes(p.id)) ?? UNTIERED;
@@ -859,7 +876,7 @@ function show(days: Track | Bundle) {
  * Trains standing together at a Station goes side by side across their track (spreading()), so that
  * each can be seen and tapped (#129).
  */
-function trains(): GeoJSON.FeatureCollection {
+function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
   const zoom = map.getZoom();
   const [followed, bearing] = [followedId(), map.getBearing()];
   if (following) following.at = undefined;
@@ -890,11 +907,14 @@ function trains(): GeoJSON.FeatureCollection {
       const right = rightOf(heading, bearing);
       const coordinates: Point = out && onScreen ? (map.unproject([onScreen[0] + out * right[0], onScreen[1] + out * right[1]]).toArray() as Point) : at;
       if (following && trip.id === followed) following.at = coordinates;
+      const line = lines.get(trip.line);
       return {
         type: 'Feature',
         properties: {
           id: trip.id,
-          colour: lines.get(trip.line)?.colour,
+          colour: line?.colour,
+          // Which Network's banner it shows (bannerNetworks()).
+          network: line?.network,
           live,
           followed: trip.id === followed,
           heading,
@@ -1413,17 +1433,18 @@ function ago(ms: number): string {
 }
 
 /**
- * Names each Network on the map whose live data is unavailable, in the viewer's language. Once the
- * map has looked EMPTY_POLLS times and never got a snapshot, it says live data is unavailable
- * instead, naming no Network. Names too, apart, each Network on the map with no Trips today (#226).
- * Hides the banner while there's none of these.
+ * Names each Network whose live data is unavailable while its Trains are in view, or the map follows
+ * one of them, in the viewer's language (bannerNetworks()). Once the map has looked EMPTY_POLLS times
+ * and never got a snapshot, it says live data is unavailable instead, naming no Network. Names too,
+ * apart, each Network with no Trips today while its track is in view (#226). Hides the banner while
+ * there's none of these.
  */
 function showBanner() {
   const row = (name: string, says: string) => el('div', {}, el('b', { textContent: name }), `: ${says}`);
   const neverLive = !received.length && emptyPolls >= EMPTY_POLLS;
   const rows = [
-    ...(neverLive ? [el('div', {}, t('noLive'))] : credited.filter((n) => unavailableIds.includes(n.id)).map((n) => row(n.name, t('liveUnavailable')))),
-    ...credited.filter((n) => noTripsIds.includes(n.id)).map((n) => row(n.name, t('noTimetable'))),
+    ...(neverLive ? [el('div', {}, t('noLive'))] : credited.filter((n) => bannerIds.unavailable.includes(n.id)).map((n) => row(n.name, t('liveUnavailable')))),
+    ...credited.filter((n) => bannerIds.noTrips.includes(n.id)).map((n) => row(n.name, t('noTimetable'))),
   ];
   banner.hidden = !rows.length;
   banner.replaceChildren(...rows);
