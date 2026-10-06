@@ -1,5 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
-import { along, APART, atZoom, BANDS, beside, cutIn, drawnIn, inBand, LINK, onStroke, pieces, zones, pixelMetres, pointAt, SMOOTH, type Line, type Shape, type Stroke } from '../bundle.ts';
+import { along, APART, atZoom, BANDS, beside, cutIn, drawnIn, inBand, LINK, onStroke, pieces, zones, pixelMetres, pointAt, SMOOTH, type Line, type Shape, type Stroke, type Track } from '../bundle.ts';
 import { measures } from './measures.ts';
 import { offset } from './offset.ts';
 import { sideBySide } from './sideBySide.ts';
@@ -494,6 +495,17 @@ test("absorbs a Stretch too short for its nodes' curves, zoomed out, and crosses
   // At zoom 13, 26 m, it's long enough to draw.
   for (const s of shared) expect(cutIn(s, z13)[0] + cutIn(s, z13)[1]).toBeLessThan(s.to - s.from);
   expect(Math.max(...(await offStroke(lines, shapes, [['A', 'A'], ['B', 'B']])))).toBeLessThan(1);
+});
+
+test("brings L1 from Marina onto the Rodalies bundle at Auditori without a hook, where its own Stretch ends a few line widths aside of the bundle's (#206)", async () => {
+  // L1, R1 and R4 round Auditori/Teatre Nacional on 6 Oct 2026 (fixtures/auditori.json). L1's own
+  // Stretch from Marina ends 38 m east of the centreline of the 89 m it shares with R4, which a node
+  // absorbs at every zoom from 10 up: at zoom 14, its curve across the node hooked north-west off its
+  // stroke and back north.
+  const { lines, shapes } = JSON.parse(readFileSync(new URL('fixtures/auditori.json', import.meta.url), 'utf8')) as Pick<Track, 'lines' | 'shapes'>;
+  const { strokes, centrelines } = await sideBySide(lines, shapes);
+  const l1 = strokes.filter((s) => s.line === 'metro:L1');
+  expect(measures({ shapes: [...shapes, ...centrelines], strokes: l1 }).wiggles).toEqual(Object.fromEntries(BANDS.map((zoom) => [zoom, 0])));
 });
 
 test('ends Lines that end together at one point across their Stretch', async () => {

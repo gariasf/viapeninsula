@@ -34,6 +34,12 @@ const ROUNDING = 2;
 const LOOK = 5;
 /** How many of each band's largest nodes are listed. */
 const LARGEST = 10;
+/** Within how many line widths a curve that turns and turns back, or turns back on itself, wiggles (#206). */
+const WIGGLE = 6;
+/** How far, in degrees, a curve's heading turns one way and then back to wiggle: more than easing from one side to another turns it, at most about 21°. */
+const TURN = 30;
+/** How many times a line width a curve's heading is looked at, each across a line width: from LOOKS / 2 looks back to as many on. */
+const LOOKS = 4;
 
 /**
  * How the Lines are drawn. `breaks`: how often they break up. `twice`: metres where a Line shows
@@ -50,6 +56,8 @@ const LARGEST = 10;
  * there, in LOOSE_ZOOM's band, and in the measures of nodes, at each zoom in BANDS (ADR-0007, #186).
  * `kinks`: curves shorter than LENGTH × their side change × the band's line width. `weaves`: a Line's
  * strokes shorter than the room() of the nodes at their ends, where it changes side at either.
+ * `wiggles`: curves that, drawn with the strokes they join, turn TURN degrees one way and back the
+ * other, an S-bend, or turn back on themselves, within WIGGLE line widths, where they turn on the curve (#206).
  * `inside`: metres of curve drawn further off its Line's own track, by more than half a line width,
  * than at either of its ends. `largest`: the LARGEST largest nodes, how far apart their fronts are in
  * the band's line widths, and where their middle is, so that a node that absorbed too much shows (#187).
@@ -64,6 +72,7 @@ export interface Measures {
   dangling: number;
   kinks: Record<number, number>;
   weaves: Record<number, number>;
+  wiggles: Record<number, number>;
   inside: Record<number, number>;
   largest: Record<number, { size: number; at: Point }[]>;
 }
@@ -73,7 +82,7 @@ export function measures({ shapes, strokes: pieces, lines = [] }: Pick<Track, 's
   const strokes = joined(pieces);
   const drawn = strokes.filter((s) => !s.shape.startsWith(LINK));
   const graph = drawn.filter((s) => s.band === undefined);
-  return { breaks: breaks(graph, shapes), ...faithful(graph, shapes), folds: folds(drawn, shapes), covered: covered(strokes, shapes), dangling: dangling(strokes, shapes), ...nodes(strokes, shapes, lines) };
+  return { breaks: breaks(graph, shapes), ...faithful(graph, shapes), folds: folds(drawn, shapes), covered: covered(strokes, shapes), dangling: dangling(strokes, shapes), ...nodes(strokes, shapes, lines), wiggles: wiggles(strokes, shapes) };
 }
 
 /** Strokes joined up again where sideBySide() cut them at a tunnel's ends (#178), as they're drawn the same either side. */
@@ -90,10 +99,10 @@ function joined(strokes: Stroke[]): Stroke[] {
 }
 
 /** Measures in a line for the build's log. */
-export function summary({ breaks: b, twice, alone, over, folds: f, covered, dangling: loose, kinks, weaves, inside, largest }: Measures): string {
+export function summary({ breaks: b, twice, alone, over, folds: f, covered, dangling: loose, kinks, weaves, wiggles, inside, largest }: Measures): string {
   const km = (m: number) => `${(m / 1000).toFixed(1)} km`;
   const per = (found: Record<number, number>, as: (n: number) => string = String) => Object.entries(found).map(([zoom, n]) => `${as(n)} at zoom ${zoom}`).join(', ');
-  return `${total(b)} breaks (${b.steps} steps, ${b.stubs} stubs, ${b.swaps} swaps, ${b.joins} joins), ${km(twice)} drawn twice, ${km(alone)} off a track they have alone, ${Math.round(over)} m over each other, folds ${per(f)}, covered ${per(covered, (m) => `${(m / 1000).toFixed(1)} km`)}, ${loose} dangling ends, kinks ${per(kinks)}, weaves ${per(weaves)}, off track inside nodes ${per(inside, (m) => `${Math.round(m)} m`)}${Object.entries(largest).map(([zoom, list]) => `\n  largest nodes at zoom ${zoom}, in line widths: ${list.map(({ size, at: [lon, lat] }) => `${size.toFixed(1)} at ${lat.toFixed(5)},${lon.toFixed(5)}`).join(', ')}`).join('')}`;
+  return `${total(b)} breaks (${b.steps} steps, ${b.stubs} stubs, ${b.swaps} swaps, ${b.joins} joins), ${km(twice)} drawn twice, ${km(alone)} off a track they have alone, ${Math.round(over)} m over each other, folds ${per(f)}, covered ${per(covered, (m) => `${(m / 1000).toFixed(1)} km`)}, ${loose} dangling ends, kinks ${per(kinks)}, weaves ${per(weaves)}, wiggles ${per(wiggles)}, off track inside nodes ${per(inside, (m) => `${Math.round(m)} m`)}${Object.entries(largest).map(([zoom, list]) => `\n  largest nodes at zoom ${zoom}, in line widths: ${list.map(({ size, at: [lon, lat] }) => `${size.toFixed(1)} at ${lat.toFixed(5)},${lon.toFixed(5)}`).join(', ')}`).join('')}`;
 }
 
 /**
@@ -115,6 +124,7 @@ export function reported(m: Measures, text: string): Found[] {
     ...each('covered', m.covered),
     ...each('kinks', m.kinks),
     ...each('weaves', m.weaves),
+    ...each('wiggles', m.wiggles),
     ...each('inside', m.inside),
   ]);
   // summary() gives the largest nodes a line for each zoom, in order, after its first.
@@ -474,6 +484,107 @@ function nodes(strokes: Stroke[], shapes: Shape[], lines: Line[]): Pick<Measures
     }
   }
   return found;
+}
+
+/**
+ * At each zoom in BANDS, how many curves wiggle (see Measures), each as the map draws it in the band:
+ * in pieces, simplified by TOLERANCE px, offset along its joins' miters, from WIGGLE line widths along the
+ * stroke it leaves to WIGGLE widths along the one it comes onto. Its heading is looked at LOOKS times
+ * a line width.
+ */
+function wiggles(strokes: Stroke[], shapes: Shape[]): Record<number, number> {
+  const byId = new Map(shapes.map((s) => [s.id, s]));
+  const flat = ([lon, lat]: Point): [x: number, y: number] => [lon * KX, lat * DEGREE];
+  const found: Record<number, number> = {};
+  for (const [band, zoom] of BANDS.entries()) {
+    const px = pixelMetres(zoom, LATITUDE);
+    const width = atZoom(APART, zoom) * px;
+    /** Along a shape from one distance to another, `side` line widths right of it, as the map draws it in the band. */
+    const drawn = (id: string, from: number, to: number, side: number) => {
+      const shape = inBand(byId, id, band);
+      const points = shape ? offset(simplify(along(shape, Math.min(from, to), Math.max(from, to)).map(flat), TOLERANCE * px), side * width) : [];
+      return from > to ? points.toReversed() : points;
+    };
+    const byShape = new Map<string, Stroke[]>();
+    for (const s of strokes) if (!s.shape.startsWith(LINK) && drawnIn(s, band)) byShape.set(`${s.line} ${s.shape}`, [...(byShape.get(`${s.line} ${s.shape}`) ?? []), s]);
+    /**
+     * The Line's stroke a curve leaves, where `leaves`, or comes onto, from where its part of the curve
+     * (`across`) starts or ends, as far as WIGGLE line widths, the way the Line goes: on the far side of
+     * the part, or where the part has no length, wherever the stroke drawn up to that point is.
+     */
+    const joining = (line: string, [id, start, end]: [string, number, number], leaves: boolean): [number, number][] => {
+      const at = leaves ? start : end;
+      const away = Math.sign(end - start) * (leaves ? -1 : 1);
+      for (const s of byShape.get(`${line} ${id}`) ?? []) {
+        const [from, to] = [s.from + cutIn(s, band)[0], s.to - cutIn(s, band)[1]];
+        const lies = from >= to ? 0 : Math.abs(from - at) <= 1 ? 1 : Math.abs(to - at) <= 1 ? -1 : 0;
+        if (!lies || (away && lies !== away)) continue;
+        const far = lies > 0 ? Math.min(to, at + WIGGLE * width) : Math.max(from, at - WIGGLE * width);
+        return leaves ? drawn(id, far, at, s.side) : drawn(id, at, far, s.side);
+      }
+      return [];
+    };
+    found[zoom] = strokes.filter((c) => {
+      const [first, last] = [c.across?.[0], c.across?.at(-1)];
+      if (!c.shape.startsWith(LINK) || c.band !== band || !first || !last) return false;
+      const [before = [], curve = [], after = []] = [joining(c.line, first, true), pieces(c).flatMap((p) => drawn(c.shape, p.from, p.to, p.side)), joining(c.line, last, false)].map((points) => spaced(points, width / LOOKS));
+      const h = headings([...before, ...curve, ...after]);
+      // Where the curve is among the headings, which start LOOKS / 2 points along the line.
+      return turnsBack(h, Math.max(0, before.length - LOOKS / 2), Math.min(h.length - 1, before.length + curve.length - 1 - LOOKS / 2), LOOKS * WIGGLE);
+    }).length;
+  }
+  return found;
+}
+
+/** Points along a line through points, from its first, every `step` metres. */
+function spaced(points: [number, number][], step: number): [number, number][] {
+  const found = points.slice(0, 1);
+  let next = step; // how far along the segment the next point is
+  for (const [i, b] of points.entries()) {
+    const a = points[i - 1];
+    if (!a) continue;
+    const length = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    for (; next <= length; next += step) found.push([a[0] + ((b[0] - a[0]) * next) / length, a[1] + ((b[1] - a[1]) * next) / length]);
+    next -= length;
+  }
+  return found;
+}
+
+/** Which way a line through points heads at each but the LOOKS / 2 at either end, in degrees anticlockwise from east, from LOOKS / 2 points back to as many on, without jumps of a full turn. */
+function headings(points: [number, number][]): number[] {
+  const found: number[] = [];
+  for (let i = LOOKS / 2; i < points.length - LOOKS / 2; i++) {
+    const [p = [0, 0], q = [0, 0]] = [points[i - LOOKS / 2], points[i + LOOKS / 2]];
+    const was = found.at(-1);
+    const h = (Math.atan2(q[1] - p[1], q[0] - p[0]) * 180) / Math.PI;
+    found.push(was === undefined ? h : h - 360 * Math.round((h - was) / 360));
+  }
+  return found;
+}
+
+/**
+ * Whether a line's headings, looked at every so often, turn TURN degrees one way and then back the
+ * other, or turn back on themselves, all within `within` looks, where they turn at a look from `start`
+ * to `stop`.
+ */
+function turnsBack(h: number[], start: number, stop: number, within: number): boolean {
+  for (let j = start; j <= stop; j++) {
+    const at = h[j] ?? 0;
+    for (const way of [1, -1]) {
+      // The nearest look before it where the heading was TURN short of it, and after it, where it's TURN back.
+      let i = j - 1;
+      while (i >= Math.max(0, j - within) && way * (at - (h[i] ?? at)) < TURN) i--;
+      let k = j + 1;
+      while (k < Math.min(h.length, j + within + 1) && way * (at - (h[k] ?? at)) < TURN) k++;
+      if (i >= Math.max(0, j - within) && k < Math.min(h.length, j + within + 1) && k - i <= within) return true;
+    }
+  }
+  // Or half a turn, within as many looks of one where they turn.
+  for (let i = Math.max(0, start - within); i <= stop; i++) {
+    const looks = h.slice(i, i + within + 1);
+    if (Math.max(...looks) - Math.min(...looks) >= 180) return true;
+  }
+  return false;
 }
 
 // Run as `node src/build/measures.ts <track.json>`, on a day's track the daily build wrote or the map

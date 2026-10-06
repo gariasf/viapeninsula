@@ -90,7 +90,7 @@ test("doesn't count Lines stepping side by side the same way as a swap", () => {
 test('measures nothing amiss for Lines side by side on one track, each drawn once', () => {
   const found = measures({ shapes: [east('a', 2000), east('b', 2000)], strokes: [stroke('R2', 'a', 0, 2000, -0.5), stroke('R11', 'b', 0, 2000, 0.5)] });
   const zero = Object.fromEntries(BANDS.map((zoom) => [zoom, 0]));
-  expect(found).toEqual({ breaks: { steps: 0, stubs: 0, swaps: 0, joins: 0 }, twice: 0, alone: 0, over: 0, folds: zero, covered: zero, dangling: 0, kinks: zero, weaves: zero, inside: zero, largest: Object.fromEntries(BANDS.map((zoom) => [zoom, []])) });
+  expect(found).toEqual({ breaks: { steps: 0, stubs: 0, swaps: 0, joins: 0 }, twice: 0, alone: 0, over: 0, folds: zero, covered: zero, dangling: 0, kinks: zero, weaves: zero, wiggles: zero, inside: zero, largest: Object.fromEntries(BANDS.map((zoom) => [zoom, []])) });
 });
 
 test('measures a Line drawn twice, where its two directions have tracks of their own and different sides', () => {
@@ -234,6 +234,54 @@ test("counts a Line's stroke shorter than the room the nodes at its ends need, w
   expect(weaves(50, 0)).toEqual(none);
 });
 
+/**
+ * R2 drawn along 'a' up to 1000 m east, across a node on a curve through points, in each band from
+ * GRAPH_BAND on, and on along 'b', which runs east so many metres north, from where the curve ends.
+ */
+function wiggles(points: [number, number][], north = 0, ease = 0): Record<number, number> {
+  const link = shape(`${LINK}0`, points);
+  const [x = 0] = points.at(-1) ?? [];
+  const across: Stroke['across'] = [['a', 1000, 1000 + x / 2], ['b', x / 2, x]];
+  return measures({
+    shapes: [east('a', 4000), east('b', 4000, 0, north), link],
+    strokes: [
+      stroke('R2', 'a', 0, 1000, 0),
+      ...BANDS.flatMap((_, band) => (band < GRAPH_BAND ? [] : [{ ...stroke('R2', link.id, 0, link.dist.at(-1) ?? 0, 0), ease, band, across }])),
+      stroke('R2', 'b', x, 4000, ease),
+    ],
+  }).wiggles;
+}
+
+/** Points every 10 m along a line through corners, in metres east and north. */
+function through(...corners: [number, number][]): [number, number][] {
+  return corners.flatMap(([x, y], i) => {
+    const [px, py] = corners[i - 1] ?? [x, y];
+    const n = i ? Math.max(1, Math.round(Math.hypot(x - px, y - py) / 10)) : 1;
+    return Array.from({ length: i ? n : 1 }, (_, k): [number, number] => (i ? [px + ((x - px) * (k + 1)) / n, py + ((y - py) * (k + 1)) / n] : [x, y]));
+  });
+}
+
+test('counts a curve that turns and turns back within a few line widths as a wiggle, in each band where it shows (#206)', () => {
+  // R2 steps 20 m north on a curve, at 45°: sharp at zoom 13, where a line width is 26 m, but not at zoom 12, 47 m.
+  expect(wiggles(through([1000, 0], [1020, 0], [1040, 20], [1100, 20]), 20)).toEqual({ ...none, 13: 1, 14: 1 });
+  // Moving over a line width on a curve as long as LENGTH widths at zoom 10 eases it over, and doesn't wiggle.
+  expect(wiggles(through([1000, 0], [1600, 0]), 0, 1)).toEqual(none);
+});
+
+test("counts a curve that meets the stroke it comes onto heading off it as a wiggle, as L1's south of Auditori (#206)", () => {
+  // R2's curve bends south-east onto 'b', 20 m south, but 'b' goes on east from its end: it hooks there.
+  expect(wiggles(through([1000, 0], [1040, 0], [1060, -20]), -20)).toEqual({ ...none, 13: 1, 14: 1 });
+  // Easing onto 'b' over 200 m, coming onto it the way it runs, it doesn't.
+  const eased = Array.from({ length: 21 }, (_, i): [number, number] => [1000 + i * 10, -20 * (3 * (i / 20) ** 2 - 2 * (i / 20) ** 3)]);
+  expect(wiggles(eased, -20)).toEqual(none);
+});
+
+test('counts a curve that turns back on itself as a wiggle (#206)', () => {
+  // R2's curve loops round a circle 40 m across, and goes on east.
+  const loop = Array.from({ length: 13 }, (_, i): [number, number] => [1000 + 20 * Math.sin((i * Math.PI) / 6), 20 - 20 * Math.cos((i * Math.PI) / 6)]);
+  expect(wiggles([...loop, ...through([1000, 0], [1100, 0]).slice(1)])[14]).toBe(1);
+});
+
 test('measures metres of curve drawn further off its own track than at its ends, only for the Lines given', () => {
   // R2's track runs east, and its curve swings so many metres north of it halfway.
   const inside = (north: number, lines: Line[] = [{ id: 'R2', network: 'r', name: 'R2', colour: '#000', shapes: ['own'], kind: 'commuter' }]) => {
@@ -266,6 +314,7 @@ test('reports the measures as one spot with each of their numbers, in metres, an
     dangling: 30,
     kinks: { 7: 0, 8: 1 },
     weaves: { 7: 2, 8: 0 },
+    wiggles: { 7: 0, 8: 1 },
     inside: { 7: 9395, 8: 14055.5 },
     largest: { 7: [{ size: 15.1, at: [-3.67716, 40.45778] }], 8: [{ size: 24.5, at: [-3.6773, 40.45782] }, { size: 19.1, at: [2.15024, 41.38278] }] },
   };
@@ -299,6 +348,8 @@ test('reports the measures as one spot with each of their numbers, in metres, an
         'kinks 8': 1,
         'weaves 7': 2,
         'weaves 8': 0,
+        'wiggles 7': 0,
+        'wiggles 8': 1,
         'inside 7': 9395,
         'inside 8': 14056,
       },

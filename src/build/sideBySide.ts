@@ -349,7 +349,10 @@ type Leg = { stroke: Stroke; end: 0 | 1 };
  * node absorbed none, or the chain of centrelines the Line goes along inside it runs straight, the
  * curve is a cubic Bézier, leaving and coming in the way the strokes run, as LOOM does; else it's that
  * chain, blurred so that it doesn't step from one centreline to the next and smoothed as centrelines
- * are (smooth()). Where it neither moves over nor changes side, the Line goes on without a curve.
+ * are (smooth()). Where the chain steps aside further than a line width from one centreline to the
+ * next, the step counts as moving over that far, for the room, and the chain is blurred over at least
+ * as far, so that the curve doesn't hook back onto its stroke (#206). Where it neither moves over nor
+ * changes side, the Line goes on without a curve.
  */
 function curves(joins: Join[], found: Stretch[], onStretch: Map<string, Stroke[]>, byId: Map<string, Shape>, bands: number[], prefix: string): { shapes: Shape[]; strokes: Stroke[] } {
   const shapeOf = (s: Stroke, band: number) => inBand(byId, s.shape, band) ?? { coords: [], dist: [] };
@@ -386,12 +389,34 @@ function curves(joins: Join[], found: Stretch[], onStretch: Map<string, Stroke[]
     // The Stretches absorbed, and strokes along only part of a Stretch, too short for their curves, hidden on their own.
     const [absorbed, alone] = [new Set<number>(), new Set<Stroke>()];
     const hidden = (s: Stroke) => absorbed.has(edgeOf.get(s) ?? -1) || alone.has(s);
-    /** How many line widths a Line crossing a node moves over: its side change, or where it goes from one Stretch straight to the next, as far as their centrelines are apart if that's more (#178). 0 where it goes on without a curve. */
+    /**
+     * How far, in metres, the chain of centrelines a Line goes along across a node steps aside from one
+     * to the next, at most, across the way it goes both as it leaves the one and as it comes onto the
+     * next, where that's further than a line width; else 0 (#206).
+     */
+    const aside = (legs: Leg[]): number => {
+      let most = 0;
+      for (const [i, b] of legs.entries()) {
+        const a = legs[i - 1];
+        if (!a) continue;
+        // Where it leaves a, the first leg by its end and the rest by their other, and comes onto b, with a
+        // point 5 m back the way it came, and one 5 m on the way it goes.
+        const leaves = i > 1 ? (a.end ? 0 : 1) : a.end;
+        const [out, onto] = [ends(a.stroke, leaves), ends(b.stroke, b.end)];
+        const [p, came] = [out, out + (leaves ? -5 : 5)].map((d) => flat(pointAt(shapeOf(a.stroke, band), d)));
+        const [q, goes] = [onto, onto + (b.end ? -5 : 5)].map((d) => flat(pointAt(shapeOf(b.stroke, band), d)));
+        if (!p || !came || !q || !goes) continue;
+        const sideways = ([x, y]: [number, number]) => Math.abs((q[0] - p[0]) * y - (q[1] - p[1]) * x) / (Math.hypot(x, y) || 1);
+        most = Math.max(most, Math.min(sideways([p[0] - came[0], p[1] - came[1]]), sideways([goes[0] - q[0], goes[1] - q[1]])));
+      }
+      return most > width ? most : 0;
+    };
+    /** How many line widths a Line crossing a node moves over: its side change, or where it goes from one Stretch straight to the next, as far as their centrelines are apart if that's more (#178), or inside the node, as far as its chain steps aside (#206). 0 where it goes on without a curve. */
     const moved = (legs: Leg[]): number => {
       const [first, last] = [legs[0], legs.at(-1)];
       if (!first || !last) return 0;
       const [start, stop] = sidesOf(legs, hidden);
-      if (legs.some((l) => hidden(l.stroke))) return Math.abs(stop - start);
+      if (legs.some((l) => hidden(l.stroke))) return Math.max(Math.abs(stop - start), aside(legs) / width);
       const [a, b] = [ends(first.stroke, first.end), ends(last.stroke, last.end)];
       const [p, q] = [flat(beside(shapeOf(first.stroke, band), a, first.stroke.side * width)), flat(beside(shapeOf(last.stroke, band), b, last.stroke.side * width))];
       const own = (s: Stroke) => byId.get(s.shape) ?? { coords: [], dist: [] };
@@ -500,7 +525,7 @@ function curves(joins: Join[], found: Stretch[], onStretch: Map<string, Stroke[]
       const straight = !legs.some((l) => hidden(l.stroke)) || chain.map(flat).every((p) => near(curve, p) <= width / 2);
       let coords = bezier(SEGMENTS).map(([x, y]): Point => [round(x / KX), round(y / DEGREE)]);
       if (!straight) {
-        // Blurred over half of LENGTH line widths, so that it doesn't step where one centreline gives way to the next, then smoothed where it still folds.
+        // Blurred over half of LENGTH line widths, or as far as it steps aside if that's more, so that it doesn't step where one centreline gives way to the next, then smoothed where it still folds.
         const kept = { coords: chain.filter((p, i) => !i || p[0] !== chain[i - 1]?.[0] || p[1] !== chain[i - 1]?.[1]), dist: [] as number[] };
         kept.dist = distances(kept.coords);
         const length = kept.dist.at(-1) ?? 0;
@@ -508,7 +533,8 @@ function curves(joins: Join[], found: Stretch[], onStretch: Map<string, Stroke[]
         const apart = Math.max(SAMPLE, width / 10);
         const samples = Array.from({ length: Math.ceil(length / apart) + 1 }, (_, i) => flat(pointAt(kept, Math.min(length, i * apart))));
         const coordsOf = (points: [number, number][]) => points.map(([x, y]): Point => [x / KX, y / DEGREE]);
-        const line = { coords: coordsOf(blur(samples, samples.map(() => (LENGTH / 2) * width / apart))), dist: [] as number[] };
+        const sigma = Math.max((LENGTH / 2) * width, aside(legs)) / apart;
+        const line = { coords: coordsOf(blur(samples, samples.map(() => sigma))), dist: [] as number[] };
         line.dist = distances(line.coords);
         const eased = pieces({ line: '', shape: '', from: 0, to: length, side: start, ...(stop !== start && { ease: stop }) }).map((p) => ({ from: p.from, to: p.to, metres: p.side * width }));
         // Only the points it needs, within a tenth of a line width of itself, as smooth() writes a centreline.
