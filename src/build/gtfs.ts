@@ -96,13 +96,18 @@ export async function* rows<K extends string>(
 
 const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const;
 
+/** A day's weekday (YYYY-MM-DD), as calendar.txt names it. */
+export function weekdayOf(day: string): (typeof WEEKDAYS)[number] {
+  return WEEKDAYS[new Date(`${day}T12:00:00Z`).getUTCDay()] ?? 'sunday';
+}
+
 /**
  * The service_ids that run on a day (YYYY-MM-DD): those calendar.txt runs that weekday, less the ones
  * calendar_dates.txt removes that day, plus the ones it adds. A feed may have either file alone.
  */
 export async function serviceIdsOn(source: Source, day: string): Promise<Set<string>> {
   const date = day.replaceAll('-', '');
-  const weekday = WEEKDAYS[new Date(`${day}T12:00:00Z`).getUTCDay()] ?? 'sunday';
+  const weekday = weekdayOf(day);
   const running = new Set<string>();
   for await (const c of rows(source, 'calendar.txt', ['service_id', weekday, 'start_date', 'end_date'], { optional: true })) {
     if (c[weekday] === '1' && c.start_date <= date && date <= c.end_date) running.add(c.service_id);

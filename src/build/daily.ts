@@ -44,7 +44,13 @@ const downloaded = await Promise.all(
 const { rails, border } = await osm(RAILWAYS);
 const networks = [];
 for (const { network, feeds } of downloaded) networks.push(await build(network, feeds));
-const eachDay = dayTrips(DAYS, networks, console.warn, report.add);
+// The last build's manifest names the bundle for yesterday, whose last Trains can still be running,
+// and its report is what this build's is diffed against, with each Network's Trips on each day of the week.
+const [lastManifest, lastReport] = await Promise.all([
+  lastPublished<Manifest>('manifest.json', "yesterday's bundle goes unnamed"),
+  lastPublished<Spot[]>('report.json', 'every spot is new'),
+]);
+const eachDay = dayTrips(DAYS, networks, console.warn, report.add, lastReport);
 const [lines, traced] = [networks.flatMap((n) => n.lines), networks.flatMap((n) => n.shapes)];
 const { strokes, centrelines, rails: ownTrack, slots, tracks } = await sideBySide(lines, traced);
 const shapes = [...traced, ...centrelines];
@@ -72,12 +78,6 @@ const built = await Promise.all(
     return manifestDay({ ...track, ...trips }, { track: trackKey, trips: key });
   }),
 );
-// The last build's manifest names the bundle for yesterday, whose last Trains can still be running,
-// and its report is what this build's is diffed against.
-const [lastManifest, lastReport] = await Promise.all([
-  lastPublished<Manifest>('manifest.json', "yesterday's bundle goes unnamed"),
-  lastPublished<Spot[]>('report.json', 'every spot is new'),
-]);
 const spots = report.spots();
 await writeFile('out/manifest.json', JSON.stringify(manifestOf(built, lastManifest)));
 await writeFile('out/report.json', JSON.stringify(spots));
