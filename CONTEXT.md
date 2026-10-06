@@ -45,7 +45,7 @@ Which track of a double track a Network's Trains run on, looking the way they go
 _Avoid_: Handedness, traffic side
 
 **Stretch**:
-A length of track, or of tracks too close together to tell apart zoomed out, that one set of Lines on the same level runs along. The map draws them side by side along it, in one order, and a Line counts once on it whichever way and whichever of its tracks it runs (ADR-0006).
+A length of track, or of tracks too close together to tell apart zoomed out, that one set of Lines on the same level runs along. The map draws them side by side along it, in one order, Lines of one Network and one colour in one place, as C4a and C4b up to their fork, and a Line counts once on it whichever way and whichever of its tracks it runs (ADR-0006).
 _Avoid_: Bundle (that's the data the map loads), corridor, edge
 
 **Station**:

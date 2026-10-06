@@ -144,8 +144,12 @@ async function graphed(
   // Each drawn piece's Stretch, the line graph's edge it's on, and how far along its centreline its middle is.
   const edgeOf = new Map(found.flatMap(({ steps }, e) => steps.map((s): [number, [edge: number, at: number]] => [s.piece, [e, (s.from + s.to) / 2]])));
   const most = (metres: Map<number, number>) => [...metres].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 0;
-  // Where nothing else decides, a Stretch's Lines go in the order of the sides they take on it piece
-  // by piece, for most of it.
+  // Lines of one Network and one colour take one place where they share a Stretch, as Renfe's map
+  // draws one C-4 up to its fork (#283): each Line's lane is the first of them, ordered and placed
+  // for them all, and each Line's stroke lies on the others'.
+  const lane = lines.map((l) => lines.findIndex((m) => m.network === l.network && m.colour.toLowerCase() === l.colour.toLowerCase()));
+  // Where nothing else decides, a Stretch's lanes go in the order of the sides their Lines take on it
+  // piece by piece, for most of it, each where its first Line there goes.
   const prior = found.map(({ steps, lines: onIt }) => {
     const usual = (line: number) => {
       const metres = new Map<number, number>(); // at each side
@@ -156,14 +160,14 @@ async function graphed(
       }
       return most(metres);
     };
-    return onIt.toSorted((a, b) => usual(a) - usual(b) || a - b);
+    return [...new Set(onIt.toSorted((a, b) => usual(a) - usual(b) || a - b).map((l) => lane[l] ?? l))];
   });
   const walked = every.map((shape) => ({ line: shape[0]?.line ?? -1, visits: visits(shape, pieces, drawer, edgeOf) }));
   const byId = new Map(centrelines.map((c) => [c.id, c]));
-  const orders = await order(prior, graph(found, walked, byId));
+  const orders = await order(prior, graph(found, walked.map((w) => ({ ...w, line: lane[w.line] ?? w.line })), byId));
   // Each Line on each Stretch it goes along, a run for each time it's there, all at one side: its
-  // place in the Stretch's order among the Lines there, for most of it. A SHORT Stretch merged into
-  // another brings its Lines, but only there.
+  // lane's place in the Stretch's order among the lanes there, for most of it. A SHORT Stretch merged
+  // into another brings its Lines, but only there.
   const sideOn = new Map<string, number>(); // `<Stretch> <Line>`
   const onStretch = new Map<string, Stroke[]>(); // each Line's strokes on each Stretch, `<Stretch> <Line>`
   const visited = new Set(walked.flatMap(({ line, visits }) => visits.map((v) => `${v.edge} ${line}`)));
@@ -180,8 +184,8 @@ async function graphed(
         }
         if (!run) list.push((run = []));
         run.push({ ...s, line });
-        const here = orders[e]?.filter((l) => keptBeside[s.piece]?.has(l) && visited.has(`${e} ${l}`)) ?? [];
-        const at = spread(here.indexOf(line), here.length);
+        const here = orders[e]?.filter((l) => onIt.some((m) => lane[m] === l && keptBeside[s.piece]?.has(m) && visited.has(`${e} ${m}`))) ?? [];
+        const at = spread(here.indexOf(lane[line] ?? line), here.length);
         crowded ||= here.length > CROWD;
         metres.set(at, (metres.get(at) ?? 0) + (pieces[s.piece]?.length ?? 0));
       }
