@@ -273,9 +273,16 @@ const LICENCES: Record<NonNullable<Credit['licence']>, string> = {
   'CC BY 4.0': '<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank">CC BY 4.0</a>',
 };
 
+/**
+ * The page's link as it was opened, or last pasted into the tab, even while the map loads, which
+ * openLink() opens: MapLibre puts the view in the link as soon as the map opens, so whether the link
+ * named one is read from this (#292).
+ */
+let openedLink = location.hash;
+addEventListener('hashchange', () => (openedLink = location.hash));
 const map = new MapLibreMap({
   container: 'map',
-  ...openingView(location.hash, lastView()),
+  ...openingView(openedLink, lastView()),
   attributionControl: false,
   // The view goes in the page's link, as `#map=<zoom>/<lat>/<lon>`, beside what writeLink() adds.
   hash: 'map',
@@ -767,7 +774,8 @@ requestAnimationFrame(function move(now) {
 // tracks. Put them beside their tracks on 'rotate' too, a few times a second, if that shows.
 map.on('moveend', () => map.getBearing() !== namesBearing && showNames());
 
-// The link the map is opened with, and one pasted into the tab later: MapLibre moves the view.
+// The link the map is opened with, and one pasted into the tab later: MapLibre moves the view, or
+// openLink() moves the map to the Station where the link names none.
 openLink();
 addEventListener('hashchange', openLink);
 
@@ -1178,7 +1186,12 @@ function follow(id: string) {
   trainSource?.setData(trains());
   showPanel();
   writeLink();
-  if (following.at) map.easeTo({ center: following.at, zoom: Math.max(map.getZoom(), 13), padding: abovePanel() });
+  if (following.at) easeOnto(following.at);
+}
+
+/** Brings `at` into the middle of the map above the panel, at zoom 13, or closer if the map already is: a Train the map follows, or a Station whose link names no view (#292). */
+function easeOnto(at: Point) {
+  map.easeTo({ center: at, zoom: Math.max(map.getZoom(), 13), padding: abovePanel() });
 }
 
 /** Shows a place's board, by its ID in places(), following no Train. */
@@ -1221,14 +1234,21 @@ function closePanel() {
 /**
  * Opens what the page's link names besides the view: a Station's board, or once its Trips have come,
  * a Train to follow, which the map stops following straight away if it's no longer running. A
- * Station the map doesn't know goes from the link.
+ * Station the map doesn't know goes from the link. Where the link names no view, the map goes to the
+ * Station, by follow()'s rule (#292).
  */
 function openLink() {
-  const link = new URLSearchParams(location.hash.slice(1));
+  const link = new URLSearchParams(openedLink.slice(1));
   const [station, train] = [link.get('station'), link.get('train')];
   const place = station && [...shownPlaces.values()].find((p) => p.stations.includes(station));
-  if (place) showBoard(place.id);
-  else if (station) writeLink();
+  if (place) {
+    showBoard(place.id);
+    // ponytail: eased before the board's departures come on a page just opened, so on a phone the
+    // Station then sits just above the board, not mid-way above it; ease again as they come if that
+    // shows. A `map=` MapLibre won't open (zoom 99) counts as a view too, so the board opens over
+    // Barcelona; check it as MapLibre's Hash does if such links show.
+    if (!link.has('map')) easeOnto([place.lon, place.lat]);
+  } else if (station) writeLink();
   // Trips that fail to come are logged where show() gets them.
   else if (train) needed.days.then(() => follow(train), () => {});
 }
