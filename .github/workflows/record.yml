@@ -1,0 +1,48 @@
+# Records live data as `npm run record` does, for audits such as #233's: Renfe's feeds, the day's
+# bundle, and production snapshots as the map receives them, so that nobody has to be at a computer
+# for it. It runs from the button in the Actions tab, for as many minutes as asked, and on the
+# schedule below. Each run keeps its recording as an artifact for 30 days, named for when it started
+# in Barcelona: `gh run download <run id>` fetches it. GitHub can start a scheduled run minutes late,
+# and under heavy load not at all, so check the runs afterwards.
+name: Record
+
+on:
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: How many minutes to record
+        type: number
+        default: 45
+  # #233's three recordings of 45 minutes, in UTC: a weekday late evening as units park, from 22:47
+  # on Tuesday 6 October; a weekday peak, from 07:47 on Wednesday 7 October; and a weekend midday,
+  # from 12:47 on Saturday 10 October, all in Barcelona. A schedule names no year: take these out
+  # once they've run.
+  schedule:
+    - cron: '47 20 6 10 *'
+    - cron: '47 5 7 10 *'
+    - cron: '47 10 10 10 *'
+
+permissions:
+  contents: read
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    # Up to about 100 minutes' recording, and the minute it takes to cut the bundle down after it.
+    timeout-minutes: 110
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      # It needs no packages, and no secrets: Renfe's feeds, the bundles and the snapshot are public.
+      - id: started
+        run: echo "name=recording-$(TZ=Europe/Madrid date +%Y-%m-%d-%H%M)" >> "$GITHUB_OUTPUT"
+      - run: npm run record -- recording "$MINUTES"
+        env:
+          MINUTES: ${{ inputs.minutes || 45 }}
+      - uses: actions/upload-artifact@v5
+        with:
+          name: ${{ steps.started.outputs.name }}
+          path: recording/
+          retention-days: 30
