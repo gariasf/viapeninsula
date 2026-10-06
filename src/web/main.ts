@@ -12,6 +12,7 @@ import { alongside, namedTwice, nameOffset, nearestSide, rightOf, underName, typ
 import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
 import { keepView, lastView, openingView } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
+import * as theme from './theme.prototype.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
 setWorkerUrl(workerUrl);
@@ -97,20 +98,14 @@ interface NameStyle {
   size: number;
 }
 /**
- * The colour of places' names, a dark blue of their own, and how wide their white halo is, in px, which
- * with each tier's lettering sets them apart from the basemap's labels, the Lines' names and the pills'
- * lettering (#144).
+ * The colour of places' names, a dark blue of their own, or light on the dark basemap, and how wide
+ * their halo is, in px, in the basemap's paper or white, which with each tier's lettering sets them
+ * apart from the basemap's labels, the Lines' names and the pills' lettering (#144).
  */
-const [NAME_COLOUR, NAME_HALO] = ['#14305a', 2.5];
+const [NAME_COLOUR, NAME_HALO] = [theme.colours.names, 2.5];
 /** How far a place's name stays clear of its dot and of the Trains drawn along its track, in px: its halo and half a px. */
 const NAME_GAP = NAME_HALO + 0.5;
 
-/**
- * The basemap's paper colour, positron's background, that each Line is cased in.
- * ponytail: copied from positron, whose style isn't versioned, so the casing would stop matching if
- * OpenFreeMap changed it. Take it from the style's background layer if that ever shows.
- */
-const PAPER = '#f2f3f0';
 /** The colour of a track Lines share, zoomed right in, where their strokes lie one over another: their names along it and their Trains tell them apart (#139). */
 const SHARED = '#9a9b9e';
 /**
@@ -300,8 +295,12 @@ keepShownView();
 map.on('moveend', keepShownView);
 /** The basemap's place labels, by their layers' IDs, with the filters it gives them, which show() adds to. */
 const placeLabels = new Map<string, ExpressionFilterSpecification | undefined>();
-map.setStyle('https://tiles.openfreemap.org/styles/positron', {
+map.setStyle(theme.basemap, {
   transformStyle: (_, style) => {
+    if (theme.fontFaces) style['font-faces'] = theme.fontFaces;
+    // The dark basemap names water under its buildings and its roads under its borders: its labels go
+    // over everything else, as positron's are, so that the Lines go under them all.
+    style.layers = [...style.layers.filter((l) => l.type !== 'symbol'), ...style.layers.filter((l) => l.type === 'symbol')];
     // OpenFreeMap's credit ends "Data from OpenStreetMap", in English, and the ODbL asks for the
     // contributors, so showLanguage() credits the basemap itself, in the viewer's language.
     if (style.sources.openmaptiles) Object.assign(style.sources.openmaptiles, { attribution: '' });
@@ -420,7 +419,7 @@ document.addEventListener('visibilitychange', () => {
 });
 if (!document.hidden) poll();
 
-const [needed] = await Promise.all([neededDays().then((n) => n ?? Promise.reject(new Error('No service day to show'))), map.once('load')]);
+const [needed] = await Promise.all([neededDays().then((n) => n ?? Promise.reject(new Error('No service day to show'))), map.once('load'), theme.fontsReady]);
 /** The days on the map, whose Trains move, once their Trips have come. */
 let bundle: Bundle | undefined;
 let lines = new Map<string, Line>();
@@ -513,7 +512,7 @@ for (const { source, id, prefix, zooms, nameZooms, opacity, throughOpacity, belo
       source,
       ...zooms,
       layout: lineLayout,
-      paint: { 'line-color': PAPER, 'line-width': byZoom(WIDTH, (px) => px + 2), 'line-offset': lineOffset, 'line-opacity': opacity },
+      paint: { 'line-color': theme.colours.casing, 'line-width': byZoom(WIDTH, (px) => px + 2), 'line-offset': lineOffset, 'line-opacity': opacity },
     },
     below,
   );
@@ -562,8 +561,8 @@ for (const { source, id, prefix, zooms, nameZooms, opacity, throughOpacity, belo
       'text-offset': byZoom(APART, (_, zoom) => ['array', 'number', 2, ['get', `textOffset${zoom}`]]),
     },
     paint: {
-      'text-color': ['get', 'colour'],
-      'text-halo-color': '#fff',
+      'text-color': ['get', 'lettering'],
+      'text-halo-color': theme.colours.halo,
       'text-halo-width': 2,
       // MapLibre offsets names by whole zoom levels, so while the Lines slide onto the rails, names hide.
       'text-opacity': ['interpolate', ['linear'], ['zoom'], 14, 1, 14.1, 0, 14.9, 0, 15, 1],
@@ -579,7 +578,7 @@ map.addLayer({
   paint: {
     'circle-radius': byZoom(DOT, (px) => ['+', px, ['get', 'larger']]),
     'circle-color': '#fff',
-    'circle-stroke-color': '#444',
+    'circle-stroke-color': theme.colours.dotRing,
     'circle-stroke-width': byZoom(RING, (px) => px),
   },
 });
@@ -600,8 +599,8 @@ map.addLayer({
   // The Train the map follows is drawn larger, over the rest.
   paint: {
     'circle-radius': trainDot,
-    'circle-color': byLive(['get', 'colour'], '#fff'),
-    'circle-stroke-color': byLive('#fff', ['get', 'colour']),
+    'circle-color': byLive(['get', 'colour'], theme.colours.scheduledFill),
+    'circle-stroke-color': byLive('#fff', ['get', 'lettering']),
     'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 7, byLive(0.5, 1.5), 14, byLive(1.5, 3)],
   },
 });
@@ -645,7 +644,7 @@ map.addLayer({
       (_, zoom) => ['array', 'number', 2, ['get', `offset${zoom}`]],
     ),
   },
-  paint: { 'text-color': NAME_COLOUR, 'text-halo-color': '#fff', 'text-halo-width': NAME_HALO },
+  paint: { 'text-color': NAME_COLOUR, 'text-halo-color': theme.colours.halo, 'text-halo-width': NAME_HALO },
 });
 // Zoomed in (pillOf()), each Train is a pill with its Line's name, over the Stations' names too,
 // outlined by its Line's kind of service: a Live one's filled with its Line's colour and edged in
@@ -673,10 +672,10 @@ for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', tr
       'text-ignore-placement': true,
     },
     paint: {
-      'icon-color': byLive(['get', 'colour'], '#fff'),
-      'icon-halo-color': byLive('#fff', ['get', 'colour']),
+      'icon-color': byLive(['get', 'colour'], theme.colours.scheduledFill),
+      'icon-halo-color': byLive('#fff', ['get', 'lettering']),
       'icon-halo-width': PILL_HALO,
-      'text-color': byLive(['case', ['get', 'dark'], INK, '#fff'], ['get', 'colour']),
+      'text-color': byLive(['case', ['get', 'dark'], INK, '#fff'], ['get', 'lettering']),
     },
   });
   map.addLayer({
@@ -693,7 +692,7 @@ for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', tr
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
     },
-    paint: { 'icon-color': ['get', 'colour'], 'icon-halo-color': '#fff', 'icon-halo-width': 1 },
+    paint: { 'icon-color': ['get', 'lettering'], 'icon-halo-color': theme.colours.halo, 'icon-halo-width': 1 },
   });
 }
 
@@ -847,6 +846,7 @@ function show(days: Track | Bundle) {
         to,
         name: line.name,
         colour: line.colour,
+        lettering: pills.get(id)?.lettering,
         // Zoomed right in, where Lines share track, Barcelona's commuter lines (R1–R8) are drawn over the regional ones.
         // And those in tunnels below the rest, the deeper the lower (#178).
         above: (/^R\d[NS]?$/.test(line.name) ? 1 : 0) - 2 * (under ?? 0),
@@ -943,6 +943,7 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
         properties: {
           id: trip.id,
           colour: line?.colour,
+          lettering: pill?.lettering,
           // Which Network's banner it shows (bannerNetworks()).
           network: line?.network,
           live,
@@ -1059,6 +1060,8 @@ interface Pill {
   name: string;
   outline: 'round' | 'pointed' | 'badge';
   dark: boolean;
+  /** What its Line's colour letters its name in, rings its Scheduled Trains and colours its arrows in (theme.lettering()). */
+  lettering: string;
   zoom: number;
   box: [number, number];
   followedBox: [number, number];
@@ -1067,8 +1070,8 @@ interface Pill {
 /** How a Line's Trains are drawn as pills from a zoom, its Network's, outlined by its kind of service. */
 function pillOf({ name, colour, kind }: Line, zoom: number): Pill {
   const outline = OUTLINES_OF[kind] ?? 'round';
-  const width = textWidth(name, `bold ${PILL_TEXT}px sans-serif`);
-  return { name, outline, dark: darkInk(colour), zoom, box: boxOf(outline, width, PILL_TEXT), followedBox: boxOf(outline, width, FOLLOWED_TEXT) };
+  const width = textWidth(name, `bold ${PILL_TEXT}px ${theme.measuredIn}`);
+  return { name, outline, dark: darkInk(colour), lettering: theme.lettering(colour), zoom, box: boxOf(outline, width, PILL_TEXT), followedBox: boxOf(outline, width, FOLLOWED_TEXT) };
 }
 
 /** How far a pill reaches either side of its Train and above and below it, in px, with its outline, around a name `width` px wide at PILL_TEXT, lettered at `size` px. */
@@ -1091,15 +1094,15 @@ function darkInk(colour: string): boolean {
 
 /** How wide a place's name, or a line of it, is, in px, in its style. */
 function placeWidth(text: string, { bold, size }: NameStyle): number {
-  return textWidth(text, `${bold ? 'bold ' : ''}${size}px sans-serif`);
+  return textWidth(text, `${bold ? 'bold ' : ''}${size}px ${theme.measuredIn}`);
 }
 
 /**
  * How wide a text is in a font, in px: a Line's name on its Trains' pills, or a place's name.
- * ponytail: measured in the browser's sans-serif, not MapLibre's Noto Sans, which comes within a px or
- * so of it on the Lines' names and 5 px on a line of a place's, so an arrow can sit that much nearer
- * its pill or further, and a name beside a slanting track 2 px nearer the track or further. Measure in
- * Noto Sans, loaded as a web font, if that shows.
+ * ponytail: without `?theme=` naming a typeface, measured in the browser's sans-serif, not MapLibre's
+ * Noto Sans, which comes within a px or so of it on the Lines' names and 5 px on a line of a place's,
+ * so an arrow can sit that much nearer its pill or further, and a name beside a slanting track 2 px
+ * nearer the track or further. With one, in it, loaded as a web font (theme.measuredIn).
  */
 function textWidth(text: string, font: string): number {
   if (!measuring) return text.length * 6;

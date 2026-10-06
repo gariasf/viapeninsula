@@ -1,0 +1,153 @@
+/* #211's variants, which theme.prototype.ts picks by `?theme=`. Throwaway. */
+
+/* Each typeface's Latin files, the ones the map's font-faces take, from fontsource. The browser takes any character they lack from the next family. */
+@font-face {
+  font-family: 'Noto Sans';
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://cdn.jsdelivr.net/npm/@fontsource/noto-sans@5/files/noto-sans-latin-400-normal.woff2) format('woff2');
+}
+
+@font-face {
+  font-family: 'Noto Sans';
+  font-weight: 700;
+  font-display: swap;
+  src: url(https://cdn.jsdelivr.net/npm/@fontsource/noto-sans@5/files/noto-sans-latin-700-normal.woff2) format('woff2');
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://cdn.jsdelivr.net/npm/@fontsource/inter@5/files/inter-latin-400-normal.woff2) format('woff2');
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-weight: 700;
+  font-display: swap;
+  src: url(https://cdn.jsdelivr.net/npm/@fontsource/inter@5/files/inter-latin-700-normal.woff2) format('woff2');
+}
+
+/* The typeface each variant letters the interface in. */
+html.noto {
+  --font: 'Noto Sans', sans-serif;
+}
+
+html.inter {
+  --font: 'Inter', sans-serif;
+}
+
+/* One typeface: the interface's, the close buttons', MapLibre's controls' and the credits' too, which today are the browser's sans-serif and Helvetica. */
+html:is(.noto, .inter) :is(.maplibregl-map, .legend, .banner, .language, .follow, .about, .close, .lines-at .pill) {
+  font-family: var(--font);
+}
+
+/* Ink: navy on white, the places' names' colours, so that the Lines and Trains carry all the colour. Rules and hovers are the ink, faded. */
+html.ink {
+  --ink: #14305a;
+  --ink-soft: #4b5d78;
+  --card: #fff;
+  --rule: color-mix(in srgb, var(--ink) 25%, transparent);
+  --hover: color-mix(in srgb, var(--ink) 7%, transparent);
+  --warn: #fff3bf;
+  --warn-ink: #4a3500;
+  --warn-rule: #e3b341;
+  --cancelled: #c00;
+}
+
+/* Its dark side: light ink on a card a little lighter than the dark basemap. */
+html.dark {
+  color-scheme: dark;
+  --ink: #e6ecf5;
+  --ink-soft: #a3b1c6;
+  --card: #151b24;
+  --warn: #33290a;
+  --warn-ink: #ffd666;
+  --warn-rule: #7a5c00;
+  --cancelled: #ff8080;
+  background: #0c0c0c;
+}
+
+/* The credits as a strip along the bottom, where the window is wider than a phone: on the card, faded, as MapLibre fades its white. */
+html.ink .maplibregl-ctrl.maplibregl-ctrl-attrib {
+  background-color: color-mix(in srgb, var(--card) 70%, transparent);
+  color: var(--ink);
+}
+
+/* Every card and button group alike, rounded, and edged by a rule rather than a shadow, which forced colours take off. */
+html.ink :is(.maplibregl-ctrl-group, .follow, .about, .lines-at .maplibregl-popup-content, .maplibregl-ctrl-attrib.maplibregl-compact) {
+  border: 1.5px solid var(--rule);
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: none;
+  color: var(--ink);
+}
+
+/* The rule between the buttons in a group, and a button under the pointer. */
+html.ink .maplibregl-ctrl-group button + button {
+  border-top-color: var(--rule);
+}
+
+html.ink .maplibregl-ctrl button:not(:disabled):hover {
+  background-color: var(--hover);
+}
+
+/* As specific as the cards' rule, which `:is()` gives its most specific selector's weight. */
+html.ink .maplibregl-ctrl-group.banner {
+  border-color: var(--warn-rule);
+  background: var(--warn);
+  color: var(--warn-ink);
+}
+
+/* Links, the close buttons, a departure's status and a Cancelled one's, in ink. */
+html.ink :is(.about, .maplibregl-ctrl-attrib) a,
+html.ink :is(.follow, .about) .close {
+  color: var(--ink);
+}
+
+html.ink .follow li small {
+  color: var(--ink-soft);
+}
+
+html.ink .follow .cancelled small {
+  color: var(--cancelled);
+}
+
+/* The tap popup's tip, on whichever side it points from, in the card's colour. */
+html.ink .maplibregl-popup-anchor-top .maplibregl-popup-tip,
+html.ink .maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
+html.ink .maplibregl-popup-anchor-top-right .maplibregl-popup-tip {
+  border-bottom-color: var(--card);
+}
+
+html.ink .maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+html.ink .maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
+html.ink .maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip {
+  border-top-color: var(--card);
+}
+
+html.ink .maplibregl-popup-anchor-left .maplibregl-popup-tip {
+  border-right-color: var(--card);
+}
+
+html.ink .maplibregl-popup-anchor-right .maplibregl-popup-tip {
+  border-left-color: var(--card);
+}
+
+/* Not in a forced-colours theme, whose own colours the legend's markers and MapLibre's icons keep (#116). */
+@media not (forced-colors: active) {
+  html.ink .legend .marker {
+    border-color: var(--ink);
+  }
+
+  html.ink .legend .live {
+    background: var(--ink);
+    box-shadow: 0 0 4px 1px color-mix(in srgb, var(--ink) 60%, transparent);
+  }
+
+  /* MapLibre's icons and the die are drawn dark grey: light on the dark cards. */
+  html.dark :is(.maplibregl-ctrl-icon, .maplibregl-ctrl-attrib-button) {
+    filter: invert(1);
+  }
+}
