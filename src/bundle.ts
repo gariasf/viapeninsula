@@ -149,6 +149,11 @@ export interface LiveTraits {
   delay: 'operator' | 'gps' | 'none';
   /** A Train reported near a Station stands there (`standing`), or may still be coming in, as Renfe pins Trains coming into a Station too (`pinned`). */
   near: 'standing' | 'pinned';
+  /**
+   * It names Trips long after they ended, as Geotren does Montserrat's rack Trains (#232): a report
+   * whose Trip ended more than the engine's ENDED before it is dropped, as one that matches no Trip is.
+   */
+  lingers?: true;
 }
 
 /** How a Network's Trains run between Stations, in metres and seconds. */

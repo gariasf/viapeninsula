@@ -540,7 +540,7 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
   for (let i = folding ? had : 0; i < received.length; i++) {
     const r = received[i] as Received;
     const [arrived, upTo] = [(r.at + clock - bundle.noonMinus12h) / 1000, heardTo(received.slice(0, i + 1), r.at + clock)];
-    const { reports, ran, refused } = reportsByTrip(bundle, r.snapshot, received[i - 1]?.snapshot);
+    const { reports, ran, refused } = reportsByTrip(bundle, r.snapshot, lines, received[i - 1]?.snapshot);
     // A Train whose Block can't keep it, as TMB's ETA has the Block out of its first Station too early,
     // turns Scheduled at once and drops its Delay, as early as the Block's last report for it was: it
     // waits for a Block as one live data never placed does (#125, #152).
@@ -684,6 +684,19 @@ const canRun = (trip: Trip, next: NonNullable<Report['expected']>, reported: num
 };
 
 /**
+ * How long after its Trip ended, by its timetable, a report can still be about it, in seconds, where
+ * its Network's live data lingers on Trips that ended. At 13:46 on 4 October 2026, Geotren named 12
+ * rack Trips that had ended 38 minutes to 5 hours before, and their Trains were drawn Live, up to 5½
+ * hours late, beside the two running (#232).
+ * ponytail: one margin, by the timetable alone. An FGC Train really running more than this late has
+ * its reports dropped from this long after its Trip was due to end, as if live data had stopped
+ * reporting it: RL2's 13:39 from Lleida on 25 September may have been one, drawn 2 h 15 min late along
+ * its track. And a report whose Trip ended less than this before it is kept, as Geotren's naming
+ * 652dc7e000 was at 13:46, 11 minutes after it ended. #233's audit says whether either matters.
+ */
+const ENDED = 30 * 60;
+
+/**
  * A snapshot's reports by the Trip each is about, the Trip each of the Metro's Blocks runs, and those they can't keep, given
  * the snapshot before it the first time a replay comes to it (`matched`). TMB's timetable names no
  * Blocks, so each of the Metro's keeps the Trip it ran in the snapshot before, where TMB reported it
@@ -697,9 +710,11 @@ const canRun = (trip: Trip, next: NonNullable<Report['expected']>, reported: num
  * isn't drawn, and the Trip waits there Scheduled (#146), as one it ran does (`refused`, #152). A report that names a Line, as FGC's for
  * its rack Trains do, runs that Line's Trip whose trip_id ends as its own does, after the `|`. A
  * report naming a Trip that runs on more than one of the days joined is about the one whose
- * timetable runs nearest when it was reported. A report that matches no Trip is dropped.
+ * timetable runs nearest when it was reported. A report that matches no Trip is dropped, and so is one
+ * whose Trip ended more than ENDED before it, where its Network's live data lingers on Trips that
+ * ended, as FGC's does (#232).
  */
-function reportsByTrip(bundle: Bundle, snapshot: Snapshot, before?: Snapshot): Matched {
+function reportsByTrip(bundle: Bundle, snapshot: Snapshot, lines: Map<string, Network | undefined>, before?: Snapshot): Matched {
   const known = matched.get(snapshot);
   if (known?.bundle === bundle) return known;
   const prior = before && matched.get(before);
@@ -717,8 +732,10 @@ function reportsByTrip(bundle: Bundle, snapshot: Snapshot, before?: Snapshot): M
     const { block, headsign, position } = report;
     const end = report.line && report.trip?.split('|')[1];
     const candidates = end ? bundle.trips.filter((t) => t.line === report.line && t.id.endsWith(`|${end}`)) : report.trip ? (named.get(report.trip) ?? []) : [];
-    const trip = closest(candidates, (report.at - bundle.noonMinus12h) / 1000);
-    if (trip) reports.set(trip.id, report);
+    const reported = (report.at - bundle.noonMinus12h) / 1000;
+    const trip = closest(candidates, reported);
+    const lingering = trip && lines.get(trip.line)?.live?.lingers && reported - (trip.calls.at(-1)?.departure ?? Infinity) > ENDED;
+    if (trip && !lingering) reports.set(trip.id, report);
     if (!block || !position || !('next' in position)) continue;
     const [trips, id] = [headed.get(`${block.line} ${headsign}`) ?? [], ran.get(blockOf(block))];
     // Not after a gap in TMB's data, or in what the map received, as while its tab was hidden: by
