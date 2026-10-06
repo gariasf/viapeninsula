@@ -33,6 +33,15 @@ const PART = 0.05;
 const CROWD = 6;
 /** How far, in metres along its stroke, a Train may be put from where its own track would put it, so that a Line's slots come in fewer pieces: further on a band's own graph (ADR-0007). */
 const ALONG = 25;
+/**
+ * The latitude the drawing takes flat metres east to west at, and line widths in metres: the mean of
+ * every Line's points on 6 Oct 2026, fixed, so that a Line changing anywhere moves no other's (#277).
+ * ponytail: one latitude for all of Spain, so a metre east to west is 7% long at Cádiz and 3.4% short
+ * in Asturias. Draw in Web Mercator, as the map is, if that shows.
+ */
+export const LATITUDE = 41.32;
+/** Metres in a degree of longitude at LATITUDE. */
+export const KX = DEGREE * Math.cos((LATITUDE * Math.PI) / 180);
 
 /** A piece of track: where its middle is and which way it points, in local metres, and the Lines on it. */
 interface Piece {
@@ -81,14 +90,12 @@ interface Neighbour {
  */
 export async function sideBySide(lines: Line[], shapes: Shape[]): Promise<{ strokes: Stroke[]; centrelines: Shape[]; rails: Stroke[]; slots: Slot[]; tracks: Stroke[] }> {
   const walked = walk(lines, shapes);
-  // Line widths at the track's first point, as measures() takes them.
-  const lat = shapes[0]?.coords[0]?.[1] ?? 0;
-  const main = await graphed(walked, lines, lat, { near: NEAR, bands: [...BANDS.keys()].filter((b) => b >= GRAPH_BAND), prefix: '' });
+  const main = await graphed(walked, lines, { near: NEAR, bands: [...BANDS.keys()].filter((b) => b >= GRAPH_BAND), prefix: '' });
   // Below GRAPH_BAND, a graph for each band, of tracks within about a line width there (ADR-0007).
   const below = [];
   for (const [band, zoom] of BANDS.entries()) {
     if (band >= GRAPH_BAND) continue;
-    below.push(await graphed(walked, lines, lat, { near: atZoom(APART, zoom) * pixelMetres(zoom, lat), bands: [band], own: band, prefix: `${zoom}-` }));
+    below.push(await graphed(walked, lines, { near: atZoom(APART, zoom) * pixelMetres(zoom, LATITUDE), bands: [band], own: band, prefix: `${zoom}-` }));
   }
   const all = [main, ...below];
   return { strokes: all.flatMap((g) => g.strokes), centrelines: all.flatMap((g) => g.centrelines), rails: main.rails, slots: all.flatMap((g) => g.slots), tracks: networkTrack(lines, shapes) };
@@ -115,9 +122,8 @@ function networkTrack(lines: Line[], shapes: Shape[]): Stroke[] {
  * it's a band's `own`, its strokes and slots are only in that band.
  */
 async function graphed(
-  { pieces, runs, every, kx }: ReturnType<typeof walk>,
+  { pieces, runs, every }: ReturnType<typeof walk>,
   lines: Line[],
-  lat: number,
   { near, bands, own, prefix }: { near: number; bands: number[]; own?: number; prefix: string },
 ): Promise<{ strokes: Stroke[]; centrelines: Shape[]; rails: Stroke[]; slots: Slot[] }> {
   const cells = grid(pieces, near);
@@ -134,7 +140,7 @@ async function graphed(
   };
   const kept = lasting(every, pieces, tracks);
   const keptBeside = kept.map(byLine);
-  const { centrelines, stretches: found, drawer } = stretches(pieces, every, kept, keptBeside, kx, `${STRETCH}${prefix}`);
+  const { centrelines, stretches: found, drawer } = stretches(pieces, every, kept, keptBeside, `${STRETCH}${prefix}`);
   // Each drawn piece's Stretch, the line graph's edge it's on, and how far along its centreline its middle is.
   const edgeOf = new Map(found.flatMap(({ steps }, e) => steps.map((s): [number, [edge: number, at: number]] => [s.piece, [e, (s.from + s.to) / 2]])));
   const most = (metres: Map<number, number>) => [...metres].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 0;
@@ -189,14 +195,14 @@ async function graphed(
   );
   const joins = ports(walked, found, onStretch);
   together(found, onStretch, joins);
-  const smooth = smoothed(centrelines, drawn, kx, bands);
+  const smooth = smoothed(centrelines, drawn, bands);
   for (const c of smooth) byId.set(c.id, c);
-  const linked = curves(joins, found, onStretch, byId, kx, lat, bands, `${LINK}${prefix}`);
+  const linked = curves(joins, found, onStretch, byId, bands, `${LINK}${prefix}`);
   // Each step of each shape on its Line's stroke along the Stretch its piece is drawn on, or where the
   // Line has none there, beside its own track, at the side its own stroke would be drawn.
   const wayOn = new Map(found.flatMap(({ steps }) => steps.map((s): [number, number] => [s.piece, s.way])));
   // On a band's own graph, as far off as the map simplifies a line there, out of sight.
-  const px = pixelMetres(BANDS[own ?? -1] ?? 0, lat);
+  const px = pixelMetres(BANDS[own ?? -1] ?? 0, LATITUDE);
   const off = own === undefined ? ALONG : Math.max(ALONG, TOLERANCE * px);
   const slots = every.flatMap((shape) => {
     const line = lines[shape[0]?.line ?? -1]?.id ?? '';
@@ -214,7 +220,7 @@ async function graphed(
   });
   // On a band's own graph, each centreline only with the points the map keeps of it there, as far along each as they were.
   const written = own === undefined ? centrelines : centrelines.map((c) => {
-    const flat = c.coords.map(([lon, y]): [number, number] => [lon * kx, y * DEGREE]);
+    const flat = c.coords.map(([lon, y]): [number, number] => [lon * KX, y * DEGREE]);
     const left = new Set(simplify(flat, TOLERANCE * px));
     return { ...c, coords: c.coords.filter((_, i) => left.has(flat[i] ?? [0, 0])), dist: c.dist.filter((_, i) => left.has(flat[i] ?? [0, 0])) };
   });
@@ -340,9 +346,9 @@ type Leg = { stroke: Stroke; end: 0 | 1 };
  * chain, blurred so that it doesn't step from one centreline to the next and smoothed as centrelines
  * are (smooth()). Where it neither moves over nor changes side, the Line goes on without a curve.
  */
-function curves(joins: Join[], found: Stretch[], onStretch: Map<string, Stroke[]>, byId: Map<string, Shape>, kx: number, lat: number, bands: number[], prefix: string): { shapes: Shape[]; strokes: Stroke[] } {
+function curves(joins: Join[], found: Stretch[], onStretch: Map<string, Stroke[]>, byId: Map<string, Shape>, bands: number[], prefix: string): { shapes: Shape[]; strokes: Stroke[] } {
   const shapeOf = (s: Stroke, band: number) => inBand(byId, s.shape, band) ?? { coords: [], dist: [] };
-  const flat = ([lon, lat]: Point): [number, number] => [lon * kx, lat * DEGREE];
+  const flat = ([lon, lat]: Point): [number, number] => [lon * KX, lat * DEGREE];
   const ends = (s: Stroke, end: 0 | 1) => (end ? s.to : s.from);
   const edgeOf = new Map<Stroke, number>();
   for (const [key, list] of onStretch) for (const s of list) edgeOf.set(s, Number(key.split(' ')[0]));
@@ -356,7 +362,7 @@ function curves(joins: Join[], found: Stretch[], onStretch: Map<string, Stroke[]
   const [shapes, strokes]: [Shape[], Stroke[]] = [[], []];
   for (const band of bands) {
     const zoom = BANDS[band] ?? 0;
-    const [px, width] = [pixelMetres(zoom, lat), atZoom(APART, zoom) * pixelMetres(zoom, lat)];
+    const [px, width] = [pixelMetres(zoom, LATITUDE), atZoom(APART, zoom) * pixelMetres(zoom, LATITUDE)];
     // Each front where a Line leaves a Stretch, by where its stroke ends: its centreline from there on, and how far its Lines reach either side, looking that way.
     const fronts = new Map<string, Omit<Front, 'change'>>(); // `<Stretch> <end> <metres along>`
     const keyOf = ({ stroke, end }: Leg) => `${edgeOf.get(stroke)} ${end} ${Math.round(ends(stroke, end))}`;
@@ -487,7 +493,7 @@ function curves(joins: Join[], found: Stretch[], onStretch: Map<string, Stroke[]
       // The chain runs straight where it's all within half a line width of the Bézier.
       const curve = bezier(4 * SEGMENTS);
       const straight = !legs.some((l) => hidden(l.stroke)) || chain.map(flat).every((p) => near(curve, p) <= width / 2);
-      let coords = bezier(SEGMENTS).map(([x, y]): Point => [round(x / kx), round(y / DEGREE)]);
+      let coords = bezier(SEGMENTS).map(([x, y]): Point => [round(x / KX), round(y / DEGREE)]);
       if (!straight) {
         // Blurred over half of LENGTH line widths, so that it doesn't step where one centreline gives way to the next, then smoothed where it still folds.
         const kept = { coords: chain.filter((p, i) => !i || p[0] !== chain[i - 1]?.[0] || p[1] !== chain[i - 1]?.[1]), dist: [] as number[] };
@@ -496,13 +502,13 @@ function curves(joins: Join[], found: Stretch[], onStretch: Map<string, Stroke[]
         // At least a tenth of a line width apart, which is plenty for a blur LENGTH / 2 widths wide.
         const apart = Math.max(SAMPLE, width / 10);
         const samples = Array.from({ length: Math.ceil(length / apart) + 1 }, (_, i) => flat(pointAt(kept, Math.min(length, i * apart))));
-        const coordsOf = (points: [number, number][]) => points.map(([x, y]): Point => [x / kx, y / DEGREE]);
+        const coordsOf = (points: [number, number][]) => points.map(([x, y]): Point => [x / KX, y / DEGREE]);
         const line = { coords: coordsOf(blur(samples, samples.map(() => (LENGTH / 2) * width / apart))), dist: [] as number[] };
         line.dist = distances(line.coords);
         const eased = pieces({ line: '', shape: '', from: 0, to: length, side: start, ...(stop !== start && { ease: stop }) }).map((p) => ({ from: p.from, to: p.to, metres: p.side * width }));
         // Only the points it needs, within a tenth of a line width of itself, as smooth() writes a centreline.
-        const drawn = (smooth(line, eased, MOVE * width, TOLERANCE * px, kx) ?? line).coords.map(flat);
-        coords = simplify(drawn, (MOVE * width) / 10).map(([x, y]): Point => [round(x / kx), round(y / DEGREE)]);
+        const drawn = (smooth(line, eased, MOVE * width, TOLERANCE * px, KX) ?? line).coords.map(flat);
+        coords = simplify(drawn, (MOVE * width) / 10).map(([x, y]): Point => [round(x / KX), round(y / DEGREE)]);
       }
       const dist = distances(coords).map((d) => Math.round(d * 10) / 10);
       const shape = `${prefix}${shapes.length}`;
@@ -583,16 +589,15 @@ function across(at: Map<Stroke, [Leg[], Leg[]]>, hidden: (s: Stroke) => boolean,
  * fold, on the inside of a bend tighter than it's far off (#164). The strokes go along it in the
  * band, as far along as on the centreline, and so do the curves.
  */
-function smoothed(centrelines: Shape[], strokes: Stroke[], kx: number, bands: number[]): Shape[] {
-  const lat = centrelines[0]?.coords[0]?.[1] ?? 0;
+function smoothed(centrelines: Shape[], strokes: Stroke[], bands: number[]): Shape[] {
   const onIt = new Map<string, Stroke[]>();
   for (const s of strokes) if (s.side) onIt.set(s.shape, [...(onIt.get(s.shape) ?? []), s]);
   return bands.flatMap((band) => {
     const zoom = BANDS[band] ?? 0;
-    const [px, width] = [pixelMetres(zoom, lat), atZoom(APART, zoom) * pixelMetres(zoom, lat)];
+    const [px, width] = [pixelMetres(zoom, LATITUDE), atZoom(APART, zoom) * pixelMetres(zoom, LATITUDE)];
     return centrelines.flatMap((c) => {
       const drawn = (onIt.get(c.id) ?? []).map((s) => ({ from: s.from, to: s.to, metres: s.side * width }));
-      const line = drawn.length ? smooth(c, drawn, MOVE * width, TOLERANCE * px, kx) : undefined;
+      const line = drawn.length ? smooth(c, drawn, MOVE * width, TOLERANCE * px, KX) : undefined;
       return line ? [{ id: smoothId(c.id, band), ...line }] : [];
     });
   });
@@ -782,7 +787,7 @@ interface Stretch {
  * centreline is a Stretch wherever the set of Lines along it stays the same, and one Stretch after
  * another where it changes.
  */
-function stretches(pieces: Piece[], every: Step[][], tracks: Neighbour[][], beside: Map<number, Neighbour>[], kx: number, prefix: string): { centrelines: Shape[]; stretches: Stretch[]; drawer: number[] } {
+function stretches(pieces: Piece[], every: Step[][], tracks: Neighbour[][], beside: Map<number, Neighbour>[], prefix: string): { centrelines: Shape[]; stretches: Stretch[]; drawer: number[] } {
   const mates = mated(pieces, every);
   const across = tracks.map((list, p) => list.filter((n) => !mates[p]?.has(n.piece)));
   const drawer: number[] = [];
@@ -825,7 +830,7 @@ function stretches(pieces: Piece[], every: Step[][], tracks: Neighbour[][], besi
     });
     points.push(ends.at(-1)?.[1] ?? [0, 0]);
     const round = (degrees: number) => Math.round(degrees * 1e5) / 1e5;
-    const coords = points.map(([x, y]): Point => [round(x / kx), round(y / DEGREE)]);
+    const coords = points.map(([x, y]): Point => [round(x / KX), round(y / DEGREE)]);
     const dist = distances(coords).map(Math.round);
     centrelines.push({ id, coords, dist });
     // A Stretch for each length of it one set of Lines takes, the SHORT ones merged into their
@@ -894,11 +899,9 @@ function mated(pieces: Piece[], every: Step[][]): Set<number>[] {
  * The pieces of track the Lines' shapes run on, and each Line's runs over them, a piece once each,
  * and every one of its shapes over them, all along each.
  */
-function walk(lines: Line[], shapes: Shape[]): { pieces: Piece[]; runs: Step[][]; every: Step[][]; kx: number } {
+function walk(lines: Line[], shapes: Shape[]): { pieces: Piece[]; runs: Step[][]; every: Step[][] } {
   const byId = new Map(shapes.map((s) => [s.id, s]));
-  const all = shapes.flatMap((s) => s.coords);
-  const kx = DEGREE * Math.cos(((all.reduce((sum, p) => sum + p[1], 0) / (all.length || 1)) * Math.PI) / 180);
-  const metres = ([lon, lat]: Point): [x: number, y: number] => [lon * kx, lat * DEGREE];
+  const metres = ([lon, lat]: Point): [x: number, y: number] => [lon * KX, lat * DEGREE];
 
   const pieces: Piece[] = [];
   const cut = new Map<string, number[]>(); // the pieces from one point to another, on each level
@@ -926,7 +929,7 @@ function walk(lines: Line[], shapes: Shape[]): { pieces: Piece[]; runs: Step[][]
     for (const [n, id] of line.shapes.entries()) {
       const { coords = [], dist = [], levels = [] } = byId.get(id) ?? {};
       // A Line's other shapes mostly run its first one's track back the other way.
-      const way = n === 0 ? 1 : sameWay(coords, first, kx);
+      const way = n === 0 ? 1 : sameWay(coords, first);
       let run: Step[] | undefined;
       const all: Step[] = [];
       every.push(all);
@@ -951,14 +954,14 @@ function walk(lines: Line[], shapes: Shape[]): { pieces: Piece[]; runs: Step[][]
       }
     }
   }
-  return { pieces, runs, every, kx };
+  return { pieces, runs, every };
 }
 
 /**
  * 1 where a line mostly runs the same way as another alongside it, -1 where it mostly runs back the
  * other way, judged at about 50 of its points; 1 where they're nowhere near each other.
  */
-function sameWay(a: Point[], b: Point[], kx: number): number {
+function sameWay(a: Point[], b: Point[]): number {
   let votes = 0;
   const every = Math.max(1, Math.floor(a.length / 50));
   for (let i = every; i < a.length; i += every) {
@@ -966,7 +969,7 @@ function sameWay(a: Point[], b: Point[], kx: number): number {
     if (!p || !q) continue;
     const n = nearest(b, p);
     const [c, d] = [b[n.i], b[n.i + 1]];
-    if (c && d && n.metres <= NEAR) votes += Math.sign((q[0] - p[0]) * (d[0] - c[0]) * kx * kx + (q[1] - p[1]) * (d[1] - c[1]) * DEGREE * DEGREE);
+    if (c && d && n.metres <= NEAR) votes += Math.sign((q[0] - p[0]) * (d[0] - c[0]) * KX * KX + (q[1] - p[1]) * (d[1] - c[1]) * DEGREE * DEGREE);
   }
   return votes < 0 ? -1 : 1;
 }
