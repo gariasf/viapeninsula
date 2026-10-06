@@ -113,6 +113,12 @@ const NAME_GAP = NAME_HALO + 0.5;
 const PAPER = '#f2f3f0';
 /** The colour of a track Lines share, zoomed right in, where their strokes lie one over another: their names along it and their Trains tell them apart (#139). */
 const SHARED = '#9a9b9e';
+/**
+ * Zooming in, the Lines don't jump from their stretches to their rails at once: they cross-fade over
+ * FADE zooms either side of the zoom they go back on the rails at (#205). The rest still switches at
+ * that zoom: the Lines' names, the Trains, and the Lines a tap names.
+ */
+const FADE = 0.5;
 
 /**
  * The places drawn larger than the rest and named from further out, by their IDs in places(), as the
@@ -473,8 +479,15 @@ const lineOffset = byZoom(APART, (px) => ['*', ['get', 'side'], px]);
 // along their stretches until they're back on the rails, and then each on its own track (ADR-0006).
 // Along their stretches, each zoom band has layers of its own, for its curves across the nodes and
 // its strokes cut back to make room for them (#163), and below GRAPH_BAND, for its own line graph's
-// strokes (ADR-0007).
+// strokes (ADR-0007). Either side of the zoom they go back on the rails at, their strokes along their
+// stretches fade out over their rails as those fade in (FADE). The rails go under the stretches'
+// layers: where Lines share a track, their rails lie one over another, so faded alike they'd show
+// nearly whole long before the stretches' strokes go.
 const railsZoom = APART.at(-1)?.[0] ?? 15;
+const stretchesFade = byZoom([[railsZoom - FADE, 1], [railsZoom + FADE, 0]], (opacity) => opacity);
+const railsFade = byZoom([[railsZoom - FADE, 0], [railsZoom + FADE, 1]], (opacity) => opacity);
+/** Along their stretches, Lines are shown through neither while they slide onto the rails nor while they fade. */
+const stretchesThrough = byZoom([[14, 1], [14.1, 0]], (opacity) => opacity);
 // Below the first band's zoom, Lines side by side can't be read: each Network's track is drawn once
 // instead, in its colour, and no Trains (#190).
 const linesZoom = BANDS[0] ?? 7;
@@ -486,11 +499,13 @@ const layered = [
   ...BANDS.map((_, band) => {
     const [minzoom, maxzoom] = bandZooms(band);
     const filter: ExpressionFilterSpecification = band < GRAPH_BAND ? ['==', ['get', 'band'], band] : ['any', ['!', ['has', 'band']], ['==', ['get', 'band'], band]];
-    return { source: 'lines', id: band ? `lines-${band}` : 'lines', prefix: band ? `line-${band}` : 'line', zooms: { minzoom: Math.max(minzoom, linesZoom), maxzoom: Math.min(maxzoom, railsZoom), filter } };
+    const zooms = { minzoom: Math.max(minzoom, linesZoom), maxzoom: Math.min(maxzoom, railsZoom + FADE), filter };
+    return { source: 'lines', id: band ? `lines-${band}` : 'lines', prefix: band ? `line-${band}` : 'line', zooms, nameZooms: { maxzoom: Math.min(maxzoom, railsZoom) }, opacity: stretchesFade, throughOpacity: stretchesThrough, below: firstLabel };
   }),
-  { source: 'rails', id: 'rails', prefix: 'rail', zooms: { minzoom: railsZoom, filter: true as ExpressionFilterSpecification } },
+  // Under the first band's casing, the lowest of the stretches' layers.
+  { source: 'rails', id: 'rails', prefix: 'rail', zooms: { minzoom: railsZoom - FADE, filter: true as ExpressionFilterSpecification }, nameZooms: { minzoom: railsZoom }, opacity: railsFade, throughOpacity: railsFade, below: 'line-casing' },
 ];
-for (const { source, id, prefix, zooms } of layered) {
+for (const { source, id, prefix, zooms, nameZooms, opacity, throughOpacity, below } of layered) {
   map.addLayer(
     {
       id: `${prefix}-casing`,
@@ -498,9 +513,9 @@ for (const { source, id, prefix, zooms } of layered) {
       source,
       ...zooms,
       layout: lineLayout,
-      paint: { 'line-color': PAPER, 'line-width': byZoom(WIDTH, (px) => px + 2), 'line-offset': lineOffset },
+      paint: { 'line-color': PAPER, 'line-width': byZoom(WIDTH, (px) => px + 2), 'line-offset': lineOffset, 'line-opacity': opacity },
     },
-    firstLabel,
+    below,
   );
   map.addLayer(
     {
@@ -513,9 +528,10 @@ for (const { source, id, prefix, zooms } of layered) {
         'line-color': lineColour,
         'line-width': byZoom(WIDTH, (px) => px),
         'line-offset': lineOffset,
+        'line-opacity': opacity,
       },
     },
-    firstLabel,
+    below,
   );
   // Over its own stroke, in its own colour, it doesn't show: only where another Line covers it. Not
   // where Lines on one level cover each other: crowded, or sliding onto the rails.
@@ -527,15 +543,17 @@ for (const { source, id, prefix, zooms } of layered) {
       ...zooms,
       filter: ['all', zooms.filter, ['has', 'under'], ['!', ['has', 'crowded']]],
       layout: { ...lineLayout, 'line-cap': 'butt' },
-      paint: { 'line-color': lineColour, 'line-width': byZoom(WIDTH, (px) => px / 2), 'line-offset': lineOffset, 'line-dasharray': [2, 2], 'line-opacity': ['interpolate', ['linear'], ['zoom'], 14, 1, 14.1, 0, 14.9, 0, 15, 1] },
+      paint: { 'line-color': lineColour, 'line-width': byZoom(WIDTH, (px) => px / 2), 'line-offset': lineOffset, 'line-dasharray': [2, 2], 'line-opacity': throughOpacity },
     },
-    firstLabel,
+    below,
   );
+  // The Lines' names switch at once, where they go back on the rails.
   map.addLayer({
     id: `${prefix}-names`,
     type: 'symbol',
     source,
     ...zooms,
+    ...nameZooms,
     layout: {
       'symbol-placement': 'line',
       'text-field': ['get', 'name'],
@@ -683,7 +701,7 @@ for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', tr
 // will do, and a Train standing at a Station is the one tapped. A tap nothing else takes, on a Line's
 // stroke or within STROKE_TAP of one, names the Lines drawn there, by their pills (#193), the strokes
 // nearest the tap first: but not on a place's name, which takes no tap.
-/** The layers the Lines' strokes are drawn in, which a tap names the Lines of. */
+/** The layers the Lines' strokes are drawn in. A tap names the Lines of those along their stretches below railsZoom, and of the rails from it. */
 const strokeLayers = layered.map((l) => l.id);
 /** Where a tap names the Lines drawn there. Each tap closes the last one's. */
 const linesPopup = new Popup({ closeButton: false, closeOnClick: false, className: 'lines-at', maxWidth: 'none' });
@@ -706,7 +724,9 @@ map.on('click', ({ point: { x, y }, lngLat }) => {
   if (typeof train === 'string') follow(train);
   else if (typeof place === 'string') showBoard(place);
   else if (!within(0, ['station-names']).length) {
-    const tapped = [STROKE_NEAREST, STROKE_TAP].map((r) => within(r, strokeLayers)).find((hits) => hits.length) ?? [];
+    // As the Lines' names switch, though both show while they fade.
+    const drawing = strokeLayers.filter((layer) => (layer === 'rails') === map.getZoom() >= railsZoom);
+    const tapped = [STROKE_NEAREST, STROKE_TAP].map((r) => within(r, drawing)).find((hits) => hits.length) ?? [];
     const named = linesAt(tapped.map((f) => ({ line: String(f.properties.line), shape: String(f.properties.shape), from: Number(f.properties.from), to: Number(f.properties.to) })), shownStrokes).flatMap((id) => {
       const [line, pill] = [lines.get(id), pills.get(id)];
       return line && pill ? [linePill(line, pill)] : [];
@@ -714,6 +734,8 @@ map.on('click', ({ point: { x, y }, lngLat }) => {
     if (named.length) linesPopup.setLngLat(lngLat).setDOMContent(el('div', {}, ...named)).addTo(map);
   }
 });
+// ponytail: while the Lines fade, the pointer shows over the strokes of both drawings, though a tap
+// names only one's. Check the zoom on mouseenter if that ever misleads.
 for (const layer of ['trains', 'train-pills', 'train-pills-followed', 'stations', ...strokeLayers]) {
   map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'));
   map.on('mouseleave', layer, () => (map.getCanvas().style.cursor = ''));
