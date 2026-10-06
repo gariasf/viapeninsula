@@ -15,7 +15,8 @@ test('opens where the viewer last left the map, kept on their device, when the l
 });
 
 test('a link that names a view, a Train or a Station opens on Barcelona, whatever view is kept', () => {
-  // MapLibre opens a link's own view over this one, and the map eases to a Train it follows.
+  // MapLibre opens a link's own view over this one, and the map eases to a Train it follows, or to a
+  // Station whose link names no view (#292).
   for (const link of ['#map=12/40.4168/-3.7038', '#train=2026-10-05/rodalies:R2_77001', '#station=rodalies:71801', '#map=14/41.3793/2.1404&station=rodalies:71801']) {
     expect(openingView(link, JSON.stringify(GIRONA))).toEqual(BARCELONA);
   }
