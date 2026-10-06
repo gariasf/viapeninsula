@@ -4,18 +4,36 @@ import { writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
+import { setTimeout as wait } from 'node:timers/promises';
 
 /** Yields the lines of one file of a GTFS feed, or nothing if the feed hasn't got that file. */
 export type Source = (file: string) => AsyncIterable<string> | undefined;
 
-/** Downloads the GTFS zip of the timetable whose IDs start with `prefix` to zipFile(prefix), to read from there. */
-export async function download(url: string, prefix: string): Promise<Source> {
-  const res = await fetch(url);
-  // Never print a query string: TMB's holds its key.
-  if (!res.ok) throw new Error(`${url.split('?')[0]}: HTTP ${res.status}`);
-  const file = zipFile(prefix);
-  await writeFile(file, Buffer.from(await res.arrayBuffer()));
-  return zipSource(file);
+/**
+ * How long each try at downloading a timetable gets, and how long after one that fails it's tried
+ * once more: TRAM's server answered 499 after 4 minutes on 5 October 2026 (#286).
+ */
+const TRY = { limit: 2 * 60_000, again: 60_000 };
+
+/**
+ * Downloads the GTFS zip of the timetable whose IDs start with `prefix` to zipFile(prefix), to read
+ * from there. A try that fails or takes longer than `limit` is tried once more, `again` later.
+ */
+export async function download(url: string, prefix: string, { limit, again } = TRY): Promise<void> {
+  for (let tries = 1; ; tries++) {
+    let failed: unknown;
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(limit) });
+      if (res.ok) return await writeFile(zipFile(prefix), Buffer.from(await res.arrayBuffer()));
+      failed = `HTTP ${res.status}`;
+    } catch (error) {
+      // fetch() gives why it failed, as a connection refused, as the cause.
+      failed = (error as Error).cause ?? error;
+    }
+    // Never print a query string: TMB's holds its key.
+    if (tries === 2) throw new Error(`${url.split('?')[0]}: ${failed}`);
+    await wait(again);
+  }
 }
 
 /** Where download() keeps a timetable's GTFS zip, in the system's temporary folder, until that's cleared. */

@@ -1,6 +1,7 @@
+import { readFile, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { afterEach, expect, test, vi } from 'vitest';
-import { dirSource, download, feedStart, noonMinus12h, parseLine, rows, serviceIdsOn, type Source } from './gtfs.ts';
+import { dirSource, download, feedStart, noonMinus12h, parseLine, rows, serviceIdsOn, zipFile, type Source } from './gtfs.ts';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -92,8 +93,23 @@ test("reads the day a feed's timetable starts from feed_info.txt", async () => {
   expect(await feedStart(dirSource(fileURLToPath(new URL('fixtures/tmb', import.meta.url))))).toBe('2026-09-21');
 });
 
-test("fails a download without printing its query string, where TMB's key goes", async () => {
-  vi.stubGlobal('fetch', async () => new Response('Authentication failed', { status: 401 }));
-  const error = await download('https://api.tmb.cat/v1/static/datasets/gtfs.zip?app_id=ID&app_key=KEY', 'tmb').catch((e: unknown) => e);
+test("fails a download tried twice without printing its query string, where TMB's key goes", async () => {
+  const fetch = vi.fn(async () => new Response('Authentication failed', { status: 401 }));
+  vi.stubGlobal('fetch', fetch);
+  const error = await download('https://api.tmb.cat/v1/static/datasets/gtfs.zip?app_id=ID&app_key=KEY', 'tmb', { limit: 1000, again: 0 }).catch((e: unknown) => e);
   expect(String(error)).toBe('Error: https://api.tmb.cat/v1/static/datasets/gtfs.zip: HTTP 401');
+  expect(fetch).toHaveBeenCalledTimes(2);
+});
+
+test('gives up on a try at a download that takes too long, and tries once more', async () => {
+  // As TRAM's server, which answered 499 after 4 minutes on 5 Oct 2026 (#286).
+  const fetch = vi.fn(async (_: string, { signal }: RequestInit) =>
+    fetch.mock.calls.length === 1 ? new Promise<Response>((_, reject) => signal?.addEventListener('abort', () => reject(signal.reason))) : new Response('the zip'),
+  );
+  vi.stubGlobal('fetch', fetch);
+  const prefix = `download-test-${process.pid}`;
+  await download('https://opendata.tram.cat/GTFS/zip/TBX.zip', prefix, { limit: 20, again: 0 });
+  expect(await readFile(zipFile(prefix), 'utf8')).toBe('the zip');
+  expect(fetch).toHaveBeenCalledTimes(2);
+  await rm(zipFile(prefix));
 });

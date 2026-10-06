@@ -1,8 +1,18 @@
+import { execFileSync } from 'node:child_process';
+import { mkdtemp, readdir, rm, utimes, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { expect, test } from 'vitest';
+import { afterAll, afterEach, expect, test, vi } from 'vitest';
 import { places } from '../bundle.ts';
-import { dirSource, type Source } from './gtfs.ts';
-import { FGC_FEED, METRO_FEED, onFgcRails, onMetroRails, onRodaliesRails, readFeed, RODALIES_FEED, TRAMBAIX_FEED, type Feed } from './networks.ts';
+import { RODALIES, TRAM, type NetworkConfig } from '../networks.ts';
+import { dirSource, rows, zipFile, type Source } from './gtfs.ts';
+import { FGC_FEED, METRO_FEED, onFgcRails, onMetroRails, onRodaliesRails, readFeed, readTimetables, RODALIES_FEED, TRAMBAIX_FEED, type Feed } from './networks.ts';
+import type { Found } from './report.ts';
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 // Rows cut verbatim from Renfe's Cercanías feed of 2026-09-24: an R2S and an R7 Trip, an R3
 // rail-replacement bus, and a C1 Trip in Madrid, all running on Thursday 24 September.
@@ -253,4 +263,112 @@ test("runs the Metro on underground rails and the Montjuïc funicular, but not o
     { railway: 'tram', gauge: '1435', operator: 'TRAM' },
   ];
   expect(kinds.map((tags) => onMetroRails(way(tags)))).toEqual([true, true, true, true, false, false]);
+});
+
+// Networks of their own, whose timetables download to zipFile()s no dry run's do: one with a timetable
+// as Rodalies has, and one with two as TRAM has.
+const PREFIX = `copy-test-${process.pid}`;
+const NETWORK: NetworkConfig = { ...RODALIES, timetables: [{ ...RODALIES.timetables[0], prefix: PREFIX }] };
+const [TBX, ...TBS] = TRAM.timetables;
+const PAIR: NetworkConfig = { ...TRAM, timetables: [{ ...TBX, prefix: `${PREFIX}-a` }, ...TBS.map((t) => ({ ...t, prefix: `${PREFIX}-b` }))] };
+
+afterAll(async () => {
+  for (const prefix of [PREFIX, `${PREFIX}-a`, `${PREFIX}-b`]) await rm(zipFile(prefix), { force: true });
+});
+
+const temp = () => mkdtemp(join(tmpdir(), 'viapeninsula-'));
+
+/** A timetable with routes of these Lines, downloaded as download() does, to zipFile(). */
+async function downloaded(prefix: string, ...lines: string[]) {
+  const dir = await temp();
+  await writeFile(join(dir, 'routes.txt'), ['route_short_name', ...lines].join('\n'));
+  await rm(zipFile(prefix), { force: true });
+  execFileSync('zip', ['-qj', zipFile(prefix), join(dir, 'routes.txt')]);
+}
+
+/** The names of a timetable's routes. */
+async function names(gtfs: Source) {
+  const found: string[] = [];
+  for await (const r of rows(gtfs, 'routes.txt', ['route_short_name'])) found.push(r.route_short_name);
+  return found;
+}
+
+/** Reads the Lines each of a Network's timetables gives it, as the build does, here only by the names of their routes. */
+const read = async (feeds: (Feed & { gtfs: Source })[]) => ({ lines: await Promise.all(feeds.map((f) => names(f.gtfs))) });
+
+/** A cache with a copy of a Network's timetables that gave it these Lines, each timetable's, kept on 5 Oct 2026. */
+async function copied(network: NetworkConfig, ...each: string[][]) {
+  const cache = await temp();
+  for (const [i, t] of network.timetables.entries()) await downloaded(t.prefix, ...(each[i] ?? []));
+  await readTimetables(network, undefined, read, () => {}, cache);
+  const noon = new Date('2026-10-05T12:00:00Z');
+  for (const file of await readdir(cache)) await utimes(join(cache, file), noon, noon);
+  return cache;
+}
+
+const RENFE_499 = new Error('https://ssl.renfe.com/ftransit/Fichero_CER_FOMENTO/fomento_transit.zip: HTTP 499');
+
+test('builds a Network from its new timetables, and keeps them as its copy in place of the last', async () => {
+  const [cache, found]: [string, Found[]] = [await temp(), []];
+  await downloaded(PREFIX, 'R1');
+  expect(await readTimetables(NETWORK, undefined, read, (f) => found.push(f), cache)).toEqual({ lines: [['R1']] });
+  await downloaded(PREFIX, 'R1', 'R2');
+  expect(await readTimetables(NETWORK, undefined, read, (f) => found.push(f), cache)).toEqual({ lines: [['R1', 'R2']] });
+  expect(found).toEqual([]);
+
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+  expect(await readTimetables(NETWORK, RENFE_499, read, () => {}, cache)).toEqual({ lines: [['R1', 'R2']] });
+});
+
+test("builds a Network whose timetable fails to download from the copy that last built it, and reports it with the copy's date and why", async () => {
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const [cache, found]: [string, Found[]] = [await copied(NETWORK, ['R1', 'R2']), []];
+  // A download that fails can leave an older one where it downloads to, as a dry run's.
+  await downloaded(PREFIX, 'R3');
+  expect(await readTimetables(NETWORK, RENFE_499, read, (f) => found.push(f), cache)).toEqual({ lines: [['R1', 'R2']] });
+  expect(found).toEqual([
+    {
+      kind: 'copy',
+      network: 'rodalies',
+      text: ['Rodalies de Catalunya is built from the copy of its timetables kept on 2026-10-05: https://ssl.renfe.com/ftransit/Fichero_CER_FOMENTO/fomento_transit.zip: HTTP 499'],
+    },
+  ]);
+});
+
+test("builds a Network from its copy where its timetable's download isn't a zip unzip can read", async () => {
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const [cache, found]: [string, Found[]] = [await copied(NETWORK, ['R1']), []];
+  // As an error page served as the zip.
+  await writeFile(zipFile(PREFIX), '<html>Service Unavailable</html>');
+  expect(await readTimetables(NETWORK, undefined, read, (f) => found.push(f), cache)).toEqual({ lines: [['R1']] });
+  expect(found).toEqual([{ kind: 'copy', network: 'rodalies', text: [expect.stringMatching(/^Rodalies de Catalunya is built from the copy of its timetables kept on 2026-10-05: .*unzip/)] }]);
+});
+
+test("builds a Network from its copy where its new timetable gives it no Lines, as Renfe's of 5 Oct 2026 gave Rodalies, and keeps the copy", async () => {
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const [cache, found]: [string, Found[]] = [await copied(NETWORK, ['R1']), []];
+  await downloaded(PREFIX);
+  expect(await readTimetables(NETWORK, undefined, read, (f) => found.push(f), cache)).toEqual({ lines: [['R1']] });
+  expect(found).toEqual([
+    { kind: 'copy', network: 'rodalies', text: ['Rodalies de Catalunya is built from the copy of its timetables kept on 2026-10-05: https://ssl.renfe.com/ftransit/Fichero_CER_FOMENTO/fomento_transit.zip gives it no Lines'] },
+  ]);
+  expect(await readTimetables(NETWORK, RENFE_499, read, () => {}, cache)).toEqual({ lines: [['R1']] });
+});
+
+test("builds a Network from its copy where one of its timetables gives it no Lines, though the other does, as either of TRAM's could, and keeps the copy", async () => {
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const [cache, found]: [string, Found[]] = [await copied(PAIR, ['T1'], ['T4']), []];
+  await downloaded(`${PREFIX}-a`, 'T1', 'T2');
+  await downloaded(`${PREFIX}-b`);
+  expect(await readTimetables(PAIR, undefined, read, (f) => found.push(f), cache)).toEqual({ lines: [['T1'], ['T4']] });
+  expect(found).toEqual([{ kind: 'copy', network: 'tram', text: ['TRAM is built from the copy of its timetables kept on 2026-10-05: https://opendata.tram.cat/GTFS/zip/TBS.zip gives it no Lines'] }]);
+  expect(await readTimetables(PAIR, RENFE_499, read, () => {}, cache)).toEqual({ lines: [['T1'], ['T4']] });
+});
+
+test('fails with no copy to build the Network from, as the build did before it kept one, as with a copy kept before it had one of its timetables', async () => {
+  await expect(readTimetables(NETWORK, RENFE_499, read, () => {}, await temp())).rejects.toThrow(
+    'Rodalies de Catalunya has no copy of its timetables to build it from: https://ssl.renfe.com/ftransit/Fichero_CER_FOMENTO/fomento_transit.zip: HTTP 499',
+  );
+  const before = await copied({ ...PAIR, timetables: [PAIR.timetables[0]] }, ['T1']);
+  await expect(readTimetables(PAIR, new Error('HTTP 503'), read, () => {}, before)).rejects.toThrow('TRAM has no copy of its timetables to build it from: HTTP 503');
 });
