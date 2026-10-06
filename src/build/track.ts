@@ -23,8 +23,8 @@ interface TripEnds {
 /**
  * Each shape once for each way its Trips run it, so that each way is traced on its own track: the
  * way the feed draws it keeps its ID, and the way back, its points reversed, is `<id>:back`. A Trip
- * runs its shape back where its last Station comes before its first in the order its trace takes
- * the shape's Stations, beyond its ends too (inOrder()). Gives those shapes, given every Trip on any
+ * runs its shape back where its last Station comes before its first in the order the shape's trace
+ * takes them, beyond the shape's ends too (inOrder()). Gives those shapes, given every Trip on any
  * day, and the one each Trip runs on.
  */
 export function eachWay(shapes: FeedShape[], stations: Station[], trips: TripEnds[]): { shapes: FeedShape[]; shapeOf: (trip: TripEnds) => string } {
@@ -325,7 +325,8 @@ interface Waypoint {
  * away from it: past R15's shape's end at Riba-roja d'Ebre, La Zaida-Sástago is nearer to it than La
  * Puebla de Híjar, the Station before.
  * ponytail: a line beyond that bends back past a Station it has left, as a horseshoe can, still comes
- * out of order; order by the Trips' calls if one ever does.
+ * out of order, and eachWay() can run a Trip there the wrong way; order by the Trips' calls if one
+ * ever does.
  */
 function inOrder(feed: FeedShape, stations: Station[]): Waypoint[] {
   const all = stations.map((station) => {
@@ -349,7 +350,8 @@ function inOrder(feed: FeedShape, stations: Station[]): Waypoint[] {
 
 /**
  * Where a point comes along a line, given where nearest() found it closest. Trips can run beyond a
- * shape, so a point beyond either end comes by how far beyond that end it is.
+ * shape, so a point beyond either end comes by how far beyond that end it is. inOrder() takes from
+ * it only which end, and orders the points beyond each end Station by Station.
  */
 function orderAlong(polyline: Point[], n: ReturnType<typeof nearest>): number {
   return n.along + (n.i === 0 && n.t === 0 ? -n.metres : n.i === polyline.length - 2 && n.t === 1 ? n.metres : 0);

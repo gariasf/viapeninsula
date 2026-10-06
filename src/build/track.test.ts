@@ -169,8 +169,8 @@ test("traces the Stations its Trips serve beyond either end of the feed's shape,
   expect(log).toEqual(['line: 5.0 km long. Where the feed has the track: 1.0 km traced against its 1.0 km (+0.0%)']);
 });
 
-// R15's line past its shape's end at Riba-roja (B): it turns north at La Puebla de Híjar (P), and La
-// Zaida-Sástago (Z), the next Station on, is the nearer of the two to Riba-roja.
+// R15's Stations either side of its shape's end at Riba-roja (B): its line turns north at La Puebla
+// de Híjar (P), and La Zaida-Sástago (Z), the next Station on, is the nearer of the two to Riba-roja.
 const R15 = [station('A', 0, 10), station('B', 2000, 10), station('S', 6000, 10), station('P', 8000, -10), station('Z', 7800, 1500)];
 
 test("traces the Stations beyond the end of the feed's shape in the order the line reaches them, where it bends back toward that end", () => {
