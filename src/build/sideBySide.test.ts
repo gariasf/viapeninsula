@@ -34,7 +34,8 @@ function shapeEvery(every: number, id: string, corners: [x: number, y: number][]
   return { id, coords: points.map(([x, y]) => [round(LON + x / (M * COS)), round(LAT + y / M)]), dist };
 }
 
-const line = (name: string, ...shapes: string[]): Line => ({ id: name, network: 'rodalies', name, colour: '#000', shapes, kind: 'commuter' });
+/** A Rodalies Line, in a colour of its own, as Lines of one Network and one colour take one place (#283). */
+const line = (name: string, ...shapes: string[]): Line => ({ id: name, network: 'rodalies', name, colour: `#${name}`, shapes, kind: 'commuter' });
 
 async function draw(lines: Line[], shapes: Shape[], on: 'strokes' | 'rails' = 'strokes', band?: number) {
   const found = await sideBySide(lines, shapes);
@@ -83,6 +84,20 @@ test('draws Lines that share track side by side, a line width apart', async () =
   const drawn = ['R2', 'R11', 'R14'].flatMap(strokes);
   expect(drawn.map(({ from, to }) => [from, to])).toEqual([[0, 5000], [0, 5000], [0, 5000]]);
   expect(drawn.map((s) => s.north).sort((a, b) => a - b)).toEqual([-1, 0, 1]);
+});
+
+test('draws Lines of one Network and one colour in one place where they share a Stretch, each on its own stroke, its Trains on it (#283)', async () => {
+  // As Madrid's C4a and C4b, whose colours differ only in case, along C-4's trunk with C3; and
+  // Rodalies' R4, in their colour.
+  const madrid = (name: string, colour: string): Line => ({ ...line(name, name), network: 'cercanias-madrid', colour });
+  const lines = [madrid('C4a', '#2C2A86'), madrid('C3', '#9E1B80'), madrid('C4b', '#2c2a86'), { ...line('R4', 'R4'), colour: '#2C2A86' }];
+  const shapes = lines.map((l) => shape(l.id, [0, 0], [5000, 0]));
+  const { strokes } = await draw(lines, shapes);
+  expect(lines.map((l) => strokes(l.id).map(({ from, to }) => [from, to]))).toEqual(lines.map(() => [[0, 5000]]));
+  const [c4a, c3, c4b, r4] = lines.map((l) => strokes(l.id)[0]?.north);
+  expect(c4b).toBe(c4a);
+  expect([c4a, c3, r4].sort((a = 0, b = 0) => a - b)).toEqual([-1, 0, 1]);
+  expect(Math.max(...(await offStroke(lines, shapes, lines.map((l): [string, string] => [l.id, l.id]))))).toBeLessThan(1);
 });
 
 test('below zoom 10, draws Lines on tracks about a line width apart there side by side, on a graph for each band, its Trains on it (ADR-0007)', async () => {
