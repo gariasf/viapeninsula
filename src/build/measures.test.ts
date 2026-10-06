@@ -308,3 +308,21 @@ test('reports the measures as one spot with each of their numbers, in metres, an
     { kind: 'node', key: 'node 8 41.383 2.150', point: [2.15024, 41.38278], zoom: 8, text: [eight], numbers: { size: 19.1 } },
   ]);
 });
+
+test('measures Lines the same whichever shape comes first in the track, however far off (#277)', () => {
+  // R2 moves over a line width on a curve 190 m long, a kink at zooms 10 and 11; R11's and R14's
+  // tracks run 60 m apart, each drawn on its own, over each other at zoom 10; and R3's strokes end 19 m
+  // apart, not loose. C1's track is in Cádiz.
+  const shapes = [east('a', 4000), east(`${LINK}0`, 190), east('b', 2000, 0, 3000), east('c', 2000, 0, 3060), east('d', 3000, 0, 6000)];
+  const strokes = [
+    stroke('R2', 'a', 0, 1000, 0),
+    ...curves(1000, 1190, 0, 1),
+    stroke('R2', 'a', 1190, 4000, 1),
+    stroke('R11', 'b', 0, 2000, 0),
+    stroke('R14', 'c', 0, 2000, 0),
+    stroke('R3', 'd', 0, 1000, 0),
+    stroke('R3', 'd', 1019, 3000, 0),
+  ];
+  const cadiz: Shape = { id: 'C1', coords: [[-6.29, 36.53], [-6.19, 36.53]], dist: [0, 8935] };
+  expect(measures({ shapes: [cadiz, ...shapes], strokes })).toEqual(measures({ shapes, strokes }));
+});

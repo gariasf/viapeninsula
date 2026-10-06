@@ -33,6 +33,15 @@ const PART = 0.05;
 const CROWD = 6;
 /** How far, in metres along its stroke, a Train may be put from where its own track would put it, so that a Line's slots come in fewer pieces: further on a band's own graph (ADR-0007). */
 const ALONG = 25;
+/**
+ * The latitude the drawing takes flat metres east to west at, and line widths in metres: the mean of
+ * every Line's points on 6 Oct 2026, fixed, so that a Line changing anywhere moves no other's (#277).
+ * ponytail: one latitude for all of Spain, so a metre east to west is 7% long at Cádiz and 3.4% short
+ * in Asturias. Draw in Web Mercator, as the map is, if that shows.
+ */
+export const LATITUDE = 41.32;
+/** Metres in a degree of longitude at LATITUDE. */
+export const KX = DEGREE * Math.cos((LATITUDE * Math.PI) / 180);
 
 /** A piece of track: where its middle is and which way it points, in local metres, and the Lines on it. */
 interface Piece {
@@ -81,14 +90,12 @@ interface Neighbour {
  */
 export async function sideBySide(lines: Line[], shapes: Shape[]): Promise<{ strokes: Stroke[]; centrelines: Shape[]; rails: Stroke[]; slots: Slot[]; tracks: Stroke[] }> {
   const walked = walk(lines, shapes);
-  // Line widths at the track's first point, as measures() takes them.
-  const lat = shapes[0]?.coords[0]?.[1] ?? 0;
-  const main = await graphed(walked, lines, lat, { near: NEAR, bands: [...BANDS.keys()].filter((b) => b >= GRAPH_BAND), prefix: '' });
+  const main = await graphed(walked, lines, LATITUDE, { near: NEAR, bands: [...BANDS.keys()].filter((b) => b >= GRAPH_BAND), prefix: '' });
   // Below GRAPH_BAND, a graph for each band, of tracks within about a line width there (ADR-0007).
   const below = [];
   for (const [band, zoom] of BANDS.entries()) {
     if (band >= GRAPH_BAND) continue;
-    below.push(await graphed(walked, lines, lat, { near: atZoom(APART, zoom) * pixelMetres(zoom, lat), bands: [band], own: band, prefix: `${zoom}-` }));
+    below.push(await graphed(walked, lines, LATITUDE, { near: atZoom(APART, zoom) * pixelMetres(zoom, LATITUDE), bands: [band], own: band, prefix: `${zoom}-` }));
   }
   const all = [main, ...below];
   return { strokes: all.flatMap((g) => g.strokes), centrelines: all.flatMap((g) => g.centrelines), rails: main.rails, slots: all.flatMap((g) => g.slots), tracks: networkTrack(lines, shapes) };
@@ -584,12 +591,11 @@ function across(at: Map<Stroke, [Leg[], Leg[]]>, hidden: (s: Stroke) => boolean,
  * band, as far along as on the centreline, and so do the curves.
  */
 function smoothed(centrelines: Shape[], strokes: Stroke[], kx: number, bands: number[]): Shape[] {
-  const lat = centrelines[0]?.coords[0]?.[1] ?? 0;
   const onIt = new Map<string, Stroke[]>();
   for (const s of strokes) if (s.side) onIt.set(s.shape, [...(onIt.get(s.shape) ?? []), s]);
   return bands.flatMap((band) => {
     const zoom = BANDS[band] ?? 0;
-    const [px, width] = [pixelMetres(zoom, lat), atZoom(APART, zoom) * pixelMetres(zoom, lat)];
+    const [px, width] = [pixelMetres(zoom, LATITUDE), atZoom(APART, zoom) * pixelMetres(zoom, LATITUDE)];
     return centrelines.flatMap((c) => {
       const drawn = (onIt.get(c.id) ?? []).map((s) => ({ from: s.from, to: s.to, metres: s.side * width }));
       const line = drawn.length ? smooth(c, drawn, MOVE * width, TOLERANCE * px, kx) : undefined;
@@ -896,8 +902,7 @@ function mated(pieces: Piece[], every: Step[][]): Set<number>[] {
  */
 function walk(lines: Line[], shapes: Shape[]): { pieces: Piece[]; runs: Step[][]; every: Step[][]; kx: number } {
   const byId = new Map(shapes.map((s) => [s.id, s]));
-  const all = shapes.flatMap((s) => s.coords);
-  const kx = DEGREE * Math.cos(((all.reduce((sum, p) => sum + p[1], 0) / (all.length || 1)) * Math.PI) / 180);
+  const kx = KX;
   const metres = ([lon, lat]: Point): [x: number, y: number] => [lon * kx, lat * DEGREE];
 
   const pieces: Piece[] = [];

@@ -515,7 +515,7 @@ export function railsBeside(rails: OsmWay[], stations: Station[]): Map<string, (
  * tracks there that are each TWIN to APART from the next.
  */
 function wrongTracks(graph: Graph): boolean[] {
-  // Flat metres, at the rails' middle latitude: across Catalonia that's no more than 4% off.
+  // Flat metres, at the rails' middle latitude: across Spain's rails, east to west, up to about 7% off.
   const lat = graph.at.reduce((sum, p) => sum + p[1], 0) / (graph.at.length || 1);
   const kx = DEGREE * Math.cos((lat * Math.PI) / 180);
   const xy = graph.at.map(([lon, la]) => [lon * kx, la * DEGREE] as const);
