@@ -29,6 +29,28 @@
   src: url(https://cdn.jsdelivr.net/npm/@fontsource/inter@5/files/inter-latin-700-normal.woff2) format('woff2');
 }
 
+@font-face {
+  font-family: 'Nunito Sans';
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://cdn.jsdelivr.net/npm/@fontsource/nunito-sans@5/files/nunito-sans-latin-400-normal.woff2) format('woff2');
+}
+
+@font-face {
+  font-family: 'Nunito Sans';
+  font-weight: 700;
+  font-display: swap;
+  src: url(https://cdn.jsdelivr.net/npm/@fontsource/nunito-sans@5/files/nunito-sans-latin-700-normal.woff2) format('woff2');
+}
+
+/* Green Friends' titles' face, which has one weight. */
+@font-face {
+  font-family: 'Young Serif';
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://cdn.jsdelivr.net/npm/@fontsource/young-serif@5/files/young-serif-latin-400-normal.woff2) format('woff2');
+}
+
 /* The typeface each variant letters the interface in. */
 html.noto {
   --font: 'Noto Sans', sans-serif;
@@ -38,8 +60,23 @@ html.inter {
   --font: 'Inter', sans-serif;
 }
 
+html.nunito {
+  --font: 'Nunito Sans', sans-serif;
+}
+
+/* Green Friends' titles: the cards' headings in Young Serif, whose one weight reads as a bold. A followed Train's Line keeps its badge's lettering. */
+html.nunito :is(.follow, .about) h2 {
+  font-family: 'Young Serif', Georgia, serif;
+  font-weight: 400;
+}
+
+html.nunito .follow h2 .line {
+  font-family: var(--font);
+  font-weight: 700;
+}
+
 /* One typeface: the interface's, the close buttons', MapLibre's controls' and the credits' too, which today are the browser's sans-serif and Helvetica. */
-html:is(.noto, .inter) :is(.maplibregl-map, .legend, .banner, .language, .follow, .about, .close, .lines-at .pill) {
+html:is(.noto, .inter, .nunito) :is(.maplibregl-map, .legend, .banner, .language, .follow, .about, .close, .lines-at .pill) {
   font-family: var(--font);
 }
 
