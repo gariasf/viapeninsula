@@ -34,7 +34,7 @@ function shapeEvery(every: number, id: string, corners: [x: number, y: number][]
   return { id, coords: points.map(([x, y]) => [round(LON + x / (M * COS)), round(LAT + y / M)]), dist };
 }
 
-/** A Rodalies Line, in a colour of its own, as Lines of one colour take one place (#283). */
+/** A Rodalies Line, in a colour of its own, as Lines of one Network and one colour take one place (#283). */
 const line = (name: string, ...shapes: string[]): Line => ({ id: name, network: 'rodalies', name, colour: `#${name}`, shapes, kind: 'commuter' });
 
 async function draw(lines: Line[], shapes: Shape[], on: 'strokes' | 'rails' = 'strokes', band?: number) {

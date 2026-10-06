@@ -202,7 +202,7 @@ export interface Stroke {
    * Lines on the street and those less deep, and where one covers it, shows it through (#178).
    */
   under?: number;
-  /** Along a Stretch with more than CROWD Lines, closer together than a line width, so that each covers some of the next. */
+  /** Along a Stretch with more than CROWD places side by side (#283), closer together than a line width, so that each covers some of the next. */
   crowded?: true;
   /**
    * A curve's: the centreline it leaves, those of the Stretches its node absorbed, and the one it comes

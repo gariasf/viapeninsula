@@ -29,7 +29,7 @@ const MOVE = 1;
 const ROUNDS = 30;
 /** Bundles whose centrelines get further apart by less than this, for each metre on, run side by side rather than part (#196). */
 const PART = 0.05;
-/** Past this many Lines side by side, the gap between them narrows, so that a stretch gets no wider (#165). */
+/** Past this many places side by side, the gap between them narrows, so that a stretch gets no wider (#165). */
 const CROWD = 6;
 /** How far, in metres along its stroke, a Train may be put from where its own track would put it, so that a Line's slots come in fewer pieces: further on a band's own graph (ADR-0007). */
 const ALONG = 25;
@@ -80,8 +80,9 @@ interface Neighbour {
 /**
  * The strokes that draw each Line. Where Lines share track, or run on tracks too close together to
  * tell apart zoomed out, those tracks are one stretch, drawn along one line between them, its
- * centreline: its Lines go side by side along it, a line width apart, in one order all along, and
- * each is drawn once, whichever way and whichever of its tracks it runs (ADR-0006). The centrelines
+ * centreline: its Lines go side by side along it, a line width apart, in one order all along, but
+ * those of one Network and one colour in one place, each stroke on the others' (#283); and each is
+ * drawn once, whichever way and whichever of its tracks it runs (ADR-0006). The centrelines
  * are shapes of their own. `rails` draws each Line on its own track instead, its shapes' track once,
  * for zoomed right in, marking where another Line runs on that track too (#139). And the slots of
  * every one of each Line's shapes, all along it, where the map puts the Line's Trains zoomed out: on
@@ -149,7 +150,7 @@ async function graphed(
   // for them all, and each Line's stroke lies on the others'.
   const lane = lines.map((l) => lines.findIndex((m) => m.network === l.network && m.colour.toLowerCase() === l.colour.toLowerCase()));
   // Where nothing else decides, a Stretch's lanes go in the order of the sides their Lines take on it
-  // piece by piece, for most of it, each where its first Line there goes.
+  // piece by piece, for most of it, each where the first of its Lines in that order goes.
   const prior = found.map(({ steps, lines: onIt }) => {
     const usual = (line: number) => {
       const metres = new Map<number, number>(); // at each side
@@ -1155,7 +1156,7 @@ function side(s: Step, beside: Map<number, Neighbour>, turned: number[], left: n
   return spread(order.findIndex((m) => m.line === s.line), order.length) * ahead * s.way;
 }
 
-/** How many line widths right of the middle of so many Lines side by side one is, by its place among them: a line width apart, or closer past CROWD. */
+/** How many line widths right of the middle of so many places side by side one is, by its place among them: a line width apart, or closer past CROWD. */
 function spread(place: number, count: number): number {
   return Math.round((place - (count - 1) / 2) * Math.min(1, (CROWD - 1) / (count - 1 || 1)) * 1000) / 1000;
 }
