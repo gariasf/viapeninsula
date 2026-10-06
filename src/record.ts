@@ -2,8 +2,8 @@
 // production snapshots as the map receives them, every 20 s for a quarter of an hour, with that
 // day's bundle cut down to the Trips the replay needs. `npm run record -- <dir> [minutes]` writes to <dir>:
 //
-// - vehicle_positions.json and trip_updates.json, as Renfe served them, which src/fetcher/fixtures/
-//   keeps cut down to Rodalies' Trips and a few of other núcleos';
+// - vehicle_positions.json and trip_updates.json, as Renfe served them, where it did, which
+//   src/fetcher/fixtures/ keeps cut down to Rodalies' Trips and a few of other núcleos';
 // - bundle.json, that day's whole bundle, which the tests cut their Trips from;
 // - replay.json.gz, `{ bundle, received }` gzipped, what `jumps()` and `trainsAt()` take: the shapes
 //   alone are megabytes. The engine tests keep those they pin in src/fixtures/, each named for its day.
@@ -27,10 +27,16 @@ const get = async (url: string) => {
   return res.text();
 };
 
-const [positions, updates] = await Promise.all([get('https://gtfsrt.renfe.com/vehicle_positions.json'), get('https://gtfsrt.renfe.com/trip_updates.json')]);
-await writeFile(join(dir, 'vehicle_positions.json'), positions);
-await writeFile(join(dir, 'trip_updates.json'), updates);
-console.log(`Renfe's feeds recorded at ${new Date().toISOString()}`);
+// Renfe's feeds are for the fixtures alone, so a recording goes on without them, as one an audit
+// leaves running in Actions does (#233).
+try {
+  const [positions, updates] = await Promise.all([get('https://gtfsrt.renfe.com/vehicle_positions.json'), get('https://gtfsrt.renfe.com/trip_updates.json')]);
+  await writeFile(join(dir, 'vehicle_positions.json'), positions);
+  await writeFile(join(dir, 'trip_updates.json'), updates);
+  console.log(`Renfe's feeds recorded at ${new Date().toISOString()}`);
+} catch (error) {
+  console.warn(`Renfe's feeds not recorded: ${error}`);
+}
 
 const today = madridDate(new Date());
 const day = (JSON.parse(await get(`${LIVE_URL}/manifest.json`)) as Manifest).days.find((d) => d.date === today);
