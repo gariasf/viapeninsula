@@ -10,10 +10,11 @@ import { round } from './track.ts';
 export interface Spot {
   /**
    * A run of a Line's legs between Stations that keep the feed's shape, a Station a Line's trace turns
-   * back at, Stations left out on a branch, Trips left out, a Network with no Trips on a day, a traced
-   * shape's length against the feed's, one of the largest nodes at a zoom, or the line measures.
+   * back at, Stations left out on a branch, Trips left out, a Network with no Trips on a day, a
+   * Network's Trips on each day of the week, a traced shape's length against the feed's, one of the
+   * largest nodes at a zoom, or the line measures.
    */
-  kind: 'kept' | 'turn' | 'branch' | 'trip' | 'notrips' | 'length' | 'node' | 'measures';
+  kind: 'kept' | 'turn' | 'branch' | 'trip' | 'notrips' | 'trips' | 'length' | 'node' | 'measures';
   /** What the next build knows it by too (keyOf()): never a Trip's ID nor a date. */
   key: string;
   network?: string;
@@ -28,7 +29,10 @@ export interface Spot {
   ways?: number[];
   /** Each line the log prints for it, once: for a node, its zoom's. */
   text: string[];
-  /** A length's percentage off the feed's, the most Trips left out on any one day, a node's size in line widths, or each of the measures. */
+  /**
+   * A length's percentage off the feed's, the most Trips left out on any one day, a Network's Trips on
+   * each day of the week, a node's size in line widths, or each of the measures.
+   */
   numbers?: Record<string, number>;
 }
 
@@ -116,6 +120,7 @@ function keyOf({ kind, network, line, why, shape, day, zoom, point, stations = [
     branch: [line, ...ends],
     trip: [line, why, ...ends],
     notrips: [network, day],
+    trips: [network],
     length: [line, shape?.replace(/:back$/, '')],
     node: [zoom, point?.[1].toFixed(3), point?.[0].toFixed(3)],
     measures: [],
@@ -139,8 +144,8 @@ function halfway(stations: Station[] = []): Point | undefined {
 
 /**
  * What changed in the report since the last build's, in Markdown for the run's job summary: spots new
- * since it, then those gone, then those whose numbers moved, a length by more than a point and any
- * other number by any, each with its links and its lines of the log; or one line where none did.
+ * since it, then those gone, then those whose numbers moved (moved()), each with its links and its
+ * lines of the log; or one line where none did.
  * With no last report, every spot is new.
  * ponytail: a spot is gone the first build without it, so one that comes and goes shows each time it
  * does; count it gone only after two builds without it if one ever does (build-report.md, section 3).
@@ -163,8 +168,11 @@ export function diff(last: Spot[] | undefined, spots: Spot[]): string {
   ].join('\n');
 }
 
-/** Whether a kind of spot is a problem on the map: not a length, a node or the measures, which move with any change to it. */
-const PROBLEM: Record<Spot['kind'], boolean> = { kept: true, turn: true, branch: true, trip: true, notrips: true, length: false, node: false, measures: false };
+/**
+ * Whether a kind of spot is a problem on the map: not a Network's Trips, which the summary names where
+ * they dropped (moved()), nor a length, a node or the measures, which move with any change to it.
+ */
+const PROBLEM: Record<Spot['kind'], boolean> = { kept: true, turn: true, branch: true, trip: true, notrips: true, trips: false, length: false, node: false, measures: false };
 
 /** The most characters a GitHub comment holds, counted here as UTF-8's bytes, which are never fewer however GitHub counts them. */
 const COMMENT = 65536;
@@ -193,9 +201,16 @@ export function comment(last: Spot[] | undefined, spots: Spot[], run: string): s
 }
 
 /**
+ * The share of a Network's Trips on a day of the week that it can lose against the last report before
+ * the summary names it: a guess (#252), to tune after a week of reports.
+ */
+const DROP = 0.25;
+
+/**
  * How a spot's numbers moved since the last report, as `name (was → now)`, or nothing where none did:
- * a length's by more than a point, any other by any. Compared in tenths, which every number is
- * rounded to, so 0.1 to 1.1 is a point.
+ * a length's by more than a point, a Network's Trips on a day of the week only where they dropped by
+ * more than DROP, any other by any. Compared in tenths, which every number is rounded to, so 0.1 to
+ * 1.1 is a point.
  */
 function moved(was: Spot | undefined, spot: Spot): string {
   if (!was) return '';
@@ -204,6 +219,8 @@ function moved(was: Spot | undefined, spot: Spot): string {
   return [...names]
     .filter((name) => {
       const [a, b] = [was.numbers?.[name], spot.numbers?.[name]];
+      // A day first counted isn't a change: each report carries over the last one's other days of the week.
+      if (spot.kind === 'trips') return a !== undefined && b !== undefined && b < a * (1 - DROP);
       return a === undefined || b === undefined || Math.abs(Math.round(a * 10) - Math.round(b * 10)) > leeway;
     })
     .map((name) => `${name} (${was.numbers?.[name] ?? 'none'} → ${spot.numbers?.[name] ?? 'none'})`)

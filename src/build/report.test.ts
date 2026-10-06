@@ -19,6 +19,7 @@ test("keys each spot by its kind, its Line or Network and its Stations, never by
     { kind: 'branch', line: 'rodalies:R2N', shape: 'rodalies:51_R2N', stations: [A, B], text: [''] },
     { kind: 'trip', why: 'fast', line: 'metro:L1', trip: 'metro:1.1.11828731', stations: [B, A], text: [''] },
     { kind: 'notrips', network: 'rodalies', day: 2, text: [''] },
+    { kind: 'trips', network: 'fgc', text: [''], numbers: { monday: 2041 } },
     { kind: 'length', line: 'rodalies:R16', shape: 'rodalies:51_R16_INV:back', text: [''], numbers: { percent: 0.6 } },
     { kind: 'node', zoom: 7, point: [-3.67716, 40.45778], text: [''], numbers: { size: 15.1 } },
     { kind: 'measures', text: [''], numbers: { breaks: 236 } },
@@ -32,6 +33,7 @@ test("keys each spot by its kind, its Line or Network and its Stations, never by
     'node 7 40.458 -3.677',
     'notrips rodalies 2',
     'trip metro:L1 fast adif:1 adif:2',
+    'trips fgc',
     'turn rodalies:R16 adif:2',
   ]);
 });
@@ -170,6 +172,13 @@ test('counts a Trip count, a node or any other measure as changed when it moves 
   ]);
 });
 
+test("counts a Network's Trips as changed only where a day of the week's dropped by more than a quarter, not where they rose, dropped a quarter or less, or a day is first counted", () => {
+  const trips: Spot = { kind: 'trips', key: 'trips fgc', network: 'fgc', text: ["FGC's Trips on 2026-10-06: 2040"], numbers: { monday: 2040, tuesday: 2040 } };
+  const counts = (numbers: Record<string, number>) => diff([trips], [{ ...trips, numbers }]);
+  expect(counts({ monday: 3000, tuesday: 1530, wednesday: 2040 })).toBe('Nothing in the build report is new, gone or changed since the last build.');
+  expect(counts({ monday: 1529, tuesday: 2040 }).split('\n').filter((line) => line.startsWith('- '))).toEqual(['- `trips fgc`: monday (2040 → 1529)']);
+});
+
 test('with no last report, every spot is new, and it says so', () => {
   expect(diff(undefined, [NO_TRIPS, TURN]).split('\n').filter((line) => line.startsWith('#') || line.startsWith('- `'))).toEqual([
     '### Build report: no last report to diff against, so all 2 spots are new',
@@ -184,15 +193,16 @@ const RUN = 'https://github.com/gariasf/viapeninsula/actions/runs/37330911997';
 /** The keys of the spots a comment lists, in its order. */
 const listed = (body?: string) => body?.split('\n').flatMap((line) => line.match(/^- `([^`]+)`/)?.[1] ?? []);
 
-test('comments only on problem spots new since the last build: a run kept, a turn-back, a branch, Trips left out or no Trips, never a length, a node or the measures', () => {
+test("comments only on problem spots new since the last build: a run kept, a turn-back, a branch, Trips left out or no Trips, never a length, a node, the measures or a Network's Trips", () => {
   const kept: Spot = { kind: 'kept', key: 'kept rodalies:R3 adif:78600 adif:78605 nopath', text: [] };
   const branch: Spot = { kind: 'branch', key: 'branch rodalies:R2N adif:79100 adif:79101', text: [] };
   const trip: Spot = { kind: 'trip', key: 'trip metro:L1 fast tmb:1.111 tmb:1.112', text: [], numbers: { trips: 1 } };
-  const last = [LENGTH, MEASURES, TRIP];
-  // A new node, and numbers that moved, a known problem spot's too: nothing to comment.
-  expect(comment(last, [{ ...LENGTH, numbers: { percent: 3 } }, { ...MEASURES, numbers: { breaks: 1 } }, NODE, { ...TRIP, numbers: { trips: 6 } }], RUN)).toBeUndefined();
+  const trips: Spot = { kind: 'trips', key: 'trips fgc', network: 'fgc', text: [], numbers: { monday: 2041 } };
+  const last = [LENGTH, MEASURES, TRIP, trips];
+  // A new node, and numbers that moved, a known problem spot's too, and a Network's Trips by half: nothing to comment.
+  expect(comment(last, [{ ...LENGTH, numbers: { percent: 3 } }, { ...MEASURES, numbers: { breaks: 1 } }, NODE, { ...TRIP, numbers: { trips: 6 } }, { ...trips, numbers: { monday: 1020 } }], RUN)).toBeUndefined();
   // In order of key, as reports are.
-  expect(listed(comment(last, [branch, kept, LENGTH, MEASURES, NODE, NO_TRIPS, { ...TRIP, numbers: { trips: 6 } }, trip, TURN], RUN))).toEqual([
+  expect(listed(comment(last, [branch, kept, LENGTH, MEASURES, NODE, NO_TRIPS, { ...TRIP, numbers: { trips: 6 } }, trip, { ...trips, key: 'trips tram', network: 'tram' }, TURN], RUN))).toEqual([
     'branch rodalies:R2N adif:79100 adif:79101',
     'kept rodalies:R3 adif:78600 adif:78605 nopath',
     'notrips rodalies 0',
