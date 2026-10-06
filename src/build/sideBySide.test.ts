@@ -510,21 +510,29 @@ test('smooths each centreline for each zoom band where Lines drawn off it would 
 });
 
 test("draws each Line just as it was when a Line far off is added, as Madrid's were beside Catalonia's (#277)", async () => {
-  // R2 and R11 are drawn between their tracks, 40 m apart, for 2.5 km; then R2 goes on alone. C3 runs
-  // 30 km east across Madrid, with a point every 10 m, its shape first.
-  const lines = [line('R2', 'R2'), line('R11', 'R11')];
-  const shapes = [shape('R2', [0, 0], [5000, 0]), shape('R11', [2500, 40], [0, 40])];
+  // R2 and R11 are drawn between their tracks, 40 m apart, for 2.5 km; then R2 goes on alone. 3 km
+  // north, R1, R3, R4 and R7 share track round a quarter circle 150 m across, where their centreline is
+  // smoothed zoomed out. C3 runs 30 km east across Madrid, with a point every 10 m, first.
+  const turn = Array.from({ length: 25 }, (_, i): [number, number] => [1000 + 150 * Math.sin((i * Math.PI) / 48), 3150 - 150 * Math.cos((i * Math.PI) / 48)]);
+  const round = ['R1', 'R3', 'R4', 'R7'];
+  const lines = [line('R2', 'R2'), line('R11', 'R11'), ...round.map((n) => line(n, n))];
+  const shapes = [shape('R2', [0, 0], [5000, 0]), shape('R11', [2500, 40], [0, 40]), ...round.map((n) => shape(n, [0, 3000], ...turn, [1150, 4150]))];
   const kx = M * Math.cos((40.42 * Math.PI) / 180);
   const madrid: Shape = { id: 'C3', coords: Array.from({ length: 3001 }, (_, i) => [Math.round((-3.7 + (i * 10) / kx) * 1e5) / 1e5, 40.42]), dist: Array.from({ length: 3001 }, (_, i) => i * 10) };
   const alone = await sideBySide(lines, shapes);
-  const both = await sideBySide([...lines, { ...line('C3', 'C3'), network: 'cercanias-madrid' }], [madrid, ...shapes]);
-  const catalonia = ({ strokes, centrelines, rails, slots, tracks }: typeof alone) => ({
-    strokes: strokes.filter((s) => s.line !== 'C3'),
-    // East of Greenwich.
-    centrelines: centrelines.filter((c) => (c.coords[0]?.[0] ?? 0) > 0),
-    rails: rails.filter((s) => s.line !== 'C3'),
-    slots: slots.filter((s) => s.line !== 'C3'),
-    tracks: tracks.filter((s) => s.line !== 'C3'),
-  });
-  expect(catalonia(both)).toEqual(catalonia(alone));
+  const both = await sideBySide([{ ...line('C3', 'C3'), network: 'cercanias-madrid' }, ...lines], [madrid, ...shapes]);
+  expect(alone.centrelines.some((c) => c.id.includes(SMOOTH))).toBe(true);
+  // The other Lines' strokes in each band, and their slots, by the points of the line each is on there,
+  // whatever its Stretch is called; and their rails and tracks.
+  const drawn = ({ strokes, centrelines, rails, slots, tracks }: typeof alone) => {
+    const byId = new Map([...shapes, ...centrelines].map((s) => [s.id, s]));
+    const theirs = <T extends { line: string }>(list: T[]) => list.filter((s) => s.line !== 'C3');
+    return {
+      strokes: BANDS.flatMap((_, band) => theirs(strokes).filter((s) => drawnIn(s, band)).map(({ shape, across, ...s }) => ({ ...s, band, on: inBand(byId, shape, band)?.coords }))),
+      slots: theirs(slots).map(({ on, ...s }) => ({ ...s, on: byId.get(on)?.coords })),
+      rails: theirs(rails),
+      tracks: theirs(tracks),
+    };
+  };
+  expect(drawn(both)).toEqual(drawn(alone));
 });

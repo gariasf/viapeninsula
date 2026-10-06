@@ -260,7 +260,7 @@ function dangling(strokes: Stroke[], shapes: Shape[]): number {
     // Not drawn in the band: a node absorbed its Stretch.
     if (start + end >= s.to - s.from) continue;
     const points = along(shape, s.from + start, s.to - end).map(flat);
-    const width = atZoom(APART, LOOSE_ZOOM) * pixelMetres(LOOSE_ZOOM, shape.coords[0]?.[1] ?? 0);
+    const width = atZoom(APART, LOOSE_ZOOM) * pixelMetres(LOOSE_ZOOM, LATITUDE);
     byLine.set(s.line, [...(byLine.get(s.line) ?? []), offset(points, s.side * width)]);
   }
   // ponytail: every stroke end against every segment of its Line, about 2 s for the map; a grid if it grows.

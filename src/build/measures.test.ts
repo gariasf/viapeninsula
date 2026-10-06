@@ -311,9 +311,9 @@ test('reports the measures as one spot with each of their numbers, in metres, an
 
 test('measures Lines the same whichever shape comes first in the track, however far off (#277)', () => {
   // R2 moves over a line width on a curve 190 m long, a kink at zooms 10 and 11; R11's and R14's
-  // tracks run 60 m apart, each drawn on its own, over each other at zoom 10; and R3's strokes end 19 m
-  // apart, not loose. C1's track is in Cádiz.
-  const shapes = [east('a', 4000), east(`${LINK}0`, 190), east('b', 2000, 0, 3000), east('c', 2000, 0, 3060), east('d', 3000, 0, 6000)];
+  // tracks run 43.5 m apart, each drawn on its own, over each other at zoom 10 but not at zoom 11, where
+  // half a line width is 42 m; and R3's strokes end 19 m apart, not loose. C1's track is in Cádiz.
+  const shapes = [east('a', 4000), east(`${LINK}0`, 190), east('b', 2000, 0, 3000), east('c', 2000, 0, 3043.5), east('d', 3000, 0, 6000)];
   const strokes = [
     stroke('R2', 'a', 0, 1000, 0),
     ...curves(1000, 1190, 0, 1),
