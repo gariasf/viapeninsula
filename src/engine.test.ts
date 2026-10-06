@@ -1076,6 +1076,65 @@ test('a followed Train shows the type of Unit it runs as, where its operator rep
   expect(trainAt(RACK, moment, RACK_RECEIVED, 'fgc:625cdae21f726b1bb950|652dc7e703')?.unitType).toBeUndefined();
 });
 
+test("an FGC report whose Trip ended more than 30 minutes before it is dropped, as Geotren names rack Trips that ended hours ago, but another Network's is kept", () => {
+  // Montserrat's rack Trips that a snapshot read at 13:46 on Sunday 4 October 2026 names, and the two
+  // its timetable had running then, 652dc7e006 and 652dc7e007, as the daily build had them on Tuesday
+  // 6 October, which runs them at Sunday's times (#232). Montserrat (MM) is at the top of the line,
+  // Monistrol-Vila (MP) on the way, and Monistrol de Montserrat (MO) at the bottom.
+  const [MM, MP, MO]: [Point, Point, Point] = [[1.836497527, 41.59225373], [1.843723316, 41.61562791], [1.84919403, 41.6103596]];
+  const down = (leave: string, vila: [string, string], arrive: string): Row[] => [['fgc:MM', leave, leave, 0, ...MM], ['fgc:MP', ...vila, 4123, ...MP], ['fgc:MO', arrive, arrive, 5102, ...MO]];
+  const up = (leave: string, vila: [string, string], arrive: string): Row[] => [['fgc:MO', leave, leave, 0, ...MO], ['fgc:MP', ...vila, 978, ...MP], ['fgc:MM', arrive, arrive, 5110, ...MM]];
+  const downToVila = (leave: string, arrive: string): Row[] => [['fgc:MM', leave, leave, 0, ...MM], ['fgc:MP', arrive, arrive, 4123, ...MP]];
+  const upFromVila = (leave: string, arrive: string): Row[] => [['fgc:MP', leave, leave, 978, ...MP], ['fgc:MM', arrive, arrive, 5110, ...MM]];
+  const trips: Record<string, Row[]> = {
+    '652dc7e300': down('08:15:00', ['08:28:00', '08:32:00'], '08:35:00'),
+    '652dc7e306': downToVila('08:35:00', '08:48:00'),
+    '652dc7e307': upFromVila('08:35:00', '08:48:00'),
+    '652dc7e305': up('08:48:00', ['08:51:00', '08:55:00'], '09:08:00'),
+    '652dc7e30b': upFromVila('09:15:00', '09:28:00'),
+    '652dc7e202': downToVila('09:35:00', '09:48:00'),
+    '652dc7e203': upFromVila('09:35:00', '09:48:00'),
+    '652dc7e200': downToVila('09:55:00', '10:08:00'),
+    '652dc7e102': down('11:15:00', ['11:28:00', '11:32:00'], '11:35:00'),
+    '652dc7e107': up('11:48:00', ['11:51:00', '11:55:00'], '12:08:00'),
+    '652dc7e104': down('12:15:00', ['12:28:00', '12:32:00'], '12:35:00'),
+    '652dc7e003': up('12:48:00', ['12:51:00', '12:55:00'], '13:08:00'),
+    '652dc7e000': down('13:15:00', ['13:28:00', '13:32:00'], '13:35:00'),
+    '652dc7e005': up('13:48:00', ['13:51:00', '13:55:00'], '14:08:00'),
+    '652dc7e006': downToVila('13:35:00', '13:48:00'),
+    '652dc7e007': upFromVila('13:35:00', '13:48:00'),
+  };
+  const sunday = bundleOf('2026-10-04', { id: 'fgc', name: 'FGC', profile: { ...PROFILE, topSpeed: 30 / 3.6 } }, Object.fromEntries(Object.entries(trips).map(([end, calls]) => [`fgc:6350da927c76|${end}`, { line: 'fgc:MM', calls }])));
+  // The snapshot's 14 reports for MM, as the fetcher made them from Geotren as FGC updated it at
+  // 13:46:00, each standing near a Station, under a calendar, 6d4fdaec, that isn't the day's.
+  const reported = Date.parse('2026-10-04T13:46:00.432+02:00');
+  const standing: [string, string][] = [
+    ['652dc7e300', 'MM'], ['652dc7e306', 'MM'], ['652dc7e307', 'MP'], ['652dc7e305', 'MO'], ['652dc7e30b', 'MP'], ['652dc7e202', 'MM'], ['652dc7e203', 'MP'],
+    ['652dc7e200', 'MM'], ['652dc7e102', 'MP'], ['652dc7e107', 'MO'], ['652dc7e104', 'MM'], ['652dc7e003', 'MO'], ['652dc7e000', 'MM'], ['652dc7e005', 'MO'],
+  ];
+  const received: Received[] = [{
+    snapshot: {
+      generated: reported,
+      feeds: { fgc: { lastSuccess: reported, lastAttempt: reported, status: 'ok', every: 120_000 } },
+      reports: standing.map(([end, station]) => ({ trip: `fgc:6d4fdaec|${end}`, line: 'fgc:MM', at: reported, position: { near: `fgc:${station}` } })),
+    },
+    at: reported,
+  }];
+  // At 13:48, the Trains of the Trip that ended at 13:35, 11 minutes before its report, and of the one
+  // leaving at 13:48 are Live. The other 12 Trips ended 38 minutes to 5 hours before theirs, and their
+  // Trains are off the map, as their timetables have them: no longer drawn Live, up to 5½ hours late,
+  // beside the two running.
+  expect(trainsAt(sunday, Date.parse('2026-10-04T13:48:00+02:00'), received).map((t) => [t.trip.id.split('|')[1], t.live])).toEqual([
+    ['652dc7e000', true],
+    ['652dc7e005', true],
+    ['652dc7e006', false],
+    ['652dc7e007', false],
+  ]);
+  // Renfe's report of the R2S at Barcelona Estació de França at 23:30, 40 minutes late, 39 minutes
+  // after its Trip ended, still has it Live.
+  expect(train(R2S, at('23:30:10'), [near(R2S, 'Barcelona Estació de França', 2400, at('23:30:00'))])).toMatchObject({ live: true });
+});
+
 test("a Train Renfe pins to a Station isn't held there: Renfe's pinned Stations are stale", () => {
   // Made up: Renfe pins the R2N to Mollet-Sant Fost at 21:39:30, with no Delay, though its timetable
   // has it leave at 21:38. It runs on its timetable.
@@ -1775,7 +1834,7 @@ test('folding each snapshot into the last replay draws the Trains as replaying e
 }, 60_000);
 
 test("counts each Network's jumps over 45 minutes of live data as the map received it", () => {
-  // Per Train-minute, (forward + back) / (liveSeconds / 60): Rodalies 0.075, FGC 0.031, TRAM 0.0023,
+  // Per Train-minute, (forward + back) / (liveSeconds / 60): Rodalies 0.075, FGC 0.030, TRAM 0.0023,
   // the Metro 0.0028. They're the baseline the tickets that make Trains jump less, such as #39 and
   // #46, measure against: one that changes how often they jump changes these. The Metro's rose by 11
   // with #105: each is where a Train used to vanish or appear off its Trip's first Station, and now
@@ -1792,10 +1851,15 @@ test("counts each Network's jumps over 45 minutes of live data as the map receiv
   // which keeps a Block from running a Trip it has out of its first Station more than 8 minutes before
   // it's due: at 16:15:29 the L2 Block TMB numbers "???", which ran a Trip due to leave its first Station
   // 10 minutes later, runs one 28 minutes late, whose Train jumps back 11.7 km from where the Block
-  // that ran it before left it.
+  // that ran it before left it. FGC's fell by two with #232, which drops an FGC report whose Trip ended
+  // more than 30 minutes before it: from 15:54, Geotren names RL2's 13:39 from Lleida, due at La Pobla
+  // de Segur at 15:14:30, for a Unit whose GPS runs from Lleida at 15:58 to past Balaguer by 16:38, at
+  // its timetable's pace. Drawn Live all 45 minutes, from 16:00 about 2 h 15 min late, it jumped back
+  // 18.7 km at 16:00:14, as its GPS went back to Lleida, and forward 815 m at 16:22:13. It may have been
+  // that Trip really running late (#233).
   expect(jumps(RECORDED.bundle, RECORDED.received)).toEqual({
     rodalies: { forward: 66, back: 123, liveSeconds: 152139 },
-    fgc: { forward: 25, back: 51, liveSeconds: 148634 },
+    fgc: { forward: 24, back: 50, liveSeconds: 145935 },
     tram: { forward: 3, back: 0, liveSeconds: 77809 },
     metro: { forward: 0, back: 14, liveSeconds: 304017 },
   });

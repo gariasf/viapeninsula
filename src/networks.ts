@@ -136,8 +136,10 @@ export const FGC: NetworkConfig = {
   timetables: [{ url: 'https://www.fgc.cat/google/google_transit.zip', prefix: 'fgc', operator: 'fgc', parents: true }],
   // FGC's open data is CC BY 4.0.
   credit: { text: 'FGC', url: 'https://dadesobertes.fgc.cat/', licence: 'CC BY 4.0' },
-  // Geotren has a Train standing at a Station where it puts it near one.
-  live: { delay: 'operator', near: 'standing' },
+  // Geotren has a Train standing at a Station where it puts it near one. And it names Trips long after
+  // they ended: at 13:46 on 4 October 2026, 12 of its 14 reports for the rack line named Trips that had
+  // ended 38 minutes to 5 hours before (#232).
+  live: { delay: 'operator', near: 'standing', lingers: true },
   lines: {
     // Its S and L Lines are commuter ones, and R5, R50, R6, R60, RL1 and RL2 regional. MM is
     // Montserrat's rack railway, and FV the Vallvidrera funicular.
