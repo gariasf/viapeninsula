@@ -17,20 +17,17 @@ const STRINGS = {
   osmContributors: { ca: "© Els col·laboradors de l'OpenStreetMap", es: '© Colaboradores de OpenStreetMap', en: '© OpenStreetMap contributors' },
   // Before the day an operator last updated its data, in the credits.
   updated: { ca: 'actualitzat el', es: 'actualizado el', en: 'updated' },
-  // The legend's two markers, and what each means.
+  // Live and Scheduled, and what each means in About's key. Alone, they're the followed Train's status, and what a Train's pill tells a screen reader.
   live: { ca: 'En directe', es: 'En directo', en: 'Live' },
   liveMeans: { ca: 'posició confirmada per dades en temps real', es: 'posición confirmada por datos en tiempo real', en: 'position confirmed by live data' },
   scheduled: { ca: 'Programat', es: 'Programado', en: 'Scheduled' },
   scheduledMeans: { ca: "posició segons l'horari", es: 'posición según el horario', en: 'position from the timetable' },
-  // The legend's count of every Train on the map. {n} is how many there are, and {live} how many of them are Live.
-  trainCount: { ca: '{n} trens, {live} en directe', es: '{n} trenes, {live} en directo', en: '{n} trains, {live} live' },
-  oneTrainCount: { ca: '1 tren, {live} en directe', es: '1 tren, {live} en directo', en: '1 train, {live} live' },
-  // After a Network's name in the banner, while its live data is unavailable.
-  liveUnavailable: {
-    ca: "dades en temps real no disponibles, posicions segons l'horari",
-    es: 'datos en tiempo real no disponibles, posiciones según el horario',
-    en: 'live data unavailable, positions from the timetable',
-  },
+  // The legend's counts of every Train on the map, Live and Scheduled. {n} is how many.
+  liveCount: { ca: '{n} en directe', es: '{n} en directo', en: '{n} live' },
+  scheduledCount: { ca: '{n} programats', es: '{n} programados', en: '{n} scheduled' },
+  oneScheduledCount: { ca: '{n} programat', es: '{n} programado', en: '{n} scheduled' },
+  // The banner, while a Network's live data is unavailable: {network} is its name.
+  liveUnavailable: { ca: '{network}: sense dades en temps real', es: '{network}: sin datos en tiempo real', en: '{network} live data unavailable' },
   // After a Network's name in the banner, while its timetable has no Trips today, so it has no Trains on the map (#226).
   noTimetable: { ca: 'sense horari avui', es: 'sin horario hoy', en: 'no timetable today' },
   // The banner alone, while the map has never got live data, and so can't name a Network.
@@ -41,22 +38,36 @@ const STRINGS = {
   },
   // The follow panel. {n} is a number of minutes, and {ago} how long ago, as ago() words it.
   stopFollowing: { ca: 'Deixa de seguir aquest tren', es: 'Dejar de seguir este tren', en: 'Stop following this train' },
-  onTime: { ca: 'Puntual', es: 'Puntual', en: 'On time' },
+  onTime: { ca: 'puntual', es: 'puntual', en: 'on time' },
   late: { ca: '{n} min de retard', es: '{n} min de retraso', en: '{n} min late' },
   early: { ca: "{n} min d'avançament", es: '{n} min de adelanto', en: '{n} min early' },
   confirmed: { ca: 'confirmat fa {ago}', es: 'confirmado hace {ago}', en: 'confirmed {ago} ago' },
   lastConfirmed: { ca: 'confirmat en directe per última vegada fa {ago}', es: 'confirmado en directo por última vez hace {ago}', en: 'last confirmed live {ago} ago' },
-  noLiveTrain: { ca: 'sense dades en temps real per a aquest tren', es: 'sin datos en tiempo real para este tren', en: 'no live data for this train' },
+  noLiveTrain: { ca: 'sense dades en temps real', es: 'sin datos en tiempo real', en: 'no live data' },
   speed: { ca: 'Velocitat estimada', es: 'Velocidad estimada', en: 'Estimated speed' },
   unit: { ca: 'Unitat', es: 'Unidad', en: 'Unit' },
   nextStations: { ca: 'Properes estacions', es: 'Próximas estaciones', en: 'Next stations' },
+  nextStation: { ca: 'Propera estació', es: 'Próxima estación', en: 'Next station' },
+  // Where the followed Train's next Stations start: the Station it last left.
+  left: { ca: 'Ha sortit de {station}', es: 'Ha salido de {station}', en: 'Left {station}' },
+  // How long until a Train comes: under a time on a board or in Nearby, and under the followed Train's next Station's.
+  minutes: { ca: '{n} min', es: '{n} min', en: '{n} min' },
+  inMinutes: { ca: "d'aquí a {n} min", es: 'en {n} min', en: 'in {n} min' },
+  now: { ca: 'ara', es: 'ahora', en: 'now' },
+  // At the foot of a peeking followed Train: how many Stations it has still to come after the next, and the last of them, where it's headed, and when it's due there.
+  moreStations: { ca: '{n} estacions més, fins a {headsign} ({time})', es: '{n} estaciones más, hasta {headsign} ({time})', en: '{n} more stations, to {headsign} at {time}' },
+  oneMoreStation: { ca: '1 estació més, fins a {headsign} ({time})', es: '1 estación más, hasta {headsign} ({time})', en: '1 more station, to {headsign} at {time}' },
   // A Station's board.
   closeBoard: { ca: 'Tanca el panell de sortides', es: 'Cerrar el panel de salidas', en: 'Close the departures board' },
   nextDepartures: { ca: 'Properes sortides', es: 'Próximas salidas', en: 'Next departures' },
   noDepartures: { ca: 'Cap sortida propera', es: 'Ninguna salida próxima', en: 'No upcoming departures' },
   cancelled: { ca: 'Cancel·lat', es: 'Cancelado', en: 'Cancelled' },
-  // Nearby Trains: the button that opens them, and their panel.
+  // At the foot of a peeking board: how many departures more it lists.
+  moreDepartures: { ca: '{n} sortides més', es: '{n} salidas más', en: '{n} more departures' },
+  oneMoreDeparture: { ca: '1 sortida més', es: '1 salida más', en: '1 more departure' },
+  // Nearby Trains: their panel's title, and the button that opens them.
   nearby: { ca: 'Trens a prop', es: 'Trenes cercanos', en: 'Nearby trains' },
+  nearbyButton: { ca: 'A prop', es: 'Cerca', en: 'Nearby' },
   closeNearby: { ca: 'Tanca els trens a prop', es: 'Cerrar los trenes cercanos', en: 'Close nearby trains' },
   passingNearby: { ca: "Passen a menys d'1,5 km en la pròxima hora", es: 'Pasan a menos de 1,5 km en la próxima hora', en: 'Passing within 1.5 km in the next hour' },
   noneNearby: { ca: "Cap tren no passa a menys d'1,5 km en la pròxima hora", es: 'Ningún tren pasa a menos de 1,5 km en la próxima hora', en: 'No trains pass within 1.5 km in the next hour' },
@@ -68,6 +79,9 @@ const STRINGS = {
   },
   // The button beside Nearby's that follows a random Train.
   followRandom: { ca: "Segueix un tren a l'atzar", es: 'Seguir un tren al azar', en: 'Follow a random train' },
+  // The handle at the top of the panel on a phone, which pulls it up or lets it down.
+  showMore: { ca: 'Mostra més', es: 'Mostrar más', en: 'Show more' },
+  showLess: { ca: 'Mostra menys', es: 'Mostrar menos', en: 'Show less' },
   // The About dialog, and the legend's button that opens it.
   about: { ca: 'Quant a aquest mapa', es: 'Acerca de este mapa', en: 'About this map' },
   close: { ca: 'Tanca', es: 'Cerrar', en: 'Close' },
@@ -82,6 +96,8 @@ const STRINGS = {
     es: 'Con el mapa ampliado, cada tren es una etiqueta con el nombre de su línea, y su forma indica el tipo de servicio: redondeada para las líneas de cercanías y las suburbanas, acabada en punta por ambos extremos para las regionales, y cuadrada con las esquinas redondeadas para las del metro de TMB, del TRAM, del cremallera y de los funiculares.',
     en: "Zoomed in, each train is a label with its line's name, shaped by the line's kind of service: rounded for commuter and suburban lines, pointed at both ends for regional lines, and a rounded square for the lines of TMB's metro, TRAM, the rack railway and the funiculars.",
   },
+  // About's key: the pills a Train is drawn as, Live and Scheduled, and its outlines.
+  readingTheMap: { ca: 'Com llegir el mapa', es: 'Cómo leer el mapa', en: 'Reading the map' },
   credits: { ca: 'Crèdits', es: 'Créditos', en: 'Credits' },
   sourceCode: { ca: 'Codi font', es: 'Código fuente', en: 'Source code' },
   privacy: { ca: 'Privadesa', es: 'Privacidad', en: 'Privacy' },
@@ -133,11 +149,29 @@ export function setLanguage(choice: Language) {
 /** An interface string, in `lang`, or else the language the interface speaks now. */
 export const t = (key: keyof typeof STRINGS, lang = language()): string => STRINGS[key][lang];
 
-/** How many Trains are on the map, and how many of them are Live, in `lang`, or else the language the interface speaks now. */
-export const trainCount = (trains: number, live: number, lang = language()): string =>
-  // ponytail: one Train is singular and any other number plural, as in Catalan, Spanish and English.
-  // Pick the string by Intl.PluralRules if a language with other plural forms joins them.
-  STRINGS[trains === 1 ? 'oneTrainCount' : 'trainCount'][lang].replace('{n}', String(trains)).replace('{live}', String(live));
+/**
+ * How many Trains on the map are Live, and how many Scheduled, in `lang`, or else the language the interface speaks now.
+ * ponytail: one is singular and any other number plural, as in Catalan, Spanish and English. Pick
+ * the string by Intl.PluralRules if a language with other plural forms joins them.
+ */
+export const trainCounts = (live: number, scheduled: number, lang = language()): [live: string, scheduled: string] => [
+  STRINGS.liveCount[lang].replace('{n}', String(live)),
+  STRINGS[scheduled === 1 ? 'oneScheduledCount' : 'scheduledCount'][lang].replace('{n}', String(scheduled)),
+];
+
+/** How long until a Train comes, `minutes` from now, in `lang`, or else the language the interface speaks now: as `minutes` has it, or for the next Station `inMinutes`, or now. */
+export const toGo = (minutes: number, phrase: 'minutes' | 'inMinutes', lang = language()): string =>
+  minutes > 0 ? STRINGS[phrase][lang].replace('{n}', String(minutes)) : STRINGS.now[lang];
+
+/** The banner's short form, saying that a Network's live data is unavailable, by its name, in `lang`, or else the language the interface speaks now. */
+export const liveUnavailable = (network: string, lang = language()): string => STRINGS.liveUnavailable[lang].replace('{network}', network);
+
+/** How many Stations a followed Train has still to come after its next, `n`, to its last, where it's headed, and when it's due there, in `lang`, or else the language the interface speaks now. */
+export const moreStations = (n: number, headsign: string, time: string, lang = language()): string =>
+  STRINGS[n === 1 ? 'oneMoreStation' : 'moreStations'][lang].replace('{n}', String(n)).replace('{headsign}', headsign).replace('{time}', time);
+
+/** How many departures more a board lists than it shows peeking, in `lang`, or else the language the interface speaks now. */
+export const moreDepartures = (n: number, lang = language()): string => STRINGS[n === 1 ? 'oneMoreDeparture' : 'moreDepartures'][lang].replace('{n}', String(n));
 
 /** What this device remembers the viewer chose, if its storage can be read. */
 function remembered(): string | null {
