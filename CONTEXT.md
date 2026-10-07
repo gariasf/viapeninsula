@@ -70,6 +70,16 @@ _Avoid_: Lateness, offset
 A Train its operator has announced won't run.
 _Avoid_: Suppressed, removed
 
+### Alerts
+
+**Alert**:
+An operator's notice about a Line, a Station or a Train, from its live alerts feed (Renfe's, TRAM's), in its own words (ADR-0012).
+_Avoid_: Incident, notice, warning, disruption
+
+**Closure**:
+A part of a Line between two of its Stations that's closed, with buses or nothing in its Trains' place, or down to a single track, for as long as its Alert or the timetable says. The map draws only the Closures it can place on the Line's track.
+_Avoid_: Closed stretch (a Stretch is track, ADR-0006), cut, blockade
+
 ### Passport
 
 **Passport**:
