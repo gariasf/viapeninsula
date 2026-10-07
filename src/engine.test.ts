@@ -4,7 +4,7 @@ import { expect, test } from 'vitest';
 import { beside, DEGREE, places, pointAt, type Bundle, type Network, type Point, type Report, type Shape, type Snapshot, type Trip } from './bundle.ts';
 import { noonMinus12h } from './build/gtfs.ts';
 import { stationsOf } from './build/track.ts';
-import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Received } from './engine.ts';
+import { boardAt, joinDays, KEEP, mapTime, nearbyAt, trainAt, trainsAt, unavailable, type Received } from './engine.ts';
 import { jumps } from './jumps.ts';
 import { NETWORKS } from './networks.ts';
 
@@ -368,6 +368,30 @@ test('corrects a clock by the freshest snapshot received so far', () => {
     { snapshot: written(at('22:00:00')), at: at('22:00:25', -300) },
   ];
   expect(where(R2S, at('22:00:30', -300), received)).toBe(where(R2S, at('22:00:30')));
+});
+
+test("the map's time is the device's before any snapshot", () => {
+  expect(mapTime(at('12:00:00'), [])).toBe(at('12:00:00'));
+});
+
+/** 14 hours, in seconds. */
+const HOURS_14 = 14 * 3600;
+
+test("the map's time is the fetcher's once a snapshot shows the device's clock is hours behind", () => {
+  // A device 14 hours behind receives a snapshot as it's written, at noon.
+  const received = [{ snapshot: written(at('12:00:00')), at: at('12:00:00', -HOURS_14) }];
+  expect(mapTime(at('12:00:30', -HOURS_14), received)).toBe(at('12:00:30'));
+});
+
+test("the map's time is the fetcher's once a second snapshot shows the device's clock is hours ahead", () => {
+  // A device 14 hours ahead receives a snapshot as it's written, at 11:59:40, and the next, 20 s later.
+  const received = [
+    { snapshot: written(at('11:59:40')), at: at('11:59:40', HOURS_14) },
+    { snapshot: written(at('12:00:00')), at: at('12:00:00', HOURS_14) },
+  ];
+  // The first alone could be a stopped fetcher's last, to a device whose clock is right.
+  expect(mapTime(at('11:59:50', HOURS_14), received.slice(0, 1))).toBe(at('11:59:50', HOURS_14));
+  expect(mapTime(at('12:00:30', HOURS_14), received)).toBe(at('12:00:30'));
 });
 
 test('a Train its operator has cancelled leaves the map', () => {

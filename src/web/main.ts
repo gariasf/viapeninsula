@@ -7,7 +7,7 @@ import nunitoSans from '@fontsource/nunito-sans/files/nunito-sans-latin-400-norm
 import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-normal.woff2?url';
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
 import { along, APART, atZoom, BANDS, bandZooms, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Credit, type Place, type DayTrips, type Kind, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, WIDTH } from '../bundle.ts';
-import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Departure, type Followed, type Received } from '../engine.ts';
+import { boardAt, joinDays, KEEP, mapTime, nearbyAt, trainAt, trainsAt, unavailable, type Departure, type Followed, type Received } from '../engine.ts';
 import { earlierStations, language, LANGUAGES, liveUnavailable, moreDepartures, moreStations, setLanguage, t, toGo, trainCounts, type Language } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { linesAt } from './tap.ts';
@@ -481,7 +481,7 @@ wide.addEventListener('change', () => {
 let following: { day: string; trip: string; at?: Point } | undefined;
 /** The place whose board the panel shows, by its ID in places(), while the map follows no Train. */
 let boardPlace: string | undefined;
-/** The last date a Station board had no departures left, when the map needs the next day's Trips for it. */
+/** The last date a Station board had no departures left, when the map needs the next day's Trips for it: by the map's time, as the days it needs are. */
 let emptyBoard: string | undefined;
 /**
  * Where the viewer is, while the panel shows their nearby Trains instead, or that the browser is
@@ -1726,7 +1726,7 @@ function boardPanel(id: string, up: boolean): Panel | undefined {
   const now = Date.now();
   const departures = bundle ? boardAt(bundle, now, received, place.stations) : [];
   // With none left today, the next day's first are to come; refreshDays() runs again within a minute if it's busy now.
-  const date = madridDate(new Date());
+  const date = madridDate(new Date(mapTime(now, received)));
   if (bundle && !departures.length && emptyBoard !== date) {
     emptyBoard = date;
     refreshDays();
@@ -2030,8 +2030,10 @@ function creditOf({ text, url, licence, updated }: Credit): string {
 }
 
 /**
- * The service days the map needs now (daysNeeded()), joined, where they aren't the ones it shows. A
- * day whose bundle fails to come is left out, and fetched again next time.
+ * The service days the map needs now (daysNeeded()), joined, where they aren't the ones it shows. Now
+ * is the map's time (mapTime()): the device's until a snapshot corrects it, and the days follow that
+ * at the next refreshDays(), within a minute. A day whose bundle fails to come is left out, and
+ * fetched again next time.
  * Today's track comes on its own first, so the map can draw it before the Trips come. Notes today's
  * Networks with no Trips, which the banner names.
  */
@@ -2043,7 +2045,7 @@ async function neededDays(): Promise<{ track: Promise<Track>; days: Promise<Bund
     console.warn(error);
   }
   // The next day's first Trains come SOON before they're on the map, so they're among the nearby Trains.
-  const needed = daysNeeded(manifest.days, Date.now(), { early: SOON, late: LATE, emptyBoard });
+  const needed = daysNeeded(manifest.days, mapTime(Date.now(), received), { early: SOON, late: LATE, emptyBoard });
   if (!needed) throw new Error('The manifest names no service day');
   const { today, days } = needed;
   noTripsIds = today.noTrips ?? [];
