@@ -1263,10 +1263,20 @@ test("a TRAM Train between Stations is Live, where its distance since its Trip's
   expect(tram(T5, TRAM_RECEIVED)?.dist).toBeCloseTo(992, 3);
 });
 
-test("a TRAM Train standing at a Station, where TRAM's distance reads 0, is Live, running as late or early as TRAM says", () => {
-  // TRAM has the T2 standing at Cornellà Centre, 82 s early: where its timetable has it 82 s later.
+test("a TRAM Train whose distance reads 0, at the stop TRAM names or just gone from it, is Live, running as late or early as TRAM says", () => {
+  // TRAM names Cornellà Centre for the T2, 82 s early: it's drawn where its timetable has it 82 s later.
   expect(tram(T2, TRAM_RECEIVED)).toMatchObject({ live: true });
   expect(tram(T2, TRAM_RECEIVED)?.dist).toBeCloseTo(tram(T2, [], 82)?.dist ?? NaN, 3);
+});
+
+test("a TRAM Train isn't held at the Station TRAM names, even one its Trip calls at: it's the one the Train is at or has just left", () => {
+  // Made up: TRAM has the T2 82 s early, 62 s gone from Cornellà Centre towards Les Aigües, and names
+  // the stop it has just left by the bundle's ID for Cornellà Centre, as a table from its platforms to
+  // their Stations would. It's drawn where TRAM's Delay has it, not held at Cornellà Centre: held
+  // there, a Train would stand 40–80 s and then jump a whole stretch (#42).
+  const report: Report = { trip: T2, at: TRAM_LIVE.generated, position: { near: 'tram:ST-191' }, delay: -82 };
+  const received: Received[] = [{ snapshot: { ...TRAM_LIVE, reports: [report] }, at: TRAM_LIVE.generated }];
+  expect(tram(T2, received)?.dist).toBeCloseTo(tram(T2, [], 82)?.dist ?? NaN, 3);
 });
 
 // TMB's predictions for the Metro as the fetcher made them into snapshots at 13:14:10 and 13:15:41
