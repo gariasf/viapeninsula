@@ -1100,12 +1100,12 @@ body {
   margin-top: 18px;
 }
 
-/* C: the cards in a sheet docked to the bottom, which peeks or is pulled up, with the buttons and the credits riding on its top edge. */
+/* C: the cards in a sheet docked to the bottom, which peeks or is pulled up, with the buttons and the credits riding on its top edge. It floats 8 px in from the screen's sides and bottom, as the corners' cards do, so that its outline closes all round. */
 .v-c .dock {
   position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
+  right: 8px;
+  bottom: 8px;
+  left: 8px;
   z-index: 3;
 }
 
@@ -1117,7 +1117,7 @@ body {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  padding: 0 12px 12px;
+  padding: 0 4px 12px;
   pointer-events: none;
 }
 
@@ -1147,8 +1147,7 @@ body {
   box-sizing: border-box;
   overflow-y: auto;
   padding: 0 16px 16px;
-  border-width: 2px 0 0;
-  border-radius: 18px 18px 0 0;
+  border-radius: 18px;
 }
 
 .v-c .sheet.up {
@@ -1157,11 +1156,11 @@ body {
 
 .v-c .sheet.about {
   position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
+  right: 8px;
+  bottom: 8px;
+  left: 8px;
   z-index: 5;
-  height: calc(100% - 56px);
+  height: calc(100% - 64px);
 }
 
 /* The handle, a button too: Show more, or Show less. */

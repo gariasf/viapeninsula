@@ -113,6 +113,8 @@ const ICON = {
     '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4.5M12 17.4v.1"/></svg>',
 };
 
+/** The page's own query: which looks, scenes and theme it shows. */
+const params = new URLSearchParams(location.search);
 const en = (key: Parameters<typeof t>[0]) => t(key, 'en');
 const esc = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;');
 const minutesOf = (hhmm: string) => {
@@ -436,7 +438,6 @@ function sheets(scene: Scene, theme: Theme, wide: boolean): string {
 
 // ---- The page.
 
-const params = new URLSearchParams(location.search);
 const looks = (Object.keys(LOOKS) as Look[]).filter((look) => !params.has('look') || params.get('look')?.split(',').includes(look));
 const themes = THEMES.filter((theme) => !params.has('theme') || params.get('theme') === theme);
 const scenesOf = (look: Look) => SCENES_OF[look].filter((scene) => !params.has('scene') || params.get('scene')?.split(',').includes(scene));
