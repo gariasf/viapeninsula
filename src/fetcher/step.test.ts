@@ -586,12 +586,13 @@ test('makes one report for each Train TRAM has in service whose trip update name
 /** What the run reports about a TRAM Trip. */
 const tramReport = (trip: string) => tramRun().snapshot.reports.find((r) => r.trip === `tram:${trip}`);
 
-test("gives a moving TRAM Train its distance since its Trip's first Station, and one standing at a Station, where that reads 0, that Station, each with TRAM's Delay", () => {
+test("gives a TRAM Train its distance since its Trip's first Station, and where that reads 0, the stop it's at or has just left, each with TRAM's Delay", () => {
   // A T1 towards Bon Viatge, 6,120 m from Francesc Macià, between La Sardana and Montesa, 10 s late.
   expect(tramReport('TBX:2579_0094')).toEqual({ trip: 'tram:TBX:2579_0094', at: TRAM_NOW, position: { along: 6120 }, delay: 10 });
-  // A T2 towards Llevant-Les Planes standing at Cornellà Centre, at the platform TRAM numbers 1019, 82 s early.
+  // A T2 towards Llevant-Les Planes at Cornellà Centre or just gone from it, at the platform TRAM
+  // numbers 1019, 82 s early.
   expect(tramReport('TBX:2579_0198')).toEqual({ trip: 'tram:TBX:2579_0198', at: TRAM_NOW, position: { near: 'tram:1019' }, delay: -82 });
-  // Of the 24 Trains, 6 are between Stations.
+  // Of the 24 Trains, TRAM gives 6 a distance, and the other 18 the stop they're at or have just left.
   const positions = tramRun().snapshot.reports.map((r) => r.position);
   expect(positions.filter((p) => p && 'along' in p)).toHaveLength(6);
   expect(positions.filter((p) => p && 'near' in p)).toHaveLength(18);

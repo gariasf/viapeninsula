@@ -907,7 +907,7 @@ function delayOf(trip: Trip, calls: Call[], shape: Shape, { profile, live }: Net
   if (position && 'near' in position && live?.near !== 'pinned') {
     // Standing at a Station, as Geotren has FGC's, it's there when it was reported, however long ago
     // the trip updates have it leave. Not Renfe's: it pins Trains coming into a Station too, and late.
-    // Nor TRAM's: it names the stop a tram is at or has just left, and held there, a tram would stand
+    // Nor TRAM's: it names the stop a Train is at or has just left, and held there, a Train would stand
     // 40–80 s and then jump a whole stretch (#42). At its Trip's first Station it can stand long before
     // it leaves, off the map, so there it's only held from leaving.
     const i = calls.findIndex((c) => c.station === position.near);

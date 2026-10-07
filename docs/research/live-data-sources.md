@@ -143,7 +143,7 @@ From its [README](https://github.com/siriushsu/taiwan-rail-live):
 - **Networks:** `1` TRAMBAIX, `2` TRAMBESÒS.
 - **`GET /api/v1/activevehicles?networkId=`**, per vehicle:
   - `lineName`, `originStopCode/Name`, `nextStopCode/Name`
-  - `vehiclePosition`: **metres travelled since the trip's origin stop**, but only as the tram reaches a stop: that stop's distance for about 40 s, then `0` until it reaches the next. So `0` doesn't mean standing: `originStopCode` is then the stop the tram is at or has just left (#42). `originStopCode` → `nextStopCode` is the segment the tram is on. *(Verified 2026-09-24 with OAuth credentials; what `0` means corrected 2026-10-07, #42.)*
+  - `vehiclePosition`: **metres travelled since the trip's origin stop**, but only as the tram reaches a stop: that stop's distance for about 40 s, then `0` until it reaches the next. So `0` doesn't mean standing, and nor do the `TARR` and `inStop: true` that come with it mid-trip: `originStopCode` is then the stop the tram is at or has just left (#42). `originStopCode` → `nextStopCode` is the segment the tram is on. *(Verified 2026-09-24 with OAuth credentials; what `0` means corrected 2026-10-07, #42.)*
   - `inStop`, `delay` (s, negative = early)
   - `destinationStopName`, `courseDirection`, `vehicleStatus`
   - Out-of-service vehicles show `lineName: "0"`. Around 07:05: 10 of 22 in service on TBX, 8 of 22 on TBS.

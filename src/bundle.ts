@@ -150,7 +150,7 @@ export interface LiveTraits {
   delay: 'operator' | 'gps' | 'none';
   /**
    * A Train reported near a Station stands there (`standing`), or may still be coming in or have left
-   * (`pinned`), as Renfe pins Trains coming into a Station too, and TRAM names the stop a tram is at or
+   * (`pinned`), as Renfe pins Trains coming into a Station too, and TRAM names the stop a Train is at or
    * has just left (#42).
    */
   near: 'standing' | 'pinned';
