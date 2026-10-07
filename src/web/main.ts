@@ -442,6 +442,12 @@ const lessMotion = matchMedia('(prefers-reduced-motion: reduce)');
 let pulledUp = false;
 /** Whether a finger is dragging the sheet, which shows all it has meanwhile. */
 let dragging = false;
+// MOCKUP (branch strip-past, not to be merged): `?strip=b` shows a followed Train's whole route, the
+// Stations it has left greyed above it, and pulled up the strip opens at the Train; `?strip=c` folds
+// them behind "N earlier stations" at the top of the strip, which shows them. Without it, today's strip.
+const STRIP = new URLSearchParams(location.search).get('strip');
+/** C: whether the fold is open. Each opening starts afresh. */
+let showPast = false;
 // A finger drags the sheet by its top, and lets it go peeking or pulled up, whichever it's nearer.
 grab(
   panel,
@@ -1396,10 +1402,19 @@ function closePanel() {
 /** Shows the panel afresh: a followed Train and a board peeking on a phone, Nearby pulled up, with its body scrolled to the top (#321). */
 function openPanel(up: boolean) {
   pulledUp = up;
+  showPast = false;
   panel.classList.remove('sliding');
   panel.style.height = '';
   showPanel();
   panel.querySelector('.sheet-body')?.scrollTo(0, 0);
+  // MOCKUP: on a wide window it's pulled up from the start.
+  if (wide.matches) toTheTrain();
+}
+
+/** MOCKUP, B: scrolls the panel's body to the followed Train in its strip, two Stations it has left above it. */
+function toTheTrain() {
+  const [body, train] = [panel.querySelector('.sheet-body'), panel.querySelector('.strip li.train')];
+  if (STRIP === 'b' && body && train) body.scrollTop += train.getBoundingClientRect().top - body.getBoundingClientRect().top - 2 * 28 - 4;
 }
 
 /**
@@ -1506,6 +1521,7 @@ function setPulledUp(up: boolean, from = panel.offsetHeight) {
   pulledUp = up;
   showPanel();
   map.easeTo({ padding: panelPadding(slide(panel, from)) });
+  if (up) toTheTrain();
 }
 
 /** Eases a sheet from `from` px high to the height it takes now, unless the viewer prefers less motion, and gives that height. */
@@ -1675,12 +1691,44 @@ function tripBar({ trip, dist, upcoming }: Followed) {
  */
 function strip({ trip, upcoming, standsAt }: Followed) {
   // The Station it left last, before those it has still to leave.
-  const lastLeft = trip.calls[trip.calls.length - upcoming.length - 1];
+  const left = trip.calls.length - upcoming.length;
+  const lastLeft = trip.calls[left - 1];
   const station = (className: string, time: (Node | string)[], name: string) => el('li', { className }, el('time', {}, ...time), el('span', { className: 'mark' }), el('span', { textContent: name }));
+  // MOCKUP: the Stations it has left, greyed, by name only: B always, C once its fold is open.
+  const pastShown = left > 0 && (STRIP === 'b' || (STRIP === 'c' && showPast));
+  const passed = pastShown
+    ? trip.calls.slice(0, left).map((call, i) => el('li', { className: `passed${i ? '' : ' origin'}` }, el('time'), el('span', { className: 'mark' }), el('span', {}, stationName(call.station), el('span', { className: 'sr-only', textContent: ', passed' }))))
+    : [];
+  const fold =
+    STRIP === 'c' && left > 0
+      ? [
+          el(
+            'li',
+            { className: 'fold' },
+            el('time'),
+            el('span'),
+            el(
+              'button',
+              {
+                type: 'button',
+                className: 'earlier',
+                onclick: () => {
+                  showPast = !showPast;
+                  showPanel();
+                },
+              },
+              el('span', { textContent: showPast ? `Hide ${left} earlier stations` : `${left} earlier ${left === 1 ? 'station' : 'stations'}` }),
+              icon(showPast ? 'up' : 'chevron'),
+            ),
+          ),
+        ]
+      : [];
   const list = el(
     'ol',
-    { className: 'strip' },
-    ...(lastLeft && !standsAt ? [station('train soft', [t('now')], t('left').replace('{station}', stationName(lastLeft.station)))] : []),
+    { className: `strip${pastShown ? ' with-past' : ''}` },
+    ...fold,
+    ...passed,
+    ...(lastLeft && !standsAt ? [pastShown ? station('train soft compact', [t('now')], '') : station('train soft', [t('now')], t('left').replace('{station}', stationName(lastLeft.station)))] : []),
     ...upcoming.map((call, i) =>
       station([i === 0 && standsAt ? 'train' : '', i === 0 ? 'next' : '', i === upcoming.length - 1 ? 'terminus' : ''].filter(Boolean).join(' '), timeOfDay(due(call, i === 0 && !!standsAt)), stationName(call.station)),
     ),

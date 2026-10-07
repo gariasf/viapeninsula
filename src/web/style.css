@@ -1078,3 +1078,72 @@ time .in {
     color: ButtonText;
   }
 }
+
+/* ---- MOCKUP (branch strip-past, not to be merged): a followed Train's past Stations in its strip, greyed. ---- */
+.strip li.passed {
+  color: var(--ink-soft);
+}
+
+.strip li.passed::before {
+  background: var(--rule);
+}
+
+.strip li.passed .mark {
+  border-color: var(--rule);
+}
+
+.strip li.passed.origin::before {
+  top: 50%;
+}
+
+/* The line comes into the Train grey, from the Stations it has left, and goes on in its Line's colour. */
+.strip.with-past li.train::before {
+  top: 0;
+  background: linear-gradient(var(--rule) 50%, var(--line) 50%);
+}
+
+.strip li.compact {
+  min-height: 22px;
+}
+
+/* C's fold: how many Stations it has left, which shows them. */
+.strip li.fold {
+  min-height: 36px;
+}
+
+.strip li.fold::before {
+  display: none;
+}
+
+.strip .earlier {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (forced-colors: active) {
+  .strip li.passed {
+    color: GrayText;
+  }
+
+  .strip li.passed::before {
+    background: GrayText;
+  }
+
+  .strip.with-past li.train::before {
+    background: linear-gradient(GrayText 50%, CanvasText 50%);
+  }
+
+  .strip li.passed .mark {
+    border-color: GrayText;
+  }
+}
