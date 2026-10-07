@@ -1069,36 +1069,32 @@ body {
   min-width: 0;
 }
 
-/* C: the panel as a sheet docked to the bottom, with a handle; the buttons in thumb reach above it. */
-.v-c .sheet {
+/* C: the cards in a sheet docked to the bottom, which peeks or is pulled up, with the buttons and the credits riding on its top edge. */
+.v-c .dock {
   position: absolute;
   right: 0;
   bottom: 0;
   left: 0;
   z-index: 3;
-  overflow-y: auto;
-  padding: 0 16px 16px;
-  border-width: 2px 0 0;
-  border-radius: 18px 18px 0 0;
 }
 
-.v-c .backdrop + .sheet {
-  z-index: 5;
+.v-c .riders {
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  left: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 0 12px 12px;
+  pointer-events: none;
 }
 
-.v-c .handle {
-  width: 40px;
-  height: 5px;
-  margin: 6px auto 8px;
-  border-radius: 3px;
-  background: var(--rule);
+.v-c .riders > * {
+  pointer-events: auto;
 }
 
 .v-c .fabs {
-  position: absolute;
-  right: 12px;
-  bottom: calc(var(--sheet, 0px) + 12px);
-  z-index: 2;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1113,7 +1109,90 @@ body {
 }
 
 .v-c .credits {
-  right: auto;
-  bottom: calc(var(--sheet, 0px) + 12px);
+  position: static;
+}
+
+.v-c .sheet {
+  box-sizing: border-box;
+  overflow-y: auto;
+  padding: 0 16px 16px;
+  border-width: 2px 0 0;
+  border-radius: 18px 18px 0 0;
+}
+
+.v-c .sheet.up {
+  height: calc(844px * 0.62);
+}
+
+.v-c .sheet.about {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 5;
+  height: calc(100% - 56px);
+}
+
+/* The handle, a button too: Show more, or Show less. */
+.v-c .handle {
+  display: grid;
+  place-items: center;
+  width: calc(100% + 32px);
+  height: 24px;
+  margin: 0 -16px 2px;
+}
+
+.v-c .handle span {
+  width: 40px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--rule);
+}
+
+/* C on a wide window: the sheet a card at the bottom left, as today's panel, and the buttons over the credits' strip at the bottom right. */
+.phone.wide {
+  width: 1280px;
+  height: 800px;
+}
+
+.wide .v-c .dock {
+  position: static;
+}
+
+.wide .v-c .riders {
+  right: 0;
+  bottom: 0;
+  left: auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 0 8px 8px 0;
+}
+
+.wide .v-c .sheet {
+  position: absolute;
+  bottom: 12px;
   left: 12px;
+  width: 380px;
+  height: auto;
+  max-height: calc(100% - 72px);
+  padding-top: 12px;
+  border-width: 2px;
+  border-radius: 14px;
+}
+
+.wide .v-c .handle {
+  display: none;
+}
+
+.v-c .credits-strip {
+  max-width: 720px;
+  padding: 2px 8px;
+  border-width: 1.5px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.v-c .credits-strip a {
+  color: inherit;
 }

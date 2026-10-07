@@ -1,34 +1,57 @@
 // A throwaway page of every card (#212): today's, and three directions for them, each in light and in
 // dark, at a phone's 390 × 844, over the real map, with the real content cards.prototype.data.ts copied
-// from it. On the dev server at /src/web/cards.prototype.html; `?look=a` shows one direction, `?theme=dark`
-// one theme. Not part of the app: `vite build` builds index.html only.
+// from it; C, the maintainer's pick, also at a desktop's 1280 × 800. On the dev server at
+// /src/web/cards.prototype.html; `?look=c` shows one direction, `?theme=dark` one theme. Not part of the
+// app: `vite build` builds index.html only.
 import './cards.prototype.css';
 import { BOARDS, COUNT, FOLLOWED, LINES, NEARBY, NOW, TAP, TODAY, type Kind, type Row } from './cards.prototype.data.ts';
 import catalunyaDark from './cards.prototype/catalunya-dark.jpg';
 import catalunyaLight from './cards.prototype/catalunya-light.jpg';
 import santsDark from './cards.prototype/sants-dark.jpg';
 import santsLight from './cards.prototype/sants-light.jpg';
+import wideDark from './cards.prototype/wide-dark.jpg';
+import wideLight from './cards.prototype/wide-light.jpg';
 import { contrast, lettering } from './colour.ts';
 import { t } from './i18n.ts';
 
 type Theme = 'light' | 'dark';
-type Scene = 'map' | 'follow' | 'board' | 'long' | 'nearby' | 'about';
+type Scene = 'map' | 'follow' | 'followUp' | 'boardPeek' | 'board' | 'long' | 'nearby' | 'about';
 type Look = 'today' | 'a' | 'b' | 'c';
 
 const THEMES: Theme[] = ['light', 'dark'];
 const SCENES: Record<Scene, string> = {
   map: 'The map: legend, banner, buttons, a tap',
   follow: 'Following a Train',
+  followUp: 'Following a Train, pulled up',
+  boardPeek: "A Station's board, peeking",
   board: "A Station's board",
   long: 'A long name',
   nearby: 'Nearby',
   about: 'About',
 };
 
+/** Each look's scenes: C's show the sheet peeking and pulled up. */
+const SCENES_OF: Record<Look, Scene[]> = {
+  today: ['map', 'follow', 'board', 'long', 'nearby', 'about'],
+  c: ['map', 'follow', 'followUp', 'boardPeek', 'long', 'nearby', 'about'],
+  a: ['map', 'follow', 'board', 'long', 'nearby', 'about'],
+  b: ['map', 'follow', 'board', 'long', 'nearby', 'about'],
+};
+
 const LOOKS: Record<Look, { name: string; notes: string[] }> = {
   today: {
     name: 'Today',
     notes: ['The cards as deployed (main, 1fb6f6e), with the same content as the directions below.'],
+  },
+  c: {
+    name: 'C · Sheet, round 2',
+    notes: [
+      "The maintainer's pick in round 1, with all four of its content changes: a Line's pill says Live or Scheduled, times count down, Nearby goes by Line and destination, and a followed Train leads with its next Station.",
+      "B's cards in a sheet docked to the bottom. It peeks or is pulled up: following a Train, it peeks with the next Station and where the Train is along its Trip, and pulled up adds its speed and Unit and every Station still to come. A board peeks with its next three departures. Nearby and About open pulled up.",
+      "Nearby and random-follow sit bottom right, in thumb reach, and the credits bottom left. They ride on the sheet's top edge, so they're never under it.",
+      'The handle is a button too, Show more or Show less, for keyboards and screen readers.',
+      "On a wide window the sheet is a card at the bottom left, 380 px wide, as today's panel is, and the credits a strip at the bottom right.",
+    ],
   },
   a: {
     name: 'A · Tidy',
@@ -49,18 +72,11 @@ const LOOKS: Record<Look, { name: string; notes: string[] }> = {
       'Rows as A.',
     ],
   },
-  c: {
-    name: 'C · Sheet',
-    notes: [
-      "B's cards in a sheet docked to the bottom, with a handle: following a Train it peeks with the next Station only, and drags up for the rest.",
-      'Nearby and random-follow move bottom right, in thumb reach, above the sheet. About is a sheet too. The credits move bottom left.',
-    ],
-  },
 };
 
-const BACKGROUND: Record<Theme, Record<'catalunya' | 'sants', string>> = {
-  light: { catalunya: catalunyaLight, sants: santsLight },
-  dark: { catalunya: catalunyaDark, sants: santsDark },
+const BACKGROUND: Record<Theme, Record<'catalunya' | 'sants' | 'wide', string>> = {
+  light: { catalunya: catalunyaLight, sants: santsLight, wide: wideLight },
+  dark: { catalunya: catalunyaDark, sants: santsDark, wide: wideDark },
 };
 
 /** The cards' colour on each theme, as style.css's --card. */
@@ -190,8 +206,8 @@ function corners(look: Exclude<Look, 'today'>, scene: Scene): string {
       : look === 'b'
         ? `<button class="card square" aria-label="Nearby trains">${ICON.locate}</button><button class="card square" aria-label="Follow a random train">${ICON.die}</button>`
         : '';
-  const fabs = look === 'c' ? `<div class="fabs"><button class="card fab" aria-label="Nearby trains">${ICON.locate}</button><button class="card fab" aria-label="Follow a random train">${ICON.die}</button></div>` : '';
-  return `<div class="tl">${legend}${banner}</div><div class="tr">${lang}${buttons}</div>${fabs}<button class="card credits" aria-label="Credits">${ICON.info}</button>`;
+  const credits = look === 'c' ? '' : `<button class="card credits" aria-label="Credits">${ICON.info}</button>`;
+  return `<div class="tl">${legend}${banner}</div><div class="tr">${lang}${buttons}</div>${credits}`;
 }
 
 function tap(theme: Theme): string {
@@ -208,27 +224,31 @@ function followA(theme: Theme): string {
     <ol class="stops">${f.upcoming.map((u, i) => `<li${i ? '' : ' class="next"'}><time>${clock(u.time)}</time><span>${esc(u.name)}</span></li>`).join('')}</ol>`;
 }
 
-/** The followed Train as railisland's card orders it: its next Station and the minutes to it, where it is along its Trip, then the Stations after. `peek` stops before them. */
-function followB(theme: Theme, peek = false): string {
+/**
+ * The followed Train as railisland's card orders it: its next Station and the minutes to it, where it
+ * is along its Trip, then its speed and Unit and the Stations after. B's card shows five of them, C's
+ * sheet peeking none, and pulled up all.
+ */
+function followB(theme: Theme, state: 'card' | 'peek' | 'up'): string {
   const f = FOLLOWED;
   const [next, ...after] = f.upcoming;
   const colour = LINES[f.line]?.colour ?? '#555';
-  const shown = after.slice(0, 5);
+  const shown = state === 'up' ? after : after.slice(0, 5);
   const last = f.upcoming.at(-1);
-  const rest = `<hr class="dash"><ol class="strip" style="--line:${colour}">${shown.map((u) => `<li><time>${clock(u.time)}</time><span class="stop"></span><span>${esc(u.name)}</span></li>`).join('')}</ol>
-    <button class="more">${after.length - shown.length} more, to ${esc(f.headsign)} at ${last ? clock(last.time).replace(/<\/?small>/g, ' ').trim() : ''}</button>`;
+  const more = state === 'card' ? `<button class="more">${after.length - shown.length} more, to ${esc(f.headsign)} at ${last ? clock(last.time).replace(/<\/?small>/g, ' ').trim() : ''}</button>` : '';
+  const rest = `<p class="meta">~${f.speed} km/h · Unit ${f.unit}</p><hr class="dash"><ol class="strip" style="--line:${colour}">${shown.map((u) => `<li><time>${clock(u.time)}</time><span class="stop"></span><span>${esc(u.name)}</span></li>`).join('')}</ol>${more}`;
   return `<header><h2 class="title">${pill(f.line, f.live, theme)} ${esc(f.headsign)}</h2>${closeButton(en('stopFollowing'))}</header>
     <div class="next"><div><p class="label">Next station</p><strong class="next-name">${esc(next?.name ?? '')}</strong></div>
       <div class="next-when"><time>${next ? clock(next.time) : ''}<span class="in">in ${next ? toGo(next.time) : 0} min</span></time></div></div>
     <p class="live-status"><span class="dot"></span>${en('live')} · confirmed ${f.confirmed} ago <span class="delay late">+${f.delay} min</span></p>
     <div class="progress" style="--line:${colour};--done:${((100 * f.km) / f.totalKm).toFixed(1)}%"><div class="bar"><i></i></div><div class="ends"><span>${esc(f.origin)}</span><span>${esc(f.headsign)}, ${f.totalKm} km</span></div></div>
-    <p class="meta">~${f.speed} km/h · Unit ${f.unit}</p>
-    ${peek ? '' : rest}`;
+    ${state === 'peek' ? '' : rest}`;
 }
 
-function board(look: Exclude<Look, 'today'>, which: keyof typeof BOARDS, theme: Theme): string {
+/** A Station's board; peeking, its next three departures. */
+function board(look: Exclude<Look, 'today'>, which: keyof typeof BOARDS, theme: Theme, peek = false): string {
   const b = BOARDS[which];
-  const rows = `<ol class="deps">${b.departures.map((row) => departure(row, theme, look !== 'a')).join('')}</ol>`;
+  const rows = `<ol class="deps">${(peek ? b.departures.slice(0, 3) : b.departures).map((row) => departure(row, theme, look !== 'a')).join('')}</ol>`;
   if (look === 'a') return `<header><h2 class="title">${esc(b.name)}</h2>${closeButton(en('closeBoard'))}</header><h3 class="label">${en('nextDepartures')}</h3>${rows}`;
   return `<header class="nameboard"><h2 class="title">${esc(b.name)}</h2>${closeButton(en('closeBoard'))}</header>
     <div class="served">${b.lines.map((name) => pill(name, true, theme, 'small')).join('')}</div>
@@ -265,33 +285,52 @@ function about(theme: Theme): string {
     <p>${en('noCookies')}</p><p>${beforeAnalytics}<a href="https://developers.cloudflare.com/web-analytics/data-metrics/">Cloudflare Web Analytics</a>${afterAnalytics}</p>`;
 }
 
-/** C's sheet heights: peeking with the next Station, or pulled up. */
-const SHEET = { peek: '318px', up: '62%', about: 'calc(100% - 56px)' };
+/** A's and B's cards: the panel across the bottom, and About mid-screen. */
+function panels(look: 'a' | 'b', scene: Scene, theme: Theme): string {
+  let content = '';
+  if (scene === 'follow') content = look === 'a' ? followA(theme) : followB(theme, 'card');
+  else if (scene === 'board' || scene === 'long') content = board(look, scene === 'board' ? 'sants' : 'perpetua', theme);
+  else if (scene === 'nearby') content = nearby(look, theme);
+  const body = scene === 'about' ? `<div class="backdrop"></div><section class="card dialog">${about(theme)}</section>` : content ? `<section class="card panel">${content}</section>` : '';
+  return `<div class="v-new v-${look}">${corners(look, scene)}${scene === 'map' ? tap(theme) : ''}${body}</div>`;
+}
 
-function directions(look: Exclude<Look, 'today'>, scene: Scene, theme: Theme): string {
-  const content =
-    scene === 'follow'
-      ? look === 'a'
-        ? followA(theme)
-        : followB(theme, look === 'c')
-      : scene === 'board' || scene === 'long'
-        ? board(look, scene === 'board' ? 'sants' : 'perpetua', theme)
-        : scene === 'nearby'
-          ? nearby(look, theme)
-          : scene === 'about'
-            ? about(theme)
-            : '';
-  let body = '';
-  let sheet = '0px';
-  if (scene === 'about') {
-    sheet = SHEET.about;
-    body = look === 'c' ? `<div class="backdrop"></div><section class="card sheet" style="height:${sheet}"><div class="handle"></div>${content}</section>` : `<div class="backdrop"></div><section class="card dialog">${content}</section>`;
-  } else if (content) {
-    sheet = scene === 'follow' ? SHEET.peek : SHEET.up;
-    body = look === 'c' ? `<section class="card sheet" style="height:${sheet}"><div class="handle"></div>${content}</section>` : `<section class="card panel">${content}</section>`;
+/** What C's sheet shows in a scene, and whether it peeks or is pulled up. */
+function sheetOf(scene: Scene, theme: Theme): { content: string; state: 'peek' | 'up' } | undefined {
+  switch (scene) {
+    case 'follow':
+      return { content: followB(theme, 'peek'), state: 'peek' };
+    case 'followUp':
+      return { content: followB(theme, 'up'), state: 'up' };
+    case 'boardPeek':
+      return { content: board('c', 'sants', theme, true), state: 'peek' };
+    case 'board':
+      return { content: board('c', 'sants', theme), state: 'up' };
+    case 'long':
+      return { content: board('c', 'perpetua', theme), state: 'up' };
+    case 'nearby':
+      return { content: nearby('c', theme), state: 'up' };
+    default:
+      return undefined;
   }
-  // Under About's backdrop, C's buttons stay where they were.
-  return `<div class="v-new v-${look}" style="--sheet:${look === 'c' && scene !== 'about' ? sheet : '0px'}">${corners(look, scene)}${scene === 'map' ? tap(theme) : ''}${body}</div>`;
+}
+
+/** The credits as MapLibre strings them along a wide window's bottom. */
+const CREDITS = /<div class="maplibregl-ctrl-attrib-inner">(.*?)<\/div>/.exec(TODAY.credits)?.[1] ?? '';
+
+/**
+ * C: the cards in a sheet docked to the bottom, with the buttons and the credits riding on its top
+ * edge, and About a sheet of its own over a backdrop. On a wide window, the sheet is a card at the
+ * bottom left and the credits a strip.
+ */
+function sheets(scene: Scene, theme: Theme, wide: boolean): string {
+  const shown = sheetOf(scene, theme);
+  const handle = (state: 'peek' | 'up') => `<button class="handle" aria-label="${state === 'peek' ? 'Show more' : 'Show less'}"><span></span></button>`;
+  const fabs = `<div class="fabs"><button class="card fab" aria-label="Nearby trains">${ICON.locate}</button><button class="card fab" aria-label="Follow a random train">${ICON.die}</button></div>`;
+  const credits = wide ? `<div class="card credits-strip">${CREDITS}</div>` : `<button class="card credits" aria-label="Credits">${ICON.info}</button>`;
+  const sheet = shown ? `<section class="card sheet ${shown.state}">${handle(shown.state)}${shown.content}</section>` : '';
+  const aboutSheet = scene === 'about' ? `<div class="backdrop"></div><section class="card sheet about">${handle('up')}${about(theme)}</section>` : '';
+  return `<div class="v-new v-c">${corners('c', scene)}${scene === 'map' ? tap(theme) : ''}<div class="dock"><div class="riders">${wide ? fabs + credits : credits + fabs}</div>${sheet}</div>${aboutSheet}</div>`;
 }
 
 // ---- The page.
@@ -299,20 +338,27 @@ function directions(look: Exclude<Look, 'today'>, scene: Scene, theme: Theme): s
 const params = new URLSearchParams(location.search);
 const looks = (Object.keys(LOOKS) as Look[]).filter((look) => !params.has('look') || params.get('look')?.split(',').includes(look));
 const themes = THEMES.filter((theme) => !params.has('theme') || params.get('theme') === theme);
-const scenes = (Object.keys(SCENES) as Scene[]).filter((scene) => !params.has('scene') || params.get('scene')?.split(',').includes(scene));
+const scenesOf = (look: Look) => SCENES_OF[look].filter((scene) => !params.has('scene') || params.get('scene')?.split(',').includes(scene));
 
-function frame(look: Look, scene: Scene, theme: Theme): string {
-  const background = BACKGROUND[theme][scene === 'board' ? 'sants' : 'catalunya'];
-  const inner = look === 'today' ? today(scene) : directions(look, scene, theme);
-  return `<figure class="frame"><figcaption>${SCENES[scene]} · ${theme}</figcaption><div class="phone" data-theme="${theme}" style="background-image:url(${background})">${inner}</div></figure>`;
+function frame(look: Look, scene: Scene, theme: Theme, wide = false): string {
+  const background = BACKGROUND[theme][wide ? 'wide' : scene === 'board' || scene === 'boardPeek' ? 'sants' : 'catalunya'];
+  const inner = look === 'today' ? today(scene) : look === 'c' ? sheets(scene, theme, wide) : panels(look, scene, theme);
+  return `<figure class="frame"><figcaption>${SCENES[scene]} · ${theme}${wide ? ' · a wide window' : ''}</figcaption><div class="phone${wide ? ' wide' : ''}" data-theme="${theme}" style="background-image:url(${background})">${inner}</div></figure>`;
 }
 
+/** C's frames at a desktop's size: following a Train in light, a board in dark. */
+const WIDE: [Scene, Theme][] = [
+  ['followUp', 'light'],
+  ['board', 'dark'],
+];
+
 document.body.innerHTML = `<header class="page-head"><h1>The cards, mocked up (#212)</h1>
-  <p>Every card at a phone's 390 px, over the map, in light and dark, with content copied from the live map on Wednesday 7 Oct 2026 at 08:07, a morning of many cancelled Rodalies Trains. Today first, then three directions. Ideas mix across them: a pick can be, say, B's cards in C's sheet.</p>
+  <p>Every card at a phone's 390 px, over the map, in light and dark, with content copied from the live map on Wednesday 7 Oct 2026 at 08:07, a morning of many cancelled Rodalies Trains. Today first, then C, the pick, in its second round, then round 1's A and B for the record.</p>
   <nav>${(Object.keys(LOOKS) as Look[]).map((look) => `<a href="?look=${look}">${LOOKS[look].name}</a>`).join('')}<a href="?">All</a></nav></header>
   ${looks
     .map(
       (look) => `<section class="look" id="${look}"><h2>${LOOKS[look].name}</h2><ul>${LOOKS[look].notes.map((n) => `<li>${n}</li>`).join('')}</ul>
-      ${themes.map((theme) => `<div class="frames">${scenes.map((scene) => frame(look, scene, theme)).join('')}</div>`).join('')}</section>`,
+      ${themes.map((theme) => `<div class="frames">${scenesOf(look).map((scene) => frame(look, scene, theme)).join('')}</div>`).join('')}
+      ${look === 'c' && !params.has('scene') ? `<div class="frames">${WIDE.filter(([, theme]) => themes.includes(theme)).map(([scene, theme]) => frame(look, scene, theme, true)).join('')}</div>` : ''}</section>`,
     )
     .join('')}`;
