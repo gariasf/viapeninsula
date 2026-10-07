@@ -48,8 +48,12 @@ const LOOKS: Record<Look, { name: string; notes: string[] }> = {
     notes: ['The cards as deployed (main, 1fb6f6e), with the same content as the directions below.'],
   },
   c: {
-    name: 'C · Sheet, round 2',
+    name: 'C · Sheet, round 3',
     notes: [
+      'Round 3, a self-review for use, accessibility and spacing. Forced colours keep every pill, Live filled and Scheduled ringed, and the bar, the strip and the handle. A screen reader hears Live or Scheduled with each Train and a Delay as late, and every button shows its focus.',
+      "Following a Train, its live status, speed and Unit go in one line under its title, the Delay beside the next Station's time, which it explains, and a button under the bar says how many Stations are still to come and pulls the sheet up. A board peeking says how many departures more.",
+      "A board's Lines go in its nameboard, so the departures start higher. Rows are parted by solid hairlines; dashed rules part a card's parts. A Cancelled Train's pill isn't faded, which took its name under 3:1.",
+      "The legend pill opens About, which now draws the Live and Scheduled pills and the outlines. The credits' button is ©, no longer a second ⓘ. Nearby's button says Nearby, with a radius rather than the crosshair that promises to centre the map on you.",
       "The maintainer's pick in round 1, with all four of its content changes: a Line's pill says Live or Scheduled, times count down, Nearby goes by Line and destination, and a followed Train leads with its next Station.",
       "B's cards in a sheet docked to the bottom. It peeks or is pulled up: following a Train, it peeks with the next Station and where the Train is along its Trip, and pulled up adds its speed and Unit and every Station still to come. A board peeks with its next three departures. Nearby and About open pulled up.",
       "Nearby and random-follow sit bottom right, in thumb reach, and the credits bottom left. They ride on the sheet's top edge, so they're never under it.",
@@ -100,6 +104,11 @@ const ICON = {
   die: '<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="9" r="1.3"/><circle cx="15" cy="9" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="9" cy="15" r="1.3"/><circle cx="15" cy="15" r="1.3"/></svg>',
   info: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.6v.1"/></svg>',
   chevron: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
+  nearby:
+    '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5" stroke-dasharray="2.6 3.1"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></svg>',
+  up: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>',
+  copyright:
+    '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M14.9 9.4a4 4 0 1 0 0 5.2"/></svg>',
   warning:
     '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4.5M12 17.4v.1"/></svg>',
 };
@@ -118,6 +127,9 @@ function clock(hhmm: string): string {
   return `${h % 12 || 12}:${String(m).padStart(2, '0')}<small>${h < 12 ? 'AM' : 'PM'}</small>`;
 }
 
+/** A time of day as clock() writes it, as plain text. */
+const plainClock = (hhmm: string) => clock(hhmm).replace(/<\/?small>/g, ' ').trim();
+
 /** Minutes from NOW to a time of day. */
 const toGo = (hhmm: string) => minutesOf(hhmm) - minutesOf(NOW);
 
@@ -135,16 +147,23 @@ function letteringOn(colour: string, paper: string): string {
 /** What a Line's name letters in on its colour: dark ink where that reads better than white, as main.ts's darkInk() has it. */
 const inkOn = (colour: string) => (contrast(colour, '#111111') > contrast(colour, '#ffffff') ? '#111111' : '#ffffff');
 
-/** A Line's name as its Trains' pill on the map: outlined by its kind, filled when Live, ringed when Scheduled. */
-function pill(name: string, live: boolean, theme: Theme, size = ''): string {
+/**
+ * A Line's name as its Trains' pill on the map: outlined by its kind, filled when Live, ringed when
+ * Scheduled. A pill for a Train, as in a row, says which to a screen reader too.
+ */
+function pill(name: string, live: boolean, theme: Theme, size = '', train = false): string {
   const line = LINES[name];
   if (!line) return esc(name);
   const ink = live ? inkOn(line.colour) : letteringOn(line.colour, CARD[theme]);
-  return `<span class="pill ${OUTLINE[line.kind]} ${live ? 'live' : 'scheduled'} ${size}" style="--line:${line.colour};--lettering:${ink}">${esc(name)}</span>`;
+  const says = train ? `<span class="sr-only">, ${live ? en('live') : en('scheduled')}</span>` : '';
+  return `<span class="pill ${OUTLINE[line.kind]} ${live ? 'live' : 'scheduled'} ${size}" style="--line:${line.colour};--lettering:${ink}">${esc(name)}${says}</span>`;
 }
 
-/** A Delay as a chip, amber when late: nothing where there's none to show. */
-const delayChip = (delay = 0) => (delay ? `<span class="delay ${delay > 0 ? 'late' : 'early'}">${delay > 0 ? '+' : '−'}${Math.abs(delay)} min</span>` : '');
+/** A Delay as a chip, amber when late, which a screen reader reads as late or early: nothing where there's none to show. */
+const delayChip = (delay = 0) =>
+  delay
+    ? `<span class="delay ${delay > 0 ? 'late' : 'early'}"><span aria-hidden="true">${delay > 0 ? '+' : '−'}${Math.abs(delay)} min</span><span class="sr-only">${en(delay > 0 ? 'late' : 'early').replace('{n}', String(Math.abs(delay)))}</span></span>`
+    : '';
 
 /** What a row says besides its Line and destination: Cancelled, a Delay, no live data, or on time for a Live Train. */
 function status(row: Row): string {
@@ -159,7 +178,7 @@ function status(row: Row): string {
 function departure(row: Row, theme: Theme, countdown: boolean): string {
   const minutes = toGo(row.time);
   const inMinutes = countdown && !row.cancelled && minutes < 60 ? `<span class="in">${minutes <= 0 ? 'now' : `${minutes} min`}</span>` : '';
-  return `<li class="${row.cancelled ? 'cancelled' : ''}"><time>${clock(row.time)}${inMinutes}</time>${pill(row.line, row.live, theme)}<span class="dest">${esc(row.headsign)}</span>${status(row)}</li>`;
+  return `<li class="${row.cancelled ? 'cancelled' : ''}"><time>${clock(row.time)}${inMinutes}</time>${pill(row.line, row.live, theme, '', true)}<span class="dest">${esc(row.headsign)}</span>${status(row)}</li>`;
 }
 
 /** Nearby's rows by Line and destination, in the order of each one's first, with their passes. */
@@ -211,7 +230,9 @@ function today(scene: Scene): string {
 function corners(look: Exclude<Look, 'today'>, scene: Scene): string {
   const scheduled = COUNT.trains - COUNT.live;
   const legend =
-    look === 'a'
+    look === 'c'
+      ? `<button class="card legend-pill" aria-label="${COUNT.live} live, ${scheduled} scheduled. ${en('about')}"><span class="mk live"></span><b>${COUNT.live}</b> live<span class="mk scheduled"></span><b>${scheduled}</b> scheduled<span class="round-button">${ICON.info}</span></button>`
+      : look === 'a'
       ? `<div class="card legend"><div class="key"><span class="mk live"></span>${en('live')}<span class="mk scheduled"></span>${en('scheduled')}</div><div>${trainCount(COUNT.trains, COUNT.live, 'en')} · <button class="link">About</button></div></div>`
       : `<div class="card legend-pill"><span class="mk live"></span><b>${COUNT.live}</b> live<span class="mk scheduled"></span><b>${scheduled}</b> scheduled<button class="round-button" aria-label="${en('about')}">${ICON.info}</button></div>`;
   const banner =
@@ -263,7 +284,7 @@ function followNextFirst(theme: Theme, state: 'card' | 'peek' | 'up'): string {
   const colour = LINES[f.line]?.colour ?? '#555';
   const shown = state === 'up' ? after : after.slice(0, 5);
   const last = f.upcoming.at(-1);
-  const more = state === 'card' ? `<button class="more">${after.length - shown.length} more, to ${esc(f.headsign)} at ${last ? clock(last.time).replace(/<\/?small>/g, ' ').trim() : ''}</button>` : '';
+  const more = state === 'card' ? `<button class="more">${after.length - shown.length} more, to ${esc(f.headsign)} at ${last ? plainClock(last.time) : ''}</button>` : '';
   const rest = `${speedAndUnit()}<hr class="dash"><ol class="strip" style="--line:${colour}">${shown.map((u) => `<li><time>${clock(u.time)}</time><span class="stop"></span><span>${esc(u.name)}</span></li>`).join('')}</ol>${more}`;
   return `<header><h2 class="title">${pill(f.line, f.live, theme)} ${esc(f.headsign)}</h2>${closeButton(en('stopFollowing'))}</header>
     <div class="next-stop"><div><p class="label">Next station</p><strong class="next-name">${esc(next?.name ?? '')}</strong></div>
@@ -308,8 +329,9 @@ function about(theme: Theme): string {
     <ul class="keys">
       <li>${pill('R4', true, theme)}<span><b>${en('live')}</b>: ${en('liveMeans')}</span></li>
       <li>${pill('R4', false, theme)}<span><b>${en('scheduled')}</b>: ${en('scheduledMeans')}</span></li>
-      <li><span class="shapes">${pill('R1', true, theme)}${pill('R13', true, theme)}${pill('L3', true, theme)}</span><span>${en('outlines')}</span></li>
     </ul>
+    <p class="shapes">${pill('R1', true, theme)}${pill('R13', true, theme)}${pill('L3', true, theme)}</p>
+    <p>${en('outlines')}</p>
     <h3 class="label">${en('credits')}</h3>${credits}
     <h3 class="label">${en('sourceCode')}</h3>
     <p><a href="https://github.com/gariasf/viapeninsula">github.com/gariasf/viapeninsula</a>, <a href="https://www.gnu.org/licenses/agpl-3.0.html">AGPL-3.0</a></p>
@@ -327,21 +349,67 @@ function panels(look: 'a' | 'b', scene: Scene, theme: Theme): string {
   return `<div class="v-new v-${look}">${corners(look, scene)}${scene === 'map' ? tap(theme) : ''}${body}</div>`;
 }
 
+/**
+ * The followed Train in C's sheet: its Line and destination; its live status, speed and Unit in one
+ * line; its next Station, with the time, its Delay beside it, and the minutes to it; where it is along
+ * its Trip; then, peeking, a button that says how many Stations are still to come, or, pulled up, all
+ * of them as a strip in its Line's colour.
+ */
+function followSheet(theme: Theme, state: 'peek' | 'up'): string {
+  const f = FOLLOWED;
+  const [next, ...after] = f.upcoming;
+  const colour = LINES[f.line]?.colour ?? '#555';
+  const last = f.upcoming.at(-1);
+  const end =
+    state === 'peek'
+      ? `<button class="expand" aria-expanded="false">${after.length} more stations, to ${esc(f.headsign)} at ${last ? plainClock(last.time) : ''}${ICON.up}</button>`
+      : `<hr class="dash"><ol class="strip" style="--line:${colour}">${after.map((u) => `<li><time>${clock(u.time)}</time><span class="stop"></span><span>${esc(u.name)}</span></li>`).join('')}</ol>`;
+  return `<header><h2 class="title">${pill(f.line, f.live, theme, '', true)} ${esc(f.headsign)}</h2>${closeButton(en('stopFollowing'))}</header>
+    <p class="live-status meta"><span class="dot"></span>${en('live')} · ${en('confirmed').replace('{ago}', f.confirmed)} · ~${f.speed} km/h · ${en('unit')} ${f.unit}</p>
+    <div class="next-stop"><div><p class="label">Next station</p><strong class="next-name">${esc(next?.name ?? '')}</strong></div>
+      <div class="next-when"><span class="at"><time>${next ? clock(next.time) : ''}</time>${delayChip(f.delay)}</span><span class="in">in ${next ? toGo(next.time) : 0} min</span></div></div>
+    <div class="progress" style="--line:${colour};--done:${((100 * f.km) / f.totalKm).toFixed(1)}%"><div class="bar"><i></i></div><div class="ends"><span>${esc(f.origin)}</span><span>${esc(f.headsign)}, ${f.totalKm} km</span></div></div>
+    ${end}`;
+}
+
+/** A Station's board in C's sheet: its nameboard, with the Lines that call there in it, then its departures; peeking, the next three, and a button that says how many more. */
+function boardSheet(which: keyof typeof BOARDS, theme: Theme, peek: boolean): string {
+  const b = BOARDS[which];
+  const shown = peek ? b.departures.slice(0, 3) : b.departures;
+  const more = b.departures.length - shown.length;
+  return `<header class="nameboard"><div><h2 class="title">${esc(b.name)}</h2><div class="served">${b.lines.map((name) => pill(name, true, theme, 'small')).join('')}</div></div>${closeButton(en('closeBoard'))}</header>
+    <h3 class="label">${en('nextDepartures')}</h3>
+    <ol class="deps">${shown.map((row) => departure(row, theme, true)).join('')}</ol>
+    ${more ? `<button class="expand" aria-expanded="false">${more} more departures${ICON.up}</button>` : ''}`;
+}
+
+/** Nearby in C's sheet: its range in a line under the title, then a row per Line and destination, with the next Train's pill, and its next three passes over its Delay. */
+function nearbySheet(theme: Theme): string {
+  return `<header><h2 class="title">${en('nearby')}</h2>${closeButton(en('closeNearby'))}</header>
+    <p class="subtitle">${en('passingNearby')}</p>
+    <ol class="groups">${grouped(NEARBY)
+      .map((rows) => {
+        const [first] = rows;
+        return first ? `<li>${pill(first.line, first.live, theme, '', true)}<span class="dest">${esc(first.headsign)}</span><span class="when"><span class="times">${passes(rows)}</span>${delayChip(first.delay)}</span></li>` : '';
+      })
+      .join('')}</ol>`;
+}
+
 /** What C's sheet shows in a scene, and whether it peeks or is pulled up. */
 function sheetOf(scene: Scene, theme: Theme): { content: string; state: 'peek' | 'up' } | undefined {
   switch (scene) {
     case 'follow':
-      return { content: followNextFirst(theme, 'peek'), state: 'peek' };
+      return { content: followSheet(theme, 'peek'), state: 'peek' };
     case 'followUp':
-      return { content: followNextFirst(theme, 'up'), state: 'up' };
+      return { content: followSheet(theme, 'up'), state: 'up' };
     case 'board':
-      return { content: board('c', 'sants', theme), state: 'up' };
+      return { content: boardSheet('sants', theme, false), state: 'up' };
     case 'long':
-      return { content: board('c', 'perpetua', theme), state: 'up' };
+      return { content: boardSheet('perpetua', theme, false), state: 'up' };
     case 'longPeek':
-      return { content: board('c', 'perpetua', theme, true), state: 'peek' };
+      return { content: boardSheet('perpetua', theme, true), state: 'peek' };
     case 'nearby':
-      return { content: nearby('c', theme), state: 'up' };
+      return { content: nearbySheet(theme), state: 'up' };
     default:
       return undefined;
   }
@@ -357,9 +425,10 @@ const CREDITS = /<div class="maplibregl-ctrl-attrib-inner">(.*?)<\/div>/.exec(TO
  */
 function sheets(scene: Scene, theme: Theme, wide: boolean): string {
   const shown = sheetOf(scene, theme);
-  const handle = (state: 'peek' | 'up') => `<button class="handle" aria-label="${state === 'peek' ? 'Show more' : 'Show less'}"><span></span></button>`;
-  const fabs = `<div class="fabs"><button class="card fab" aria-label="${en('nearby')}">${ICON.locate}</button><button class="card fab" aria-label="${en('followRandom')}">${ICON.die}</button></div>`;
-  const credits = wide ? `<div class="card credits-strip">${CREDITS}</div>` : `<button class="card credits" aria-label="Credits">${ICON.info}</button>`;
+  const handle = (state: 'peek' | 'up') => `<button class="handle" aria-expanded="${state === 'up'}" aria-label="${state === 'peek' ? 'Show more' : 'Show less'}"><span></span></button>`;
+  // Nearby, the one used more, nearest the thumb, named; the die over it.
+  const fabs = `<div class="fabs"><button class="card fab" aria-label="${en('followRandom')}" title="${en('followRandom')}">${ICON.die}</button><button class="card fab nearby" aria-label="${en('nearby')}">${ICON.nearby}<span>Nearby</span></button></div>`;
+  const credits = wide ? `<div class="card credits-strip">${CREDITS}</div>` : `<button class="card credits" aria-label="${en('showCredits')}">${ICON.copyright}</button>`;
   const sheet = shown ? `<section class="card sheet ${shown.state}">${handle(shown.state)}${shown.content}</section>` : '';
   const aboutSheet = scene === 'about' ? `<div class="backdrop"></div><section class="card sheet about">${handle('up')}${about(theme)}</section>` : '';
   return `<div class="v-new v-c">${corners('c', scene)}${scene === 'map' ? tap(theme) : ''}<div class="dock"><div class="riders">${wide ? fabs + credits : credits + fabs}</div>${sheet}</div>${aboutSheet}</div>`;
@@ -393,7 +462,7 @@ const WIDE: [Scene, Theme, string][] = [
 ];
 
 document.body.innerHTML = `<header class="page-head"><h1>The cards, mocked up (#212)</h1>
-  <p>Every card at a phone's 390 px, over the map, in light and dark, with content copied from the live map on Wednesday 7 Oct 2026 at 08:07, a morning of many cancelled Rodalies Trains. Today first, then C, the pick, in its second round, then round 1's A and B for the record.</p>
+  <p>Every card at a phone's 390 px, over the map, in light and dark, with content copied from the live map on Wednesday 7 Oct 2026 at 08:07, a morning of many cancelled Rodalies Trains. Today first, then C, the pick, in its third round, then round 1's A and B for the record, which share round 3's accessibility fixes and About's key.</p>
   <nav>${(Object.keys(LOOKS) as Look[]).map((look) => `<a href="?look=${look}">${LOOKS[look].name}</a>`).join('')}<a href="?">All</a></nav></header>
   ${looks
     .map(

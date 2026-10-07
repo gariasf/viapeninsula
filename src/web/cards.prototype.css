@@ -428,6 +428,21 @@ body {
   display: block;
 }
 
+.v-new .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Every button shows where the keyboard is, in its own colour. */
+.v-new button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
 .v-new p {
   margin: 0;
 }
@@ -503,7 +518,7 @@ body {
 .v-new time small {
   margin-left: 2px;
   color: var(--ink-soft);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.02em;
 }
 
@@ -591,8 +606,14 @@ body {
   border-radius: 50%;
 }
 
-.v-new .close:hover {
-  background: var(--hover);
+@media (hover: hover) {
+  .v-new .close:hover {
+    background: var(--hover);
+  }
+
+  .v-new button.card:hover {
+    background: color-mix(in srgb, var(--ink) 6%, var(--card));
+  }
 }
 
 .v-new .label {
@@ -644,8 +665,7 @@ body {
   border-top: 1px solid var(--hairline);
 }
 
-.v-b :is(.deps, .groups) li,
-.v-c :is(.deps, .groups) li {
+.v-b :is(.deps, .groups) li {
   border-top-style: dashed;
 }
 
@@ -670,10 +690,6 @@ body {
 
 .v-new .deps .cancelled .dest {
   color: var(--ink-soft);
-}
-
-.v-new .deps .cancelled .pill {
-  opacity: 0.55;
 }
 
 /* A's next Stations: the time, then the name; the next one bold. */
@@ -1064,7 +1080,7 @@ body {
 
 .v-new .keys li {
   display: grid;
-  grid-template-columns: 7.6em 1fr;
+  grid-template-columns: 3.6em 1fr;
   align-items: center;
   column-gap: 8px;
   padding: 3px 0;
@@ -1074,13 +1090,14 @@ body {
   justify-self: start;
 }
 
-.v-new .keys .shapes {
+.v-new .shapes {
   display: flex;
-  gap: 3px;
+  gap: 4px;
+  margin: 10px 0 4px;
 }
 
-.v-new .keys .shapes .pill {
-  min-width: 0;
+.v-new :is(.dialog, .sheet.about) .label {
+  margin-top: 18px;
 }
 
 /* C: the cards in a sheet docked to the bottom, which peeks or is pulled up, with the buttons and the credits riding on its top edge. */
@@ -1209,4 +1226,164 @@ body {
 
 .v-c .credits-strip a {
   color: inherit;
+}
+
+/* ---- C, round 3. ---- */
+.v-c .label {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+}
+
+.v-c .subtitle {
+  margin: -2px 0 6px;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+/* The followed Train's live status, speed and Unit, one line under its title; its Delay beside the next Station's time. */
+.v-c .live-status.meta {
+  margin-bottom: 10px;
+}
+
+.v-c .next-when .at {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* A button at the foot of a peeking sheet: how much more there is, and up. */
+.v-c .expand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 8px;
+  border-top: 1px solid var(--hairline);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+}
+
+/* The board's nameboard holds the Lines that call there. */
+.v-c .nameboard {
+  align-items: flex-start;
+  margin: 0 -4px 6px;
+  padding: 10px 4px 12px 14px;
+}
+
+.v-c .nameboard .title {
+  margin: 4px 0 8px;
+}
+
+.v-c .groups .when {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.v-c .handle span {
+  background: color-mix(in srgb, var(--ink) 40%, transparent);
+}
+
+.v-c .legend-pill {
+  padding: 0 6px 0 12px;
+}
+
+.v-c .legend-pill .round-button {
+  width: 26px;
+  height: 26px;
+}
+
+.v-c .fabs {
+  align-items: flex-end;
+}
+
+/* Nearby, named, with a radius round a dot: the crosshair promised to centre the map on you. */
+.v-c .fab.nearby {
+  display: flex;
+  gap: 6px;
+  width: auto;
+  padding: 0 16px 0 12px;
+  border-radius: 24px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.v-c .credits {
+  width: 36px;
+  height: 36px;
+}
+
+/* Forced colours, as #116 has the legend: each pill, marker and bar in the theme's text colour, Live filled and Scheduled ringed, where the theme would take their fills off. */
+@media (forced-colors: active) {
+  .v-new .pill,
+  .v-new .pill::before,
+  .v-new .mk,
+  .v-new .dot,
+  .v-new .bar,
+  .v-new .bar::before,
+  .v-new .bar i,
+  .v-new .strip li::before,
+  .v-new .strip .stop,
+  .v-c .handle span,
+  .followed-train,
+  .followed-train span {
+    forced-color-adjust: none;
+  }
+
+  .v-new .pill.live {
+    border-color: CanvasText;
+    background: CanvasText;
+    color: Canvas;
+  }
+
+  .v-new .pill.scheduled {
+    border-color: CanvasText;
+    background: Canvas;
+    color: CanvasText;
+  }
+
+  .v-new .pill.pointed.scheduled {
+    background: CanvasText;
+  }
+
+  .v-new .pill.pointed.scheduled::before {
+    background: Canvas;
+  }
+
+  .v-new .mk {
+    border-color: CanvasText;
+  }
+
+  .v-new .mk.live,
+  .v-new .dot,
+  .v-new .bar::before,
+  .v-new .strip li::before,
+  .v-c .handle span {
+    background: CanvasText;
+  }
+
+  .v-new .bar {
+    outline: 1px solid CanvasText;
+    background: Canvas;
+  }
+
+  .v-new .bar i,
+  .v-new .strip .stop {
+    border-color: CanvasText;
+    background: Canvas;
+  }
+
+  .followed-train {
+    background: Canvas;
+  }
+
+  .followed-train span {
+    background: CanvasText;
+    color: Canvas;
+  }
 }
