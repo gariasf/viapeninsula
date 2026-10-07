@@ -1,5 +1,7 @@
 # Lines are named by badges where they join and leave, and on tap
 
+**Only the tap is built (#193).** The maintainer closed the badges, #191, as not planned on 7 Oct 2026: built in PR #201, they crowded in among the Trains' pills at zooms 10 to 12. The PR is closed unmerged, and its branch `191-badges` is kept. Until they're taken up again, Lines keep their names along their strokes.
+
 Each Line's name is laid along its own stroke, in its colour, haloed white. Where Lines run side by side the names come in a row, MapLibre leaves many out, and it isn't clear which name is which stroke's. The names should be there to find, without being what the map is about.
 
 So the map names Lines by badges, small pills in each Line's colour as its Trains' (#90) and the legend's (#122), stacked in the Stretch's order (ADR-0006):
