@@ -44,10 +44,11 @@ export interface Report {
   /** When the operator reported it, in ms since 1970. */
   at: number;
   /**
-   * Where it is, in the feed's own terms: its coordinates; at or near a Station, or for TRAM at one,
-   * by TRAM's number for its platform, which isn't the bundle's; how far it has come along its Trip
-   * since its first Station, in metres, as TRAM counts them; or for the Metro, the Station it comes
-   * to next, and when it's expected there, in ms since 1970.
+   * Where it is, in the feed's own terms: its coordinates; at or near a Station, or for TRAM the stop
+   * it's at or has just left, by TRAM's number for its platform, which isn't the bundle's; how far it
+   * has come along its Trip since its first Station, in metres, as TRAM counts them, which TRAM gives
+   * only for about 40 s as it reaches a Station (#42); or for the Metro, the Station it comes to next,
+   * and when it's expected there, in ms since 1970.
    */
   position?: { lon: number; lat: number } | { near: string } | { along: number } | { next: { station: string; at: number } };
   /** How late it's running, in seconds, as its operator has it: early where it's negative. */
@@ -147,7 +148,11 @@ export interface LiveTraits {
    * Metro by headway (#103).
    */
   delay: 'operator' | 'gps' | 'none';
-  /** A Train reported near a Station stands there (`standing`), or may still be coming in, as Renfe pins Trains coming into a Station too (`pinned`). */
+  /**
+   * A Train reported near a Station stands there (`standing`), or may still be coming in or have left
+   * (`pinned`), as Renfe pins Trains coming into a Station too, and TRAM names the stop a tram is at or
+   * has just left (#42).
+   */
   near: 'standing' | 'pinned';
   /**
    * It names Trips long after they ended, as Geotren does Montserrat's rack Trains (#232): a report

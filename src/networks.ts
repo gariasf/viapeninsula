@@ -174,7 +174,11 @@ export const TRAM: NetworkConfig = {
   ],
   // TRAM's terms ask for these words, and a link.
   credit: { text: 'Powered by TRAM Barcelona', url: 'https://www.tram.cat/' },
-  live: { delay: 'operator', near: 'standing' },
+  // TRAM names the stop a tram is at or has just left, not one it stands at: its distance reads a
+  // Station's for about 40 s as the tram reaches it, and then 0 until it reaches the next. Held at that
+  // stop, a tram would stand there 40–80 s and then jump a whole stretch, so it isn't, even where TRAM's
+  // number for the platform is mapped to its Station: TRAM's Delay has most such trams on their way (#42).
+  live: { delay: 'operator', near: 'pinned' },
   lines: { kind: 'tram' },
 };
 

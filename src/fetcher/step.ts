@@ -579,8 +579,9 @@ function issued(answer: Fetched, now: number): NonNullable<TramOwn['access']> {
 /**
  * One of TRAM's Units, as its activevehicles has it: the parts the step reads. Its line is 0 while
  * it's out of service. Its position is how far its Train has come since its Trip's first Station, in
- * metres, and 0 while it stands at a Station: the one it's at or has just left, by TRAM's number for
- * the platform. Its delay is in seconds, early where it's negative.
+ * metres, but only as it reaches a Station: that Station's distance for about 40 s, and then 0 until
+ * it reaches the next. So 0 doesn't mean it stands: its origin stop is the one it's at or has just
+ * left, by TRAM's number for the platform (#42). Its delay is in seconds, early where it's negative.
  */
 interface ActiveVehicle {
   vehicleId: number;

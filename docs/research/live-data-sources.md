@@ -30,7 +30,7 @@ From its [README](https://github.com/siriushsu/taiwan-rail-live):
 | Rodalies + all Renfe Cercanías | daily zip | yes, dense | GTFS-RT positions + delays + alerts | GPS while moving; station coords when stopped or arriving | ~20 s | none / no CORS | CC-BY 4.0 |
 | Renfe AVE/LD/MD/Regional | daily zip | **no** → OSM | GTFS-RT positions + delays; web visor JSON | GPS | 15–30 s (fix ~45 s old) | none / no CORS | CC-BY 4.0 (visor not in catalog) |
 | FGC | zip + Opendatasoft | yes | GTFS-RT positions/predictions/alerts + Geotren (occupancy per car) | GPS-like | ~120 s (data 2–4 min old) | none, 5000 req/day/IP / CORS `*` | CC-BY 4.0 |
-| TRAM (Trambaix, Trambesòs) | 2 zips | yes | REST `activevehicles` + GTFS-RT trip updates | metres since trip origin (0 at stops) + delay | TU header 10–15 s old | OAuth2 (free signup) / no CORS | TRAM terms |
+| TRAM (Trambaix, Trambesòs) | 2 zips | yes | REST `activevehicles` + GTFS-RT trip updates | a stop's metres since trip origin as the tram reaches it, then 0 until the next (#42) + delay | TU header 10–15 s old | OAuth2 (free signup) / no CORS | TRAM terms |
 | TMB Metro | zip (key) | yes | iTransit arrivals, whole network in one call (L1–L5, L11) | inferred from per-train countdowns | on request | app_id/app_key / echoes Origin | TMB terms: cite TMB and update date, don't alter |
 | TMB Bus | zip (key) | yes | iBus, per stop | — | — | key | — |
 | Ouigo | national access point *(second-hand)* | no | none | — | — | — | — |
@@ -143,7 +143,7 @@ From its [README](https://github.com/siriushsu/taiwan-rail-live):
 - **Networks:** `1` TRAMBAIX, `2` TRAMBESÒS.
 - **`GET /api/v1/activevehicles?networkId=`**, per vehicle:
   - `lineName`, `originStopCode/Name`, `nextStopCode/Name`
-  - `vehiclePosition`: **metres travelled since the trip's origin stop** while moving (`vehicleStatus: LIGN`), and `0` while standing at a stop (`TARR`, `inStop: true`). `originStopCode` → `nextStopCode` is the segment the tram is on. *(Verified 2026-09-24 with OAuth credentials.)*
+  - `vehiclePosition`: **metres travelled since the trip's origin stop**, but only as the tram reaches a stop: that stop's distance for about 40 s, then `0` until it reaches the next. So `0` doesn't mean standing: `originStopCode` is then the stop the tram is at or has just left (#42). `originStopCode` → `nextStopCode` is the segment the tram is on. *(Verified 2026-09-24 with OAuth credentials; what `0` means corrected 2026-10-07, #42.)*
   - `inStop`, `delay` (s, negative = early)
   - `destinationStopName`, `courseDirection`, `vehicleStatus`
   - Out-of-service vehicles show `lineName: "0"`. Around 07:05: 10 of 22 in service on TBX, 8 of 22 on TBS.
@@ -152,10 +152,10 @@ From its [README](https://github.com/siriushsu/taiwan-rail-live):
 - **Open door:** on 2026-09-24 these endpoints answered **without a token**. The terms still require registration for "dynamic data", so don't build on that.
 - **Measured again on Friday 25 September 2026, 11:44–11:55, for #11** (30 fetches of both networks, 20 s apart, with one token):
   - `activevehicles` names no Trip: `vehicleId` is the Unit. The GTFS-RT trip updates name each Trip's `trip_id` and its Unit's `vehicle.id`, which is `vehicleId`. That joined 711 of 796 readings of trams in service. Their Line agreed in all 711, and every Trip was in that day's timetable. Most of the rest stood where their next Trip starts, such as Francesc Macià, Glòries or Verdaguer, before the trip updates listed them, and a few went missing for a fetch or two mid-Trip. The trip updates also listed 8 Trips whose Unit `activevehicles` didn't have in service.
-  - `vehiclePosition` counts metres from the Trip's first stop, such as 6,120 m for a T1 between La Sardana and Montesa. `originStopCode` is the stop the tram stands at or last left. The position reads 0 while the tram stands, sometimes between stops, and while it waits at its first stop (`LIGN`, not `inStop`). It moves in steps: that T1 read 6,120 m twice, 20 s apart.
+  - `vehiclePosition` counts metres from the Trip's first stop, such as 6,120 m for a T1 15 m past La Sardana. But it reads only a stop's distance, for about 40 s as the tram reaches it, and then 0 until it reaches the next, whether the tram still stands or runs on: that T1 read 6,120 m twice, 20 s apart, and over three recordings for #42, 3,305 of 3,328 readings other than 0 were within 50 m of a stop. So `originStopCode` is the stop the tram is at or has just left, not one it stands at. While it waits at its first stop, the position reads 0 (`LIGN`, not `inStop`).
   - The bundle's distances along each TRAM Trip matched TRAM's `shape_dist_traveled` within 26 m (median 1 m), so a Trip's first stop plus `vehiclePosition` lands on its traced track.
-  - The Delay a moving tram's `vehiclePosition` gives, taken as of the fetch, agreed with TRAM's `delay` to a median of −2 s (10th–90th percentile −14 to +11 s). As of the trip updates' header, 6 s older, it was −7 s.
-  - For a tram standing at a Station, TRAM's `delay` put it a median of 42 s past that Station on its timetable (quartiles 23 s and 68 s), and 162 of 464 readings more than a minute past.
+  - The Delay a tram's `vehiclePosition` gives, where it read other than 0, taken as of the fetch, agreed with TRAM's `delay` to a median of −2 s (10th–90th percentile −14 to +11 s). As of the trip updates' header, 6 s older, it was −7 s.
+  - For a tram whose position read 0, TRAM's `delay` put it a median of 42 s past the stop `originStopCode` names on its timetable (quartiles 23 s and 68 s), and 162 of 464 readings more than a minute past. These were taken for trams standing there, but most had left it: in the frame of 11:44:50, TRAM's own trip updates had 13 of the 18 trams it named a stop for gone from it 8–114 s before (#42).
   - The stop codes aren't always TRAM's timetable's. On T4 by Glòries, `activevehicles` named 2003 Monumental, and a few minutes later Ca l'Aranyó, and 2203 Glòries. The timetable has 2003 as Glòries' platform A. The names were right.
   - Out-of-service trams (`lineName` "0") were `TDEP`, with every other field 0 or empty: 7 of 23 on Trambaix, 8 of 20 on Trambesòs.
   - A token lasts 3,599 s. The API sent no rate-limit headers, and answered in about 125 ms.
@@ -227,7 +227,7 @@ From its [README](https://github.com/siriushsu/taiwan-rail-live):
 | Renfe LD positions | 13–30 s | unknown (no timestamps) | GPS | not measured |
 | FGC Geotren | 100–140 s, once 6 min | 10–20 s when it changes (25 Sep) | GPS-like, or standing at a Station | none |
 | FGC vehicle positions | often empty | 2–4 min | Geotren's of ~2 min before | none |
-| TRAM activevehicles | ~10 s | — | metres since trip origin; 0 at stops | small backward jitter (2–30 m) |
+| TRAM activevehicles | ~10 s | — | a stop's metres since trip origin as the tram reaches it; then 0 until the next | small backward jitter (2–30 m) |
 | TMB iTransit metro | on request | 0.3–3 s | per-train countdown to each upcoming station | none seen |
 
 ## Implications for the build
