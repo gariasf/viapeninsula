@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { LANGUAGES, type Language, pickLanguage, t, trainCount } from './i18n.ts';
+import { LANGUAGES, type Language, liveUnavailable, moreDepartures, moreStations, pickLanguage, t, toGo, trainCounts } from './i18n.ts';
 
 test("speaks the first of the browser's languages it knows, whatever the region, and English when it knows none", () => {
   expect(pickLanguage(null, ['ca-ES', 'es-ES', 'en'])).toBe('ca');
@@ -29,17 +29,17 @@ test('speaks the language the viewer chose on this device, whatever their browse
   expect(pickLanguage('en', ['gl', 'eu'])).toBe('en');
 });
 
-test('counts the Trains on the map, and how many of them are Live, in each language', () => {
-  expect(trainCount(212, 148, 'ca')).toBe('212 trens, 148 en directe');
-  expect(trainCount(212, 148, 'es')).toBe('212 trenes, 148 en directo');
-  expect(trainCount(212, 148, 'en')).toBe('212 trains, 148 live');
+test('counts the Trains on the map in the legend, Live and Scheduled, in each language', () => {
+  expect(trainCounts(343, 68, 'ca')).toEqual(['343 en directe', '68 programats']);
+  expect(trainCounts(343, 68, 'es')).toEqual(['343 en directo', '68 programados']);
+  expect(trainCounts(343, 68, 'en')).toEqual(['343 live', '68 scheduled']);
 });
 
-test('counts one Train in the singular, and none in the plural', () => {
-  expect(trainCount(1, 1, 'ca')).toBe('1 tren, 1 en directe');
-  expect(trainCount(1, 0, 'es')).toBe('1 tren, 0 en directo');
-  expect(trainCount(1, 1, 'en')).toBe('1 train, 1 live');
-  expect(trainCount(0, 0, 'en')).toBe('0 trains, 0 live');
+test('counts one Scheduled Train in the singular, and none in the plural', () => {
+  expect(trainCounts(0, 1, 'ca')).toEqual(['0 en directe', '1 programat']);
+  expect(trainCounts(1, 1, 'es')).toEqual(['1 en directo', '1 programado']);
+  expect(trainCounts(1, 0, 'en')).toEqual(['1 live', '0 scheduled']);
+  expect(trainCounts(0, 0, 'ca')).toEqual(['0 en directe', '0 programats']);
 });
 
 test('says in the banner that a Network has no timetable today, in each language', () => {
@@ -69,4 +69,44 @@ test("says in About what a Train's outline says of its Line's kind of service, i
 test("says in About's Privacy that visits are counted, naming Cloudflare Web Analytics once in each language for its link", () => {
   expect(t('visitsCounted', 'en')).toBe('Visits are counted with Cloudflare Web Analytics, which uses no cookies and keeps nothing on your device.');
   for (const lang of Object.keys(LANGUAGES) as Language[]) expect(t('visitsCounted', lang).split('Cloudflare Web Analytics')).toHaveLength(2);
+});
+
+test("counts down to a Train in minutes on a board and in Nearby, or says it's now, in each language", () => {
+  expect(toGo(3, 'minutes', 'ca')).toBe('3 min');
+  expect(toGo(3, 'minutes', 'es')).toBe('3 min');
+  expect(toGo(3, 'minutes', 'en')).toBe('3 min');
+  expect(toGo(0, 'minutes', 'ca')).toBe('ara');
+  expect(toGo(0, 'minutes', 'es')).toBe('ahora');
+  expect(toGo(0, 'minutes', 'en')).toBe('now');
+});
+
+test("counts down to a followed Train's next Station, or says it's now, in each language", () => {
+  expect(toGo(1, 'inMinutes', 'ca')).toBe("d'aquí a 1 min");
+  expect(toGo(1, 'inMinutes', 'es')).toBe('en 1 min');
+  expect(toGo(1, 'inMinutes', 'en')).toBe('in 1 min');
+  expect(toGo(0, 'inMinutes', 'en')).toBe('now');
+});
+
+test("says at the foot of a peeking followed Train how many Stations it has still to come, and where it ends when, in each language", () => {
+  expect(moreStations(22, 'Igualada', '9:33', 'ca')).toBe('22 estacions més, fins a Igualada (9:33)');
+  expect(moreStations(22, 'Igualada', '9:33', 'es')).toBe('22 estaciones más, hasta Igualada (9:33)');
+  expect(moreStations(22, 'Igualada', '9:33 AM', 'en')).toBe('22 more stations, to Igualada at 9:33 AM');
+  expect(moreStations(1, 'Igualada', '9:33', 'ca')).toBe('1 estació més, fins a Igualada (9:33)');
+  expect(moreStations(1, 'Igualada', '9:33', 'es')).toBe('1 estación más, hasta Igualada (9:33)');
+  expect(moreStations(1, 'Igualada', '9:33 AM', 'en')).toBe('1 more station, to Igualada at 9:33 AM');
+});
+
+test('says at the foot of a peeking board how many departures more it has, in each language', () => {
+  expect(moreDepartures(7, 'ca')).toBe('7 sortides més');
+  expect(moreDepartures(7, 'es')).toBe('7 salidas más');
+  expect(moreDepartures(7, 'en')).toBe('7 more departures');
+  expect(moreDepartures(1, 'ca')).toBe('1 sortida més');
+  expect(moreDepartures(1, 'es')).toBe('1 salida más');
+  expect(moreDepartures(1, 'en')).toBe('1 more departure');
+});
+
+test("says in the banner's short form that a Network's live data is unavailable, in each language", () => {
+  expect(liveUnavailable('TRAM', 'ca')).toBe('TRAM: sense dades en temps real');
+  expect(liveUnavailable('TRAM', 'es')).toBe('TRAM: sin datos en tiempo real');
+  expect(liveUnavailable('TRAM', 'en')).toBe('TRAM live data unavailable');
 });
