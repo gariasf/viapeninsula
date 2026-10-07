@@ -355,7 +355,7 @@ test("carries each Renfe Trip's skipped Stations in the snapshot, by their IDs, 
     'cercanias-madrid:1078X21331C10',
     'cercanias-madrid:1078X20456C4b',
   ]);
-  // A feed whose trip updates skip no stops, as on an ordinary day, adds nothing to the snapshot.
+  // A feed whose trip updates skip no Station, as on an ordinary day, adds nothing to the snapshot.
   expect(run().snapshot.skipped).toBeUndefined();
 });
 
@@ -395,6 +395,18 @@ test("keeps what Renfe's trip updates say of skipped Stations through runs whose
   // And through runs whose trip updates fail, it keeps what they said last.
   const garbled = step(failed.state, { renfe: { ...renfeAt(RAINS + 40_000, SKIPPING), updates: { status: 200, body: '<html>' } } }, RAINS + 40_000);
   expect(garbled.snapshot.skipped).toEqual(failed.snapshot.skipped);
+});
+
+test("fails only Renfe's try where its trip updates are JSON but not its feed, keeping its last good reports and skipped Stations", () => {
+  const good = step(START.state, { renfe: SKIPPING }, RAINS);
+  // Made up, as no such answer has been seen.
+  for (const body of ['{}', 'null', `{"header": {"timestamp": "${(RAINS + 20_000) / 1000}"}, "entity": {}}`]) {
+    const failed = step(good.state, { renfe: { ...renfeAt(RAINS + 20_000, SKIPPING), updates: { status: 200, body } } }, RAINS + 20_000);
+    expect(failed.snapshot.feeds.rodalies).toMatchObject({ lastSuccess: RAINS, lastAttempt: RAINS + 20_000 });
+    expect(failed.snapshot.feeds.rodalies?.status).not.toBe('ok');
+    expect(failed.snapshot.reports).toEqual(good.snapshot.reports);
+    expect(failed.snapshot.skipped).toEqual(good.snapshot.skipped);
+  }
 });
 
 // FGC's live data as recorded at 10:31 on Friday 25 September 2026: Geotren's positions, which FGC

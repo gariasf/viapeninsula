@@ -1759,14 +1759,14 @@ function servedBy(place: Place): string[] {
  * won't stop at (#346), shows when its timetable has it leave, struck through, and says so.
  */
 function departureRow({ trip, departure, delay, live, unreported, cancelled, skipped }: Departure, now: number) {
-  const off = cancelled || skipped;
+  const off = cancelled ? 'cancelled' : skipped ? 'skipped' : '';
   return el(
     'li',
-    { className: off ? 'cancelled' : '' },
+    { className: off },
     el('time', {}, ...timeOfDay(departure), ...(off ? [] : countdown(departure, now, 'minutes'))),
     pill(trip.line, { live, train: true }),
     el('span', { className: 'dest', textContent: trip.headsign }),
-    off ? el('span', { className: 'status cancelled', textContent: t(cancelled ? 'cancelled' : 'notStopping') }) : status({ delay, live, unreported }),
+    off ? el('span', { className: `status ${off}`, textContent: t(cancelled ? 'cancelled' : 'notStopping') }) : status({ delay, live, unreported }),
   );
 }
 

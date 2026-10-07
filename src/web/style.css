@@ -586,7 +586,7 @@ time .in {
   white-space: nowrap;
 }
 
-.status.cancelled {
+.status:is(.cancelled, .skipped) {
   color: var(--cancelled);
   font-weight: 700;
 }
@@ -625,12 +625,12 @@ time .in {
   line-height: 1.25;
 }
 
-.rows .cancelled time {
+.rows :is(.cancelled, .skipped) time {
   color: var(--ink-soft);
   text-decoration: line-through;
 }
 
-.rows .cancelled .dest {
+.rows :is(.cancelled, .skipped) .dest {
   color: var(--ink-soft);
 }
 

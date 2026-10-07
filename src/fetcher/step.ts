@@ -275,6 +275,9 @@ type RenfeOwn = Record<string, Omit<Skipped, 'trip'> & { listed: number }>;
  * How long Renfe's adapter keeps a Trip's skipped Stations after Renfe last listed the Trip, in ms.
  * Renfe drops a Trip once its Train has ended its run, though its timetable runs on: on 7 October
  * 2026 it dropped the R4 cut short at Sants at 13:05, while its timetable ran to Manresa until 13:57.
+ * The R4's Trips run for 3 hours end to end, and Cercanías Madrid's longest for 2.
+ * ponytail: R15's to Ascó run for 3 h 34 min, so one cut short in its first half hour could come back,
+ * Scheduled, before its timetable ends. Keep them longer if one does.
  */
 const KEEP_SKIPPED = 3 * 3_600_000;
 
@@ -285,21 +288,16 @@ const renfe: LiveAdapter<SourceOf<'renfe'>, RenfeResponses, RenfeOwn> = {
     return { positions, updates };
   },
   read({ positions, updates }, { source, own, now }) {
-    // What the trip updates say of skipped Stations is kept whether or not the positions can be read.
-    let [trips, error]: [GtfsRt | undefined, unknown] = [undefined, undefined];
-    try {
-      trips = json<GtfsRt>('trip_updates', updates);
-    } catch (e) {
-      error = e;
-    }
+    // Read first, so that what the trip updates say of skipped Stations is kept whether or not the positions can be read.
+    const got = renfeTripUpdates(source, updates, own, now);
     return {
-      own: skippedIn(source, trips, own, now),
+      own: 'error' in got ? own : got.skipped,
       reports(said) {
         const vehicles = json<GtfsRt>('vehicle_positions', positions);
-        if (!trips) throw error;
+        if ('error' in got) throw got.error;
         said('vehicle_positions', ms(vehicles.header.timestamp));
-        said('trip_updates', ms(trips.header.timestamp));
-        return renfeReports(source, vehicles, trips);
+        said('trip_updates', ms(got.trips.header.timestamp));
+        return renfeReports(source, vehicles, got.trips);
       },
     };
   },
@@ -326,39 +324,56 @@ interface Vehicle {
  */
 function renfeReports(source: LiveSource, positions: GtfsRt, updates: GtfsRt): Report[] {
   const reports = new Map<string, Report>();
-  // Renfe's timetable pads its IDs with spaces, and untrimmed they don't join.
   for (const { tripUpdate: update } of updates.entity ?? []) {
-    const id = update?.trip?.tripId?.trim() ?? '';
-    const network = networkOf(source, id);
-    if (!network) continue;
+    const trip = renfeTrip(source, update?.trip?.tripId);
+    if (!trip) continue;
     const cancelled = update?.trip?.scheduleRelationship === 'CANCELED' || undefined;
     // Renfe's trip updates carry no time of their own, only the feed's.
-    reports.set(id, { trip: `${network}:${id}`, at: ms(updates.header.timestamp), delay: update?.delay, cancelled });
+    reports.set(trip, { trip, at: ms(updates.header.timestamp), delay: update?.delay, cancelled });
   }
   for (const { vehicle } of positions.entity ?? []) {
-    const id = vehicle?.trip?.tripId?.trim() ?? '';
-    const network = networkOf(source, id);
-    if (network) reports.set(id, { ...reports.get(id), trip: `${network}:${id}`, at: ms(vehicle?.timestamp), position: position(vehicle ?? {}) });
+    const trip = renfeTrip(source, vehicle?.trip?.tripId);
+    if (trip) reports.set(trip, { ...reports.get(trip), trip, at: ms(vehicle?.timestamp), position: position(vehicle ?? {}) });
   }
   return [...reports.values()];
 }
 
+/** A Trip of Renfe's, as the bundle names it, by its trip_id, where the source names its Network: Renfe's timetable pads its IDs with spaces, and untrimmed they don't join. */
+function renfeTrip(source: LiveSource, tripId: string | undefined): string | undefined {
+  const id = tripId?.trim() ?? '';
+  const network = networkOf(source, id);
+  return network && `${network}:${id}`;
+}
+
 /**
- * Each Trip's skipped Stations, as Renfe's trip updates say now, where they can be read, and as its
- * adapter kept them: those Renfe last listed SKIPPED, in the order it lists them. Renfe lists only the
- * Stations a Trip's timetable hasn't left yet, so one it no longer lists stays skipped, and it lists a
- * Trip only until its Train has ended its run, so a Trip it no longer lists keeps them for
- * KEEP_SKIPPED. A Station it lists again, not SKIPPED, is no longer skipped, as C4b's from Las
- * Margaritas to Parla were on 7 October 2026, each as its Train ran on to it after all.
+ * Renfe's trip updates, and each Trip's skipped Stations as they say now and as its adapter kept them
+ * (skippedIn()); or why they can't be read, as where Renfe answers with JSON that isn't its feed,
+ * such as `{}`. The step tries them in reports(), so that their failing fails Renfe's try alone.
  */
-function skippedIn(source: LiveSource, updates: GtfsRt | undefined, kept: RenfeOwn = {}, now: number): RenfeOwn {
+function renfeTripUpdates(source: LiveSource, updates: Fetched, kept: RenfeOwn | undefined, now: number): { trips: GtfsRt; skipped: RenfeOwn } | { error: unknown } {
+  try {
+    const trips = json<GtfsRt>('trip_updates', updates);
+    return { trips, skipped: skippedIn(source, trips, kept, now) };
+  } catch (error) {
+    return { error };
+  }
+}
+
+/**
+ * Each Trip's skipped Stations, as Renfe's trip updates say now and as its adapter kept them: those
+ * Renfe last listed SKIPPED, in the order it lists them. Renfe lists only the Stations a Trip's
+ * timetable hasn't left yet, so one it no longer lists stays skipped, and it lists a Trip only until
+ * its Train has ended its run, so a Trip it no longer lists keeps them for KEEP_SKIPPED. A Station it
+ * lists again, not SKIPPED, is no longer skipped, as C4b's from Las Margaritas to Parla were on 7
+ * October 2026, each as its Train ran on to it after all.
+ */
+function skippedIn(source: LiveSource, updates: GtfsRt, kept: RenfeOwn = {}, now: number): RenfeOwn {
   const skipped = Object.fromEntries(Object.entries(kept).filter(([, { listed }]) => now - listed < KEEP_SKIPPED));
-  const at = ms(updates?.header.timestamp);
-  for (const { tripUpdate: update } of updates?.entity ?? []) {
-    const id = update?.trip?.tripId?.trim() ?? '';
-    const network = networkOf(source, id);
-    if (!network) continue;
-    const [trip, stops] = [`${network}:${id}`, update?.stopTimeUpdate ?? []];
+  const at = ms(updates.header.timestamp);
+  for (const { tripUpdate: update } of updates.entity ?? []) {
+    const trip = renfeTrip(source, update?.trip?.tripId);
+    if (!trip) continue;
+    const stops = update?.stopTimeUpdate ?? [];
     const station = (stop: (typeof stops)[number]) => `adif:${stop.stopId?.trim()}`;
     // Renfe lists the Station a Train is due at next once more, not SKIPPED, though it skips it.
     const [skips, listed] = [new Set(stops.filter((s) => s.scheduleRelationship === 'SKIPPED').map(station)), new Set(stops.map(station))];

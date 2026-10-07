@@ -8,7 +8,7 @@ import { closestOnSegment, DEGREE, direction, pointAt, type Bundle, type Call, t
  * within about its feed's last three updates, and Scheduled otherwise.
  */
 export interface Train {
-  /** Its Trip, as it runs it where its operator has said it won't stop at some of its Stations (cut()). */
+  /** Its Trip, as it runs it where its operator has said it won't stop at some of its Stations (cutTrip()). */
   trip: Trip;
   dist: number;
   lon: number;
@@ -64,7 +64,7 @@ export const KEEP = CARRY + 5 * 60_000;
  * eased towards as late or early as live data has it, or where that's far, jumping there. Between
  * Stations it accelerates, cruises and brakes, as its Network's speed profile has it, so that it
  * leaves and arrives exactly on time. A Train its operator has cancelled leaves the map, and one it
- * has said won't stop at some Stations runs its Trip as cut() has it (#346). One that
+ * has said won't stop at some Stations runs its Trip as cutTrip() has it (#346). One that
  * live data stops reporting stays Live through two of its feed's updates and turns Scheduled at the
  * third, and it keeps its last Delay for CARRY before it's back on its plain timetable. One of the
  * Metro's whose Block goes on to run another Trip turns Scheduled at once, but not while TMB has the
@@ -157,11 +157,13 @@ export function boardAt(bundle: Bundle, at: number, received: Received[], statio
       const [time, delay] = cancelled ? [now, 0] : [on.time, on.delay];
       // Where it calls there more than once, as turning back, the first time it's still to leave.
       const call = on.calls.find((c, i) => i < on.calls.length - 1 && toLeave(c, time) && here.has(c.station));
-      const departure = { trip: on.trip, delay: shown(on.network, delay), live: on.live && !cancelled, unreported: !!on.train?.unreported, cancelled, skipped: false };
-      if (call) return [{ ...departure, station: call.station, departure: bundle.noonMinus12h + (call.departure + delay) * 1000 }];
+      if (call) {
+        const departure = bundle.noonMinus12h + (call.departure + delay) * 1000;
+        return [{ trip: on.trip, station: call.station, departure, delay: shown(on.network, delay), live: on.live && !cancelled, unreported: !!on.train?.unreported, cancelled, skipped: false }];
+      }
       // Not at the Station its timetable ends at, where it would only arrive.
-      const skipped = on.skipped.find((c) => c !== trip.calls.at(-1) && toLeave(c, now) && here.has(c.station));
-      return skipped ? [{ ...departure, station: skipped.station, departure: bundle.noonMinus12h + skipped.departure * 1000, delay: undefined, live: false, unreported: false, skipped: true }] : [];
+      const skip = on.skips.find((c) => c !== trip.calls.at(-1) && toLeave(c, now) && here.has(c.station));
+      return skip ? [{ trip: on.trip, station: skip.station, departure: bundle.noonMinus12h + skip.departure * 1000, live: false, unreported: false, cancelled: false, skipped: true }] : [];
     })
     .sort((a, b) => a.departure - b.departure)
     .slice(0, BOARD);
@@ -201,7 +203,7 @@ export function nearbyAt(bundle: Bundle, at: number, received: Received[], point
       // Where in its timetable the window ends.
       const until = now + window / 1000 - delay;
       const has = ([from, to]: [number, number]) => (c: Call) => from <= c.dist && c.dist <= to;
-      const passes = stretches.filter((s) => !on.skipped.some(has(s)) || on.calls.some(has(s)));
+      const passes = stretches.filter((s) => !on.skips.some(has(s)) || on.calls.some(has(s)));
       const comes = whenWithin(on.calls, on.profile, passes)
         .filter(([enters, leaves]) => leaves >= on.time && enters <= until)
         .map(([enters]) => Math.max(enters, on.time));
@@ -230,12 +232,12 @@ const toLeave = (call: Call, time: number) => call.departure >= time;
 interface OnMap {
   /** None while it's off the map, as before its first Station, after its last, or Cancelled. */
   train?: Train;
-  /** Its Trip as it runs it, where its operator has said it won't stop at some of its Stations (cut()), and otherwise as its timetable has it. */
+  /** Its Trip as it runs it, where its operator has said it won't stop at some of its Stations (cutTrip()), and otherwise as its timetable has it. */
   trip: Trip;
-  /** Whether its operator has said it won't run, or won't stop at any of its Stations. */
+  /** Whether its operator has said it won't run, or would stop at one of its Stations or none. */
   cancelled: boolean;
-  /** The calls its timetable has that it doesn't make, at Stations its operator has said it won't stop at, as cut() has them. */
-  skipped: Call[];
+  /** The calls its timetable has that it doesn't make, at Stations its operator has said it won't stop at, as cutTrip() has them. */
+  skips: Call[];
   now: number;
   time: number;
   /** Where in its timetable it's drawn at a moment, both in seconds into the service day: `time` at `now`. */
@@ -307,11 +309,11 @@ function onMap(bundle: Bundle, at: number, received: Received[]): { of: (trip: T
     const said = heard.get(trip.id);
     // Cancelled outright, it runs none of its Trip, as its timetable has it.
     const cut = said?.report.cancelled ? undefined : cuts.get(trip.id);
-    const runs = cut?.trip ?? trip;
-    const [network, shape, first, last, ease] = [lines.get(trip.line), shapes.get(trip.shape), runs.calls[0], runs.calls.at(-1), eases.get(trip.id)];
+    const asRun = cut?.trip ?? trip;
+    const [network, shape, first, last, ease] = [lines.get(trip.line), shapes.get(trip.shape), asRun.calls[0], asRun.calls.at(-1), eases.get(trip.id)];
     if (!network || !shape) return undefined;
     const { profile } = network;
-    const dwelt = withDwell(runs, profile);
+    const dwelt = withDwell(asRun, profile);
     const feed = feeds[network.id];
     // A Train running late is where its timetable had it that long ago, once it has eased there. One
     // live data hasn't shifted is where unshifted() has it.
@@ -328,7 +330,7 @@ function onMap(bundle: Bundle, at: number, received: Received[]): { of: (trip: T
     const waits = !nested && block && first && time < (dwelt[0]?.arrival ?? -Infinity) && !ranBy(block).some((t) => t !== trip && t.calls.at(-1)?.station === first.station && of(t, true)?.train);
     const calls = waits ? dwelt.map((c, i) => (i ? c : { ...c, arrival: time })) : dwelt;
     const cancelled = !!said?.report.cancelled || (!!cut && !cut.trip);
-    const off = { trip: runs, cancelled, skipped: cut?.skipped ?? [], now, time, timeAt, delay, calls, network, profile, ease, said, live };
+    const off = { trip: asRun, cancelled, skips: cut?.skips ?? [], now, time, timeAt, delay, calls, network, profile, ease, said, live };
     if (cancelled) return off;
     // Most Trips aren't on the map at any one moment, whatever their dwell: skip those first.
     if (!first || !last || (!waits && time < first.arrival - profile.dwell) || time > last.departure + profile.dwell) return off;
@@ -339,18 +341,18 @@ function onMap(bundle: Bundle, at: number, received: Received[]): { of: (trip: T
     // The first Station it has still to leave, where it has come in there already.
     const call = calls.find((c) => toLeave(c, time));
     const standsAt = call && call.arrival <= time ? call.station : undefined;
-    return { ...off, train: { trip: runs, dist, lon, lat, heading: headingAt(shape, calls, time, dist), live, unreported, standsAt } };
+    return { ...off, train: { trip: asRun, dist, lon, lat, heading: headingAt(shape, calls, time, dist), live, unreported, standsAt } };
   };
   return { of, now, available };
 }
 
 /**
  * A Trip as its Train runs it, where its operator has said it won't stop at some of its Stations, and
- * the calls its timetable has that it doesn't make: none to run where it won't stop at any (#346).
+ * the calls its timetable has that it doesn't make: none to run where it would stop at one Station or none (#346).
  */
 interface Cut {
   trip?: Trip;
-  skipped: Call[];
+  skips: Call[];
 }
 
 /** No Trip cut, as where a snapshot says no Train won't stop at a Station. */
@@ -368,13 +370,11 @@ function cutsIn(bundle: Bundle, snapshot: Snapshot | undefined): Map<string, Cut
   if (!snapshot?.skipped?.length) return NO_CUTS;
   const known = cutsOf.get(snapshot);
   if (known?.bundle === bundle) return known.cuts;
-  const [names, named, cuts] = [new Map(bundle.stations.map((s) => [s.id, s.name])), new Map<string, Trip[]>(), new Map<string, Cut>()];
-  const wanted = new Set(snapshot.skipped.map((s) => s.trip));
-  for (const trip of bundle.trips) if (wanted.has(unjoined(trip.id))) add(named, unjoined(trip.id), trip);
+  const [names, named, cuts] = [new Map(bundle.stations.map((s) => [s.id, s.name])), namedIn(bundle), new Map<string, Cut>()];
   for (const skipped of snapshot.skipped) {
     const trip = closest(named.get(skipped.trip) ?? [], (skipped.since - bundle.noonMinus12h) / 1000);
-    const made = trip && cut(trip, skipped, bundle.noonMinus12h, names);
-    if (trip && made) cuts.set(trip.id, made);
+    const cut = trip && cutTrip(trip, skipped, bundle.noonMinus12h, names);
+    if (trip && cut) cuts.set(trip.id, cut);
   }
   cutsOf.set(snapshot, { bundle, cuts });
   return cuts;
@@ -394,22 +394,22 @@ function cutsIn(bundle: Bundle, snapshot: Snapshot | undefined): Map<string, Cut
  * on once its timetable had left the one before them, would be taken to start after them. Go by its
  * Delay as well if one shows.
  */
-function cut(trip: Trip, { stations, since }: Skipped, noonMinus12h: number, names: Map<string, string>): Cut | undefined {
+function cutTrip(trip: Trip, { stations, since }: Skipped, noonMinus12h: number, names: Map<string, string>): Cut | undefined {
   const skip = new Set(stations);
-  const skips = trip.calls.map((c) => skip.has(c.station));
-  const [first, last, end] = [skips.indexOf(true), skips.lastIndexOf(false), trip.calls.length - 1];
-  if (first < 0) return undefined;
-  const starts = first < last && (first === 0 || (trip.calls[first - 1]?.departure ?? Infinity) <= (since - noonMinus12h) / 1000);
-  const start = starts ? skips.indexOf(false, first) : 0;
-  const runs = (i: number) => i >= start && i <= last && !skips[i];
-  const calls = trip.calls.filter((_, i) => runs(i));
+  const skipped = trip.calls.map((c) => skip.has(c.station));
+  const [firstSkipped, lastKept, end] = [skipped.indexOf(true), skipped.lastIndexOf(false), trip.calls.length - 1];
+  if (firstSkipped < 0) return undefined;
+  const late = firstSkipped < lastKept && (firstSkipped === 0 || (trip.calls[firstSkipped - 1]?.departure ?? Infinity) <= (since - noonMinus12h) / 1000);
+  const start = late ? skipped.indexOf(false, firstSkipped) : 0;
+  const makes = (i: number) => i >= start && i <= lastKept && !skipped[i];
+  const calls = trip.calls.filter((_, i) => makes(i));
   const [from, to] = [calls[0], calls.at(-1)];
   // Left with fewer than two Stations to call at, it doesn't run.
-  if (!from || !to || from === to) return { skipped: trip.calls };
+  if (!from || !to || from === to) return { skips: trip.calls };
   // As at any Trip's first Station and last, it's due at the first as it leaves, and leaves the last as it's due there.
   if (start > 0) calls[0] = { ...from, arrival: from.departure };
-  if (last < end) calls[calls.length - 1] = { ...to, departure: to.arrival };
-  return { trip: { ...trip, headsign: last < end ? (names.get(to.station) ?? to.station) : trip.headsign, calls }, skipped: trip.calls.filter((_, i) => !runs(i)) };
+  if (lastKept < end) calls[calls.length - 1] = { ...to, departure: to.arrival };
+  return { trip: { ...trip, headsign: lastKept < end ? (names.get(to.station) ?? to.station) : trip.headsign, calls }, skips: trip.calls.filter((_, i) => !makes(i)) };
 }
 
 /** Whether a Train so far along its shape, in metres, is on the map: not where it's off it, before its first Station or after its last, nor beyond where its track starts or ends, as past Spain's border. */
@@ -741,8 +741,15 @@ const matched = new WeakMap<Snapshot, Matched>();
 /** A Block, as the matching knows it: by its Line and TMB's number for it, which another Line's can share. */
 const blockOf = ({ line, number }: NonNullable<Report['block']>) => `${line} ${number}`;
 
-/** A Trip's ID as its operator names it, without the service day joinDays leads an earlier day's ID with. */
-const unjoined = (id: string) => id.replace(/^\d{4}-\d{2}-\d{2}\//, '');
+/** Each bundle's Trips by their IDs as their operators name them, without the service day joinDays leads an earlier day's ID with: worked out once. */
+const namedOf = new WeakMap<Bundle, Map<string, Trip[]>>();
+
+/** A bundle's Trips by their IDs as their operators name them, those of one ID on each of the days joined. */
+function namedIn(bundle: Bundle): Map<string, Trip[]> {
+  const known = namedOf.get(bundle) ?? bundle.trips.reduce((named, trip) => add(named, trip.id.replace(/^\d{4}-\d{2}-\d{2}\//, ''), trip), new Map<string, Trip[]>());
+  namedOf.set(bundle, known);
+  return known;
+}
 
 /** Lists a Trip under a key, after those listed there already. */
 const add = (to: Map<string, Trip[]>, key: string, trip: Trip) => to.set(key, [...(to.get(key) ?? []), trip]);
@@ -814,12 +821,9 @@ function reportsByTrip(bundle: Bundle, snapshot: Snapshot, lines: Map<string, Ne
   if (known?.bundle === bundle) return known;
   const prior = before && matched.get(before);
   const ran = prior?.bundle === bundle ? prior.ran : new Map<string, string>();
-  const [reports, offs, headed, named, kept] = [new Map<string, Report>(), new Map<string, number>(), new Map<string, Trip[]>(), new Map<string, Trip[]>(), new Set<string>()];
+  const [reports, offs, headed, named, kept] = [new Map<string, Report>(), new Map<string, number>(), new Map<string, Trip[]>(), namedIn(bundle), new Set<string>()];
   const refused = new Set<string>();
-  for (const trip of bundle.trips) {
-    add(headed, `${trip.line} ${trip.headsign}`, trip);
-    add(named, unjoined(trip.id), trip);
-  }
+  for (const trip of bundle.trips) add(headed, `${trip.line} ${trip.headsign}`, trip);
   // The Metro's Blocks that don't keep their Trip, each with the Trips headed its way and its next Station.
   const rest: [Report, Trip[], NonNullable<Report['expected']>][] = [];
   for (const report of snapshot.reports) {

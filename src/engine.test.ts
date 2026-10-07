@@ -2083,7 +2083,9 @@ function drawnWhereNotRun(received: Received[]) {
 }
 
 test("over 45 minutes of the rains of 7 October 2026, Trains are drawn where their Trips don't run only where Renfe took back Stations it had said they'd skip", () => {
-  // Without the skipped Stations, as before #346: 105 Train-minutes Live, 68.8 Scheduled.
+  // Without the skipped Stations, as before #346: 105 Train-minutes Live, 68.8 Scheduled. The 78 board
+  // rows at 13:45 are more than the 64 the triage counted on the whole bundle: with only these 16
+  // Trips, each board's ten rows are all theirs.
   expect(drawnWhereNotRun(RAINS.received.map((r) => ({ ...r, snapshot: { ...r.snapshot, skipped: undefined } })))).toEqual({ live: 6300, scheduled: 4130, stopping: 78, notStopping: 0 });
   // With them, 17.3 and 1.3 Train-minutes, nearly all where Renfe took back Stations it had said a Train
   // would skip as it ran on to them, as its GPS showed: C4b's to Parla from 13:30 (12.3 Live), C4a's to
