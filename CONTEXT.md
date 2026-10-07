@@ -69,3 +69,17 @@ _Avoid_: Lateness, offset
 **Cancelled**:
 A Train its operator has announced won't run.
 _Avoid_: Suppressed, removed
+
+### Passport
+
+**Passport**:
+A viewer's Rides and Stamps, kept only in their browser, from when they turn it on (ADR-0011). Clearing the browser's data, or changing device, loses it.
+_Avoid_: Profile, account, collection
+
+**Ride**:
+A Train a viewer followed from its Trip's first Station to its last Station on the map, at real speed, with their Passport on. It counts once per Train. It was seen Live if live data confirmed the Train at least once while it was followed.
+_Avoid_: Trip (that's the timetable's), journey, run
+
+**Stamp**:
+What Rides earn in a Passport: one for each Line, kind of service and Network ridden, dated by its first Ride. It's filled once one of its Rides was seen Live, and ringed while none was.
+_Avoid_: Badge (a Line's name on the map, ADR-0008), achievement, medal
