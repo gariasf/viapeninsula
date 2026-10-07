@@ -1,8 +1,11 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
-import type { ExpressionFilterSpecification, ExpressionSpecification, LineLayerSpecification } from '@maplibre/maplibre-gl-style-spec';
+import type { BackgroundLayerSpecification, ExpressionFilterSpecification, ExpressionSpecification, FontFacesSpecification, LineLayerSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { AttributionControl, MapLibreMap, Popup, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
+import nunitoSans from '@fontsource/nunito-sans/files/nunito-sans-latin-400-normal.woff2?url';
+import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-normal.woff2?url';
+import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
 import { along, APART, atZoom, BANDS, bandZooms, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Credit, type Place, type DayTrips, type Kind, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, WIDTH } from '../bundle.ts';
 import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Received } from '../engine.ts';
 import { language, LANGUAGES, setLanguage, t, trainCount, type Language } from './i18n.ts';
@@ -12,11 +15,42 @@ import { alongside, namedTwice, nameOffset, nearestSide, rightOf, underName, typ
 import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
 import { keepView, lastView, openingView } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
+import { contrast, lettering } from './colour.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
 setWorkerUrl(workerUrl);
 
+/**
+ * Whether the system's setting is dark, where the map is drawn on OpenFreeMap's dark basemap, as
+ * style.css draws the interface. The basemap is set once, so the page reloads as the setting changes,
+ * and its link and the view kept (#245) bring the map back as it was.
+ */
+const darkScheme = matchMedia('(prefers-color-scheme: dark)');
+const darkBasemap = darkScheme.matches;
+darkScheme.addEventListener('change', () => location.reload());
+
+/** The map's lettering, by the basemap's own font names, which FONT_FACES letters in Nunito Sans. */
 const FONT = ['Noto Sans Regular'];
+/** The typeface the map letters in, as style.css names it, which names and pills are measured in once it has loaded (textWidth()). */
+const TYPEFACE = '"Nunito Sans"';
+/**
+ * The characters fontsource's Latin files cover, which take in every name in Catalonia. The map takes
+ * the rest from the basemap's glyphs, in Noto Sans.
+ * ponytail: copied from fontsource's CSS for these files, so were a new version to cover fewer, the
+ * browser would draw what they lack in a fallback font of its own, not Noto Sans. Read it from the
+ * package's CSS if fontsource ever changes its Latin subset.
+ */
+const LATIN = 'U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD'.split(',');
+/**
+ * The map's fonts, by the names the basemap's layers and ours give them, in Nunito Sans: every label on
+ * the map, the basemap's too. OpenFreeMap serves glyphs in Noto Sans only, so MapLibre draws these from
+ * the font files the site serves (#211).
+ */
+const FONT_FACES: FontFacesSpecification = {
+  'Noto Sans Regular': [{ url: nunitoSans, 'unicode-range': LATIN }],
+  'Noto Sans Bold': [{ url: nunitoSansBold, 'unicode-range': LATIN }],
+  'Noto Sans Italic': [{ url: nunitoSansItalic, 'unicode-range': LATIN }],
+};
 const NAME_SIZE = 12;
 /** The size of a Line's name on its Trains' pills, in px, and on the followed Train's, which is larger. */
 const [PILL_TEXT, FOLLOWED_TEXT] = [10, 12];
@@ -58,7 +92,7 @@ const OUTLINES: Record<Pill['outline'] | 'arrow', { w: number; h: number; across
  * railways and funiculars (#90).
  */
 const OUTLINES_OF: Record<Kind, Pill['outline']> = { commuter: 'round', regional: 'pointed', metro: 'badge', tram: 'badge', rack: 'badge', funicular: 'badge' };
-/** What measures names for textWidth(). */
+/** What measures names for textWidth(), and reads colours for hex(). */
 const measuring = document.createElement('canvas').getContext('2d');
 /** How many times the map looks for live data, never getting any, before it says live data is unavailable. */
 const EMPTY_POLLS = 3;
@@ -91,26 +125,16 @@ const RING: [zoom: number, px: number][] = [[7, 0.5], [14, 1.5]];
 const TRAIN_DOT: [zoom: number, px: number, followed: number][] = [[7, 2.5, 5], [14, 6, 10]];
 /** How long a line of a place's name can be, in ems, as MapLibre wraps names. */
 const PLACE_WRAP = 10;
-/** How a place's name is lettered: in Noto Sans Bold (BOLD) or Regular, and how large, in px, by its tier (TIERS). */
+/** How a place's name is lettered: bold (BOLD) or regular, and how large, in px, by its tier (TIERS). */
 interface NameStyle {
   bold: boolean;
   size: number;
 }
-/**
- * The colour of places' names, a dark blue of their own, and how wide their white halo is, in px, which
- * with each tier's lettering sets them apart from the basemap's labels, the Lines' names and the pills'
- * lettering (#144).
- */
-const [NAME_COLOUR, NAME_HALO] = ['#14305a', 2.5];
+/** How wide the halo round places' names is, in px (#144). */
+const NAME_HALO = 2.5;
 /** How far a place's name stays clear of its dot and of the Trains drawn along its track, in px: its halo and half a px. */
 const NAME_GAP = NAME_HALO + 0.5;
 
-/**
- * The basemap's paper colour, positron's background, that each Line is cased in.
- * ponytail: copied from positron, whose style isn't versioned, so the casing would stop matching if
- * OpenFreeMap changed it. Take it from the style's background layer if that ever shows.
- */
-const PAPER = '#f2f3f0';
 /** The colour of a track Lines share, zoomed right in, where their strokes lie one over another: their names along it and their Trains tell them apart (#139). */
 const SHARED = '#9a9b9e';
 /**
@@ -217,7 +241,7 @@ const TIERS: { nameZoom: number; larger: number; size: number; places: string[] 
 /** How a place in neither tier is drawn: named from zoom 12, and in the smallest size. */
 const UNTIERED = { nameZoom: 12, larger: 0, size: 11 };
 /**
- * The places whose names are in Noto Sans Bold, as the maintainer picks them, by their IDs in places():
+ * The places whose names are in bold, as the maintainer picks them, by their IDs in places():
  * the biggest, Barcelona's main Stations and the largest cities', which the rest are Regular beside.
  * ponytail: by ID, as TIERS are.
  */
@@ -300,8 +324,15 @@ keepShownView();
 map.on('moveend', keepShownView);
 /** The basemap's place labels, by their layers' IDs, with the filters it gives them, which show() adds to. */
 const placeLabels = new Map<string, ExpressionFilterSpecification | undefined>();
-map.setStyle('https://tiles.openfreemap.org/styles/positron', {
+// OpenFreeMap's positron, or its dark basemap where the system's setting is dark.
+map.setStyle(`https://tiles.openfreemap.org/styles/${darkBasemap ? 'dark' : 'positron'}`, {
   transformStyle: (_, style) => {
+    style['font-faces'] = FONT_FACES;
+    // The dark basemap's woods are patterned with an image OpenFreeMap's sprite lacks, so they draw
+    // nothing and only log a warning: they go. It names water under its buildings and roads under its
+    // borders: its labels go over everything else, as positron's are, so that the Lines go under them all.
+    const layers = style.layers.filter((l) => !(l.type === 'fill' && l.paint?.['fill-pattern'] === 'wood-pattern'));
+    style.layers = [...layers.filter((l) => l.type !== 'symbol'), ...layers.filter((l) => l.type === 'symbol')];
     // OpenFreeMap's credit ends "Data from OpenStreetMap", in English, and the ODbL asks for the
     // contributors, so showLanguage() credits the basemap itself, in the viewer's language.
     if (style.sources.openmaptiles) Object.assign(style.sources.openmaptiles, { attribution: '' });
@@ -420,7 +451,28 @@ document.addEventListener('visibilitychange', () => {
 });
 if (!document.hidden) poll();
 
-const [needed] = await Promise.all([neededDays().then((n) => n ?? Promise.reject(new Error('No service day to show'))), map.once('load')]);
+// Names and pills are measured in the typeface, so it loads first. Where it fails to, they're measured in what the browser falls back to.
+const typefaceLoaded = Promise.all(['400', '700'].map((weight) => document.fonts.load(`${weight} 12px ${TYPEFACE}`))).catch(() => undefined);
+const [needed] = await Promise.all([neededDays().then((n) => n ?? Promise.reject(new Error('No service day to show'))), map.once('load'), typefaceLoaded]);
+/**
+ * The basemap's paper, its background's colour: what the Lines are cased in on positron, and on the
+ * dark basemap what their colours are lettered against (lettering()).
+ * ponytail: a background that changes with the zoom, as neither basemap's does, is taken as white.
+ * Read it at the zoom if one ever does.
+ */
+const background = map.getStyle().layers.find((l): l is BackgroundLayerSpecification => l.type === 'background')?.paint?.['background-color'];
+const paper = hex(typeof background === 'string' ? background : '#fff');
+/**
+ * The map's own colours on each basemap: what each Line is cased in; places' names, in a dark blue of
+ * their own or a light one, which with each tier's lettering sets them apart from the basemap's labels,
+ * the Lines' names and the pills' lettering (#144); the halo round names and arrows; what a Scheduled
+ * Train is filled with; and the ring round a place's dot. On the dark one, the Lines are cased in a grey
+ * a little lighter than its paper, so that the Lines darkest in colour, as FGC's black MM, still show,
+ * and the rest is its paper, so that Live Trains, filled with their Line's colour, stand out more.
+ */
+const { casing, nameColour, halo, scheduledFill, dotRing } = darkBasemap
+  ? { casing: '#3a3f48', nameColour: '#e6ecf5', halo: paper, scheduledFill: paper, dotRing: paper }
+  : { casing: paper, nameColour: '#14305a', halo: '#fff', scheduledFill: '#fff', dotRing: '#444' };
 /** The days on the map, whose Trains move, once their Trips have come. */
 let bundle: Bundle | undefined;
 let lines = new Map<string, Line>();
@@ -513,7 +565,7 @@ for (const { source, id, prefix, zooms, nameZooms, opacity, throughOpacity, belo
       source,
       ...zooms,
       layout: lineLayout,
-      paint: { 'line-color': PAPER, 'line-width': byZoom(WIDTH, (px) => px + 2), 'line-offset': lineOffset, 'line-opacity': opacity },
+      paint: { 'line-color': casing, 'line-width': byZoom(WIDTH, (px) => px + 2), 'line-offset': lineOffset, 'line-opacity': opacity },
     },
     below,
   );
@@ -562,8 +614,8 @@ for (const { source, id, prefix, zooms, nameZooms, opacity, throughOpacity, belo
       'text-offset': byZoom(APART, (_, zoom) => ['array', 'number', 2, ['get', `textOffset${zoom}`]]),
     },
     paint: {
-      'text-color': ['get', 'colour'],
-      'text-halo-color': '#fff',
+      'text-color': ['get', 'lettering'],
+      'text-halo-color': halo,
       'text-halo-width': 2,
       // MapLibre offsets names by whole zoom levels, so while the Lines slide onto the rails, names hide.
       'text-opacity': ['interpolate', ['linear'], ['zoom'], 14, 1, 14.1, 0, 14.9, 0, 15, 1],
@@ -579,7 +631,7 @@ map.addLayer({
   paint: {
     'circle-radius': byZoom(DOT, (px) => ['+', px, ['get', 'larger']]),
     'circle-color': '#fff',
-    'circle-stroke-color': '#444',
+    'circle-stroke-color': dotRing,
     'circle-stroke-width': byZoom(RING, (px) => px),
   },
 });
@@ -600,8 +652,8 @@ map.addLayer({
   // The Train the map follows is drawn larger, over the rest.
   paint: {
     'circle-radius': trainDot,
-    'circle-color': byLive(['get', 'colour'], '#fff'),
-    'circle-stroke-color': byLive('#fff', ['get', 'colour']),
+    'circle-color': byLive(['get', 'colour'], scheduledFill),
+    'circle-stroke-color': byLive('#fff', ['get', 'lettering']),
     'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 7, byLive(0.5, 1.5), 14, byLive(1.5, 3)],
   },
 });
@@ -645,13 +697,14 @@ map.addLayer({
       (_, zoom) => ['array', 'number', 2, ['get', `offset${zoom}`]],
     ),
   },
-  paint: { 'text-color': NAME_COLOUR, 'text-halo-color': '#fff', 'text-halo-width': NAME_HALO },
+  paint: { 'text-color': nameColour, 'text-halo-color': halo, 'text-halo-width': NAME_HALO },
 });
 // Zoomed in (pillOf()), each Train is a pill with its Line's name, over the Stations' names too,
 // outlined by its Line's kind of service: a Live one's filled with its Line's colour and edged in
-// white, a Scheduled one's white, ringed and lettered in its Line's colour. Just outside it, an arrow
-// points the way the Train runs, and turns with the map. The Train the map follows has its own pill
-// and arrow, larger, over every other Train's: MapLibre draws a layer's names after all its pills.
+// white, a Scheduled one's white, or the dark basemap's paper, ringed and lettered in its Line's colour
+// (Pill's `lettering`). Just outside it, an arrow points the way the Train runs, and turns with the
+// map. The Train the map follows has its own pill and arrow, larger, over every other Train's:
+// MapLibre draws a layer's names after all its pills.
 for (const [id, outline] of Object.entries(OUTLINES)) addOutline(id, outline);
 for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', true, FOLLOWED_TEXT]] as const) {
   const filter: ExpressionSpecification = ['all', AS_PILL, ['==', ['get', 'followed'], followed]];
@@ -673,10 +726,10 @@ for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', tr
       'text-ignore-placement': true,
     },
     paint: {
-      'icon-color': byLive(['get', 'colour'], '#fff'),
-      'icon-halo-color': byLive('#fff', ['get', 'colour']),
+      'icon-color': byLive(['get', 'colour'], scheduledFill),
+      'icon-halo-color': byLive('#fff', ['get', 'lettering']),
       'icon-halo-width': PILL_HALO,
-      'text-color': byLive(['case', ['get', 'dark'], INK, '#fff'], ['get', 'colour']),
+      'text-color': byLive(['case', ['get', 'dark'], INK, '#fff'], ['get', 'lettering']),
     },
   });
   map.addLayer({
@@ -693,7 +746,7 @@ for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', tr
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
     },
-    paint: { 'icon-color': ['get', 'colour'], 'icon-halo-color': '#fff', 'icon-halo-width': 1 },
+    paint: { 'icon-color': ['get', 'lettering'], 'icon-halo-color': halo, 'icon-halo-width': 1 },
   });
 }
 
@@ -847,6 +900,7 @@ function show(days: Track | Bundle) {
         to,
         name: line.name,
         colour: line.colour,
+        lettering: pills.get(id)?.lettering,
         // Zoomed right in, where Lines share track, Barcelona's commuter lines (R1–R8) are drawn over the regional ones.
         // And those in tunnels below the rest, the deeper the lower (#178).
         above: (/^R\d[NS]?$/.test(line.name) ? 1 : 0) - 2 * (under ?? 0),
@@ -943,6 +997,7 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
         properties: {
           id: trip.id,
           colour: line?.colour,
+          lettering: pill?.lettering,
           // Which Network's banner it shows (bannerNetworks()).
           network: line?.network,
           live,
@@ -1059,6 +1114,8 @@ interface Pill {
   name: string;
   outline: 'round' | 'pointed' | 'badge';
   dark: boolean;
+  /** What its Line's colour letters its name in, rings its Scheduled Trains and colours its Trains' arrows in: on the dark basemap, lettering(). */
+  lettering: string;
   zoom: number;
   box: [number, number];
   followedBox: [number, number];
@@ -1067,8 +1124,8 @@ interface Pill {
 /** How a Line's Trains are drawn as pills from a zoom, its Network's, outlined by its kind of service. */
 function pillOf({ name, colour, kind }: Line, zoom: number): Pill {
   const outline = OUTLINES_OF[kind] ?? 'round';
-  const width = textWidth(name, `bold ${PILL_TEXT}px sans-serif`);
-  return { name, outline, dark: darkInk(colour), zoom, box: boxOf(outline, width, PILL_TEXT), followedBox: boxOf(outline, width, FOLLOWED_TEXT) };
+  const width = textWidth(name, `bold ${PILL_TEXT}px ${TYPEFACE}`);
+  return { name, outline, dark: darkInk(colour), lettering: darkBasemap ? lettering(colour, paper) : colour, zoom, box: boxOf(outline, width, PILL_TEXT), followedBox: boxOf(outline, width, FOLLOWED_TEXT) };
 }
 
 /** How far a pill reaches either side of its Train and above and below it, in px, with its outline, around a name `width` px wide at PILL_TEXT, lettered at `size` px. */
@@ -1077,34 +1134,28 @@ function boxOf(outline: Pill['outline'], width: number, size: number): [number, 
   return [Math.max(w, w - across + (width * size) / PILL_TEXT + 2 * PILL_PADDING) / 2, PILL_EDGE + (LINE_HEIGHT * size) / 2];
 }
 
-/** A colour's (#rrggbb) relative luminance, as WCAG works it out. */
-function luminance(colour: string): number {
-  const [r = 0, g = 0, b = 0] = [1, 3, 5].map((i) => parseInt(colour.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
 /** Whether INK reads better on a colour than white does, by WCAG's contrast ratio. */
 function darkInk(colour: string): boolean {
-  const lit = luminance(colour) + 0.05;
-  return lit / (luminance(INK) + 0.05) > 1.05 / lit;
+  return contrast(colour, INK) > contrast(colour, '#ffffff');
 }
 
 /** How wide a place's name, or a line of it, is, in px, in its style. */
 function placeWidth(text: string, { bold, size }: NameStyle): number {
-  return textWidth(text, `${bold ? 'bold ' : ''}${size}px sans-serif`);
+  return textWidth(text, `${bold ? 'bold ' : ''}${size}px ${TYPEFACE}`);
 }
 
-/**
- * How wide a text is in a font, in px: a Line's name on its Trains' pills, or a place's name.
- * ponytail: measured in the browser's sans-serif, not MapLibre's Noto Sans, which comes within a px or
- * so of it on the Lines' names and 5 px on a line of a place's, so an arrow can sit that much nearer
- * its pill or further, and a name beside a slanting track 2 px nearer the track or further. Measure in
- * Noto Sans, loaded as a web font, if that shows.
- */
+/** How wide a text is in a font, in px: a Line's name on its Trains' pills, or a place's name, in the typeface the map letters them in. */
 function textWidth(text: string, font: string): number {
   if (!measuring) return text.length * 6;
   measuring.font = font;
   return measuring.measureText(text).width;
+}
+
+/** An opaque CSS colour as #rrggbb, as a canvas reads it. */
+function hex(colour: string): string {
+  if (!measuring) return colour;
+  measuring.fillStyle = colour;
+  return String(measuring.fillStyle);
 }
 
 /**
