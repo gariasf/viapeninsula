@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import type { Call, Trip } from '../bundle.ts';
 import type { Pass } from '../engine.ts';
-import { minutesTo, nearbyRows, progress } from './cards.ts';
+import { linesCallingAt, minutesTo, nearbyRows, progress } from './cards.ts';
 
 /** A time of day in Barcelona on Wednesday 7 Oct 2026, in summer time, in ms since 1970. */
 const at = (hours: number, minutes: number, seconds = 0) => Date.UTC(2026, 9, 7, hours - 2, minutes, seconds);
@@ -68,4 +68,13 @@ test('a Trip that runs back along its track adds up both ways', () => {
 test('a Train at its first Station has gone nowhere, and one with no Station left to leave has gone the whole way', () => {
   expect(progress(calls(0, 1000, 3000), 0, 3).done).toBe(0);
   expect(progress(calls(0, 1000, 3000), 3000, 0).done).toBe(3000);
+});
+
+/** A Trip on a Line, calling at these Stations. */
+const trip = (line: string, ...stations: string[]): Trip => ({ id: `${line} ${stations.join()}`, line, shape: line, headsign: '', calls: stations.map((station, i) => ({ station, arrival: 60 * i, departure: 60 * i, dist: 1000 * i })) });
+
+test("a board's Lines are those whose Trips call at any of its place's Stations, in the order the days list them", () => {
+  // Sants, Rodalies' and the Metro's Stations, from their Trips.
+  const trips = [trip('R2', 'adif:71801', 'adif:71802'), trip('L3', 'tmb:1.326'), trip('R1', 'adif:79400', 'adif:71801'), trip('R4', 'adif:78805'), trip('R2', 'adif:72305', 'adif:71801')];
+  expect(linesCallingAt(trips, ['adif:71801', 'tmb:1.326'], ['R1', 'R2', 'R4', 'L3'])).toEqual(['R1', 'R2', 'L3']);
 });

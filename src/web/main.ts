@@ -7,7 +7,7 @@ import nunitoSans from '@fontsource/nunito-sans/files/nunito-sans-latin-400-norm
 import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-normal.woff2?url';
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
 import { along, APART, atZoom, BANDS, bandZooms, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Credit, type Place, type DayTrips, type Kind, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, WIDTH } from '../bundle.ts';
-import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Departure, type Received } from '../engine.ts';
+import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Departure, type Followed, type Received } from '../engine.ts';
 import { language, LANGUAGES, liveUnavailable, moreDepartures, moreStations, setLanguage, t, toGo, trainCounts, type Language } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { linesAt } from './tap.ts';
@@ -16,7 +16,7 @@ import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts'
 import { keepView, lastView, openingView } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { contrast, lettering } from './colour.ts';
-import { minutesTo, nearbyRows, progress } from './cards.ts';
+import { linesCallingAt, minutesTo, nearbyRows, progress } from './cards.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
 setWorkerUrl(workerUrl);
@@ -412,7 +412,7 @@ map.addControl({ onAdd: () => banner, onRemove: () => banner.remove() }, 'top-le
 // The panel, which showPanel() fills while the map follows a Train, or shows a Station's board or the
 // viewer's nearby Trains: on a phone a sheet docked to the bottom, which peeks or is pulled up, and on
 // a wide window a card at the bottom left (#321).
-const sheet = el('section', { className: 'sheet', hidden: true });
+const panel = el('section', { className: 'sheet', hidden: true });
 // The buttons that ride on its top edge on a phone, where a thumb reaches them and the sheet never
 // covers them, labelled by showLanguage(): the credits bottom left, and bottom right the one that shows
 // the viewer's nearby Trains, with the one that follows a random Train over it, both once the map can
@@ -426,7 +426,7 @@ const trainButtons = el('div', { className: 'fabs', hidden: true }, followRandom
 const creditsButton = el('summary', { className: 'card' }, icon('copyright'));
 const creditsText = el('div', { className: 'card credits-text' });
 const creditsStrip = el('div', { className: 'card credits-strip' });
-document.body.append(el('div', { className: 'dock' }, el('div', { className: 'riders' }, el('details', { className: 'credits' }, creditsButton, creditsText), trainButtons, creditsStrip), sheet));
+document.body.append(el('div', { className: 'dock' }, el('div', { className: 'riders' }, el('details', { className: 'credits' }, creditsButton, creditsText), trainButtons, creditsStrip), panel));
 // The About dialog, opened from the legend, which showAbout() fills: on a phone, a sheet of its own,
 // nearly the full height. Tapping outside it closes it too, in browsers that can.
 const about = el('dialog', { className: 'about' });
@@ -444,13 +444,13 @@ let pulledUp = false;
 let dragging = false;
 // A finger drags the sheet by its top, and lets it go peeking or pulled up, whichever it's nearer.
 grab(
-  sheet,
+  panel,
   () => {
     if (wide.matches) return undefined;
-    const at = sheet.offsetHeight;
-    const heights: [number, number] = [heightOf(false), heightOf(true)];
+    const at = panel.offsetHeight;
+    const heights: [number, number] = [measurePanel(false), measurePanel(true)];
     dragging = true;
-    sheet.style.height = `${at}px`;
+    panel.style.height = `${at}px`;
     showPanel();
     return heights;
   },
@@ -467,8 +467,8 @@ about.addEventListener('close', () => {
 });
 // The panel's layout changes as the window crosses from a phone's to a wide one's.
 wide.addEventListener('change', () => {
-  sheet.classList.remove('sliding');
-  sheet.style.height = '';
+  panel.classList.remove('sliding');
+  panel.style.height = '';
   showPanel();
   map.easeTo({ padding: panelPadding() });
 });
@@ -1337,7 +1337,7 @@ function followRandom() {
   if (pick) follow(pick.trip.id);
 }
 
-/** Follows a Trip's Train, by its ID in the days on the map: brings it into view, above the panel, and keeps it there. */
+/** Follows a Trip's Train, by its ID in the days on the map: brings it into view, beside the panel, and keeps it there. */
 function follow(id: string) {
   const [, day, trip] = /^(\d{4}-\d{2}-\d{2})\/(.*)$/.exec(id) ?? [];
   following = day && trip ? { day, trip } : { day: bundle?.serviceDay ?? '', trip: id };
@@ -1396,10 +1396,10 @@ function closePanel() {
 /** Shows the panel afresh: a followed Train and a board peeking on a phone, Nearby pulled up, with its body scrolled to the top (#321). */
 function openPanel(up: boolean) {
   pulledUp = up;
-  sheet.classList.remove('sliding');
-  sheet.style.height = '';
+  panel.classList.remove('sliding');
+  panel.style.height = '';
   showPanel();
-  sheet.querySelector('.sheet-body')?.scrollTo(0, 0);
+  panel.querySelector('.sheet-body')?.scrollTo(0, 0);
 }
 
 /**
@@ -1469,8 +1469,8 @@ function keepInView(at: Point) {
  */
 function panelPadding(height?: number) {
   const padding = { top: 0, right: 0, bottom: 0, left: 0 };
-  if (sheet.hidden) return padding;
-  const [box, mapBox] = [sheet.getBoundingClientRect(), map.getContainer().getBoundingClientRect()];
+  if (panel.hidden) return padding;
+  const [box, mapBox] = [panel.getBoundingClientRect(), map.getContainer().getBoundingClientRect()];
   return wide.matches ? { ...padding, left: box.right - mapBox.left } : { ...padding, bottom: mapBox.bottom - box.bottom + (height ?? box.height) };
 }
 
@@ -1489,42 +1489,43 @@ interface Panel {
 function showPanel(up = wide.matches || pulledUp || dragging) {
   panelShown = performance.now();
   const shown = following ? followedPanel(up) : boardPlace ? boardPanel(boardPlace, up) : nearMe ? nearbyPanel(nearMe, up) : undefined;
-  sheet.hidden = !shown;
-  patch(sheet, shown ? [el('div', { className: 'sheet-top' }, handle(up), shown.header), el('div', { className: 'sheet-body' }, ...shown.body)] : []);
+  panel.hidden = !shown;
+  panel.classList.toggle('up', up);
+  patch(panel, shown ? [el('div', { className: 'sheet-top' }, handle(up), shown.header), el('div', { className: 'sheet-body' }, ...shown.body)] : []);
 }
 
-/** How high the sheet is, in px, showing what it shows pulled up, or peeking. */
-function heightOf(up: boolean): number {
-  sheet.style.height = '';
+/** Shows what the panel shows pulled up, or peeking, and gives how high it is then, in px. */
+function measurePanel(up: boolean): number {
+  panel.style.height = '';
   showPanel(up);
-  return sheet.offsetHeight;
+  return panel.offsetHeight;
 }
 
 /** Pulls the sheet up on a phone, or lets it down to peek, easing it there from `from` px high, and the map's padding with it. */
-function setPulledUp(up: boolean, from = sheet.offsetHeight) {
+function setPulledUp(up: boolean, from = panel.offsetHeight) {
   pulledUp = up;
   showPanel();
-  map.easeTo({ padding: panelPadding(slide(sheet, from)) });
+  map.easeTo({ padding: panelPadding(slide(panel, from)) });
 }
 
 /** Eases a sheet from `from` px high to the height it takes now, unless the viewer prefers less motion, and gives that height. */
-function slide(card: HTMLElement, from: number): number {
-  card.classList.remove('sliding');
-  card.style.height = '';
-  const to = card.offsetHeight;
+function slide(sheet: HTMLElement, from: number): number {
+  sheet.classList.remove('sliding');
+  sheet.style.height = '';
+  const to = sheet.offsetHeight;
   if (lessMotion.matches || Math.abs(to - from) < 1) return to;
-  card.style.height = `${from}px`;
+  sheet.style.height = `${from}px`;
   // Laid out at `from` first, so that it eases from there.
-  void card.offsetHeight;
-  card.classList.add('sliding');
-  card.style.height = `${to}px`;
+  void sheet.offsetHeight;
+  sheet.classList.add('sliding');
+  sheet.style.height = `${to}px`;
   const done = (e: TransitionEvent) => {
-    if (e.target !== card) return;
-    card.removeEventListener('transitionend', done);
-    card.classList.remove('sliding');
-    card.style.height = '';
+    if (e.target !== sheet) return;
+    sheet.removeEventListener('transitionend', done);
+    sheet.classList.remove('sliding');
+    sheet.style.height = '';
   };
-  card.addEventListener('transitionend', done);
+  sheet.addEventListener('transitionend', done);
   return to;
 }
 
@@ -1534,35 +1535,35 @@ function slide(card: HTMLElement, from: number): number {
  * it's nearer the higher, and how high it was let go. A finger that moves less than SLOP taps, and
  * the click a drag ends in is dropped, but not a key's.
  */
-function grab(card: HTMLElement, range: () => [low: number, high: number] | undefined, release: (high: boolean, at: number) => void) {
+function grab(sheet: HTMLElement, range: () => [low: number, high: number] | undefined, release: (high: boolean, at: number) => void) {
   let held: { id: number; y: number; height: number; range?: [number, number] } | undefined;
   let dragged = false;
-  card.addEventListener('pointerdown', (e) => {
+  sheet.addEventListener('pointerdown', (e) => {
     dragged = false;
-    if (e.isPrimary && e.target instanceof Element && e.target.closest('.sheet-top')) held = { id: e.pointerId, y: e.clientY, height: card.offsetHeight };
+    if (e.isPrimary && e.target instanceof Element && e.target.closest('.sheet-top')) held = { id: e.pointerId, y: e.clientY, height: sheet.offsetHeight };
   });
-  card.addEventListener('pointermove', (e) => {
+  sheet.addEventListener('pointermove', (e) => {
     if (held?.id !== e.pointerId) return;
     if (!held.range) {
       if (Math.abs(e.clientY - held.y) < SLOP) return;
       held.range = range();
       if (!held.range) return void (held = undefined);
       dragged = true;
-      card.setPointerCapture(e.pointerId);
+      sheet.setPointerCapture(e.pointerId);
     }
     const [low, high] = held.range;
-    card.style.height = `${Math.min(high, Math.max(low, held.height + held.y - e.clientY))}px`;
+    sheet.style.height = `${Math.min(high, Math.max(low, held.height + held.y - e.clientY))}px`;
   });
   const letGo = (e: PointerEvent) => {
     if (held?.id !== e.pointerId) return;
     const { range: [low, high] = [NaN, NaN] } = held;
     held = undefined;
-    const at = card.offsetHeight;
+    const at = sheet.offsetHeight;
     if (!Number.isNaN(low)) release(high - at < at - low, at);
   };
-  card.addEventListener('pointerup', letGo);
-  card.addEventListener('pointercancel', letGo);
-  card.addEventListener(
+  sheet.addEventListener('pointerup', letGo);
+  sheet.addEventListener('pointercancel', letGo);
+  sheet.addEventListener(
     'click',
     (e) => {
       if (dragged && e.detail) {
@@ -1585,7 +1586,12 @@ function handle(up: boolean) {
 
 /** The button a peeking sheet ends in, saying how much more it has, which pulls it up. */
 function moreButton(text: string) {
-  const button = el('button', { type: 'button', className: 'more', onclick: () => setPulledUp(true) }, el('span', { textContent: text }), icon('up'));
+  const pullUp = () => {
+    setPulledUp(true);
+    // It goes as the sheet's pulled up, so the keyboard's focus goes to the handle, which lets it down again.
+    panel.querySelector<HTMLElement>('.handle')?.focus();
+  };
+  const button = el('button', { type: 'button', className: 'more', onclick: pullUp }, el('span', { textContent: text }), icon('up'));
   button.setAttribute('aria-expanded', 'false');
   return button;
 }
@@ -1601,24 +1607,21 @@ function followedPanel(up: boolean): Panel | undefined {
   const now = Date.now();
   const train = bundle && trainAt(bundle, now, received, followedId() ?? '');
   if (!train) return undefined;
-  const { trip, dist, live, unreported, since, delay, speed, unitType, upcoming, standsAt } = train;
-  const [next, last] = [upcoming[0], upcoming.at(-1)];
-  // Standing at a Station, it's when it leaves that's still to come.
-  const due = (i: number) => (i === 0 && standsAt ? upcoming[i]?.departure : upcoming[i]?.arrival) ?? now;
+  const { trip, live, unreported, since, speed, unitType, upcoming } = train;
+  const last = upcoming.at(-1);
   const status: (Node | string)[] = [t(live ? 'live' : 'scheduled')];
   if (unreported) status.push(t('noLiveTrain'));
   else if (since !== undefined) status.push(t(live ? 'confirmed' : 'lastConfirmed').replace('{ago}', ago(since)));
   status.push(el('span', {}, el('span', { className: 'sr-only', textContent: `${t('speed')} ` }), `~${Math.round(speed * 3.6)} km/h`));
   if (unitType) status.push(`${t('unit')} ${unitType}`);
-  const colour = lines.get(trip.line)?.colour ?? '';
   return {
     header: el('header', {}, el('h2', { className: 'title' }, pill(trip.line, { live, train: true }), ` ${trip.headsign}`), closeButton(t('stopFollowing'))),
     body: [
       el('p', { className: 'meta status-line' }, el('span', { className: `dot ${live ? 'live' : 'scheduled'}` }), ...status.flatMap((part, i) => (i ? [' · ', part] : [part]))),
-      ...(next ? [nextStop(stationName(next.station), due(0), delay, live, now)] : []),
-      tripBar(trip, dist, upcoming.length, colour),
+      ...nextStation(train, now),
+      tripBar(train),
       ...(up
-        ? [el('hr', { className: 'dash' }), strip(trip, upcoming, due, standsAt, colour)]
+        ? [el('hr', { className: 'dash' }), strip(train)]
         : last && upcoming.length > 1
           ? [moreButton(moreStations(upcoming.length - 1, trip.headsign, clock().format(last.arrival)))]
           : []),
@@ -1626,34 +1629,41 @@ function followedPanel(up: boolean): Panel | undefined {
   };
 }
 
-/** A followed Train's next Station: its name, when the Train's expected there, with its Delay beside, and the minutes to it within the hour. */
-function nextStop(name: string, due: number, delay: number | undefined, live: boolean, now: number) {
-  const minutes = minutesTo(due, now);
-  return el(
-    'div',
-    { className: 'next-stop' },
-    el('div', {}, el('p', { className: 'label', textContent: t('nextStation') }), el('strong', { className: 'next-name', textContent: name })),
+/** When a followed Train's expected at a Station it has still to come to: at the one it stands at, when it leaves. */
+function due(call: Followed['upcoming'][number], standing: boolean): number {
+  return standing ? call.departure : call.arrival;
+}
+
+/** A followed Train's next Station: its name, when the Train's expected there, with its status beside it, and the minutes to it within the hour. */
+function nextStation({ upcoming: [next], standsAt, delay, live }: Followed, now: number): Node[] {
+  if (!next) return [];
+  const at = due(next, !!standsAt);
+  return [
     el(
       'div',
-      { className: 'next-when' },
-      el('span', { className: 'at' }, el('time', {}, ...timeOfDay(due)), delayChip(delay) ?? (live && delay !== undefined ? el('span', { className: 'status soft', textContent: t('onTime') }) : '')),
-      ...(minutes < 60 ? [el('span', { className: 'in', textContent: toGo(minutes, 'inMinutes') })] : []),
+      { className: 'next-station' },
+      el('div', {}, el('p', { className: 'label', textContent: t('nextStation') }), el('strong', { className: 'next-name', textContent: stationName(next.station) })),
+      el('div', { className: 'next-when' }, el('span', { className: 'at' }, el('time', {}, ...timeOfDay(at)), status({ delay, live })), ...countdown(at, now, 'inMinutes')),
     ),
-  );
+  ];
 }
 
 /** How far a followed Train is along its Trip, as a bar from its first Station to its last, by distance (progress()), with the Trip's length. */
-function tripBar(trip: Trip, dist: number, left: number, colour: string) {
-  const { done, length } = progress(trip.calls, dist, left);
+function tripBar({ trip, dist, upcoming }: Followed) {
+  const { done, length } = progress(trip.calls, dist, upcoming.length);
   const share = length ? (100 * done) / length : 0;
   const bar = el('div', { className: 'bar' }, el('i'));
   bar.style.setProperty('--done', `${share.toFixed(1)}%`);
   bar.setAttribute('role', 'progressbar');
   bar.setAttribute('aria-valuenow', String(Math.round(share)));
-  const ends = el('div', { className: 'ends' }, el('span', { textContent: stationName(trip.calls[0]?.station ?? '') }), el('span', { textContent: `${trip.headsign}, ${kilometres(length)} km` }));
-  bar.setAttribute('aria-label', ends.textContent ?? '');
-  const shown = el('div', { className: 'progress' }, bar, ends);
-  shown.style.setProperty('--line', colour);
+  bar.setAttribute('aria-valuetext', `${kilometres(done)} / ${kilometres(length)} km`);
+  const shown = el(
+    'div',
+    { className: 'progress' },
+    bar,
+    el('div', { className: 'ends' }, el('span', { textContent: stationName(trip.calls[0]?.station ?? '') }), el('span', { textContent: `${trip.headsign}, ${kilometres(length)} km` })),
+  );
+  shown.style.setProperty('--line', lines.get(trip.line)?.colour ?? '');
   return shown;
 }
 
@@ -1663,17 +1673,20 @@ function tripBar(trip: Trip, dist: number, left: number, colour: string) {
  * Station, where the strip ends in a bar across it, as the operators' maps end a Line. The next and
  * the last are in bold.
  */
-function strip(trip: Trip, upcoming: { station: string }[], due: (i: number) => number, standsAt: string | undefined, colour: string) {
-  const left = trip.calls[trip.calls.length - upcoming.length - 1];
-  const stop = (className: string, time: (Node | string)[], name: string) => el('li', { className }, el('time', {}, ...time), el('span', { className: 'stop' }), el('span', { textContent: name }));
+function strip({ trip, upcoming, standsAt }: Followed) {
+  // The Station it left last, before those it has still to leave.
+  const lastLeft = trip.calls[trip.calls.length - upcoming.length - 1];
+  const station = (className: string, time: (Node | string)[], name: string) => el('li', { className }, el('time', {}, ...time), el('span', { className: 'mark' }), el('span', { textContent: name }));
   const list = el(
     'ol',
     { className: 'strip' },
-    ...(left && !standsAt ? [stop('train soft', [t('now')], t('left').replace('{station}', stationName(left.station)))] : []),
-    ...upcoming.map((u, i) => stop([i === 0 && standsAt ? 'train' : '', i === 0 ? 'next' : '', i === upcoming.length - 1 ? 'terminus' : ''].filter(Boolean).join(' '), timeOfDay(due(i)), stationName(u.station))),
+    ...(lastLeft && !standsAt ? [station('train soft', [t('now')], t('left').replace('{station}', stationName(lastLeft.station)))] : []),
+    ...upcoming.map((call, i) =>
+      station([i === 0 && standsAt ? 'train' : '', i === 0 ? 'next' : '', i === upcoming.length - 1 ? 'terminus' : ''].filter(Boolean).join(' '), timeOfDay(due(call, i === 0 && !!standsAt)), stationName(call.station)),
+    ),
   );
   list.setAttribute('aria-label', t('nextStations'));
-  list.style.setProperty('--line', colour);
+  list.style.setProperty('--line', lines.get(trip.line)?.colour ?? '');
   return list;
 }
 
@@ -1711,28 +1724,35 @@ function boardPanel(id: string, up: boolean): Panel | undefined {
 
 /** The Lines whose Trips call at a place, by their IDs, in the order the days on the map list them: for the last place asked about, until the days change. */
 function servedBy(place: Place): string[] {
-  if (served.place !== place.id || served.days !== bundle) {
-    const here = new Set(place.stations);
-    const calling = new Set((bundle?.trips ?? []).filter((trip) => trip.calls.some((c) => here.has(c.station))).map((trip) => trip.line));
-    served = { place: place.id, days: bundle, lines: [...lines.keys()].filter((line) => calling.has(line)) };
-  }
+  if (served.place !== place.id || served.days !== bundle) served = { place: place.id, days: bundle, lines: linesCallingAt(bundle?.trips ?? [], place.stations, [...lines.keys()]) };
   return served.lines;
 }
 
 /** A departure on a board: when it's expected to leave, with the minutes to go under a time within the hour, its Train's pill, where it's headed, and its status. */
 function departureRow({ trip, departure, delay, live, unreported, cancelled }: Departure, now: number) {
-  const minutes = minutesTo(departure, now);
   return el(
     'li',
     { className: cancelled ? 'cancelled' : '' },
-    el('time', {}, ...timeOfDay(departure), ...(!cancelled && minutes < 60 ? [el('span', { className: 'in', textContent: toGo(minutes, 'minutes') })] : [])),
+    el('time', {}, ...timeOfDay(departure), ...(cancelled ? [] : countdown(departure, now, 'minutes'))),
     pill(trip.line, { live, train: true }),
     el('span', { className: 'dest', textContent: trip.headsign }),
-    cancelled
-      ? el('span', { className: 'status cancelled', textContent: t('cancelled') })
-      : (delayChip(delay) ??
-          el('span', { className: 'status soft', textContent: unreported ? t('noLiveTrain') : live && delay !== undefined ? t('onTime') : '' })),
+    cancelled ? el('span', { className: 'status cancelled', textContent: t('cancelled') }) : status({ delay, live, unreported }),
   );
+}
+
+/**
+ * What a row says at its end, and the followed Train beside its next time: its Delay as a chip, or
+ * no live data, for a Scheduled Train whose Network has live data, or on time, for a Live one;
+ * nothing for a Metro Train, which has no Delay to show.
+ */
+function status({ delay, live, unreported = false }: { delay?: number; live: boolean; unreported?: boolean }) {
+  return delayChip(delay) ?? el('span', { className: 'status soft', textContent: unreported ? t('noLiveTrain') : live && delay !== undefined ? t('onTime') : '' });
+}
+
+/** The minutes to go until `at`, under a time within the hour, as `phrase` words them, or now. */
+function countdown(at: number, now: number, phrase: 'minutes' | 'inMinutes'): Node[] {
+  const minutes = minutesTo(at, now);
+  return minutes < 60 ? [el('span', { className: 'in', textContent: toGo(minutes, phrase) })] : [];
 }
 
 /**
@@ -1753,7 +1773,7 @@ function nearbyPanel(near: Point | 'locating' | 'failed', up: boolean): Panel {
       rows.length
         ? el(
             'ol',
-            { className: 'rows nearby' },
+            { className: 'rows groups' },
             ...(up ? rows : rows.slice(0, PEEK)).map(({ next, passes }) =>
               el(
                 'li',

@@ -56,7 +56,7 @@ const STRINGS = {
   now: { ca: 'ara', es: 'ahora', en: 'now' },
   // At the foot of a peeking followed Train: how many Stations it has still to come after the next, and the last of them, where it's headed, and when it's due there.
   moreStations: { ca: '{n} estacions més, fins a {headsign} ({time})', es: '{n} estaciones más, hasta {headsign} ({time})', en: '{n} more stations, to {headsign} at {time}' },
-  oneMoreStation: { ca: '1 estació més, fins a {headsign} ({time})', es: '1 estación más, hasta {headsign} ({time})', en: '1 more station, to {headsign} at {time}' },
+  oneMoreStation: { ca: '{n} estació més, fins a {headsign} ({time})', es: '{n} estación más, hasta {headsign} ({time})', en: '{n} more station, to {headsign} at {time}' },
   // A Station's board.
   closeBoard: { ca: 'Tanca el panell de sortides', es: 'Cerrar el panel de salidas', en: 'Close the departures board' },
   nextDepartures: { ca: 'Properes sortides', es: 'Próximas salidas', en: 'Next departures' },
@@ -64,7 +64,7 @@ const STRINGS = {
   cancelled: { ca: 'Cancel·lat', es: 'Cancelado', en: 'Cancelled' },
   // At the foot of a peeking board: how many departures more it lists.
   moreDepartures: { ca: '{n} sortides més', es: '{n} salidas más', en: '{n} more departures' },
-  oneMoreDeparture: { ca: '1 sortida més', es: '1 salida más', en: '1 more departure' },
+  oneMoreDeparture: { ca: '{n} sortida més', es: '{n} salida más', en: '{n} more departure' },
   // Nearby Trains: their panel's title, and the button that opens them.
   nearby: { ca: 'Trens a prop', es: 'Trenes cercanos', en: 'Nearby trains' },
   nearbyButton: { ca: 'A prop', es: 'Cerca', en: 'Nearby' },
@@ -150,13 +150,16 @@ export function setLanguage(choice: Language) {
 export const t = (key: keyof typeof STRINGS, lang = language()): string => STRINGS[key][lang];
 
 /**
- * How many Trains on the map are Live, and how many Scheduled, in `lang`, or else the language the interface speaks now.
+ * A string that counts `n` of something, in `lang`: `one` where `n` is 1, and `other` otherwise.
  * ponytail: one is singular and any other number plural, as in Catalan, Spanish and English. Pick
  * the string by Intl.PluralRules if a language with other plural forms joins them.
  */
+const counting = (n: number, one: keyof typeof STRINGS, other: keyof typeof STRINGS, lang: Language): string => STRINGS[n === 1 ? one : other][lang].replace('{n}', String(n));
+
+/** How many Trains on the map are Live, and how many Scheduled, in `lang`, or else the language the interface speaks now. */
 export const trainCounts = (live: number, scheduled: number, lang = language()): [live: string, scheduled: string] => [
   STRINGS.liveCount[lang].replace('{n}', String(live)),
-  STRINGS[scheduled === 1 ? 'oneScheduledCount' : 'scheduledCount'][lang].replace('{n}', String(scheduled)),
+  counting(scheduled, 'oneScheduledCount', 'scheduledCount', lang),
 ];
 
 /** How long until a Train comes, `minutes` from now, in `lang`, or else the language the interface speaks now: as `minutes` has it, or for the next Station `inMinutes`, or now. */
@@ -168,10 +171,10 @@ export const liveUnavailable = (network: string, lang = language()): string => S
 
 /** How many Stations a followed Train has still to come after its next, `n`, to its last, where it's headed, and when it's due there, in `lang`, or else the language the interface speaks now. */
 export const moreStations = (n: number, headsign: string, time: string, lang = language()): string =>
-  STRINGS[n === 1 ? 'oneMoreStation' : 'moreStations'][lang].replace('{n}', String(n)).replace('{headsign}', headsign).replace('{time}', time);
+  counting(n, 'oneMoreStation', 'moreStations', lang).replace('{headsign}', headsign).replace('{time}', time);
 
 /** How many departures more a board lists than it shows peeking, in `lang`, or else the language the interface speaks now. */
-export const moreDepartures = (n: number, lang = language()): string => STRINGS[n === 1 ? 'oneMoreDeparture' : 'moreDepartures'][lang].replace('{n}', String(n));
+export const moreDepartures = (n: number, lang = language()): string => counting(n, 'oneMoreDeparture', 'moreDepartures', lang);
 
 /** What this device remembers the viewer chose, if its storage can be read. */
 function remembered(): string | null {

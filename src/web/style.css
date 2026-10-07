@@ -123,6 +123,16 @@ body {
   outline-offset: 2px;
 }
 
+/* Round the handle's bar, as the sheet's edge and header would cut one round the whole handle. */
+.handle:focus-visible {
+  outline: none;
+}
+
+.handle:focus-visible span {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
 .lang select:focus-visible {
   outline: none;
 }
@@ -343,7 +353,7 @@ body {
   text-underline-offset: 2px;
 }
 
-/* The sheet: it peeks, or is pulled up to about 62% of the screen. Its handle and header stay put, so the close button's always in reach, and only its body scrolls, on a thin ink scrollbar with a clear track, 4 px in from the outline. */
+/* The sheet: it peeks, or is pulled up to about 62% of the screen. Its handle and header stay put, so the close button's always in reach, and only its body scrolls, on a thin ink scrollbar with a clear track. */
 .sheet,
 .about {
   padding: 0 16px 16px;
@@ -363,6 +373,10 @@ body {
   border-radius: 18px;
 }
 
+.sheet.up {
+  height: 62dvh;
+}
+
 .sliding {
   transition: height 0.25s ease;
 }
@@ -375,8 +389,9 @@ body {
 .sheet-body {
   flex: 1;
   min-height: 0;
-  margin-right: -12px;
-  padding-right: 12px;
+  /* Room for a focus ring round what's at its edges, where it would cut one, and the scrollbar's 4 px in from the outline. */
+  margin: -4px -12px -4px -4px;
+  padding: 4px 12px 4px 4px;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-color: color-mix(in srgb, var(--ink) 35%, transparent) transparent;
@@ -571,7 +586,7 @@ time .in {
   grid-template-columns: auto auto 1fr auto;
 }
 
-.rows.nearby {
+.rows.groups {
   grid-template-columns: auto 1fr auto;
 }
 
@@ -609,19 +624,19 @@ time .in {
 }
 
 /* Nearby's next passes, a Live one's bold, over the next Train's Delay. */
-.nearby .when {
+.groups .when {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 2px;
 }
 
-.nearby .times {
+.groups .times {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-.nearby .live {
+.times .live {
   font-weight: 700;
 }
 
@@ -665,7 +680,7 @@ time .in {
   background: var(--ink);
 }
 
-.next-stop {
+.next-station {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
@@ -673,7 +688,7 @@ time .in {
   margin: 2px 0 6px;
 }
 
-.next-stop .label {
+.next-station .label {
   margin: 0;
 }
 
@@ -724,10 +739,11 @@ time .in {
   background: var(--ink);
 }
 
+/* The Train on it, kept whole on the bar at its ends, where the body it scrolls in would cut it. */
 .bar i {
   position: absolute;
   top: 50%;
-  left: var(--done);
+  left: clamp(7px, var(--done), calc(100% - 7px));
   box-sizing: border-box;
   width: 14px;
   height: 14px;
@@ -797,7 +813,7 @@ time .in {
   font-weight: 700;
 }
 
-.strip .stop {
+.strip .mark {
   z-index: 1;
   justify-self: center;
   box-sizing: border-box;
@@ -808,14 +824,14 @@ time .in {
   background: var(--card);
 }
 
-.strip li.train .stop {
+.strip li.train .mark {
   width: 14px;
   height: 14px;
   border: 2.5px solid var(--ink);
   background: var(--line);
 }
 
-.strip li.terminus:not(.train) .stop {
+.strip li.terminus:not(.train) .mark {
   width: 20px;
   height: 7px;
   border: 0;
@@ -939,12 +955,15 @@ time .in {
 
 /* ---- On a wide window, the panel is a 380 px card at the bottom left, About a dialog mid-screen, and the buttons go over the credits' strip, bottom right. ---- */
 @media (min-width: 640px) {
-  .sheet {
+  .sheet,
+  .sheet.up {
     position: absolute;
     bottom: 0;
     left: 0;
     width: 380px;
-    max-height: calc(100dvh - 72px);
+    height: auto;
+    /* Clear of the legend and a banner's pill under it. */
+    max-height: calc(100dvh - 112px);
     padding-top: 12px;
     border-radius: 14px;
   }
@@ -998,7 +1017,7 @@ time .in {
   .bar::before,
   .bar i,
   .strip li::before,
-  .strip .stop,
+  .strip .mark,
   .handle span {
     forced-color-adjust: none;
   }
@@ -1042,13 +1061,13 @@ time .in {
   }
 
   .bar i,
-  .strip .stop {
+  .strip .mark {
     border-color: CanvasText;
     background: Canvas;
   }
 
-  .strip li.train .stop,
-  .strip li.terminus:not(.train) .stop {
+  .strip li.train .mark,
+  .strip li.terminus:not(.train) .mark {
     border-color: CanvasText;
     background: CanvasText;
   }

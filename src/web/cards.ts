@@ -1,5 +1,5 @@
-// What the cards work out from the engine's Trains: minutes to go, Nearby's rows, and how far along its Trip a followed Train is (#321).
-import type { Call } from '../bundle.ts';
+// What the cards work out from the days on the map and the engine's Trains: minutes to go, Nearby's rows, how far along its Trip a followed Train is, and a board's Lines (#321).
+import type { Call, Trip } from '../bundle.ts';
 import type { Pass } from '../engine.ts';
 
 /** The whole minutes from `now` to `at`, both in ms since 1970, as a clock showing minutes reads them, as a board shows times: none for a time this minute, or past. */
@@ -38,13 +38,20 @@ export function nearbyRows(passes: Pass[], now: number): NearbyRow[] {
  * Station, so that a Trip which runs back along its track adds up both ways: given its calls, how far
  * along its shape it's drawn, and how many Stations it has still to leave, the one it stands at too.
  */
-export function progress(calls: Call[], dist: number, left: number): { done: number; length: number } {
+export function progress(calls: Call[], dist: number, toLeave: number): { done: number; length: number } {
   const legs = calls.slice(1).map((call, i) => Math.abs(call.dist - (calls[i]?.dist ?? call.dist)));
   // The leg it's on, which ends at the first Station it has still to leave.
-  const on = calls.length - left - 1;
+  const on = calls.length - toLeave - 1;
   const sum = (lengths: number[]) => lengths.reduce((total, length) => total + length, 0);
   const length = sum(legs);
   if (on < 0) return { done: 0, length };
   if (on >= legs.length) return { done: length, length };
   return { done: sum(legs.slice(0, on)) + Math.min(Math.abs(dist - (calls[on]?.dist ?? dist)), legs[on] ?? 0), length };
+}
+
+/** The Lines whose Trips call at any of `stations`, a place's, as a board names them: of `lines`, in their order. */
+export function linesCallingAt(trips: Trip[], stations: string[], lines: string[]): string[] {
+  const here = new Set(stations);
+  const calling = new Set(trips.filter((trip) => trip.calls.some((c) => here.has(c.station))).map((trip) => trip.line));
+  return lines.filter((line) => calling.has(line));
 }
