@@ -1,0 +1,1119 @@
+/* The cards' mockup page (#212), throwaway: frames at a phone's 390 × 844, each in light or dark. */
+@import 'maplibre-gl/dist/maplibre-gl.css';
+
+@font-face {
+  font-family: 'Nunito Sans';
+  font-weight: 400;
+  font-display: swap;
+  src: url('@fontsource/nunito-sans/files/nunito-sans-latin-400-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Nunito Sans';
+  font-weight: 700;
+  font-display: swap;
+  src: url('@fontsource/nunito-sans/files/nunito-sans-latin-700-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Young Serif';
+  font-weight: 400;
+  font-display: swap;
+  src: url('@fontsource/young-serif/files/young-serif-latin-400-normal.woff2') format('woff2');
+}
+
+/* The page round the frames. */
+body {
+  margin: 0;
+  background: #dfe3e8;
+  color: #1d2733;
+  font: 14px/1.5 system-ui, sans-serif;
+}
+
+.page-head {
+  max-width: 80em;
+  padding: 24px 32px 0;
+}
+
+.page-head h1 {
+  margin: 0 0 4px;
+  font-size: 22px;
+}
+
+.page-head p,
+.look > p {
+  max-width: 72em;
+  margin: 0 0 8px;
+}
+
+.page-head nav a {
+  margin-right: 12px;
+}
+
+.look {
+  padding: 24px 32px 16px;
+}
+
+.look > h2 {
+  margin: 0 0 4px;
+  font-size: 19px;
+}
+
+.look > ul {
+  max-width: 72em;
+  margin: 0 0 16px;
+  padding-left: 20px;
+}
+
+.frames {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.frame {
+  flex: none;
+  margin: 0;
+}
+
+.frame figcaption {
+  margin-bottom: 6px;
+  color: #4a5563;
+  font: 600 12px/1.3 system-ui, sans-serif;
+}
+
+.phone {
+  position: relative;
+  width: 390px;
+  height: 844px;
+  overflow: hidden;
+  background: center / cover no-repeat;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.15);
+  color: var(--ink);
+  font-family: var(--font);
+}
+
+/* Ink, style.css's :root, and its dark side, set on each frame rather than by the system's setting, so that light and dark frames sit side by side. */
+[data-theme='light'] {
+  color-scheme: light;
+  --ink: #14305a;
+  --ink-soft: #4b5d78;
+  --card: #fff;
+  --warn: #fff3bf;
+  --warn-ink: #4a3500;
+  --warn-rule: #e3b341;
+  --cancelled: #c00;
+  --backdrop: rgb(20 48 90 / 0.3);
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+  --ink: #e6ecf5;
+  --ink-soft: #a3b1c6;
+  --card: #151b24;
+  --warn: #33290a;
+  --warn-ink: #ffd666;
+  --warn-rule: #7a5c00;
+  --cancelled: #ff8080;
+  --backdrop: rgb(0 0 0 / 0.55);
+}
+
+[data-theme] {
+  --font: 'Nunito Sans', sans-serif;
+  --serif: 'Young Serif', Georgia, serif;
+  --rule: color-mix(in srgb, var(--ink) 25%, transparent);
+  --hairline: color-mix(in srgb, var(--ink) 12%, transparent);
+  --hover: color-mix(in srgb, var(--ink) 7%, transparent);
+}
+
+/* ---- Today: style.css's rules as deployed (1fb6f6e), scoped to the frame, with its dark side on the frame's theme and a phone's 390 × 844 for vw and vh. ---- */
+.v-today {
+  position: absolute;
+  inset: 0;
+}
+
+.v-today.maplibregl-map {
+  font-family: var(--font);
+}
+
+.v-today .maplibregl-ctrl.maplibregl-ctrl-attrib {
+  background-color: color-mix(in srgb, var(--card) 70%, transparent);
+  color: var(--ink);
+}
+
+.v-today .maplibregl-ctrl-group:not(:empty),
+.v-today .maplibregl-ctrl-attrib.maplibregl-compact,
+.v-today :where(.lines-at) .maplibregl-popup-content,
+.v-today .follow,
+.v-today .about {
+  border: 1.5px solid var(--rule);
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: none;
+  color: var(--ink);
+}
+
+.v-today .maplibregl-ctrl-group button + button {
+  border-top-color: var(--rule);
+}
+
+[data-theme='dark'] .v-today .maplibregl-ctrl-icon,
+[data-theme='dark'] .v-today .maplibregl-ctrl-attrib-button {
+  filter: invert(1);
+}
+
+.v-today .maplibregl-popup-anchor-bottom .maplibregl-popup-tip {
+  border-top-color: var(--card);
+}
+
+.v-today .about a,
+.v-today .maplibregl-ctrl-attrib a {
+  color: var(--ink);
+}
+
+.v-today .legend,
+.v-today .banner {
+  max-width: calc(390px - 150px);
+  padding: 4px 8px;
+  font: 12px/1.6 var(--font);
+}
+
+.v-today .legend .marker {
+  display: inline-block;
+  box-sizing: border-box;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  vertical-align: -1px;
+}
+
+.v-today .legend .pill {
+  width: 18px;
+  border-radius: 5px;
+}
+
+.v-today .legend .live {
+  background: var(--ink);
+  box-shadow: 0 0 4px 1px color-mix(in srgb, var(--ink) 60%, transparent);
+}
+
+.v-today .legend button {
+  display: inline;
+  width: auto;
+  height: auto;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+}
+
+.v-today .maplibregl-ctrl-group.banner {
+  border-color: var(--warn-rule);
+  background: var(--warn);
+  color: var(--warn-ink);
+}
+
+.v-today .language {
+  height: 29px;
+  padding: 0 4px;
+  font: 16px var(--font);
+}
+
+.v-today .follow-random .maplibregl-ctrl-icon {
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='29' height='29' viewBox='0 0 29 29' fill='%23333'><rect x='8.75' y='8.75' width='11.5' height='11.5' rx='2.25' fill='none' stroke='%23333' stroke-width='1.5'/><circle cx='11.75' cy='11.75' r='1.1'/><circle cx='17.25' cy='11.75' r='1.1'/><circle cx='14.5' cy='14.5' r='1.1'/><circle cx='11.75' cy='17.25' r='1.1'/><circle cx='17.25' cy='17.25' r='1.1'/></svg>");
+}
+
+.v-today .follow {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  z-index: 3;
+  box-sizing: border-box;
+  width: min(320px, calc(390px - 16px));
+  max-height: calc(844px * 0.45);
+  overflow-y: auto;
+  padding: 8px 12px;
+  font: 13px/1.5 var(--font);
+}
+
+.v-today .about {
+  box-sizing: border-box;
+  width: min(440px, calc(390px - 16px));
+  max-width: none;
+  padding: 8px 12px 12px;
+  font: 13px/1.5 var(--font);
+}
+
+.v-today .follow h2,
+.v-today .about h2 {
+  margin: 0 24px 4px 0;
+  font-family: 'Young Serif', Georgia, serif;
+  font-size: 15px;
+  font-weight: 400;
+}
+
+.v-today .follow .line {
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--line, #555);
+  color: #fff;
+}
+
+.v-today .follow h2 .line {
+  font-family: var(--font);
+  font-weight: 700;
+}
+
+.v-today .follow h3,
+.v-today .about h3 {
+  margin: 8px 0 2px;
+  font-size: 13px;
+}
+
+.v-today .follow p,
+.v-today .follow ol,
+.v-today .about p,
+.v-today .about ul {
+  margin: 0;
+}
+
+.v-today .follow ol,
+.v-today .about ul {
+  padding-left: 0;
+  list-style: none;
+}
+
+.v-today .follow time {
+  display: inline-block;
+  min-width: 3.5em;
+  font-variant-numeric: tabular-nums;
+}
+
+.v-today .follow .close,
+.v-today .about .close {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: 22px/1 var(--font);
+}
+
+.v-today .follow li small {
+  display: block;
+  margin-left: 3.5em;
+  color: var(--ink-soft);
+}
+
+.v-today .follow li .line {
+  margin-right: 2px;
+}
+
+.v-today .follow .cancelled time {
+  text-decoration: line-through;
+}
+
+.v-today .follow .cancelled small {
+  color: var(--cancelled);
+}
+
+.v-today .lines-at .maplibregl-popup-content {
+  max-width: min(320px, calc(390px - 32px));
+  padding: 6px;
+}
+
+.v-today .lines-at .maplibregl-popup-content > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.v-today .lines-at .pill {
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--line, #555);
+  color: #fff;
+  font: bold 12px/18px var(--font);
+}
+
+.v-today .lines-at .badge {
+  border-radius: 3px;
+}
+
+.v-today .lines-at .pointed {
+  padding: 0 9px;
+  border-radius: 0;
+  clip-path: polygon(6px 0, calc(100% - 6px) 0, 100% 50%, calc(100% - 6px) 100%, 6px 100%, 0 50%);
+}
+
+.v-today .lines-at .dark {
+  color: #111;
+}
+
+/* The About dialog as showModal() lays it out, mid-screen over a faint backdrop, which a frame can't put in the top layer. */
+.v-today dialog.about {
+  top: 50%;
+  z-index: 5;
+  max-height: calc(100% - 6px - 2em);
+  overflow: auto;
+  translate: 0 -50%;
+}
+
+.v-today .backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  background: rgb(0 0 0 / 0.1);
+}
+
+/* ---- The three directions: one system of cards, A's outlines faint, B's and C's railisland's. ---- */
+.v-new {
+  position: absolute;
+  inset: 0;
+  --radius: 12px;
+  --edge: 1.5px solid var(--rule);
+  color: var(--ink);
+  font: 14px/1.45 var(--font);
+}
+
+.v-b,
+.v-c {
+  --radius: 14px;
+  --edge: 2px solid color-mix(in srgb, var(--ink) 80%, transparent);
+}
+
+.v-new .card {
+  box-sizing: border-box;
+  border: var(--edge);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--ink);
+}
+
+.v-new button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.v-new svg {
+  display: block;
+}
+
+.v-new p {
+  margin: 0;
+}
+
+.v-new ol,
+.v-new ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A Line's name as the map's pill, outlined by its kind: filled with its colour when Live, ringed in it when Scheduled, as its Trains are drawn. */
+.v-new .pill {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 2.9em;
+  height: 20px;
+  padding: 0 6px;
+  border: 2px solid var(--line);
+  background: var(--line);
+  color: var(--lettering);
+  font: 700 12px/1 var(--font);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.v-new .pill.round {
+  border-radius: 10px;
+}
+
+.v-new .pill.badge {
+  border-radius: 4px;
+}
+
+.v-new .pill.scheduled {
+  background: var(--card);
+}
+
+.v-new .pill.pointed {
+  padding: 0 9px;
+  border: 0;
+  border-radius: 0;
+  background: var(--line);
+  clip-path: polygon(7px 0, calc(100% - 7px) 0, 100% 50%, calc(100% - 7px) 100%, 7px 100%, 0 50%);
+}
+
+.v-new .pill.pointed.scheduled::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  z-index: -1;
+  background: var(--card);
+  clip-path: polygon(6px 0, calc(100% - 6px) 0, 100% 50%, calc(100% - 6px) 100%, 6px 100%, 0 50%);
+}
+
+.v-new .pill.small {
+  min-width: 2.7em;
+  height: 18px;
+  font-size: 11px;
+}
+
+/* Times: tabular, with a small AM or PM, and minutes to go under them. */
+.v-new time {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.v-new time small {
+  margin-left: 2px;
+  color: var(--ink-soft);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}
+
+.v-new time .in {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+/* A Delay as a chip, amber when late; status words only where they add something. */
+.v-new .delay {
+  padding: 0 5px;
+  border-radius: 5px;
+  font: 700 12px/18px var(--font);
+  white-space: nowrap;
+}
+
+.v-new .late {
+  border: 1px solid var(--warn-rule);
+  background: var(--warn);
+  color: var(--warn-ink);
+}
+
+.v-new .early {
+  border: 1px solid var(--rule);
+}
+
+.v-new .status {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.v-new .soft {
+  color: var(--ink-soft);
+}
+
+.v-new .status.cancelled {
+  color: var(--cancelled);
+  font-weight: 700;
+}
+
+/* The panel: across the bottom, as near the edges as the legend. */
+.v-new .panel {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  left: 8px;
+  z-index: 3;
+  max-height: 50%;
+  overflow-y: auto;
+  padding: 12px 16px 16px;
+}
+
+.v-new header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: -6px -10px 6px 0;
+}
+
+.v-new .title {
+  flex: 1;
+  margin: 6px 0 0;
+  font: 400 18px/1.3 var(--serif);
+}
+
+.v-b .title,
+.v-c .title {
+  font-size: 20px;
+}
+
+.v-new .title .pill {
+  margin-right: 4px;
+  vertical-align: 2px;
+}
+
+.v-new .close {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+
+.v-new .close:hover {
+  background: var(--hover);
+}
+
+.v-new .label {
+  margin: 12px 0 2px;
+  color: var(--ink-soft);
+  font: 700 11px/1.4 var(--font);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.v-new .meta {
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.v-new .live-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+}
+
+.v-new .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+/* Departures: a narrow time column, the Line, where it's headed, and its status at the end. */
+.v-new .deps,
+.v-new .groups {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+}
+
+.v-new .groups {
+  grid-template-columns: auto 1fr auto;
+}
+
+.v-new .deps li {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  column-gap: 8px;
+  min-height: 36px;
+  padding: 3px 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.v-b .deps li,
+.v-c .deps li {
+  border-top-style: dashed;
+}
+
+.v-new .deps li:first-child {
+  border-top: 0;
+}
+
+.v-new .deps .pill,
+.v-new .groups .pill {
+  justify-self: start;
+}
+
+.v-new .deps .dest {
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.v-new .deps .cancelled time {
+  color: var(--ink-soft);
+  text-decoration: line-through;
+}
+
+.v-new .deps .cancelled .dest {
+  color: var(--ink-soft);
+}
+
+.v-new .deps .cancelled .pill {
+  opacity: 0.55;
+}
+
+/* A's next Stations: the time, then the name; the next one bold. */
+.v-new .stops li {
+  display: grid;
+  grid-template-columns: 4.4em 1fr;
+  column-gap: 8px;
+  padding: 2px 0;
+}
+
+.v-new .stops time {
+  font-weight: 400;
+}
+
+.v-new .stops .next,
+.v-new .stops .next time {
+  font-weight: 700;
+}
+
+/* B's and C's followed Train: its next Station first, then where it is along its Trip, then the Stations after, as a strip in its Line's colour. */
+.v-new .next {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 2px 0 6px;
+}
+
+.v-new .next .label {
+  margin: 0;
+}
+
+.v-new .next-name {
+  display: block;
+  font: 400 22px/1.2 var(--serif);
+}
+
+.v-new .next-when {
+  flex: none;
+  text-align: right;
+}
+
+.v-new .next-when time {
+  font-size: 20px;
+}
+
+.v-new .next-when .in {
+  font-size: 13px;
+}
+
+.v-new .progress {
+  margin: 12px 0 4px;
+}
+
+.v-new .bar {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--hairline);
+}
+
+.v-new .bar::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--done);
+  border-radius: 3px;
+  background: var(--ink);
+}
+
+.v-new .bar i {
+  position: absolute;
+  top: 50%;
+  left: var(--done);
+  box-sizing: border-box;
+  width: 14px;
+  height: 14px;
+  border: 2.5px solid var(--ink);
+  border-radius: 50%;
+  background: var(--line);
+  translate: -50% -50%;
+}
+
+.v-new .ends {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.v-new .ends span:last-child {
+  text-align: right;
+}
+
+.v-new .dash {
+  margin: 12px 0 6px;
+  border: 0;
+  border-top: 1.5px dashed var(--rule);
+}
+
+.v-new .strip li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 4.4em 18px 1fr;
+  align-items: center;
+  column-gap: 8px;
+  min-height: 28px;
+}
+
+.v-new .strip li::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(4.4em + 8px + 7px);
+  width: 4px;
+  background: var(--line);
+}
+
+.v-new .strip time {
+  font-weight: 400;
+}
+
+.v-new .strip .stop {
+  z-index: 1;
+  justify-self: center;
+  box-sizing: border-box;
+  width: 12px;
+  height: 12px;
+  border: 3px solid var(--line);
+  border-radius: 50%;
+  background: var(--card);
+}
+
+.v-new .more {
+  margin: 4px 0 0 calc(4.4em + 8px + 18px + 8px);
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* B's and C's board: the Station's name as a nameboard, reversed out of the ink, and the Lines that call there. */
+.v-new .nameboard {
+  align-items: center;
+  margin: -4px -8px 8px -4px;
+  padding: 4px 2px 4px 12px;
+  border-radius: 9px;
+  background: #14305a;
+  color: #fff;
+}
+
+.v-new .nameboard .title {
+  margin: 4px 0;
+}
+
+.v-new .served {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* B's and C's Nearby: one row per Line and where it's headed, with its next three. */
+.v-new .groups li {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  column-gap: 8px;
+  min-height: 36px;
+  border-top: 1px dashed var(--hairline);
+}
+
+.v-new .groups li:first-child {
+  border-top: 0;
+}
+
+.v-new .groups .times {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* The corners: the legend and the banner top left, the buttons top right. */
+.v-new .tl {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: calc(100% - 76px);
+}
+
+.v-new .tr {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.v-new .legend {
+  padding: 5px 10px 6px;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.v-new .legend .key {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+}
+
+.v-new .mk {
+  display: inline-block;
+  box-sizing: border-box;
+  width: 18px;
+  height: 10px;
+  border: 2px solid var(--ink);
+  border-radius: 5px;
+}
+
+.v-new .mk.live {
+  background: var(--ink);
+}
+
+.v-new .key .mk.scheduled {
+  margin-left: 6px;
+}
+
+.v-new .link {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.v-new .legend-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 4px 0 12px;
+  border-radius: 19px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.v-new .legend-pill .mk.scheduled {
+  margin-left: 4px;
+}
+
+.v-new .round-button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+}
+
+.v-new .banner {
+  padding: 5px 10px 6px;
+  border-color: var(--warn-rule);
+  background: var(--warn);
+  color: var(--warn-ink);
+  font-size: 12.5px;
+}
+
+.v-new .banner-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px 0 8px;
+  border-color: var(--warn-rule);
+  border-radius: 16px;
+  background: var(--warn);
+  color: var(--warn-ink);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.v-new .lang {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 40px;
+  padding: 0 8px 0 12px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.v-b .lang,
+.v-c .lang {
+  border-radius: 20px;
+}
+
+.v-new .btns {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.v-new .btns button {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+}
+
+.v-new .btns button + button {
+  border-top: 1px solid var(--hairline);
+}
+
+.v-b .square {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+}
+
+/* A tap on the Lines' strokes, with its tip on what was tapped. */
+.v-new .tap {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  width: max-content;
+  max-width: 232px;
+  padding: 8px;
+  translate: -50% calc(-100% - 10px);
+}
+
+.v-new .tap::after {
+  content: '';
+  position: absolute;
+  bottom: -7px;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  border-right: var(--edge);
+  border-bottom: var(--edge);
+  background: var(--card);
+  rotate: 45deg;
+  translate: -50% 0;
+}
+
+.v-new .credits {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+
+/* About, over a backdrop: mid-screen in A and B, a sheet in C. */
+.v-new .backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  background: var(--backdrop);
+}
+
+.v-new .dialog {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  left: 12px;
+  z-index: 5;
+  max-height: calc(100% - 48px);
+  overflow-y: auto;
+  padding: 12px 16px 16px;
+  translate: 0 -50%;
+}
+
+.v-new .dialog p + p {
+  margin-top: 6px;
+}
+
+.v-new .dialog a {
+  color: inherit;
+  text-underline-offset: 2px;
+}
+
+.v-new .keys li {
+  display: grid;
+  grid-template-columns: 7.6em 1fr;
+  align-items: center;
+  column-gap: 8px;
+  padding: 3px 0;
+}
+
+.v-new .keys li > .pill {
+  justify-self: start;
+}
+
+.v-new .keys .shapes {
+  display: flex;
+  gap: 3px;
+}
+
+.v-new .keys .shapes .pill {
+  min-width: 0;
+}
+
+/* C: the panel as a sheet docked to the bottom, with a handle; the buttons in thumb reach above it. */
+.v-c .sheet {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 3;
+  overflow-y: auto;
+  padding: 0 16px 16px;
+  border-width: 2px 0 0;
+  border-radius: 18px 18px 0 0;
+}
+
+.v-c .backdrop + .sheet {
+  z-index: 5;
+}
+
+.v-c .handle {
+  width: 40px;
+  height: 5px;
+  margin: 6px auto 8px;
+  border-radius: 3px;
+  background: var(--rule);
+}
+
+.v-c .fabs {
+  position: absolute;
+  right: 12px;
+  bottom: calc(var(--sheet, 0px) + 12px);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.v-c .fab {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+}
+
+.v-c .credits {
+  right: auto;
+  bottom: calc(var(--sheet, 0px) + 12px);
+  left: 12px;
+}
