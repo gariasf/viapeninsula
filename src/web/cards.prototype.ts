@@ -233,7 +233,7 @@ function corners(look: Exclude<Look, 'today'>, scene: Scene): string {
   const scheduled = COUNT.trains - COUNT.live;
   const legend =
     look === 'c'
-      ? `<button class="card legend-pill" aria-label="${COUNT.live} live, ${scheduled} scheduled. ${en('about')}"><span class="mk live"></span><b>${COUNT.live}</b> live<span class="mk scheduled"></span><b>${scheduled}</b> scheduled<span class="round-button">${ICON.info}</span></button>`
+      ? `<button class="card legend-pill" aria-label="${COUNT.live} live, ${scheduled} scheduled. ${en('about')}"><span class="mk live"></span><span class="caps"><b>${COUNT.live}</b> live</span><span class="mk scheduled"></span><span class="caps"><b>${scheduled}</b> scheduled</span><span class="round-button">${ICON.info}</span></button>`
       : look === 'a'
       ? `<div class="card legend"><div class="key"><span class="mk live"></span>${en('live')}<span class="mk scheduled"></span>${en('scheduled')}</div><div>${trainCount(COUNT.trains, COUNT.live, 'en')} · <button class="link">About</button></div></div>`
       : `<div class="card legend-pill"><span class="mk live"></span><b>${COUNT.live}</b> live<span class="mk scheduled"></span><b>${scheduled}</b> scheduled<button class="round-button" aria-label="${en('about')}">${ICON.info}</button></div>`;
@@ -243,7 +243,7 @@ function corners(look: Exclude<Look, 'today'>, scene: Scene): string {
       : look === 'a'
         ? `<div class="card banner"><b>TRAM</b>: ${en('liveUnavailable')}</div>`
         : `<div class="card banner-pill">${ICON.warning}<span><b>TRAM</b> live data unavailable</span></div>`;
-  const lang = `<button class="card lang">EN${ICON.chevron}</button>`;
+  const lang = `<button class="card lang"><span class="caps">EN</span>${ICON.chevron}</button>`;
   const buttons =
     look === 'a'
       ? `<div class="card btns"><button aria-label="${en('nearby')}">${ICON.locate}</button><button aria-label="${en('followRandom')}">${ICON.die}</button></div>`
@@ -355,7 +355,8 @@ function panels(look: 'a' | 'b', scene: Scene, theme: Theme): string {
  * The followed Train in C's sheet: its Line and destination; its live status, speed and Unit in one
  * line; its next Station, with the time, its Delay beside it, and the minutes to it; where it is along
  * its Trip; then, peeking, a button that says how many Stations are still to come, or, pulled up, all
- * of them as a strip in its Line's colour.
+ * of them as a strip in its Line's colour, from the Train, which has left its last Station, to its last
+ * Station, where the strip ends in a bar.
  */
 function followSheet(theme: Theme, state: 'peek' | 'up'): string {
   const f = FOLLOWED;
@@ -365,7 +366,9 @@ function followSheet(theme: Theme, state: 'peek' | 'up'): string {
   const end =
     state === 'peek'
       ? `<button class="expand" aria-expanded="false">${after.length} more stations, to ${esc(f.headsign)} at ${last ? plainClock(last.time) : ''}${ICON.up}</button>`
-      : `<hr class="dash"><ol class="strip" style="--line:${colour}">${after.map((u) => `<li><time>${clock(u.time)}</time><span class="stop"></span><span>${esc(u.name)}</span></li>`).join('')}</ol>`;
+      : `<hr class="dash"><ol class="strip" style="--line:${colour}"><li class="train"><time class="soft">now</time><span class="stop"></span><span class="soft">Left ${esc(f.previous)}</span></li>${f.upcoming
+          .map((u, i) => `<li class="${i === 0 ? 'next' : i === f.upcoming.length - 1 ? 'terminus' : ''}"><time>${clock(u.time)}</time><span class="stop"></span><span>${esc(u.name)}</span></li>`)
+          .join('')}</ol>`;
   return `<header><h2 class="title">${pill(f.line, f.live, theme, '', true)} ${esc(f.headsign)}</h2>${closeButton(en('stopFollowing'))}</header>
     <p class="live-status meta"><span class="dot"></span>${en('live')} · ${en('confirmed').replace('{ago}', f.confirmed)} · ~${f.speed} km/h · ${en('unit')} ${f.unit}</p>
     <div class="next-stop"><div><p class="label">Next station</p><strong class="next-name">${esc(next?.name ?? '')}</strong></div>
@@ -431,8 +434,13 @@ function sheets(scene: Scene, theme: Theme, wide: boolean): string {
   // Nearby, the one used more, nearest the thumb, named; the die over it.
   const fabs = `<div class="fabs"><button class="card fab" aria-label="${en('followRandom')}" title="${en('followRandom')}">${ICON.die}</button><button class="card fab nearby" aria-label="${en('nearby')}">${ICON.nearby}<span>Nearby</span></button></div>`;
   const credits = wide ? `<div class="card credits-strip">${CREDITS}</div>` : `<button class="card credits" aria-label="${en('showCredits')}">${ICON.copyright}</button>`;
-  const sheet = shown ? `<section class="card sheet ${shown.state}">${handle(shown.state)}${shown.content}</section>` : '';
-  const aboutSheet = scene === 'about' ? `<div class="backdrop"></div><section class="card sheet about">${handle('up')}${about(theme)}</section>` : '';
+  // The handle and the header stay put, so the close button is always in reach; only the rest scrolls.
+  const sheetOfContent = (kind: string, state: 'peek' | 'up', content: string) => {
+    const at = content.indexOf('</header>') + '</header>'.length;
+    return `<section class="card sheet ${kind}"><div class="sheet-top">${handle(state)}${content.slice(0, at)}</div><div class="sheet-body">${content.slice(at)}</div></section>`;
+  };
+  const sheet = shown ? sheetOfContent(shown.state, shown.state, shown.content) : '';
+  const aboutSheet = scene === 'about' ? `<div class="backdrop"></div>${sheetOfContent('about', 'up', about(theme))}` : '';
   return `<div class="v-new v-c">${corners('c', scene)}${scene === 'map' ? tap(theme) : ''}<div class="dock"><div class="riders">${wide ? fabs + credits : credits + fabs}</div>${sheet}</div>${aboutSheet}</div>`;
 }
 

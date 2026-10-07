@@ -1144,10 +1144,23 @@ body {
 }
 
 .v-c .sheet {
+  display: flex;
+  flex-direction: column;
   box-sizing: border-box;
-  overflow-y: auto;
+  overflow: hidden;
   padding: 0 16px 16px;
   border-radius: 18px;
+}
+
+/* Only the body scrolls, under the handle and the header, on a thin ink scrollbar with a clear track, 4 px in from the outline and clear of its rounded corners. */
+.v-c .sheet-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin-right: -12px;
+  padding-right: 12px;
+  scrollbar-color: color-mix(in srgb, var(--ink) 35%, transparent) transparent;
+  scrollbar-width: thin;
 }
 
 .v-c .sheet.up {
@@ -1384,5 +1397,61 @@ body {
   .followed-train span {
     background: CanvasText;
     color: Canvas;
+  }
+}
+
+/* The strip runs from the Train, drawn as on the progress bar, to its last Station, where it ends in a bar across the Line, as the operators' maps end one. */
+.v-c .strip li.train::before {
+  top: 50%;
+}
+
+.v-c .strip li.terminus::before {
+  bottom: 50%;
+}
+
+.v-c .strip li.train .stop {
+  width: 14px;
+  height: 14px;
+  border: 2.5px solid var(--ink);
+  background: var(--line);
+}
+
+.v-c .strip li.terminus .stop {
+  width: 20px;
+  height: 7px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--line);
+}
+
+.v-c .strip :is(li.next, li.terminus),
+.v-c .strip :is(li.next, li.terminus) time {
+  font-weight: 700;
+}
+
+/* The top's cards one height; the language chip's code mid-height and mid-width, its capitals trimmed of the room a line keeps under them. */
+.v-c .legend-pill {
+  height: 40px;
+  border-radius: 20px;
+}
+
+.v-c .lang {
+  justify-content: center;
+  gap: 4px;
+  padding: 0 12px;
+}
+
+.v-new .caps {
+  text-box: trim-both cap alphabetic;
+}
+
+@media (forced-colors: active) {
+  .v-c .strip li.train .stop {
+    border-color: CanvasText;
+    background: CanvasText;
+  }
+
+  .v-c .strip li.terminus .stop {
+    background: CanvasText;
   }
 }

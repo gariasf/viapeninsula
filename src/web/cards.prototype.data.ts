@@ -302,6 +302,7 @@ export const FOLLOWED = {
   "speed": 65,
   "unit": "213",
   "origin": "Barcelona - Plaça Espanya",
+  "previous": "L'Hospitalet Av. Carrilet",
   "stations": 30,
   "passed": 7,
   "km": 5.9,
