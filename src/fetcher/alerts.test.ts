@@ -60,7 +60,7 @@ function renfeText(...entities: object[]) {
 const renfeWith = (...entities: object[]) => ({ alerts: answer(renfeText(...entities)) });
 
 // Three more from the same file, their routes cut down to two each: one of Madrid's on C5, one of
-// Valencia's, núcleo 40, which isn't on the map, and one of Madrid's on a lift at Vicálvaro, by its stop_id.
+// Valencia's, núcleo 40, and one of Madrid's on a lift at Vicálvaro, by its stop_id.
 const MADRID_C5 = {
   id: 'AVISO_516750',
   alert: {
@@ -77,6 +77,8 @@ const VALENCIA_C5 = {
     descriptionText: { translation: [{ text: 'SERVICIO POR AUTOBÚS C-5: Plan alternativo de transporte por carretera.', language: 'es' }, { text: 'SERVEI PER AUTOBÚS C-5: Pla alternatiu de transport per carretera.', language: 'es' }] },
   },
 };
+/** Made up: Renfe's source as it was before Cercanías Valencia was on the map, without its núcleo, 40. */
+const WITHOUT_VALENCIA = LIVE_SOURCES.map((s) => (s.id === 'renfe' ? { ...s, networks: Object.fromEntries(Object.entries(s.networks).filter(([start]) => start !== '40')) } : s));
 const VICALVARO = {
   id: 'INFO_518355',
   alert: {
@@ -87,7 +89,7 @@ const VICALVARO = {
 };
 
 test("keeps only the Alerts on the Lines of the Networks on the map, and Renfe's on a Station, by its stop_id, as the bundle names it", () => {
-  const alerts = readAlerts(ALERTS_START, { renfe: renfeWith(MADRID_C5, VALENCIA_C5, VICALVARO) }, NOW).file?.renfe?.alerts ?? [];
+  const alerts = readAlerts(ALERTS_START, { renfe: renfeWith(MADRID_C5, VALENCIA_C5, VICALVARO) }, NOW, WITHOUT_VALENCIA).file?.renfe?.alerts ?? [];
   expect(alerts.map((a) => a.id)).not.toContain('AVISO_470390');
   expect(alerts).toHaveLength(8 + 2);
   // Madrid's give their words in Spanish only.
@@ -295,13 +297,12 @@ test("lists TRAM's Alerts newest first across both its halves, and an Alert both
 });
 
 test("asks Renfe for its whole file once the config names another Network in it, and reads that Network's Alerts, though Renfe hasn't changed the file", async () => {
-  // Made up: Cercanías Valencia, núcleo 40, added to Renfe's source by configuration only, as Madrid was (#248).
-  const withValencia = LIVE_SOURCES.map((s) => (s.id === 'renfe' ? { ...s, networks: { ...s.networks, '40': 'cercanias-valencia' } } : s));
+  // Cercanías Valencia, added to Renfe's source by configuration only, as Madrid was (#248).
   const asked: string[] = [];
   const get = answering(asked, undefined, renfeText(VALENCIA_C5));
-  const before = readAlerts(ALERTS_START, await fetchAlerts(ALERTS_START, START.state, get), NOW);
-  const added = readAlerts(before.state, await fetchAlerts(before.state, START.state, get, withValencia), NOW + 20_000, withValencia);
-  await fetchAlerts(added.state, START.state, get, withValencia);
+  const before = readAlerts(ALERTS_START, await fetchAlerts(ALERTS_START, START.state, get, WITHOUT_VALENCIA), NOW, WITHOUT_VALENCIA);
+  const added = readAlerts(before.state, await fetchAlerts(before.state, START.state, get), NOW + 20_000);
+  await fetchAlerts(added.state, START.state, get);
   const url = 'https://gtfsrt.renfe.com/alerts.json';
   expect(asked).toEqual([url, url, `${url} ${ETAG} ${MODIFIED}`]);
   expect(added.file?.renfe?.alerts.find((a) => a.id === 'AVISO_470390')?.lines).toEqual(['cercanias-valencia:C5']);

@@ -41,7 +41,7 @@ What a Line runs as: commuter and suburban, as Rodalies' R1–R8, RG1, RT1, RT2,
 _Avoid_: Service type, train type, category, class, product
 
 **Running side**:
-Which track of a double track a Network's Trains run on, looking the way they go. Every Network in Spain keeps right.
+Which track of a double track a Network's Trains run on, looking the way they go. A Network in Spain keeps right, unless all its double track keeps left, as Cercanías Bilbao's does.
 _Avoid_: Handedness, traffic side
 
 **Stretch**:

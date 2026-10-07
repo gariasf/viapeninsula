@@ -96,15 +96,15 @@ const STRINGS = {
   about: { ca: 'Quant a aquest mapa', es: 'Acerca de este mapa', en: 'About this map' },
   close: { ca: 'Tanca', es: 'Cerrar', en: 'Close' },
   estimates: {
-    ca: 'Via Península mostra els trens, metros i tramvies de Catalunya, i els de Cercanías Madrid, mentre circulen. Les posicions són estimacions derivades de les dades dels operadors, calculades a partir dels horaris i de les dades en temps real.',
-    es: 'Via Península muestra los trenes, metros y tranvías de Cataluña, y los de Cercanías Madrid, mientras circulan. Las posiciones son estimaciones derivadas de los datos de los operadores, calculadas a partir de los horarios y de los datos en tiempo real.',
-    en: "Via Península shows Catalonia's trains, metros and trams, and Cercanías Madrid's trains, as they run. Their positions are estimates derived from the operators' data, built from timetables and live data.",
+    ca: "Via Península mostra els trens, metros i tramvies de Catalunya, i els trens de Cercanías de Renfe a la resta d'Espanya, mentre circulen. Les posicions són estimacions derivades de les dades dels operadors, calculades a partir dels horaris i de les dades en temps real.",
+    es: 'Via Península muestra los trenes, metros y tranvías de Cataluña, y los trenes de Cercanías de Renfe en el resto de España, mientras circulan. Las posiciones son estimaciones derivadas de los datos de los operadores, calculadas a partir de los horarios y de los datos en tiempo real.',
+    en: "Via Península shows Catalonia's trains, metros and trams, and Renfe's Cercanías trains in the rest of Spain, as they run. Their positions are estimates derived from the operators' data, built from timetables and live data.",
   },
   // After estimates: what a Train's pill says zoomed in, as pillOf() outlines it.
   outlines: {
-    ca: 'Amb el mapa ampliat, cada tren és una etiqueta amb el nom de la seva línia, i la seva forma indica el tipus de servei: arrodonida per a les línies de rodalia i les suburbanes, acabada en punta als dos extrems per a les regionals, i quadrada amb les cantonades arrodonides per a les del metro de TMB, del TRAM, del cremallera i dels funiculars.',
-    es: 'Con el mapa ampliado, cada tren es una etiqueta con el nombre de su línea, y su forma indica el tipo de servicio: redondeada para las líneas de cercanías y las suburbanas, acabada en punta por ambos extremos para las regionales, y cuadrada con las esquinas redondeadas para las del metro de TMB, del TRAM, del cremallera y de los funiculares.',
-    en: "Zoomed in, each train is a label with its line's name, shaped by the line's kind of service: rounded for commuter and suburban lines, pointed at both ends for regional lines, and a rounded square for the lines of TMB's metro, TRAM, the rack railway and the funiculars.",
+    ca: 'Amb el mapa ampliat, cada tren és una etiqueta amb el nom de la seva línia, i la seva forma indica el tipus de servei: arrodonida per a les línies de rodalia i les suburbanes, acabada en punta als dos extrems per a les regionals, i quadrada amb les cantonades arrodonides per a les del metro de TMB, del TRAM, del tren-tramvia de Cadis, del cremallera i dels funiculars.',
+    es: 'Con el mapa ampliado, cada tren es una etiqueta con el nombre de su línea, y su forma indica el tipo de servicio: redondeada para las líneas de cercanías y las suburbanas, acabada en punta por ambos extremos para las regionales, y cuadrada con las esquinas redondeadas para las del metro de TMB, del TRAM, del tren-tranvía de Cádiz, del cremallera y de los funiculares.',
+    en: "Zoomed in, each train is a label with its line's name, shaped by the line's kind of service: rounded for commuter and suburban lines, pointed at both ends for regional lines, and a rounded square for the lines of TMB's metro, TRAM, Cádiz's tram-train, the rack railway and the funiculars.",
   },
   // About's key: the pills a Train is drawn as, Live and Scheduled, and its outlines.
   readingTheMap: { ca: 'Com llegir el mapa', es: 'Cómo leer el mapa', en: 'Reading the map' },

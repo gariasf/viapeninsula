@@ -8,7 +8,7 @@ import { LIVE_SOURCES } from '../networks.ts';
 import { fetchDue, START, step, TIMEOUT, UNSET, type Fetched, type FgcOwn, type FgcResponses, type Get, type RenfeResponses, type Responses, type State, type Stored, type TramOwn, type TramResponses } from './step.ts';
 
 // Renfe's Cercanías feeds as recorded at 15:57 on Friday 25 September 2026, cut down to Rodalies'
-// Trains and a few of other núcleos'.
+// Trains and a few of other núcleos': two of Sevilla's and one of Ferrol's.
 const recorded = (file: string) => ({ status: 200, body: readFileSync(new URL(`fixtures/${file}`, import.meta.url), 'utf8') });
 const RENFE = { positions: recorded('vehicle_positions.json'), updates: recorded('trip_updates.json') };
 
@@ -18,11 +18,11 @@ const NOW = Date.parse('2026-09-25T15:57:11+02:00');
 /** The fetcher's first run, fetching Renfe's feeds. */
 const run = (renfe: RenfeResponses = RENFE) => step(START.state, { renfe }, NOW);
 
-test("makes one report for each Rodalies Train in Renfe's feeds, and none for other núcleos' Trains", () => {
+test("makes one report for each of Renfe's Trains, as its núcleo's Network's", () => {
   const trips = run().snapshot.reports.map((r) => r.trip);
-  expect(trips).toHaveLength(67);
+  expect(trips).toHaveLength(67 + 2 + 1);
   expect(new Set(trips).size).toBe(trips.length);
-  expect(trips.filter((t) => !t?.startsWith('rodalies:51'))).toEqual([]);
+  expect(trips.filter((t) => t?.startsWith('rodalies:51'))).toHaveLength(67);
 });
 
 /** What the run reports about a Trip. */
@@ -34,8 +34,8 @@ test('gives a Train running between Stations its GPS position, and one standing 
   // STOPPED_AT La Granada, and INCOMING_AT Granollers Centre: Renfe pins both to the Station's coordinates.
   expect(report('5166V77538R4')?.position).toEqual({ near: 'adif:72205' });
   expect(report('5166V28444R2N')?.position).toEqual({ near: 'adif:79100' });
-  // Of the 57 Trains Renfe places, 18 are in transit.
-  const positions = run().snapshot.reports.map((r) => r.position);
+  // Of the 57 Rodalies Trains Renfe places, 18 are in transit.
+  const positions = run().snapshot.reports.filter((r) => r.trip?.startsWith('rodalies:')).map((r) => r.position);
   expect(positions.filter((p) => p && 'lon' in p)).toHaveLength(18);
   expect(positions.filter((p) => p && 'near' in p)).toHaveLength(39);
 });
@@ -54,11 +54,12 @@ test('gives each Train the time Renfe reported it and the Delay of its trip upda
 
 test('marks a Train Cancelled when Renfe cancels its Trip', () => {
   // Renfe cancels a Trip with a trip update that says only that, as it does eleven of Rodalies' here,
-  // and another núcleo's 4666V70155C1. It still places one of their Trains, coming into Mataró.
+  // and Ferrol's 4666V70155C1. It still places one of their Trains, coming into Mataró.
   const { reports } = run().snapshot;
   expect(reports).toContainEqual({ trip: 'rodalies:5166V77640R4', at: Date.parse('2026-09-25T15:57:09+02:00'), cancelled: true });
   expect(reports).toContainEqual({ trip: 'rodalies:5166V25756R1', at: Date.parse('2026-09-25T15:57:06+02:00'), cancelled: true, position: { near: 'adif:79500' } });
-  expect(reports.filter((r) => r.cancelled)).toHaveLength(11);
+  expect(reports).toContainEqual({ trip: 'cercanias-ferrol:4666V70155C1', at: Date.parse('2026-09-25T15:57:09+02:00'), cancelled: true });
+  expect(reports.filter((r) => r.cancelled)).toHaveLength(11 + 1);
 });
 
 test("trims IDs padded with spaces, as they are in Renfe's timetable", () => {
@@ -67,7 +68,7 @@ test("trims IDs padded with spaces, as they are in Renfe's timetable", () => {
 });
 
 test('writes a snapshot of a few kilobytes, as the CDN compresses it', () => {
-  // These 67 Trains take 989 bytes.
+  // These 70 Trains take 1,171 bytes.
   expect(gzipSync(JSON.stringify(run().snapshot)).length).toBeLessThan(2000);
 });
 
@@ -115,7 +116,7 @@ test("keeps Renfe's last good reports through runs whose responses fail", () => 
     state = done.state;
     return done.snapshot.reports.length;
   });
-  expect(kept).toEqual([67, 67, 0]);
+  expect(kept).toEqual([70, 70, 0]);
 });
 
 /** Renfe's feeds as recorded, those of 15:57:09 unless others are given, with both headers saying a moment, in ms since 1970. */
@@ -177,26 +178,25 @@ test('fetches Renfe on every run', () => {
   expect(run().due).toContain('renfe');
 });
 
-/** The live sources, with Renfe's feeding Cercanías Sevilla too, whose trip_ids start with its núcleo, 30. */
-const WITH_SEVILLA = LIVE_SOURCES.map((s) => (s.id === 'renfe' ? { ...s, networks: { ...s.networks, '30': 'cercanias-sevilla' } } : s));
-
-test("sends each of Renfe's Trains to the Network its source names by how its trip_id starts", () => {
-  const { reports } = step(START.state, { renfe: RENFE }, NOW, WITH_SEVILLA).snapshot;
-  // Sevilla's two Trains, both coming into a Station late, besides Rodalies' 67. Núcleo 46's
-  // cancelled Trip goes to no Network, as the sources name none for it.
+test("sends each of Renfe's Trains to the Network its source names by how its trip_id starts, and none where it names none", () => {
+  const { reports } = run().snapshot;
+  // Sevilla's two Trains, núcleo 30's, both coming into a Station late, besides Rodalies' 67, and Ferrol's cancelled Trip, núcleo 46's.
   const reported = Date.parse('2026-09-25T15:57:06+02:00');
   expect(reports.filter((r) => !r.trip?.startsWith('rodalies:'))).toEqual([
     { trip: 'cercanias-sevilla:3066V23639C4', at: reported, position: { near: 'adif:51009' }, delay: 900 },
     { trip: 'cercanias-sevilla:3066V23551C1', at: reported, position: { near: 'adif:51112' }, delay: 840 },
+    { trip: 'cercanias-ferrol:4666V70155C1', at: Date.parse('2026-09-25T15:57:09+02:00'), cancelled: true },
   ]);
-  expect(reports).toHaveLength(67 + 2);
+  // Made up: Renfe's source without Sevilla's núcleo, whose Trains then go to no Network.
+  const withoutSevilla = LIVE_SOURCES.map((s) => (s.id === 'renfe' ? { ...s, networks: Object.fromEntries(Object.entries(s.networks).filter(([start]) => start !== '30')) } : s));
+  expect(step(START.state, { renfe: RENFE }, NOW, withoutSevilla).snapshot.reports.map((r) => r.trip?.split(':')[0])).not.toContain('cercanias-sevilla');
 });
 
 test("sends a Train to the Network of the longest start its trip_id has, whichever order its source's config names them in", () => {
   // Made up: a Network for every trip_id that starts with 5, named before Rodalies' 51.
   const nested = LIVE_SOURCES.map((s) => (s.id === 'renfe' ? { ...s, networks: { '5': 'other', ...s.networks } } : s));
   const networks = step(START.state, { renfe: RENFE }, NOW, nested).snapshot.reports.map((r) => r.trip?.split(':')[0]);
-  expect(new Set(networks)).toEqual(new Set(['rodalies']));
+  expect(new Set(networks)).toEqual(new Set(['rodalies', 'cercanias-sevilla', 'cercanias-ferrol']));
 });
 
 // Renfe's Cercanías feeds as recorded at 07:44:01 on Monday 5 October 2026, and at 07:44:41, when
@@ -213,10 +213,17 @@ const MONDAY = Date.parse('2026-10-05T07:44:01+02:00');
 const WITHOUT_WRITTEN = Date.parse('2026-10-05T07:44:38+02:00');
 const stillWithout = (seconds: number) => renfeAt(WITHOUT_WRITTEN + seconds * 1000, WITHOUT_MADRID);
 
-test("reports Madrid's Trains in Renfe's feeds as Cercanías Madrid's, read as Rodalies' are, and gives both Networks Renfe's freshness", () => {
+/** A snapshot's reports of Madrid's Trains. */
+const madridIn = (snapshot: Snapshot | undefined) => snapshot?.reports.filter((r) => r.trip?.startsWith('cercanias-madrid:')) ?? [];
+
+/** Every Network Renfe's Cercanías files feed, one for each núcleo. */
+const RENFE_NETWORKS = Object.values(LIVE_SOURCES.find((s) => s.id === 'renfe')?.networks ?? {});
+
+test("reports Madrid's Trains in Renfe's feeds as Cercanías Madrid's, read as Rodalies' are, and gives every Network they feed Renfe's freshness", () => {
   const { snapshot } = step(START.state, { renfe: WITH_MADRID }, MONDAY);
-  // A Train of each of Madrid's Lines, and none of Asturias' or Valencia's.
+  // A Train of each of Madrid's Lines, and Asturias' and Valencia's.
   expect(snapshot.reports.map((r) => r.trip).sort()).toEqual([
+    'cercanias-asturias:2076L22001C1',
     'cercanias-madrid:1076L19530C5',
     'cercanias-madrid:1076L19814C1',
     'cercanias-madrid:1076L20012C3',
@@ -227,20 +234,21 @@ test("reports Madrid's Trains in Renfe's feeds as Cercanías Madrid's, read as R
     'cercanias-madrid:1076L21106C10',
     'cercanias-madrid:1076L21509C2',
     'cercanias-madrid:1076L21804C7',
+    'cercanias-valencia:4076L24007C2',
   ]);
   // C8b's, running between Stations: its GPS, and its trip update's Delay.
   expect(snapshot.reports).toContainEqual({ trip: 'cercanias-madrid:1076L20602C8b', at: Date.parse('2026-10-05T07:43:58+02:00'), position: { lon: -3.6947744, lat: 40.488266 }, delay: 960 });
   // C1's, standing at Chamartín, which Renfe pins it to.
   expect(snapshot.reports.find((r) => r.trip === 'cercanias-madrid:1076L19814C1')?.position).toEqual({ near: 'adif:17000' });
   const fine = { lastSuccess: MONDAY, lastAttempt: MONDAY, status: 'ok', every: 20_000 };
-  expect(snapshot.feeds).toEqual({ rodalies: fine, 'cercanias-madrid': fine });
+  expect(snapshot.feeds).toEqual(Object.fromEntries(RENFE_NETWORKS.map((network) => [network, fine])));
 });
 
 test("keeps a Network's last reports for two runs where it vanishes from a feed that still answers, and drops them on the third", () => {
   const runs = renfeRuns([WITH_MADRID, WITHOUT_MADRID, stillWithout(20), stillWithout(40)], MONDAY);
-  const madrid = runs[0]?.snapshot.reports;
+  const madrid = madridIn(runs[0]?.snapshot);
   expect(madrid).toHaveLength(10);
-  expect(runs.map((r) => r.snapshot.reports)).toEqual([madrid, madrid, madrid, []]);
+  expect(runs.map((r) => madridIn(r.snapshot))).toEqual([madrid, madrid, madrid, []]);
   // Renfe's feeds worked all along.
   expect(runs.map((r) => r.snapshot.feeds['cercanias-madrid']?.status)).toEqual(['ok', 'ok', 'ok', 'ok']);
 });
@@ -249,15 +257,12 @@ test('holds a Network afresh each time it vanishes from its feed, once it has co
   // Madrid's Trains go for a run, come back, then go for good.
   const back = renfeAt(WITHOUT_WRITTEN + 20_000, WITH_MADRID);
   const runs = renfeRuns([WITH_MADRID, WITHOUT_MADRID, back, stillWithout(40), stillWithout(60), stillWithout(80)], MONDAY);
-  expect(runs.map((r) => r.snapshot.reports.length)).toEqual([10, 10, 10, 10, 10, 0]);
+  expect(runs.map((r) => madridIn(r.snapshot).length)).toEqual([10, 10, 10, 10, 10, 0]);
 });
 
-/** The live sources, with Renfe's feeding Cercanías Asturias too, whose trip_ids start with its núcleo, 20. */
-const WITH_ASTURIAS = LIVE_SOURCES.map((s) => (s.id === 'renfe' ? { ...s, networks: { ...s.networks, '20': 'cercanias-asturias' } } : s));
-
 test("keeps the last reports of only the Network that has vanished, and the others' from the feed", () => {
-  const first = step(START.state, { renfe: WITH_MADRID }, MONDAY, WITH_ASTURIAS);
-  const second = step(first.state, { renfe: WITHOUT_MADRID }, MONDAY + 20_000, WITH_ASTURIAS);
+  const first = step(START.state, { renfe: WITH_MADRID }, MONDAY);
+  const second = step(first.state, { renfe: WITHOUT_MADRID }, MONDAY + 20_000);
   const of = (network: string, { reports }: Snapshot) => reports.filter((r) => r.trip?.startsWith(`${network}:`));
   expect(of('cercanias-madrid', second.snapshot)).toEqual(of('cercanias-madrid', first.snapshot));
   // Asturias' Train as the second files have it, coming into Serín.
@@ -298,13 +303,13 @@ test('fetches a source as often as its config says, counted in runs however long
 });
 
 test("writes how fresh Renfe's feeds are under each Network they feed, so the map tells each one's Trains as it does Rodalies'", () => {
-  const good = step(START.state, { renfe: RENFE }, NOW, WITH_SEVILLA);
+  const good = run();
   const fine = { lastSuccess: NOW, lastAttempt: NOW, status: 'ok', every: 20_000 };
-  expect(good.snapshot.feeds).toEqual({ rodalies: fine, 'cercanias-madrid': fine, 'cercanias-sevilla': fine });
-  // A try that fails, fails for both.
-  const failed = step(good.state, { renfe: { ...RENFE, positions: { status: 503, body: '' } } }, NOW + 20_000, WITH_SEVILLA);
+  expect(good.snapshot.feeds).toEqual(Object.fromEntries(RENFE_NETWORKS.map((network) => [network, fine])));
+  // A try that fails, fails for all of them.
+  const failed = step(good.state, { renfe: { ...RENFE, positions: { status: 503, body: '' } } }, NOW + 20_000);
   const down = { lastSuccess: NOW, lastAttempt: NOW + 20_000, status: 'vehicle_positions: HTTP 503', every: 20_000 };
-  expect(failed.snapshot.feeds).toEqual({ rodalies: down, 'cercanias-madrid': down, 'cercanias-sevilla': down });
+  expect(failed.snapshot.feeds).toEqual(Object.fromEntries(RENFE_NETWORKS.map((network) => [network, down])));
 });
 
 // Renfe's Cercanías feeds as recorded at 13:00:09 on Wednesday 7 October 2026, in the rains, cut down
@@ -491,11 +496,11 @@ test("names Montserrat's rack Trains, which Geotren has on lines M1 and M2, the 
 });
 
 test('writes a snapshot of a few kilobytes with every Network, as the CDN compresses it', () => {
-  // These 195 Trains take 3,457 bytes. The production snapshots in the engine tests' replay, of 272
+  // These 198 Trains take 3,649 bytes. The production snapshots in the engine tests' replay, of 272
   // to 311 Trains each, took 4,456 to 5,146.
   const three = step(step(run().state, { fgc: FGC }, NOW + 20_000).state, { tram: { token: TOKEN, ...TRAM } }, NOW + 40_000);
   const all = step(three.state, { tmb: METRO }, NOW + 60_000).snapshot;
-  expect(all.reports).toHaveLength(67 + 62 + 24 + 42);
+  expect(all.reports).toHaveLength(70 + 62 + 24 + 42);
   expect(gzipSync(JSON.stringify(all)).length).toBeLessThan(4000);
 });
 

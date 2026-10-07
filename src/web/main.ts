@@ -1043,9 +1043,10 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
   if (following) following.at = undefined;
   const placed = (bundle ? trainsAt(bundle, Date.now(), received) : []).map((train) => {
     const { trip, dist, lon, lat, heading, standsAt } = train;
-    // ponytail: takes the Network's running side, so L2's Trains between Tetuan and Paral·lel, and
-    // Cercanías Madrid's beyond Pinar de las Rozas, which keep left, sit half a line width to the wrong
-    // side zoomed out. Publish each shape's side of its double track from the trace if that ever shows.
+    // ponytail: takes the Network's running side, so L2's Trains between Tetuan and Paral·lel, Cercanías
+    // Madrid's beyond Pinar de las Rozas, and Cercanías Asturias' and Santander's C2 and C3, which keep
+    // left, sit half a line width to the wrong side zoomed out. Publish each shape's side of its double
+    // track from the trace if that ever shows.
     const on = zoom < railsZoom ? onStroke(placing.slots.get(`${trip.line} ${trip.shape}`), placing.shapes, dist, zoom, placing.keep.get(trip.line) ?? 1, placing.curves) : undefined;
     const pill = pills.get(trip.line);
     const box = pill && (trip.id === followed ? pill.followedBox : pill.box);

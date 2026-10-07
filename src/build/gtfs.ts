@@ -15,16 +15,31 @@ export type Source = (file: string) => AsyncIterable<string> | undefined;
  */
 const TRY = { limit: 2 * 60_000, again: 60_000 };
 
+/** Each URL's download while it's under way, which timetables that share the URL wait for together. */
+const underway = new Map<string, Promise<Buffer>>();
+
 /**
  * Downloads the GTFS zip of the timetable whose IDs start with `prefix` to zipFile(prefix), to read
  * from there. A try that fails or takes longer than `limit` is tried once more, `again` later.
+ * Timetables downloading one URL at once share its download, as every Cercanías núcleo shares
+ * Renfe's one file, and each is told why it failed.
  */
 export async function download(url: string, prefix: string, { limit, again } = TRY): Promise<void> {
+  let zip = underway.get(url);
+  if (!zip) {
+    zip = downloaded(url, limit, again).finally(() => underway.delete(url));
+    underway.set(url, zip);
+  }
+  await writeFile(zipFile(prefix), await zip);
+}
+
+/** A URL's file, as download() tries it. */
+async function downloaded(url: string, limit: number, again: number): Promise<Buffer> {
   for (let tries = 1; ; tries++) {
     let failed: unknown;
     try {
       const res = await fetch(url, { signal: AbortSignal.timeout(limit) });
-      if (res.ok) return await writeFile(zipFile(prefix), Buffer.from(await res.arrayBuffer()));
+      if (res.ok) return Buffer.from(await res.arrayBuffer());
       failed = `HTTP ${res.status}`;
     } catch (error) {
       // fetch() gives why it failed, as a connection refused, as the cause.
