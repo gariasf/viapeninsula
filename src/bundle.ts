@@ -15,6 +15,18 @@ export interface Snapshot {
    * other Networks too, what it last said of them, for two tries (src/fetcher/step.ts).
    */
   reports: Report[];
+  /** The Stations Renfe has said Trips won't stop at, where it has said so of any: as it does of the Stations a Train cut short, or that starts late, doesn't run to (#346). */
+  skipped?: Skipped[];
+}
+
+/** A Trip's Stations its operator has said it won't stop at, where its trip updates list them SKIPPED (#346). */
+export interface Skipped {
+  /** Its Trip, as the bundle names it. */
+  trip: string;
+  /** The Stations, by their IDs. */
+  stations: string[];
+  /** When its operator first said so of any of them, in ms since 1970: Renfe no longer lists a Station its timetable has left, skipped or not. */
+  since: number;
 }
 
 /** When the fetcher last tried a Network's live data and last got it, in ms since 1970, how the try went, and how often it tries. */

@@ -307,6 +307,108 @@ test("writes how fresh Renfe's feeds are under each Network they feed, so the ma
   expect(failed.snapshot.feeds).toEqual({ rodalies: down, 'cercanias-madrid': down, 'cercanias-sevilla': down });
 });
 
+// Renfe's Cercanías feeds as recorded at 13:00:09 on Wednesday 7 October 2026, in the rains, cut down
+// to the Trips of Rodalies and Cercanías Madrid whose trip updates list stops SKIPPED (#346).
+const SKIPPING = { positions: recorded('skipped/vehicle_positions.json'), updates: recorded('skipped/trip_updates.json') };
+
+/** When Renfe's headers say it wrote them, and the run fetched them. */
+const RAINS = Date.parse('2026-10-07T13:00:09+02:00');
+
+/** The 22 Stations of the R4 from Plaça de Catalunya to Manresa, which Renfe's R4s skipped that day, cut short at Sants. */
+const R4_NORTH = ['78805', '78804', '78806', '78802', '78801', '78800', '78708', '78707', '78706', '78705', '78703', '78704', '78709', '78710', '78700', '78610', '78609', '78607', '78606', '78605', '78604', '78600'].map((code) => `adif:${code}`);
+
+/** Madrid's C4 from Las Margaritas to Parla, which C4a and C4b Trips skipped that day. */
+const C4_SOUTH = ['adif:37010', 'adif:37002', 'adif:37011', 'adif:37012'];
+
+/**
+ * Renfe's feeds of the rains, written at a moment, ms since 1970, with each Trip's trip update as
+ * `edit` makes it, where it gives one: its stops as Renfe lists them, each SKIPPED where it is, or
+ * none, which leaves the Trip out.
+ */
+function rainsAt(moment: number, edit: (trip: string, stops: { stopId: string; scheduleRelationship?: string }[]) => typeof stops | undefined = (_, stops) => stops): RenfeResponses {
+  const feed = JSON.parse(SKIPPING.updates.body);
+  feed.entity = feed.entity.flatMap((e: { tripUpdate: { trip: { tripId: string }; stopTimeUpdate: { stopId: string }[] } }) => {
+    const stops = edit(e.tripUpdate.trip.tripId, e.tripUpdate.stopTimeUpdate);
+    return stops ? [{ ...e, tripUpdate: { ...e.tripUpdate, stopTimeUpdate: stops } }] : [];
+  });
+  return renfeAt(moment, { positions: SKIPPING.positions, updates: { status: 200, body: JSON.stringify(feed, null, 2) } });
+}
+
+/** Each Trip's skipped Stations a snapshot carries, by the Trip. */
+const skippedBy = ({ skipped }: Snapshot) => Object.fromEntries((skipped ?? []).map(({ trip, stations }) => [trip, stations]));
+
+test("carries each Renfe Trip's skipped Stations in the snapshot, by their IDs, with when Renfe first listed them", () => {
+  const { snapshot } = step(START.state, { renfe: SKIPPING }, RAINS);
+  // Two R4s from Sant Vicenç de Calders, cut short at Sants, and C4a's and C4b's, at Villaverde Alto.
+  expect(snapshot.skipped).toContainEqual({ trip: 'rodalies:5178X77424R4', stations: R4_NORTH, since: RAINS });
+  expect(snapshot.skipped).toContainEqual({ trip: 'cercanias-madrid:1078X20456C4b', stations: C4_SOUTH, since: RAINS });
+  // Renfe lists a skipped Station it gives the Train's next arrival at twice, SKIPPED once: as Las
+  // Rozas, the C10's from Pinar de las Rozas, which skips its first four Stations and so starts there.
+  expect(skippedBy(snapshot)['cercanias-madrid:1078X21331C10']).toEqual(['adif:10100', 'adif:10005', 'adif:10007', 'adif:10010']);
+  expect(snapshot.skipped?.map((s) => s.trip)).toEqual([
+    'rodalies:5178X77424R4',
+    'rodalies:5178X35541R3',
+    'rodalies:5178X77428R4',
+    'cercanias-madrid:1078X20266C4a',
+    'cercanias-madrid:1078X21329C10',
+    'cercanias-madrid:1078X21332C10',
+    'cercanias-madrid:1078X21331C10',
+    'cercanias-madrid:1078X20456C4b',
+  ]);
+  // A feed whose trip updates skip no Station, as on an ordinary day, adds nothing to the snapshot.
+  expect(run().snapshot.skipped).toBeUndefined();
+});
+
+test("keeps a Trip's skipped Stations Renfe no longer lists, and those of a Trip it no longer lists, until 3 hours after it last listed the Trip", () => {
+  const R4 = 'rodalies:5178X77424R4';
+  // 20 s on, Renfe no longer lists Plaça de Catalunya, as once its timetable has left a Station; then it drops the Trip, as it did at 13:05.
+  const passed = rainsAt(RAINS + 20_000, (trip, stops) => (trip === '5178X77424R4' ? stops.filter((s) => s.stopId !== '78805') : stops));
+  const dropped = (seconds: number) => rainsAt(RAINS + seconds * 1000, (trip, stops) => (trip === '5178X77424R4' ? undefined : stops));
+  const runs = renfeRuns([SKIPPING, passed, dropped(40)], RAINS);
+  expect(runs.map((r) => skippedBy(r.snapshot)[R4])).toEqual([R4_NORTH, R4_NORTH, R4_NORTH]);
+  const [, , last] = runs;
+  const later = (seconds: number) => step(last?.state ?? START.state, { renfe: dropped(seconds) }, RAINS + seconds * 1000);
+  // Renfe last listed it 20 s in.
+  expect(skippedBy(later(3 * 3600 + 19).snapshot)[R4]).toEqual(R4_NORTH);
+  expect(skippedBy(later(3 * 3600 + 20).snapshot)[R4]).toBeUndefined();
+});
+
+test('no longer counts a Station skipped once Renfe lists it again, not SKIPPED, as it did as C4b ran on to Parla after all', () => {
+  const C4B = 'cercanias-madrid:1078X20456C4b';
+  // As from 13:30:49, when Renfe listed only C4b's next Station, Las Margaritas, with no stop SKIPPED,
+  // and from 13:32:49 each of the rest in turn as its Train ran on to them. In between, made up, a
+  // listing of no stops at all, which says nothing of them.
+  const next = (seconds: number, stopId: string) => rainsAt(RAINS + seconds * 1000, (trip, stops) => (trip === '1078X20456C4b' ? [{ stopId }] : stops));
+  const none = rainsAt(RAINS + 40_000, (trip, stops) => (trip === '1078X20456C4b' ? [] : stops));
+  const runs = renfeRuns([SKIPPING, next(20, '37010'), none, next(60, '37002'), next(80, '37011'), next(100, '37012')], RAINS);
+  expect(runs.map((r) => skippedBy(r.snapshot)[C4B])).toEqual([C4_SOUTH, C4_SOUTH.slice(1), C4_SOUTH.slice(1), C4_SOUTH.slice(2), C4_SOUTH.slice(3), undefined]);
+  // Skipped again, as Renfe had C4b's now and then before that, a Station is skipped again.
+  const again = rainsAt(RAINS + 120_000, (trip, stops) => (trip === '1078X20456C4b' ? [{ stopId: '37012', scheduleRelationship: 'SKIPPED' }] : stops));
+  expect(skippedBy(step(runs.at(-1)?.state ?? START.state, { renfe: again }, RAINS + 120_000).snapshot)[C4B]).toEqual(['adif:37012']);
+});
+
+test("keeps what Renfe's trip updates say of skipped Stations through runs whose vehicle positions fail", () => {
+  const good = step(START.state, { renfe: SKIPPING }, RAINS);
+  const failed = step(good.state, { renfe: { ...rainsAt(RAINS + 20_000, (trip, stops) => (trip === '1078X20456C4b' ? [{ stopId: '37010' }] : stops)), positions: { status: 503, body: '' } } }, RAINS + 20_000);
+  expect(failed.snapshot.feeds.rodalies?.status).toBe('vehicle_positions: HTTP 503');
+  expect(skippedBy(failed.snapshot)['cercanias-madrid:1078X20456C4b']).toEqual(C4_SOUTH.slice(1));
+  // And through runs whose trip updates fail, it keeps what they said last.
+  const garbled = step(failed.state, { renfe: { ...renfeAt(RAINS + 40_000, SKIPPING), updates: { status: 200, body: '<html>' } } }, RAINS + 40_000);
+  expect(garbled.snapshot.skipped).toEqual(failed.snapshot.skipped);
+});
+
+test("fails only Renfe's try where its trip updates are JSON but not its feed, keeping its last good reports and skipped Stations", () => {
+  const good = step(START.state, { renfe: SKIPPING }, RAINS);
+  // Made up, as no such answer has been seen.
+  for (const body of ['{}', 'null', `{"header": {"timestamp": "${(RAINS + 20_000) / 1000}"}, "entity": {}}`]) {
+    const failed = step(good.state, { renfe: { ...renfeAt(RAINS + 20_000, SKIPPING), updates: { status: 200, body } } }, RAINS + 20_000);
+    expect(failed.snapshot.feeds.rodalies).toMatchObject({ lastSuccess: RAINS, lastAttempt: RAINS + 20_000 });
+    expect(failed.snapshot.feeds.rodalies?.status).not.toBe('ok');
+    expect(failed.snapshot.reports).toEqual(good.snapshot.reports);
+    expect(failed.snapshot.skipped).toEqual(good.snapshot.skipped);
+  }
+});
+
 // FGC's live data as recorded at 10:31 on Friday 25 September 2026: Geotren's positions, which FGC
 // last updated at 10:30:11, the trip-updates file FGC wrote at 10:30:03, and where that file is.
 const fgcRecorded = (file: string) => readFileSync(new URL(`fixtures/fgc/${file}`, import.meta.url));

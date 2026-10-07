@@ -70,6 +70,8 @@ const STRINGS = {
   nextDepartures: { ca: 'Properes sortides', es: 'Próximas salidas', en: 'Next departures' },
   noDepartures: { ca: 'Cap sortida propera', es: 'Ninguna salida próxima', en: 'No upcoming departures' },
   cancelled: { ca: 'Cancel·lat', es: 'Cancelado', en: 'Cancelled' },
+  // A departure at a Station its Train won't stop at, as one cut short doesn't run to (#346).
+  notStopping: { ca: "No s'atura aquí", es: 'No para aquí', en: "Doesn't stop here" },
   // At the foot of a peeking board: how many departures more it lists.
   moreDepartures: { ca: '{n} sortides més', es: '{n} salidas más', en: '{n} more departures' },
   oneMoreDeparture: { ca: '{n} sortida més', es: '{n} salida más', en: '{n} more departure' },

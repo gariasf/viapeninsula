@@ -70,6 +70,10 @@ _Avoid_: Lateness, offset
 A Train its operator has announced won't run.
 _Avoid_: Suppressed, removed
 
+**Skipped Station**:
+A Station a Train's Trip calls at that its operator has said the Train won't stop at, as Renfe does where it cuts a Train short or starts it late. The Train ends at its last Station before those it skips at its Trip's end, starts at its first after those it skips at its start, and runs on through those it skips between others. One that would stop at one Station or none is Cancelled.
+_Avoid_: Cancelled stop, omitted stop
+
 ### Alerts
 
 **Alert**:

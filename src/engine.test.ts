@@ -970,6 +970,106 @@ test('a Train already past its nearest point is listed once, for when its track 
   expect(passes(at('10:00:10'))).toMatchObject([{ trip: { id: 'hairpin' }, at: at('10:00:10') }]);
 });
 
+/**
+ * Live data received as it is, one snapshot written at `since` unless it says, with each snapshot
+ * saying a Trip's Train won't stop at some Stations, as Renfe first said at `since` (#346).
+ */
+const skipping = (trip: string, stations: string[], since: number, received: Received[] = [{ snapshot: written(since), at: since }]): Received[] =>
+  received.map((r) => ({ ...r, snapshot: { ...r.snapshot, skipped: [{ trip, stations, since }] } }));
+
+/** The R2S's Stations past Barcelona-Sants. */
+const PAST_SANTS = ['Barcelona-Passeig de Gràcia', 'Barcelona Estació de França'];
+
+test('a Train whose Trip skips its last Stations is cut short: it leaves the map at its last Station before them, as at any last Station, headed there', () => {
+  // Made up, as Renfe cut its R4s short at Sants in the rains of 7 October 2026: the R2S skips Passeig de Gràcia and Estació de França.
+  const received = skipping(R2S, PAST_SANTS, at('21:30:00'));
+  // It stands at Sants as at its last Station: from when it comes in there, at 22:34, for the profile's 30 seconds.
+  expect(where(R2S, at('22:34:30'), received)).toBe(169891);
+  expect(where(R2S, at('22:34:31'), received)).toBeUndefined();
+  expect(followed(R2S, at('22:34:31'), received)).toBeUndefined();
+  // Followed before then, it's headed for Sants.
+  const panel = followed(R2S, at('22:20:00'), received);
+  expect(panel?.trip.headsign).toBe('Barcelona-Sants');
+  expect(panel?.upcoming.at(-1)).toEqual({ station: 'Barcelona-Sants', arrival: at('22:34:00'), departure: at('22:34:30') });
+});
+
+/** The R2S's Stations before Vilanova i la Geltrú. */
+const TO_VILANOVA = ['Sant Vicenç de Calders', 'Calafell', 'Segur de Calafell', 'Cunit', 'Cubelles'];
+
+test("a Train whose Trip skips its first Stations starts late: it's on the map only from its first Station after them, as at any first Station, Live or not", () => {
+  // Made up, as Renfe started R4s at Sants in the rains: the R2S skips Sant Vicenç de Calders to Cubelles.
+  const received = skipping(R2S, TO_VILANOVA, at('21:20:00'));
+  // Not along the stretch it skips, where its timetable has it at 21:45, but at Vilanova from 30 s before it's due to leave.
+  expect(where(R2S, at('21:45:00'), received)).toBeUndefined();
+  expect(where(R2S, at('21:49:29'), received)).toBeUndefined();
+  expect(where(R2S, at('21:49:30'), received)).toBe(128092);
+  // The follow panel names Vilanova as its first Station.
+  expect(followed(R2S, at('21:55:00'), received)?.trip.calls[0]?.station).toBe('Vilanova i la Geltrú');
+  // Renfe pins it to Vilanova, waiting there, and runs it on time: Live, it's drawn along the stretch
+  // it skips, where its timetable has it, until Renfe says it skips it.
+  const waiting = [near(R2S, 'Vilanova i la Geltrú', 0, at('21:44:40')), near(R2S, 'Vilanova i la Geltrú', 0, at('21:45:00'))];
+  expect(train(R2S, at('21:45:10'), waiting)).toMatchObject({ live: true, dist: where(R2S, at('21:45:10')) });
+  expect(train(R2S, at('21:45:10'), skipping(R2S, TO_VILANOVA, at('21:20:00'), waiting))).toBeUndefined();
+});
+
+test('a Train runs on through Stations its Trip skips between others, stopping at none: its board shows it not stopping there, and Nearby and its follow panel leave them out', () => {
+  // Made up, as none was seen: the R2S skips Segur de Calafell and Cunit, as Renfe said at 21:20, before it left Sant Vicenç.
+  const received = skipping(R2S, ['Segur de Calafell', 'Cunit'], at('21:20:00'));
+  // When its timetable has it stand at Segur de Calafell, it's on its way from Calafell to Cubelles.
+  const passing = train(R2S, at('21:37:45'), received);
+  expect(passing?.dist).toBeGreaterThan(114402);
+  expect(passing?.dist).toBeLessThan(123032);
+  expect(passing?.dist).not.toBe(117049);
+  expect(passing?.standsAt).toBeUndefined();
+  // Followed, its next Station after Calafell is Cubelles.
+  expect(followed(R2S, at('21:36:00'), received)?.upcoming.map((u) => u.station)).toEqual(TRIPS[R2S]?.calls.slice(4).map(([station]) => station));
+  // Cunit's board shows it not stopping, when its timetable has it leave there.
+  expect(board(['Cunit'], at('21:30:00'), received)).toMatchObject([{ trip: { id: R2S }, station: 'Cunit', departure: at('21:41:00'), skipped: true, cancelled: false, live: false }]);
+  // Nearby, around Cunit, leaves it out, though it runs past.
+  const cunit: Point = [1.63194242, 41.1950415];
+  expect(nearby(cunit, at('21:30:00'))).toMatchObject([{ trip: { id: R2S } }]);
+  expect(nearby(cunit, at('21:30:00'), received)).toEqual([]);
+});
+
+test('a Train whose Trip skips Stations that Renfe first said so of once its timetable had left the one before them starts late after them, as Renfe lists none its timetable has left', () => {
+  // As Renfe first listed an R4 from Manresa skipping Barberà del Vallès to Plaça de Catalunya at 13:15
+  // on 7 October 2026, when its timetable had left Manresa at 12:24 and Sabadell Sud, the Station
+  // before them, at 13:13. Made up: the R2S skipping Segur de Calafell and Cunit, as Renfe first said
+  // at 21:36, when its timetable had left Calafell.
+  const received = skipping(R2S, ['Segur de Calafell', 'Cunit'], at('21:36:00'));
+  expect(where(R2S, at('21:36:00'), received)).toBeUndefined();
+  expect(where(R2S, at('21:44:30'), received)).toBe(123032);
+  expect(followed(R2S, at('21:44:30'), received)?.trip.calls[0]?.station).toBe('Cubelles');
+});
+
+test('a Train whose Trip skips every Station, or all but one, or that Renfe cancels, is Cancelled: off the map, on boards as Cancelled, and not nearby', () => {
+  const stations = TRIPS[R2S]?.calls.map(([station]) => station) ?? [];
+  for (const received of [skipping(R2S, stations, at('21:20:00')), skipping(R2S, stations.slice(1), at('21:20:00'))]) {
+    expect(where(R2S, at('22:00:00'), received)).toBeUndefined();
+    expect(board(['Sitges'], at('21:50:00'), received)).toMatchObject([{ trip: { id: R2S, headsign: 'Barcelona Estació de França' }, departure: at('21:57:00'), cancelled: true, skipped: false }]);
+    expect(nearby(offTrack(MIDWAY, 1000), at('21:59:50'), received)).toEqual([]);
+  }
+  // Cancelled outright by Renfe, whatever Stations it skips, it's Cancelled at each of them, headed where its timetable has it.
+  const report: Snapshot = { ...written(at('21:49:00')), reports: [{ trip: R2S, at: at('21:48:40'), cancelled: true }] };
+  const cancelled = skipping(R2S, PAST_SANTS, at('21:20:00'), [{ snapshot: report, at: at('21:49:10') }]);
+  expect(board(['Barcelona-Passeig de Gràcia'], at('21:50:00'), cancelled)).toMatchObject([{ trip: { headsign: 'Barcelona Estació de França' }, cancelled: true, skipped: false }]);
+});
+
+test("a Train cut short is headed for its new last Station on boards and Nearby, and its board rows at the Stations it skips show it not stopping there, when its timetable has it leave", () => {
+  const received = skipping(R2S, PAST_SANTS, at('21:30:00'));
+  expect(board(['Sitges'], at('21:50:00'), received)).toMatchObject([{ trip: { id: R2S, headsign: 'Barcelona-Sants' }, skipped: false, departure: at('21:57:00') }]);
+  expect(nearby(offTrack(MIDWAY, 1000), at('21:59:50'), received)).toMatchObject([{ trip: { id: R2S, headsign: 'Barcelona-Sants' } }]);
+  expect(board(['Barcelona-Passeig de Gràcia'], at('22:00:00'), received)).toMatchObject([{ trip: { id: R2S, headsign: 'Barcelona-Sants' }, station: 'Barcelona-Passeig de Gràcia', departure: at('22:41:00'), skipped: true, cancelled: false, live: false }]);
+  // Gone once its timetable has it leave there, as a Cancelled Train's row is.
+  expect(board(['Barcelona-Passeig de Gràcia'], at('22:41:01'), received)).toEqual([]);
+  // Sants is where it ends now, and its timetable's last Station it would only arrive at.
+  expect(board(['Barcelona-Sants'], at('22:00:00'), received)).toEqual([]);
+  expect(board(['Barcelona Estació de França'], at('22:00:00'), received)).toEqual([]);
+  // Live, Renfe's GPS 2 minutes late before Sants, it's still shown not stopping when its timetable has it leave.
+  const live = skipping(R2S, PAST_SANTS, at('21:30:00'), [gps(R2S, where(R2S, at('22:28:00')) ?? NaN, at('22:30:00'), 120)]);
+  expect(board(['Barcelona-Passeig de Gràcia'], at('22:30:10'), live)).toMatchObject([{ departure: at('22:41:00'), skipped: true, live: false }]);
+});
+
 test('never runs back when its last Delay runs out, among the snapshots the map keeps', () => {
   // Renfe's GPS has the R2S 30 s early between Sitges and Castelldefels at 22:00:00, and then Renfe's feeds leave it out.
   const received = [gps(R2S, where(R2S, at('22:00:30')) ?? NaN, at('22:00:00')), ...leftOut(at('22:00:20'), at('22:32:00'))];
@@ -1933,6 +2033,65 @@ test("over both replays, a Network's live data is unavailable only while its fee
   // Geotren's positions were stuck from 08:24 to 08:33, and TRAM's API stopped answering at 08:38, as
   // before #124. Monday's bundle has no Rodalies Trips, so Renfe's feeds with none in them change nothing.
   expect(changes(MORNING)).toEqual([['08:31:32', ['fgc']], ['08:33:13', []], ['08:39:37', ['tram']]]);
+}, 60_000);
+
+// 45 minutes of production snapshots as the map received them, every 20 s from 13:00 to 13:45 on
+// Wednesday 7 October 2026, in the rains, cut to the reports of the 16 Trips of Rodalies and Cercanías
+// Madrid that Renfe listed with stops SKIPPED then, and that day's bundle cut to those Trips and the
+// Stations they call at. Each snapshot carries the skipped Stations the fetcher had as it was written,
+// stepped over Renfe's feeds as recorded every 20 s from 13:00:09 (#346): the first, written at
+// 13:00:02, has none.
+const RAINS: { bundle: Bundle; received: Received[] } = JSON.parse(gunzipSync(readFileSync(new URL('fixtures/replay-2026-10-07.json.gz', import.meta.url))).toString());
+
+/**
+ * How long the rains' Trains are drawn where their Trips don't run, Live and Scheduled, in seconds
+ * every 10 s, given the snapshots received, as #346's triage counted it: by every Station any of the
+ * rains' snapshots says a Trip skips, as first said, a Trip doesn't run past the Station before those
+ * it skips to its end, nor short of the one after those it skips from its start, or from Stations
+ * first said once its timetable had left the one before them, give or take a minute. And at the end,
+ * how many board rows at those Stations show their Trains as stopping there, and as not.
+ */
+function drawnWhereNotRun(received: Received[]) {
+  const { bundle } = RAINS;
+  const said = new Map<string, { stations: Set<string>; since: number }>();
+  for (const { trip, stations, since } of RAINS.received.flatMap((r) => r.snapshot.skipped ?? [])) {
+    const before = said.get(trip);
+    said.set(trip, { stations: new Set([...(before?.stations ?? []), ...stations]), since: Math.min(before?.since ?? Infinity, since) });
+  }
+  // Each Trip's stretches it doesn't run, from the Station it ends or starts at, to the far end, in metres along its shape.
+  const notRun = new Map<string, { end: boolean; from: number; to: number }[]>();
+  for (const [id, { stations, since }] of said) {
+    const calls = bundle.trips.find((t) => t.id === id)?.calls ?? [];
+    const runs = calls.flatMap((c, i) => (stations.has(c.station) && !stations.has(calls[i - 1]?.station ?? '') ? [[i, calls.findIndex((d, j) => j > i && !stations.has(d.station))]] : []));
+    notRun.set(id, runs.flatMap(([a = 0, after = -1]): { end: boolean; from: number; to: number }[] => {
+      const [before, last, first] = [calls[a - 1], calls.at(-1), calls[0]];
+      if (after < 0) return before && last ? [{ end: true, from: before.dist, to: last.dist }] : [];
+      const starts = !before || before.departure <= (since - bundle.noonMinus12h) / 1000 + 60;
+      return starts && first ? [{ end: false, from: calls[after]?.dist ?? NaN, to: first.dist }] : [];
+    }));
+  }
+  const [from, to] = [received[0]?.at ?? 0, received.at(-1)?.at ?? 0];
+  const drawn = { live: 0, scheduled: 0 };
+  for (let moment = from; moment <= to; moment += 10_000) {
+    for (const { trip, dist, live } of trainsAt(bundle, moment, by(received, moment))) {
+      const off = notRun.get(trip.id)?.some((s) => Math.min(s.from, s.to) <= dist && dist <= Math.max(s.from, s.to) && (s.end ? dist > s.from + 1 : dist < s.from - 1));
+      if (off) drawn[live ? 'live' : 'scheduled'] += 10;
+    }
+  }
+  const rows = [...said].flatMap(([id, { stations }]) => [...stations].flatMap((s) => boardAt(bundle, to, received, [s]).filter((d) => d.trip.id === id && !d.cancelled)));
+  return { ...drawn, stopping: rows.filter((d) => !d.skipped).length, notStopping: rows.filter((d) => d.skipped).length };
+}
+
+test("over 45 minutes of the rains of 7 October 2026, Trains are drawn where their Trips don't run only where Renfe took back Stations it had said they'd skip", () => {
+  // Without the skipped Stations, as before #346: 105 Train-minutes Live, 68.8 Scheduled. The 78 board
+  // rows at 13:45 are more than the 64 the triage counted on the whole bundle: with only these 16
+  // Trips, each board's ten rows are all theirs.
+  expect(drawnWhereNotRun(RAINS.received.map((r) => ({ ...r, snapshot: { ...r.snapshot, skipped: undefined } })))).toEqual({ live: 6300, scheduled: 4130, stopping: 78, notStopping: 0 });
+  // With them, 17.3 and 1.3 Train-minutes, nearly all where Renfe took back Stations it had said a Train
+  // would skip as it ran on to them, as its GPS showed: C4b's to Parla from 13:30 (12.3 Live), C4a's to
+  // Villaverde Bajo at 13:41 (2), and C10's to El Barrial at 13:32 (2 and 1.3). The rest, 1 Live, is
+  // the first snapshot's, written before Renfe's first feeds recorded.
+  expect(drawnWhereNotRun(RAINS.received)).toEqual({ live: 1040, scheduled: 80, stopping: 0, notStopping: 66 });
 }, 60_000);
 
 // Made up: an R1 Trip from Badalona to El Masnou each night, from 23:50 to 00:20, on every day's
