@@ -1,7 +1,9 @@
 // The cards' real content, copied from the live map on Wednesday 7 Oct 2026 at about 08:07 in Barcelona
 // (#212), and today's markup for each card as the map built it then. Generated; throwaway with the mockup.
 
-export type Kind = 'commuter' | 'regional' | 'metro' | 'tram' | 'rack' | 'funicular';
+import type { Kind } from '../bundle.ts';
+
+export type { Kind };
 
 /** A row of a board or of Nearby: when (HH:MM, as expected), its Line, where it's headed, Live or Scheduled, its Delay in minutes where there's one to show, Cancelled, and Scheduled though its Network has live data. */
 export interface Row {
@@ -400,7 +402,7 @@ export const FOLLOWED = {
   ]
 };
 
-/** The Lines a tap names on the bundle through Passeig de Gràcia. */
+/** The Lines a tap names on the Stretch through Passeig de Gràcia. */
 export const TAP = ["R2","R2N","R2S","R11","R13","R14","R15","R16"];
 
 /** Today's markup for each card, as the live map built it. */

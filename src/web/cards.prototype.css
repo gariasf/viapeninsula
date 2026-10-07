@@ -126,6 +126,26 @@ body {
   --hover: color-mix(in srgb, var(--ink) 7%, transparent);
 }
 
+/* The followed Train, as the map draws it: a frame shows it where the map keeps it, above the panel. */
+.followed-train {
+  position: absolute;
+  z-index: 1;
+  padding: 2px;
+  background: #fff;
+  clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 8px 100%, 0 50%);
+  translate: -50% -50%;
+}
+
+.followed-train span {
+  display: block;
+  height: 20px;
+  padding: 0 11px;
+  background: var(--line);
+  clip-path: polygon(7px 0, calc(100% - 7px) 0, 100% 50%, calc(100% - 7px) 100%, 7px 100%, 0 50%);
+  color: #111;
+  font: 700 12px/20px var(--font);
+}
+
 /* ---- Today: style.css's rules as deployed (1fb6f6e), scoped to the frame, with its dark side on the frame's theme and a phone's 390 × 844 for vw and vh. ---- */
 .v-today {
   position: absolute;
@@ -374,6 +394,7 @@ body {
 .v-new {
   position: absolute;
   inset: 0;
+  --time: 4.4em;
   --radius: 12px;
   --edge: 1.5px solid var(--rule);
   color: var(--ink);
@@ -612,7 +633,7 @@ body {
   grid-template-columns: auto 1fr auto;
 }
 
-.v-new .deps li {
+.v-new :is(.deps, .groups) li {
   display: grid;
   grid-column: 1 / -1;
   grid-template-columns: subgrid;
@@ -623,12 +644,12 @@ body {
   border-top: 1px solid var(--hairline);
 }
 
-.v-b .deps li,
-.v-c .deps li {
+.v-b :is(.deps, .groups) li,
+.v-c :is(.deps, .groups) li {
   border-top-style: dashed;
 }
 
-.v-new .deps li:first-child {
+.v-new :is(.deps, .groups) li:first-child {
   border-top: 0;
 }
 
@@ -658,7 +679,7 @@ body {
 /* A's next Stations: the time, then the name; the next one bold. */
 .v-new .stops li {
   display: grid;
-  grid-template-columns: 4.4em 1fr;
+  grid-template-columns: var(--time) 1fr;
   column-gap: 8px;
   padding: 2px 0;
 }
@@ -673,7 +694,7 @@ body {
 }
 
 /* B's and C's followed Train: its next Station first, then where it is along its Trip, then the Stations after, as a strip in its Line's colour. */
-.v-new .next {
+.v-new .next-stop {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
@@ -681,7 +702,7 @@ body {
   margin: 2px 0 6px;
 }
 
-.v-new .next .label {
+.v-new .next-stop .label {
   margin: 0;
 }
 
@@ -758,7 +779,7 @@ body {
 .v-new .strip li {
   position: relative;
   display: grid;
-  grid-template-columns: 4.4em 18px 1fr;
+  grid-template-columns: var(--time) 18px 1fr;
   align-items: center;
   column-gap: 8px;
   min-height: 28px;
@@ -769,7 +790,7 @@ body {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: calc(4.4em + 8px + 7px);
+  left: calc(var(--time) + 8px + 7px);
   width: 4px;
   background: var(--line);
 }
@@ -790,7 +811,7 @@ body {
 }
 
 .v-new .more {
-  margin: 4px 0 0 calc(4.4em + 8px + 18px + 8px);
+  margin: 4px 0 0 calc(var(--time) + 8px + 18px + 8px);
   font-size: 13px;
   text-decoration: underline;
   text-underline-offset: 2px;
@@ -817,24 +838,17 @@ body {
 }
 
 /* B's and C's Nearby: one row per Line and where it's headed, with its next three. */
-.v-new .groups li {
-  display: grid;
-  grid-column: 1 / -1;
-  grid-template-columns: subgrid;
-  align-items: center;
-  column-gap: 8px;
-  min-height: 36px;
-  border-top: 1px dashed var(--hairline);
-}
-
-.v-new .groups li:first-child {
-  border-top: 0;
-}
-
 .v-new .groups .times {
   font-variant-numeric: tabular-nums;
-  font-weight: 700;
   white-space: nowrap;
+}
+
+.v-new .groups .live {
+  font-weight: 700;
+}
+
+.v-new .groups .dest .delay {
+  display: inline-block;
 }
 
 /* The corners: the legend and the banner top left, the buttons top right. */
@@ -1039,11 +1053,11 @@ body {
   translate: 0 -50%;
 }
 
-.v-new .dialog p + p {
+.v-new :is(.dialog, .sheet.about) p + p {
   margin-top: 6px;
 }
 
-.v-new .dialog a {
+.v-new :is(.dialog, .sheet.about) a {
   color: inherit;
   text-underline-offset: 2px;
 }
