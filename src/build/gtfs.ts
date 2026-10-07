@@ -21,8 +21,8 @@ const underway = new Map<string, Promise<Buffer>>();
 /**
  * Downloads the GTFS zip of the timetable whose IDs start with `prefix` to zipFile(prefix), to read
  * from there. A try that fails or takes longer than `limit` is tried once more, `again` later.
- * Timetables downloading one URL at once share its download, as every Cercanías núcleo shares
- * Renfe's one file, and each is told why it failed.
+ * Timetables downloading one URL at once share its download, tried with the first one's `limit` and
+ * `again`, as every Cercanías núcleo shares Renfe's one file, and each is told why it failed.
  */
 export async function download(url: string, prefix: string, { limit, again } = TRY): Promise<void> {
   let zip = underway.get(url);

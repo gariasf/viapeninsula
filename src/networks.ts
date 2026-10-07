@@ -272,13 +272,17 @@ function núcleo(code: string, prefix: string): Timetable {
   return { url: RENFE_CERCANIAS, prefix, operator: 'adif', routes: { idPrefix: code }, number: '^\\d{5}' };
 }
 
-// Each of these núcleos' top speed covers the fastest stretch its Trips run on 7 October 2026, as the
-// build measures it along their track: their fastest Units run at 120 km/h, Civias on Adif's lines
-// and 2700s on FEVE's metre-gauge ones. A núcleo runs on the left where all its double track keeps left: Adif's
-// lines that García Álvarez lists as running on the left ("La vía doble en España y el sentido de
-// circulación de los trenes por ella", FFE, 2010, table 4 and p. 25), and FEVE's, which keep left
-// too. OpenStreetMap's railway:preferred_direction tags say which way Trains run on only 3.6 km of
-// these núcleos' double track, in Santander (seen 7 October 2026).
+// As Madrid's, these núcleos' Trains accelerate and brake at 1 m/s² and stand half a minute at small
+// Stations. Each one's top speed covers the fastest stretch its Trips run on 7 October 2026, as the
+// build measures it along their track, but for two stretches no train could run, whose Trips it
+// leaves out: Sevilla's C4 from San Bernardo to Santa Justa, measured back round its circle, as its
+// trace ends at San Bernardo, and Asturias' C4 from Candás to Candás-Apeadero, which Renfe times at
+// the same minute at both (#253). Their fastest Units run at 120 km/h, Civias on Adif's lines and
+// 2700s on FEVE's metre-gauge ones. A núcleo runs on the left where all its double track keeps
+// left: Adif's lines that García Álvarez lists as running on the left ("La vía doble en España y el
+// sentido de circulación de los trenes por ella", FFE, 2010, table 4 and p. 25), and FEVE's, which
+// keep left too. OpenStreetMap's railway:preferred_direction tags say which way Trains run on only
+// 3.6 km of these núcleos' double track, in Santander (seen 7 October 2026).
 
 export const CERCANIAS_ASTURIAS: NetworkConfig = {
   ...CERCANIAS,
