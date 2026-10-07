@@ -181,13 +181,18 @@ export function step(state: State, responses: Responses, now: number, sources = 
     const waitedBefore = state.waited?.[id];
     const waited = fetched ? 0 : waitedBefore === undefined ? undefined : waitedBefore + 1;
     if (waited !== undefined) next.waited[id] = waited;
-    // Due once the runs since it was last fetched add up to how often it's fetched, unless its adapter
-    // holds it back. Counted in runs, not in time, as a run's `now` comes up to TIMEOUT after it starts.
-    const onTime = waited === undefined || (waited + 1) * EVERY >= (freshness?.every ?? source.every);
-    if (onTime && !adapter.held?.({ source, own, last: freshness, at: now + EVERY })) due.push(id);
+    // Due once the runs since it was last fetched add up to how often it's fetched, unless its adapter holds it back.
+    if (onTime(waited, freshness?.every ?? source.every) && !adapter.held?.({ source, own, last: freshness, at: now + EVERY })) due.push(id);
   }
   return { snapshot: { generated: now, feeds, reports: sources.flatMap((s) => next.reports[s.id] ?? []) }, state: next, due, missed };
 }
+
+/**
+ * Whether what's fetched this often is due on the next run, given how many runs have passed since it
+ * was last fetched: none where it never was. Counted in runs, not in time, as a run's `now` comes up
+ * to TIMEOUT after it starts.
+ */
+export const onTime = (waited: number | undefined, every: number) => waited === undefined || (waited + 1) * EVERY >= every;
 
 /**
  * The adapter that reads a source's format, typed for any source and any answers: the step gives each
@@ -245,6 +250,7 @@ export function json<T>(file: string, fetched: Fetched): T {
   }
 }
 
+/** A time GTFS-RT gives in seconds since 1970, in ms. */
 export const ms = (seconds: string | number | undefined) => Number(seconds) * 1000;
 
 /** A moment's time of day in UTC, such as 09:12:40 UTC. */
@@ -491,6 +497,9 @@ export interface TramOwn {
    */
   backoff?: { failed: number; wait: number };
 }
+
+/** The access token TRAM's adapter keeps in the step's state for a source of TRAM's, where it keeps one, as TRAM's alerts use it (alerts.ts). */
+export const tramToken = ({ own }: State, id: string) => (own?.[id] as TramOwn | undefined)?.access?.token;
 
 /** The longest the fetcher waits to try TRAM again after a try fails, where TRAM answers and issues no access token or refuses it, in ms. */
 const TRAM_WAIT_MAX = 1_800_000;

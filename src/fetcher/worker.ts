@@ -42,9 +42,9 @@ export class Fetcher extends DurableObject<Env> {
     // The next run is set first, so that a failed run never stops them.
     await this.ctx.storage.setAlarm(Date.now() + EVERY);
     const stored = (await this.ctx.storage.get<Stored>(STORED)) ?? START;
-    const kept = (await this.ctx.storage.get<AlertsState>(ALERTS)) ?? ALERTS_START;
+    const alertsKept = (await this.ctx.storage.get<AlertsState>(ALERTS)) ?? ALERTS_START;
     // TRAM's alerts go with the access token its adapter kept from the last run.
-    const [responses, answers] = await Promise.all([fetchDue(stored, (name) => secret(this.env, name), get), fetchAlerts(kept, stored.state, get)]);
+    const [responses, alertAnswers] = await Promise.all([fetchDue(stored, (name) => secret(this.env, name), get), fetchAlerts(alertsKept, stored.state, get)]);
     const now = Date.now();
     const run = step(stored.state, responses, now);
     // Each try that finds a Network's Trains missing from a feed that works, up to the one that drops its
@@ -54,14 +54,14 @@ export class Fetcher extends DurableObject<Env> {
     await this.env.LIVE.put('snapshot.json', JSON.stringify(run.snapshot), {
       httpMetadata: { contentType: 'application/json', cacheControl: 'public, max-age=15' },
     });
-    const alerts = readAlerts(kept, answers, now);
+    const alertsRun = readAlerts(alertsKept, alertAnswers, now);
     // Written before what's kept of them, so that a write that fails is made again on the next run.
-    if (alerts.file) {
-      await this.env.LIVE.put('alerts.json', JSON.stringify(alerts.file), {
+    if (alertsRun.file) {
+      await this.env.LIVE.put('alerts.json', JSON.stringify(alertsRun.file), {
         httpMetadata: { contentType: 'application/json', cacheControl: 'public, max-age=60' },
       });
     }
-    await this.ctx.storage.put(ALERTS, alerts.state);
+    await this.ctx.storage.put(ALERTS, alertsRun.state);
   }
 }
 

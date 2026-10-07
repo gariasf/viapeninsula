@@ -4,13 +4,17 @@
 
 import type { Alert, AlertFeed, Alerts, Words } from '../bundle.ts';
 import { LIVE_SOURCES, RODALIES, type LiveSource } from '../networks.ts';
-import { EVERY, HALVES, json, ms, networkOf, type Fetched, type Get, type State, type TramOwn } from './step.ts';
+import { HALVES, json, ms, networkOf, onTime, tramToken, type Fetched, type Get, type State } from './step.ts';
 
-/** An answer to a request for alerts: its body, and the validators Renfe gives its file, for a conditional request. */
-export interface Answer {
-  text: string;
+/** The validators Renfe gives its file, which a conditional request names. */
+export interface Validators {
   etag?: string;
   modified?: string;
+}
+
+/** An answer to a request for alerts: its body, and its validators where it gives them. */
+export interface Answer extends Validators {
+  text: string;
 }
 
 /** An answer's body, with the validators it gives. */
@@ -19,16 +23,16 @@ async function withValidators(res: Response): Promise<Answer> {
 }
 
 /** This run's answers to each source's requests for its alerts, by its ID, then by what the fetcher calls each file. */
-export type AlertResponses = Record<string, Record<string, Fetched<Answer>>>;
+type AlertResponses = Record<string, Record<string, Fetched<Answer>>>;
 
 /**
  * What the fetcher keeps of a source's alerts between runs: what alerts.json says of them, how many runs
- * have passed since they were last asked for, and the validators of the file it last read.
+ * have passed since they were last asked for, and the validators of the file it last read, with how it
+ * read it (readingOf()).
  */
-interface Kept extends AlertFeed {
+interface Kept extends AlertFeed, Validators {
   waited: number;
-  etag?: string;
-  modified?: string;
+  readWith?: string;
 }
 
 /** What the fetcher keeps of each source's alerts between runs, by its ID, and when it last wrote alerts.json, in ms since 1970. */
@@ -38,35 +42,47 @@ export interface AlertsState {
 }
 
 /**
- * How long alerts.json goes unwritten at most, in ms: about 5 minutes, so that while the fetcher runs,
- * the times it says each feed was last read are no older than that, though what else it holds stays
- * the same for hours.
+ * How long alerts.json goes unwritten at most, in ms: about 5 minutes, so that the time it says a feed
+ * was last read is never more than that behind, though what else it holds stays the same for hours.
  */
-export const REWRITE = 300_000;
+const REWRITE = 300_000;
+
+/**
+ * How alertsOf() reads Alerts, as a number to make one more whenever it reads them otherwise: then the
+ * next run reads Renfe's file afresh, though Renfe hasn't changed it, rather than keep what it read.
+ */
+const READING = 1;
+
+/** How a source's alerts are read: by READING, with the source's config as it is now, which names its Networks. */
+const readingOf = (source: LiveSource) => JSON.stringify([READING, source]);
 
 /** What the fetcher starts from: no alerts read. */
 export const ALERTS_START: AlertsState = { feeds: {} };
 
 /**
- * This run's answers from each source's alerts, by its ID: Renfe's with a conditional request, which it
- * answers with 304 and no body while its file is the one the fetcher read, and TRAM's for each of its
- * halves, with the access token its adapter keeps in the live data's state, and none while it keeps
- * none. They never ask for a token, so TRAM's refusals here never hold its live data back.
+ * This run's answers from each source's alerts that are due, by its ID: Renfe's with a conditional
+ * request, which it answers with 304 and no body while its file is the one the fetcher read, where it
+ * read it as it would now; and TRAM's for each of its halves, with the access token its adapter keeps in
+ * the live data's state, and none while it keeps none. They never ask for a token, so TRAM's refusals
+ * here never hold its live data back.
  */
-export async function fetchAlerts({ feeds }: AlertsState, { own }: State, get: Get): Promise<AlertResponses> {
-  const asked = LIVE_SOURCES.flatMap(({ id, format, alerts }) => {
+export async function fetchAlerts({ feeds }: AlertsState, live: State, get: Get, sources = LIVE_SOURCES): Promise<AlertResponses> {
+  const asked = sources.flatMap((source) => {
+    const { id, format, alerts } = source;
     const kept = feeds[id];
-    // Due once the runs since they were last asked for add up to how often they're fetched, counted in runs as the step counts its own.
-    if (!alerts || (kept && (kept.waited + 1) * EVERY < alerts.every)) return [];
+    // Due as the step's sources are, counted in runs.
+    if (!alerts || !onTime(kept?.waited, alerts.every)) return [];
     if (format === 'tram') {
-      const token = (own?.[id] as TramOwn | undefined)?.access?.token;
+      const token = tramToken(live, id);
       if (!token) return [];
       const init = { headers: { authorization: `Bearer ${token}` } };
       // TRAM's API numbers Trambaix 1 and Trambesòs 2.
       const halves = HALVES.map(async (half, i) => [`${half} GtfsRealtimeAlerts`, await get(`${alerts.url}?networkId=${i + 1}`, withValidators, init)] as const);
       return [Promise.all(halves).then((answers) => [id, Object.fromEntries(answers)] as const)];
     }
-    const headers = { ...(kept?.etag && { 'if-none-match': kept.etag }), ...(kept?.modified && { 'if-modified-since': kept.modified }) };
+    // A file read otherwise than it would be now, as before a Network was added to the config, is asked for whole.
+    const same = kept?.readWith === readingOf(source) ? kept : undefined;
+    const headers = { ...(same?.etag && { 'if-none-match': same.etag }), ...(same?.modified && { 'if-modified-since': same.modified }) };
     return [get(alerts.url, withValidators, { headers }).then((answer) => [id, { alerts: answer }] as const)];
   });
   return Object.fromEntries(await Promise.all(asked));
@@ -74,19 +90,20 @@ export async function fetchAlerts({ feeds }: AlertsState, { own }: State, get: G
 
 /**
  * One run: the stored state, this run's answers and the time now (ms since 1970) go in; the next state
- * comes out, and alerts.json where it's to be written: where a feed's Alerts or how its last try went
- * have changed since the last run, or it went unwritten for REWRITE.
+ * comes out, and alerts.json where it's to be written: where a feed's Alerts, or what its last try
+ * says, have changed since the last run, or it has gone unwritten for REWRITE.
  */
-export function readAlerts(state: AlertsState, responses: AlertResponses, now: number): { state: AlertsState; file?: Alerts } {
+export function readAlerts(state: AlertsState, responses: AlertResponses, now: number, sources = LIVE_SOURCES): { state: AlertsState; file?: Alerts } {
   const feeds: Record<string, Kept> = {};
-  for (const source of LIVE_SOURCES) {
+  for (const source of sources) {
     if (!source.alerts) continue;
     const [kept, answers] = [state.feeds[source.id], responses[source.id]];
     if (answers) feeds[source.id] = { ...tried(source, kept, answers, now), waited: 0 };
     else if (kept) feeds[source.id] = { ...kept, waited: kept.waited + 1 };
   }
-  const held = (of: Record<string, Kept>) => JSON.stringify(Object.entries(of).map(([id, { status, alerts }]) => [id, status, alerts]));
-  if (state.written !== undefined && now < state.written + REWRITE && held(feeds) === held(state.feeds)) return { state: { feeds, written: state.written } };
+  // What the file holds of each feed, but for when it was read.
+  const holds = (of: Record<string, Kept>) => JSON.stringify(Object.entries(of).map(([id, { status, alerts }]) => [id, status, alerts]));
+  if (state.written !== undefined && now < state.written + REWRITE && holds(feeds) === holds(state.feeds)) return { state: { feeds, written: state.written } };
   const file = Object.fromEntries(Object.entries(feeds).map(([id, { read, status, alerts }]) => [id, { read, status, alerts }]));
   return { state: { feeds, written: now }, file };
 }
@@ -100,11 +117,12 @@ function tried(source: LiveSource, kept: Kept | undefined, answers: Record<strin
   const fetched = Object.values(answers);
   try {
     if (kept && fetched.every((f) => 'status' in f && f.status === 304)) return { ...kept, read: now, status: 'ok' };
-    const alerts = Object.entries(answers).flatMap(([file, f]) => alertsOf(source, gtfsRt(file, f)));
+    // All its files' Alerts in one list, as TRAM's halves can both give one.
+    const alerts = alertsOf(source, Object.entries(answers).flatMap(([file, f]) => gtfsRt(file, f).entity ?? []));
     // Renfe's one file gives the validators for the next run's conditional request.
     const { alerts: renfe } = answers;
     const { etag, modified } = renfe && 'body' in renfe ? renfe.body : {};
-    return { read: now, status: 'ok', alerts, etag, modified };
+    return { read: now, status: 'ok', alerts, etag, modified, readWith: readingOf(source) };
   } catch (error) {
     return { ...kept, alerts: kept?.alerts ?? [], status: (error as Error).message };
   }
@@ -137,14 +155,14 @@ interface GtfsRtAlert {
 type Translated = { translation?: Words[] };
 
 /**
- * A feed's Alerts on the Lines of the Networks its source's config names, and Renfe's on Stations,
- * newest first. A stop_id doesn't say which núcleo it's in, so every Station's is kept: the map shows
- * those of the Stations it has. Entities with one ID and the same words are one Alert, on the Lines
- * and Stations of them all, as Renfe gives some twice.
+ * A source's Alerts on the Lines of the Networks its config names, and Renfe's on Stations, from the
+ * entities of all its files, newest first. A stop_id doesn't say which núcleo it's in, so every
+ * Station's is kept: the map shows those of the Stations it has. Entities with one ID and the same
+ * words are one Alert, on the Lines and Stations of them all, as Renfe gives some twice.
  */
-function alertsOf(source: LiveSource, feed: GtfsRtAlerts): Alert[] {
+function alertsOf(source: LiveSource, entities: NonNullable<GtfsRtAlerts['entity']>): Alert[] {
   const alerts = new Map<string, Alert>();
-  for (const { id, alert } of feed.entity ?? []) {
+  for (const { id, alert } of entities) {
     const named = alert?.informedEntity ?? [];
     const lines = named.flatMap(({ routeId }) => (routeId ? (lineOf(source, routeId.trim()) ?? []) : []));
     // Renfe's stop_ids are Adif's, as its Stations are in the bundle.

@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import type { Alerts } from '../bundle.ts';
-import { ALERTS_START, fetchAlerts, readAlerts, type Answer } from './alerts.ts';
+import { LIVE_SOURCES } from '../networks.ts';
+import { ALERTS_START, fetchAlerts, readAlerts, type Answer, type Validators } from './alerts.ts';
 import { START, type Fetched, type Get, type State } from './step.ts';
 
 // Renfe's alerts.json as fetched at 11:39 on Wednesday 7 October 2026, the morning after heavy rain,
@@ -9,7 +10,7 @@ import { START, type Fetched, type Get, type State } from './step.ts';
 const recorded = (file: string) => readFileSync(new URL(`fixtures/alerts/${file}`, import.meta.url), 'utf8');
 
 /** An answer to a request for alerts, with the validators Renfe gives its file where they're given. */
-const answer = (text: string, validators: Omit<Answer, 'text'> = {}): Fetched<Answer> => ({ status: 200, body: { text, ...validators } });
+const answer = (text: string, validators: Validators = {}): Fetched<Answer> => ({ status: 200, body: { text, ...validators } });
 
 const RENFE = { alerts: answer(recorded('renfe.json'), { etag: '"6ac5f5a4-18586"', modified: 'Wed, 07 Oct 2026 07:32:52 GMT' }) };
 
@@ -42,7 +43,7 @@ test('names each of its Lines once, however many of their routes an Alert names'
 });
 
 test('makes one Alert of those Renfe gives one ID and the same words, on the Lines of both', () => {
-  // Renfe gives AVISO_518187, buses over the whole route, once for R8 and once for all 20 of Rodalies' Lines.
+  // Renfe gives AVISO_518187, "Servicio alternativo por carretera en todo su recorrido", once for R8 and once for all 20 of Rodalies' Lines.
   const same = renfeRun().file?.renfe?.alerts.filter((a) => a.id === 'AVISO_518187');
   expect(same).toHaveLength(1);
   const all = ['R1', 'R2', 'R2N', 'R2S', 'R3', 'R3a', 'R4', 'R7', 'R8', 'R11', 'R13', 'R14', 'R15', 'R16', 'R17', 'RG1', 'RL3', 'RL4', 'RT1', 'RT2'];
@@ -50,10 +51,13 @@ test('makes one Alert of those Renfe gives one ID and the same words, on the Lin
 });
 
 /** Renfe's file as recorded, with these entities after Rodalies'. */
-function renfeWith(...entities: object[]) {
+function renfeText(...entities: object[]) {
   const file = JSON.parse(recorded('renfe.json'));
-  return { alerts: answer(JSON.stringify({ ...file, entity: [...file.entity, ...entities] })) };
+  return JSON.stringify({ ...file, entity: [...file.entity, ...entities] });
 }
+
+/** Renfe's answer with its file as recorded, with these entities after Rodalies'. */
+const renfeWith = (...entities: object[]) => ({ alerts: answer(renfeText(...entities)) });
 
 // Three more from the same file, their routes cut down to two each: one of Madrid's on C5, one of
 // Valencia's, núcleo 40, which isn't on the map, and one of Madrid's on a lift at Vicálvaro, by its stop_id.
@@ -146,29 +150,29 @@ test("lists a feed's Alerts newest first", () => {
 const ETAG = '"6ac5f5a4-18586"';
 const MODIFIED = 'Wed, 07 Oct 2026 07:32:52 GMT';
 
+/** Where TRAM's alerts are. */
+const TRAM_ALERTS = 'https://opendata.tram.cat/api/v1/GtfsRealtimeAlerts';
+
 /**
  * A Worker's `get` that answers as Renfe does: with its file as recorded and its validators, or with
  * 304 and no body to a request that names them; and as TRAM does, with each half's alerts as recorded,
- * unless it's given another answer for them. It notes each request: its URL, and the headers that make
- * it conditional or carry a token.
+ * unless it's given another answer for them. Renfe's file can be given too. It notes each request: its
+ * URL, and the headers that make it conditional or carry a token.
  */
-function answering(asked: string[], tramAnswer?: Failed): Get {
+function answering(asked: string[], tramAnswer?: Failed, renfe = recorded('renfe.json')): Get {
   const tram: Record<string, string> = { [`${TRAM_ALERTS}?networkId=1`]: recorded('tram-tbx.json'), [`${TRAM_ALERTS}?networkId=2`]: recorded('tram-tbs.json') };
   return async (url, read, init) => {
     const headers = new Headers(init?.headers);
     asked.push([url, headers.get('if-none-match'), headers.get('if-modified-since'), headers.get('authorization')].filter(Boolean).join(' '));
     if (tram[url] && tramAnswer) return 'error' in tramAnswer ? tramAnswer : { status: tramAnswer.status, body: await read(new Response('', tramAnswer)) };
     const unchanged = headers.get('if-none-match') === ETAG;
-    const res = tram[url] ? new Response(tram[url]) : unchanged ? new Response(null, { status: 304 }) : new Response(recorded('renfe.json'), { headers: { etag: ETAG, 'last-modified': MODIFIED } });
+    const res = tram[url] ? new Response(tram[url]) : unchanged ? new Response(null, { status: 304 }) : new Response(renfe, { headers: { etag: ETAG, 'last-modified': MODIFIED } });
     return { status: res.status, body: await read(res) };
   };
 }
 
 /** An answer that fails: one with an HTTP status, or none. */
 type Failed = { status: number } | { error: string };
-
-/** Where TRAM's alerts are. */
-const TRAM_ALERTS = 'https://opendata.tram.cat/api/v1/GtfsRealtimeAlerts';
 
 /** The live data's state, with an access token TRAM's adapter keeps, made up, as TRAM issues one for an hour. */
 const WITH_TOKEN: State = { ...START.state, own: { tram: { access: { token: 'made-up token', expires: NOW + 3_600_000 } } } };
@@ -195,7 +199,7 @@ test("asks Renfe for its alerts on every run, but for its file only if it has ch
   expect(renfe).toEqual(['https://gtfsrt.renfe.com/alerts.json', ...Array(2).fill(`https://gtfsrt.renfe.com/alerts.json ${ETAG} ${MODIFIED}`)]);
 });
 
-test('asks TRAM for its Alerts every 5 minutes, for both its halves, with the access token its adapter keeps, and not while it keeps none', async () => {
+test('asks TRAM for its alerts every 5 minutes, for both its halves, with the access token its adapter keeps, and not while it keeps none', async () => {
   const tram = (await runs(11)).map(({ at, requests }) => ({ at, requests: requests.filter((r) => r.startsWith(TRAM_ALERTS)) })).filter((run) => run.requests.length);
   const both = [`${TRAM_ALERTS}?networkId=1 Bearer made-up token`, `${TRAM_ALERTS}?networkId=2 Bearer made-up token`];
   expect(tram).toEqual([0, 300, 600].map((at) => ({ at, requests: both })));
@@ -203,7 +207,7 @@ test('asks TRAM for its Alerts every 5 minutes, for both its halves, with the ac
   expect((await runs(11, START.state)).flatMap((run) => run.requests).filter((r) => r.startsWith(TRAM_ALERTS))).toEqual([]);
 });
 
-test("never asks TRAM for an access token, nor changes what its adapter keeps, where TRAM refuses its Alerts or fails them, and asks again 5 minutes later", async () => {
+test("never asks TRAM for an access token, nor changes what its adapter keeps, where TRAM refuses its alerts or fails them, and asks again 5 minutes later", async () => {
   const failures: [Failed, string][] = [
     [{ status: 401 }, 'TBX GtfsRealtimeAlerts: HTTP 401'],
     [{ status: 503 }, 'TBX GtfsRealtimeAlerts: HTTP 503'],
@@ -280,4 +284,25 @@ test('writes alerts.json when what it holds changes, and at least every 5 minute
   expect(at300).toMatchObject({ renfe: { read: NOW + 300_000, status: 'ok' }, tram: { read: NOW + 300_000, status: 'ok' } });
   expect(at420).toMatchObject({ renfe: { read: NOW + 400_000, status: 'alerts: HTTP 503' }, tram: { read: NOW + 300_000, status: 'ok' } });
   expect(written.at(-1)?.[1].renfe?.alerts.map((a) => a.id)).not.toContain('AVISO_518187');
+});
+
+test("lists TRAM's Alerts newest first across both its halves, and an Alert both halves give once", () => {
+  const ids = (tbx: string, tbs: string) => readAlerts(ALERTS_START, { tram: { 'TBX GtfsRealtimeAlerts': answer(recorded(tbx)), 'TBS GtfsRealtimeAlerts': answer(recorded(tbs)) } }, NOW).file?.tram?.alerts.map((a) => a.id);
+  // Made up: Trambesòs' Alert in Trambaix's answer, and the other way round.
+  expect(ids('tram-tbs.json', 'tram-tbx.json')).toEqual(['sc-280', 'sc-279']);
+  // Made up: Trambaix's Alert, on T1, T2 and T3, in both halves' answers, as one on all of TRAM might be.
+  expect(ids('tram-tbx.json', 'tram-tbx.json')).toEqual(['sc-280']);
+});
+
+test("asks Renfe for its whole file once the config names another Network in it, and reads that Network's Alerts, though Renfe hasn't changed the file", async () => {
+  // Made up: Cercanías Valencia, núcleo 40, added to Renfe's source by configuration only, as Madrid was (#248).
+  const withValencia = LIVE_SOURCES.map((s) => (s.id === 'renfe' ? { ...s, networks: { ...s.networks, '40': 'cercanias-valencia' } } : s));
+  const asked: string[] = [];
+  const get = answering(asked, undefined, renfeText(VALENCIA_C5));
+  const before = readAlerts(ALERTS_START, await fetchAlerts(ALERTS_START, START.state, get), NOW);
+  const added = readAlerts(before.state, await fetchAlerts(before.state, START.state, get, withValencia), NOW + 20_000, withValencia);
+  await fetchAlerts(added.state, START.state, get, withValencia);
+  const url = 'https://gtfsrt.renfe.com/alerts.json';
+  expect(asked).toEqual([url, url, `${url} ${ETAG} ${MODIFIED}`]);
+  expect(added.file?.renfe?.alerts.find((a) => a.id === 'AVISO_470390')?.lines).toEqual(['cercanias-valencia:C5']);
 });

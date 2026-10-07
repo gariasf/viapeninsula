@@ -81,7 +81,7 @@ export interface AlertFeed {
   alerts: Alert[];
 }
 
-/** An operator's notice about Lines or Stations, in its own words (ADR-0012). */
+/** What an operator says about Lines or Stations, in its own words (ADR-0012). */
 export interface Alert {
   /** The operator's ID for it. */
   id: string;
