@@ -778,12 +778,17 @@ time .in {
   border-top: 1.5px dashed var(--rule);
 }
 
-.strip li {
-  position: relative;
+/* The strip's rows: a time, the Line with a mark on it, and a name; and the fold before the strip, its words over the Stations' names (#349). */
+.strip li,
+.fold {
   display: grid;
   grid-template-columns: var(--time) 18px 1fr;
   align-items: center;
   column-gap: 8px;
+}
+
+.strip li {
+  position: relative;
   min-height: 28px;
 }
 
@@ -797,8 +802,8 @@ time .in {
   background: var(--line);
 }
 
-/* It starts at the Train, drawn as on the progress bar, and ends at its last Station in a bar across the Line, as the operators' maps end one. */
-.strip li.train::before {
+/* It starts at the Train, drawn as on the progress bar, or at its Trip's first Station with the fold open, and ends at its last Station in a bar across the Line, as the operators' maps end one. */
+.strip :is(li.train, li.origin)::before {
   top: 50%;
 }
 
@@ -845,16 +850,9 @@ time .in {
   background: var(--line);
 }
 
-/* The fold before the strip, once the Train has left a Station: the whole row a button, its words over the Stations' names (#349). */
+/* The fold before the strip, once the Train has left a Station, in the soft ink (#349). */
 .fold {
-  display: grid;
-  grid-template-columns: var(--time) 18px 1fr;
-  align-items: center;
-  column-gap: 8px;
-  width: 100%;
-  min-height: 44px;
   color: var(--ink-soft);
-  text-align: left;
 }
 
 .fold > span {
@@ -866,21 +864,13 @@ time .in {
   font-weight: 700;
 }
 
-/* The Stations it has left, which the fold shows: greyed, hollow, on the Line in the rule's grey from the first, which comes into the Train grey and goes on in its Line's colour. The Train between Stations is then a compact mark. */
-.strip li.passed {
-  color: var(--ink-soft);
-}
-
+/* The Stations it has already left, which the fold shows, in the soft ink: hollow, on the Line in the rule's grey from the first, which comes into the Train grey and goes on in its Line's colour, or ends at it where it stands at its last. The Train between Stations is then a compact mark. */
 .strip li.passed::before {
   background: var(--rule);
 }
 
 .strip li.passed .mark {
   border-color: var(--rule);
-}
-
-.strip li.origin::before {
-  top: 50%;
 }
 
 .strip.past li.train::before {
@@ -898,19 +888,23 @@ time .in {
   min-height: 22px;
 }
 
-/* The button a peeking sheet ends in: how much more there is, and up. */
+/* The button a peeking sheet ends in: how much more there is, and up; and like it, the whole row, the fold before a followed Train's strip (#349). */
+.more,
+.fold {
+  width: 100%;
+  min-height: 44px;
+  text-align: left;
+}
+
 .more {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  width: 100%;
-  min-height: 44px;
   margin-top: 8px;
   border-top: 1px solid var(--hairline);
   font-size: 13px;
   font-weight: 700;
-  text-align: left;
 }
 
 /* ---- About: on a phone, a sheet of its own, nearly the full height, over a backdrop. ---- */
@@ -1131,7 +1125,7 @@ time .in {
     background: CanvasText;
   }
 
-  /* The Stations a followed Train has left, and their stretch of its Line, in the theme's greyed text (#349). */
+  /* The Stations a followed Train has already left, and their part of its Line, in the theme's greyed text (#349). */
   .strip li.passed {
     color: GrayText;
   }

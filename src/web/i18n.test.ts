@@ -96,7 +96,7 @@ test("says at the foot of a peeking followed Train how many Stations it has stil
   expect(moreStations(1, 'Igualada', '9:33 AM', 'en')).toBe('1 more station, to Igualada at 9:33 AM');
 });
 
-test("says atop a followed Train's strip how many Stations it has left, folded away, in each language", () => {
+test("says atop a followed Train's strip how many Stations it has already left, folded away, in each language", () => {
   expect(earlierStations(11, false, 'ca')).toBe('11 estacions anteriors');
   expect(earlierStations(11, false, 'es')).toBe('11 estaciones anteriores');
   expect(earlierStations(11, false, 'en')).toBe('11 earlier stations');
@@ -105,7 +105,7 @@ test("says atop a followed Train's strip how many Stations it has left, folded a
   expect(earlierStations(1, false, 'en')).toBe('1 earlier station');
 });
 
-test("says atop a followed Train's strip that a tap hides the Stations it has left, once they're shown, in each language", () => {
+test("says atop a followed Train's strip that a tap hides the Stations it has already left, once they're shown, in each language", () => {
   expect(earlierStations(11, true, 'ca')).toBe('Amaga les 11 estacions anteriors');
   expect(earlierStations(11, true, 'es')).toBe('Ocultar las 11 estaciones anteriores');
   expect(earlierStations(11, true, 'en')).toBe('Hide 11 earlier stations');

@@ -1674,21 +1674,20 @@ function tripBar({ trip, dist, upcoming }: Followed) {
  * The Stations a followed Train has still to come to, as a strip in its Line's colour: from the
  * Train, now, which has left the Station before them or stands at the first, to its Trip's last
  * Station, where the strip ends in a bar across it, as the operators' maps end a Line. The next and
- * the last are in bold. Once it has left a Station, a fold before the strip shows those it has left
- * at its top, greyed, by name only, as the map has no time it passed them but its timetable's, and
- * the Train then as a compact mark after them (#349). The fold's a button outside the list, so that a
- * screen reader doesn't count it as a Station.
+ * the last are in bold. Once it has left a Station, the fold before the strip (foldButton()) shows
+ * those it has already left at its top, greyed, by name only, as the map has no time it passed them
+ * but its timetable's, and the Train then as a compact mark after them (#349).
  */
 function strip({ trip, upcoming, standsAt }: Followed): Node[] {
-  // How many Stations it has left, and the last of them, before those it has still to leave.
-  const left = trip.calls.length - upcoming.length;
-  const lastLeft = trip.calls[left - 1];
-  const past = left > 0 && showPast;
+  // How many Stations it has already left, and the last of them, before those it has still to leave.
+  const earlier = trip.calls.length - upcoming.length;
+  const lastLeft = trip.calls[earlier - 1];
+  const past = earlier > 0 && showPast;
   const station = (className: string, time: (Node | string)[], ...name: (Node | string)[]) => el('li', { className }, el('time', {}, ...time), el('span', { className: 'mark' }), el('span', {}, ...name));
   const list = el(
     'ol',
     { className: past ? 'strip past' : 'strip' },
-    ...(past ? trip.calls.slice(0, left).map((call, i) => station(i ? 'passed' : 'passed origin', [], stationName(call.station), el('span', { className: 'sr-only', textContent: `, ${t('passed')}` }))) : []),
+    ...(past ? trip.calls.slice(0, earlier).map((call, i) => station(i ? 'passed soft' : 'passed soft origin', [], stationName(call.station), el('span', { className: 'sr-only', textContent: `, ${t('passed')}` }))) : []),
     ...(lastLeft && !standsAt ? [past ? station('train soft compact', [t('now')]) : station('train soft', [t('now')], t('left').replace('{station}', stationName(lastLeft.station)))] : []),
     ...upcoming.map((call, i) =>
       station([i === 0 && standsAt ? 'train' : '', i === 0 ? 'next' : '', i === upcoming.length - 1 ? 'terminus' : ''].filter(Boolean).join(' '), timeOfDay(due(call, i === 0 && !!standsAt)), stationName(call.station)),
@@ -1696,15 +1695,24 @@ function strip({ trip, upcoming, standsAt }: Followed): Node[] {
   );
   list.setAttribute('aria-label', t(past ? 'stations' : 'nextStations'));
   list.style.setProperty('--line', lines.get(trip.line)?.colour ?? '');
-  if (!left) return [list];
-  // It stays put as it opens and closes, and as the panel refreshes, so it keeps the keyboard's focus (patch()).
+  return [foldButton(earlier), list];
+}
+
+/**
+ * The fold before a followed Train's strip, the whole row a button: how many Stations it has already
+ * left, `n`, which shows them, and once shown hides them (#349). Outside the strip's list, so that a
+ * screen reader doesn't count it as a Station. It's there from the start, hidden until the Train has
+ * left one, and stays put as it opens and closes, so that the panel's refresh never takes the
+ * keyboard's focus or a screen reader's place (patch()).
+ */
+function foldButton(n: number) {
   const toggle = () => {
     showPast = !showPast;
     showPanel();
   };
-  const fold = el('button', { type: 'button', className: 'fold', onclick: toggle }, el('span', {}, earlierStations(left, showPast), icon(showPast ? 'up' : 'chevron')));
-  fold.setAttribute('aria-expanded', String(showPast));
-  return [fold, list];
+  const button = el('button', { type: 'button', className: 'fold', hidden: !n, onclick: toggle }, el('span', {}, earlierStations(n, showPast), icon(showPast ? 'up' : 'chevron')));
+  button.setAttribute('aria-expanded', String(showPast));
+  return button;
 }
 
 /**
