@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { LANGUAGES, type Language, liveUnavailable, moreDepartures, moreStations, pickLanguage, t, toGo, trainCounts } from './i18n.ts';
+import { earlierStations, LANGUAGES, type Language, liveUnavailable, moreDepartures, moreStations, pickLanguage, t, toGo, trainCounts } from './i18n.ts';
 
 test("speaks the first of the browser's languages it knows, whatever the region, and English when it knows none", () => {
   expect(pickLanguage(null, ['ca-ES', 'es-ES', 'en'])).toBe('ca');
@@ -94,6 +94,24 @@ test("says at the foot of a peeking followed Train how many Stations it has stil
   expect(moreStations(1, 'Igualada', '9:33', 'ca')).toBe('1 estació més, fins a Igualada (9:33)');
   expect(moreStations(1, 'Igualada', '9:33', 'es')).toBe('1 estación más, hasta Igualada (9:33)');
   expect(moreStations(1, 'Igualada', '9:33 AM', 'en')).toBe('1 more station, to Igualada at 9:33 AM');
+});
+
+test("says atop a followed Train's strip how many Stations it has left, folded away, in each language", () => {
+  expect(earlierStations(11, false, 'ca')).toBe('11 estacions anteriors');
+  expect(earlierStations(11, false, 'es')).toBe('11 estaciones anteriores');
+  expect(earlierStations(11, false, 'en')).toBe('11 earlier stations');
+  expect(earlierStations(1, false, 'ca')).toBe('1 estació anterior');
+  expect(earlierStations(1, false, 'es')).toBe('1 estación anterior');
+  expect(earlierStations(1, false, 'en')).toBe('1 earlier station');
+});
+
+test("says atop a followed Train's strip that a tap hides the Stations it has left, once they're shown, in each language", () => {
+  expect(earlierStations(11, true, 'ca')).toBe('Amaga les 11 estacions anteriors');
+  expect(earlierStations(11, true, 'es')).toBe('Ocultar las 11 estaciones anteriores');
+  expect(earlierStations(11, true, 'en')).toBe('Hide 11 earlier stations');
+  expect(earlierStations(1, true, 'ca')).toBe("Amaga l'estació anterior");
+  expect(earlierStations(1, true, 'es')).toBe('Ocultar la estación anterior');
+  expect(earlierStations(1, true, 'en')).toBe('Hide 1 earlier station');
 });
 
 test('says at the foot of a peeking board how many departures more it has, in each language', () => {

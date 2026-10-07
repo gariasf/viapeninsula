@@ -48,6 +48,9 @@ const STRINGS = {
   unit: { ca: 'Unitat', es: 'Unidad', en: 'Unit' },
   nextStations: { ca: 'Properes estacions', es: 'Próximas estaciones', en: 'Next stations' },
   nextStation: { ca: 'Propera estació', es: 'Próxima estación', en: 'Next station' },
+  // The followed Train's strip with its fold open, as it lists the Stations it has left too, and after each of those, for screen readers. The Train is passed's subject, so it needn't agree with a Station's name.
+  stations: { ca: 'Estacions', es: 'Estaciones', en: 'Stations' },
+  passed: { ca: 'ja hi ha passat', es: 'ya ha pasado', en: 'passed' },
   // Where the followed Train's next Stations start: the Station it last left.
   left: { ca: 'Ha sortit de {station}', es: 'Ha salido de {station}', en: 'Left {station}' },
   // How long until a Train comes: under a time on a board or in Nearby, and under the followed Train's next Station's.
@@ -57,6 +60,11 @@ const STRINGS = {
   // At the foot of a peeking followed Train: how many Stations it has still to come after the next, and the last of them, where it's headed, and when it's due there.
   moreStations: { ca: '{n} estacions més, fins a {headsign} ({time})', es: '{n} estaciones más, hasta {headsign} ({time})', en: '{n} more stations, to {headsign} at {time}' },
   oneMoreStation: { ca: '{n} estació més, fins a {headsign} ({time})', es: '{n} estación más, hasta {headsign} ({time})', en: '{n} more station, to {headsign} at {time}' },
+  // The fold atop a pulled-up followed Train's strip: how many Stations it has left, which shows them, and once shown hides them.
+  earlierStations: { ca: '{n} estacions anteriors', es: '{n} estaciones anteriores', en: '{n} earlier stations' },
+  oneEarlierStation: { ca: '{n} estació anterior', es: '{n} estación anterior', en: '{n} earlier station' },
+  hideEarlierStations: { ca: 'Amaga les {n} estacions anteriors', es: 'Ocultar las {n} estaciones anteriores', en: 'Hide {n} earlier stations' },
+  hideEarlierStation: { ca: "Amaga l'estació anterior", es: 'Ocultar la estación anterior', en: 'Hide {n} earlier station' },
   // A Station's board.
   closeBoard: { ca: 'Tanca el panell de sortides', es: 'Cerrar el panel de salidas', en: 'Close the departures board' },
   nextDepartures: { ca: 'Properes sortides', es: 'Próximas salidas', en: 'Next departures' },
@@ -172,6 +180,10 @@ export const liveUnavailable = (network: string, lang = language()): string => S
 /** How many Stations a followed Train has still to come after its next, `n`, to its last, where it's headed, and when it's due there, in `lang`, or else the language the interface speaks now. */
 export const moreStations = (n: number, headsign: string, time: string, lang = language()): string =>
   counting(n, 'oneMoreStation', 'moreStations', lang).replace('{headsign}', headsign).replace('{time}', time);
+
+/** How many Stations a followed Train has left, `n`, atop its strip: while they're folded away, or hiding them once they're `shown`, in `lang`, or else the language the interface speaks now. */
+export const earlierStations = (n: number, shown: boolean, lang = language()): string =>
+  shown ? counting(n, 'hideEarlierStation', 'hideEarlierStations', lang) : counting(n, 'oneEarlierStation', 'earlierStations', lang);
 
 /** How many departures more a board lists than it shows peeking, in `lang`, or else the language the interface speaks now. */
 export const moreDepartures = (n: number, lang = language()): string => counting(n, 'oneMoreDeparture', 'moreDepartures', lang);

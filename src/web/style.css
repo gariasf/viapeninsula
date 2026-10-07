@@ -96,7 +96,7 @@ body {
   color: var(--ink);
 }
 
-:is(.legend, .fab, .close, .handle, .more) {
+:is(.legend, .fab, .close, .handle, .more, .fold) {
   padding: 0;
   border: 0;
   background: none;
@@ -139,7 +139,7 @@ body {
 
 /* A button under the pointer, where there's one, so that it never sticks on a phone. */
 @media (hover: hover) {
-  :is(.close, .handle, .more):hover {
+  :is(.close, .handle, .more, .fold):hover {
     background: var(--hover);
   }
 
@@ -845,6 +845,59 @@ time .in {
   background: var(--line);
 }
 
+/* The fold before the strip, once the Train has left a Station: the whole row a button, its words over the Stations' names (#349). */
+.fold {
+  display: grid;
+  grid-template-columns: var(--time) 18px 1fr;
+  align-items: center;
+  column-gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  color: var(--ink-soft);
+  text-align: left;
+}
+
+.fold > span {
+  display: flex;
+  grid-column: 3;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* The Stations it has left, which the fold shows: greyed, hollow, on the Line in the rule's grey from the first, which comes into the Train grey and goes on in its Line's colour. The Train between Stations is then a compact mark. */
+.strip li.passed {
+  color: var(--ink-soft);
+}
+
+.strip li.passed::before {
+  background: var(--rule);
+}
+
+.strip li.passed .mark {
+  border-color: var(--rule);
+}
+
+.strip li.origin::before {
+  top: 50%;
+}
+
+.strip.past li.train::before {
+  top: 0;
+  background: linear-gradient(var(--rule) 50%, var(--line) 50%);
+}
+
+.strip.past li.train.terminus::before {
+  display: block;
+  bottom: 50%;
+  background: var(--rule);
+}
+
+.strip li.compact {
+  min-height: 22px;
+}
+
 /* The button a peeking sheet ends in: how much more there is, and up. */
 .more {
   display: flex;
@@ -1076,6 +1129,24 @@ time .in {
   .strip li.terminus:not(.train) .mark {
     border-color: CanvasText;
     background: CanvasText;
+  }
+
+  /* The Stations a followed Train has left, and their stretch of its Line, in the theme's greyed text (#349). */
+  .strip li.passed {
+    color: GrayText;
+  }
+
+  .strip li.passed::before,
+  .strip.past li.train.terminus::before {
+    background: GrayText;
+  }
+
+  .strip.past li.train::before {
+    background: linear-gradient(GrayText 50%, CanvasText 50%);
+  }
+
+  .strip li.passed .mark {
+    border-color: GrayText;
   }
 
   /* The credits' © as the other buttons, where the browser would give it a link's colour. */
