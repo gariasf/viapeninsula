@@ -1,8 +1,10 @@
-// The fetcher's Worker: a Durable Object that wakes about every 20 s, fetches the live sources that
-// are due, and writes the snapshot to R2, where viewers read it through the CDN (ADR-0003). It's
-// thin glue around the fetcher step.
+// The fetcher's Worker: a Durable Object that wakes about every 20 s, fetches the live sources and
+// the operators' alerts that are due, and writes the snapshot to R2, and alerts.json when it changes,
+// where viewers read them through the CDN (ADR-0003). It's thin glue around the fetcher step and the
+// alerts' (alerts.ts).
 
 import { DurableObject } from 'cloudflare:workers';
+import { ALERTS_START, fetchAlerts, readAlerts, type AlertsState } from './alerts.ts';
 import { EVERY, fetchDue, START, step, TIMEOUT, type Fetched, type Stored } from './step.ts';
 
 interface Env {
@@ -19,6 +21,9 @@ interface Env {
  * under a key of its own, so that a fetcher from before then would still find its own under `stored`.
  */
 const STORED = 'sources';
+
+/** Where it stores what it keeps of the operators' alerts between runs. */
+const ALERTS = 'alerts';
 
 /** The cron trigger that starts the daily build, as wrangler.jsonc has it. */
 const DAILY = '30 0 * * *';
@@ -37,8 +42,11 @@ export class Fetcher extends DurableObject<Env> {
     // The next run is set first, so that a failed run never stops them.
     await this.ctx.storage.setAlarm(Date.now() + EVERY);
     const stored = (await this.ctx.storage.get<Stored>(STORED)) ?? START;
-    const responses = await fetchDue(stored, (name) => secret(this.env, name), get);
-    const run = step(stored.state, responses, Date.now());
+    const kept = (await this.ctx.storage.get<AlertsState>(ALERTS)) ?? ALERTS_START;
+    // TRAM's alerts go with the access token its adapter kept from the last run.
+    const [responses, answers] = await Promise.all([fetchDue(stored, (name) => secret(this.env, name), get), fetchAlerts(kept, stored.state, get)]);
+    const now = Date.now();
+    const run = step(stored.state, responses, now);
     // Each try that finds a Network's Trains missing from a feed that works, up to the one that drops its
     // last reports, goes in the Worker's logs, which count how often Renfe's files drop Madrid's (#248).
     if (Object.keys(run.missed).length) console.log(JSON.stringify({ missing: run.missed }));
@@ -46,6 +54,14 @@ export class Fetcher extends DurableObject<Env> {
     await this.env.LIVE.put('snapshot.json', JSON.stringify(run.snapshot), {
       httpMetadata: { contentType: 'application/json', cacheControl: 'public, max-age=15' },
     });
+    const alerts = readAlerts(kept, answers, now);
+    // Written before what's kept of them, so that a write that fails is made again on the next run.
+    if (alerts.file) {
+      await this.env.LIVE.put('alerts.json', JSON.stringify(alerts.file), {
+        httpMetadata: { contentType: 'application/json', cacheControl: 'public, max-age=60' },
+      });
+    }
+    await this.ctx.storage.put(ALERTS, alerts.state);
   }
 }
 

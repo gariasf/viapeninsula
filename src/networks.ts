@@ -281,6 +281,8 @@ export type LiveSource = {
   every: number;
   /** Which Network each of its Trains is, by the longest start of the ID it gives the Train named here, as Renfe's trip_ids start with their núcleo: '' for all of them. */
   networks: Record<string, string>;
+  /** Its operator's Alerts, where the fetcher reads them, as GTFS-RT in JSON (ADR-0012): where they are, and how often they're fetched, in ms. */
+  alerts?: { url: string; every: number };
 } & (
   | { format: 'renfe'; urls: { positions: string; updates: string } }
   | { format: 'fgc'; urls: { positions: string; lookup: string } }
@@ -302,6 +304,9 @@ export const LIVE_SOURCES: LiveSource[] = [
     // Every run.
     every: 20_000,
     networks: { '51': RODALIES.id, '10': CERCANIAS_MADRID.id },
+    // Every run too: Renfe answers a conditional request with 304 and no body while its file is
+    // unchanged, as it was for hours on 7 October 2026 (docs/research/alerts.md).
+    alerts: { url: 'https://gtfsrt.renfe.com/alerts.json', every: 20_000 },
   },
   {
     // Geotren, where FGC's Trains are, with only what the fetcher reads, and where to look up its
@@ -330,6 +335,8 @@ export const LIVE_SOURCES: LiveSource[] = [
     // Every run, but after TRAM refuses a try, as its adapter waits.
     every: 20_000,
     networks: { '': TRAM.id },
+    // Every 5 minutes, for each half, as GTFS-RT in JSON, with the access token its adapter keeps.
+    alerts: { url: 'https://opendata.tram.cat/api/v1/GtfsRealtimeAlerts', every: 300_000 },
   },
   {
     // TMB's predictions for every Station of the Metro, from iTransit, in one call, with its app's ID

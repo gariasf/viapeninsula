@@ -61,6 +61,51 @@ export interface Report {
   unitType?: string;
 }
 
+/**
+ * The operators' Alerts, as the fetcher writes them to alerts.json beside the snapshot, when what it
+ * holds changes and at least every 5 minutes (ADR-0003, ADR-0012): each feed's, by the ID of the live
+ * source it's from (src/networks.ts), such as `renfe`.
+ */
+export type Alerts = Record<string, AlertFeed>;
+
+/** One operator's Alerts: when the fetcher last read them, how its last try went, and the Alerts as it last read them, newest first. */
+export interface AlertFeed {
+  /**
+   * When it last read them, in ms since 1970, where it has. It reads Renfe's every 20 s and TRAM's
+   * every 5 minutes, and writes this at least every 5 minutes, so while a feed and the fetcher work, it
+   * was never more than about 10 minutes ago.
+   */
+  read?: number;
+  /** `ok`, or what went wrong. */
+  status: string;
+  alerts: Alert[];
+}
+
+/** An operator's notice about Lines or Stations, in its own words (ADR-0012). */
+export interface Alert {
+  /** The operator's ID for it. */
+  id: string;
+  /** Its Lines, as the bundle names them, such as `rodalies:R1`. */
+  lines: string[];
+  /** Its Stations, as the bundle names them, such as `adif:70100`. */
+  stations: string[];
+  /** When it began, in ms since 1970, where it says. */
+  from?: number;
+  /** When it ends, in ms since 1970, where it says. */
+  to?: number;
+  /** What it does to service, where it says, as GTFS-RT names it, such as `MODIFIED_SERVICE`. */
+  effect?: string;
+  /** Its title, where it has one, and its words: each in the languages it gives them, its feed's own first. */
+  header?: Words[];
+  description: Words[];
+}
+
+/** An Alert's words in one language, by its code, such as `ca`, where its feed says. */
+export interface Words {
+  language?: string;
+  text: string;
+}
+
 /** Names the bundle for each service day. Cached briefly; the bundles it names never change. */
 export interface Manifest {
   days: ManifestDay[];

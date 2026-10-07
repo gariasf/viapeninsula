@@ -223,7 +223,7 @@ function keepMissing(source: LiveSource, got: Report[], last: Report[] = [], mis
 const reportedNetwork = (report: Report) => (report.trip ?? report.block?.line ?? '').split(':')[0];
 
 /** The Network a source's Train is, by the longest start of the ID the source gives it that the source's config names. */
-function networkOf({ networks }: LiveSource, id: string): string | undefined {
+export function networkOf({ networks }: LiveSource, id: string): string | undefined {
   return Object.entries(networks).sort(([a], [b]) => b.length - a.length).find(([start]) => id.startsWith(start))?.[1];
 }
 
@@ -236,7 +236,7 @@ function body<Body extends string | Uint8Array>(file: string, fetched: Fetched<B
 }
 
 /** One of a source's JSON files, read from its response, or an error that says why it can't be. */
-function json<T>(file: string, fetched: Fetched): T {
+export function json<T>(file: string, fetched: Fetched): T {
   const text = body(file, fetched);
   try {
     return JSON.parse(text) as T;
@@ -245,7 +245,7 @@ function json<T>(file: string, fetched: Fetched): T {
   }
 }
 
-const ms = (seconds: string | undefined) => Number(seconds) * 1000;
+export const ms = (seconds: string | number | undefined) => Number(seconds) * 1000;
 
 /** A moment's time of day in UTC, such as 09:12:40 UTC. */
 const clock = (moment: number) => `${new Date(moment).toISOString().slice(11, 19)} UTC`;
@@ -470,7 +470,7 @@ function address(lookup: Fetched): string | undefined {
 }
 
 /** TRAM's two halves, Trambaix and Trambesòs, as its timetable's feeds name them. */
-const HALVES = ['TBX', 'TBS'] as const;
+export const HALVES = ['TBX', 'TBS'] as const;
 type Half = (typeof HALVES)[number];
 
 /**
