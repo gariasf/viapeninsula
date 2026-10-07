@@ -133,13 +133,24 @@ body {
   outline-offset: 3px;
 }
 
+/* And round the fold's pill, which its hover tints, rather than its whole row (#349). */
+.fold:focus-visible {
+  outline: none;
+}
+
+.fold:focus-visible > span {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
 .lang select:focus-visible {
   outline: none;
 }
 
 /* A button under the pointer, where there's one, so that it never sticks on a phone. */
 @media (hover: hover) {
-  :is(.close, .handle, .more, .fold):hover {
+  :is(.close, .handle, .more):hover,
+  .fold:hover > span {
     background: var(--hover);
   }
 
@@ -851,7 +862,7 @@ time .in {
   background: var(--line);
 }
 
-/* The fold before the strip, once the Train has left a Station, in the soft ink (#349). */
+/* The fold before the strip, once the Train has left a Station, in the soft ink (#349): its words and arrow in a pill, as the corners' buttons are, which the pointer and the keyboard show, though the whole row is the button. */
 .fold {
   color: var(--ink-soft);
 }
@@ -859,8 +870,12 @@ time .in {
 .fold > span {
   display: flex;
   grid-column: 3;
+  justify-self: start;
   align-items: center;
   gap: 6px;
+  margin-left: -10px;
+  padding: 6px 10px;
+  border-radius: 999px;
   font-size: 13px;
   font-weight: 700;
 }
