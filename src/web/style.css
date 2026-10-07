@@ -650,6 +650,12 @@ time .in {
   color: #fff;
 }
 
+/* Its name and Lines take the width, so that the close button keeps to the right however short they are. */
+.nameboard > div {
+  flex: 1;
+  min-width: 0;
+}
+
 .nameboard .title {
   margin: 4px 0 8px;
 }
