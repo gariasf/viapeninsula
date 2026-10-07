@@ -374,7 +374,7 @@ test("the map's time is the device's before any snapshot", () => {
   expect(mapTime(at('12:00:00'), [])).toBe(at('12:00:00'));
 });
 
-/** 14 hours, in seconds. */
+/** How far off the device's clock is in the next two tests, in seconds: at noon, enough to put it on another date. */
 const HOURS_14 = 14 * 3600;
 
 test("the map's time is the fetcher's once a snapshot shows the device's clock is hours behind", () => {

@@ -481,7 +481,7 @@ wide.addEventListener('change', () => {
 let following: { day: string; trip: string; at?: Point } | undefined;
 /** The place whose board the panel shows, by its ID in places(), while the map follows no Train. */
 let boardPlace: string | undefined;
-/** The last date a Station board had no departures left, when the map needs the next day's Trips for it: by the map's time, as the days it needs are. */
+/** The last date, by the map's time (mapTime()), that a Station board had no departures left, when the map needs the next day's Trips for it. */
 let emptyBoard: string | undefined;
 /**
  * Where the viewer is, while the panel shows their nearby Trains instead, or that the browser is
@@ -2030,12 +2030,15 @@ function creditOf({ text, url, licence, updated }: Credit): string {
 }
 
 /**
- * The service days the map needs now (daysNeeded()), joined, where they aren't the ones it shows. Now
- * is the map's time (mapTime()): the device's until a snapshot corrects it, and the days follow that
- * at the next refreshDays(), within a minute. A day whose bundle fails to come is left out, and
- * fetched again next time.
+ * The service days the map needs now, by the map's time (mapTime(), daysNeeded()), joined, where
+ * they aren't the ones it shows. A day whose bundle fails to come is left out, and fetched again
+ * next time.
  * Today's track comes on its own first, so the map can draw it before the Trips come. Notes today's
  * Networks with no Trips, which the banner names.
+ * ponytail: the map's time is the device's until a snapshot corrects it, and the days follow a
+ * correction only at the next refreshDays(), so for up to a minute after one, a device whose clock is
+ * hours off can have the wrong days, and no Trains. Refresh them from poll() as a snapshot moves the
+ * map's date, if that shows.
  */
 async function neededDays(): Promise<{ track: Promise<Track>; days: Promise<Bundle> } | undefined> {
   try {
