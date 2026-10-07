@@ -8,7 +8,7 @@ import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
 import { along, APART, atZoom, BANDS, bandZooms, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Credit, type Place, type DayTrips, type Kind, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, WIDTH } from '../bundle.ts';
 import { boardAt, joinDays, KEEP, nearbyAt, trainAt, trainsAt, unavailable, type Departure, type Followed, type Received } from '../engine.ts';
-import { language, LANGUAGES, liveUnavailable, moreDepartures, moreStations, setLanguage, t, toGo, trainCounts, type Language } from './i18n.ts';
+import { earlierStations, language, LANGUAGES, liveUnavailable, moreDepartures, moreStations, setLanguage, t, toGo, trainCounts, type Language } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { linesAt } from './tap.ts';
 import { alongside, namedTwice, nameOffset, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
@@ -442,6 +442,8 @@ const lessMotion = matchMedia('(prefers-reduced-motion: reduce)');
 let pulledUp = false;
 /** Whether a finger is dragging the sheet, which shows all it has meanwhile. */
 let dragging = false;
+/** Whether the followed Train's strip shows the Stations it has left, which its fold hides. Each opening starts afresh (openPanel()). */
+let showPast = false;
 // A finger drags the sheet by its top, and lets it go peeking or pulled up, whichever it's nearer.
 grab(
   panel,
@@ -1393,9 +1395,9 @@ function closePanel() {
   map.easeTo({ padding: panelPadding() });
 }
 
-/** Shows the panel afresh: a followed Train and a board peeking on a phone, Nearby pulled up, with its body scrolled to the top (#321). */
+/** Shows the panel afresh: a followed Train and a board peeking on a phone, Nearby pulled up, with its body scrolled to the top (#321), and the Stations a followed Train has left folded away (#349). */
 function openPanel(up: boolean) {
-  pulledUp = up;
+  [pulledUp, showPast] = [up, false];
   panel.classList.remove('sliding');
   panel.style.height = '';
   showPanel();
@@ -1601,7 +1603,8 @@ function moreButton(text: string) {
  * live data last placed it, its modelled speed, and its Unit type where its operator reports one; its
  * next Station, when it's expected there, with its Delay but for a Metro Train's, and the minutes to
  * it; and how far along its Trip it is. Peeking, it ends in how many Stations it has still to come;
- * pulled up, it shows them, from the Train to its Trip's last Station (#321).
+ * pulled up, it shows them, from the Train to its Trip's last Station (#321), after a fold that
+ * shows those it has left (#349).
  */
 function followedPanel(up: boolean): Panel | undefined {
   const now = Date.now();
@@ -1621,7 +1624,7 @@ function followedPanel(up: boolean): Panel | undefined {
       ...nextStation(train, now),
       tripBar(train),
       ...(up
-        ? [el('hr', { className: 'dash' }), strip(train)]
+        ? [el('hr', { className: 'dash' }), ...strip(train)]
         : last && upcoming.length > 1
           ? [moreButton(moreStations(upcoming.length - 1, trip.headsign, clock().format(last.arrival)))]
           : []),
@@ -1671,23 +1674,45 @@ function tripBar({ trip, dist, upcoming }: Followed) {
  * The Stations a followed Train has still to come to, as a strip in its Line's colour: from the
  * Train, now, which has left the Station before them or stands at the first, to its Trip's last
  * Station, where the strip ends in a bar across it, as the operators' maps end a Line. The next and
- * the last are in bold.
+ * the last are in bold. Once it has left a Station, the fold before the strip (foldButton()) shows
+ * those it has already left at its top, greyed, by name only, as the map has no time it passed them
+ * but its timetable's, and the Train then as a compact mark after them (#349).
  */
-function strip({ trip, upcoming, standsAt }: Followed) {
-  // The Station it left last, before those it has still to leave.
-  const lastLeft = trip.calls[trip.calls.length - upcoming.length - 1];
-  const station = (className: string, time: (Node | string)[], name: string) => el('li', { className }, el('time', {}, ...time), el('span', { className: 'mark' }), el('span', { textContent: name }));
+function strip({ trip, upcoming, standsAt }: Followed): Node[] {
+  // How many Stations it has already left, and the last of them, before those it has still to leave.
+  const earlier = trip.calls.length - upcoming.length;
+  const lastLeft = trip.calls[earlier - 1];
+  const past = earlier > 0 && showPast;
+  const station = (className: string, time: (Node | string)[], ...name: (Node | string)[]) => el('li', { className }, el('time', {}, ...time), el('span', { className: 'mark' }), el('span', {}, ...name));
   const list = el(
     'ol',
-    { className: 'strip' },
-    ...(lastLeft && !standsAt ? [station('train soft', [t('now')], t('left').replace('{station}', stationName(lastLeft.station)))] : []),
+    { className: past ? 'strip past' : 'strip' },
+    ...(past ? trip.calls.slice(0, earlier).map((call, i) => station(i ? 'passed soft' : 'passed soft origin', [], stationName(call.station), el('span', { className: 'sr-only', textContent: `, ${t('passed')}` }))) : []),
+    ...(lastLeft && !standsAt ? [past ? station('train soft compact', [t('now')]) : station('train soft', [t('now')], t('left').replace('{station}', stationName(lastLeft.station)))] : []),
     ...upcoming.map((call, i) =>
       station([i === 0 && standsAt ? 'train' : '', i === 0 ? 'next' : '', i === upcoming.length - 1 ? 'terminus' : ''].filter(Boolean).join(' '), timeOfDay(due(call, i === 0 && !!standsAt)), stationName(call.station)),
     ),
   );
-  list.setAttribute('aria-label', t('nextStations'));
+  list.setAttribute('aria-label', t(past ? 'stations' : 'nextStations'));
   list.style.setProperty('--line', lines.get(trip.line)?.colour ?? '');
-  return list;
+  return [foldButton(earlier), list];
+}
+
+/**
+ * The fold before a followed Train's strip, the whole row a button: how many Stations it has already
+ * left, `n`, which shows them, and once shown hides them (#349). Outside the strip's list, so that a
+ * screen reader doesn't count it as a Station. It's there from the start, hidden until the Train has
+ * left one, and stays put as it opens and closes, so that the panel's refresh never takes the
+ * keyboard's focus or a screen reader's place (patch()).
+ */
+function foldButton(n: number) {
+  const toggle = () => {
+    showPast = !showPast;
+    showPanel();
+  };
+  const button = el('button', { type: 'button', className: 'fold', hidden: !n, onclick: toggle }, el('span', {}, earlierStations(n, showPast), icon(showPast ? 'up' : 'chevron')));
+  button.setAttribute('aria-expanded', String(showPast));
+  return button;
 }
 
 /**
