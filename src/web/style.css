@@ -640,8 +640,9 @@ time .in {
   font-weight: 700;
 }
 
-/* A Station's board: its name as a nameboard, reversed out of the ink, holding the Lines that call there. */
+/* A Station's board: its name as a nameboard, reversed out of the ink, holding the Lines that call there. Its close button's hover is reversed too, in its own lettering faded, where the ink's would vanish. */
 .sheet header.nameboard {
+  --hover: color-mix(in srgb, currentColor 15%, transparent);
   align-items: flex-start;
   margin: 0 -4px 6px;
   padding: 10px 4px 12px 14px;
