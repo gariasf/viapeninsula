@@ -843,6 +843,15 @@ function unshifted(calls: Call[], profile: SpeedProfile, moment: number, waits: 
 }
 
 /**
+ * The map's time, in ms since 1970, at a moment by the device's clock, given the snapshots received
+ * by then: the fetcher's, which the map places Trains by, once the snapshots show how far the
+ * device's clock is off (behind()), and until then the device's own.
+ */
+export function mapTime(at: number, received: Received[]): number {
+  return at + behind(received);
+}
+
+/**
  * How far the device's clock is behind the fetcher's, in ms, going by when each snapshot was
  * written and when it arrived. By a clock that's right, each arrives after it was written, and at
  * most MAX_AGE after. A clock that's off is off by at least what the freshest snapshot shows.
