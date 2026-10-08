@@ -168,13 +168,15 @@ const FADE = 0.5;
 const linesZoom = BANDS[0] ?? 7;
 /**
  * Zoomed out, where it draws only each Network's track, the map is a globe, and it flattens into Web
- * Mercator over the zoom before the Lines show: from there in, it's flat as it always was. The Lines,
- * their Trains and the places' names are laid out for a flat map, band by band (ADR-0007), and while
- * the map is even part globe, MapLibre pans it as one, nudging the zoom as the centre moves north or
- * south to keep the planet one size. Its own `globe` flattens only from zoom 10 to 12: it would pan
- * the bands as a globe too, now and then across a band, and draw a globe where its curve can't be seen.
+ * Mercator over the zoom before FLAT, a zoom short of the Lines: from FLAT in, it's flat as it always
+ * was. While the map is even part globe, MapLibre pans it as one, nudging the zoom as the centre moves
+ * north or south to keep the planet one size, and the Lines, their Trains and the places' names are
+ * laid out for a flat map, band by band (ADR-0007): flat a zoom before them, no pan takes the map into
+ * the Lines, nor across a band. MapLibre's own `globe` flattens only from zoom 10 to 12: it would pan
+ * the bands as a globe, now and then across one, and draw a globe where its curve can't be seen.
  */
-const PROJECTION: ProjectionSpecification = { type: ['interpolate', ['linear'], ['zoom'], linesZoom - 1, 'vertical-perspective', linesZoom, 'mercator'] };
+const FLAT = linesZoom - 1;
+const PROJECTION: ProjectionSpecification = { type: ['interpolate', ['linear'], ['zoom'], FLAT - 1, 'vertical-perspective', FLAT, 'mercator'] };
 
 /**
  * The places drawn larger than the rest and named from further out, by their IDs in places(), as the
@@ -396,13 +398,13 @@ const styleLoaded = map.once('style.load');
  * Round the globe the map is transparent, and the page shows through, as space (style.css), which both
  * basemaps stand out on: only zoomed out, so that the page doesn't flash it while a flat map loads.
  */
-const showSpace = () => map.getContainer().classList.toggle('globe', map.getZoom() < linesZoom);
+const showSpace = () => map.getContainer().classList.toggle('globe', map.getZoom() < FLAT);
 showSpace();
 map.on('zoom', showSpace);
 // Until its style comes, the map is flat, and a flat map zoomed out until the world is shorter than the
 // screen opens nearer the equator, and on the zoom that fills it: a globe that far out, once the style
 // makes it one, goes back to the view it was opened on.
-if (opened.zoom < linesZoom) styleLoaded.then(() => map.jumpTo(opened));
+if (opened.zoom < FLAT) styleLoaded.then(() => map.jumpTo(opened));
 
 // The language switch: a chip with the language's code, and over it, transparent, the platform's own
 // list of the languages, each named in itself (#321).
