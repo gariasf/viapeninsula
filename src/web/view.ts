@@ -30,17 +30,6 @@ export function openingView(link: string, kept: string | null): View {
   return BARCELONA;
 }
 
-/**
- * The view the page's `link` names, as MapLibre's hash writes it, `map=<zoom>/<lat>/<lon>`, with its
- * bearing and pitch where it has them: none where it names none, or one MapLibre's hash can't read.
- */
-export function linkedView(link: string): View | undefined {
-  const named = new URLSearchParams(link.slice(1)).get('map')?.split('/');
-  if (!named || named.length < 3) return undefined;
-  const [zoom = NaN, lat = NaN, lon = NaN, bearing = 0, pitch = 0] = named.map(Number);
-  return [zoom, lat, lon, bearing, pitch].every(Number.isFinite) && Math.abs(lat) <= 90 ? { center: [lon, lat], zoom, bearing, pitch } : undefined;
-}
-
 /** The last view kept on this device, as keepView() keeps it, if its storage can be read. */
 export function lastView(): string | null {
   try {

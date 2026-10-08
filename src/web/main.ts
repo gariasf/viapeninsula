@@ -13,7 +13,7 @@ import { rounded } from './curve.ts';
 import { linesAt } from './tap.ts';
 import { alongside, namedTwice, nameOffset, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
 import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
-import { keepView, lastView, linkedView, openingView } from './view.ts';
+import { keepView, lastView, openingView } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { contrast, lettering } from './colour.ts';
 import { linesCallingAt, minutesTo, nearbyRows, progress } from './cards.ts';
@@ -167,13 +167,14 @@ const FADE = 0.5;
 // instead, in its colour, and no Trains (#190).
 const linesZoom = BANDS[0] ?? 7;
 /**
- * Zoomed out, where it draws only each Network's track, the map is a globe, and it flattens into Web
- * Mercator over the zoom before FLAT, a zoom short of the Lines: from FLAT in, it's flat as it always
- * was. While the map is even part globe, MapLibre pans it as one, nudging the zoom as the centre moves
- * north or south to keep the planet one size, and the Lines, their Trains and the places' names are
- * laid out for a flat map, band by band (ADR-0007): flat a zoom before them, no pan takes the map into
- * the Lines, nor across a band. MapLibre's own `globe` flattens only from zoom 10 to 12: it would pan
- * the bands as a globe, now and then across one, and draw a globe where its curve can't be seen.
+ * Zoomed out, where it draws each Network's track once and no Lines, the map is a globe, and it
+ * flattens into Web Mercator over the zoom before FLAT, a zoom short of the Lines: from FLAT in, it's
+ * flat as it always was. While the map is even part globe, MapLibre pans it as one, nudging the zoom as
+ * the centre moves north or south to keep the planet one size, and the Lines, their Trains and the
+ * places' names are laid out for a flat map, band by band (ADR-0007): flat a zoom before them, no pan
+ * takes the map into the Lines, nor across a band. MapLibre's own `globe` flattens only from zoom 10 to
+ * 12: it would pan the bands as a globe, now and then across one, and draw a globe where its curve
+ * can't be seen (ADR-0013).
  */
 const FLAT = linesZoom - 1;
 const PROJECTION: ProjectionSpecification = { type: ['interpolate', ['linear'], ['zoom'], FLAT - 1, 'vertical-perspective', FLAT, 'mercator'] };
@@ -344,14 +345,17 @@ const LICENCES: Record<NonNullable<Credit['licence']>, string> = {
  */
 let openedLink = location.hash;
 addEventListener('hashchange', () => (openedLink = location.hash));
-/** The view the map opens on: the link's, which MapLibre's hash opens over openingView()'s, or that one. */
-const opened = linkedView(openedLink) ?? openingView(openedLink, lastView());
 const map = new MapLibreMap({
   container: 'map',
   ...openingView(openedLink, lastView()),
   attributionControl: false,
   // The view goes in the page's link, as `#map=<zoom>/<lat>/<lon>`, beside what writeLink() adds.
   hash: 'map',
+  // Until its style comes, the map is flat, and a flat map zoomed far out holds the world over the
+  // screen: nearer the equator, and where the world is shorter than the screen, at the zoom that fills
+  // it. Until the style makes it a globe, it holds the view nowhere, so that it opens where it was left
+  // or linked (ADR-0013).
+  transformConstrain: (center, zoom) => ({ center, zoom }),
 });
 /** Keeps the map's view on the device, for the map to open on next time. */
 const keepShownView = () => keepView({ center: map.getCenter().toArray(), zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch() });
@@ -401,10 +405,8 @@ const styleLoaded = map.once('style.load');
 const showSpace = () => map.getContainer().classList.toggle('globe', map.getZoom() < FLAT);
 showSpace();
 map.on('zoom', showSpace);
-// Until its style comes, the map is flat, and a flat map zoomed out until the world is shorter than the
-// screen opens nearer the equator, and on the zoom that fills it: a globe that far out, once the style
-// makes it one, goes back to the view it was opened on.
-if (opened.zoom < FLAT) styleLoaded.then(() => map.jumpTo(opened));
+// Once the style has made the map a globe zoomed out, it holds the view as MapLibre does.
+styleLoaded.then(() => map.setTransformConstrain(null));
 
 // The language switch: a chip with the language's code, and over it, transparent, the platform's own
 // list of the languages, each named in itself (#321).
