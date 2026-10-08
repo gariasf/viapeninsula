@@ -214,6 +214,10 @@ export async function readTimetables<T extends { lines: unknown[][] }>(
   const empty = got && network.timetables.find((_, i) => !got.lines[i]?.length);
   if (got && !empty) {
     await mkdir(cache, { recursive: true });
+    // ponytail: a copy for each Network, as one Renfe file can give one núcleo its Trips and not
+    // another, so Renfe's 14 MB file is kept 15 times, about 210 MB of every save of the cache; keep a
+    // file several Networks' copies share once, by its hash, if the cache nears the 10 GB Actions
+    // keeps for a repo.
     for (const t of network.timetables) await copyFile(zipFile(t.prefix), copy(t));
     return got;
   }

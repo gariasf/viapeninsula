@@ -113,3 +113,27 @@ test('gives up on a try at a download that takes too long, and tries once more',
   expect(fetch).toHaveBeenCalledTimes(2);
   await rm(zipFile(prefix));
 });
+
+const RENFE_CERCANIAS = 'https://ssl.renfe.com/ftransit/Fichero_CER_FOMENTO/fomento_transit.zip';
+
+test("downloads a URL its timetables share once, as every Cercanías núcleo's is Renfe's one file, to each one's zipFile()", async () => {
+  const fetch = vi.fn(async () => new Response('the zip'));
+  vi.stubGlobal('fetch', fetch);
+  const prefixes = [`download-test-${process.pid}-madrid`, `download-test-${process.pid}-sevilla`];
+  await Promise.all(prefixes.map((prefix) => download(RENFE_CERCANIAS, prefix)));
+  expect(fetch).toHaveBeenCalledTimes(1);
+  for (const prefix of prefixes) {
+    expect(await readFile(zipFile(prefix), 'utf8')).toBe('the zip');
+    await rm(zipFile(prefix));
+  }
+});
+
+test('tells each timetable sharing a URL why its download failed', async () => {
+  const fetch = vi.fn(async () => new Response('', { status: 503 }));
+  vi.stubGlobal('fetch', fetch);
+  const prefixes = [`download-test-${process.pid}-madrid`, `download-test-${process.pid}-sevilla`];
+  const errors = await Promise.all(prefixes.map((prefix) => download(RENFE_CERCANIAS, prefix, { limit: 1000, again: 0 }).catch((e: unknown) => String(e))));
+  expect(errors).toEqual([`Error: ${RENFE_CERCANIAS}: HTTP 503`, `Error: ${RENFE_CERCANIAS}: HTTP 503`]);
+  // Tried twice, for both.
+  expect(fetch).toHaveBeenCalledTimes(2);
+});

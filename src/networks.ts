@@ -259,8 +259,256 @@ export const CERCANIAS_MADRID: NetworkConfig = {
   lines: { kind: 'commuter' },
 };
 
+/**
+ * What every other Cercanías núcleo shares with Madrid: the red of Cercanías' logo, pills from zoom
+ * 10, Renfe's credit, and Renfe's live data, which reads as Madrid's: on 30 fetches on the evening of
+ * 7 October 2026, every Delay was whole minutes, and 75–100% of each núcleo's Trains coming into a
+ * Station were pinned within 50 m of one.
+ */
+const CERCANIAS = { colour: CERCANIAS_MADRID.colour, pillZoom: 10, credit: RENFE, live: CERCANIAS_MADRID.live } as const;
+
+/** Núcleo `code` of Renfe's Cercanías timetable, whose trip_ids read as Madrid's. */
+function núcleo(code: string, prefix: string): Timetable {
+  return { url: RENFE_CERCANIAS, prefix, operator: 'adif', routes: { idPrefix: code }, number: '^\\d{5}' };
+}
+
+// As Madrid's, these núcleos' Trains accelerate and brake at 1 m/s² and stand half a minute at small
+// Stations. Each one's top speed covers the fastest stretch its Trips run on 7 October 2026, as the
+// build measures it along their track, but for two stretches no train could run, whose Trips it
+// leaves out: Sevilla's C4 from San Bernardo to Santa Justa, measured back round its circle, as its
+// trace ends at San Bernardo, and Asturias' C4 from Candás to Candás-Apeadero, which Renfe times at
+// the same minute at both (#253). Their fastest Units run at 120 km/h, Civias on Adif's lines and
+// 2700s on FEVE's metre-gauge ones. A núcleo runs on the left where all its double track keeps
+// left: Adif's lines that García Álvarez lists as running on the left ("La vía doble en España y el
+// sentido de circulación de los trenes por ella", FFE, 2010, table 4 and p. 25), and FEVE's, which
+// keep left too. OpenStreetMap's railway:preferred_direction tags say which way Trains run on only
+// 3.6 km of these núcleos' double track, in Santander (seen 7 October 2026).
+
+export const CERCANIAS_ASTURIAS: NetworkConfig = {
+  ...CERCANIAS,
+  id: 'cercanias-asturias',
+  name: 'Cercanías Asturias',
+  // Its fastest stretch is one C3 Trip's Avilés to La Rocica, 2.4 km in a minute, 142 km/h: a top
+  // speed under it would leave that Trip out.
+  profile: { acceleration: 1, braking: 1, topSpeed: 150 / 3.6, dwell: 30 },
+  // Adif's Pola de Lena–Gijón, which C1–C3 run on, and Villabona–Cancienes keep left, and so do FEVE's
+  // lines. But OpenStreetMap gives six ways of the left-hand track between Villallana and Mieres no
+  // gauge, so kept to the left, C1's trace north turns back to Pola de Lena from Villallana and comes
+  // out 8.6% longer than the feed's shape, which fails the build: it keeps right until they have one (#253).
+  runningSide: 'right',
+  // Adif's Iberian gauge for C1–C3, and FEVE's metre gauge for C4–C8, which OpenStreetMap tags
+  // narrow_gauge or rail (ADR-0010).
+  rails: { railway: ['rail', 'narrow_gauge'], gauge: ['1668', '1000'] },
+  // Asturias is núcleo 20.
+  timetables: [núcleo('20', 'cercanias-asturias')],
+  // C1–C8 and C5a are commuter Lines.
+  lines: { kind: 'commuter' },
+};
+
+export const CERCANIAS_SEVILLA: NetworkConfig = {
+  ...CERCANIAS,
+  id: 'cercanias-sevilla',
+  name: 'Cercanías Sevilla',
+  // Its fastest stretch is Utrera to Las Cabezas de San Juan, 24 km in 13 minutes, 111 km/h.
+  profile: { acceleration: 1, braking: 1, topSpeed: 120 / 3.6, dwell: 30 },
+  runningSide: 'right',
+  rails: { railway: ['rail'], gauge: ['1668'] },
+  // Sevilla is núcleo 30.
+  timetables: [núcleo('30', 'cercanias-sevilla')],
+  // C1–C5 are commuter Lines.
+  lines: { kind: 'commuter' },
+};
+
+export const CERCANIAS_CADIZ: NetworkConfig = {
+  ...CERCANIAS,
+  id: 'cercanias-cadiz',
+  name: 'Cercanías Cádiz',
+  // Its fastest stretch is Las Aletas to Valdelagrana, 5.1 km in 3 minutes, 101 km/h.
+  profile: { acceleration: 1, braking: 1, topSpeed: 120 / 3.6, dwell: 30 },
+  runningSide: 'right',
+  // The T1 is a tram-train: on Adif's line from Cádiz to Río Arillo, and on through San Fernando to
+  // Chiclana on its own track, which OpenStreetMap tags tram in the streets and light_rail between,
+  // all of Iberian gauge.
+  rails: { railway: ['rail', 'tram', 'light_rail'], gauge: ['1668'] },
+  // Cádiz is núcleo 31.
+  timetables: [núcleo('31', 'cercanias-cadiz')],
+  // C1 and C1a are commuter Lines, and the T1, which runs as a tram through San Fernando and Chiclana, a tram.
+  lines: { kind: 'commuter', kinds: { T1: 'tram' } },
+};
+
+export const CERCANIAS_MALAGA: NetworkConfig = {
+  ...CERCANIAS,
+  id: 'cercanias-malaga',
+  name: 'Cercanías Málaga',
+  // Its fastest stretch is Cártama to Campanillas, 6.6 km in 4 minutes, 99 km/h.
+  profile: { acceleration: 1, braking: 1, topSpeed: 120 / 3.6, dwell: 30 },
+  runningSide: 'right',
+  rails: { railway: ['rail'], gauge: ['1668'] },
+  // Málaga is núcleo 32.
+  timetables: [núcleo('32', 'cercanias-malaga')],
+  // C1 and C2 are commuter Lines.
+  lines: { kind: 'commuter' },
+};
+
+export const CERCANIAS_VALENCIA: NetworkConfig = {
+  ...CERCANIAS,
+  id: 'cercanias-valencia',
+  name: 'Cercanías Valencia',
+  // Its fastest stretch is Torreblanca to Orpesa, 14.4 km in 8 minutes, 108 km/h.
+  profile: { acceleration: 1, braking: 1, topSpeed: 120 / 3.6, dwell: 30 },
+  runningSide: 'right',
+  rails: { railway: ['rail'], gauge: ['1668'] },
+  // Valencia is núcleo 40.
+  timetables: [núcleo('40', 'cercanias-valencia')],
+  // C1–C6 are commuter Lines.
+  lines: { kind: 'commuter' },
+};
+
+export const CERCANIAS_MURCIA_ALICANTE: NetworkConfig = {
+  ...CERCANIAS,
+  id: 'cercanias-murcia-alicante',
+  name: 'Cercanías Murcia/Alicante',
+  // Its fastest stretch is Elche/Elx-Parc to Sant Gabriel, 18.8 km in 14 minutes, 81 km/h.
+  profile: { acceleration: 1, braking: 1, topSpeed: 120 / 3.6, dwell: 30 },
+  runningSide: 'right',
+  rails: { railway: ['rail'], gauge: ['1668'] },
+  // Murcia/Alicante is núcleo 41.
+  timetables: [núcleo('41', 'cercanias-murcia-alicante')],
+  // C1–C3 are commuter Lines.
+  lines: { kind: 'commuter' },
+};
+
+export const CERCANIAS_CARTAGENA: NetworkConfig = {
+  ...CERCANIAS,
+  id: 'cercanias-cartagena',
+  name: 'Cercanías Cartagena',
+  // Its fastest stretch is La Esperanza to Alumbres, 2.2 km in 2 minutes, 65 km/h.
+  profile: { acceleration: 1, braking: 1, topSpeed: 120 / 3.6, dwell: 30 },
+  runningSide: 'left',
+  // FEVE's metre gauge alone (ADR-0010).
+  rails: { railway: ['rail', 'narrow_gauge'], gauge: ['1000'] },
+  // Cartagena is núcleo 45.
+  timetables: [núcleo('45', 'cercanias-cartagena')],
+  // C1 is a commuter Line.
+  lines: { kind: 'commuter' },
+};
+
+export const CERCANIAS_FERROL: NetworkConfig = {
+  ...CERCANIAS,
+  id: 'cercanias-ferrol',
+  name: 'Cercanías Ferrol',
+  // Its fastest stretch is San Clodio to Ponte Mera, 2.7 km in 3 minutes, 54 km/h.
+  profile: { acceleration: 1, braking: 1, topSpeed: 120 / 3.6, dwell: 30 },
+  runningSide: 'left',
+  // FEVE's metre gauge alone (ADR-0010).
+  rails: { railway: ['rail', 'narrow_gauge'], gauge: ['1000'] },
+  // Ferrol is núcleo 46.
+  timetables: [núcleo('46', 'cercanias-ferrol')],
+  // C1 is a commuter Line.
+  lines: { kind: 'commuter' },
+};
+
+export const CERCANIAS_LEON: NetworkConfig = {
+  ...CERCANIAS,
+  id: 'cercanias-leon',
+  name: 'Cercanías León',
+  // Its fastest stretch is Pedrún to Matueca, 2.2 km in 2 minutes, 66 km/h.
+  profile: { acceleration: 1, braking: 1, topSpeed: 120 / 3.6, dwell: 30 },
+  runningSide: 'left',
+  // FEVE's metre gauge alone (ADR-0010).
+  rails: { railway: ['rail', 'narrow_gauge'], gauge: ['1000'] },
+  // León is núcleo 47.
+  timetables: [núcleo('47', 'cercanias-leon')],
+  // C1 is a commuter Line.
+  lines: { kind: 'commuter' },
+};
+
+export const CERCANIAS_BILBAO: NetworkConfig = {
+  ...CERCANIAS,
+  id: 'cercanias-bilbao',
+  name: 'Cercanías Bilbao',
+  // Its fastest stretch is Basurto Hospital to Zorrotza Zorrozgoiti, 2.5 km in 2 minutes, 76 km/h.
+  profile: { acceleration: 1, braking: 1, topSpeed: 120 / 3.6, dwell: 30 },
+  // Adif's Orduña–Bilbao-Abando and Bilbao-Abando–Santurtzi, and Bilbao's links between them, keep
+  // left, and so do FEVE's lines.
+  runningSide: 'left',
+  // Adif's Iberian gauge for C1–C3, and FEVE's metre gauge for C4 and C5 (ADR-0010), whose traces
+  // keep off Euskotren's metre-gauge rails beside them (7 October 2026).
+  rails: { railway: ['rail', 'narrow_gauge'], gauge: ['1668', '1000'] },
+  // Bilbao is núcleo 60. Renfe files FEVE's train a day each way between Bilbao and León under C4,
+  // so C4 is drawn on to León.
+  timetables: [núcleo('60', 'cercanias-bilbao')],
+  // C1–C5 are commuter Lines.
+  lines: { kind: 'commuter' },
+};
+
+export const CERCANIAS_SAN_SEBASTIAN: NetworkConfig = {
+  ...CERCANIAS,
+  id: 'cercanias-san-sebastian',
+  name: 'Cercanías San Sebastián',
+  // Its fastest stretch is Billabona-Zizurkil to Andoain-Centro, 4.5 km in 3 minutes, 90 km/h.
+  profile: { acceleration: 1, braking: 1, topSpeed: 120 / 3.6, dwell: 30 },
+  // C1 runs on Adif's Madrid–Hendaya, which keeps left from Pinar de las Rozas on to Irun.
+  runningSide: 'left',
+  rails: { railway: ['rail'], gauge: ['1668'] },
+  // San Sebastián is núcleo 61.
+  timetables: [núcleo('61', 'cercanias-san-sebastian')],
+  // C1 is a commuter Line.
+  lines: { kind: 'commuter' },
+};
+
+export const CERCANIAS_SANTANDER: NetworkConfig = {
+  ...CERCANIAS,
+  id: 'cercanias-santander',
+  name: 'Cercanías Santander',
+  // Its fastest stretch is Guarnizo to Parbayón, 3.3 km in 2 minutes, 99 km/h.
+  profile: { acceleration: 1, braking: 1, topSpeed: 120 / 3.6, dwell: 30 },
+  // C1 runs on Adif's Palencia–Santander, which keeps right, but C2 and C3 on FEVE's lines, which keep
+  // left: there the trace follows OpenStreetMap's railway:preferred_direction tags, where they say so.
+  runningSide: 'right',
+  // Adif's Iberian gauge for C1, and FEVE's metre gauge for C2 and C3 (ADR-0010).
+  rails: { railway: ['rail', 'narrow_gauge'], gauge: ['1668', '1000'] },
+  // Santander is núcleo 62.
+  timetables: [núcleo('62', 'cercanias-santander')],
+  // C1–C3 are commuter Lines.
+  lines: { kind: 'commuter' },
+};
+
+export const CERCANIAS_ZARAGOZA: NetworkConfig = {
+  ...CERCANIAS,
+  id: 'cercanias-zaragoza',
+  name: 'Cercanías Zaragoza',
+  // Its fastest stretch is Utebo to Zaragoza Delicias, 9.3 km in 7 minutes, 80 km/h.
+  profile: { acceleration: 1, braking: 1, topSpeed: 120 / 3.6, dwell: 30 },
+  runningSide: 'right',
+  rails: { railway: ['rail'], gauge: ['1668'] },
+  // Zaragoza is núcleo 70.
+  timetables: [núcleo('70', 'cercanias-zaragoza')],
+  // C1 is a commuter Line.
+  lines: { kind: 'commuter' },
+};
+
 /** Every Network, in the order the bundle lists them. */
-export const NETWORKS = [RODALIES, FGC, TRAM, METRO, CERCANIAS_MADRID];
+export const NETWORKS = [
+  RODALIES,
+  FGC,
+  TRAM,
+  METRO,
+  CERCANIAS_MADRID,
+  CERCANIAS_ASTURIAS,
+  CERCANIAS_SEVILLA,
+  CERCANIAS_CADIZ,
+  CERCANIAS_MALAGA,
+  CERCANIAS_VALENCIA,
+  CERCANIAS_MURCIA_ALICANTE,
+  CERCANIAS_CARTAGENA,
+  CERCANIAS_FERROL,
+  CERCANIAS_LEON,
+  CERCANIAS_BILBAO,
+  CERCANIAS_SAN_SEBASTIAN,
+  CERCANIAS_SANTANDER,
+  CERCANIAS_ZARAGOZA,
+];
 
 /**
  * A source of live data, read in the fetcher by the adapter for its format: its files, by what that
@@ -297,13 +545,29 @@ const FGC_API = 'https://dadesobertes.fgc.cat/api/explore/v2.1/catalog/datasets'
 export const LIVE_SOURCES: LiveSource[] = [
   {
     // Renfe's Cercanías live data, as JSON, which has every núcleo's Trains in it: their trip_ids start
-    // with their own, Rodalies' 51 and Madrid's 10.
+    // with their núcleo's code, as Rodalies' with 51.
     id: 'renfe',
     format: 'renfe',
     urls: { positions: 'https://gtfsrt.renfe.com/vehicle_positions.json', updates: 'https://gtfsrt.renfe.com/trip_updates.json' },
     // Every run.
     every: 20_000,
-    networks: { '51': RODALIES.id, '10': CERCANIAS_MADRID.id },
+    networks: {
+      '51': RODALIES.id,
+      '10': CERCANIAS_MADRID.id,
+      '20': CERCANIAS_ASTURIAS.id,
+      '30': CERCANIAS_SEVILLA.id,
+      '31': CERCANIAS_CADIZ.id,
+      '32': CERCANIAS_MALAGA.id,
+      '40': CERCANIAS_VALENCIA.id,
+      '41': CERCANIAS_MURCIA_ALICANTE.id,
+      '45': CERCANIAS_CARTAGENA.id,
+      '46': CERCANIAS_FERROL.id,
+      '47': CERCANIAS_LEON.id,
+      '60': CERCANIAS_BILBAO.id,
+      '61': CERCANIAS_SAN_SEBASTIAN.id,
+      '62': CERCANIAS_SANTANDER.id,
+      '70': CERCANIAS_ZARAGOZA.id,
+    },
     // Every run too: Renfe answers a conditional request with 304 and no body while its file is
     // unchanged, as it was for hours on 7 October 2026 (docs/research/alerts.md).
     alerts: { url: 'https://gtfsrt.renfe.com/alerts.json', every: 20_000 },

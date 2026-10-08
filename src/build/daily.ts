@@ -115,8 +115,11 @@ if (!process.argv.includes('--dry-run')) {
 /**
  * What a Network's timetables give it on each of DAYS, the Lines each gives it, which are those of
  * every day in it, and the day they were last updated where its terms ask the map to show it.
- * ponytail: reads each feed once for each day, about 5 s a day for the lot; read stop_times once
- * for every day if the build grows slow.
+ * ponytail: each Network reads its own feeds once for each day, so Renfe's one file, which 15
+ * Networks share, is read 45 times: a dry run on a Mac took 277 s with them all on 7 October 2026,
+ * against 126 s with only Rodalies and Madrid on it (#253), and the daily job has 60 minutes. If it
+ * grows slow, read each URL once for every day and split it by `routes.idPrefix`
+ * (docs/research/network-config.md, "The cost").
  */
 async function readDays(feeds: (Feed & { gtfs: Source })[]) {
   // A feed starts the day its operator publishes it, which can't be after today.
