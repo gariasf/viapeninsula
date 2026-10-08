@@ -1,6 +1,6 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
-import type { BackgroundLayerSpecification, ExpressionFilterSpecification, ExpressionSpecification, FontFacesSpecification, LineLayerSpecification } from '@maplibre/maplibre-gl-style-spec';
+import type { BackgroundLayerSpecification, ExpressionFilterSpecification, ExpressionSpecification, FontFacesSpecification, LineLayerSpecification, ProjectionSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { MapLibreMap, Popup, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import nunitoSans from '@fontsource/nunito-sans/files/nunito-sans-latin-400-normal.woff2?url';
@@ -163,6 +163,21 @@ const SHARED = '#9a9b9e';
  * that zoom: the Lines' names, the Trains, and the Lines a tap names.
  */
 const FADE = 0.5;
+// Below the first band's zoom, Lines side by side can't be read: each Network's track is drawn once
+// instead, in its colour, and no Trains (#190).
+const linesZoom = BANDS[0] ?? 7;
+/**
+ * Zoomed out, where it draws each Network's track once and no Lines, the map is a globe, and it
+ * flattens into Web Mercator over the zoom before FLAT, a zoom short of the Lines: from FLAT in, it's
+ * flat as it always was. While the map is even part globe, MapLibre pans it as one, nudging the zoom as
+ * the centre moves north or south to keep the planet one size, and the Lines, their Trains and the
+ * places' names are laid out for a flat map, band by band (ADR-0007): flat a zoom before them, no pan
+ * takes the map into the Lines, nor across a band. MapLibre's own `globe` flattens only from zoom 10 to
+ * 12: it would pan the bands as a globe, now and then across one, and draw a globe where its curve
+ * can't be seen (ADR-0013).
+ */
+const FLAT = linesZoom - 1;
+const PROJECTION: ProjectionSpecification = { type: ['interpolate', ['linear'], ['zoom'], FLAT - 1, 'vertical-perspective', FLAT, 'mercator'] };
 
 /**
  * The places drawn larger than the rest and named from further out, by their IDs in places(), as the
@@ -336,6 +351,11 @@ const map = new MapLibreMap({
   attributionControl: false,
   // The view goes in the page's link, as `#map=<zoom>/<lat>/<lon>`, beside what writeLink() adds.
   hash: 'map',
+  // Until its style comes, the map is flat, and a flat map zoomed far out holds the world over the
+  // screen: nearer the equator, and where the world is shorter than the screen, at the zoom that fills
+  // it. Until the style makes it a globe, it holds the view nowhere, so that it opens where it was left
+  // or linked (ADR-0013).
+  transformConstrain: (center, zoom) => ({ center, zoom }),
 });
 /** Keeps the map's view on the device, for the map to open on next time. */
 const keepShownView = () => keepView({ center: map.getCenter().toArray(), zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch() });
@@ -348,6 +368,10 @@ const placeLabels = new Map<string, ExpressionFilterSpecification | undefined>()
 map.setStyle(`https://tiles.openfreemap.org/styles/${darkBasemap ? 'dark' : 'positron'}`, {
   transformStyle: (_, style) => {
     style['font-faces'] = FONT_FACES;
+    // A globe zoomed out (PROJECTION), with MapLibre's atmosphere round it, which fades as the globe
+    // flattens. No sky besides, as MapLibre draws a style with none.
+    style.projection = PROJECTION;
+    style.sky = { 'sky-color': 'transparent', 'horizon-color': 'transparent', 'fog-color': 'transparent', 'atmosphere-blend': 1 };
     // The dark basemap's woods are patterned with an image OpenFreeMap's sprite lacks, so they draw
     // nothing and only log a warning: they go. It names water under its buildings and roads under its
     // borders: its labels go over everything else, as positron's are, so that the Lines go under them all.
@@ -374,6 +398,15 @@ map.setStyle(`https://tiles.openfreemap.org/styles/${darkBasemap ? 'dark' : 'pos
   },
 });
 const styleLoaded = map.once('style.load');
+/**
+ * Round the globe the map is transparent, and the page shows through, as space (style.css), which both
+ * basemaps stand out on: only zoomed out, so that the page doesn't flash it while a flat map loads.
+ */
+const showSpace = () => map.getContainer().classList.toggle('globe', map.getZoom() < FLAT);
+showSpace();
+map.on('zoom', showSpace);
+// Once the style has made the map a globe zoomed out, it holds the view as MapLibre does.
+styleLoaded.then(() => map.setTransformConstrain(null));
 
 // The language switch: a chip with the language's code, and over it, transparent, the platform's own
 // list of the languages, each named in itself (#321).
@@ -618,9 +651,6 @@ const stretchesFade = byZoom([[railsZoom - FADE, 1], [railsZoom + FADE, 0]], (op
 const railsFade = byZoom([[railsZoom - FADE, 0], [railsZoom + FADE, 1]], (opacity) => opacity);
 /** Along their stretches, Lines are shown through neither while they slide onto the rails nor while they fade. */
 const stretchesThrough = byZoom([[14, 1], [14.1, 0]], (opacity) => opacity);
-// Below the first band's zoom, Lines side by side can't be read: each Network's track is drawn once
-// instead, in its colour, and no Trains (#190).
-const linesZoom = BANDS[0] ?? 7;
 map.addLayer(
   { id: 'tracks', type: 'line', source: 'tracks', maxzoom: linesZoom, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ['get', 'colour'], 'line-width': atZoom(WIDTH, linesZoom) } },
   firstLabel,

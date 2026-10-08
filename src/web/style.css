@@ -37,6 +37,8 @@
   --cancelled: #c00;
   /* A Station's nameboard, in the light theme's ink on both themes. */
   --nameboard: #14305a;
+  /* Space, round the globe zoomed out: the light theme's ink on both themes too, which the light basemap and the dark both stand out on. */
+  --space: #14305a;
 }
 
 /* Its dark side, where the system's setting is dark, as the map follows it: light ink on a card a little lighter than the dark basemap. */
@@ -63,6 +65,11 @@ body,
 #map {
   height: 100%;
   margin: 0;
+}
+
+/* Round the globe, zoomed out, where the map is transparent (main.ts's showSpace()). */
+#map.globe {
+  background: var(--space);
 }
 
 /* The interface in the map's typeface, the buttons riding on the sheet too. */
