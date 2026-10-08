@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { openingView, type View } from './view.ts';
+import { linkedView, openingView, type View } from './view.ts';
 
 /** Where the map opens the first time. */
 const BARCELONA: View = { center: [2.17, 41.39], zoom: 11, bearing: 0, pitch: 0 };
@@ -36,4 +36,15 @@ test('opens on Barcelona when the view kept is unreadable, so that a bad one nev
     JSON.stringify({ ...GIRONA, center: [2.8249, 95] }),
   ];
   for (const kept of unreadable) expect(openingView('', kept)).toEqual(BARCELONA);
+});
+
+test('reads the view a link names as MapLibre writes it, with its bearing and pitch where it has them', () => {
+  expect(linkedView('#map=1.8/40.2/-3.7')).toEqual({ center: [-3.7, 40.2], zoom: 1.8, bearing: 0, pitch: 0 });
+  expect(linkedView('#map=13.5/41.9794/2.8249/-20.5/30&station=rodalies:71801')).toEqual(GIRONA);
+});
+
+test("a link names no view where it has none, or one MapLibre can't read", () => {
+  for (const link of ['', '#train=2026-10-05/rodalies:R2_77001', '#station=rodalies:71801', '#map=12/40.4', '#map=12/north/-3.7', '#map=12/95/-3.7']) {
+    expect(linkedView(link)).toBeUndefined();
+  }
 });

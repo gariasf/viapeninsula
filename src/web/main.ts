@@ -13,7 +13,7 @@ import { rounded } from './curve.ts';
 import { linesAt } from './tap.ts';
 import { alongside, namedTwice, nameOffset, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
 import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
-import { keepView, lastView, openingView } from './view.ts';
+import { keepView, lastView, linkedView, openingView } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { contrast, lettering } from './colour.ts';
 import { linesCallingAt, minutesTo, nearbyRows, progress } from './cards.ts';
@@ -342,6 +342,8 @@ const LICENCES: Record<NonNullable<Credit['licence']>, string> = {
  */
 let openedLink = location.hash;
 addEventListener('hashchange', () => (openedLink = location.hash));
+/** The view the map opens on: the link's, which MapLibre's hash opens over openingView()'s, or that one. */
+const opened = linkedView(openedLink) ?? openingView(openedLink, lastView());
 const map = new MapLibreMap({
   container: 'map',
   ...openingView(openedLink, lastView()),
@@ -397,6 +399,10 @@ const styleLoaded = map.once('style.load');
 const showSpace = () => map.getContainer().classList.toggle('globe', map.getZoom() < linesZoom);
 showSpace();
 map.on('zoom', showSpace);
+// Until its style comes, the map is flat, and a flat map zoomed out until the world is shorter than the
+// screen opens nearer the equator, and on the zoom that fills it: a globe that far out, once the style
+// makes it one, goes back to the view it was opened on.
+if (opened.zoom < linesZoom) styleLoaded.then(() => map.jumpTo(opened));
 
 // The language switch: a chip with the language's code, and over it, transparent, the platform's own
 // list of the languages, each named in itself (#321).
