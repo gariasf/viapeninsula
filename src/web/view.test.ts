@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { openingView, type View } from './view.ts';
+import { markOf, openingView, type View } from './view.ts';
 
 /** Where the map opens the first time. */
 const BARCELONA: View = { center: [2.17, 41.39], zoom: 11, bearing: 0, pitch: 0 };
@@ -44,4 +44,16 @@ test('opens on Barcelona when the view kept is unreadable, so that a bad one nev
     JSON.stringify({ ...GIRONA, center: [2.8249, 95] }),
   ];
   for (const kept of unreadable) expect(openingView('', kept)).toEqual(BARCELONA);
+});
+
+test("rings the point a link's mark= names, as a report's links do, by its latitude and longitude", () => {
+  expect(markOf('#map=15/43.29878/-5.68332&mark=43.29878,-5.68332')).toEqual([-5.68332, 43.29878]);
+  expect(markOf('#mark=-33.9,151')).toEqual([151, -33.9]);
+});
+
+test('rings nothing where the link names no mark, or one that is not a latitude and a longitude', () => {
+  // The last two are past a pole, and past 180° of longitude.
+  const malformed = ['', '43.29878', '43.29878,', ',-5.68332', '43.29878,-5.68332,7', 'Sama', '43.29878;-5.68332', '95,0', '0,181'];
+  expect(markOf('#map=15/43.29878/-5.68332')).toBeUndefined();
+  for (const mark of malformed) expect(markOf(`#map=15/43.29878/-5.68332&mark=${mark}`)).toBeUndefined();
 });
