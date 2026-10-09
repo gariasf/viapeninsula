@@ -118,6 +118,16 @@ function networkTrack(lines: Line[], shapes: Shape[]): Stroke[] {
 }
 
 /**
+ * Each Line's lane, the index of the first of the Lines of its Network and its colour, compared
+ * without case: they take one place where they share a Stretch, as Renfe's map draws one C-4 up to
+ * its fork (#283). So measures() counts each lane as one Line in `over` and `covered`, its strokes
+ * lying on each other on purpose (#303).
+ */
+export function lanes(lines: Line[]): number[] {
+  return lines.map((l) => lines.findIndex((m) => m.network === l.network && m.colour.toLowerCase() === l.colour.toLowerCase()));
+}
+
+/**
  * The strokes, centrelines, rails and slots of one line graph, drawn in `bands`: its Stretches take
  * tracks within `near` of each other, and their IDs start with `prefix`, after STRETCH or LINK. Where
  * it's a band's `own`, its strokes and slots are only in that band.
@@ -145,10 +155,8 @@ async function graphed(
   // Each drawn piece's Stretch, the line graph's edge it's on, and how far along its centreline its middle is.
   const edgeOf = new Map(found.flatMap(({ steps }, e) => steps.map((s): [number, [edge: number, at: number]] => [s.piece, [e, (s.from + s.to) / 2]])));
   const most = (metres: Map<number, number>) => [...metres].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 0;
-  // Lines of one Network and one colour take one place where they share a Stretch, as Renfe's map
-  // draws one C-4 up to its fork (#283): each Line's lane is the first of them, ordered and placed
-  // for them all, and each Line's stroke lies on the others'.
-  const lane = lines.map((l) => lines.findIndex((m) => m.network === l.network && m.colour.toLowerCase() === l.colour.toLowerCase()));
+  // Each Line's lane, ordered and placed for all its Lines, so that each Line's stroke lies on the others'.
+  const lane = lanes(lines);
   // Where nothing else decides, a Stretch's lanes go in the order of the sides their Lines take on it
   // piece by piece, for most of it, each where the first of its Lines in that order goes.
   const prior = found.map(({ steps, lines: onIt }) => {

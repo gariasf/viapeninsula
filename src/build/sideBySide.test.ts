@@ -88,8 +88,8 @@ test('draws Lines that share track side by side, a line width apart', async () =
 });
 
 test('draws Lines of one Network and one colour in one place where they share a Stretch, each on its own stroke, its Trains on it (#283)', async () => {
-  // As Madrid's C4a and C4b, whose colours differ only in case, along C-4's trunk with C3; and
-  // Rodalies' R4, in their colour.
+  // As Madrid's C4a and C4b, of one colour (C4b's written here in lower case, as colours are compared
+  // without case), along C-4's trunk with C3; and Rodalies' R4, in their colour.
   const madrid = (name: string, colour: string): Line => ({ ...line(name, name), network: 'cercanias-madrid', colour });
   const lines = [madrid('C4a', '#2C2A86'), madrid('C3', '#9E1B80'), madrid('C4b', '#2c2a86'), { ...line('R4', 'R4'), colour: '#2C2A86' }];
   const shapes = lines.map((l) => shape(l.id, [0, 0], [5000, 0]));
