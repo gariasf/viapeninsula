@@ -86,13 +86,14 @@ export function placeTrips(
  * aren't the bundle's (`stations`), go, as its Trains leave the map there (crop()). Where a bus runs
  * off the Line's track, before its first such Station, after its last, or all its way, as R3's ran
  * from Fabra i Puig to La Garriga, where no R3 Train runs in the whole timetable, the map has no track
- * to draw that part on, and it's reported.
+ * to draw that part on, and it's logged, once however many buses run there, and reported.
  */
-export function closuresOf(buses: FeedBus[], shapes: FeedShape[], stations: Station[], report: (found: Found) => void = () => {}): Closure[] {
+export function closuresOf(buses: FeedBus[], shapes: FeedShape[], stations: Station[], log = console.log, report: (found: Found) => void = () => {}): Closure[] {
   const inside = new Set(stations.map((s) => s.id));
   const own = new Map<string, Set<string>>();
   for (const s of shapes) own.set(s.line, new Set([...(own.get(s.line) ?? []), ...s.stations]));
   const closures = new Map<string, Closure>();
+  const logged = new Set<string>();
   for (const { id, line, calls: all } of buses) {
     const ours = own.get(line) ?? new Set();
     const calls = all.filter((c) => inside.has(c.station.id) || !ours.has(c.station.id));
@@ -102,7 +103,10 @@ export function closuresOf(buses: FeedBus[], shapes: FeedShape[], stations: Stat
     for (const part of first < 0 ? [calls] : [calls.slice(0, first + 1), calls.slice(last)]) {
       const [start, end] = [part[0]?.station, part.at(-1)?.station];
       if (part.length < 2 || !start || !end) continue;
-      report({ kind: 'bus', line, trip: id, stations: [start, end], text: [`${line}'s buses ${start.name} → ${end.name} make no Closure: the Line has no track there`] });
+      const text = `${line}'s buses ${start.name} → ${end.name} make no Closure: the Line has no track there`;
+      if (!logged.has(text)) log(text);
+      logged.add(text);
+      report({ kind: 'bus', line, trip: id, stations: [start, end], text: [text] });
     }
     const [a, b] = [calls[first], calls[last]];
     if (!a || !b || first === last) continue;
