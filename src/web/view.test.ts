@@ -14,11 +14,19 @@ test('opens where the viewer last left the map, kept on their device, when the l
   expect(openingView('', JSON.stringify(GIRONA))).toEqual(GIRONA);
 });
 
-test('a link that names a view, a Train or a Station opens on Barcelona, whatever view is kept', () => {
-  // MapLibre opens a link's own view over this one, and the map eases to a Train it follows, or to a
-  // Station whose link names no view (#292).
-  for (const link of ['#map=12/40.4168/-3.7038', '#train=2026-10-05/rodalies:R2_77001', '#station=rodalies:71801', '#map=14/41.3793/2.1404&station=rodalies:71801']) {
+test('a link that names a view opens on Barcelona, whatever view is kept', () => {
+  // MapLibre opens the link's own view over this one.
+  for (const link of ['#map=12/40.4168/-3.7038', '#map=14/41.3793/2.1404&station=adif:71801']) {
     expect(openingView(link, JSON.stringify(GIRONA))).toEqual(BARCELONA);
+  }
+});
+
+test('a link that names only a Station or a Train opens where the viewer last left the map, or on Barcelona the first time', () => {
+  // The map eases from there to a Station it knows (#292) or a running Train it follows, and stays
+  // there for a Station it doesn't know or a Train that has finished (#306).
+  for (const link of ['#station=adif:71801', '#station=adif:nope', '#train=2026-10-05/rodalies:R2_77001']) {
+    expect(openingView(link, JSON.stringify(GIRONA))).toEqual(GIRONA);
+    expect(openingView(link, null)).toEqual(BARCELONA);
   }
 });
 

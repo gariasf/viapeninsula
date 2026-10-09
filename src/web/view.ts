@@ -14,13 +14,16 @@ const BARCELONA: View = { center: [2.17, 41.39], zoom: 11, bearing: 0, pitch: 0 
 const VIEW_KEY = 'view';
 
 /**
- * The view to open the map on: the one `kept` on this device, unless the page's `link` names a view, a
- * Train or a Station, or none is kept, when Barcelona. MapLibre opens a link's own view over it. A kept
- * view MapLibre can't open, such as one past a pole, would stop the map, so it opens on Barcelona too.
+ * The view to open the map on: the one `kept` on this device, unless the page's `link` names a view, or
+ * none is kept, when Barcelona. MapLibre opens a link's own view over it. A link that names only a
+ * Station or a Train opens on the kept view, as one that names nothing does: the map eases from there to
+ * a Station it knows (#292) or a running Train it follows, and stays there for a Station it doesn't know
+ * or a Train that has finished (#306). A kept view MapLibre can't open, such as one past a pole, would
+ * stop the map, so it opens on Barcelona too.
  */
 export function openingView(link: string, kept: string | null): View {
   const named = new URLSearchParams(link.slice(1));
-  if (!kept || ['map', 'train', 'station'].some((name) => named.has(name))) return BARCELONA;
+  if (!kept || named.has('map')) return BARCELONA;
   try {
     const { center: [lon, lat], zoom, bearing, pitch } = JSON.parse(kept);
     if ([lon, lat, zoom, bearing, pitch].every(Number.isFinite) && Math.abs(lat) <= 90) return { center: [lon, lat], zoom, bearing, pitch };
