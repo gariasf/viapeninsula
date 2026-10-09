@@ -2,8 +2,8 @@
 // fixture (#251, docs/research/build-report.md, section 5). `npm run snippet -- <lat,lon or spot key>
 // <name> [km]` keeps the ways of OpenStreetMap's rails that come within that many km of the spot, 2
 // unless given, as the build keeps them in .cache/, and the shapes and Stations there of the spot's
-// Line, or of every Line for a lat,lon, from the timetables the build last read, as it keeps them there
-// too (readTimetables()). It writes them to src/build/fixtures/osm/<name>.json, with the credits for
+// Line, or of every Line for a lat,lon, from the timetables the build last read, kept in .cache/ too
+// (readTimetables()). It writes them to src/build/fixtures/osm/<name>.json, with the credits for
 // their data. A spot key names a spot in out/report.json, so first run `npm run daily -- --dry-run`,
 // which keeps the rails and timetables too.
 // docs/review-a-build-report.md says when to cut one, and how.

@@ -315,6 +315,8 @@ test('builds a Network from its new timetables, and keeps them as its copy in pl
   await downloaded(PREFIX, 'R1', 'R2');
   expect(await readTimetables(NETWORK, undefined, read, (f) => found.push(f), cache)).toEqual({ lines: [['R1', 'R2']] });
   expect(found).toEqual([]);
+  // At copyOf(), where npm run snippet reads it.
+  expect(await names(zipSource(copyOf(NETWORK.timetables[0], cache)))).toEqual(['R1', 'R2']);
 
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   expect(await readTimetables(NETWORK, RENFE_499, read, () => {}, cache)).toEqual({ lines: [['R1', 'R2']] });
@@ -371,17 +373,4 @@ test('fails with no copy to build the Network from, as the build did before it k
   );
   const before = await copied({ ...PAIR, timetables: [PAIR.timetables[0]] }, ['T1']);
   await expect(readTimetables(PAIR, new Error('HTTP 503'), read, () => {}, before)).rejects.toThrow('TRAM has no copy of its timetables to build it from: HTTP 503');
-});
-
-test('keeps the timetables the build last read at copyOf(), for npm run snippet, whether they were the download or the copy', async () => {
-  vi.spyOn(console, 'warn').mockImplementation(() => {});
-  const cache = await temp();
-  const copy = () => names(zipSource(copyOf(NETWORK.timetables[0], cache)));
-  await downloaded(PREFIX, 'R1');
-  await readTimetables(NETWORK, undefined, read, () => {}, cache);
-  expect(await copy()).toEqual(['R1']);
-  // As an error page served as the zip: the build reads the copy, which stays.
-  await writeFile(zipFile(PREFIX), '<html>Service Unavailable</html>');
-  await readTimetables(NETWORK, undefined, read, () => {}, cache);
-  expect(await copy()).toEqual(['R1']);
 });

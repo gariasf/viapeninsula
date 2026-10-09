@@ -185,8 +185,11 @@ export async function readFeed(
   };
 }
 
+/** The folder readTimetables() keeps its copies in unless given another, so the one copyOf() names too. */
+const CACHE = '.cache';
+
 /** Where readTimetables() keeps the copy of a timetable, in `cache`, which `npm run snippet` reads. */
-export function copyOf({ prefix }: Timetable, cache = '.cache'): string {
+export function copyOf({ prefix }: Timetable, cache = CACHE): string {
   return join(cache, `timetable-${prefix}.zip`);
 }
 
@@ -203,7 +206,7 @@ export async function readTimetables<T extends { lines: unknown[][] }>(
   failed: unknown,
   read: (feeds: (Feed & { gtfs: Source })[]) => Promise<T>,
   report: (found: Found) => void,
-  cache = '.cache',
+  cache = CACHE,
 ): Promise<T> {
   const copy = (t: Timetable) => copyOf(t, cache);
   const from = (zip: (t: Timetable) => string) => read(network.timetables.map((t) => ({ ...t, network, gtfs: zipSource(zip(t)) })));
