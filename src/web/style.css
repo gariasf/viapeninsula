@@ -123,12 +123,19 @@ body {
   place-items: center;
 }
 
-/* Every button shows where the keyboard is, in its own colour, as does Nearby's title, where the focus goes after a Try again (#324). */
+/* Every button shows where the keyboard is, in its own colour, as does Nearby's title, where the focus goes after a Try again that finds the viewer (#324). */
 :is(button, summary, a):focus-visible,
 .title:focus-visible,
 .lang:has(select:focus-visible) {
   outline: 2px solid currentColor;
   outline-offset: 2px;
+}
+
+/* The title's is a pill, as the corners' buttons' are, clear of its first letter: the room goes out to its left, so that the title doesn't move (#324). */
+.title:focus-visible {
+  margin-left: -8px;
+  padding-left: 8px;
+  border-radius: 999px;
 }
 
 /* Round the handle's bar, as the sheet's edge and header would cut one round the whole handle. */
