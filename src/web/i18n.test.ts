@@ -170,7 +170,7 @@ test("says at the foot of a peeking followed Train how many Stations it has stil
   expect(moreStations(1, 'Igualada', '9:33 AM', 'en')).toBe('1 more station, to Igualada at 9:33 AM');
   expect(moreStations(22, 'Igualada', '09:33', 'eu')).toBe('22 geltoki gehiago, Igualada arte (09:33)');
   expect(moreStations(22, 'Igualada', '09:33', 'gl')).toBe('22 estacións máis, ata Igualada (09:33)');
-  expect(moreStations(1, 'Igualada', '09:33', 'eu')).toBe('1 geltoki gehiago, Igualada arte (09:33)');
+  expect(moreStations(1, 'Igualada', '09:33', 'eu')).toBe('Geltoki bat gehiago, Igualada arte (09:33)');
   expect(moreStations(1, 'Igualada', '09:33', 'gl')).toBe('1 estación máis, ata Igualada (09:33)');
 });
 
@@ -183,7 +183,7 @@ test("says atop a followed Train's strip how many Stations it has already left, 
   expect(earlierStations(1, false, 'en')).toBe('1 earlier station');
   expect(earlierStations(11, false, 'eu')).toBe('Aurreko 11 geltoki');
   expect(earlierStations(11, false, 'gl')).toBe('11 estacións anteriores');
-  expect(earlierStations(1, false, 'eu')).toBe('Aurreko 1 geltoki');
+  expect(earlierStations(1, false, 'eu')).toBe('Aurreko geltoki bat');
   expect(earlierStations(1, false, 'gl')).toBe('1 estación anterior');
 });
 
@@ -209,7 +209,7 @@ test('says at the foot of a peeking board how many departures more it has, in ea
   expect(moreDepartures(1, 'en')).toBe('1 more departure');
   expect(moreDepartures(7, 'eu')).toBe('7 irteera gehiago');
   expect(moreDepartures(7, 'gl')).toBe('7 saídas máis');
-  expect(moreDepartures(1, 'eu')).toBe('1 irteera gehiago');
+  expect(moreDepartures(1, 'eu')).toBe('Irteera bat gehiago');
   expect(moreDepartures(1, 'gl')).toBe('1 saída máis');
 });
 

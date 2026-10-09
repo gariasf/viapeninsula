@@ -371,8 +371,8 @@ map.setStyle(`https://tiles.openfreemap.org/styles/${darkBasemap ? 'dark' : 'pos
     // OpenFreeMap's credit ends "Data from OpenStreetMap", in English, and the ODbL asks for the
     // contributors, so showLanguage() credits the basemap itself, in the viewer's language.
     if (style.sources.openmaptiles) Object.assign(style.sources.openmaptiles, { attribution: '' });
-    // Its labels give each feature's English name, where the tiles have one. They give its own
-    // instead, or basemapLabel()'s in the language showLanguage() sets.
+    // Its labels give each feature's English name, where the tiles have one. They give basemapLabel()'s
+    // instead, by the language showLanguage() sets.
     style.state = { language: { default: language() } };
     for (const layer of style.layers) {
       if (layer.type !== 'symbol' || !layer.layout) continue;

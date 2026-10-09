@@ -10,7 +10,8 @@ export type Language = keyof typeof LANGUAGES;
  * Every interface string, in each language. Names aren't here, as they read the same in every
  * language: Stations and Lines are shown as their operators publish them, and the credits name
  * their sources as those sources do. The Basque and Galician are machine-translated, as About says
- * (MACHINE_TRANSLATED).
+ * (MACHINE_TRANSLATED). Basque writes one in words, after its noun ("geltoki bat"), as Euskaltzaindia's
+ * norm 203 has it.
  */
 const STRINGS = {
   language: { ca: 'Idioma', es: 'Idioma', eu: 'Hizkuntza', gl: 'Idioma', en: 'Language' },
@@ -97,13 +98,13 @@ const STRINGS = {
   oneMoreStation: {
     ca: '{n} estació més, fins a {headsign} ({time})',
     es: '{n} estación más, hasta {headsign} ({time})',
-    eu: '{n} geltoki gehiago, {headsign} arte ({time})',
+    eu: 'Geltoki bat gehiago, {headsign} arte ({time})',
     gl: '{n} estación máis, ata {headsign} ({time})',
     en: '{n} more station, to {headsign} at {time}',
   },
   // The fold atop a pulled-up followed Train's strip: how many Stations it has already left, which shows them, and once shown hides them.
   earlierStations: { ca: '{n} estacions anteriors', es: '{n} estaciones anteriores', eu: 'Aurreko {n} geltoki', gl: '{n} estacións anteriores', en: '{n} earlier stations' },
-  oneEarlierStation: { ca: '{n} estació anterior', es: '{n} estación anterior', eu: 'Aurreko {n} geltoki', gl: '{n} estación anterior', en: '{n} earlier station' },
+  oneEarlierStation: { ca: '{n} estació anterior', es: '{n} estación anterior', eu: 'Aurreko geltoki bat', gl: '{n} estación anterior', en: '{n} earlier station' },
   hideEarlierStations: {
     ca: 'Amaga les {n} estacions anteriors',
     es: 'Ocultar las {n} estaciones anteriores',
@@ -121,7 +122,7 @@ const STRINGS = {
   notStopping: { ca: "No s'atura aquí", es: 'No para aquí', eu: 'Ez da hemen gelditzen', gl: 'Non para aquí', en: "Doesn't stop here" },
   // At the foot of a peeking board: how many departures more it lists.
   moreDepartures: { ca: '{n} sortides més', es: '{n} salidas más', eu: '{n} irteera gehiago', gl: '{n} saídas máis', en: '{n} more departures' },
-  oneMoreDeparture: { ca: '{n} sortida més', es: '{n} salida más', eu: '{n} irteera gehiago', gl: '{n} saída máis', en: '{n} more departure' },
+  oneMoreDeparture: { ca: '{n} sortida més', es: '{n} salida más', eu: 'Irteera bat gehiago', gl: '{n} saída máis', en: '{n} more departure' },
   // Nearby Trains: their panel's title, and the button that opens them.
   nearby: { ca: 'Trens a prop', es: 'Trenes cercanos', eu: 'Inguruko trenak', gl: 'Trens próximos', en: 'Nearby trains' },
   nearbyButton: { ca: 'A prop', es: 'Cerca', eu: 'Inguruan', gl: 'Preto', en: 'Nearby' },
@@ -221,11 +222,11 @@ export const MACHINE_TRANSLATED: Partial<Record<Language, string>> = {
 };
 
 /**
- * Whether the basemap names a feature in the viewer's language, where the tiles have it: countries,
- * regions, seas, rivers and airports, which are the features with an IATA code. Everything else it
- * labels, from towns and their districts to streets, goes by its own name, as its signs and Stations
- * have it: the tiles' Spanish names for Catalan towns are mostly old Castilian ones, such as Lérida
- * and Sardañola del Vallés.
+ * Whether the basemap names a feature in the viewer's language, where the tiles have it, or for Galician
+ * in Spanish (basemapLabel()): countries, regions, seas, rivers and airports, which are the features
+ * with an IATA code. Everything else it labels, from towns and their districts to streets, goes by its
+ * own name, as its signs and Stations have it: the tiles' Spanish names for Catalan towns are mostly
+ * old Castilian ones, such as Lérida and Sardañola del Vallés.
  */
 const TRANSLATED: ExpressionSpecification = ['any', ['in', ['get', 'class'], ['literal', ['country', 'state', 'ocean', 'sea', 'river']]], ['has', 'iata']];
 
