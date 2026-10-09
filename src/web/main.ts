@@ -802,8 +802,9 @@ map.addLayer({
   },
   paint: { 'text-color': nameColour, 'text-halo-color': halo, 'text-halo-width': NAME_HALO },
 });
-// The point a link names, as a build report's do, ringed in the names' colour over the Lines and the
-// places' dots, and under their names and the Trains' pills (#254).
+// The point a link names, as a build report's do, ringed 40 px across in the colour of the places'
+// names: over the Lines, their names and the places' and Trains' dots, and under the places' names
+// and the Trains' pills (#254).
 map.addSource('mark', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 map.addLayer({ id: 'mark', type: 'circle', source: 'mark', paint: { 'circle-radius': 20, 'circle-opacity': 0, 'circle-stroke-width': 3, 'circle-stroke-color': nameColour } }, 'station-names');
 // Zoomed in (pillOf()), each Train is a pill with its Line's name, over the Stations' names too,
@@ -862,6 +863,9 @@ for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', tr
 // stroke or within STROKE_TAP of one, names the Lines drawn there, by their pills (#193), the strokes
 // nearest the tap first: but not on a place's name, which takes no tap. Any tap clears the ring a link
 // drew (#254).
+// ponytail: so a double-click or double-tap that zooms clears it too, its first tap being a tap,
+// though a wheel, a pinch or a drag keeps it. Clear it only once no second tap follows if the ring's
+// missed after one.
 /** The layers the Lines' strokes are drawn in. A tap names the Lines of those along their stretches below railsZoom, and of the rails from it. */
 const strokeLayers = layered.map((l) => l.id);
 /** Where a tap names the Lines drawn there. Each tap closes the last one's. */
@@ -869,7 +873,7 @@ const linesPopup = new Popup({ closeButton: false, closeOnClick: false, classNam
 map.on('click', ({ point: { x, y }, lngLat }) => {
   linesPopup.remove();
   if (marked) {
-    ring(undefined);
+    showMark(undefined);
     writeLink();
   }
   const within = (r: number, layers: string[]) => map.queryRenderedFeatures([[x - r, y - r], [x + r, y + r]], { layers });
@@ -1471,7 +1475,7 @@ function openPanel(up: boolean) {
  * view, the map goes to the Station, by follow()'s rule (#292).
  */
 function openLink() {
-  ring(markOf(openedLink));
+  showMark(markOf(openedLink));
   const link = new URLSearchParams(openedLink.slice(1));
   const [station, train] = [link.get('station'), link.get('train')];
   const place = station && [...shownPlaces.values()].find((p) => p.stations.includes(station));
@@ -1491,8 +1495,9 @@ function openLink() {
  * Puts what the panel shows in the page's link, beside the view, so that sharing the page shares it:
  * `train=<service day>/<Trip>`, the Train by its service day and its Trip as its operator names it,
  * whose ID leads with its Network, or `station=<Station>`, one of the place's Stations, which opens the
- * place's board, beside the `mark=` of a point the map rings, until the tap that clears it (#254).
- * Written as MapLibre writes the view, which undoes any escaping each time it does.
+ * place's board. It keeps the link's `mark=` while the map rings its point, and drops it while the
+ * map rings none, as after a tap (#254). Written as MapLibre writes the view, which undoes any
+ * escaping each time it does.
  * ponytail: so an ID with `&`, `=`, `#`, `+` or `%` in it would break its link. None has one yet
  * (only `:._|@-`); escape them both ways, instead of MapLibre's hash, if an operator's ever does.
  */
@@ -1508,7 +1513,7 @@ function writeLink() {
 }
 
 /** Rings a point on the map, or none (#254). */
-function ring(at: Point | undefined) {
+function showMark(at: Point | undefined) {
   marked = at;
   map.getSource<GeoJSONSource>('mark')?.setData({ type: 'FeatureCollection', features: at ? [{ type: 'Feature', geometry: { type: 'Point', coordinates: at }, properties: {} }] : [] });
 }
