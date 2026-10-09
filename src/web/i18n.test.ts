@@ -1,5 +1,6 @@
+import { createExpression, latest, type ExpressionSpecification, type Feature, type StylePropertySpecification } from '@maplibre/maplibre-gl-style-spec';
 import { expect, test } from 'vitest';
-import { earlierStations, LANGUAGES, type Language, liveUnavailable, MACHINE_TRANSLATED, moreDepartures, moreStations, pickLanguage, t, toGo, trainCounts, unlocated } from './i18n.ts';
+import { basemapLabel, earlierStations, LANGUAGES, type Language, liveUnavailable, MACHINE_TRANSLATED, moreDepartures, moreStations, pickLanguage, t, toGo, trainCounts, unlocated } from './i18n.ts';
 
 test("speaks the first of the browser's languages it knows, whatever the region, and English when it knows none", () => {
   expect(pickLanguage(null, ['ca-ES', 'es-ES', 'en'])).toBe('ca');
@@ -31,6 +32,43 @@ test('speaks the language the viewer chose on this device, whatever their browse
   expect(pickLanguage('en', ['gl', 'eu'])).toBe('en');
   expect(pickLanguage('eu', ['es-ES', 'es'])).toBe('eu');
   expect(pickLanguage('gl', ['eu-ES'])).toBe('gl');
+});
+
+/** OpenFreeMap's positron's label for places, seas and airports, by a feature's own name, as main.ts makes it of the English name it gives. */
+const OWN: ExpressionSpecification = ['case', ['has', 'name:nonlatin'], ['concat', ['get', 'name:latin'], '\n', ['get', 'name:nonlatin']], ['coalesce', ['get', 'name'], ['get', 'name']]];
+
+/**
+ * What the basemap labels a feature with these properties, with the interface in each language, as
+ * MapLibre evaluates a symbol's text, which fails as MapLibre would where the label isn't text. The
+ * style spec's types have no `formatted` property, as text-field is in its reference.
+ */
+function labels(properties: Record<string, string>): Record<Language, string> {
+  const textField = latest.layout_symbol['text-field'] as unknown as StylePropertySpecification;
+  const each = Object.keys(LANGUAGES).map((lang) => {
+    const label = createExpression(basemapLabel(OWN), 'text-field', textField, { language: lang });
+    if (label.result === 'error') throw new Error(label.value.map((e) => e.message).join('; '));
+    return [lang, String(label.value.evaluate({ zoom: 5 }, { type: 1, properties } as Feature))];
+  });
+  return Object.fromEntries(each);
+}
+
+test("names a country, a sea or an airport on the basemap in the viewer's language: Basque by the tiles' name:eu, and Galician by their Spanish, as they have no name:gl", () => {
+  const france = { class: 'country', name: 'France', 'name:latin': 'France', 'name:ca': 'França', 'name:es': 'Francia', 'name:eu': 'Frantzia', 'name:en': 'France' };
+  expect(labels(france)).toEqual({ ca: 'França', es: 'Francia', eu: 'Frantzia', gl: 'Francia', en: 'France' });
+  const sea = { class: 'sea', name: 'Mediterranean Sea', 'name:latin': 'Mediterranean Sea', 'name:ca': 'Mar Mediterrània', 'name:es': 'Mar Mediterráneo', 'name:eu': 'Mediterraneo itsasoa' };
+  expect(labels(sea)).toEqual({ ca: 'Mar Mediterrània', es: 'Mar Mediterráneo', eu: 'Mediterraneo itsasoa', gl: 'Mar Mediterráneo', en: 'Mediterranean Sea' });
+  const airport = { class: 'international', iata: 'BIO', name: 'Bilboko aireportua', 'name:latin': 'Bilboko aireportua', 'name:es': 'Aeropuerto de Bilbao', 'name:en': 'Bilbao Airport' };
+  expect(labels(airport)).toEqual({ ca: 'Bilboko aireportua', es: 'Aeropuerto de Bilbao', eu: 'Bilboko aireportua', gl: 'Aeropuerto de Bilbao', en: 'Bilbao Airport' });
+});
+
+test('names a region on the basemap by its own name in a language the tiles have no name in, Galician too where they have no Spanish', () => {
+  const region = { class: 'state', name: 'Occitanie', 'name:latin': 'Occitanie', 'name:ca': 'Occitània', 'name:en': 'Occitania' };
+  expect(labels(region)).toEqual({ ca: 'Occitània', es: 'Occitanie', eu: 'Occitanie', gl: 'Occitanie', en: 'Occitania' });
+});
+
+test('names towns on the basemap by their own names in every language, whatever the tiles call them in others', () => {
+  const town = { class: 'city', name: 'A Coruña', 'name:latin': 'A Coruña', 'name:es': 'La Coruña', 'name:eu': 'A Coruña', 'name:en': 'A Coruña' };
+  expect(labels(town)).toEqual({ ca: 'A Coruña', es: 'A Coruña', eu: 'A Coruña', gl: 'A Coruña', en: 'A Coruña' });
 });
 
 test('counts the Trains on the map in the legend, Live and Scheduled, in each language', () => {

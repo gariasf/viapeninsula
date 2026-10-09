@@ -1,4 +1,6 @@
-// The languages the interface speaks, and every string it shows in each.
+// The languages the interface speaks, every string it shows in each, and the basemap's labels in them.
+
+import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
 
 /** Each language the interface speaks, with its name in itself for the language switch: Spain's, then English. */
 export const LANGUAGES = { ca: 'Català', es: 'Castellano', eu: 'Euskara', gl: 'Galego', en: 'English' };
@@ -217,6 +219,27 @@ export const MACHINE_TRANSLATED: Partial<Record<Language, string>> = {
   eu: 'Euskarazko testuak itzulpen automatikoz eginak dira, eta hiztun batek ez ditu oraindik berrikusi. Zuzendu beharreko zerbait ikusten baduzu, jakinarazi iezaguzu GitHub-en.',
   gl: 'Os textos en galego son unha tradución automática, e aínda non os revisou ningún falante. Se ves algo que corrixir, avísanos en GitHub.',
 };
+
+/**
+ * Whether the basemap names a feature in the viewer's language, where the tiles have it: countries,
+ * regions, seas, rivers and airports, which are the features with an IATA code. Everything else it
+ * labels, from towns and their districts to streets, goes by its own name, as its signs and Stations
+ * have it: the tiles' Spanish names for Catalan towns are mostly old Castilian ones, such as Lérida
+ * and Sardañola del Vallés.
+ */
+const TRANSLATED: ExpressionSpecification = ['any', ['in', ['get', 'class'], ['literal', ['country', 'state', 'ocean', 'sea', 'river']]], ['has', 'iata']];
+
+/**
+ * A basemap label, from `own`, the label by a feature's own name: where it's TRANSLATED, by its name
+ * in the language the style's `language` state holds, as the tiles' `name:<code>` has it, or for
+ * Galician, which they have none in, by its Spanish name (#327); or else by its own name.
+ */
+export const basemapLabel = (own: ExpressionSpecification): ExpressionSpecification => [
+  'case',
+  TRANSLATED,
+  ['coalesce', ['get', ['concat', 'name:', ['match', ['global-state', 'language'], 'gl', 'es', ['global-state', 'language']]]], own],
+  own,
+];
 
 /** What the viewer's choice is kept under on their device, in local storage, which takes no cookie. */
 const CHOICE_KEY = 'language';

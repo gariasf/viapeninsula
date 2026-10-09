@@ -8,7 +8,7 @@ import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
 import { along, APART, atZoom, BANDS, bandZooms, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Credit, type Place, type DayTrips, type Kind, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, WIDTH } from '../bundle.ts';
 import { boardAt, joinDays, KEEP, mapTime, nearbyAt, trainAt, trainsAt, unavailable, type Departure, type Followed, type Received } from '../engine.ts';
-import { earlierStations, language, LANGUAGES, liveUnavailable, MACHINE_TRANSLATED, moreDepartures, moreStations, setLanguage, t, toGo, trainCounts, unlocated, type Language, type Unlocated } from './i18n.ts';
+import { basemapLabel, earlierStations, language, LANGUAGES, liveUnavailable, MACHINE_TRANSLATED, moreDepartures, moreStations, setLanguage, t, toGo, trainCounts, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { linesAt } from './tap.ts';
 import { alongside, namedTwice, nameOffset, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
@@ -324,15 +324,6 @@ const byLive = (live: string | number | ExpressionSpecification, scheduled: stri
   scheduled,
 ];
 
-/**
- * Whether the basemap names a feature in the viewer's language, where the tiles have it: countries,
- * regions, seas, rivers and airports, which are the features with an IATA code. Everything else it
- * labels, from towns and their districts to streets, goes by its own name, as its signs and Stations
- * have it: the tiles' Spanish names for Catalan towns are mostly old Castilian ones, such as Lérida
- * and Sardañola del Vallés.
- */
-const TRANSLATED: ExpressionSpecification = ['any', ['in', ['get', 'class'], ['literal', ['country', 'state', 'ocean', 'sea', 'river']]], ['has', 'iata']];
-
 /** Each licence a source's data can be under, with the link to its text that it asks for. */
 const LICENCES: Record<NonNullable<Credit['licence']>, string> = {
   'CC BY 4.0': '<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank">CC BY 4.0</a>',
@@ -381,7 +372,7 @@ map.setStyle(`https://tiles.openfreemap.org/styles/${darkBasemap ? 'dark' : 'pos
     // contributors, so showLanguage() credits the basemap itself, in the viewer's language.
     if (style.sources.openmaptiles) Object.assign(style.sources.openmaptiles, { attribution: '' });
     // Its labels give each feature's English name, where the tiles have one. They give its own
-    // instead, or where it's TRANSLATED, its name in the language showLanguage() sets.
+    // instead, or basemapLabel()'s in the language showLanguage() sets.
     style.state = { language: { default: language() } };
     for (const layer of style.layers) {
       if (layer.type !== 'symbol' || !layer.layout) continue;
@@ -392,7 +383,7 @@ map.setStyle(`https://tiles.openfreemap.org/styles/${darkBasemap ? 'dark' : 'pos
       const text = JSON.stringify(layer.layout['text-field']);
       if (!text?.includes('"name_en"')) continue;
       const own = JSON.parse(text.replaceAll('"name_en"', '"name"'));
-      layer.layout['text-field'] = ['case', TRANSLATED, ['coalesce', ['get', ['concat', 'name:', ['global-state', 'language']]], own], own];
+      layer.layout['text-field'] = basemapLabel(own);
     }
     return style;
   },
