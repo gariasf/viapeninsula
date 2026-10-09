@@ -938,6 +938,46 @@ time .in {
   font-weight: 700;
 }
 
+/* A card's Alerts (#342): their fold, the whole row a button, as the strip's, its words and arrow in a chip from the card's edge, yellow as a warning and edged in amber, as the banner's pills are; and once it's open, each Alert, parted by hairlines, on a board after the Lines it's on, its words broken as its operator breaks them. */
+.alerts .fold {
+  color: var(--warn-ink);
+}
+
+.alerts .fold > span {
+  grid-column: 1 / -1;
+  margin-left: 0;
+  border: 1px solid var(--warn-rule);
+  background: var(--warn);
+}
+
+@media (hover: hover) {
+  .alerts .fold:hover > span {
+    background: color-mix(in srgb, var(--warn-ink) 10%, var(--warn));
+  }
+}
+
+.alerts li {
+  padding: 8px 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.alerts li .served {
+  margin-bottom: 4px;
+}
+
+.alerts li strong {
+  display: block;
+}
+
+.alerts li :is(strong, p) {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.alerts li .meta {
+  margin-top: 2px;
+}
+
 /* Nearby's Try again, under its message where the browser won't say where the viewer is: a card's outline round a pill as tall as the legend's (#324). */
 .try-again {
   height: 40px;

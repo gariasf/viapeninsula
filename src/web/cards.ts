@@ -1,6 +1,7 @@
-// What the cards work out from the days on the map and the engine's Trains: minutes to go, Nearby's rows, how far along its Trip a followed Train is, and a board's Lines (#321).
-import type { Call, Trip } from '../bundle.ts';
+// What the cards work out from the days on the map and the engine's Trains: minutes to go, Nearby's rows, how far along its Trip a followed Train is, and a board's Lines (#321); and from alerts.json, the Alerts each shows (#342).
+import type { Alert, Alerts, Call, Trip, Words } from '../bundle.ts';
 import type { Pass } from '../engine.ts';
+import type { Language } from './i18n.ts';
 
 /** The whole minutes from `now` to `at`, both in ms since 1970, as a clock showing minutes reads them, as a board shows times: none for a time this minute, or past. */
 export function minutesTo(at: number, now: number): number {
@@ -54,4 +55,56 @@ export function linesCallingAt(trips: Trip[], stations: string[], lines: string[
   const here = new Set(stations);
   const calling = new Set(trips.filter((trip) => trip.calls.some((c) => here.has(c.station))).map((trip) => trip.line));
   return lines.filter((line) => calling.has(line));
+}
+
+/** Whose words each feed's Alerts are, by its ID in alerts.json. */
+const OPERATORS: Record<string, string> = { renfe: 'Renfe', tram: 'TRAM' };
+
+/**
+ * An Alert as a card shows it: the Lines it's on of those the card asks about, in the card's order;
+ * its title, where it has one, and its words, each in one language, by its code, where its feed says;
+ * when it began, where it says; and whose words they are.
+ */
+export interface CardAlert {
+  id: string;
+  lines: string[];
+  header?: Words;
+  description?: Words;
+  from?: number;
+  by: string;
+}
+
+/**
+ * How long ago a feed's Alerts can have been read before a card says when, in ms: while a feed and the
+ * fetcher work, alerts.json says it read them no more than about 10 minutes ago, as TRAM's are read
+ * every 5 minutes into a file written every 5, and the page has the file up to 2 minutes after, by
+ * its cache and its minute; so 15, as #339's note on #342 has it.
+ */
+const STALE = 15 * 60_000;
+
+/**
+ * The Alerts a card shows, from alerts.json: a followed Train's, those on its Line; a board's, those
+ * on its place's Stations and on the Lines that call there. Newest first, whichever operator's they
+ * are, and last those that don't say when they began, as each feed has them. Each in `lang`, the
+ * viewer's language, where its feed has it, or else in the feed's own, its first (ADR-0012). And
+ * where it's over STALE before `now`, when the feed read longest ago of those whose Alerts it shows
+ * was read, all times in ms since 1970.
+ * ponytail: a card with no Alerts says nothing of a feed that has gone unread. Say when its feed was read
+ * there too if that's missed, once the page knows which feed has a Line's Alerts.
+ */
+export function cardAlerts(alerts: Alerts, { lines, stations }: { lines: string[]; stations: string[] }, lang: Language, now: number): { alerts: CardAlert[]; asOf?: number } {
+  const on = (alert: Alert) => alert.lines.some((line) => lines.includes(line)) || alert.stations.some((station) => stations.includes(station));
+  const inLang = (words: Words[]) => words.find((w) => w.language === lang) ?? words[0];
+  const shown = Object.entries(alerts).flatMap(([feed, { alerts }]) =>
+    alerts.filter(on).map(({ id, lines: named, header, description, from }): CardAlert => ({
+      id,
+      lines: lines.filter((line) => named.includes(line)),
+      ...(header && { header: inLang(header) }),
+      description: inLang(description),
+      from,
+      by: OPERATORS[feed] ?? feed,
+    })),
+  );
+  const read = Math.min(...Object.values(alerts).flatMap(({ read, alerts }) => (read !== undefined && alerts.some(on) ? [read] : [])));
+  return { alerts: shown.sort((a, b) => (b.from ?? 0) - (a.from ?? 0)), ...(now - read > STALE && { asOf: read }) };
 }
