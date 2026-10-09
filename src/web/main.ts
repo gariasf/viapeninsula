@@ -8,7 +8,7 @@ import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
 import { along, APART, atZoom, BANDS, bandZooms, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Credit, type Place, type DayTrips, type Kind, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, WIDTH } from '../bundle.ts';
 import { boardAt, joinDays, KEEP, mapTime, nearbyAt, trainAt, trainsAt, unavailable, type Departure, type Followed, type Received } from '../engine.ts';
-import { earlierStations, language, LANGUAGES, liveUnavailable, moreDepartures, moreStations, setLanguage, t, toGo, trainCounts, unlocated, type Language, type Unlocated } from './i18n.ts';
+import { basemapLabel, earlierStations, language, LANGUAGES, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, setLanguage, t, toGo, trainCounts, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { linesAt } from './tap.ts';
 import { alongside, namedTwice, nameOffset, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
@@ -324,15 +324,6 @@ const byLive = (live: string | number | ExpressionSpecification, scheduled: stri
   scheduled,
 ];
 
-/**
- * Whether the basemap names a feature in the viewer's language, where the tiles have it: countries,
- * regions, seas, rivers and airports, which are the features with an IATA code. Everything else it
- * labels, from towns and their districts to streets, goes by its own name, as its signs and Stations
- * have it: the tiles' Spanish names for Catalan towns are mostly old Castilian ones, such as Lérida
- * and Sardañola del Vallés.
- */
-const TRANSLATED: ExpressionSpecification = ['any', ['in', ['get', 'class'], ['literal', ['country', 'state', 'ocean', 'sea', 'river']]], ['has', 'iata']];
-
 /** Each licence a source's data can be under, with the link to its text that it asks for. */
 const LICENCES: Record<NonNullable<Credit['licence']>, string> = {
   'CC BY 4.0': '<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank">CC BY 4.0</a>',
@@ -380,8 +371,8 @@ map.setStyle(`https://tiles.openfreemap.org/styles/${darkBasemap ? 'dark' : 'pos
     // OpenFreeMap's credit ends "Data from OpenStreetMap", in English, and the ODbL asks for the
     // contributors, so showLanguage() credits the basemap itself, in the viewer's language.
     if (style.sources.openmaptiles) Object.assign(style.sources.openmaptiles, { attribution: '' });
-    // Its labels give each feature's English name, where the tiles have one. They give its own
-    // instead, or where it's TRANSLATED, its name in the language showLanguage() sets.
+    // Its labels give each feature's English name, where the tiles have one. They give basemapLabel()'s
+    // instead, by the language showLanguage() sets.
     style.state = { language: { default: language() } };
     for (const layer of style.layers) {
       if (layer.type !== 'symbol' || !layer.layout) continue;
@@ -392,7 +383,7 @@ map.setStyle(`https://tiles.openfreemap.org/styles/${darkBasemap ? 'dark' : 'pos
       const text = JSON.stringify(layer.layout['text-field']);
       if (!text?.includes('"name_en"')) continue;
       const own = JSON.parse(text.replaceAll('"name_en"', '"name"'));
-      layer.layout['text-field'] = ['case', TRANSLATED, ['coalesce', ['get', ['concat', 'name:', ['global-state', 'language']]], own], own];
+      layer.layout['text-field'] = basemapLabel(own);
     }
     return style;
   },
@@ -1998,12 +1989,12 @@ function stationName(station: string): string {
 
 /** A length in metres, in km to a tenth, as the viewer's language writes numbers. */
 function kilometres(metres: number): string {
-  return new Intl.NumberFormat(language(), { maximumFractionDigits: 1 }).format(metres / 1000);
+  return new Intl.NumberFormat(locale(), { maximumFractionDigits: 1 }).format(metres / 1000);
 }
 
 /** Formats times of day as the viewer's language does, in Barcelona. */
 function clock() {
-  return new Intl.DateTimeFormat(language(), { timeStyle: 'short', timeZone: 'Europe/Madrid' });
+  return new Intl.DateTimeFormat(locale(), { timeStyle: 'short', timeZone: 'Europe/Madrid' });
 }
 
 /** How long a number of ms is, to the second under a minute and to the minute after. */
@@ -2029,16 +2020,13 @@ function showBanner() {
 }
 
 /**
- * Fills the About dialog, in the viewer's language, as it opens: what the map shows and that its
- * positions are estimates; Reading the map, with the pills a Train is drawn as, Live and Scheduled,
- * and its outlines, drawn with the first of the map's Lines of each kind of outline; the credits
- * showCredits() lists there; the code and its licence; and privacy.
+ * Fills the About dialog, in the viewer's language, as it opens: in a machine-translated language, that
+ * it is (#327); what the map shows and that its positions are estimates; Reading the map, with the pills
+ * a Train is drawn as, Live and Scheduled, and its outlines, drawn with the first of the map's Lines of
+ * each kind of outline; the credits showCredits() lists there; the code and its licence; and privacy.
  */
 function showAbout() {
-  // ponytail: the link goes round Cloudflare Web Analytics where the sentence names it, as every language
-  // names it so. A language that words it otherwise needs a placeholder in its string instead.
-  const analytics = 'Cloudflare Web Analytics';
-  const [beforeAnalytics = '', afterAnalytics = ''] = t('visitsCounted').split(analytics);
+  const machineTranslated = MACHINE_TRANSLATED[language()];
   const [round, pointed, badge] = (['round', 'pointed', 'badge'] as const).map((outline) => [...pills].find(([, p]) => p.outline === outline)?.[0]);
   // On a phone, About's handle closes it, as dragging it down does: a pointer's, as its close button is the keyboard's.
   const aboutHandle = el('button', { type: 'button', className: 'handle', tabIndex: -1, onclick: () => about.close() }, el('span'));
@@ -2049,6 +2037,7 @@ function showAbout() {
     el(
       'div',
       { className: 'sheet-body' },
+      ...(machineTranslated ? [el('p', { className: 'subtitle' }, ...linked(machineTranslated, 'GitHub', 'https://github.com/gariasf/viapeninsula/issues'))] : []),
       el('p', { textContent: t('estimates') }),
       el('h3', { className: 'label', textContent: t('readingTheMap') }),
       el(
@@ -2071,16 +2060,20 @@ function showAbout() {
       ),
       el('h3', { className: 'label', textContent: t('privacy') }),
       el('p', { textContent: t('noCookies') }),
-      el(
-        'p',
-        {},
-        beforeAnalytics,
-        // Cloudflare's own pages on the data and metrics Web Analytics collects.
-        el('a', { href: 'https://developers.cloudflare.com/web-analytics/data-metrics/', target: '_blank', textContent: analytics }),
-        afterAnalytics,
-      ),
+      // Cloudflare's own pages on the data and metrics Web Analytics collects.
+      el('p', {}, ...linked(t('visitsCounted'), 'Cloudflare Web Analytics', 'https://developers.cloudflare.com/web-analytics/data-metrics/')),
     ),
   );
+}
+
+/**
+ * A sentence of About's, with a link to `href` round where it names `name`.
+ * ponytail: every language names it so, once, as tests check. A language that words it otherwise needs
+ * a placeholder in its string instead.
+ */
+function linked(text: string, name: string, href: string): (Node | string)[] {
+  const [before = '', after = ''] = text.split(name);
+  return [before, el('a', { href, target: '_blank', textContent: name }), after];
 }
 
 /** Credits the basemap and each Network's data, in the viewer's language: behind the © button on a phone, in a strip on a wide window, and in the About dialog. */
@@ -2104,7 +2097,7 @@ function creditOf({ text, url, licence, updated }: Credit): string {
   return (
     `<a href="${url}" target="_blank">${text}</a>` +
     (licence ? `, ${LICENCES[licence]}` : '') +
-    (updated ? `, ${t('updated')} ${new Intl.DateTimeFormat(language(), { dateStyle: 'medium', timeZone: 'UTC' }).format(Date.parse(updated))}` : '')
+    (updated ? `, ${t('updated')} ${new Intl.DateTimeFormat(locale(), { dateStyle: 'medium', timeZone: 'UTC' }).format(Date.parse(updated))}` : '')
   );
 }
 

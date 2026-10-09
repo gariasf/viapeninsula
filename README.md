@@ -29,7 +29,7 @@ npx wrangler r2 object get viapeninsula-live/snapshot.json --local -c src/fetche
 npx wrangler r2 object get viapeninsula-live/alerts.json --local -c src/fetcher/wrangler.jsonc --pipe
 ```
 
-The site speaks Catalan, Spanish and English. Every string it shows is in `src/web/i18n.ts`, in all three, except names: Stations and Lines are shown as the operators publish them, and the credits name their sources as those sources do. The basemap names countries, regions, seas, rivers and airports in the viewer's language, and everything else, from towns to streets, as its signs do.
+The site speaks Catalan, Spanish, Basque, Galician and English. Every string it shows is in `src/web/i18n.ts`, in all five, except names: Stations and Lines are shown as the operators publish them, and the credits name their sources as those sources do. The Basque and Galician are machine-translated, and About says so in each, linking GitHub for corrections, until a speaker has checked them (#327). Dates, times and numbers are written as the browser's `Intl` writes them in the viewer's language, or in Spanish where it has no data for that language, as Chrome has none for Basque or Galician. The basemap names countries, regions, seas, rivers and airports in the viewer's language, or in Spanish for Galician, which its tiles have no names in, and everything else, from towns to streets, as its signs do.
 
 ## Cloudflare setup
 
