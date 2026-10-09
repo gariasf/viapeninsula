@@ -120,19 +120,19 @@ test("reads the day's replacement buses, which Renfe lists as Trips of bus route
 /** Seconds into the service day at a time of it, such as 24:24. */
 const at = (time: string) => seconds(`${time}:00`);
 
-test('closes R13 between La Plana-Picamoixons and Lleida with buses, from the first bus either way to the last, though only buses call at the Stations between', () => {
-  const closures = closuresOf(closed.buses, closed.shapes, closed.stations, () => {});
-  expect(closures.filter((c) => c.line === 'rodalies:R13')).toEqual([
-    // Lleida-Pirineus at 04:48 to La Plana-Picamoixons, and back from 21:30 to 23:26.
-    { line: 'rodalies:R13', stations: ['adif:73100', 'adif:78400'], from: at('04:48'), to: at('23:26'), kind: 'buses' },
-  ]);
-});
-
 // The bundle's Stations: crop() leaves out La Tor de Querol, beyond Spain's border, where one of the buses ends.
 const inSpain = closed.stations.filter((s) => s.id !== 'adif:77310');
 
-test("closes R3 where its buses ran by Ripoll to Puigcerdà, up to Spain's border, where its Trains leave the map, and from the first Station on R3's track that a bus calls at", () => {
-  const closures = closuresOf(closed.buses, closed.shapes, inSpain, () => {});
+test("closes only the part of its buses' run that none of a Line's Trains runs that day: R13 between La Plana-Picamoixons and Les Borges Blanques, not on to Lleida, where its Trains shuttle from Les Borges Blanques, and none of R3's, whose buses run beside its Trains", () => {
+  const closures = closuresOf(closed.buses, closed.trips, closed.shapes, inSpain, () => {});
+  expect(closures).toEqual([
+    // Les Borges Blanques at 05:33 to La Plana-Picamoixons, and back from 21:30 to 22:41, though only buses call at the Stations between.
+    { line: 'rodalies:R13', stations: ['adif:73003', 'adif:73100'], from: at('05:33'), to: at('22:41'), kind: 'buses' },
+  ]);
+});
+
+test("closes the whole of each bus's run on its Line's track on a day none of the Line's Trains runs any of it, as Madrid's C8b buses from Villalba to Cercedilla on 10–12 Oct: R3's, had none of its Trains run, by Ripoll to Puigcerdà, up to Spain's border, where its Trains leave the map, and from the first Station on R3's track that a bus calls at", () => {
+  const closures = closuresOf(closed.buses, [], closed.shapes, inSpain, () => {});
   expect(closures.filter((c) => c.line === 'rodalies:R3')).toEqual([
     // Puigcerdà at 05:35 to Vic, Vic to La Tor de Querol, and Vic at 21:25 to Puigcerdà at 24:24.
     { line: 'rodalies:R3', stations: ['adif:77109', 'adif:77309'], from: at('05:35'), to: at('24:24'), kind: 'buses' },
@@ -145,13 +145,13 @@ test("closes R3 where its buses ran by Ripoll to Puigcerdà, up to Spain's borde
 
 test("reports and logs where R3's buses run off its track, from Fabra i Puig to La Garriga, where no R3 Train runs in the whole timetable, rather than make a Closure there, but not where they run on beyond Spain's border", () => {
   const [log, found]: [string[], Found[]] = [[], []];
-  closuresOf(closed.buses, closed.shapes, inSpain, (l) => log.push(l), (f) => found.push(f));
+  closuresOf(closed.buses, closed.trips, closed.shapes, inSpain, (l) => log.push(l), (f) => found.push(f));
   const fabra = { id: 'adif:78802', name: 'Barcelona Fabra i Puig', lon: 2.18332907, lat: 41.4303481 };
   const garriga = { id: 'adif:77102', name: 'La Garriga', lon: 2.28879559, lat: 41.6846272 };
   const text = ["rodalies:R3's buses Barcelona Fabra i Puig → La Garriga make no Closure: the Line has no track there"];
   expect(found).toEqual([
     { kind: 'bus', line: 'rodalies:R3', trip: 'rodalies:5178X87400R3', stations: [fabra, garriga], text },
-    // On to Centelles, with a Closure from La Garriga.
+    // On to Centelles, beside R3's Trains.
     { kind: 'bus', line: 'rodalies:R3', trip: 'rodalies:5178X88361R3', stations: [fabra, garriga], text },
   ]);
   // Once, however many buses run there.

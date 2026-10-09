@@ -79,23 +79,37 @@ export function placeTrips(
 
 /**
  * The Closures a day's replacement buses make (ADR-0012): each bus closes its Line, with buses in its
- * Trains' place, between the first and the last of its stops that are the Line's Stations on its
- * track, from its departure from the one to its arrival at the other. Buses over the same part, either
- * way, make one Closure, from the first bus to the last. The Line's Stations on its track are those
- * its Trains serve on any day (`shapes`), and a bus's calls at those beyond Spain's border, which
- * aren't the bundle's (`stations`), go, as its Trains leave the map there (crop()). Where a bus runs
- * off the Line's track, before its first such Station, after its last, or all its way, as R3's ran
- * from Fabra i Puig to La Garriga, where no R3 Train runs in the whole timetable, the map has no track
- * to draw that part on, and it's logged, once however many buses run there, and reported.
+ * Trains' place, only where none of the Line's Trains runs that day (`trips`). Its run on the Line's
+ * track, from the first to the last of its stops that are the Line's Stations on its track, is cut
+ * into parts at each of its stops between them that one of the Line's Trains calls at that day, and
+ * it closes each part that none of those Trains calls at both ends of, either way, whatever it calls
+ * at between them. So on 7 Oct 2026 R13's buses from Lleida to La Plana-Picamoixons close only Les
+ * Borges Blanques – La Plana-Picamoixons, as R13's Trains shuttle from Lleida to Les Borges Blanques,
+ * and R3's, which run beside R3's Trains, close nothing. A bus closes a part from its departure
+ * from the one Station to its arrival at the other, and buses over the same part, either way, make one
+ * Closure, from the first bus to the last. The Line's Stations on its track are those its Trains serve
+ * on any day (`shapes`), and a bus's calls at those beyond Spain's border, which aren't the bundle's
+ * (`stations`), go, as its Trains leave the map there (crop()). Where a bus runs off the Line's track,
+ * before its first such Station, after its last, or all its way, as R3's ran from Fabra i Puig to La
+ * Garriga, where no R3 Train runs in the whole timetable, the map has no track to draw that part on,
+ * and it's logged, once however many buses run there, and reported.
+ * ponytail: a part is run only where one Train calls at both its ends, so one whose Trains all pass
+ * one of its ends without calling, or that runs from one branch of a fork to another, is closed though
+ * Trains run it; none was on 7–12 Oct 2026. Check the part against where the Trains run along the
+ * track if one ever is.
  */
-export function closuresOf(buses: FeedBus[], shapes: FeedShape[], stations: Station[], log = console.log, report: (found: Found) => void = () => {}): Closure[] {
+export function closuresOf(buses: FeedBus[], trips: FeedTrip[], shapes: FeedShape[], stations: Station[], log = console.log, report: (found: Found) => void = () => {}): Closure[] {
   const inside = new Set(stations.map((s) => s.id));
   const own = new Map<string, Set<string>>();
   for (const s of shapes) own.set(s.line, new Set([...(own.get(s.line) ?? []), ...s.stations]));
+  const trains = new Map<string, Set<string>[]>(); // the Stations each of a Line's Trains calls at that day
+  for (const t of trips) trains.set(t.line, [...(trains.get(t.line) ?? []), new Set(t.calls.map((c) => c.station))]);
   const closures = new Map<string, Closure>();
   const logged = new Set<string>();
   for (const { id, line, calls: all } of buses) {
     const ours = own.get(line) ?? new Set();
+    // Whether one of the Line's Trains calls at each of these Stations that day.
+    const calledAt = (...at: string[]) => trains.get(line)?.some((t) => at.every((s) => t.has(s)));
     const calls = all.filter((c) => inside.has(c.station.id) || !ours.has(c.station.id));
     const on = calls.map((c) => ours.has(c.station.id));
     const [first, last] = [on.indexOf(true), on.lastIndexOf(true)];
@@ -108,12 +122,16 @@ export function closuresOf(buses: FeedBus[], shapes: FeedShape[], stations: Stat
       logged.add(text);
       report({ kind: 'bus', line, trip: id, stations: [start, end], text: [text] });
     }
-    const [a, b] = [calls[first], calls[last]];
-    if (!a || !b || first === last) continue;
-    const ends = [a.station.id, b.station.id].sort() as [string, string];
-    const key = `${line} ${ends.join(' ')}`;
-    const known = closures.get(key);
-    closures.set(key, { line, stations: ends, from: Math.min(a.departure, known?.from ?? Infinity), to: Math.max(b.arrival, known?.to ?? -Infinity), kind: 'buses' });
+    // Its run on the track, cut at the Stations the Line's Trains call at that day.
+    const cuts = calls.filter((c, i) => on[i] && (i === first || i === last || calledAt(c.station.id)));
+    for (const [i, b] of cuts.entries()) {
+      const a = cuts[i - 1];
+      if (!a || calledAt(a.station.id, b.station.id)) continue;
+      const ends = [a.station.id, b.station.id].sort() as [string, string];
+      const key = `${line} ${ends.join(' ')}`;
+      const known = closures.get(key);
+      closures.set(key, { line, stations: ends, from: Math.min(a.departure, known?.from ?? Infinity), to: Math.max(b.arrival, known?.to ?? -Infinity), kind: 'buses' });
+    }
   }
   return [...closures.values()];
 }
