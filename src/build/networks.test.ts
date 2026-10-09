@@ -6,8 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, expect, test, vi } from 'vitest';
 import { places } from '../bundle.ts';
 import { RODALIES, TRAM, type NetworkConfig } from '../networks.ts';
-import { dirSource, rows, zipFile, type Source } from './gtfs.ts';
-import { FGC_FEED, METRO_FEED, onFgcRails, onMetroRails, onRodaliesRails, readFeed, readTimetables, RODALIES_FEED, TRAMBAIX_FEED, type Feed } from './networks.ts';
+import { dirSource, rows, zipFile, zipSource, type Source } from './gtfs.ts';
+import { copyOf, FGC_FEED, METRO_FEED, onFgcRails, onMetroRails, onRodaliesRails, readFeed, readTimetables, RODALIES_FEED, TRAMBAIX_FEED, type Feed } from './networks.ts';
 import type { Found } from './report.ts';
 
 afterEach(() => {
@@ -315,6 +315,8 @@ test('builds a Network from its new timetables, and keeps them as its copy in pl
   await downloaded(PREFIX, 'R1', 'R2');
   expect(await readTimetables(NETWORK, undefined, read, (f) => found.push(f), cache)).toEqual({ lines: [['R1', 'R2']] });
   expect(found).toEqual([]);
+  // At copyOf(), where npm run snippet reads it.
+  expect(await names(zipSource(copyOf(NETWORK.timetables[0], cache)))).toEqual(['R1', 'R2']);
 
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   expect(await readTimetables(NETWORK, RENFE_499, read, () => {}, cache)).toEqual({ lines: [['R1', 'R2']] });
