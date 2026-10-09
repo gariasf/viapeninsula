@@ -8,7 +8,7 @@ import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
 import { along, APART, atZoom, BANDS, bandZooms, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Credit, type Place, type DayTrips, type Kind, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, WIDTH } from '../bundle.ts';
 import { boardAt, joinDays, KEEP, mapTime, nearbyAt, trainAt, trainsAt, unavailable, type Departure, type Followed, type Received } from '../engine.ts';
-import { earlierStations, language, LANGUAGES, liveUnavailable, moreDepartures, moreStations, setLanguage, t, toGo, trainCounts, type Language } from './i18n.ts';
+import { earlierStations, language, LANGUAGES, liveUnavailable, moreDepartures, moreStations, setLanguage, t, toGo, trainCounts, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { linesAt } from './tap.ts';
 import { alongside, namedTwice, nameOffset, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
@@ -518,9 +518,11 @@ let boardPlace: string | undefined;
 let emptyBoard: string | undefined;
 /**
  * Where the viewer is, while the panel shows their nearby Trains instead, or that the browser is
- * still finding out, or couldn't. It's never sent anywhere, nor put in the page's link.
+ * still finding out, or why it couldn't (unlocated()). It's never sent anywhere, nor put in the page's link.
  */
-let nearMe: Point | 'locating' | 'failed' | undefined;
+let nearMe: Point | Unlocated | undefined;
+/** How many times Nearby has asked the browser where the viewer is, so that only the last ask's answer shows (locate()). */
+let asks = 0;
 /** When the panel was last filled, by performance.now(). */
 let panelShown = 0;
 /** When the legend's count was last filled, by performance.now(). */
@@ -1405,16 +1407,42 @@ function showNearby() {
   openPanel(true);
   writeLink();
   map.easeTo({ padding: panelPadding() });
-  // A position or failure that comes after the viewer has moved on to something else is dropped.
-  const found = (where: Point | 'failed') => {
-    if (!nearMe) return;
+  locate();
+}
+
+/** Nearby's Try again: asks the browser again where the viewer is, as Nearby's button does, saying meanwhile that it's finding out, under which the button stays, and the keyboard's focus on it (#324). */
+function askAgain() {
+  nearMe = 'retrying';
+  showPanel();
+  locate();
+}
+
+/**
+ * Asks the browser where the viewer is, for their nearby Trains. A position or failure that comes
+ * after the viewer has moved on to something else, or asked again, is dropped. A failure shows half
+ * a second after asking at the soonest: a refusal can come straight back, and the panel would say
+ * what it said before, too soon for the eye or a screen reader to tell that the browser was asked (#324).
+ */
+function locate() {
+  const [asked, ask] = [performance.now(), ++asks];
+  const found = (where: Point | Unlocated) => {
+    if (!nearMe || ask !== asks) return;
+    const focused = document.activeElement;
     nearMe = where;
     showPanel();
+    // A try that finds the viewer takes Try again away, and with it the keyboard's focus, which goes to the panel's title rather than the page.
+    if (focused?.isConnected === false) panel.querySelector<HTMLElement>('.title')?.focus();
     map.easeTo({ padding: panelPadding() });
   };
+  const failed = (why: Unlocated) => setTimeout(() => found(why), asked + 500 - performance.now());
   // Some browsers have no geolocation at all, as over plain http.
-  if (!('geolocation' in navigator)) return found('failed');
-  navigator.geolocation.getCurrentPosition(({ coords }) => found([coords.longitude, coords.latitude]), () => found('failed'), { maximumAge: 60_000, timeout: 30_000 });
+  if (!('geolocation' in navigator)) return failed('unsupported');
+  // A refusal is told from a timeout or no fix by its error's code alone.
+  navigator.geolocation.getCurrentPosition(
+    ({ coords }) => found([coords.longitude, coords.latitude]),
+    (error) => failed(error.code === error.PERMISSION_DENIED ? 'refused' : 'failed'),
+    { maximumAge: 60_000, timeout: 30_000 },
+  );
 }
 
 /** Stops following a Train, or closes a Station's board or the nearby Trains. */
@@ -1819,45 +1847,61 @@ function countdown(at: number, now: number, phrase: 'minutes' | 'inMinutes'): No
  * The viewer's nearby Trains: a row for each Line and destination that passes within NEARBY of them
  * within SOON, soonest first, with its next Train's pill and its Delay but for a Metro Train's, and
  * its next passes in minutes to go, a Live one's bold (nearbyRows()). Peeking, the first PEEK rows.
+ * Until the browser says where the viewer is, what it says instead, and Try again where it follows
+ * (unlocated()). What it says first is a status, which a screen reader hears each time it changes, as
+ * each try of the browser's ends, and which patch() keeps in place, as it does Try again (#324).
  */
-function nearbyPanel(near: Point | 'locating' | 'failed', up: boolean): Panel {
-  const header = el('header', {}, el('h2', { className: 'title', textContent: t('nearby') }), closeButton(t('closeNearby')));
-  if (near === 'locating') return { header, body: [el('p', { textContent: t('locating') })] };
-  if (near === 'failed') return { header, body: [el('p', { textContent: t('noLocation') })] };
+function nearbyPanel(near: Point | Unlocated, up: boolean): Panel {
+  // The title takes the keyboard's focus as a Try again gives way to what the try found (locate()).
+  const header = el('header', {}, el('h2', { className: 'title', textContent: t('nearby'), tabIndex: -1 }), closeButton(t('closeNearby')));
+  const said = el('div');
+  said.setAttribute('role', 'status');
+  if (typeof near === 'string') {
+    const { says, tryAgain } = unlocated(near);
+    said.append(...says.map((line) => el('p', { textContent: line })));
+    return { header, body: [said, ...(tryAgain ? [el('button', { type: 'button', className: 'card try-again', onclick: askAgain }, tryAgain)] : [])] };
+  }
   const now = Date.now();
   const rows = nearbyRows(bundle ? nearbyAt(bundle, now, received, near, NEARBY, SOON) : [], now);
+  said.append(el('p', { className: 'subtitle', textContent: t('passingNearby') }));
+  // Where no Train passes, saying so is what a try found too, so the status says it, for a screen reader to
+  // hear; but only once the Trips have come, which can be after the viewer is found, as the map can't tell before.
+  // ponytail: a screen reader hears the status again whenever a refresh empties the list, and maybe its
+  // heading alone as the list fills; keep the status to what the try found if that's too chatty.
+  if (!rows.length) {
+    if (bundle) said.append(el('p', { textContent: t('noneNearby') }));
+    return { header, body: [said] };
+  }
   return {
     header,
     body: [
-      el('p', { className: 'subtitle', textContent: t('passingNearby') }),
-      rows.length
-        ? el(
-            'ol',
-            { className: 'rows groups' },
-            ...(up ? rows : rows.slice(0, PEEK)).map(({ next, passes }) =>
+      said,
+      el(
+        'ol',
+        { className: 'rows groups' },
+        ...(up ? rows : rows.slice(0, PEEK)).map(({ next, passes }) =>
+          el(
+            'li',
+            {},
+            pill(next.trip.line, { live: next.live, train: true }),
+            el('span', { className: 'dest', textContent: next.trip.headsign }),
+            el(
+              'span',
+              { className: 'when' },
               el(
-                'li',
-                {},
-                pill(next.trip.line, { live: next.live, train: true }),
-                el('span', { className: 'dest', textContent: next.trip.headsign }),
-                el(
-                  'span',
-                  { className: 'when' },
-                  el(
-                    'span',
-                    { className: 'times' },
-                    // now · 3 · 9 min
-                    ...passes.flatMap(({ minutes, live }, i) => [
-                      ...(i ? [' · '] : []),
-                      el('span', { className: live ? 'live' : 'soft', textContent: i === passes.length - 1 ? toGo(minutes, 'minutes') : minutes ? String(minutes) : t('now') }),
-                    ]),
-                  ),
-                  delayChip(next.delay) ?? '',
-                ),
+                'span',
+                { className: 'times' },
+                // now · 3 · 9 min
+                ...passes.flatMap(({ minutes, live }, i) => [
+                  ...(i ? [' · '] : []),
+                  el('span', { className: live ? 'live' : 'soft', textContent: i === passes.length - 1 ? toGo(minutes, 'minutes') : minutes ? String(minutes) : t('now') }),
+                ]),
               ),
+              delayChip(next.delay) ?? '',
             ),
-          )
-        : el('p', { textContent: t('noneNearby') }),
+          ),
+        ),
+      ),
     ],
   };
 }

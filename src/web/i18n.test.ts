@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { earlierStations, LANGUAGES, type Language, liveUnavailable, moreDepartures, moreStations, pickLanguage, t, toGo, trainCounts } from './i18n.ts';
+import { earlierStations, LANGUAGES, type Language, liveUnavailable, moreDepartures, moreStations, pickLanguage, t, toGo, trainCounts, unlocated } from './i18n.ts';
 
 test("speaks the first of the browser's languages it knows, whatever the region, and English when it knows none", () => {
   expect(pickLanguage(null, ['ca-ES', 'es-ES', 'en'])).toBe('ca');
@@ -121,6 +121,36 @@ test('says at the foot of a peeking board how many departures more it has, in ea
   expect(moreDepartures(1, 'ca')).toBe('1 sortida més');
   expect(moreDepartures(1, 'es')).toBe('1 salida más');
   expect(moreDepartures(1, 'en')).toBe('1 more departure');
+});
+
+test("says in Nearby that the browser isn't sharing the viewer's location where they refused it, and how to allow it, with Try again, in each language", () => {
+  expect(unlocated('refused', 'ca')).toEqual({
+    says: ['El navegador no comparteix la teva ubicació amb aquest mapa', 'Per veure els trens a prop, permet la ubicació per a aquest lloc a la configuració del navegador i torna-ho a provar'],
+    tryAgain: 'Torna-ho a provar',
+  });
+  expect(unlocated('refused', 'es')).toEqual({
+    says: ['El navegador no comparte tu ubicación con este mapa', 'Para ver los trenes cercanos, permite la ubicación para este sitio en la configuración del navegador y vuelve a intentarlo'],
+    tryAgain: 'Volver a intentarlo',
+  });
+  expect(unlocated('refused', 'en')).toEqual({
+    says: ["Your browser isn't sharing your location with this map", "To see nearby trains, allow location for this site in your browser's settings, then try again"],
+    tryAgain: 'Try again',
+  });
+});
+
+test("says in Nearby, as ever, that the viewer's location isn't available where the browser had no fix in time, with Try again", () => {
+  expect(unlocated('failed', 'ca')).toEqual({ says: ["No s'ha pogut saber on ets, així que no es poden mostrar els trens a prop"], tryAgain: 'Torna-ho a provar' });
+  expect(unlocated('failed', 'es')).toEqual({ says: ['No se ha podido saber dónde estás, así que no se pueden mostrar los trenes cercanos'], tryAgain: 'Volver a intentarlo' });
+  expect(unlocated('failed', 'en')).toEqual({ says: ["Your location isn't available, so nearby trains can't be shown"], tryAgain: 'Try again' });
+});
+
+test("says in Nearby, as ever, that the viewer's location isn't available where the browser has no geolocation at all, with no Try again", () => {
+  expect(unlocated('unsupported', 'en')).toEqual({ says: ["Your location isn't available, so nearby trains can't be shown"] });
+});
+
+test("says in Nearby that it's finding where the viewer is, keeping Try again while it asks again, where the keyboard's focus may be", () => {
+  expect(unlocated('locating', 'en')).toEqual({ says: ['Finding where you are…'] });
+  expect(unlocated('retrying', 'en')).toEqual({ says: ['Finding where you are…'], tryAgain: 'Try again' });
 });
 
 test("says in the banner's short form that a Network's live data is unavailable, in each language", () => {
