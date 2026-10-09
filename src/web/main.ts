@@ -521,6 +521,8 @@ let emptyBoard: string | undefined;
  * still finding out, or why it couldn't (unlocated()). It's never sent anywhere, nor put in the page's link.
  */
 let nearMe: Point | Unlocated | undefined;
+/** How many times Nearby has asked the browser where the viewer is, so that only the last ask's answer shows (locate()). */
+let asks = 0;
 /** When the panel was last filled, by performance.now(). */
 let panelShown = 0;
 /** When the legend's count was last filled, by performance.now(). */
@@ -1417,14 +1419,14 @@ function askAgain() {
 
 /**
  * Asks the browser where the viewer is, for their nearby Trains. A position or failure that comes
- * after the viewer has moved on to something else is dropped. A failure shows half a second after
- * asking at the soonest: a refusal can come straight back, and the panel would say what it said
- * before, too soon for the eye or a screen reader to tell that the browser was asked (#324).
+ * after the viewer has moved on to something else, or asked again, is dropped. A failure shows half
+ * a second after asking at the soonest: a refusal can come straight back, and the panel would say
+ * what it said before, too soon for the eye or a screen reader to tell that the browser was asked (#324).
  */
 function locate() {
-  const asked = performance.now();
+  const [asked, ask] = [performance.now(), ++asks];
   const found = (where: Point | Unlocated) => {
-    if (!nearMe) return;
+    if (!nearMe || ask !== asks) return;
     nearMe = where;
     showPanel();
     map.easeTo({ padding: panelPadding() });
