@@ -1860,38 +1860,43 @@ function nearbyPanel(near: Point | Unlocated, up: boolean): Panel {
   const now = Date.now();
   const rows = nearbyRows(bundle ? nearbyAt(bundle, now, received, near, NEARBY, SOON) : [], now);
   said.append(el('p', { className: 'subtitle', textContent: t('passingNearby') }));
+  // Where no Train passes, saying so is what a try found too, so the status says it, for a screen reader to hear.
+  // ponytail: a screen reader hears it again whenever a refresh empties the list; keep the status to
+  // what the try found if that's too chatty.
+  if (!rows.length) {
+    said.append(el('p', { textContent: t('noneNearby') }));
+    return { header, body: [said] };
+  }
   return {
     header,
     body: [
       said,
-      rows.length
-        ? el(
-            'ol',
-            { className: 'rows groups' },
-            ...(up ? rows : rows.slice(0, PEEK)).map(({ next, passes }) =>
+      el(
+        'ol',
+        { className: 'rows groups' },
+        ...(up ? rows : rows.slice(0, PEEK)).map(({ next, passes }) =>
+          el(
+            'li',
+            {},
+            pill(next.trip.line, { live: next.live, train: true }),
+            el('span', { className: 'dest', textContent: next.trip.headsign }),
+            el(
+              'span',
+              { className: 'when' },
               el(
-                'li',
-                {},
-                pill(next.trip.line, { live: next.live, train: true }),
-                el('span', { className: 'dest', textContent: next.trip.headsign }),
-                el(
-                  'span',
-                  { className: 'when' },
-                  el(
-                    'span',
-                    { className: 'times' },
-                    // now · 3 · 9 min
-                    ...passes.flatMap(({ minutes, live }, i) => [
-                      ...(i ? [' · '] : []),
-                      el('span', { className: live ? 'live' : 'soft', textContent: i === passes.length - 1 ? toGo(minutes, 'minutes') : minutes ? String(minutes) : t('now') }),
-                    ]),
-                  ),
-                  delayChip(next.delay) ?? '',
-                ),
+                'span',
+                { className: 'times' },
+                // now · 3 · 9 min
+                ...passes.flatMap(({ minutes, live }, i) => [
+                  ...(i ? [' · '] : []),
+                  el('span', { className: live ? 'live' : 'soft', textContent: i === passes.length - 1 ? toGo(minutes, 'minutes') : minutes ? String(minutes) : t('now') }),
+                ]),
               ),
+              delayChip(next.delay) ?? '',
             ),
-          )
-        : el('p', { textContent: t('noneNearby') }),
+          ),
+        ),
+      ),
     ],
   };
 }
