@@ -96,70 +96,80 @@ const recorded = (file: string) => ({ status: 200, body: { text: readFileSync(ne
 const READ = Date.parse('2026-10-07T12:35:22+02:00');
 const ALERTS = readAlerts(ALERTS_START, { renfe: { alerts: recorded('renfe.json') }, tram: { 'TBX GtfsRealtimeAlerts': recorded('tram-tbx.json'), 'TBS GtfsRealtimeAlerts': recorded('tram-tbs.json') } }, READ).file ?? {};
 
-/** The Stations each Line's Trips call at, some of them, as the bundle of 7 Oct names them: T6's only at Can Jaumandreu of the two, as TRAM's timetable leaves out Glòries – Can Jaumandreu. */
-const CALLING: Record<string, { id: string; name: string }[]> = {
-  'rodalies:R1': R1,
-  'rodalies:R2': [
-    { id: 'adif:71600', name: 'Sant Vicenç de Calders' },
-    { id: 'adif:71603', name: 'Cunit' },
+/**
+ * 7 Oct's service day, with no Closures of its own: Rodalies' and TRAM's Lines the Alerts name, and
+ * some of their Stations, by the Networks whose Trains stop there, as the bundle names them.
+ */
+const DAY = {
+  noonMinus12h: Date.parse('2026-10-07T00:00:00+02:00'),
+  closures: [],
+  lines: [
+    ...['R1', 'R2', 'R2S', 'R3', 'R4', 'R8', 'R13'].map((name) => ({ id: `rodalies:${name}`, network: 'rodalies' })),
+    ...['T1', 'T2', 'T3', 'T5', 'T6'].map((name) => ({ id: `tram:${name}`, network: 'tram' })),
   ],
-  'rodalies:R2S': [
-    { id: 'adif:71600', name: 'Sant Vicenç de Calders' },
-    { id: 'adif:71603', name: 'Cunit' },
-    { id: 'adif:79400', name: 'Barcelona Estació de França' },
+  stations: [
+    ...[
+      ...R1,
+      { id: 'adif:71600', name: 'Sant Vicenç de Calders' },
+      { id: 'adif:71603', name: 'Cunit' },
+      { id: 'adif:79400', name: 'Barcelona Estació de França' },
+      { id: 'adif:77102', name: 'La Garriga' },
+      { id: 'adif:77200', name: 'Ripoll' },
+      { id: 'adif:77309', name: 'Puigcerdà' },
+      { id: 'adif:78806', name: 'Fabra i Puig' },
+      { id: 'adif:73100', name: 'La Plana-Picamoixons' },
+      { id: 'adif:73003', name: 'Les Borges Blanques' },
+    ].map((s) => ({ ...s, networks: ['rodalies'] })),
+    ...[
+      { id: 'tram:ST-172', name: 'Francesc Macià' },
+      { id: 'tram:ST-188', name: 'Montesa' },
+      { id: 'tram:ST-206', name: 'Glòries' },
+      { id: 'tram:ST-208', name: 'Can Jaumandreu' },
+    ].map((s) => ({ ...s, networks: ['tram'] })),
+    // The Metro's Glòries, another Network's.
+    { id: 'tmb:1.130', name: 'Glòries', networks: ['metro'] },
   ],
-  'rodalies:R3': [
-    { id: 'adif:77102', name: 'La Garriga' },
-    { id: 'adif:77200', name: 'Ripoll' },
-    { id: 'adif:77309', name: 'Puigcerdà' },
-  ],
-  'rodalies:R13': [
-    { id: 'adif:73100', name: 'La Plana-Picamoixons' },
-    { id: 'adif:73003', name: 'Les Borges Blanques' },
-  ],
-  ...Object.fromEntries(['T1', 'T2', 'T3'].map((name) => [`tram:${name}`, [{ id: 'tram:ST-172', name: 'Francesc Macià' }, { id: 'tram:ST-188', name: 'Montesa' }]])),
-  'tram:T5': [
-    { id: 'tram:ST-206', name: 'Glòries' },
-    { id: 'tram:ST-208', name: 'Can Jaumandreu' },
-  ],
-  'tram:T6': [{ id: 'tram:ST-208', name: 'Can Jaumandreu' }],
 };
-const calling = (line: string) => CALLING[line] ?? [];
-/** 7 Oct's service day, with no Closures of its own. */
-const DAY = { noonMinus12h: Date.parse('2026-10-07T00:00:00+02:00'), closures: [] };
 
-test("on 7 Oct, closes R1 Blanes – Maçanet-Massanes and R3 Ripoll – Puigcerdà, R2 Sant Vicenç de Calders – Cunit to a single track, and TRAM's T1–T3 Francesc Macià – Montesa and T5 Glòries – Can Jaumandreu, from their Alerts, newest first", () => {
+test("on 7 Oct, closes R1 Blanes – Maçanet-Massanes and R3 Ripoll – Puigcerdà, R2 Sant Vicenç de Calders – Cunit to a single track, and TRAM's T1–T3 Francesc Macià – Montesa and T5–T6 Glòries – Can Jaumandreu, from their Alerts, newest first", () => {
   const renfe = (id: string, from: string) => ({ alert: { feed: 'renfe', id }, from: Date.parse(`2026-10-07T${from}:00+02:00`) });
   const sc280 = { alert: { feed: 'tram', id: 'sc-280' }, from: Date.parse('2026-10-01T07:00:05+02:00') };
-  expect(closuresAt(ALERTS, DAY, calling, READ)).toEqual([
+  const sc279 = { alert: { feed: 'tram', id: 'sc-279' }, from: Date.parse('2026-10-01T02:05:27+02:00') };
+  expect(closuresAt(ALERTS, DAY, READ)).toEqual([
     { line: 'rodalies:R3', stations: ['adif:77200', 'adif:77309'], kind: 'closed', ...renfe('AVISO_518337', '09:23') },
     { line: 'rodalies:R1', stations: ['adif:79606', 'adif:79200'], kind: 'closed', ...renfe('AVISO_518348', '08:38') },
     { line: 'rodalies:R2', stations: ['adif:71600', 'adif:71603'], kind: 'single', ...renfe('AVISO_518332', '08:30') },
     ...['T2', 'T3', 'T1'].map((name) => ({ line: `tram:${name}`, stations: ['tram:ST-172', 'tram:ST-188'], kind: 'closed', ...sc280 })),
-    { line: 'tram:T5', stations: ['tram:ST-206', 'tram:ST-208'], kind: 'closed', alert: { feed: 'tram', id: 'sc-279' }, from: Date.parse('2026-10-01T02:05:27+02:00') },
+    ...['T5', 'T6'].map((name) => ({ line: `tram:${name}`, stations: ['tram:ST-206', 'tram:ST-208'], kind: 'closed', ...sc279 })),
   ]);
 });
 
+test("reads an Alert's words against the Stations of its Lines' Networks, and not another Network's of the same name, as the Metro's Glòries", () => {
+  const lines = closuresAt(ALERTS, { ...DAY, stations: DAY.stations.filter((s) => s.id !== 'tram:ST-206') }, READ).map((c) => c.line);
+  expect(lines).toEqual(['rodalies:R3', 'rodalies:R1', 'rodalies:R2', 'tram:T2', 'tram:T3', 'tram:T1']);
+});
+
 test("shows a Closure within its Alert's active period: TRAM's from their start to their end, and Renfe's, which have no end, while they're in the file", () => {
-  const lines = (now: string) => closuresAt(ALERTS, DAY, calling, Date.parse(now)).map((c) => c.line);
+  const lines = (now: string) => closuresAt(ALERTS, DAY, Date.parse(now)).map((c) => c.line);
   // sc-280's period ends at 01:00:05 on 13 Oct; sc-279's runs to 30 April 2027.
-  expect(lines('2026-10-13T01:00:05+02:00')).toEqual(['rodalies:R3', 'rodalies:R1', 'rodalies:R2', 'tram:T2', 'tram:T3', 'tram:T1', 'tram:T5']);
-  expect(lines('2027-01-13T01:00:06+01:00')).toEqual(['rodalies:R3', 'rodalies:R1', 'rodalies:R2', 'tram:T5']);
+  expect(lines('2026-10-13T01:00:05+02:00')).toEqual(['rodalies:R3', 'rodalies:R1', 'rodalies:R2', 'tram:T2', 'tram:T3', 'tram:T1', 'tram:T5', 'tram:T6']);
+  expect(lines('2027-01-13T01:00:06+01:00')).toEqual(['rodalies:R3', 'rodalies:R1', 'rodalies:R2', 'tram:T5', 'tram:T6']);
   // sc-279's begins at 02:05:27 on 1 Oct, and AVISO_518332 at 08:30 on 7 Oct.
   expect(lines('2026-10-01T02:05:26+02:00')).toEqual([]);
-  expect(lines('2026-10-07T08:30:00+02:00')).toEqual(['rodalies:R2', 'tram:T2', 'tram:T3', 'tram:T1', 'tram:T5']);
+  expect(lines('2026-10-07T08:30:00+02:00')).toEqual(['rodalies:R2', 'tram:T2', 'tram:T3', 'tram:T1', 'tram:T5', 'tram:T6']);
 });
 
 test("shows the timetable's Closures on their day from the first bus to the last, and a part an Alert closes too once, with the Alert's words", () => {
   // 9 Oct's: R13's, from 05:33 to 22:41, and made up, one of R3's between Ripoll and Puigcerdà, which AVISO_518337 closes too.
   const day = {
+    ...DAY,
     noonMinus12h: Date.parse('2026-10-09T00:00:00+02:00'),
     closures: [
       { line: 'rodalies:R13', stations: ['adif:73003', 'adif:73100'] as [string, string], from: 19980, to: 81660, kind: 'buses' as const },
       { line: 'rodalies:R3', stations: ['adif:77200', 'adif:77309'] as [string, string], from: 18000, to: 88680, kind: 'buses' as const },
     ],
   };
-  const at = (time: string) => closuresAt(ALERTS, day, calling, Date.parse(`2026-10-09T${time}+02:00`)).filter((c) => c.line === 'rodalies:R13' || c.line === 'rodalies:R3');
+  const at = (time: string) => closuresAt(ALERTS, day, Date.parse(`2026-10-09T${time}+02:00`)).filter((c) => c.line === 'rodalies:R13' || c.line === 'rodalies:R3');
   expect(at('05:32:59')).toEqual([{ line: 'rodalies:R3', stations: ['adif:77200', 'adif:77309'], kind: 'closed', alert: { feed: 'renfe', id: 'AVISO_518337' }, from: Date.parse('2026-10-07T09:23:00+02:00') }]);
   expect(at('05:33:00').map((c) => [c.line, c.alert?.id])).toEqual([
     ['rodalies:R3', 'AVISO_518337'],
@@ -168,12 +178,12 @@ test("shows the timetable's Closures on their day from the first bus to the last
   expect(at('22:41:00')[1]).toEqual({ line: 'rodalies:R13', stations: ['adif:73003', 'adif:73100'], kind: 'closed', from: Date.parse('2026-10-09T05:33:00+02:00') });
   expect(at('22:41:01').map((c) => c.line)).toEqual(['rodalies:R3']);
   // Without the Alert, the timetable's own, until its last bus, past midnight.
-  const timetable = closuresAt({}, day, calling, Date.parse('2026-10-10T00:38:00+02:00'));
+  const timetable = closuresAt({}, day, Date.parse('2026-10-10T00:38:00+02:00'));
   expect(timetable).toEqual([{ line: 'rodalies:R3', stations: ['adif:77200', 'adif:77309'], kind: 'closed', from: Date.parse('2026-10-09T05:00:00+02:00') }]);
 });
 
 test('a day file built before #340 has no Closures', () => {
-  expect(closuresAt({}, { noonMinus12h: DAY.noonMinus12h }, calling, READ)).toEqual([]);
+  expect(closuresAt({}, { ...DAY, closures: undefined }, READ)).toEqual([]);
 });
 
 /** A shape through points given in metres east and north of 0°, 0°, as a degree is DEGREE metres there both ways. */

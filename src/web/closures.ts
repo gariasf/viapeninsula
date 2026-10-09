@@ -1,5 +1,5 @@
 // The Closures the map draws (#341, ADR-0012): read from an Alert's words, or the timetable's (#340), and where.
-import { BANDS, closestOnSegment, DEGREE, drawnIn, NEXT, pieces, slotAt, type Alerts, type Bundle, type Point, type Shape, type Slot, type Stroke, type Zone } from '../bundle.ts';
+import { BANDS, closestOnSegment, DEGREE, drawnIn, NEXT, pieces, slotAt, type Alerts, type Bundle, type Line, type Point, type Shape, type Slot, type Station, type Stroke, type Zone } from '../bundle.ts';
 
 /** How far from a shape, in metres, a Station can be and lie on it, as the build has a Trip's calls (src/build/trips.ts). */
 const REACH = 300;
@@ -102,24 +102,34 @@ export const closureKey = ({ line, stations }: Pick<Shown, 'line' | 'stations'>)
  * The Closures the map draws at `now` (ms since 1970), one for each part of a Line (ADR-0012). From
  * the Alerts in alerts.json within their active period, as each feed gives it, so Renfe's while
  * they're in the file, as theirs have no end: the stretches each Alert's words, in its feed's own
- * language, say are closed or down to a single track, on each of its Lines whose Trips call at both
- * Stations, by the Stations `calling` says each Line's Trips call at. Then the timetable's of the
- * service day, from its first bus to its last (#340). The Alerts' first, newest first: where an
- * Alert and the timetable, or two Alerts, close one part, it's drawn once, with the first's words.
+ * language, say are closed or down to a single track, read against the Stations of its Lines'
+ * Networks, on each of its Lines, which the Line's track then places, or leaves to words where it
+ * doesn't run by both (placeOn()): not against those its Trips call at that day, which a closure can
+ * cut short. Then the timetable's of the service day, from its first bus to its last (#340). The
+ * Alerts' first, newest first: where an Alert and the timetable, or two Alerts, close one part, it's
+ * drawn once, with the first's words.
  */
-export function closuresAt(alerts: Alerts, day: Pick<Bundle, 'noonMinus12h' | 'closures'>, calling: (line: string) => { id: string; name: string }[], now: number): Shown[] {
+export function closuresAt(
+  alerts: Alerts,
+  day: Pick<Bundle, 'noonMinus12h' | 'closures'> & { lines: Pick<Line, 'id' | 'network'>[]; stations: Pick<Station, 'id' | 'name' | 'networks'>[] },
+  now: number,
+): Shown[] {
   const found = new Map<string, Shown>();
   const add = (shown: Shown) => {
     if (!found.has(closureKey(shown))) found.set(closureKey(shown), shown);
   };
+  const network = new Map(day.lines.map((l) => [l.id, l.network]));
+  const ofNetwork = new Map<string, Pick<Station, 'id' | 'name'>[]>();
+  for (const s of day.stations) for (const n of s.networks ?? []) ofNetwork.set(n, [...(ofNetwork.get(n) ?? []), s]);
+  const stationsOf = (line: string) => ofNetwork.get(network.get(line) ?? '') ?? [];
   const live = Object.entries(alerts).flatMap(([feed, { alerts }]) => alerts.map((alert) => ({ feed, alert })));
   for (const { feed, alert } of live.sort((a, b) => (b.alert.from ?? 0) - (a.alert.from ?? 0))) {
     if ((alert.from ?? -Infinity) > now || now > (alert.to ?? Infinity)) continue;
-    const stations = [...new Map(alert.lines.flatMap(calling).map((s) => [s.id, s])).values()];
+    const stations = [...new Map(alert.lines.flatMap(stationsOf).map((s) => [s.id, s])).values()];
     for (const { stations: ends, says } of stretchesIn(alert.description[0]?.text ?? '', stations)) {
       if (says !== 'closed' && says !== 'single') continue;
       for (const line of alert.lines) {
-        const ids = new Set(calling(line).map((s) => s.id));
+        const ids = new Set(stationsOf(line).map((s) => s.id));
         if (ends.every((s) => ids.has(s))) add({ line, stations: ends, kind: says, alert: { feed, id: alert.id }, ...(alert.from !== undefined && { from: alert.from }) });
       }
     }

@@ -643,8 +643,6 @@ let shownPlaces = new Map<string, Place>();
 let placing = { shapes: new Map<string, Shape>(), slots: new Map<string, Slot[]>(), curves: new Map<string, Zone[]>(), keep: new Map<string, number>(), closures: new Map<string, [GeoJSON.Feature[], GeoJSON.Feature[]]>() };
 /** The Closures the map shows now (closuresAt()), which a tap on one names. */
 let shownClosures: Shown[] = [];
-/** The Stations each Line's Trips call at, by the Line's ID, with their names, for the days on the map then: the Stations an Alert's words are read against (closuresAt()). */
-let calling: { days?: Bundle; lines: Map<string, { id: string; name: string }[]> } = { lines: new Map() };
 /** The Lines' strokes along their Stretches, which a tap on one names (linesAt()). */
 let shownStrokes: Stroke[] = [];
 /** Each Network's track, drawn once zoomed out (#190), which the banner goes by for a Network with no Trips today (bannerNetworks()). */
@@ -1169,7 +1167,7 @@ function show(days: Track | Bundle) {
  * each goes is worked out once for the track on the map.
  */
 function showClosures() {
-  shownClosures = bundle ? closuresAt(alerts, bundle, callingAt, mapTime(Date.now(), received)) : [];
+  shownClosures = bundle ? closuresAt(alerts, bundle, mapTime(Date.now(), received)) : [];
   const drawn = shownClosures.map((closure) => {
     const key = closureKey(closure);
     const features = placing.closures.get(key) ?? placeClosure(closure);
@@ -1203,16 +1201,6 @@ function placeClosure({ line: id, stations }: Shown): [GeoJSON.Feature[], GeoJSO
       return shape ? [feature(rounded(along(shape, from, to)), { side: 0 })] : [];
     }),
   ];
-}
-
-/** The Stations a Line's Trips call at in the days on the map, with their names (`calling`). */
-function callingAt(line: string): { id: string; name: string }[] {
-  if (calling.days !== bundle) {
-    const at = new Map<string, Set<string>>();
-    for (const trip of bundle?.trips ?? []) for (const call of trip.calls) at.set(trip.line, (at.get(trip.line) ?? new Set()).add(call.station));
-    calling = { days: bundle, lines: new Map([...at].map(([l, ids]) => [l, [...ids].map((station) => ({ id: station, name: stationName(station) }))])) };
-  }
-  return calling.lines.get(line) ?? [];
 }
 
 /**
