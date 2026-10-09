@@ -11,12 +11,14 @@ test("speaks the first of the browser's languages it knows, whatever the region,
   expect(pickLanguage(null, [])).toBe('en');
 });
 
-test("speaks Spanish to a browser that prefers Basque or Galician, in the order of the browser's languages", () => {
-  expect(pickLanguage(null, ['eu-ES'])).toBe('es');
-  expect(pickLanguage(null, ['gl'])).toBe('es');
-  expect(pickLanguage(null, ['eu', 'en'])).toBe('es');
+test("speaks Basque or Galician to a browser that prefers it, in the order of the browser's languages", () => {
+  expect(pickLanguage(null, ['eu-ES'])).toBe('eu');
+  expect(pickLanguage(null, ['gl'])).toBe('gl');
+  expect(pickLanguage(null, ['eu', 'en'])).toBe('eu');
+  expect(pickLanguage(null, ['gl-ES', 'es-ES', 'es'])).toBe('gl');
   expect(pickLanguage(null, ['en', 'eu'])).toBe('en');
   expect(pickLanguage(null, ['ca-ES', 'eu'])).toBe('ca');
+  expect(pickLanguage(null, ['es-ES', 'gl'])).toBe('es');
 });
 
 test('speaks the language the viewer chose on this device, whatever their browser prefers', () => {
@@ -24,9 +26,11 @@ test('speaks the language the viewer chose on this device, whatever their browse
   expect(pickLanguage('en', [])).toBe('en');
   // A stored language the interface doesn't speak is ignored.
   expect(pickLanguage('fr', ['ca-ES'])).toBe('ca');
-  // A chosen language wins over Basque and Galician too.
+  // A chosen language wins over Basque and Galician too, and Basque or Galician, once chosen, wins.
   expect(pickLanguage('ca', ['eu-ES'])).toBe('ca');
   expect(pickLanguage('en', ['gl', 'eu'])).toBe('en');
+  expect(pickLanguage('eu', ['es-ES', 'es'])).toBe('eu');
+  expect(pickLanguage('gl', ['eu-ES'])).toBe('gl');
 });
 
 test('counts the Trains on the map in the legend, Live and Scheduled, in each language', () => {
