@@ -118,10 +118,10 @@ function networkTrack(lines: Line[], shapes: Shape[]): Stroke[] {
 }
 
 /**
- * Each Line's lane, the first of the Lines of its Network and its colour, compared without case: they
- * take one place where they share a Stretch, as Renfe's map draws one C-4 up to its fork (#283). So
- * measures() counts each lane as one Line in `over` and `covered`, its strokes lying on each other
- * on purpose (#303).
+ * Each Line's lane, the index of the first of the Lines of its Network and its colour, compared
+ * without case: they take one place where they share a Stretch, as Renfe's map draws one C-4 up to
+ * its fork (#283). So measures() counts each lane as one Line in `over` and `covered`, its strokes
+ * lying on each other on purpose (#303).
  */
 export function lanes(lines: Line[]): number[] {
   return lines.map((l) => lines.findIndex((m) => m.network === l.network && m.colour.toLowerCase() === l.colour.toLowerCase()));

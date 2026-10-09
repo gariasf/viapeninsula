@@ -51,8 +51,8 @@ const LOOKS = 4;
  * tighter than its offset. `covered`: at each zoom in BANDS, metres where a Line is drawn over
  * another's, alongside it less than half the band's line width apart, as tracks further apart than
  * NEAR are, zoomed out (ADR-0007). In `over` and `covered`, the Lines given of one Network and one
- * colour count as one Line: sideBySide() gives them one lane (lanes()), their strokes lying on each
- * other on purpose (#283). `dangling`: stroke
+ * colour count as one Line (#303): sideBySide() gives them one lane (lanes()), their strokes lying on
+ * each other on purpose (#283). `dangling`: stroke
  * ends drawn at LOOSE_ZOOM further than LOOSE from any other stroke of their Line, and not at a
  * terminus (#172). Links (LINK), the curves that join a Line's stroke on one Stretch to its next, count only
  * there, in LOOSE_ZOOM's band, and in the measures of nodes, at each zoom in BANDS (ADR-0007, #186).

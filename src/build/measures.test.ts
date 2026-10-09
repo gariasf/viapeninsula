@@ -143,8 +143,9 @@ test("measures, in each band, Lines drawn over each other on tracks too close to
 });
 
 test("doesn't count Lines of one Network and one colour as over each other or covered, as they lie on each other on purpose (#303)", () => {
-  // C4a and a second Line, each on its own shape of one track, drawn on each other: as Madrid's C4b,
-  // whose colour differs from C4a's only in case (#283), or in a colour of its own, or another Network's.
+  // C4a and a second Line, each on its own shape of one track, drawn on each other: C4b in C4a's colour
+  // written in lower case, as lanes() compares colours without case (#283), or in a colour of its own,
+  // or another Network's.
   const found = (network: string, colour: string) =>
     measures({
       shapes: [east('a', 2000), east('b', 2000)],
