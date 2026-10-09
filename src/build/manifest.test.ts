@@ -65,7 +65,7 @@ test("builds each day's Trips from the other Networks where one's timetable has 
   ]);
 });
 
-test("carries each day's Closures, every Network's, none where it has none, and logs and reports each Network's today", () => {
+test("carries each day's Closures, every Network's, none where it has none, and logs and reports each Network's today, where it has any", () => {
   const [log, found]: [string[], Found[]] = [[], []];
   const closure = (line: string, from: number): Closure => ({ line, stations: ['adif:73100', 'adif:78400'], from, to: from + 3600, kind: 'buses' });
   const [r3, r13] = [closure('rodalies:R3', 20000), closure('rodalies:R13', 17280)];

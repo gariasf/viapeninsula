@@ -364,7 +364,7 @@ export interface Call {
 /**
  * A part of a Line closed on a service day, with buses in its Trains' place, as the timetable's
  * replacement buses have it (ADR-0012): between two of the Line's Stations on its track, from the
- * first bus's departure from one of them to the last bus's arrival at the other, in seconds into the
+ * first bus's departure from either of them to the last bus's arrival at either, in seconds into the
  * service day, as a Trip's calls are.
  */
 export interface Closure {

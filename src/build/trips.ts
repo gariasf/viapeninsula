@@ -1,5 +1,5 @@
-// Each Trip placed on its track: how far along it each of its Stations is. And where replacement
-// buses run in its Trains' place, the Closures they make of its Line.
+// Each Trip placed on its track: how far along it each of its Stations is. And the Closures that
+// replacement buses make of a Line, where they run in its Trains' place.
 
 import { closestOnSegment, DEGREE, type Closure, type Point, type Shape, type Station, type Trip } from '../bundle.ts';
 import type { Cause, Found } from './report.ts';

@@ -16,8 +16,8 @@ import type { Found, Spot } from './report.ts';
  * has for the same day (moved()). It keeps them however few: a holiday runs a Sunday's timetable. A
  * day it has no Trips, which is named apart, keeps the last count, so that the next week compares
  * with the last day it had some.
- * Each day has every Network's Closures that day too, where there are any, and each Network's today
- * are logged and reported.
+ * Each day has every Network's Closures that day too, where there are any, and each Network's today,
+ * where it has any, are logged and reported.
  * ponytail: a drop that lasts is named once on each day of the week, then is the count to compare
  * with, and a last report that can't be read starts the counts again, with none to compare with for
  * a week; keep a dropped day's last count, or read an older report, if either ever hides a drop.
