@@ -5,13 +5,15 @@ import { BANDS, closestOnSegment, DEGREE, drawnIn, NEXT, pieces, slotAt, type Al
 const REACH = 300;
 
 /**
- * Where a Closure's Stations lie along its Line's shapes: on the one that passes both within REACH the
- * shortest way between them, from the nearer its start to the further, in whole metres along it. Its
- * Line's track there, which the timetable's Closures have though no Trip of their day runs it (#340).
+ * Where a Closure's Stations lie along its Line's shapes: on each that passes both within REACH, from
+ * the nearer its start to the further, in whole metres along it, the shortest way between them first,
+ * and none that goes a fifth further, as round a loop; as a Line's Trains each way can run on a track
+ * of their own. Its Line's track there, which the timetable's Closures have though no Trip of their
+ * day runs it (#340).
  * ponytail: where a shape comes nearest each, so on one that passes a Station twice, as one running
  * out and back does, maybe the other time. Take each time, as trips.ts's passes() does, if that shows.
  */
-export function placeOn(ends: [Point, Point], shapes: Shape[]): { shape: string; from: number; to: number } | undefined {
+export function placeOn(ends: [Point, Point], shapes: Shape[]): { shape: string; from: number; to: number }[] {
   const nearest = ({ coords, dist }: Shape, p: Point) => {
     const kx = DEGREE * Math.cos((p[1] * Math.PI) / 180);
     let best = { along: 0, metres: Infinity };
@@ -27,7 +29,8 @@ export function placeOn(ends: [Point, Point], shapes: Shape[]): { shape: string;
     if (!a || !b || a.metres > REACH || b.metres > REACH) return [];
     return [{ shape: shape.id, from: Math.round(Math.min(a.along, b.along)), to: Math.round(Math.max(a.along, b.along)) }];
   });
-  return placed.sort((x, y) => x.to - x.from - (y.to - y.from))[0];
+  const shortest = Math.min(...placed.map((p) => p.to - p.from));
+  return placed.filter((p) => p.to - p.from <= 1.2 * shortest).sort((x, y) => x.to - x.from - (y.to - y.from));
 }
 
 /**
@@ -92,6 +95,9 @@ export interface Shown {
   from?: number;
 }
 
+/** Which part of a Line a Closure is of: its Line and its Stations, either way round. */
+export const closureKey = ({ line, stations }: Pick<Shown, 'line' | 'stations'>) => `${line} ${stations.toSorted().join(' ')}`;
+
 /**
  * The Closures the map draws at `now` (ms since 1970), one for each part of a Line (ADR-0012). From
  * the Alerts in alerts.json within their active period, as each feed gives it, so Renfe's while
@@ -104,8 +110,7 @@ export interface Shown {
 export function closuresAt(alerts: Alerts, day: Pick<Bundle, 'noonMinus12h' | 'closures'>, calling: (line: string) => { id: string; name: string }[], now: number): Shown[] {
   const found = new Map<string, Shown>();
   const add = (shown: Shown) => {
-    const key = `${shown.line} ${shown.stations.toSorted().join(' ')}`;
-    if (!found.has(key)) found.set(key, shown);
+    if (!found.has(closureKey(shown))) found.set(closureKey(shown), shown);
   };
   const live = Object.entries(alerts).flatMap(([feed, { alerts }]) => alerts.map((alert) => ({ feed, alert })));
   for (const { feed, alert } of live.sort((a, b) => (b.alert.from ?? 0) - (a.alert.from ?? 0))) {

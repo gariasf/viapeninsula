@@ -8,7 +8,7 @@ import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
 import { along, APART, atZoom, BANDS, bandZooms, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Alerts, type Bundle, type Credit, type Place, type DayTrips, type Kind, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH } from '../bundle.ts';
 import { boardAt, joinDays, KEEP, mapTime, nearbyAt, trainAt, trainsAt, unavailable, type Departure, type Followed, type Received } from '../engine.ts';
-import { alertCount, basemapLabel, earlierStations, language, LANGUAGES, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, setLanguage, t, toGo, trainCounts, unlocated, type Language, type Unlocated } from './i18n.ts';
+import { alertCount, basemapLabel, busesReplace, earlierStations, language, LANGUAGES, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, setLanguage, t, toGo, trainCounts, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { linesAt } from './tap.ts';
 import { alongside, namedTwice, nameOffset, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
@@ -17,6 +17,7 @@ import { keepView, lastView, markOf, openingView } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { contrast, lettering } from './colour.ts';
 import { cardAlerts, linesCallingAt, minutesTo, nearbyRows, progress, type CardAlert } from './cards.ts';
+import { closureKey, closureStrokes, closuresAt, placeOn, type Shown } from './closures.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
 setWorkerUrl(workerUrl);
@@ -157,6 +158,44 @@ const NAME_GAP = NAME_HALO + 0.5;
 
 /** The colour of a track Lines share, zoomed right in, where their strokes lie one over another: their names along it and their Trains tell them apart (#139). */
 const SHARED = '#9a9b9e';
+/**
+ * A layer a Closure is drawn in, over its Line's stroke (#341): for which kinds of Closure; in its
+ * Line's colour, what its Lines are cased in on the basemap, or a colour of its own; how wide, in line
+ * widths and px more; how opaque; or hatched, in stripes of the casing's colour across the Line's.
+ */
+interface Coat {
+  kinds: Shown['kind'][];
+  colour: 'line' | 'casing' | `#${string}`;
+  width: number;
+  more?: number;
+  opacity?: number;
+  hatched?: true;
+}
+/** Down to a single track: its Line's colour narrowed to half its width, its casing either side. */
+const SINGLE: Coat[] = [
+  { kinds: ['single'], colour: 'casing', width: 1, more: 1 },
+  { kinds: ['single'], colour: 'line', width: 0.5 },
+];
+/**
+ * The looks a Closure can be drawn in, by `?closure=`, for the maintainer to pick (#341): closed, its
+ * Line's stroke hatched across, faded nearly to its casing, or ringed in red outside its casing; down to
+ * a single track, its Line narrowed, and ringed, in amber. Dashes are taken: they're a tunnel's covered
+ * part (#178).
+ * ponytail: the one the maintainer picks stays, and the rest and `?closure=` go before merge.
+ */
+const CLOSURE_LOOKS: Record<string, Coat[]> = {
+  hatched: [{ kinds: ['closed'], colour: 'casing', width: 1, hatched: true }, ...SINGLE],
+  faded: [{ kinds: ['closed'], colour: 'casing', width: 1, more: 1, opacity: 0.75 }, ...SINGLE],
+  outlined: [
+    { kinds: ['closed'], colour: '#e03131', width: 1, more: 6 },
+    { kinds: ['single'], colour: '#f59f00', width: 1, more: 6 },
+    { kinds: ['closed'], colour: 'casing', width: 1, more: 2 },
+    { kinds: ['closed'], colour: 'line', width: 1 },
+    ...SINGLE,
+  ],
+};
+/** How Closures are drawn: as the page's `?closure=` picks, or hatched. */
+const closureLook = CLOSURE_LOOKS[new URLSearchParams(location.search).get('closure') ?? ''] ?? CLOSURE_LOOKS.hatched ?? [];
 /**
  * Zooming in, the Lines don't jump from their stretches to their rails at once: they cross-fade over
  * FADE zooms either side of the zoom they go back on the rails at (#205). The rest still switches at
@@ -537,6 +576,8 @@ let received: Received[] = [];
 let emptyPolls = 0;
 /** The operators' Alerts, as the map last got alerts.json: about once a minute while the tab is visible, as long as the file is cached for (ADR-0012). */
 let alerts: Alerts = {};
+/** Draws the Closures shown now on their Lines (showClosures()), once the map has their layers, as alerts.json comes and each minute goes by (#341). */
+let drawClosures = () => {};
 /** The Lines of the days on the map, by their IDs, which the cards name as pills from the start (pill()). */
 let lines = new Map<string, Line>();
 /** How each Line's Trains are drawn as pills, by the Line's ID. */
@@ -594,8 +635,16 @@ let bundle: Bundle | undefined;
 let stationNames = new Map<string, string>();
 /** Where the map shows the Stations, by their IDs in places(). */
 let shownPlaces = new Map<string, Place>();
-/** What places each Line's Trains on its stroke zoomed out: the shapes, its slots by `<line> <shape>`, its curves (zones()), and which side its Trains keep to, 1 right and -1 left. */
-let placing = { shapes: new Map<string, Shape>(), slots: new Map<string, Slot[]>(), curves: new Map<string, Zone[]>(), keep: new Map<string, number>() };
+/**
+ * What places each Line's Trains on its stroke zoomed out: the shapes, its slots by `<line> <shape>`,
+ * its curves (zones()), and which side its Trains keep to, 1 right and -1 left; and where each Closure
+ * shown on the track goes, along its stretches and on its rails, by closureKey(), once worked out (#341).
+ */
+let placing = { shapes: new Map<string, Shape>(), slots: new Map<string, Slot[]>(), curves: new Map<string, Zone[]>(), keep: new Map<string, number>(), closures: new Map<string, [GeoJSON.Feature[], GeoJSON.Feature[]]>() };
+/** The Closures the map shows now (closuresAt()), which a tap on one names. */
+let shownClosures: Shown[] = [];
+/** The Stations each Line's Trips call at, by the Line's ID, with their names, for the days on the map then: the Stations an Alert's words are read against (closuresAt()). */
+let calling: { days?: Bundle; lines: Map<string, { id: string; name: string }[]> } = { lines: new Map() };
 /** The Lines' strokes along their Stretches, which a tap on one names (linesAt()). */
 let shownStrokes: Stroke[] = [];
 /** Each Network's track, drawn once zoomed out (#190), which the banner goes by for a Network with no Trips today (bannerNetworks()). */
@@ -732,6 +781,37 @@ for (const { source, id, prefix, zooms, nameZooms, opacity, throughOpacity, belo
     },
   });
 }
+// The Closures (#341), over their Lines' strokes in each band, and zoomed right in over their rails,
+// in the coats of the look `?closure=` picks, faded as the Lines are. The rails' are simplified as theirs.
+map.addSource('closures', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+map.addSource('closure-rails', { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, tolerance: 0.1 });
+map.addImage('closure-hatch', hatching(casing), { pixelRatio: 2 });
+/** The layers the Closures are drawn in, along the stretches below railsZoom and on the rails from it, as the Lines' strokes (strokeLayers). */
+const closureLayers = layered.flatMap(({ id, zooms, below }) =>
+  closureLook.map((coat, i) => {
+    const rails = id === 'rails';
+    const layer: LineLayerSpecification = {
+      id: `${id}-closures-${i}`,
+      type: 'line',
+      source: rails ? 'closure-rails' : 'closures',
+      ...zooms,
+      filter: ['all', zooms.filter, ['in', ['get', 'kind'], ['literal', coat.kinds]]],
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': coat.colour === 'line' ? ['get', 'colour'] : coat.colour === 'casing' ? casing : coat.colour,
+        'line-width': byZoom(WIDTH, (px) => px * coat.width + (coat.more ?? 0)),
+        'line-offset': lineOffset,
+        'line-opacity': byZoom([[railsZoom - FADE, rails ? 0 : 1], [railsZoom + FADE, rails ? 1 : 0]], (opacity) => opacity * (coat.opacity ?? 1)),
+        ...(coat.hatched && { 'line-pattern': 'closure-hatch' }),
+      },
+    };
+    // Over the band's Lines, under the basemap's labels; on the rails, over them, under the stretches'.
+    map.addLayer(layer, below);
+    return layer.id;
+  }),
+);
+drawClosures = showClosures;
+drawClosures();
 // A tier's dots are larger than the rest, and drawn over them where they meet.
 map.addLayer({
   id: 'stations',
@@ -868,15 +948,20 @@ for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', tr
 // Tapping a Train follows it, and tapping a Station shows its board. Both are small, so a tap near one
 // will do, and a Train standing at a Station is the one tapped. A tap nothing else takes, on a Line's
 // stroke or within STROKE_TAP of one, names the Lines drawn there, by their pills (#193), the strokes
-// nearest the tap first: but not on a place's name, which takes no tap. Any tap clears the ring a link
+// nearest the tap first, and their Alerts, folded away; or on a Closure drawn over them, shows what
+// closes it (#341): but not on a place's name, which takes no tap. Any tap clears the ring a link
 // drew (#254).
 // ponytail: so a double-click or double-tap that zooms clears it too, its first tap being a tap,
 // though a wheel, a pinch or a drag keeps it. Clear it only once no second tap follows if the ring's
 // missed after one.
 /** The layers the Lines' strokes are drawn in. A tap names the Lines of those along their stretches below railsZoom, and of the rails from it. */
 const strokeLayers = layered.map((l) => l.id);
-/** Where a tap names the Lines drawn there. Each tap closes the last one's. */
+/** Where a tap names the Lines drawn there, or what closes a Closure. Each tap closes the last one's. */
 const linesPopup = new Popup({ closeButton: false, closeOnClick: false, className: 'lines-at', maxWidth: 'none' });
+/** The Lines a tap names, and whether their Alerts are shown, which their fold hides, until the next tap (#341). */
+let tappedLines = { lines: [] as string[], open: false };
+/** What the popup shows of the Lines a tap names, which changes in place as its fold turns (patch()). */
+const tappedBox = el('div');
 map.on('click', ({ point: { x, y }, lngLat }) => {
   linesPopup.remove();
   if (marked) {
@@ -900,18 +985,19 @@ map.on('click', ({ point: { x, y }, lngLat }) => {
   if (typeof train === 'string') follow(train);
   else if (typeof place === 'string') showBoard(place);
   else if (!within(0, ['station-names']).length) {
-    // As the Lines' names switch, though both show while they fade.
-    const drawing = strokeLayers.filter((layer) => (layer === 'rails') === map.getZoom() >= railsZoom);
+    // As the Lines' names switch, though both show while they fade: the Closures' over the strokes they're on.
+    const drawing = [...strokeLayers, ...closureLayers].filter((layer) => layer.startsWith('rails') === map.getZoom() >= railsZoom);
     const tapped = [STROKE_NEAREST, STROKE_TAP].map((r) => within(r, drawing)).find((hits) => hits.length) ?? [];
-    const named = linesAt(tapped.map((f) => ({ line: String(f.properties.line), shape: String(f.properties.shape), from: Number(f.properties.from), to: Number(f.properties.to) })), shownStrokes).flatMap((id) =>
-      lines.has(id) ? [pill(id)] : [],
-    );
-    if (named.length) linesPopup.setLngLat(lngLat).setDOMContent(el('div', {}, ...named)).addTo(map);
+    const onClosures = tapped.some((f) => closureLayers.includes(f.layer.id));
+    const shown = onClosures
+      ? closuresTapped(tapped.flatMap((f) => (closureLayers.includes(f.layer.id) ? [String(f.properties.key)] : [])))
+      : linesTapped(linesAt(tapped.map((f) => ({ line: String(f.properties.line), shape: String(f.properties.shape), from: Number(f.properties.from), to: Number(f.properties.to) })), shownStrokes));
+    if (shown) linesPopup.setLngLat(lngLat).setDOMContent(shown).addTo(map);
   }
 });
 // ponytail: while the Lines fade, the pointer shows over the strokes of both drawings, though a tap
 // names only one's. Check the zoom on mouseenter if that ever misleads.
-for (const layer of ['trains', 'train-pills', 'train-pills-followed', 'stations', ...strokeLayers]) {
+for (const layer of ['trains', 'train-pills', 'train-pills-followed', 'stations', ...strokeLayers, ...closureLayers]) {
   map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'));
   map.on('mouseleave', layer, () => (map.getCanvas().style.cursor = ''));
 }
@@ -983,7 +1069,7 @@ addEventListener('hashchange', openLink);
 function show(days: Track | Bundle) {
   if ('trips' in days) bundle = days;
   // A day's Trips come after its track, which is drawn already, unless the days joined bring more than one.
-  if (days.stations === shownStations) return;
+  if (days.stations === shownStations) return drawClosures();
   shownStations = days.stations;
   lines = new Map(days.lines.map((l) => [l.id, l]));
   stationNames = new Map(days.stations.map((s) => [s.id, s.name]));
@@ -993,7 +1079,7 @@ function show(days: Track | Bundle) {
   // A track built before #176 has none: its Trains go on their own track.
   for (const s of days.slots ?? []) slots.set(`${s.line} ${s.shape}`, [...(slots.get(`${s.line} ${s.shape}`) ?? []), s]);
   const keep = new Map(days.networks.map((n) => [n.id, n.runningSide === 'left' ? -1 : 1]));
-  placing = { shapes, slots, curves: zones(days.strokes), keep: new Map(days.lines.map((l) => [l.id, keep.get(l.network) ?? 1])) };
+  placing = { shapes, slots, curves: zones(days.strokes), keep: new Map(days.lines.map((l) => [l.id, keep.get(l.network) ?? 1])), closures: new Map() };
   // A track built before #241 names no kinds of service and no pill zooms: its Trains are round pills from zoom 10.
   const pillZoom = new Map(days.networks.map((n) => [n.id, n.pillZoom]));
   pills = new Map(days.lines.map((l) => [l.id, pillOf(l, pillZoom.get(l.network) ?? 10)]));
@@ -1073,6 +1159,60 @@ function show(days: Track | Bundle) {
   credited = days.networks;
   showCredits();
   showBanner();
+  drawClosures();
+}
+
+/**
+ * Draws the Closures shown now, by the map's time (closuresAt()), on their Lines' strokes in each zoom
+ * band, and on their rails, where one of the Line's shapes runs by both their Stations (placeOn()); where
+ * none does, as none of T5's does from Glòries to Can Jaumandreu, they're words only (ADR-0012). Where
+ * each goes is worked out once for the track on the map.
+ */
+function showClosures() {
+  shownClosures = bundle ? closuresAt(alerts, bundle, callingAt, mapTime(Date.now(), received)) : [];
+  const drawn = shownClosures.map((closure) => {
+    const key = closureKey(closure);
+    const features = placing.closures.get(key) ?? placeClosure(closure);
+    placing.closures.set(key, features);
+    return features.map((list) => list.map((f) => ({ ...f, properties: { ...f.properties, key, kind: closure.kind } })));
+  });
+  map.getSource<GeoJSONSource>('closures')?.setData({ type: 'FeatureCollection', features: drawn.flatMap(([stretches = []]) => stretches) });
+  map.getSource<GeoJSONSource>('closure-rails')?.setData({ type: 'FeatureCollection', features: drawn.flatMap(([, rails = []]) => rails) });
+}
+
+/**
+ * Where a Closure goes on the track on the map: along its Line's stretches, in each band, from the
+ * shortest of its shapes between its Stations; and on its rails, rounded as they are (#203), on each of
+ * them, as the Line's Trains each way can have a track of their own. Nowhere where none of the Line's
+ * shapes runs by both its Stations.
+ */
+function placeClosure({ line: id, stations }: Shown): [GeoJSON.Feature[], GeoJSON.Feature[]] {
+  const line = lines.get(id);
+  const [a, b] = stations.map((station) => shownStations?.find((s) => s.id === station)).flatMap((s): Point[] => (s ? [[s.lon, s.lat]] : []));
+  const placed = line && a && b ? placeOn([a, b], line.shapes.flatMap((shape) => placing.shapes.get(shape) ?? [])) : [];
+  const feature = (coordinates: Point[], properties: object): GeoJSON.Feature => ({ type: 'Feature', properties: { ...properties, colour: line?.colour }, geometry: { type: 'LineString', coordinates } });
+  const [first] = placed;
+  const strokes = first ? closureStrokes(id, first, placing.slots.get(`${id} ${first.shape}`) ?? [], placing.curves) : [];
+  return [
+    strokes.flatMap(({ shape: on, from, to, side, band = GRAPH_BAND }) => {
+      const centreline = inBand(placing.shapes, on, band);
+      return centreline ? [feature(along(centreline, from, to), { side, band })] : [];
+    }),
+    placed.flatMap(({ shape: own, from, to }) => {
+      const shape = placing.shapes.get(own);
+      return shape ? [feature(rounded(along(shape, from, to)), { side: 0 })] : [];
+    }),
+  ];
+}
+
+/** The Stations a Line's Trips call at in the days on the map, with their names (`calling`). */
+function callingAt(line: string): { id: string; name: string }[] {
+  if (calling.days !== bundle) {
+    const at = new Map<string, Set<string>>();
+    for (const trip of bundle?.trips ?? []) for (const call of trip.calls) at.set(trip.line, (at.get(trip.line) ?? new Set()).add(call.station));
+    calling = { days: bundle, lines: new Map([...at].map(([l, ids]) => [l, [...ids].map((station) => ({ id: station, name: stationName(station) }))])) };
+  }
+  return calling.lines.get(line) ?? [];
 }
 
 /**
@@ -1303,6 +1443,18 @@ function roundedSquare(half: number, r: number) {
     const [qx, qy] = [Math.abs(x) - half + r, Math.abs(y) - half + r];
     return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - r;
   };
+}
+
+/**
+ * Stripes at 45° across a line, a line width apart and 3/8 of one wide, in a colour (#rrggbb), clear
+ * between, for a closed Line's stroke (#341): MapLibre fits a line pattern's height to the line's width.
+ */
+function hatching(colour: string) {
+  const [width, height] = [32, 16];
+  const data = new Uint8ClampedArray(width * height * 4);
+  const rgb = [1, 3, 5].map((i) => parseInt(colour.slice(i, i + 2), 16));
+  for (let i = 0; i < width * height; i++) if (((i % width) + Math.floor(i / width)) % height < 6) data.set([...rgb, 255], i * 4);
+  return { width, height, data };
 }
 
 /**
@@ -1789,13 +1941,13 @@ function strip({ trip, upcoming, standsAt }: Followed): Node[] {
  * shown hides, as `open` says and `toggle` turns it, in a variable that keeps it through the panel's
  * refresh (#349). It stays put as it opens and closes, so that the refresh never takes the keyboard's
  * focus or a screen reader's place (patch()). A peeking sheet grows and shrinks with it, and the map's
- * padding with the sheet.
+ * padding with the sheet; or else what `after` shows again with it, as a tap's popup (#341).
  */
-function foldButton(says: (Node | string)[], open: boolean, toggle: () => void) {
+function foldButton(says: (Node | string)[], open: boolean, toggle: () => void, after: () => void = () => map.easeTo({ padding: panelPadding() })) {
   const onclick = () => {
     toggle();
     showPanel();
-    map.easeTo({ padding: panelPadding() });
+    after();
   };
   const button = el('button', { type: 'button', className: 'fold', onclick }, el('span', {}, ...says, icon(open ? 'up' : 'chevron')));
   button.setAttribute('aria-expanded', String(open));
@@ -1810,7 +1962,7 @@ function foldButton(says: (Node | string)[], open: boolean, toggle: () => void) 
  * long ago. It's there from the start, hidden while there's none, and its list is there while it's
  * folded away, so that a new Alert never takes the keyboard's focus or a screen reader's place.
  */
-function alertsOn(on: { lines: string[]; stations: string[] }) {
+function alertsOn(on: { lines: string[]; stations: string[] }, open = showAlerts, toggle = () => (showAlerts = !showAlerts), after?: () => void) {
   const now = mapTime(Date.now(), received);
   const { alerts: shown, asOf } = cardAlerts(alerts, on, language(), now);
   // With their day, where they were read on another than the map's.
@@ -1818,19 +1970,56 @@ function alertsOn(on: { lines: string[]; stations: string[] }) {
   return el(
     'div',
     { className: 'alerts', hidden: !shown.length },
-    foldButton([icon('warning'), alertCount(shown.length)], showAlerts, () => (showAlerts = !showAlerts)),
-    el('div', { hidden: !showAlerts }, read, el('ol', {}, ...shown.map((alert) => alertRow(alert, on.lines.length > 1)))),
+    foldButton([icon('warning'), alertCount(shown.length)], open, toggle, after),
+    el('div', { hidden: !open }, read, el('ol', {}, ...shown.map((alert) => alertRow(alert, on.lines.length > 1)))),
   );
 }
 
-/** An Alert on a card, as alertsOn() has it, after the Lines it's on as pills, `byLine`, where the card has more than one, as a board can: Rodalies' words don't name theirs. */
+/** What a tap on Lines' strokes shows (#193): the Lines drawn there, by their pills, and their Alerts under them, folded away (alertsOn(), #341); or none, where it names no Line on the map. */
+function linesTapped(named: string[]) {
+  tappedLines = { lines: named.filter((id) => lines.has(id)), open: false };
+  showTapped();
+  return tappedLines.lines.length ? tappedBox : undefined;
+}
+
+/** Fills the popup of the Lines a tap names, as it opens, and again as its fold turns, in place. */
+function showTapped() {
+  const toggle = () => (tappedLines.open = !tappedLines.open);
+  patch(tappedBox, [el('div', { className: 'pills' }, ...tappedLines.lines.map((id) => pill(id))), alertsOn({ lines: tappedLines.lines, stations: [] }, tappedLines.open, toggle, showTapped)]);
+}
+
+/**
+ * What a tap on Closures shows (#341), by closureKey(): for each Alert that closes them, its words
+ * (cardAlerts()), or for each the timetable's buses do, that buses replace trains between its two
+ * Stations, in the interface's words; each under the pills of the Closures' Lines, with when it began.
+ * None, where none of them is shown now.
+ */
+function closuresTapped(keys: string[]) {
+  const now = mapTime(Date.now(), received);
+  const rows = new Map<string, { closure: Shown; on: string[] }>();
+  for (const closure of shownClosures.filter((c) => keys.includes(closureKey(c)))) {
+    const by = closure.alert ? `${closure.alert.feed} ${closure.alert.id}` : closureKey(closure);
+    rows.set(by, { closure, on: [...(rows.get(by)?.on ?? []), closure.line] });
+  }
+  const said = [...rows.values()].flatMap(({ closure: { alert, stations: [a = '', b = ''], from }, on }): CardAlert[] => {
+    if (alert) return cardAlerts(alerts, { lines: on, stations: [] }, language(), now).alerts.filter((c) => c.id === alert.id);
+    return [{ id: `${on.join()} ${a} ${b}`, lines: on, description: { language: language(), text: busesReplace(stationName(a), stationName(b)) }, ...(from !== undefined && { from }), by: '' }];
+  });
+  return said.length ? el('div', { className: 'alerts' }, el('ol', {}, ...said.map((row) => alertRow(row, true)))) : undefined;
+}
+
+/**
+ * An Alert on a card, as alertsOn() has it, after the Lines it's on as pills, `byLine`, where the card
+ * has more than one, as a board can: Rodalies' words don't name theirs. Or a Closure the timetable's
+ * buses make, in the interface's words, whose they are unsaid (#341).
+ */
 function alertRow({ lines: named, header, description, from, by }: CardAlert, byLine: boolean) {
   // In an unknown language, lang="", where its feed doesn't say, rather than the viewer's.
   const words = (tag: 'strong' | 'p', said?: Words) => (said ? [el(tag, { textContent: said.text, lang: said.language ?? '' })] : []);
   const other = description?.language && description.language !== language() ? description.language : undefined;
   const about: (Node | string)[] = [
     ...(from === undefined ? [] : [t('since').replace('{date}', clock(true).format(from))]),
-    by,
+    ...(by ? [by] : []),
     // By its own name, as the language switch names it.
     ...(other ? [el('span', { lang: other, textContent: LANGUAGES[other as Language] ?? other })] : []),
   ];
@@ -2262,7 +2451,7 @@ async function poll() {
   if (!document.hidden) nextPoll = setTimeout(poll, 20_000);
 }
 
-/** Fetches the operators' Alerts while the tab is visible. Where that fails, the cards keep those the map last got, which say when they were read. */
+/** Fetches the operators' Alerts while the tab is visible, and draws the Closures shown then. Where that fails, the cards keep those the map last got, which say when they were read. */
 async function getAlerts() {
   if (document.hidden) return;
   try {
@@ -2270,6 +2459,8 @@ async function getAlerts() {
   } catch (error) {
     console.warn(error);
   }
+  // And a minute on, the Closures within their hours then.
+  drawClosures();
 }
 
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {

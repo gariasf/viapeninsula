@@ -185,18 +185,23 @@ const metres = (id: string, ...points: [number, number][]): Shape => {
 /** A point given in metres east and north of 0°, 0°. */
 const at = (x: number, y: number): [number, number] => [x / DEGREE, y / DEGREE];
 
-test("places a Closure along the Line's shape that passes both its Stations, where they are along it, the shortest way between them", () => {
-  // A Line's three shapes: 10 km east, back west, and a loop that leaves it at 2 km and comes back at 6 km.
+test("places a Closure along each of its Line's shapes that passes both its Stations, where they are along it, the shortest way between them first", () => {
+  // A Line's four shapes: 10 km east, back west, a loop that leaves it at 2 km and comes back at 6 km, and a long way round, east then back.
   const east = metres('east', [0, 0], [10000, 0]);
   const west = metres('west', [10000, 0], [0, 0]);
   const loop = metres('loop', [0, 0], [2000, 0], [2000, 3000], [6000, 3000], [6000, 0], [10000, 0]);
+  const round = metres('round', [0, 0], [3000, 0], [3000, 1000], [9000, 1000], [9000, 0], [5000, 0]);
   // Its Stations at 3 and 5 km, 40 m off the track, where the build puts calls within 300 m.
   const place = (shapes: Shape[]) => placeOn([at(5000, 40), at(3000, -40)], shapes);
-  expect(place([loop, east, west])).toEqual({ shape: 'east', from: 3000, to: 5000 });
-  expect(place([loop, west])).toEqual({ shape: 'west', from: 5000, to: 7000 });
-  // The loop passes both a kilometre away; and a Station 400 m off the track is off it.
-  expect(place([loop])).toBeUndefined();
-  expect(placeOn([at(5000, 40), at(3000, -400)], [east])).toBeUndefined();
+  expect(place([loop, west, east])).toEqual([
+    { shape: 'west', from: 5000, to: 7000 },
+    { shape: 'east', from: 3000, to: 5000 },
+  ]);
+  // The loop passes both a kilometre away, and the long way round, 12 km from one to the other, is left out.
+  expect(place([round, loop, east])).toEqual([{ shape: 'east', from: 3000, to: 5000 }]);
+  expect(place([loop])).toEqual([]);
+  // A Station 400 m off the track is off it.
+  expect(placeOn([at(5000, 40), at(3000, -400)], [east])).toEqual([]);
 });
 
 /** A Rodalies Line, in a colour of its own. */
