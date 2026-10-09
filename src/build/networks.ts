@@ -185,6 +185,11 @@ export async function readFeed(
   };
 }
 
+/** Where readTimetables() keeps the copy of a timetable, in `cache`, which `npm run snippet` reads. */
+export function copyOf({ prefix }: Timetable, cache = '.cache'): string {
+  return join(cache, `timetable-${prefix}.zip`);
+}
+
 /**
  * A Network's timetables, read (`read`) from their downloads, in zipFile(), or where one couldn't be
  * downloaded (`failed` says why) or read, or gives the Network no Lines, from the copy of them that
@@ -200,7 +205,7 @@ export async function readTimetables<T extends { lines: unknown[][] }>(
   report: (found: Found) => void,
   cache = '.cache',
 ): Promise<T> {
-  const copy = (t: Timetable) => join(cache, `timetable-${t.prefix}.zip`);
+  const copy = (t: Timetable) => copyOf(t, cache);
   const from = (zip: (t: Timetable) => string) => read(network.timetables.map((t) => ({ ...t, network, gtfs: zipSource(zip(t)) })));
   let why = failed;
   let got: T | undefined;

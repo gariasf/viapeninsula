@@ -6,8 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, expect, test, vi } from 'vitest';
 import { places } from '../bundle.ts';
 import { RODALIES, TRAM, type NetworkConfig } from '../networks.ts';
-import { dirSource, rows, zipFile, type Source } from './gtfs.ts';
-import { FGC_FEED, METRO_FEED, onFgcRails, onMetroRails, onRodaliesRails, readFeed, readTimetables, RODALIES_FEED, TRAMBAIX_FEED, type Feed } from './networks.ts';
+import { dirSource, rows, zipFile, zipSource, type Source } from './gtfs.ts';
+import { copyOf, FGC_FEED, METRO_FEED, onFgcRails, onMetroRails, onRodaliesRails, readFeed, readTimetables, RODALIES_FEED, TRAMBAIX_FEED, type Feed } from './networks.ts';
 import type { Found } from './report.ts';
 
 afterEach(() => {
@@ -371,4 +371,17 @@ test('fails with no copy to build the Network from, as the build did before it k
   );
   const before = await copied({ ...PAIR, timetables: [PAIR.timetables[0]] }, ['T1']);
   await expect(readTimetables(PAIR, new Error('HTTP 503'), read, () => {}, before)).rejects.toThrow('TRAM has no copy of its timetables to build it from: HTTP 503');
+});
+
+test('keeps the timetables the build last read at copyOf(), for npm run snippet, whether they were the download or the copy', async () => {
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const cache = await temp();
+  const copy = () => names(zipSource(copyOf(NETWORK.timetables[0], cache)));
+  await downloaded(PREFIX, 'R1');
+  await readTimetables(NETWORK, undefined, read, () => {}, cache);
+  expect(await copy()).toEqual(['R1']);
+  // As an error page served as the zip: the build reads the copy, which stays.
+  await writeFile(zipFile(PREFIX), '<html>Service Unavailable</html>');
+  await readTimetables(NETWORK, undefined, read, () => {}, cache);
+  expect(await copy()).toEqual(['R1']);
 });
