@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
-import { along, APART, atZoom, BANDS, beside, cutIn, drawnIn, inBand, LINK, onStroke, pieces, zones, pixelMetres, pointAt, SMOOTH, type Line, type Shape, type Stroke, type Track } from '../bundle.ts';
+import { along, APART, atZoom, BANDS, beside, cutIn, DEGREE, drawnIn, inBand, LINK, onStroke, pieces, zones, pixelMetres, pointAt, SMOOTH, type Line, type Shape, type Stroke, type Track } from '../bundle.ts';
 import { measures } from './measures.ts';
 import { offset } from './offset.ts';
-import { sideBySide } from './sideBySide.ts';
+import { KX, sideBySide } from './sideBySide.ts';
 
 // Track drawn in metres east (x) and north (y) of a point in Barcelona.
 const M = (6_371_008.8 * Math.PI) / 180; // metres in a degree of latitude
@@ -506,6 +506,25 @@ test("brings L1 from Marina onto the Rodalies bundle at Auditori without a hook,
   const { strokes, centrelines } = await sideBySide(lines, shapes);
   const l1 = strokes.filter((s) => s.line === 'metro:L1');
   expect(measures({ shapes: [...shapes, ...centrelines], strokes: l1 }).wiggles).toEqual(Object.fromEntries(BANDS.map((zoom) => [zoom, 0])));
+});
+
+test("takes C3, C4 and C5 across the node by Madrid-Atocha without hooking back, where the stroke a node hides runs on past their next Stretch's start (#311)", async () => {
+  // The Lines round Madrid-Atocha Cercanías on 9 Oct 2026 (fixtures/atocha.json). By the Station, C3's,
+  // C4's and C5's stroke along the Stretch they leave runs on, hidden by a node at every zoom, 35 m past
+  // where the next Stretch they go along starts beside it: their chain of centrelines across the node ran
+  // to the hidden stroke's end and back, and at zoom 13 and 14 their curves hooked.
+  const { lines, shapes } = JSON.parse(readFileSync(new URL('fixtures/atocha.json', import.meta.url), 'utf8')) as Pick<Track, 'lines' | 'shapes'>;
+  const { strokes, centrelines } = await sideBySide(lines, shapes);
+  const byId = new Map([...shapes, ...centrelines].map((s) => [s.id, s]));
+  // The curves whose middle is within 200 m of the Station (adif:18000), with the strokes they join.
+  const near = (c: Stroke) => {
+    const [lon, lat] = pointAt(byId.get(c.shape) ?? { coords: [], dist: [] }, c.to / 2);
+    return Math.hypot((lon + 3.68944) * KX, (lat - 40.40662) * DEGREE) < 200;
+  };
+  const curves = strokes.filter((s) => s.shape.startsWith(LINK) && near(s));
+  expect(curves.length).toBeGreaterThan(0);
+  const drawn = strokes.filter((s) => !s.shape.startsWith(LINK));
+  expect(measures({ shapes: [...shapes, ...centrelines], strokes: [...drawn, ...curves] }).wiggles).toEqual(Object.fromEntries(BANDS.map((zoom) => [zoom, 0])));
 });
 
 test('ends Lines that end together at one point across their Stretch', async () => {
