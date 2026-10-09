@@ -131,15 +131,29 @@ test("closes only the part of its buses' run that none of a Line's Trains runs t
   ]);
 });
 
-test("closes the whole of each bus's run on its Line's track on a day none of the Line's Trains runs any of it, as Madrid's C8b buses from Villalba to Cercedilla on 10–12 Oct: R3's, had none of its Trains run, by Ripoll to Puigcerdà, up to Spain's border, where its Trains leave the map, and from the first Station on R3's track that a bus calls at", () => {
+test("closes a part up to where a bus's run on its Line's track ends though none of the Line's Trains calls there that day, as Madrid's C8b buses close Villalba de Guadarrama – Cercedilla on 10–12 Oct, where its Trains end at Villalba: R13's, had only its shuttle from Lleida run, from Les Borges Blanques to La Plana-Picamoixons", () => {
+  const shuttle = closed.trips.filter((t) => t.id === 'rodalies:5178X33500R13');
+  expect(closuresOf(closed.buses, shuttle, closed.shapes, inSpain, () => {}).filter((c) => c.line === 'rodalies:R13')).toEqual([
+    { line: 'rodalies:R13', stations: ['adif:73003', 'adif:73100'], from: at('05:33'), to: at('22:41'), kind: 'buses' },
+  ]);
+});
+
+test("closes the whole of each bus's run on its Line's track on a day none of the Line's Trains runs any of it: R3's, had none of its Trains run, by Ripoll to Puigcerdà, up to Spain's border, where its Trains leave the map, which its shuttles between La Molina and Planoles join, as they run inside it, and from the first Station on R3's track that a bus calls at", () => {
   const closures = closuresOf(closed.buses, [], closed.shapes, inSpain, () => {});
   expect(closures.filter((c) => c.line === 'rodalies:R3')).toEqual([
-    // Puigcerdà at 05:35 to Vic, Vic to La Tor de Querol, and Vic at 21:25 to Puigcerdà at 24:24.
+    // Puigcerdà at 05:35 to Vic, Vic to La Tor de Querol, and Vic at 21:25 to Puigcerdà at 24:24. These
+    // buses call at La Molina and Planoles, and the shuttles between them, either way, run from 06:01 to 23:58.
     { line: 'rodalies:R3', stations: ['adif:77109', 'adif:77309'], from: at('05:35'), to: at('24:24'), kind: 'buses' },
     // From Fabra i Puig, which isn't on R3's track, to Centelles, leaving La Garriga at 06:26.
     { line: 'rodalies:R3', stations: ['adif:77102', 'adif:77105'], from: at('06:26'), to: at('07:08'), kind: 'buses' },
-    // Shuttles between La Molina and Planoles, either way.
-    { line: 'rodalies:R3', stations: ['adif:77304', 'adif:77306'], from: at('06:01'), to: at('23:58'), kind: 'buses' },
+  ]);
+});
+
+test("keeps a part apart from a Closure it lies inside where its buses run outside that Closure's hours: R3's 06:01 shuttle from La Molina to Planoles, beside only the 07:25 bus from Vic to Puigcerdà", () => {
+  const buses = closed.buses.filter((b) => ['rodalies:5178X85379R3', 'rodalies:5178X85378R3'].includes(b.id));
+  expect(closuresOf(buses, [], closed.shapes, inSpain, () => {})).toEqual([
+    { line: 'rodalies:R3', stations: ['adif:77109', 'adif:77309'], from: at('07:25'), to: at('10:24'), kind: 'buses' },
+    { line: 'rodalies:R3', stations: ['adif:77304', 'adif:77306'], from: at('06:01'), to: at('06:49'), kind: 'buses' },
   ]);
 });
 

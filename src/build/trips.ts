@@ -87,16 +87,20 @@ export function placeTrips(
  * Borges Blanques – La Plana-Picamoixons, as R13's Trains shuttle from Lleida to Les Borges Blanques,
  * and R3's, which run beside R3's Trains, close nothing. A bus closes a part from its departure
  * from the one Station to its arrival at the other, and buses over the same part, either way, make one
- * Closure, from the first bus to the last. The Line's Stations on its track are those its Trains serve
- * on any day (`shapes`), and a bus's calls at those beyond Spain's border, which aren't the bundle's
- * (`stations`), go, as its Trains leave the map there (crop()). Where a bus runs off the Line's track,
- * before its first such Station, after its last, or all its way, as R3's ran from Fabra i Puig to La
- * Garriga, where no R3 Train runs in the whole timetable, the map has no track to draw that part on,
- * and it's logged, once however many buses run there, and reported.
- * ponytail: a part is run only where one Train calls at both its ends, so one whose Trains all pass
- * one of its ends without calling, or that runs from one branch of a fork to another, is closed though
- * Trains run it; none was on 7–12 Oct 2026. Check the part against where the Trains run along the
- * track if one ever is.
+ * Closure, from the first bus to the last. A part that lies wholly inside another of the Line's
+ * Closures, at stops that Closure's buses call at and within its hours, joins it, as San Sebastián's
+ * one early bus from Irun to Lezo-Rentería joins C1's Hernani – Irun on 9–12 Oct 2026. The Line's
+ * Stations on its track are those its Trains serve on any day (`shapes`), and a bus's calls at those
+ * beyond Spain's border, which aren't the bundle's (`stations`), go, as its Trains leave the map there
+ * (crop()). Where a bus runs off the Line's track, before its first such Station, after its last, or
+ * all its way, as R3's ran from Fabra i Puig to La Garriga, where no R3 Train runs in the whole
+ * timetable, the map has no track to draw that part on, and it's logged, once however many buses run
+ * there, and reported.
+ * ponytail: a part counts as run only where one Train calls at both its ends, so it's closed though
+ * Trains run it where they all pass one of its ends without calling, or each run only some of it,
+ * turning back or branching off at a Station the bus passes without calling, as R13's 04:48 bus from
+ * Lleida would close Juneda – La Plana-Picamoixons had it passed Les Borges Blanques. None did on 7–12
+ * Oct 2026. Check the part against where the Trains run along the track if one ever does.
  */
 export function closuresOf(buses: FeedBus[], trips: FeedTrip[], shapes: FeedShape[], stations: Station[], log = console.log, report: (found: Found) => void = () => {}): Closure[] {
   const inside = new Set(stations.map((s) => s.id));
@@ -105,6 +109,7 @@ export function closuresOf(buses: FeedBus[], trips: FeedTrip[], shapes: FeedShap
   const trains = new Map<string, Set<string>[]>(); // the Stations each of a Line's Trains calls at that day
   for (const t of trips) trains.set(t.line, [...(trains.get(t.line) ?? []), new Set(t.calls.map((c) => c.station))]);
   const closures = new Map<string, Closure>();
+  const stops = new Map<string, Set<string>>(); // the stops each Closure's buses call at, from one of its Stations to the other
   const logged = new Set<string>();
   for (const { id, line, calls: all } of buses) {
     const ours = own.get(line) ?? new Set();
@@ -131,9 +136,11 @@ export function closuresOf(buses: FeedBus[], trips: FeedTrip[], shapes: FeedShap
       const key = `${line} ${ends.join(' ')}`;
       const known = closures.get(key);
       closures.set(key, { line, stations: ends, from: Math.min(a.departure, known?.from ?? Infinity), to: Math.max(b.arrival, known?.to ?? -Infinity), kind: 'buses' });
+      stops.set(key, new Set([...(stops.get(key) ?? []), ...calls.slice(calls.indexOf(a), calls.indexOf(b) + 1).map((c) => c.station.id)]));
     }
   }
-  return [...closures.values()];
+  // A part that lies wholly inside another Closure of its Line, at stops its buses call at and within its hours, joins it.
+  return [...closures.values()].filter((c) => ![...closures].some(([key, o]) => o !== c && o.line === c.line && o.from <= c.from && c.to <= o.to && c.stations.every((s) => stops.get(key)?.has(s))));
 }
 
 /** One time a track passes a Station: how far along it comes closest, and how close, in metres. */
