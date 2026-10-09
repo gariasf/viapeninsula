@@ -1056,7 +1056,7 @@ time .in {
   gap: 4px;
 }
 
-/* With the Lines' Alerts under their pills, or what closes a Closure (#341): in the cards' type, a little wider, and scrolled where it's long. Under a Closure's, its first Alert has no rule over it. */
+/* With the Lines' Alerts under their pills, or what closes a Closure (#341): in the cards' type, a little wider, and scrolled where it's long. A Closure's first has no rule over it, but under when its Alerts were read. */
 .lines-at:has(.alerts:not([hidden])) .maplibregl-popup-content {
   max-width: min(300px, calc(100vw - 32px));
   max-height: min(50dvh, 360px);
@@ -1075,7 +1075,7 @@ time .in {
   margin-top: 6px;
 }
 
-.lines-at .alerts > ol > li:first-child {
+.lines-at .alerts > .meta[hidden] + ol > li:first-child {
   padding-top: 0;
   border-top: 0;
 }

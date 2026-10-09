@@ -1965,14 +1965,17 @@ function foldButton(says: (Node | string)[], open: boolean, toggle: () => void, 
 function alertsOn(on: { lines: string[]; stations: string[] }, open = showAlerts, toggle = () => (showAlerts = !showAlerts), after?: () => void) {
   const now = mapTime(Date.now(), received);
   const { alerts: shown, asOf } = cardAlerts(alerts, on, language(), now);
-  // With their day, where they were read on another than the map's.
-  const read = el('p', { className: 'meta', hidden: asOf === undefined, textContent: asOf === undefined ? '' : t('alertsAsOf').replace('{time}', clock(madridDate(new Date(asOf)) !== madridDate(new Date(now))).format(asOf)) });
   return el(
     'div',
     { className: 'alerts', hidden: !shown.length },
     foldButton([icon('warning'), alertCount(shown.length)], open, toggle, after),
-    el('div', { hidden: !open }, read, el('ol', {}, ...shown.map((alert) => alertRow(alert, on.lines.length > 1)))),
+    el('div', { hidden: !open }, readAt(asOf, now), el('ol', {}, ...shown.map((alert) => alertRow(alert, on.lines.length > 1)))),
   );
+}
+
+/** When the Alerts a card or a tap shows were read, where that's long ago (cardAlerts()'s `asOf`), with their day, where they were read on another than the map's: hidden where it isn't. */
+function readAt(asOf: number | undefined, now: number) {
+  return el('p', { className: 'meta', hidden: asOf === undefined, textContent: asOf === undefined ? '' : t('alertsAsOf').replace('{time}', clock(madridDate(new Date(asOf)) !== madridDate(new Date(now))).format(asOf)) });
 }
 
 /** What a tap on Lines' strokes shows (#193): the Lines drawn there, by their pills, and their Alerts under them, folded away (alertsOn(), #341); or none, where it names no Line on the map. */
@@ -1992,7 +1995,7 @@ function showTapped() {
  * What a tap on Closures shows (#341), by closureKey(): for each Alert that closes them, its words
  * (cardAlerts()), or for each the timetable's buses do, that buses replace trains between its two
  * Stations, in the interface's words; each under the pills of the Closures' Lines, with when it began.
- * None, where none of them is shown now.
+ * Over them, when the Alerts were read, where that's long ago. None, where none of them is shown now.
  */
 function closuresTapped(keys: string[]) {
   const now = mapTime(Date.now(), received);
@@ -2005,7 +2008,8 @@ function closuresTapped(keys: string[]) {
     if (alert) return cardAlerts(alerts, { lines: on, stations: [] }, language(), now).alerts.filter((c) => c.id === alert.id);
     return [{ id: `${on.join()} ${a} ${b}`, lines: on, description: { language: language(), text: busesReplace(stationName(a), stationName(b)) }, ...(from !== undefined && { from }), by: '' }];
   });
-  return said.length ? el('div', { className: 'alerts' }, el('ol', {}, ...said.map((row) => alertRow(row, true)))) : undefined;
+  const { asOf } = cardAlerts(alerts, { lines: [...rows.values()].flatMap(({ closure, on }) => (closure.alert ? on : [])), stations: [] }, language(), now);
+  return said.length ? el('div', { className: 'alerts' }, readAt(asOf, now), el('ol', {}, ...said.map((row) => alertRow(row, true)))) : undefined;
 }
 
 /**
