@@ -1,6 +1,10 @@
 import { createExpression, latest, type ExpressionSpecification, type Feature, type StylePropertySpecification } from '@maplibre/maplibre-gl-style-spec';
-import { expect, test } from 'vitest';
-import { basemapLabel, earlierStations, LANGUAGES, type Language, liveUnavailable, MACHINE_TRANSLATED, moreDepartures, moreStations, pickLanguage, t, toGo, trainCounts, unlocated } from './i18n.ts';
+import { afterEach, expect, test, vi } from 'vitest';
+import { basemapLabel, earlierStations, LANGUAGES, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, pickLanguage, t, toGo, trainCounts, unlocated } from './i18n.ts';
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 test("speaks the first of the browser's languages it knows, whatever the region, and English when it knows none", () => {
   expect(pickLanguage(null, ['ca-ES', 'es-ES', 'en'])).toBe('ca');
@@ -90,6 +94,18 @@ test('counts one Scheduled Train in the singular, and none in the plural', () =>
 
 test('counts one as singular and any other number as plural in every language it speaks, as counting() takes them to', () => {
   for (const lang of Object.keys(LANGUAGES)) expect([0, 1, 2, 21].map((n) => new Intl.PluralRules(lang).select(n))).toEqual(['other', 'one', 'other', 'other']);
+});
+
+test("writes dates, times and numbers as the viewer's language does, or as Spanish does in a browser with no data for it, as Chrome has none for Basque or Galician", () => {
+  const day = (lang: Language) => new Intl.DateTimeFormat(locale(lang), { dateStyle: 'medium', timeZone: 'UTC' }).format(Date.UTC(2026, 9, 7));
+  expect(day('eu')).toBe('2026(e)ko urr. 7(a)');
+  expect(day('gl')).toBe('7 de out. de 2026');
+  // Chrome 154's data: Catalan's, Spanish's and English's, and not Basque's or Galician's.
+  vi.spyOn(Intl.DateTimeFormat, 'supportedLocalesOf').mockImplementation((tag) => (tag === 'eu' || tag === 'gl' ? [] : [String(tag)]));
+  expect(day('eu')).toBe('7 oct 2026');
+  expect(day('gl')).toBe('7 oct 2026');
+  expect(day('ca')).toBe('7 d’oct. 2026');
+  expect(day('en')).toBe('Oct 7, 2026');
 });
 
 test('says in the banner that a Network has no timetable today, in each language', () => {

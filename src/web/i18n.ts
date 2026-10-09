@@ -277,6 +277,14 @@ export function setLanguage(choice: Language) {
 export const t = (key: keyof typeof STRINGS, lang = language()): string => STRINGS[key][lang];
 
 /**
+ * The locale to write dates, times and numbers in, for `lang`, or else the language the interface speaks
+ * now: its own, or Spanish's where the browser has no data for it, as Chrome has none for Basque or
+ * Galician, which would otherwise take the browser's own locale's, such as "6:05 PM", or raw ones, such
+ * as "2026 M10 7" (#327).
+ */
+export const locale = (lang = language()): string => (Intl.DateTimeFormat.supportedLocalesOf(lang).length ? lang : 'es');
+
+/**
  * A string that counts `n` of something, in `lang`: `one` where `n` is 1, and `other` otherwise.
  * ponytail: one is singular and any other number plural, as in every language the interface speaks,
  * as a test checks against Intl.PluralRules. Pick the string by Intl.PluralRules if a language with

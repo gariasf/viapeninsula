@@ -8,7 +8,7 @@ import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
 import { along, APART, atZoom, BANDS, bandZooms, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Credit, type Place, type DayTrips, type Kind, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, WIDTH } from '../bundle.ts';
 import { boardAt, joinDays, KEEP, mapTime, nearbyAt, trainAt, trainsAt, unavailable, type Departure, type Followed, type Received } from '../engine.ts';
-import { basemapLabel, earlierStations, language, LANGUAGES, liveUnavailable, MACHINE_TRANSLATED, moreDepartures, moreStations, setLanguage, t, toGo, trainCounts, unlocated, type Language, type Unlocated } from './i18n.ts';
+import { basemapLabel, earlierStations, language, LANGUAGES, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, setLanguage, t, toGo, trainCounts, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { linesAt } from './tap.ts';
 import { alongside, namedTwice, nameOffset, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
@@ -1989,12 +1989,12 @@ function stationName(station: string): string {
 
 /** A length in metres, in km to a tenth, as the viewer's language writes numbers. */
 function kilometres(metres: number): string {
-  return new Intl.NumberFormat(language(), { maximumFractionDigits: 1 }).format(metres / 1000);
+  return new Intl.NumberFormat(locale(), { maximumFractionDigits: 1 }).format(metres / 1000);
 }
 
 /** Formats times of day as the viewer's language does, in Barcelona. */
 function clock() {
-  return new Intl.DateTimeFormat(language(), { timeStyle: 'short', timeZone: 'Europe/Madrid' });
+  return new Intl.DateTimeFormat(locale(), { timeStyle: 'short', timeZone: 'Europe/Madrid' });
 }
 
 /** How long a number of ms is, to the second under a minute and to the minute after. */
@@ -2097,7 +2097,7 @@ function creditOf({ text, url, licence, updated }: Credit): string {
   return (
     `<a href="${url}" target="_blank">${text}</a>` +
     (licence ? `, ${LICENCES[licence]}` : '') +
-    (updated ? `, ${t('updated')} ${new Intl.DateTimeFormat(language(), { dateStyle: 'medium', timeZone: 'UTC' }).format(Date.parse(updated))}` : '')
+    (updated ? `, ${t('updated')} ${new Intl.DateTimeFormat(locale(), { dateStyle: 'medium', timeZone: 'UTC' }).format(Date.parse(updated))}` : '')
   );
 }
 
