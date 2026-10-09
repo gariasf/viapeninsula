@@ -1852,7 +1852,7 @@ function countdown(at: number, now: number, phrase: 'minutes' | 'inMinutes'): No
  * each try of the browser's ends, and which patch() keeps in place, as it does Try again (#324).
  */
 function nearbyPanel(near: Point | Unlocated, up: boolean): Panel {
-  // The title takes the keyboard's focus as a Try again gives way to the list (locate()).
+  // The title takes the keyboard's focus as a Try again gives way to what the try found (locate()).
   const header = el('header', {}, el('h2', { className: 'title', textContent: t('nearby'), tabIndex: -1 }), closeButton(t('closeNearby')));
   const said = el('div');
   said.setAttribute('role', 'status');
@@ -1864,11 +1864,12 @@ function nearbyPanel(near: Point | Unlocated, up: boolean): Panel {
   const now = Date.now();
   const rows = nearbyRows(bundle ? nearbyAt(bundle, now, received, near, NEARBY, SOON) : [], now);
   said.append(el('p', { className: 'subtitle', textContent: t('passingNearby') }));
-  // Where no Train passes, saying so is what a try found too, so the status says it, for a screen reader to hear.
-  // ponytail: a screen reader hears it again whenever a refresh empties the list; keep the status to
-  // what the try found if that's too chatty.
+  // Where no Train passes, saying so is what a try found too, so the status says it, for a screen reader to
+  // hear; but only once the Trips have come, which can be after the viewer is found, as the map can't tell before.
+  // ponytail: a screen reader hears the status again whenever a refresh empties the list, and maybe its
+  // heading alone as the list fills; keep the status to what the try found if that's too chatty.
   if (!rows.length) {
-    said.append(el('p', { textContent: t('noneNearby') }));
+    if (bundle) said.append(el('p', { textContent: t('noneNearby') }));
     return { header, body: [said] };
   }
   return {
