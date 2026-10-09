@@ -1811,8 +1811,10 @@ function foldButton(says: (Node | string)[], open: boolean, toggle: () => void) 
  * folded away, so that a new Alert never takes the keyboard's focus or a screen reader's place.
  */
 function alertsOn(on: { lines: string[]; stations: string[] }) {
-  const { alerts: shown, asOf } = cardAlerts(alerts, on, language(), mapTime(Date.now(), received));
-  const read = el('p', { className: 'meta', hidden: asOf === undefined, textContent: asOf === undefined ? '' : t('alertsAsOf').replace('{time}', clock().format(asOf)) });
+  const now = mapTime(Date.now(), received);
+  const { alerts: shown, asOf } = cardAlerts(alerts, on, language(), now);
+  // With their day, where they were read on another than the map's.
+  const read = el('p', { className: 'meta', hidden: asOf === undefined, textContent: asOf === undefined ? '' : t('alertsAsOf').replace('{time}', clock(madridDate(new Date(asOf)) !== madridDate(new Date(now))).format(asOf)) });
   return el(
     'div',
     { className: 'alerts', hidden: !shown.length },
@@ -1823,10 +1825,11 @@ function alertsOn(on: { lines: string[]; stations: string[] }) {
 
 /** An Alert on a card, as alertsOn() has it, after the Lines it's on as pills, `byLine`, where the card has more than one, as a board can: Rodalies' words don't name theirs. */
 function alertRow({ lines: named, header, description, from, by }: CardAlert, byLine: boolean) {
-  const words = (tag: 'strong' | 'p', said?: Words) => (said ? [el(tag, { textContent: said.text, ...(said.language && { lang: said.language }) })] : []);
+  // In an unknown language, lang="", where its feed doesn't say, rather than the viewer's.
+  const words = (tag: 'strong' | 'p', said?: Words) => (said ? [el(tag, { textContent: said.text, lang: said.language ?? '' })] : []);
   const other = description?.language && description.language !== language() ? description.language : undefined;
   const about: (Node | string)[] = [
-    ...(from === undefined ? [] : [t('since').replace('{date}', new Intl.DateTimeFormat(locale(), { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Madrid' }).format(from))]),
+    ...(from === undefined ? [] : [t('since').replace('{date}', clock(true).format(from))]),
     by,
     // By its own name, as the language switch names it.
     ...(other ? [el('span', { lang: other, textContent: LANGUAGES[other as Language] ?? other })] : []),
@@ -2071,9 +2074,9 @@ function kilometres(metres: number): string {
   return new Intl.NumberFormat(locale(), { maximumFractionDigits: 1 }).format(metres / 1000);
 }
 
-/** Formats times of day as the viewer's language does, in Barcelona. */
-function clock() {
-  return new Intl.DateTimeFormat(locale(), { timeStyle: 'short', timeZone: 'Europe/Madrid' });
+/** Formats times of day as the viewer's language does, in Barcelona, after their day where `day` says. */
+function clock(day = false) {
+  return new Intl.DateTimeFormat(locale(), { dateStyle: day ? 'medium' : undefined, timeStyle: 'short', timeZone: 'Europe/Madrid' });
 }
 
 /** How long a number of ms is, to the second under a minute and to the minute after. */

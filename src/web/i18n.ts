@@ -126,7 +126,7 @@ const STRINGS = {
   // A followed Train's and a board's Alerts (#342): how many, in the line they're folded into; when each began, {date}; and when they were read, {time}, where that's long ago.
   alerts: { ca: '{n} avisos', es: '{n} avisos', eu: '{n} abisu', gl: '{n} avisos', en: '{n} alerts' },
   oneAlert: { ca: '{n} avís', es: '{n} aviso', eu: 'Abisu bat', gl: '{n} aviso', en: '{n} alert' },
-  since: { ca: 'Des del {date}', es: 'Desde el {date}', eu: 'Hasiera: {date}', gl: 'Desde o {date}', en: 'Since {date}' },
+  since: { ca: 'Des del {date}', es: 'Desde el {date}', eu: 'Hasiera: {date}', gl: 'Desde o {date}', en: 'From {date}' },
   alertsAsOf: {
     ca: 'Darrera actualització dels avisos: {time}',
     es: 'Última actualización de los avisos: {time}',

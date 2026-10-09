@@ -76,9 +76,11 @@ export interface CardAlert {
 
 /**
  * How long ago a feed's Alerts can have been read before a card says when, in ms: while a feed and the
- * fetcher work, alerts.json says it read them no more than about 10 minutes ago (#339).
+ * fetcher work, alerts.json says it read them no more than about 10 minutes ago, as TRAM's are read
+ * every 5 minutes into a file written every 5, and the page has the file up to 2 minutes after, by
+ * its cache and its minute; so 15, as #339's note on #342 has it.
  */
-const STALE = 10 * 60_000;
+const STALE = 15 * 60_000;
 
 /**
  * The Alerts a card shows, from alerts.json: a followed Train's, those on its Line; a board's, those

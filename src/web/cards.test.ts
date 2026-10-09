@@ -190,15 +190,17 @@ test("an Alert is in the viewer's language where its feed has it, or else in its
   expect(cardAlerts(ALERTS, T1, 'eu', NOW).alerts[0]).toMatchObject({ header: { language: 'ca', text: 'Afectació T1, T2 i T3' }, description: { language: 'ca', text: 'Sense servei entre Francesc Macià i Montesa.' } });
 });
 
-test("a card says when its Alerts were read where that's over 10 minutes ago, by the feed read longest ago of those whose Alerts it shows", () => {
+test("a card says when its Alerts were read where that's over 15 minutes ago, by the feed read longest ago of those whose Alerts it shows", () => {
   const on = (...lines: string[]) => ({ lines, stations: [] });
   const [R2, T1, both] = [on('rodalies:R2'), on('tram:T1'), on('rodalies:R2', 'tram:T1')];
-  // Renfe's were read at 8:11:40, and TRAM's at 8:10:05.
+  // Renfe's were read at 8:11:40, and TRAM's at 8:10:05. TRAM's, read every 5 minutes into a file
+  // written every 5, can be 12 minutes old by the time the page has the file, while all works (#339).
   expect(cardAlerts(ALERTS, both, 'en', NOW).asOf).toBeUndefined();
-  expect(cardAlerts(ALERTS, T1, 'en', at(8, 20, 5)).asOf).toBeUndefined();
-  expect(cardAlerts(ALERTS, T1, 'en', at(8, 20, 6)).asOf).toBe(at(8, 10, 5));
-  expect(cardAlerts(ALERTS, R2, 'en', at(8, 20, 6)).asOf).toBeUndefined();
-  expect(cardAlerts(ALERTS, both, 'en', at(8, 21, 41)).asOf).toBe(at(8, 10, 5));
+  expect(cardAlerts(ALERTS, T1, 'en', at(8, 22, 5)).asOf).toBeUndefined();
+  expect(cardAlerts(ALERTS, T1, 'en', at(8, 25, 5)).asOf).toBeUndefined();
+  expect(cardAlerts(ALERTS, T1, 'en', at(8, 25, 6)).asOf).toBe(at(8, 10, 5));
+  expect(cardAlerts(ALERTS, R2, 'en', at(8, 25, 6)).asOf).toBeUndefined();
+  expect(cardAlerts(ALERTS, both, 'en', at(8, 25, 6)).asOf).toBe(at(8, 10, 5));
   // A card with no Alerts says nothing.
   expect(cardAlerts(ALERTS, { lines: ['rodalies:R8'], stations: [] }, 'en', at(9, 0)).asOf).toBeUndefined();
 });
