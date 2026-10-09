@@ -144,7 +144,7 @@ test('lists the spots new since the last build, then those gone, then those whos
     '',
     '#### New',
     '',
-    "- `turn rodalies:R16 adif:65402` · [map](https://viapeninsula.gariasf.com/#map=16/40.75356/0.61431) · [OpenStreetMap](https://www.openstreetmap.org/#map=17/40.75356/0.61431) · [edit](https://www.openstreetmap.org/edit#map=18/40.75356/0.61431) · ways [216952562](https://www.openstreetmap.org/way/216952562), [216952572](https://www.openstreetmap.org/way/216952572)",
+    "- `turn rodalies:R16 adif:65402` · [map](https://viapeninsula.gariasf.com/#map=16/40.75356/0.61431&mark=40.75356,0.61431) · [OpenStreetMap](https://www.openstreetmap.org/#map=17/40.75356/0.61431) · [edit](https://www.openstreetmap.org/edit#map=18/40.75356/0.61431) · ways [216952562](https://www.openstreetmap.org/way/216952562), [216952572](https://www.openstreetmap.org/way/216952572)",
     "  - rodalies:51_R16: Camp-redó → Ulldecona-Alcanar-La Sénia turns back at L'Aldea-Amposta-Tortosa",
     '',
     '#### Gone',
@@ -154,11 +154,15 @@ test('lists the spots new since the last build, then those gone, then those whos
     '',
     '#### Changed',
     '',
-    '- `length cercanias-madrid:C1 cercanias-madrid:10_C1`: percent (0.1 → 1.2) · [map](https://viapeninsula.gariasf.com/#map=11/40.48105/-3.67826) · [OpenStreetMap](https://www.openstreetmap.org/#map=17/40.48105/-3.67826) · [edit](https://www.openstreetmap.org/edit#map=18/40.48105/-3.67826)',
+    '- `length cercanias-madrid:C1 cercanias-madrid:10_C1`: percent (0.1 → 1.2) · [map](https://viapeninsula.gariasf.com/#map=11/40.48105/-3.67826&mark=40.48105,-3.67826) · [OpenStreetMap](https://www.openstreetmap.org/#map=17/40.48105/-3.67826) · [edit](https://www.openstreetmap.org/edit#map=18/40.48105/-3.67826)',
     '  - cercanias-madrid:10_C1: 17.4 km long. Where the feed has the track: 9.9 km traced against its 9.8 km (+1.2%)',
     '- `measures`: breaks (236 → 230), steps (181 → 175)',
     '  - Lines drawn: 230 breaks (175 steps, 29 stubs, 6 swaps, 20 joins)',
   ]);
+});
+
+test('links each spot to the map at its zoom and point, with a ring there', () => {
+  expect(diff([], [TURN])).toContain('[map](https://viapeninsula.gariasf.com/#map=16/40.75356/0.61431&mark=40.75356,0.61431)');
 });
 
 test('counts a Trip count, a node or any other measure as changed when it moves at all, a length only past a point', () => {
@@ -169,8 +173,8 @@ test('counts a Trip count, a node or any other measure as changed when it moves 
   );
   expect(changed.split('\n').filter((line) => line.startsWith('- '))).toEqual([
     '- `measures`: folds 15 (none → 0)',
-    '- `node 10 40.400 -3.681`: size (14.8 → 14.9) · [map](https://viapeninsula.gariasf.com/#map=10/40.4/-3.68073) · [OpenStreetMap](https://www.openstreetmap.org/#map=17/40.4/-3.68073) · [edit](https://www.openstreetmap.org/edit#map=18/40.4/-3.68073)',
-    '- `trip cercanias-madrid:C2 fast adif:70101 adif:98003`: trips (5 → 6) · [map](https://viapeninsula.gariasf.com/#map=15/40.46375/-3.59852) · [OpenStreetMap](https://www.openstreetmap.org/#map=17/40.46375/-3.59852) · [edit](https://www.openstreetmap.org/edit#map=18/40.46375/-3.59852)',
+    '- `node 10 40.400 -3.681`: size (14.8 → 14.9) · [map](https://viapeninsula.gariasf.com/#map=10/40.4/-3.68073&mark=40.4,-3.68073) · [OpenStreetMap](https://www.openstreetmap.org/#map=17/40.4/-3.68073) · [edit](https://www.openstreetmap.org/edit#map=18/40.4/-3.68073)',
+    '- `trip cercanias-madrid:C2 fast adif:70101 adif:98003`: trips (5 → 6) · [map](https://viapeninsula.gariasf.com/#map=15/40.46375/-3.59852&mark=40.46375,-3.59852) · [OpenStreetMap](https://www.openstreetmap.org/#map=17/40.46375/-3.59852) · [edit](https://www.openstreetmap.org/edit#map=18/40.46375/-3.59852)',
   ]);
 });
 
@@ -221,7 +225,7 @@ test("says how many problem spots are new and links the run, whose summary has t
     '',
     '- `notrips rodalies 0`',
     "  - Rodalies de Catalunya's timetable has no Trips on 2026-10-05",
-    "- `turn rodalies:R16 adif:65402` · [map](https://viapeninsula.gariasf.com/#map=16/40.75356/0.61431) · [OpenStreetMap](https://www.openstreetmap.org/#map=17/40.75356/0.61431) · [edit](https://www.openstreetmap.org/edit#map=18/40.75356/0.61431) · ways [216952562](https://www.openstreetmap.org/way/216952562), [216952572](https://www.openstreetmap.org/way/216952572)",
+    "- `turn rodalies:R16 adif:65402` · [map](https://viapeninsula.gariasf.com/#map=16/40.75356/0.61431&mark=40.75356,0.61431) · [OpenStreetMap](https://www.openstreetmap.org/#map=17/40.75356/0.61431) · [edit](https://www.openstreetmap.org/edit#map=18/40.75356/0.61431) · ways [216952562](https://www.openstreetmap.org/way/216952562), [216952572](https://www.openstreetmap.org/way/216952572)",
     "  - rodalies:51_R16: Camp-redó → Ulldecona-Alcanar-La Sénia turns back at L'Aldea-Amposta-Tortosa",
   ]);
   expect(comment([], [TURN], RUN)?.split('\n')[0]).toBe("1 new problem spot since the last build. The whole diff is in [the run's summary](https://github.com/gariasf/viapeninsula/actions/runs/37330911997).");

@@ -13,7 +13,7 @@ import { rounded } from './curve.ts';
 import { linesAt } from './tap.ts';
 import { alongside, namedTwice, nameOffset, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
 import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
-import { keepView, lastView, openingView } from './view.ts';
+import { keepView, lastView, markOf, openingView } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { contrast, lettering } from './colour.ts';
 import { linesCallingAt, minutesTo, nearbyRows, progress } from './cards.ts';
@@ -336,6 +336,8 @@ const LICENCES: Record<NonNullable<Credit['licence']>, string> = {
  */
 let openedLink = location.hash;
 addEventListener('hashchange', () => (openedLink = location.hash));
+/** The point the page's link has the map ring (markOf()), until the next tap (#254). */
+let marked: Point | undefined;
 const map = new MapLibreMap({
   container: 'map',
   ...openingView(openedLink, lastView()),
@@ -800,6 +802,11 @@ map.addLayer({
   },
   paint: { 'text-color': nameColour, 'text-halo-color': halo, 'text-halo-width': NAME_HALO },
 });
+// The point a link names, as a build report's do, ringed 40 px across in the colour of the places'
+// names: over the Lines, their names and the places' and Trains' dots, and under the places' names
+// and the Trains' pills (#254).
+map.addSource('mark', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+map.addLayer({ id: 'mark', type: 'circle', source: 'mark', paint: { 'circle-radius': 20, 'circle-opacity': 0, 'circle-stroke-width': 3, 'circle-stroke-color': nameColour } }, 'station-names');
 // Zoomed in (pillOf()), each Train is a pill with its Line's name, over the Stations' names too,
 // outlined by its Line's kind of service: a Live one's filled with its Line's colour and edged in
 // white, a Scheduled one's white, or the dark basemap's paper, ringed and lettered in its Line's colour
@@ -854,13 +861,21 @@ for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', tr
 // Tapping a Train follows it, and tapping a Station shows its board. Both are small, so a tap near one
 // will do, and a Train standing at a Station is the one tapped. A tap nothing else takes, on a Line's
 // stroke or within STROKE_TAP of one, names the Lines drawn there, by their pills (#193), the strokes
-// nearest the tap first: but not on a place's name, which takes no tap.
+// nearest the tap first: but not on a place's name, which takes no tap. Any tap clears the ring a link
+// drew (#254).
+// ponytail: so a double-click or double-tap that zooms clears it too, its first tap being a tap,
+// though a wheel, a pinch or a drag keeps it. Clear it only once no second tap follows if the ring's
+// missed after one.
 /** The layers the Lines' strokes are drawn in. A tap names the Lines of those along their stretches below railsZoom, and of the rails from it. */
 const strokeLayers = layered.map((l) => l.id);
 /** Where a tap names the Lines drawn there. Each tap closes the last one's. */
 const linesPopup = new Popup({ closeButton: false, closeOnClick: false, className: 'lines-at', maxWidth: 'none' });
 map.on('click', ({ point: { x, y }, lngLat }) => {
   linesPopup.remove();
+  if (marked) {
+    showMark(undefined);
+    writeLink();
+  }
   const within = (r: number, layers: string[]) => map.queryRenderedFeatures([[x - r, y - r], [x + r, y + r]], { layers });
   const near = (layer: string): unknown => within(10, [layer])[0]?.properties.id;
   // Where pills overlap, the one under the tap, the topmost, before one near it.
@@ -1454,12 +1469,13 @@ function openPanel(up: boolean) {
 }
 
 /**
- * Opens what the page's link names besides the view: a Station's board, or once its Trips have come,
- * a Train to follow, which the map stops following straight away if it's no longer running. A
- * Station the map doesn't know goes from the link. Where the link names no view, the map goes to the
- * Station, by follow()'s rule (#292).
+ * Opens what the page's link names besides the view: a point to ring (#254), a Station's board, or
+ * once its Trips have come, a Train to follow, which the map stops following straight away if it's
+ * no longer running. A Station the map doesn't know goes from the link. Where the link names no
+ * view, the map goes to the Station, by follow()'s rule (#292).
  */
 function openLink() {
+  showMark(markOf(openedLink));
   const link = new URLSearchParams(openedLink.slice(1));
   const [station, train] = [link.get('station'), link.get('train')];
   const place = station && [...shownPlaces.values()].find((p) => p.stations.includes(station));
@@ -1479,7 +1495,9 @@ function openLink() {
  * Puts what the panel shows in the page's link, beside the view, so that sharing the page shares it:
  * `train=<service day>/<Trip>`, the Train by its service day and its Trip as its operator names it,
  * whose ID leads with its Network, or `station=<Station>`, one of the place's Stations, which opens the
- * place's board. Written as MapLibre writes the view, which undoes any escaping each time it does.
+ * place's board. It keeps the link's `mark=` while the map rings its point, and drops it while the
+ * map rings none, as after a tap (#254). Written as MapLibre writes the view, which undoes any
+ * escaping each time it does.
  * ponytail: so an ID with `&`, `=`, `#`, `+` or `%` in it would break its link. None has one yet
  * (only `:._|@-`); escape them both ways, instead of MapLibre's hash, if an operator's ever does.
  */
@@ -1487,10 +1505,17 @@ function writeLink() {
   const params = new URLSearchParams(location.hash.slice(1));
   params.delete('train');
   params.delete('station');
+  if (!marked) params.delete('mark');
   if (following) params.set('train', `${following.day}/${following.trip}`);
   const station = boardPlace && shownPlaces.get(boardPlace)?.stations[0];
   if (station) params.set('station', station);
   history.replaceState(history.state, '', `#${decodeURIComponent(params.toString())}`);
+}
+
+/** Rings a point on the map, or none (#254). */
+function showMark(at: Point | undefined) {
+  marked = at;
+  map.getSource<GeoJSONSource>('mark')?.setData({ type: 'FeatureCollection', features: at ? [{ type: 'Feature', geometry: { type: 'Point', coordinates: at }, properties: {} }] : [] });
 }
 
 /** The ID of the Trip the map follows in the days on the map, which lead an earlier day's Trips with that day (joinDays()). */

@@ -1,4 +1,5 @@
-// Where the map opens: on Barcelona the first time, then where the viewer last left it (#245, ADR-0010).
+// Where the map opens: on Barcelona the first time, then where the viewer last left it (#245, ADR-0010),
+// and the point a link has it ring (#254).
 import type { Point } from '../bundle.ts';
 
 /** A view of the map: its centre, its zoom, and its bearing and pitch, in degrees. */
@@ -31,6 +32,16 @@ export function openingView(link: string, kept: string | null): View {
     // Not a view as keepView() keeps it.
   }
   return BARCELONA;
+}
+
+/**
+ * The point a link's `mark=<lat>,<lon>` names, which the map rings until the next tap, as a build
+ * report's links do (#254): none where the link names none, or where it isn't a latitude and a
+ * longitude, in degrees.
+ */
+export function markOf(link: string): Point | undefined {
+  const [, lat, lon] = /^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/.exec(new URLSearchParams(link.slice(1)).get('mark') ?? '')?.map(Number) ?? [];
+  return lat !== undefined && lon !== undefined && Math.abs(lat) <= 90 && Math.abs(lon) <= 180 ? [lon, lat] : undefined;
 }
 
 /** The last view kept on this device, as keepView() keeps it, if its storage can be read. */
