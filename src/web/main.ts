@@ -194,8 +194,9 @@ const CLOSURE_LOOKS: Record<string, Coat[]> = {
     ...SINGLE,
   ],
 };
-/** How Closures are drawn: as the page's `?closure=` picks, or hatched. */
-const closureLook = CLOSURE_LOOKS[new URLSearchParams(location.search).get('closure') ?? ''] ?? CLOSURE_LOOKS.hatched ?? [];
+/** How Closures are drawn: as the page's `?closure=` picks, one of the looks, not a name every object has, as "constructor", or hatched. */
+const pickedLook = new URLSearchParams(location.search).get('closure') ?? '';
+const closureLook = CLOSURE_LOOKS[Object.hasOwn(CLOSURE_LOOKS, pickedLook) ? pickedLook : 'hatched'] ?? [];
 /**
  * Zooming in, the Lines don't jump from their stretches to their rails at once: they cross-fade over
  * FADE zooms either side of the zoom they go back on the rails at (#205). The rest still switches at
@@ -576,7 +577,11 @@ let received: Received[] = [];
 let emptyPolls = 0;
 /** The operators' Alerts, as the map last got alerts.json: about once a minute while the tab is visible, as long as the file is cached for (ADR-0012). */
 let alerts: Alerts = {};
-/** Draws the Closures shown now on their Lines (showClosures()), once the map has their layers, as alerts.json comes and each minute goes by (#341). */
+/**
+ * Draws the Closures shown now on their Lines (showClosures()), once the map has their layers, as
+ * alerts.json comes and each minute goes by (#341). Until then, nothing: getAlerts() first runs before
+ * what showClosures() reads is declared, and calling it then would throw.
+ */
 let drawClosures = () => {};
 /** The Lines of the days on the map, by their IDs, which the cards name as pills from the start (pill()). */
 let lines = new Map<string, Line>();
@@ -995,7 +1000,9 @@ map.on('click', ({ point: { x, y }, lngLat }) => {
 });
 // ponytail: while the Lines fade, the pointer shows over the strokes of both drawings, though a tap
 // names only one's. Check the zoom on mouseenter if that ever misleads.
-for (const layer of ['trains', 'train-pills', 'train-pills-followed', 'stations', ...strokeLayers, ...closureLayers]) {
+// Over a Closure too, from its Line's stroke under it: each layer here queries the map on every move
+// of the mouse, a drag's too, and the Closures have 27 or more.
+for (const layer of ['trains', 'train-pills', 'train-pills-followed', 'stations', ...strokeLayers]) {
   map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'));
   map.on('mouseleave', layer, () => (map.getCanvas().style.cursor = ''));
 }
