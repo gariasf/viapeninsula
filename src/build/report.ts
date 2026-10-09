@@ -236,14 +236,14 @@ function item(spot: Spot, moves = ''): string {
 }
 
 /**
- * Links to a spot on the map and on OpenStreetMap, to see it and to edit it, and to the ways its
- * Stations are on. A Trip left out at a Station its feed doesn't list is nowhere: NaN where it's
- * found, null once read back.
+ * Links to a spot on the map, which rings it (#254), and on OpenStreetMap, to see it and to edit it,
+ * and to the ways its Stations are on. A Trip left out at a Station its feed doesn't list is nowhere:
+ * NaN where it's found, null once read back.
  */
 function links({ point: [lon, lat] = [NaN, NaN], zoom, ways = [] }: Spot): string[] {
   return [
     ...(Number.isFinite(lon) && Number.isFinite(lat) && zoom !== undefined
-      ? [`[map](${MAP}/#map=${zoom}/${lat}/${lon})`, `[OpenStreetMap](${OSM}/#map=17/${lat}/${lon})`, `[edit](${OSM}/edit#map=18/${lat}/${lon})`]
+      ? [`[map](${MAP}/#map=${zoom}/${lat}/${lon}&mark=${lat},${lon})`, `[OpenStreetMap](${OSM}/#map=17/${lat}/${lon})`, `[edit](${OSM}/edit#map=18/${lat}/${lon})`]
       : []),
     ...(ways.length ? [`ways ${ways.map((id) => `[${id}](${OSM}/way/${id})`).join(', ')}`] : []),
   ];
