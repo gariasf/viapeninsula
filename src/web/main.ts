@@ -1427,8 +1427,11 @@ function locate() {
   const [asked, ask] = [performance.now(), ++asks];
   const found = (where: Point | Unlocated) => {
     if (!nearMe || ask !== asks) return;
+    const focused = document.activeElement;
     nearMe = where;
     showPanel();
+    // A try that finds the viewer takes Try again away, and with it the keyboard's focus, which goes to the panel's title rather than the page.
+    if (focused?.isConnected === false) panel.querySelector<HTMLElement>('.title')?.focus();
     map.easeTo({ padding: panelPadding() });
   };
   const failed = (why: Unlocated) => setTimeout(() => found(why), asked + 500 - performance.now());
@@ -1849,7 +1852,8 @@ function countdown(at: number, now: number, phrase: 'minutes' | 'inMinutes'): No
  * each try of the browser's ends, and which patch() keeps in place, as it does Try again (#324).
  */
 function nearbyPanel(near: Point | Unlocated, up: boolean): Panel {
-  const header = el('header', {}, el('h2', { className: 'title', textContent: t('nearby') }), closeButton(t('closeNearby')));
+  // The title takes the keyboard's focus as a Try again gives way to the list (locate()).
+  const header = el('header', {}, el('h2', { className: 'title', textContent: t('nearby'), tabIndex: -1 }), closeButton(t('closeNearby')));
   const said = el('div');
   said.setAttribute('role', 'status');
   if (typeof near === 'string') {

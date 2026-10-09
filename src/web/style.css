@@ -123,8 +123,9 @@ body {
   place-items: center;
 }
 
-/* Every button shows where the keyboard is, in its own colour. */
+/* Every button shows where the keyboard is, in its own colour, as does Nearby's title, where the focus goes after a Try again (#324). */
 :is(button, summary, a):focus-visible,
+.title:focus-visible,
 .lang:has(select:focus-visible) {
   outline: 2px solid currentColor;
   outline-offset: 2px;
