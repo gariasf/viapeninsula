@@ -123,6 +123,17 @@ const STRINGS = {
   // At the foot of a peeking board: how many departures more it lists.
   moreDepartures: { ca: '{n} sortides més', es: '{n} salidas más', eu: '{n} irteera gehiago', gl: '{n} saídas máis', en: '{n} more departures' },
   oneMoreDeparture: { ca: '{n} sortida més', es: '{n} salida más', eu: 'Irteera bat gehiago', gl: '{n} saída máis', en: '{n} more departure' },
+  // A followed Train's and a board's Alerts (#342): how many, in the line they're folded into; when each began, {date}; and when they were read, {time}, where that's long ago.
+  alerts: { ca: '{n} avisos', es: '{n} avisos', eu: '{n} abisu', gl: '{n} avisos', en: '{n} alerts' },
+  oneAlert: { ca: '{n} avís', es: '{n} aviso', eu: 'Abisu bat', gl: '{n} aviso', en: '{n} alert' },
+  since: { ca: 'Des del {date}', es: 'Desde el {date}', eu: 'Hasiera: {date}', gl: 'Desde o {date}', en: 'Since {date}' },
+  alertsAsOf: {
+    ca: 'Darrera actualització dels avisos: {time}',
+    es: 'Última actualización de los avisos: {time}',
+    eu: 'Abisuen azken eguneratzea: {time}',
+    gl: 'Última actualización dos avisos: {time}',
+    en: 'Alerts as of {time}',
+  },
   // Nearby Trains: their panel's title, and the button that opens them.
   nearby: { ca: 'Trens a prop', es: 'Trenes cercanos', eu: 'Inguruko trenak', gl: 'Trens próximos', en: 'Nearby trains' },
   nearbyButton: { ca: 'A prop', es: 'Cerca', eu: 'Inguruan', gl: 'Preto', en: 'Nearby' },
@@ -315,6 +326,9 @@ export const earlierStations = (n: number, shown: boolean, lang = language()): s
 
 /** How many departures more a board lists than it shows peeking, in `lang`, or else the language the interface speaks now. */
 export const moreDepartures = (n: number, lang = language()): string => counting(n, 'oneMoreDeparture', 'moreDepartures', lang);
+
+/** How many Alerts a card has, `n`, in the line they're folded into, in `lang`, or else the language the interface speaks now. */
+export const alertCount = (n: number, lang = language()): string => counting(n, 'oneAlert', 'alerts', lang);
 
 /**
  * Why Nearby can't show the viewer's nearby Trains: the browser is finding where they are, as Nearby's

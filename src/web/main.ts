@@ -6,9 +6,9 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import nunitoSans from '@fontsource/nunito-sans/files/nunito-sans-latin-400-normal.woff2?url';
 import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-normal.woff2?url';
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
-import { along, APART, atZoom, BANDS, bandZooms, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Credit, type Place, type DayTrips, type Kind, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, WIDTH } from '../bundle.ts';
+import { along, APART, atZoom, BANDS, bandZooms, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Alerts, type Bundle, type Credit, type Place, type DayTrips, type Kind, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH } from '../bundle.ts';
 import { boardAt, joinDays, KEEP, mapTime, nearbyAt, trainAt, trainsAt, unavailable, type Departure, type Followed, type Received } from '../engine.ts';
-import { basemapLabel, earlierStations, language, LANGUAGES, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, setLanguage, t, toGo, trainCounts, unlocated, type Language, type Unlocated } from './i18n.ts';
+import { alertCount, basemapLabel, earlierStations, language, LANGUAGES, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, setLanguage, t, toGo, trainCounts, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { linesAt } from './tap.ts';
 import { alongside, namedTwice, nameOffset, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
@@ -16,7 +16,7 @@ import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts'
 import { keepView, lastView, markOf, openingView } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { contrast, lettering } from './colour.ts';
-import { linesCallingAt, minutesTo, nearbyRows, progress } from './cards.ts';
+import { cardAlerts, linesCallingAt, minutesTo, nearbyRows, progress, type CardAlert } from './cards.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
 setWorkerUrl(workerUrl);
@@ -470,6 +470,8 @@ let pulledUp = false;
 let dragging = false;
 /** Whether the followed Train's strip shows the Stations it has left, which its fold hides. Each opening starts afresh (openPanel()). */
 let showPast = false;
+/** Whether the panel shows its Alerts, which their fold hides (#342). Each opening starts afresh (openPanel()). */
+let showAlerts = false;
 // A finger drags the sheet by its top, and lets it go peeking or pulled up, whichever it's nearer.
 grab(
   panel,
@@ -533,6 +535,8 @@ let bannerIds: Banner = { unavailable: [], noTrips: [] };
 let received: Received[] = [];
 /** How many times the map has looked for live data before its first snapshot. A hidden tab doesn't look. */
 let emptyPolls = 0;
+/** The operators' Alerts, as the map last got alerts.json: about once a minute while the tab is visible, as long as the file is cached for (ADR-0012). */
+let alerts: Alerts = {};
 /** The Lines of the days on the map, by their IDs, which the cards name as pills from the start (pill()). */
 let lines = new Map<string, Line>();
 /** How each Line's Trains are drawn as pills, by the Line's ID. */
@@ -557,8 +561,11 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) return clearTimeout(nextPoll);
   poll();
   refreshDays();
+  getAlerts();
 });
 if (!document.hidden) poll();
+getAlerts();
+setInterval(getAlerts, 60_000);
 
 // Names and pills are measured in the typeface, so it loads first. Where it fails to, they're measured in what the browser falls back to.
 const typefaceLoaded = Promise.all(['400', '700'].map((weight) => document.fonts.load(`${weight} 12px ${TYPEFACE}`))).catch(() => undefined);
@@ -1459,9 +1466,9 @@ function closePanel() {
   map.easeTo({ padding: panelPadding() });
 }
 
-/** Shows the panel afresh: a followed Train and a board peeking on a phone, Nearby pulled up, with its body scrolled to the top (#321), and the Stations a followed Train has left folded away (#349). */
+/** Shows the panel afresh: a followed Train and a board peeking on a phone, Nearby pulled up, with its body scrolled to the top (#321), and the Stations a followed Train has left folded away (#349), and its Alerts (#342). */
 function openPanel(up: boolean) {
-  [pulledUp, showPast] = [up, false];
+  [pulledUp, showPast, showAlerts] = [up, false, false];
   panel.classList.remove('sliding');
   panel.style.height = '';
   showPanel();
@@ -1676,9 +1683,9 @@ function moreButton(text: string) {
  * The followed Train's panel: its Line's pill and where it's headed; Live or Scheduled, how long ago
  * live data last placed it, its modelled speed, and its Unit type where its operator reports one; its
  * next Station, when it's expected there, with its Delay but for a Metro Train's, and the minutes to
- * it; and how far along its Trip it is. Peeking, it ends in how many Stations it has still to come;
- * pulled up, it shows them, from the Train to its Trip's last Station (#321), after a fold that
- * shows those it has left (#349).
+ * it; how far along its Trip it is; and its Line's Alerts, folded away (#342). Peeking, it ends in how
+ * many Stations it has still to come; pulled up, it shows them, from the Train to its Trip's last
+ * Station (#321), after a fold that shows those it has left (#349).
  */
 function followedPanel(up: boolean): Panel | undefined {
   const now = Date.now();
@@ -1697,6 +1704,7 @@ function followedPanel(up: boolean): Panel | undefined {
       el('p', { className: 'meta status-line' }, el('span', { className: `dot ${live ? 'live' : 'scheduled'}` }), ...status.flatMap((part, i) => (i ? [' · ', part] : [part]))),
       ...nextStation(train, now),
       tripBar(train),
+      alertsOn({ lines: [trip.line], stations: [] }),
       ...(up
         ? [el('hr', { className: 'dash' }), ...strip(train)]
         : last && upcoming.length > 1
@@ -1769,30 +1777,68 @@ function strip({ trip, upcoming, standsAt }: Followed): Node[] {
   );
   list.setAttribute('aria-label', t(past ? 'stations' : 'nextStations'));
   list.style.setProperty('--line', lines.get(trip.line)?.colour ?? '');
-  return [foldButton(earlier), list];
+  // The fold before the strip: how many Stations it has already left, outside the strip's list, so that
+  // a screen reader doesn't count it as a Station. It's there from the start, hidden until the Train has left one.
+  const fold = foldButton([earlierStations(earlier, showPast)], showPast, () => (showPast = !showPast));
+  fold.hidden = !earlier;
+  return [fold, list];
 }
 
 /**
- * The fold before a followed Train's strip, the whole row a button: how many Stations it has already
- * left, `n`, which shows them, and once shown hides them (#349). Outside the strip's list, so that a
- * screen reader doesn't count it as a Station. It's there from the start, hidden until the Train has
- * left one, and stays put as it opens and closes, so that the panel's refresh never takes the
- * keyboard's focus or a screen reader's place (patch()).
+ * A fold, the whole row a button: what it folds away, as `says` words it, which it shows, and once
+ * shown hides, as `open` says and `toggle` turns it, in a variable that keeps it through the panel's
+ * refresh (#349). It stays put as it opens and closes, so that the refresh never takes the keyboard's
+ * focus or a screen reader's place (patch()). A peeking sheet grows and shrinks with it, and the map's
+ * padding with the sheet.
  */
-function foldButton(n: number) {
-  const toggle = () => {
-    showPast = !showPast;
+function foldButton(says: (Node | string)[], open: boolean, toggle: () => void) {
+  const onclick = () => {
+    toggle();
     showPanel();
+    map.easeTo({ padding: panelPadding() });
   };
-  const button = el('button', { type: 'button', className: 'fold', hidden: !n, onclick: toggle }, el('span', {}, earlierStations(n, showPast), icon(showPast ? 'up' : 'chevron')));
-  button.setAttribute('aria-expanded', String(showPast));
+  const button = el('button', { type: 'button', className: 'fold', onclick }, el('span', {}, ...says, icon(open ? 'up' : 'chevron')));
+  button.setAttribute('aria-expanded', String(open));
   return button;
 }
 
 /**
- * A place's board: its nameboard, with the Lines that call there, then its next departures from each
- * of its Stations, each with when it's expected to leave, its Train's pill, where it's headed and its
- * status. Peeking, the next PEEK of them, and how many more.
+ * A card's Alerts (cardAlerts()), behind a fold that counts them in words, newest first (#342). Each is
+ * in its operator's words: its title, where it has one, and its words, in the viewer's language where its
+ * feed has it, else in the feed's own, marked with theirs; then when it began, whose words they are, and
+ * their language, where it isn't the viewer's (ADR-0012). Over them, when they were read, where that's
+ * long ago. It's there from the start, hidden while there's none, and its list is there while it's
+ * folded away, so that a new Alert never takes the keyboard's focus or a screen reader's place.
+ */
+function alertsOn(on: { lines: string[]; stations: string[] }) {
+  const { alerts: shown, asOf } = cardAlerts(alerts, on, language(), mapTime(Date.now(), received));
+  const read = el('p', { className: 'meta', hidden: asOf === undefined, textContent: asOf === undefined ? '' : t('alertsAsOf').replace('{time}', clock().format(asOf)) });
+  return el(
+    'div',
+    { className: 'alerts', hidden: !shown.length },
+    foldButton([icon('warning'), alertCount(shown.length)], showAlerts, () => (showAlerts = !showAlerts)),
+    el('div', { hidden: !showAlerts }, read, el('ol', {}, ...shown.map(alertRow))),
+  );
+}
+
+/** An Alert on a card, as alertsOn() has it. */
+function alertRow({ header, description, from, by }: CardAlert) {
+  const words = (tag: 'strong' | 'p', said?: Words) => (said ? [el(tag, { textContent: said.text, ...(said.language && { lang: said.language }) })] : []);
+  const other = description?.language && description.language !== language() ? description.language : undefined;
+  const about: (Node | string)[] = [
+    ...(from === undefined ? [] : [t('since').replace('{date}', new Intl.DateTimeFormat(locale(), { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Madrid' }).format(from))]),
+    by,
+    // By its own name, as the language switch names it.
+    ...(other ? [el('span', { lang: other, textContent: LANGUAGES[other as Language] ?? other })] : []),
+  ];
+  return el('li', {}, ...words('strong', header), ...words('p', description), el('p', { className: 'meta' }, ...about.flatMap((part, i) => (i ? [' · ', part] : [part]))));
+}
+
+/**
+ * A place's board: its nameboard, with the Lines that call there; the Alerts on its Stations and on
+ * those Lines, folded away (#342); then its next departures from each of its Stations, each with when
+ * it's expected to leave, its Train's pill, where it's headed and its status. Peeking, the next PEEK
+ * of them, and how many more.
  */
 function boardPanel(id: string, up: boolean): Panel | undefined {
   const place = shownPlaces.get(id);
@@ -1814,6 +1860,7 @@ function boardPanel(id: string, up: boolean): Panel | undefined {
       closeButton(t('closeBoard')),
     ),
     body: [
+      alertsOn({ lines: servedBy(place), stations: place.stations }),
       el('h3', { className: 'label', textContent: t('nextDepartures') }),
       departures.length ? el('ol', { className: 'rows' }, ...shown.map((departure) => departureRow(departure, now))) : el('p', { textContent: t('noDepartures') }),
       ...(shown.length < departures.length ? [moreButton(moreDepartures(departures.length - shown.length))] : []),
@@ -2203,6 +2250,16 @@ async function poll() {
   showBanner();
   clearTimeout(nextPoll);
   if (!document.hidden) nextPoll = setTimeout(poll, 20_000);
+}
+
+/** Fetches the operators' Alerts while the tab is visible. Where that fails, the cards keep those the map last got, which say when they were read. */
+async function getAlerts() {
+  if (document.hidden) return;
+  try {
+    alerts = await getJson<Alerts>(`${LIVE_URL}/alerts.json`, AbortSignal.timeout(10_000));
+  } catch (error) {
+    console.warn(error);
+  }
 }
 
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {

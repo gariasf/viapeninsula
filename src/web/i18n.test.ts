@@ -1,6 +1,6 @@
 import { createExpression, latest, type ExpressionSpecification, type Feature, type StylePropertySpecification } from '@maplibre/maplibre-gl-style-spec';
 import { afterEach, expect, test, vi } from 'vitest';
-import { basemapLabel, earlierStations, LANGUAGES, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, pickLanguage, t, toGo, trainCounts, unlocated } from './i18n.ts';
+import { alertCount, basemapLabel, earlierStations, LANGUAGES, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, pickLanguage, t, toGo, trainCounts, unlocated } from './i18n.ts';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -227,6 +227,19 @@ test('says at the foot of a peeking board how many departures more it has, in ea
   expect(moreDepartures(7, 'gl')).toBe('7 saídas máis');
   expect(moreDepartures(1, 'eu')).toBe('Irteera bat gehiago');
   expect(moreDepartures(1, 'gl')).toBe('1 saída máis');
+});
+
+test("counts a card's Alerts in its folded line, in words, in each language", () => {
+  expect(alertCount(2, 'ca')).toBe('2 avisos');
+  expect(alertCount(2, 'es')).toBe('2 avisos');
+  expect(alertCount(2, 'en')).toBe('2 alerts');
+  expect(alertCount(1, 'ca')).toBe('1 avís');
+  expect(alertCount(1, 'es')).toBe('1 aviso');
+  expect(alertCount(1, 'en')).toBe('1 alert');
+  expect(alertCount(2, 'eu')).toBe('2 abisu');
+  expect(alertCount(2, 'gl')).toBe('2 avisos');
+  expect(alertCount(1, 'eu')).toBe('Abisu bat');
+  expect(alertCount(1, 'gl')).toBe('1 aviso');
 });
 
 test("says in Nearby that the browser isn't sharing the viewer's location where they refused it, and how to allow it, with Try again, in each language", () => {
