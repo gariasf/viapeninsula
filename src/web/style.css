@@ -930,6 +930,17 @@ time .in {
   font-weight: 700;
 }
 
+/* Nearby's Try again, under its message where the browser won't say where the viewer is: a card's outline round a pill as tall as the legend's (#324). */
+.try-again {
+  height: 40px;
+  margin-top: 12px;
+  padding: 0 16px;
+  border-radius: 20px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 /* ---- About: on a phone, a sheet of its own, nearly the full height, over a backdrop. ---- */
 .about {
   top: auto;
@@ -954,7 +965,8 @@ time .in {
   }
 }
 
-.about p + p {
+/* Paragraphs a little apart: About's, and Nearby's message and how to allow location (#324). */
+:is(.about, .sheet) p + p {
   margin-top: 6px;
 }
 

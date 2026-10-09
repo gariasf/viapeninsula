@@ -87,6 +87,15 @@ const STRINGS = {
     es: 'No se ha podido saber dónde estás, así que no se pueden mostrar los trenes cercanos',
     en: "Your location isn't available, so nearby trains can't be shown",
   },
+  // Nearby, where the viewer refused to say where they are: that the browser isn't sharing it, and how to allow it (#324).
+  locationBlocked: { ca: 'El navegador no comparteix la teva ubicació amb aquest mapa', es: 'El navegador no comparte tu ubicación con este mapa', en: "Your browser isn't sharing your location with this map" },
+  allowLocation: {
+    ca: 'Per veure els trens a prop, permet la ubicació per a aquest lloc a la configuració del navegador i torna-ho a provar',
+    es: 'Para ver los trenes cercanos, permite la ubicación para este sitio en la configuración del navegador y vuelve a intentarlo',
+    en: "To see nearby trains, allow location for this site in your browser's settings, then try again",
+  },
+  // The button under Nearby's message that asks the browser again where the viewer is.
+  tryAgain: { ca: 'Torna-ho a provar', es: 'Volver a intentarlo', en: 'Try again' },
   // The button beside Nearby's that follows a random Train.
   followRandom: { ca: "Segueix un tren a l'atzar", es: 'Seguir un tren al azar', en: 'Follow a random train' },
   // The handle at the top of the panel on a phone, which pulls it up or lets it down.
@@ -189,6 +198,32 @@ export const earlierStations = (n: number, shown: boolean, lang = language()): s
 
 /** How many departures more a board lists than it shows peeking, in `lang`, or else the language the interface speaks now. */
 export const moreDepartures = (n: number, lang = language()): string => counting(n, 'oneMoreDeparture', 'moreDepartures', lang);
+
+/**
+ * Why Nearby can't show the viewer's nearby Trains: the browser is finding where they are, as Nearby's
+ * button asked it, or again, as Try again did; it couldn't say, as its error's code tells, the viewer
+ * having refused (PERMISSION_DENIED, which a dismissed prompt gives too) or it having had no fix in time
+ * (TIMEOUT, POSITION_UNAVAILABLE); or it has no geolocation at all (#324).
+ */
+export type Unlocated = 'locating' | 'retrying' | 'refused' | 'failed' | 'unsupported';
+
+/**
+ * What Nearby says for each, and whether Try again follows: where trying again could help, and while
+ * it's asked again, so that the keyboard's focus stays on the button.
+ */
+const UNLOCATED: Record<Unlocated, [says: (keyof typeof STRINGS)[], tryAgain: boolean]> = {
+  locating: [['locating'], false],
+  retrying: [['locating'], true],
+  refused: [['locationBlocked', 'allowLocation'], true],
+  failed: [['noLocation'], true],
+  unsupported: [['noLocation'], false],
+};
+
+/** What Nearby says while it can't show the viewer's nearby Trains, in `lang`, or else the language the interface speaks now, and Try again's label where it follows. */
+export function unlocated(why: Unlocated, lang = language()): { says: string[]; tryAgain?: string } {
+  const [says, tryAgain] = UNLOCATED[why];
+  return { says: says.map((key) => STRINGS[key][lang]), ...(tryAgain && { tryAgain: STRINGS.tryAgain[lang] }) };
+}
 
 /** What this device remembers the viewer chose, if its storage can be read. */
 function remembered(): string | null {
