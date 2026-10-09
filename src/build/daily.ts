@@ -4,10 +4,10 @@
 // no Lines, is built from the copy of them that last built it, which the build keeps in .cache
 // (readTimetables()), so the others build as ever. Each day's bundle comes in two files, so the map
 // can draw the Lines before the Trips come: the track, which is the same file for each day, and the
-// day's Trips. Beside them it writes out/report.json, each spot its log names, once (report.ts),
-// which it publishes after the manifest, and it prints what changed since the last build's, in the
-// run's job summary too. In Actions, once it has published, it writes out/comment.md where a
-// problem spot is new, which daily.yml posts on the standing "Build report" issue.
+// day's Trips, with its Closures. Beside them it writes out/report.json, each spot its log names,
+// once (report.ts), which it publishes after the manifest, and it prints what changed since the last
+// build's, in the run's job summary too. In Actions, once it has published, it writes out/comment.md
+// where a problem spot is new, which daily.yml posts on the standing "Build report" issue.
 // `npm run daily` publishes; `npm run daily -- --dry-run` only writes the files to out/. The secrets
 // a timetable's URL needs, as TMB's TMB_APP_ID and TMB_APP_KEY, come from the environment, which
 // `npm run daily` loads from .env.local.
@@ -28,7 +28,7 @@ import { osm } from './osm.ts';
 import { sideBySide } from './sideBySide.ts';
 import { railsBeside, stationsOf, traceShapes } from './track.ts';
 import { collect, comment, diff, type Found, type Spot } from './report.ts';
-import { placeTrips } from './trips.ts';
+import { closuresOf, placeTrips } from './trips.ts';
 
 const BUCKET = 'viapeninsula-live';
 
@@ -77,7 +77,7 @@ const track: Track = {
 const trackKey = await write('days/track', track, `${track.lines.length} Lines, ${track.stations.length} Stations, ${track.shapes.length} shapes`);
 const built = await Promise.all(
   eachDay.map(async (trips) => {
-    const key = await write(`days/${trips.serviceDay}`, trips, `${trips.trips.length} Trips`);
+    const key = await write(`days/${trips.serviceDay}`, trips, `${trips.trips.length} Trips, ${trips.closures?.length ?? 0} Closures`);
     return manifestDay({ ...track, ...trips }, { track: trackKey, trips: key });
   }),
 );
@@ -134,8 +134,9 @@ async function readDays(feeds: (Feed & { gtfs: Source })[]) {
  * where its terms ask the map to show it: its Lines, Stations and track traced along
  * OpenStreetMap's rails of its own kind (ADR-0004), which are those of every day in its timetables,
  * and its Trips on each of DAYS, none where its timetable has none (dayTrips()), all within Spain:
- * its Trips are placed on their whole track, which is then cut at the border. What its tracing and
- * placing log goes into the report too, with the OpenStreetMap ways its Stations are on.
+ * its Trips are placed on their whole track, which is then cut at the border. And the Closures its
+ * replacement buses make on each of DAYS (closuresOf()). What its tracing and placing log goes into
+ * the report too, with the OpenStreetMap ways its Stations are on.
  */
 function build(config: NetworkConfig, { published, days }: Awaited<ReturnType<typeof readDays>>) {
   const { id, name, profile, runningSide, colour, pillZoom, credit, live } = config;
@@ -148,7 +149,8 @@ function build(config: NetworkConfig, { published, days }: Awaited<ReturnType<ty
   const shapes = traceShapes(parts.flatMap((p) => p.shapes), stations, own, network.runningSide, console.log, found);
   const cropped = crop(border, stations, shapes, days.map((day) => day.flatMap((p) => p.trips)));
   const trips = cropped.days.map((trips, day) => placeTrips(trips, shapes, stations, network.profile.topSpeed, console.log, (f) => found({ ...f, day })));
-  return { network, lines, stations: cropped.stations, shapes: cropped.shapes, trips };
+  const closures = days.map((day, i) => closuresOf(day.flatMap((p) => p.buses), day.flatMap((p) => p.trips), parts.flatMap((p) => p.shapes), cropped.stations, console.log, (f) => found({ ...f, day: i })));
+  return { network, lines, stations: cropped.stations, shapes: cropped.shapes, trips, closures };
 }
 
 /** A file the last build published, or none where there's none, or where it can't be read, which is logged. */

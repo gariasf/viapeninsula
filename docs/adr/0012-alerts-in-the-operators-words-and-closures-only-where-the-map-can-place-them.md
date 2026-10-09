@@ -19,5 +19,6 @@
 ## Consequences
 
 - ADR-0003 is amended when the fetcher writes `alerts.json`.
-- Where no Train of a Line runs the closed part in the whole timetable, as on R3 south of La Garriga on 7 Oct, the map has no track to draw its Closure on, and the Alert stays text.
+- The timetable's Closures come in each day's bundle, beside its Trips, from the daily build, and its report lists where a Line's replacement buses run where the Line has no track (#340). A Closure is only of a part of the buses' run that none of the Line's Trains runs that day, as Renfe runs most of its replacement buses beside the Line's Trains, not in their place: on 7 Oct, closing each bus's whole run on the Line's track made 14 Closures, and 11 had the Line's Trains there in the same hours (the maintainer, 9 Oct 2026).
+- Where no Train of a Line calls at the closed part's Stations in the whole timetable, as on R3 south of La Garriga on 7 Oct, the map has no track to draw its Closure on, and the Alert stays text.
 - Long distance has no alerts feed (Renfe's `alerts_LD` answers 404), so its road sections inside a run (#269) wait for long distance (#258).

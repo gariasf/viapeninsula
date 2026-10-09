@@ -1,0 +1,11 @@
+route_id,route_short_name,route_long_name,route_type,route_color,route_text_color                                                                     
+51T0033R3  ,R3  ,Figaró                                  -La Tor de Querol-Enveig                 ,2,E54A3C,FFFFFF                                    
+51T0139R13 ,R13 ,Lleida                                  -Vinaixa                                 ,2,146520,FFFFFF                                    
+51T0175R13 ,R13 ,La Plana-Picamoixons                    -Sant Vicenc de Calders                  ,2,146520,FFFFFF                                    
+51T0187R13 ,R13 ,La Plana-Picamoixons                    -Lleida                                  ,3,146520,FFFFFF                                    
+51T0191R3  ,R3  ,La Garriga                              -Vic                                     ,3,E54A3C,FFFFFF                                    
+51T0201R3  ,R3  ,Vic                                     -La Garriga                              ,3,E54A3C,FFFFFF                                    
+51T0203R3  ,R3  ,Vic                                     -Centelles                               ,3,E54A3C,FFFFFF                                    
+51T0220R3  ,R3  ,Planoles                                -La Molina                               ,3,E54A3C,FFFFFF                                    
+51T0224R3  ,R3  ,La Molina                               -Planoles                                ,3,E54A3C,FFFFFF                                    
+51T0235R13 ,R13 ,Lleida                                  -La Plana-Picamoixons                    ,3,146520,FFFFFF                                    

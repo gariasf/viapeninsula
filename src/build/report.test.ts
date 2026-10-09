@@ -19,8 +19,10 @@ test("keys each spot by its kind, its Line or Network and its Stations, never by
     { kind: 'turn', line: 'rodalies:R16', shape: 'rodalies:51_R16:back', stations: [B], text: [''] },
     { kind: 'branch', line: 'rodalies:R2N', shape: 'rodalies:51_R2N', stations: [A, B], text: [''] },
     { kind: 'trip', why: 'fast', line: 'metro:L1', trip: 'metro:1.1.11828731', stations: [B, A], text: [''] },
+    { kind: 'bus', line: 'rodalies:R3', trip: 'rodalies:5178X87400R3', stations: [B, A], text: [''] },
     { kind: 'notrips', network: 'rodalies', day: 2, text: [''] },
     { kind: 'trips', network: 'fgc', text: [''], numbers: { monday: 2041 } },
+    { kind: 'closures', network: 'rodalies', text: [''], numbers: { closures: 3 } },
     { kind: 'length', line: 'rodalies:R16', shape: 'rodalies:51_R16_INV:back', text: [''], numbers: { percent: 0.6 } },
     { kind: 'node', zoom: 7, point: [-3.67716, 40.45778], text: [''], numbers: { size: 15.1 } },
     { kind: 'measures', text: [''], numbers: { breaks: 236 } },
@@ -28,6 +30,8 @@ test("keys each spot by its kind, its Line or Network and its Stations, never by
   // In order of key.
   expect(spots.map((s) => s.key)).toEqual([
     'branch rodalies:R2N adif:1 adif:2',
+    'bus rodalies:R3 adif:1 adif:2',
+    'closures rodalies',
     'copy tram',
     'kept rodalies:R3 adif:1 adif:3 nopath',
     'length rodalies:R16 rodalies:51_R16_INV',
@@ -199,17 +203,20 @@ const RUN = 'https://github.com/gariasf/viapeninsula/actions/runs/37330911997';
 /** The keys of the spots a comment lists, in its order. */
 const listed = (body?: string) => body?.split('\n').flatMap((line) => line.match(/^- `([^`]+)`/)?.[1] ?? []);
 
-test("comments only on problem spots new since the last build: a run kept, a turn-back, a branch, Trips left out, no Trips or a Network built from its copy, never a length, a node, the measures or a Network's Trips", () => {
+test("comments only on problem spots new since the last build: a run kept, a turn-back, a branch, Trips left out, no Trips or a Network built from its copy, never a length, a node, the measures, a Network's Trips or Closures, or buses where their Line has no track", () => {
   const copy: Spot = { kind: 'copy', key: 'copy tram', network: 'tram', text: ['TRAM is built from the copy of its timetables kept on 2026-10-05: https://opendata.tram.cat/GTFS/zip/TBX.zip: HTTP 499'] };
   const kept: Spot = { kind: 'kept', key: 'kept rodalies:R3 adif:78600 adif:78605 nopath', text: [] };
   const branch: Spot = { kind: 'branch', key: 'branch rodalies:R2N adif:79100 adif:79101', text: [] };
   const trip: Spot = { kind: 'trip', key: 'trip metro:L1 fast tmb:1.111 tmb:1.112', text: [], numbers: { trips: 1 } };
   const trips: Spot = { kind: 'trips', key: 'trips fgc', network: 'fgc', text: [], numbers: { monday: 2041 } };
+  // No fix upstream draws a Closure where its Line has no track (ADR-0012).
+  const bus: Spot = { kind: 'bus', key: 'bus rodalies:R3 adif:77102 adif:78802', text: [], numbers: { trips: 47 } };
+  const closures: Spot = { kind: 'closures', key: 'closures rodalies', network: 'rodalies', text: [], numbers: { closures: 6 } };
   const last = [LENGTH, MEASURES, TRIP, trips];
   // A new node, and numbers that moved, a known problem spot's too, and a Network's Trips by half: nothing to comment.
   expect(comment(last, [{ ...LENGTH, numbers: { percent: 3 } }, { ...MEASURES, numbers: { breaks: 1 } }, NODE, { ...TRIP, numbers: { trips: 6 } }, { ...trips, numbers: { monday: 1020 } }], RUN)).toBeUndefined();
   // In order of key, as reports are.
-  expect(listed(comment(last, [branch, copy, kept, LENGTH, MEASURES, NODE, NO_TRIPS, { ...TRIP, numbers: { trips: 6 } }, trip, { ...trips, key: 'trips tram', network: 'tram' }, TURN], RUN))).toEqual([
+  expect(listed(comment(last, [branch, bus, closures, copy, kept, LENGTH, MEASURES, NODE, NO_TRIPS, { ...TRIP, numbers: { trips: 6 } }, trip, { ...trips, key: 'trips tram', network: 'tram' }, TURN], RUN))).toEqual([
     'branch rodalies:R2N adif:79100 adif:79101',
     'copy tram',
     'kept rodalies:R3 adif:78600 adif:78605 nopath',
