@@ -22,9 +22,9 @@ test("finds the stretches in Renfe's Spanish, each with what the words before it
   ]);
 });
 
-test('joins a stretch\'s Stations with a dash too, and finds a Station\'s whole name within a longer one, but not a Station of another Line', () => {
+test("joins a stretch's Stations with a dash too, and finds a Station's whole name within a longer one", () => {
   // AVISO_518337: R3's Trains run from La Garriga, and buses run between Ripoll and Puigcerdà, and
-  // between Fabra i Puig, an R4 Station, and Puigcerdà, joined by a Catalan "i".
+  // between Fabra i Puig and Puigcerdà, joined by a Catalan "i" with no "entre" of its own to read.
   const R3 = [
     { id: 'adif:77102', name: 'La Garriga' },
     { id: 'adif:77200', name: 'Ripoll' },
@@ -63,6 +63,10 @@ test("matches a name within a Station's name, where it's within one Station's on
   expect(stretchesIn('Circulación por vía única entre Vilanova i la Geltrú e Sitges.', stations)).toEqual([{ stations: ['adif:71700', 'adif:71701'], says: 'single' }]);
   // "la" is within two of their names, and too short to tell.
   expect(stretchesIn('Servicio alternativo por carretera entre Blanes y la estación.', stations)).toEqual([]);
+  // "Sant Vicenç" is within two of their names, so it's neither's, nor Sant Celoni's, whose name holds
+  // only "Sant" of it.
+  const sants = [...stations, { id: 'adif:79104', name: 'Sant Celoni' }, { id: 'adif:71600', name: 'Sant Vicenç de Calders' }, { id: 'adif:78604', name: 'Sant Vicenç de Castellet' }];
+  expect(stretchesIn('Servicio alternativo por carretera entre Blanes y Sant Vicenç.', sants)).toEqual([]);
 });
 
 test('finds stretches "de X a Y" and "desde X hasta Y", and one whose words say nothing of it, with nothing said', () => {
@@ -71,13 +75,22 @@ test('finds stretches "de X a Y" and "desde X hasta Y", and one whose words say 
   expect(stretchesIn('Obras entre Blanes y Tordera.', R1)).toEqual([{ stations: ['adif:79606', 'adif:79600'] }]);
 });
 
-test("reads the words that say what a stretch is from those last before it in its sentence", () => {
+test("reads the words that say what a stretch is from those last before it in its clause", () => {
   const text = "Se mantiene el servicio entre L'Hospitalet de Llobregat y Blanes, y servicio alternativo por carretera entre Blanes y Maçanet-Massanes. Entre Tordera y Blanes, circulación interrumpida.";
   expect(stretchesIn(text, R1)).toEqual([
     { stations: ['adif:72305', 'adif:79606'], says: 'running' },
     { stations: ['adif:79606', 'adif:79200'], says: 'closed' },
     { stations: ['adif:79600', 'adif:79606'] },
   ]);
+  // A clause with none of those words says nothing of its stretch, though one before it does.
+  expect(stretchesIn('Servicio alternativo por carretera entre Blanes y Maçanet-Massanes, y con normalidad entre Tordera y Blanes.', R1)).toEqual([
+    { stations: ['adif:79606', 'adif:79200'], says: 'closed' },
+    { stations: ['adif:79600', 'adif:79606'] },
+  ]);
+});
+
+test('opens a stretch only at its opening words, not at one every object has a property of, as "constructor"', () => {
+  expect(stretchesIn('Obras del constructor Blanes entre Blanes y Tordera.', R1)).toEqual([{ stations: ['adif:79606', 'adif:79600'] }]);
 });
 
 test("finds the stretches in TRAM's Catalan and English", () => {

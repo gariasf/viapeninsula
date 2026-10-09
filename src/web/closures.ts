@@ -144,7 +144,7 @@ export function closuresAt(
 /** What the words before a stretch say of it: closed, down to a single track, or running. */
 export type Says = 'closed' | 'single' | 'running';
 
-/** The words that say what a stretch is, before it in its sentence: Renfe's Spanish, and TRAM's Catalan and English (#341). */
+/** The words that say what a stretch is, before it in its clause: Renfe's Spanish, and TRAM's Catalan and English (#341). */
 const SAYING: [words: string, says: Says][] = [
   ['servicio alternativo por carretera', 'closed'],
   ['no presta servicio', 'closed'],
@@ -167,10 +167,11 @@ const wordsOf = (text: string): string[] =>
 const runAt = (words: string[], run: string[], at = 0) => (run.every((w, k) => words[at + k] === w) ? at : -1);
 
 /**
- * The Station a stretch's end names, from `at` among its sentence's words, and how many words it
+ * The Station a stretch's end names, from `at` among its clause's words, and how many words it
  * takes: one whose whole name starts there, as Puigcerdà does "Puigcerdà/La Tor de Querol", or else the one
  * whose name holds the words there, as Maçanet-Massanes holds "Maçanet", the most of them that one
- * Station's name holds and no other's. The longest first, followed by one of `next` where it's given.
+ * Station's name holds, where no other Station's holds as many. The longest first, followed by one of
+ * `next` where it's given.
  */
 function endAt(words: string[], at: number, names: { id: string; words: string[] }[], next?: string[]): { id: string; length: number } | undefined {
   const whole = names.filter((n) => n.words.length && runAt(words, n.words, at) === at).map((n) => ({ id: n.id, length: n.words.length }));
@@ -179,7 +180,7 @@ function endAt(words: string[], at: number, names: { id: string; words: string[]
     while (at + length < words.length && n.words.some((_, i) => runAt(n.words, words.slice(at, at + length + 1), i) === i)) length++;
     return length ? [{ id: n.id, length }] : [];
   });
-  const held = within.filter((w) => words.slice(at, at + w.length).join('').length >= 4 && !within.some((o) => o.id !== w.id && o.length === w.length));
+  const held = within.filter((w) => words.slice(at, at + w.length).join('').length >= 4 && !within.some((o) => o.id !== w.id && o.length >= w.length));
   return [...whole, ...held].sort((a, b) => b.length - a.length).find((end) => !next || next.includes(words[at + end.length] ?? ''));
 }
 
@@ -187,16 +188,17 @@ function endAt(words: string[], at: number, names: { id: string; words: string[]
  * The stretches an Alert's words name between two of `stations`, "entre X y Y", "de X a Y", "desde X
  * hasta Y", "entre X i Y" and "between X and Y", each once, matched in lower case, without accents or
  * punctuation, by whole names or names within names (endAt()); each with what the last words before
- * it in its sentence that say so say of it, where they do.
+ * it in its clause that say so say of it, where they do: a clause ends at a comma too.
  */
 export function stretchesIn(text: string, stations: { id: string; name: string }[]): { stations: [string, string]; says?: Says }[] {
   const names = stations.map(({ id, name }) => ({ id, words: wordsOf(name) }));
   const saying = SAYING.map(([words, says]) => ({ words: wordsOf(words), says }));
   const found = new Map<string, { stations: [string, string]; says?: Says }>();
-  for (const sentence of text.split(/[.;:!?\n]/)) {
-    const words = wordsOf(sentence);
+  for (const clause of text.split(/[.,;:!?\n]/)) {
+    const words = wordsOf(clause);
     for (const [i, word] of words.entries()) {
-      const a = NAMING[word] && endAt(words, i + 1, names, NAMING[word]);
+      // Its own opening words only, not those every object has, as "constructor".
+      const a = Object.hasOwn(NAMING, word) && endAt(words, i + 1, names, NAMING[word]);
       const b = a && endAt(words, i + 2 + a.length, names);
       if (!a || !b || a.id === b.id || found.has(`${a.id} ${b.id}`)) continue;
       const before = words.slice(0, i);
