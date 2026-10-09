@@ -10,12 +10,12 @@ import { round } from './track.ts';
 export interface Spot {
   /**
    * A run of a Line's legs between Stations that keep the feed's shape, a Station a Line's trace turns
-   * back at, Stations left out on a branch, Trips left out, a Network with no Trips on a day, a
-   * Network's Trips on each day of the week, a Network built from the copy of its timetables that
-   * last built it, a traced shape's length against the feed's, one of the largest nodes at a zoom, or
-   * the line measures.
+   * back at, Stations left out on a branch, Trips left out, replacement buses where their Line has no
+   * track, a Network with no Trips on a day, a Network's Trips on each day of the week, a Network's
+   * Closures today, a Network built from the copy of its timetables that last built it, a traced
+   * shape's length against the feed's, one of the largest nodes at a zoom, or the line measures.
    */
-  kind: 'kept' | 'turn' | 'branch' | 'trip' | 'notrips' | 'trips' | 'copy' | 'length' | 'node' | 'measures';
+  kind: 'kept' | 'turn' | 'branch' | 'trip' | 'bus' | 'notrips' | 'trips' | 'closures' | 'copy' | 'length' | 'node' | 'measures';
   /** What the next build knows it by too (keyOf()): never a Trip's ID nor a date. */
   key: string;
   network?: string;
@@ -31,8 +31,9 @@ export interface Spot {
   /** Each line the log prints for it, once: for a node, its zoom's. */
   text: string[];
   /**
-   * A length's percentage off the feed's, the most Trips left out on any one day, a Network's Trips on
-   * each day of the week, a node's size in line widths, or each of the measures.
+   * A length's percentage off the feed's, the most Trips left out, or buses, on any one day, a
+   * Network's Trips on each day of the week, its Closures today, a node's size in line widths, or each
+   * of the measures.
    */
   numbers?: Record<string, number>;
 }
@@ -49,9 +50,9 @@ export interface Found extends Omit<Spot, 'key' | 'stations'> {
   why?: Cause;
   /** The traced shape it's on. */
   shape?: string;
-  /** The Trip left out. */
+  /** The Trip left out, or the bus. */
   trip?: string;
-  /** The day a Network has no Trips or a Trip is left out, as days after today. */
+  /** The day a Network has no Trips, a Trip is left out or a bus runs, as days after today. */
   day?: number;
   /** The zoom a node is at, which keys it, and which the map shows it at. */
   zoom?: number;
@@ -120,8 +121,10 @@ function keyOf({ kind, network, line, why, shape, day, zoom, point, stations = [
     turn: [line, ...ends],
     branch: [line, ...ends],
     trip: [line, why, ...ends],
+    bus: [line, ...ends],
     notrips: [network, day],
     trips: [network],
+    closures: [network],
     copy: [network],
     length: [line, shape?.replace(/:back$/, '')],
     node: [zoom, point?.[1].toFixed(3), point?.[0].toFixed(3)],
@@ -172,9 +175,10 @@ export function diff(last: Spot[] | undefined, spots: Spot[]): string {
 
 /**
  * Whether a kind of spot is a problem on the map: not a Network's Trips, which the summary names where
- * they dropped (moved()), nor a length, a node or the measures, which move with any change to it.
+ * they dropped (moved()), nor its Closures, nor buses where their Line has no track, which no fix
+ * upstream draws (ADR-0012), nor a length, a node or the measures, which move with any change to it.
  */
-const PROBLEM: Record<Spot['kind'], boolean> = { kept: true, turn: true, branch: true, trip: true, notrips: true, trips: false, copy: true, length: false, node: false, measures: false };
+const PROBLEM: Record<Spot['kind'], boolean> = { kept: true, turn: true, branch: true, trip: true, bus: false, notrips: true, trips: false, closures: false, copy: true, length: false, node: false, measures: false };
 
 /** The most characters a GitHub comment holds, counted here as UTF-8's bytes, which are never fewer however GitHub counts them. */
 const COMMENT = 65536;

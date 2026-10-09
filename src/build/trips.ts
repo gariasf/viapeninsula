@@ -1,8 +1,9 @@
-// Each Trip placed on its track: how far along it each of its Stations is.
+// Each Trip placed on its track: how far along it each of its Stations is. And where replacement
+// buses run in its Trains' place, the Closures they make of its Line.
 
-import { closestOnSegment, DEGREE, type Point, type Shape, type Station, type Trip } from '../bundle.ts';
+import { closestOnSegment, DEGREE, type Closure, type Point, type Shape, type Station, type Trip } from '../bundle.ts';
 import type { Cause, Found } from './report.ts';
-import { nearest } from './track.ts';
+import { nearest, type FeedShape } from './track.ts';
 
 /** A Trip as the feed times it, before its Stations are placed on its track. */
 export interface FeedTrip {
@@ -13,6 +14,13 @@ export interface FeedTrip {
   number?: string;
   /** Its calls in order, with arrival and departure in seconds into the service day. */
   calls: { station: string; arrival: number; departure: number }[];
+}
+
+/** A replacement bus's Trip as the feed times it, which isn't a Train: its stops needn't be any Train's Stations. */
+export interface FeedBus {
+  id: string;
+  line: string;
+  calls: { station: Station; arrival: number; departure: number }[];
 }
 
 /**
@@ -67,6 +75,43 @@ export function placeTrips(
     if (fast > 0) return leave('fast', `it would run ${calledAt[fast - 1]?.name} → ${calledAt[fast]?.name} at ${Math.round(speed(fast) * 3.6)} km/h along its track`, calledAt.slice(fast - 1, fast + 1));
     return [{ ...trip, calls: calls.map((c, i) => ({ ...c, dist: Math.round(dist[i] ?? 0) })) }];
   });
+}
+
+/**
+ * The Closures a day's replacement buses make (ADR-0012): each bus closes its Line, with buses in its
+ * Trains' place, between the first and the last of its stops that are the Line's Stations on its
+ * track, from its departure from the one to its arrival at the other. Buses over the same part, either
+ * way, make one Closure, from the first bus to the last. The Line's Stations on its track are those
+ * its Trains serve on any day (`shapes`), and a bus's calls at those beyond Spain's border, which
+ * aren't the bundle's (`stations`), go, as its Trains leave the map there (crop()). Where a bus runs
+ * off the Line's track, before its first such Station, after its last, or all its way, as R3's ran
+ * from Fabra i Puig to La Garriga, where no R3 Train runs in the whole timetable, the map has no track
+ * to draw that part on, and it's reported.
+ */
+export function closuresOf(buses: FeedBus[], shapes: FeedShape[], stations: Station[], report: (found: Found) => void = () => {}): Closure[] {
+  const inside = new Set(stations.map((s) => s.id));
+  const own = new Map<string, Set<string>>();
+  for (const s of shapes) own.set(s.line, new Set([...(own.get(s.line) ?? []), ...s.stations]));
+  const closures = new Map<string, Closure>();
+  for (const { id, line, calls: all } of buses) {
+    const ours = own.get(line) ?? new Set();
+    const calls = all.filter((c) => inside.has(c.station.id) || !ours.has(c.station.id));
+    const on = calls.map((c) => ours.has(c.station.id));
+    const [first, last] = [on.indexOf(true), on.lastIndexOf(true)];
+    // The parts of its run off the track, each to or from the Station where it joins it.
+    for (const part of first < 0 ? [calls] : [calls.slice(0, first + 1), calls.slice(last)]) {
+      const [start, end] = [part[0]?.station, part.at(-1)?.station];
+      if (part.length < 2 || !start || !end) continue;
+      report({ kind: 'bus', line, trip: id, stations: [start, end], text: [`${line}'s buses ${start.name} → ${end.name} make no Closure: the Line has no track there`] });
+    }
+    const [a, b] = [calls[first], calls[last]];
+    if (!a || !b || first === last) continue;
+    const ends = [a.station.id, b.station.id].sort() as [string, string];
+    const key = `${line} ${ends.join(' ')}`;
+    const known = closures.get(key);
+    closures.set(key, { line, stations: ends, from: Math.min(a.departure, known?.from ?? Infinity), to: Math.max(b.arrival, known?.to ?? -Infinity), kind: 'buses' });
+  }
+  return [...closures.values()];
 }
 
 /** One time a track passes a Station: how far along it comes closest, and how close, in metres. */

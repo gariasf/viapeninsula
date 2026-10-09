@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import type { Bundle, ManifestDay, Network, Trip } from '../bundle.ts';
+import type { Bundle, Closure, ManifestDay, Network, Trip } from '../bundle.ts';
 import { noonMinus12h } from './gtfs.ts';
 import { dayTrips, manifestDay, manifestOf } from './manifest.ts';
 import { collect, diff, type Found, type Spot } from './report.ts';
@@ -63,6 +63,24 @@ test("builds each day's Trips from the other Networks where one's timetable has 
     { kind: 'trips', network: 'rodalies', text: [log[2]], numbers: {} },
     { kind: 'trips', network: 'fgc', text: [log[3]], numbers: { monday: 1 } },
   ]);
+});
+
+test("carries each day's Closures, every Network's, none where it has none, and logs and reports each Network's today", () => {
+  const [log, found]: [string[], Found[]] = [[], []];
+  const closure = (line: string, from: number): Closure => ({ line, stations: ['adif:73100', 'adif:78400'], from, to: from + 3600, kind: 'buses' });
+  const [r3, r13] = [closure('rodalies:R3', 20000), closure('rodalies:R13', 17280)];
+  const days = dayTrips(
+    ['2026-10-07', '2026-10-08'],
+    [
+      { network: RODALIES, trips: [[trip('1', 'rodalies:R3')], [trip('2', 'rodalies:R3')]], closures: [[r3, r13], []] },
+      { network: FGC, trips: [[trip('3', 'fgc:S1')], [trip('4', 'fgc:S1')]] },
+    ],
+    (l) => log.push(l),
+    (f) => found.push(f),
+  );
+  expect(days.map((d) => d.closures)).toEqual([[r3, r13], undefined]);
+  expect(log).toEqual(["Rodalies de Catalunya's Trips on 2026-10-07: 1", "Rodalies de Catalunya's Closures on 2026-10-07: 2", "FGC's Trips on 2026-10-07: 1"]);
+  expect(found.filter((f) => f.kind === 'closures')).toEqual([{ kind: 'closures', network: 'rodalies', text: [log[1]], numbers: { closures: 2 } }]);
 });
 
 test('keeps the Trips of a Network that has lost more than a quarter of them against the last report on the same day of the week, and names it in the summary', () => {

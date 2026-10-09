@@ -6,9 +6,10 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, expect, test, vi } from 'vitest';
 import { places } from '../bundle.ts';
 import { RODALIES, TRAM, type NetworkConfig } from '../networks.ts';
-import { dirSource, rows, zipFile, zipSource, type Source } from './gtfs.ts';
+import { dirSource, rows, seconds, zipFile, zipSource, type Source } from './gtfs.ts';
 import { copyOf, FGC_FEED, METRO_FEED, onFgcRails, onMetroRails, onRodaliesRails, readFeed, readTimetables, RODALIES_FEED, TRAMBAIX_FEED, type Feed } from './networks.ts';
 import type { Found } from './report.ts';
+import { closuresOf } from './trips.ts';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -91,6 +92,70 @@ test("keeps the day's Trips that are Trains, with their Line, destination, Train
   });
 });
 
+// Rows cut verbatim from Renfe's Cercanías feed of 2026-10-07, with every 25th point of its shapes:
+// R3's and R13's replacement buses on some of their runs that day, a Train of R3's from La Garriga to
+// La Tor de Querol, and two of R13's, from La Plana-Picamoixons to Barcelona and from Lleida to Les
+// Borges Blanques, as no R13 Train ran between them in the whole timetable.
+const works = dirSource(fileURLToPath(new URL('fixtures/rodalies-buses', import.meta.url)));
+const closed = await readFeed(works, '2026-10-07', RODALIES_FEED);
+
+test("reads the day's replacement buses, which Renfe lists as Trips of bus routes under their Line's own name, and makes no Trains or Stations of them", async () => {
+  expect(closed.lines.map((l) => l.name)).toEqual(['R3', 'R13']);
+  expect(closed.trips.map((t) => t.id)).toEqual(['rodalies:5178X35541R3', 'rodalies:5178X33500R13', 'rodalies:5178X30542R13']);
+  expect(closed.buses).toHaveLength(9);
+  expect(closed.buses.find((b) => b.id === 'rodalies:5178X87400R3')).toEqual({
+    id: 'rodalies:5178X87400R3',
+    line: 'rodalies:R3',
+    calls: [
+      { station: { id: 'adif:78802', name: 'Barcelona Fabra i Puig', lon: 2.18332907, lat: 41.4303481 }, arrival: 21600, departure: 21600 },
+      { station: { id: 'adif:77102', name: 'La Garriga', lon: 2.28879559, lat: 41.6846272 }, arrival: 24360, departure: 24360 },
+    ],
+  });
+  // A stop that only buses call at, all the days of the timetable.
+  expect(closed.buses.flatMap((b) => b.calls.map((c) => c.station.name))).toContain('Montblanc');
+  expect(closed.stations.map((s) => s.name)).not.toContain('Montblanc');
+  expect((await readFeed(works, '2026-10-08', RODALIES_FEED)).buses).toEqual([]);
+});
+
+/** Seconds into the service day at a time of it, such as 24:24. */
+const at = (time: string) => seconds(`${time}:00`);
+
+test('closes R13 between La Plana-Picamoixons and Lleida with buses, from the first bus either way to the last, though only buses call at the Stations between', () => {
+  const closures = closuresOf(closed.buses, closed.shapes, closed.stations);
+  expect(closures.filter((c) => c.line === 'rodalies:R13')).toEqual([
+    // Lleida-Pirineus at 04:48 to La Plana-Picamoixons, and back from 21:30 to 23:26.
+    { line: 'rodalies:R13', stations: ['adif:73100', 'adif:78400'], from: at('04:48'), to: at('23:26'), kind: 'buses' },
+  ]);
+});
+
+// The bundle's Stations: crop() leaves out La Tor de Querol, beyond Spain's border, where one of the buses ends.
+const inSpain = closed.stations.filter((s) => s.id !== 'adif:77310');
+
+test("closes R3 where its buses ran by Ripoll to Puigcerdà, up to Spain's border, where its Trains leave the map, and from the first Station on R3's track that a bus calls at", () => {
+  const closures = closuresOf(closed.buses, closed.shapes, inSpain);
+  expect(closures.filter((c) => c.line === 'rodalies:R3')).toEqual([
+    // Puigcerdà at 05:35 to Vic, Vic to La Tor de Querol, and Vic at 21:25 to Puigcerdà at 24:24.
+    { line: 'rodalies:R3', stations: ['adif:77109', 'adif:77309'], from: at('05:35'), to: at('24:24'), kind: 'buses' },
+    // From Fabra i Puig, which isn't on R3's track, to Centelles, leaving La Garriga at 06:26.
+    { line: 'rodalies:R3', stations: ['adif:77102', 'adif:77105'], from: at('06:26'), to: at('07:08'), kind: 'buses' },
+    // Shuttles between La Molina and Planoles, either way.
+    { line: 'rodalies:R3', stations: ['adif:77304', 'adif:77306'], from: at('06:01'), to: at('23:58'), kind: 'buses' },
+  ]);
+});
+
+test("reports where R3's buses run off its track, from Fabra i Puig to La Garriga, where no R3 Train runs in the whole timetable, rather than make a Closure there, but not where they run on beyond Spain's border", () => {
+  const found: Found[] = [];
+  closuresOf(closed.buses, closed.shapes, inSpain, (f) => found.push(f));
+  const fabra = { id: 'adif:78802', name: 'Barcelona Fabra i Puig', lon: 2.18332907, lat: 41.4303481 };
+  const garriga = { id: 'adif:77102', name: 'La Garriga', lon: 2.28879559, lat: 41.6846272 };
+  const text = ["rodalies:R3's buses Barcelona Fabra i Puig → La Garriga make no Closure: the Line has no track there"];
+  expect(found).toEqual([
+    { kind: 'bus', line: 'rodalies:R3', trip: 'rodalies:5178X87400R3', stations: [fabra, garriga], text },
+    // On to Centelles, with a Closure from La Garriga.
+    { kind: 'bus', line: 'rodalies:R3', trip: 'rodalies:5178X88361R3', stations: [fabra, garriga], text },
+  ]);
+});
+
 test('leaves out the Trips of other days, but not the Lines and Stations they serve', async () => {
   const friday = await readFeed(renfe, '2026-09-25', RODALIES_FEED);
   expect(friday.trips).toEqual([]);
@@ -169,10 +234,12 @@ test("keeps TRAM's T2, which its feed files as rail rather than tram, and heads 
 const tmb = dirSource(fileURLToPath(new URL('fixtures/tmb', import.meta.url)));
 
 test("keeps TMB's metro and funicular Trips, and none of its buses", async () => {
-  const { lines, stations, trips } = await readFeed(tmb, '2026-10-01', METRO_FEED);
+  const { lines, stations, trips, buses } = await readFeed(tmb, '2026-10-01', METRO_FEED);
   expect(lines.map((l) => l.id)).toEqual(['metro:L11', 'metro:FM']);
   expect(new Set(trips.map((t) => t.line))).toEqual(new Set(['metro:L11', 'metro:FM']));
   expect(stations.map((s) => s.name)).not.toContain('Poble Espanyol'); // a stop on line 13
+  // Line 13 is a city bus, not one in a Line's place: no Line has its name.
+  expect(buses).toEqual([]);
 });
 
 test("gives each Line its kind of service: its Network's, but for the Lines it names otherwise", async () => {

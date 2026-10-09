@@ -143,10 +143,10 @@ export interface ManifestDay {
  */
 export type Track = Pick<Bundle, 'networks' | 'lines' | 'stations' | 'shapes' | 'strokes' | 'rails' | 'slots' | 'tracks'>;
 
-/** A service day's Trips, which the map loads after its track. */
-export type DayTrips = Pick<Bundle, 'serviceDay' | 'noonMinus12h' | 'trips'>;
+/** A service day's Trips and Closures, which the map loads after its track. */
+export type DayTrips = Pick<Bundle, 'serviceDay' | 'noonMinus12h' | 'trips' | 'closures'>;
 
-/** Everything the map needs for one service day: its track and its Trips. */
+/** Everything the map needs for one service day: its track, its Trips and its Closures. */
 export interface Bundle {
   serviceDay: string;
   /**
@@ -168,6 +168,8 @@ export interface Bundle {
   /** How the map draws the track below zoom 7: each Network's once, in its colour, on the shapes of its Lines that run it (#190). */
   tracks: Stroke[];
   trips: Trip[];
+  /** The service day's Closures, where it has any: a day file built before #340 has none. */
+  closures?: Closure[];
 }
 
 export interface Network {
@@ -357,6 +359,22 @@ export interface Call {
   arrival: number;
   departure: number;
   dist: number;
+}
+
+/**
+ * A part of a Line closed on a service day, with buses in its Trains' place, as the timetable's
+ * replacement buses have it (ADR-0012): between two of the Line's Stations on its track, from the
+ * first bus's departure from one of them to the last bus's arrival at the other, in seconds into the
+ * service day, as a Trip's calls are.
+ */
+export interface Closure {
+  line: string;
+  /** Its two Stations, in order of ID. */
+  stations: [string, string];
+  from: number;
+  to: number;
+  /** What it is: closed, with buses in its Trains' place. */
+  kind: 'buses';
 }
 
 /** A stretch of track: its points in order, and the distance along it at each point, in metres. */

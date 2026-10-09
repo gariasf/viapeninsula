@@ -1,6 +1,6 @@
 // Each service day's Trips, and the manifest that names each day's bundle, and when the map needs it.
 
-import { addDays, type Bundle, type DayTrips, type Manifest, type ManifestDay, type Network, type Trip } from '../bundle.ts';
+import { addDays, type Bundle, type Closure, type DayTrips, type Manifest, type ManifestDay, type Network, type Trip } from '../bundle.ts';
 import { noonMinus12h, weekdayOf } from './gtfs.ts';
 import type { Found, Spot } from './report.ts';
 
@@ -16,11 +16,13 @@ import type { Found, Spot } from './report.ts';
  * has for the same day (moved()). It keeps them however few: a holiday runs a Sunday's timetable. A
  * day it has no Trips, which is named apart, keeps the last count, so that the next week compares
  * with the last day it had some.
+ * Each day has every Network's Closures that day too, where there are any, and each Network's today
+ * are logged and reported.
  * ponytail: a drop that lasts is named once on each day of the week, then is the count to compare
  * with, and a last report that can't be read starts the counts again, with none to compare with for
  * a week; keep a dropped day's last count, or read an older report, if either ever hides a drop.
  */
-export function dayTrips(days: string[], networks: { network: Network; trips: Trip[][] }[], log = console.warn, report: (found: Found) => void = () => {}, last: Spot[] = []): DayTrips[] {
+export function dayTrips(days: string[], networks: { network: Network; trips: Trip[][]; closures?: Closure[][] }[], log = console.warn, report: (found: Found) => void = () => {}, last: Spot[] = []): DayTrips[] {
   const built = days.map((serviceDay, i) => {
     for (const { network, trips } of networks) {
       if (trips[i]?.length) continue;
@@ -28,17 +30,23 @@ export function dayTrips(days: string[], networks: { network: Network; trips: Tr
       log(line);
       report({ kind: 'notrips', network: network.id, day: i, text: [line] });
     }
-    return { serviceDay, noonMinus12h: noonMinus12h(serviceDay), trips: networks.flatMap((n) => n.trips[i] ?? []) };
+    const closures = networks.flatMap((n) => n.closures?.[i] ?? []);
+    return { serviceDay, noonMinus12h: noonMinus12h(serviceDay), trips: networks.flatMap((n) => n.trips[i] ?? []), ...(closures.length > 0 && { closures }) };
   });
   if (!built[0]?.trips.length) throw new Error(`No Network's timetable has Trips on ${days[0]}`);
   const today = built[0].serviceDay;
-  for (const { network, trips } of networks) {
+  for (const { network, trips, closures } of networks) {
     const count = trips[0]?.length ?? 0;
     const line = `${network.name}'s Trips on ${today}: ${count}`;
     log(line);
     // A last report it can't read, as one of an older shape, has none.
     const before = Array.isArray(last) ? last.find((s) => s?.kind === 'trips' && s.network === network.id)?.numbers : undefined;
     report({ kind: 'trips', network: network.id, text: [line], numbers: { ...before, ...(count > 0 && { [weekdayOf(today)]: count }) } });
+    const closed = closures?.[0]?.length;
+    if (!closed) continue;
+    const closedLine = `${network.name}'s Closures on ${today}: ${closed}`;
+    log(closedLine);
+    report({ kind: 'closures', network: network.id, text: [closedLine], numbers: { closures: closed } });
   }
   return built;
 }

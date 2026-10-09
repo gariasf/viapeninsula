@@ -8,7 +8,7 @@ import { rows, seconds, serviceIdsOn, zipFile, zipSource, type Source } from './
 import type { OsmWay } from './osm.ts';
 import type { Found } from './report.ts';
 import { eachWay, fine, type FeedShape } from './track.ts';
-import type { FeedTrip } from './trips.ts';
+import type { FeedBus, FeedTrip } from './trips.ts';
 
 /**
  * The rails of every kind any Network runs on, as osm() is asked for them. The kinds are sorted, so the
@@ -48,22 +48,27 @@ const RAIL = new Set(['0', '1', '2', '7']);
 
 /**
  * A Network's Lines, Stations and shapes from one operator's GTFS feed, as those of every day in the
- * feed, and its Trips on one service day (YYYY-MM-DD).
+ * feed, and its Trips and replacement buses on one service day (YYYY-MM-DD). Renfe lists the buses
+ * it runs in its Trains' place as Trips of bus routes named as their Line's routes are, as R3's: a
+ * bus route named as none of them, as TMB's city buses are, is no Line's.
  */
 export async function readFeed(
   gtfs: Source,
   day: string,
   feed: Feed,
-): Promise<{ lines: Line[]; stations: Station[]; shapes: FeedShape[]; trips: FeedTrip[] }> {
+): Promise<{ lines: Line[]; stations: Station[]; shapes: FeedShape[]; trips: FeedTrip[]; buses: FeedBus[] }> {
   const { network, prefix, operator } = feed;
   const pattern = feed.number && new RegExp(feed.number);
   const services = await serviceIdsOn(gtfs, day);
   const routes = new Map<string, { name: string; colour: string }>();
+  const busRoutes = new Map<string, string>(); // each bus route's name
   for await (const r of rows(gtfs, 'routes.txt', ['route_id', 'route_short_name', 'route_type', 'route_color'])) {
-    if (RAIL.has(r.route_type) && r.route_id.startsWith(feed.routes?.idPrefix ?? '')) {
-      routes.set(r.route_id, { name: network.lines.names?.[r.route_short_name] ?? r.route_short_name, colour: r.route_color });
-    }
+    if (!r.route_id.startsWith(feed.routes?.idPrefix ?? '')) continue;
+    const name = network.lines.names?.[r.route_short_name] ?? r.route_short_name;
+    if (RAIL.has(r.route_type)) routes.set(r.route_id, { name, colour: r.route_color });
+    if (r.route_type === '3') busRoutes.set(r.route_id, name);
   }
+  const named = new Set([...routes.values()].map((r) => r.name));
 
   const stops = new Map<string, Record<'stop_id' | 'stop_name' | 'stop_lat' | 'stop_lon' | 'parent_station', string>>();
   for await (const s of rows(gtfs, 'stops.txt', ['stop_id', 'stop_name', 'stop_lat', 'stop_lon', 'parent_station'], { blank: ['parent_station'] })) {
@@ -79,8 +84,11 @@ export async function readFeed(
   const shapeOf = new Map<string, string>(); // each Trip's shape, on any day
   const lines = new Map<string, { colour: string; shapes: Set<string> }>();
   const dayTrips = new Map<string, Omit<FeedTrip, 'calls'> & { calls: (FeedTrip['calls'][number] & { seq: number })[] }>();
+  const dayBuses = new Map<string, Omit<FeedBus, 'calls'> & { calls: { seq: number; stop: string; arrival: number; departure: number }[] }>();
   // Renfe's and TRAM's feeds publish no headsigns.
   for await (const t of rows(gtfs, 'trips.txt', ['route_id', 'service_id', 'trip_id', 'trip_headsign', 'shape_id'], { blank: ['trip_headsign'] })) {
+    const bus = busRoutes.get(t.route_id);
+    if (bus && named.has(bus) && services.has(t.service_id)) dayBuses.set(t.trip_id, { id: `${prefix}:${t.trip_id}`, line: `${network.id}:${bus}`, calls: [] });
     const route = routes.get(t.route_id);
     if (!route) continue;
     shapeOf.set(t.trip_id, t.shape_id);
@@ -96,6 +104,7 @@ export async function readFeed(
   const served = new Map<string, Set<string>>(); // the Stations each shape's Trips serve
   const ends = new Map<string, { first: [seq: number, station: string]; last: [seq: number, station: string] }>(); // each Trip's, on any day
   for await (const s of rows(gtfs, 'stop_times.txt', ['trip_id', 'arrival_time', 'departure_time', 'stop_id', 'stop_sequence'])) {
+    dayBuses.get(s.trip_id)?.calls.push({ seq: Number(s.stop_sequence), stop: s.stop_id, arrival: seconds(s.arrival_time), departure: seconds(s.departure_time) });
     const shape = shapeOf.get(s.trip_id);
     if (shape === undefined) continue;
     const [seq, at] = [Number(s.stop_sequence), station(s.stop_id)];
@@ -182,6 +191,14 @@ export async function readFeed(
         return each;
       });
     }),
+    buses: [...dayBuses.values()].map((bus) => ({
+      ...bus,
+      // A stop only buses call at is none of the Network's Stations, but the report names it.
+      calls: bus.calls.sort((a, b) => a.seq - b.seq).map(({ seq: _, stop, ...call }) => {
+        const [id, s] = [station(stop), stationOf(stop)];
+        return { station: stations.get(id) ?? { id, name: s?.stop_name ?? stop, lon: Number(s?.stop_lon), lat: Number(s?.stop_lat) }, ...call };
+      }),
+    })),
   };
 }
 
