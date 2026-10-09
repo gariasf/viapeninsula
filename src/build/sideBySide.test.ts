@@ -517,6 +517,8 @@ test("takes C3, C4 and C5 across the node by Madrid-Atocha without hooking back,
   const { strokes, centrelines } = await sideBySide(lines, shapes);
   const byId = new Map([...shapes, ...centrelines].map((s) => [s.id, s]));
   // The curves whose middle is within 200 m of the Station (adif:18000), with the strokes they join.
+  // Further out some still wiggle, as on main: C10's, from 270 m (#353), and 780 m south-east, C3's,
+  // C4's and C5's at zoom 13, where they step aside onto the next Stretch.
   const near = (c: Stroke) => {
     const [lon, lat] = pointAt(byId.get(c.shape) ?? { coords: [], dist: [] }, c.to / 2);
     return Math.hypot((lon + 3.68944) * KX, (lat - 40.40662) * DEGREE) < 200;

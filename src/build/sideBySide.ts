@@ -360,9 +360,9 @@ type Leg = { stroke: Stroke; end: 0 | 1 };
  * are (smooth()). Where the chain steps aside further than a line width from one centreline to the
  * next, the step counts as moving over that far, for the room, and the chain is blurred over at least
  * as far, so that the curve doesn't hook back onto its stroke (#206). Along a hidden stroke, the chain
- * goes only between its points nearest the legs either side, not from end to end, so that it doesn't
- * run on past the next leg's start and back (#311). Where it neither moves over nor changes side, the
- * Line goes on without a curve.
+ * goes only from its point nearest where it left the leg before to its point nearest where the next
+ * leg starts, not from end to end, so that it doesn't run on past the next leg's start and back (#311).
+ * Where it neither moves over nor changes side, the Line goes on without a curve.
  */
 function curves(joins: Join[], found: Stretch[], onStretch: Map<string, Stroke[]>, byId: Map<string, Shape>, bands: number[], prefix: string): { shapes: Shape[]; strokes: Stroke[] } {
   const shapeOf = (s: Stroke, band: number) => inBand(byId, s.shape, band) ?? { coords: [], dist: [] };
@@ -399,7 +399,11 @@ function curves(joins: Join[], found: Stretch[], onStretch: Map<string, Stroke[]
     // The Stretches absorbed, and strokes along only part of a Stretch, too short for their curves, hidden on their own.
     const [absorbed, alone] = [new Set<number>(), new Set<Stroke>()];
     const hidden = (s: Stroke) => absorbed.has(edgeOf.get(s) ?? -1) || alone.has(s);
-    /** How far along a stroke's line in the band, between two distances along it, its point nearest a point is. */
+    /**
+     * How far along a stroke's line in the band, between two distances along it, its point nearest a
+     * point is: by the line's own `dist`, which a centreline smoothed for the band keeps from the
+     * centreline, rather than by nearest()'s `along`.
+     */
     const closest = (s: Stroke, from: number, to: number, p: Point): number => {
       const [line, lo, hi] = [shapeOf(s, band), Math.min(from, to), Math.max(from, to)];
       const dist = [lo, ...line.dist.filter((d) => d > lo && d < hi), hi];
@@ -410,25 +414,26 @@ function curves(joins: Join[], found: Stretch[], onStretch: Map<string, Stroke[]
      * How far along each leg's line the chain of centrelines a Line goes along across a node comes onto
      * it and leaves it, the way it goes: a stroke drawn in the band at its end, and a hidden one only
      * from its point nearest where the chain left the leg before to its point nearest where the next leg
-     * starts. Where a hidden stroke runs on beside the next leg, past where that starts, as C4's does at
+     * starts, the first looked for only up to the second, so that the chain doesn't turn back along it.
+     * Where a hidden stroke runs on beside the next leg, past where that starts, as C4's does at
      * Madrid-Atocha, the chain would run to its end and back, and so would its curve (#311). Either end,
      * as the legs are kept whichever way round sorts first (across()).
      */
     const spans = (legs: Leg[]): [on: number, off: number][] => {
-      const found: [number, number][] = [];
+      const spanned: [number, number][] = [];
       for (const [i, { stroke: s, end }] of legs.entries()) {
         const [d, other, next, before] = [ends(s, end), ends(s, end ? 0 : 1), legs[i + 1], legs[i - 1]];
         if (!hidden(s)) {
-          found.push([d, d]);
+          spanned.push([d, d]);
           continue;
         }
         // End to end the way the chain goes: from the end it comes on by, or on a first leg, where a Line that ends inside the node starts, to the end it leaves by.
         let [on, off] = i ? [d, other] : [other, d];
         if (next) off = closest(s, on, off, pointAt(shapeOf(next.stroke, band), ends(next.stroke, next.end)));
-        if (before) on = closest(s, on, off, pointAt(shapeOf(before.stroke, band), found[i - 1]?.[1] ?? 0));
-        found.push([on, off]);
+        if (before) on = closest(s, on, off, pointAt(shapeOf(before.stroke, band), spanned[i - 1]?.[1] ?? 0));
+        spanned.push([on, off]);
       }
-      return found;
+      return spanned;
     };
     /**
      * How far, in metres, the chain of centrelines a Line goes along across a node steps aside from one
@@ -441,8 +446,8 @@ function curves(joins: Join[], found: Stretch[], onStretch: Map<string, Stroke[]
       for (const [i, b] of legs.entries()) {
         const a = legs[i - 1];
         if (!a) continue;
-        // Where it leaves a, the first leg by its end and the rest by their other, and comes onto b, with a
-        // point 5 m back the way it came, and one 5 m on the way it goes.
+        // Where the chain leaves a and comes onto b (spans()), with a point 5 m back the way it came, and one
+        // 5 m on the way it goes: along the first leg it goes towards its end, along the rest their other.
         const leaves = i > 1 ? (a.end ? 0 : 1) : a.end;
         const [out = 0, onto = 0] = [spanned[i - 1]?.[1], spanned[i]?.[0]];
         const [p, came] = [out, out + (leaves ? -5 : 5)].map((d) => flat(pointAt(shapeOf(a.stroke, band), d)));
