@@ -2135,6 +2135,15 @@ test("late in the evening, once a Station's last departure has gone, its board l
   ]);
 });
 
+test("after midnight the map keeps the previous day's Closures, their times moved on as its Trips' calls are, beside the new day's", () => {
+  // Made up: R1's buses replace its Trains between Badalona and El Masnou from 23:00 on Friday to 00:40, and on Saturday from 05:00 to 23:00.
+  const closure = (from: number, to: number) => ({ line: 'R1', stations: ['Badalona', 'El Masnou'] as [string, string], from, to, kind: 'buses' as const });
+  const [friday, saturday] = [{ ...FRIDAY, closures: [closure(82_800, 88_800)] }, { ...SATURDAY, closures: [closure(18_000, 82_800)] }];
+  expect(joinDays([friday, saturday]).closures).toEqual([closure(-3_600, 2_400), closure(18_000, 82_800)]);
+  // A day file built before #340 has none.
+  expect(joinDays([FRIDAY, saturday]).closures).toEqual([closure(18_000, 82_800)]);
+});
+
 test("near midnight, the next day's Trains passing within the hour are nearby", () => {
   const moment = Date.parse('2026-09-25T23:10:00+02:00');
   const badalona: Point = [2.24892096, 41.4458838];

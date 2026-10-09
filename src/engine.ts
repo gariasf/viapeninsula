@@ -430,22 +430,24 @@ export function joinDays(days: Bundle[]): Bundle {
   if (!latest) throw new Error('No service day to show');
   if (days.length === 1) return latest;
   const each = <T extends { id: string }>(of: (day: Bundle) => T[]) => [...new Map(days.flatMap(of).map((x) => [x.id, x])).values()];
+  // How far a day's clock is behind the last day's, in seconds: a day, or on the nights the clocks change, an hour more or less.
+  const behind = (day: Bundle) => (latest.noonMinus12h - day.noonMinus12h) / 1000;
   return {
     ...latest,
     networks: each((d) => d.networks),
     lines: each((d) => d.lines),
     stations: each((d) => d.stations),
     shapes: each((d) => d.shapes),
-    trips: days.flatMap(({ serviceDay, noonMinus12h, trips }) => {
-      if (serviceDay === latest.serviceDay) return trips;
-      // How far the day's clock is behind the last day's, in seconds: a day, or on the nights the clocks change, an hour more or less.
-      const behind = (latest.noonMinus12h - noonMinus12h) / 1000;
-      return trips.map((trip) => ({
+    trips: days.flatMap((day) => {
+      if (day === latest) return day.trips;
+      return day.trips.map((trip) => ({
         ...trip,
-        id: `${serviceDay}/${trip.id}`,
-        calls: trip.calls.map((c) => ({ ...c, arrival: c.arrival - behind, departure: c.departure - behind })),
+        id: `${day.serviceDay}/${trip.id}`,
+        calls: trip.calls.map((c) => ({ ...c, arrival: c.arrival - behind(day), departure: c.departure - behind(day) })),
       }));
     }),
+    // Each day's Closures, as its Trips (#340), where it has any: a day file built before #340 has none.
+    closures: days.flatMap((day) => (day.closures ?? []).map((c) => (day === latest ? c : { ...c, from: c.from - behind(day), to: c.to - behind(day) }))),
   };
 }
 

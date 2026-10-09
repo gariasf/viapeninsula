@@ -1,6 +1,6 @@
 import { createExpression, latest, type ExpressionSpecification, type Feature, type StylePropertySpecification } from '@maplibre/maplibre-gl-style-spec';
 import { afterEach, expect, test, vi } from 'vitest';
-import { alertCount, basemapLabel, earlierStations, LANGUAGES, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, pickLanguage, t, toGo, trainCounts, unlocated } from './i18n.ts';
+import { alertCount, basemapLabel, busesReplace, earlierStations, LANGUAGES, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, pickLanguage, t, toGo, trainCounts, unlocated } from './i18n.ts';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -288,4 +288,19 @@ test("says in the banner's short form that a Network's live data is unavailable,
   expect(liveUnavailable('TRAM', 'en')).toBe('TRAM live data unavailable');
   expect(liveUnavailable('TRAM', 'eu')).toBe('TRAM: denbora errealeko daturik ez');
   expect(liveUnavailable('TRAM', 'gl')).toBe('TRAM: sen datos en tempo real');
+});
+
+test("says a Closure from the timetable has buses in its Trains' place between its two Stations, in each language", () => {
+  expect(busesReplace('Les Borges Blanques', 'La Plana-Picamoixons', 'ca')).toBe('Autobusos en lloc de trens entre Les Borges Blanques i La Plana-Picamoixons');
+  expect(busesReplace('Les Borges Blanques', 'La Plana-Picamoixons', 'es')).toBe('Autobuses en lugar de trenes entre Les Borges Blanques y La Plana-Picamoixons');
+  expect(busesReplace('Les Borges Blanques', 'La Plana-Picamoixons', 'en')).toBe('Buses replace trains between Les Borges Blanques and La Plana-Picamoixons');
+  expect(busesReplace('Hernani', 'Irun', 'eu')).toBe('Autobusak trenen ordez Hernani eta Irun artean');
+  expect(busesReplace('Hernani', 'Irun', 'gl')).toBe('Autobuses no canto de trens entre Hernani e Irun');
+});
+
+test('says "e" for "and" in Spanish before a name starting with an i sound, as in "Hernani e Irun", but not before one starting "hie"', () => {
+  expect(busesReplace('Hernani', 'Irun', 'es')).toBe('Autobuses en lugar de trenes entre Hernani e Irun');
+  expect(busesReplace('Lezo', 'Hipódromo', 'es')).toBe('Autobuses en lugar de trenes entre Lezo e Hipódromo');
+  expect(busesReplace('Lezo', 'Hierro', 'es')).toBe('Autobuses en lugar de trenes entre Lezo y Hierro');
+  expect(busesReplace('Lezo', 'Íllora', 'es')).toBe('Autobuses en lugar de trenes entre Lezo e Íllora');
 });
