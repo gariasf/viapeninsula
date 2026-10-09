@@ -156,6 +156,15 @@ test("a followed Train's card has its Line's Alerts, and a board those naming it
   expect(cardAlerts(ALERTS, { lines: ['rodalies:R8'], stations: ['adif:79400'] }, 'en', NOW).alerts).toEqual([]);
 });
 
+test("a board's Alert names the Lines it's on of those that call there, in the board's order, as Rodalies' words don't, and its Station's none", () => {
+  const sants = cardAlerts(ALERTS, { lines: ['rodalies:R4', 'rodalies:R2'], stations: ['adif:71801'] }, 'en', NOW).alerts;
+  expect(sants.map(({ id, lines }) => [id, lines])).toEqual([
+    ['AVISO_518352', ['rodalies:R2']],
+    ['INFO_SANTS', []],
+    ['AVISO_518298', ['rodalies:R4', 'rodalies:R2']],
+  ]);
+});
+
 test("a card's Alerts are newest first, whichever operator's they are, and one that doesn't say when it began goes last", () => {
   // Made up: a place where R2 and T1 both call, and an Alert of TRAM's with no start.
   const tram = ALERTS.tram as AlertFeed;
@@ -165,13 +174,14 @@ test("a card's Alerts are newest first, whichever operator's they are, and one t
 
 test("an Alert is in the viewer's language where its feed has it, or else in its feed's own, with its language and whose words they are, and when it began", () => {
   const R2 = { lines: ['rodalies:R2'], stations: [] };
-  expect(cardAlerts(ALERTS, R2, 'ca', NOW).alerts[0]).toEqual({ id: 'AVISO_518352', description: { language: 'ca', text: 'Sense servei ferroviari.' }, from: at(7, 2), by: 'Renfe' });
+  expect(cardAlerts(ALERTS, R2, 'ca', NOW).alerts[0]).toEqual({ id: 'AVISO_518352', lines: ['rodalies:R2'], description: { language: 'ca', text: 'Sense servei ferroviari.' }, from: at(7, 2), by: 'Renfe' });
   // An English-speaking viewer reads Renfe's in Spanish.
-  expect(cardAlerts(ALERTS, R2, 'en', NOW).alerts[0]).toEqual({ id: 'AVISO_518352', description: { language: 'es', text: 'Sin servicio ferroviario.' }, from: at(7, 2), by: 'Renfe' });
+  expect(cardAlerts(ALERTS, R2, 'en', NOW).alerts[0]).toEqual({ id: 'AVISO_518352', lines: ['rodalies:R2'], description: { language: 'es', text: 'Sin servicio ferroviario.' }, from: at(7, 2), by: 'Renfe' });
   // TRAM's title and words both, in English, and a Basque-speaking viewer's in TRAM's own Catalan.
   const T1 = { lines: ['tram:T1'], stations: [] };
   expect(cardAlerts(ALERTS, T1, 'en', NOW).alerts[0]).toEqual({
     id: 'sc-287',
+    lines: ['tram:T1'],
     header: { language: 'en', text: 'T1, T2 and T3 affected' },
     description: { language: 'en', text: 'No service between Francesc Macià and Montesa.' },
     from: at(7, 0),

@@ -1817,12 +1817,12 @@ function alertsOn(on: { lines: string[]; stations: string[] }) {
     'div',
     { className: 'alerts', hidden: !shown.length },
     foldButton([icon('warning'), alertCount(shown.length)], showAlerts, () => (showAlerts = !showAlerts)),
-    el('div', { hidden: !showAlerts }, read, el('ol', {}, ...shown.map(alertRow))),
+    el('div', { hidden: !showAlerts }, read, el('ol', {}, ...shown.map((alert) => alertRow(alert, on.lines.length > 1)))),
   );
 }
 
-/** An Alert on a card, as alertsOn() has it. */
-function alertRow({ header, description, from, by }: CardAlert) {
+/** An Alert on a card, as alertsOn() has it, after the Lines it's on as pills, `byLine`, where the card has more than one, as a board can: Rodalies' words don't name theirs. */
+function alertRow({ lines: named, header, description, from, by }: CardAlert, byLine: boolean) {
   const words = (tag: 'strong' | 'p', said?: Words) => (said ? [el(tag, { textContent: said.text, ...(said.language && { lang: said.language }) })] : []);
   const other = description?.language && description.language !== language() ? description.language : undefined;
   const about: (Node | string)[] = [
@@ -1831,7 +1831,14 @@ function alertRow({ header, description, from, by }: CardAlert) {
     // By its own name, as the language switch names it.
     ...(other ? [el('span', { lang: other, textContent: LANGUAGES[other as Language] ?? other })] : []),
   ];
-  return el('li', {}, ...words('strong', header), ...words('p', description), el('p', { className: 'meta' }, ...about.flatMap((part, i) => (i ? [' · ', part] : [part]))));
+  return el(
+    'li',
+    {},
+    ...(byLine && named.length ? [el('div', { className: 'served' }, ...named.map((line) => pill(line, { small: true })))] : []),
+    ...words('strong', header),
+    ...words('p', description),
+    el('p', { className: 'meta' }, ...about.flatMap((part, i) => (i ? [' · ', part] : [part]))),
+  );
 }
 
 /**

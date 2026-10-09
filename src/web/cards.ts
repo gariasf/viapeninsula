@@ -61,11 +61,13 @@ export function linesCallingAt(trips: Trip[], stations: string[], lines: string[
 const OPERATORS: Record<string, string> = { renfe: 'Renfe', tram: 'TRAM' };
 
 /**
- * An Alert as a card shows it: its title, where it has one, and its words, each in one language, by
- * its code, where its feed says; when it began, where it says; and whose words they are.
+ * An Alert as a card shows it: the Lines it's on of those the card asks about, in the card's order;
+ * its title, where it has one, and its words, each in one language, by its code, where its feed says;
+ * when it began, where it says; and whose words they are.
  */
 export interface CardAlert {
   id: string;
+  lines: string[];
   header?: Words;
   description?: Words;
   from?: number;
@@ -92,7 +94,14 @@ export function cardAlerts(alerts: Alerts, { lines, stations }: { lines: string[
   const on = (alert: Alert) => alert.lines.some((line) => lines.includes(line)) || alert.stations.some((station) => stations.includes(station));
   const inLang = (words: Words[]) => words.find((w) => w.language === lang) ?? words[0];
   const shown = Object.entries(alerts).flatMap(([feed, { alerts }]) =>
-    alerts.filter(on).map(({ id, header, description, from }): CardAlert => ({ id, ...(header && { header: inLang(header) }), description: inLang(description), from, by: OPERATORS[feed] ?? feed })),
+    alerts.filter(on).map(({ id, lines: named, header, description, from }): CardAlert => ({
+      id,
+      lines: lines.filter((line) => named.includes(line)),
+      ...(header && { header: inLang(header) }),
+      description: inLang(description),
+      from,
+      by: OPERATORS[feed] ?? feed,
+    })),
   );
   const read = Math.min(...Object.values(alerts).flatMap(({ read, alerts }) => (read !== undefined && alerts.some(on) ? [read] : [])));
   return { alerts: shown.sort((a, b) => (b.from ?? 0) - (a.from ?? 0)), ...(now - read > STALE && { asOf: read }) };
