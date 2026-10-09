@@ -4,7 +4,7 @@
 import { along, APART, atZoom, bandAt, BANDS, beside, cutIn, DEGREE, direction, drawnIn, EARTH, inBand, LENGTH, LINK, pieces, pixelMetres, pointAt, STRETCH, type Line, type Point, type Shape, type Stroke, type Track } from '../bundle.ts';
 import { folded, offset, simplify, TOLERANCE } from './offset.ts';
 import type { Found } from './report.ts';
-import { KX, LATITUDE, room, sideBySide, type Front } from './sideBySide.ts';
+import { KX, lanes, LATITUDE, room, sideBySide, type Front } from './sideBySide.ts';
 
 /** Strokes shorter than this, in metres, are stubs: sideBySide()'s SHORT before #138. */
 const STUB = 150;
@@ -50,7 +50,9 @@ const LOOKS = 4;
  * at each zoom in BANDS, where a stroke's offset turns back on itself, on the inside of a curve
  * tighter than its offset. `covered`: at each zoom in BANDS, metres where a Line is drawn over
  * another's, alongside it less than half the band's line width apart, as tracks further apart than
- * NEAR are, zoomed out (ADR-0007). `dangling`: stroke
+ * NEAR are, zoomed out (ADR-0007). In `over` and `covered`, the Lines given of one Network and one
+ * colour count as one Line: sideBySide() gives them one lane (lanes()), their strokes lying on each
+ * other on purpose (#283). `dangling`: stroke
  * ends drawn at LOOSE_ZOOM further than LOOSE from any other stroke of their Line, and not at a
  * terminus (#172). Links (LINK), the curves that join a Line's stroke on one Stretch to its next, count only
  * there, in LOOSE_ZOOM's band, and in the measures of nodes, at each zoom in BANDS (ADR-0007, #186).
@@ -77,12 +79,16 @@ export interface Measures {
   largest: Record<number, { size: number; at: Point }[]>;
 }
 
-/** The measures of a day's track; `inside` only for the Lines given. */
+/** The measures of a day's track; `inside` only for the Lines given, and in `over` and `covered`, the Lines given in one lane as one Line. */
 export function measures({ shapes, strokes: pieces, lines = [] }: Pick<Track, 'shapes' | 'strokes'> & Partial<Pick<Track, 'lines'>>): Measures {
   const strokes = joined(pieces);
   const drawn = strokes.filter((s) => !s.shape.startsWith(LINK));
   const graph = drawn.filter((s) => s.band === undefined);
-  return { breaks: breaks(graph, shapes), ...faithful(graph, shapes), folds: folds(drawn, shapes), covered: covered(strokes, shapes), dangling: dangling(strokes, shapes), ...nodes(strokes, shapes, lines), wiggles: wiggles(strokes, shapes) };
+  // Each Line given, by ID, as the first Line in its lane; any other as itself.
+  const lane = lanes(lines);
+  const first = new Map(lines.map((l, i) => [l.id, lines[lane[i] ?? i]?.id ?? l.id]));
+  const one = (line: string) => first.get(line) ?? line;
+  return { breaks: breaks(graph, shapes), ...faithful(graph, shapes, one), folds: folds(drawn, shapes), covered: covered(strokes, shapes, one), dangling: dangling(strokes, shapes), ...nodes(strokes, shapes, lines), wiggles: wiggles(strokes, shapes) };
 }
 
 /** Strokes joined up again where sideBySide() cut them at a tunnel's ends (#178), as they're drawn the same either side. */
@@ -195,8 +201,11 @@ export function breaks(strokes: Stroke[], shapes: Shape[]): Breaks {
   return found;
 }
 
-/** The metres drawn twice, alone and over each other (see Measures), each counted once, judged every EVERY along each stroke. */
-function faithful(strokes: Stroke[], shapes: Shape[]): Pick<Measures, 'twice' | 'alone' | 'over'> {
+/**
+ * The metres drawn twice, alone and over each other (see Measures), each counted once, judged every
+ * EVERY along each stroke: over each other only for Lines in different lanes, given by `one`.
+ */
+function faithful(strokes: Stroke[], shapes: Shape[], one: (line: string) => string): Pick<Measures, 'twice' | 'alone' | 'over'> {
   const byId = new Map(shapes.map((s) => [s.id, s]));
   const flat = ([lon, lat]: Point): [x: number, y: number] => [lon * DEGREE * Math.cos((lat * Math.PI) / 180), lat * DEGREE];
   // Each stroke's segments, in every NEAR-sized cell they come within NEAR of.
@@ -243,7 +252,7 @@ function faithful(strokes: Stroke[], shapes: Shape[]): Pick<Measures, 'twice' | 
         // How many line widths apart the two are drawn, a multiple of a half: their sides, looking the way m's shape runs.
         const drawn = Math.abs(m.side - o.side * cos);
         if (o.line === m.line) twice ||= o.shape !== m.shape && across <= TWIN && drawn > 0.25;
-        else [beside, over] = [true, over || (across <= SAME && drawn < 0.25)];
+        else [beside, over] = [true, over || (across <= SAME && drawn < 0.25 && one(o.line) !== one(m.line))];
       }
       // Each Line drawn twice, and each pair drawn over each other, is found from both of them.
       found.twice += twice ? EVERY / 2 : 0;
@@ -318,19 +327,19 @@ function folds(strokes: Stroke[], shapes: Shape[]): Record<number, number> {
   return found;
 }
 
-/** At each zoom in BANDS, the metres where a Line is drawn over another's (see Measures), judged every EVERY along each of its strokes as drawn there: each point once however many it's over, and halved, as two Lines over each other are found from both. */
-function covered(strokes: Stroke[], shapes: Shape[]): Record<number, number> {
+/** At each zoom in BANDS, the metres where a Line is drawn over another's in another lane, given by `one` (see Measures), judged every EVERY along each of its strokes as drawn there: each point once however many it's over, and halved, as two Lines over each other are found from both. */
+function covered(strokes: Stroke[], shapes: Shape[], one: (line: string) => string): Record<number, number> {
   const byId = new Map(shapes.map((s) => [s.id, s]));
   const flat = ([lon, lat]: Point): [x: number, y: number] => [lon * KX, lat * DEGREE];
   const found: Record<number, number> = {};
   for (const [band, zoom] of BANDS.entries()) {
     const width = atZoom(APART, zoom) * pixelMetres(zoom, LATITUDE);
-    // Each Line's strokes as drawn in the band, cut back where its curves take over, and its curves, in their pieces.
+    // Each Line's strokes as drawn in the band, cut back where its curves take over, and its curves, in their pieces, by its lane.
     const lines = strokes.filter((s) => drawnIn(s, band)).flatMap((s) => {
       const [start, end] = cutIn(s, band);
       const shape = inBand(byId, s.shape, band);
       if (!shape || start + end >= s.to - s.from) return [];
-      return pieces({ ...s, from: s.from + start, to: s.to - end }).map((p) => ({ line: s.line, points: offset(along(shape, p.from, p.to).map(flat), p.side * width) }));
+      return pieces({ ...s, from: s.from + start, to: s.to - end }).map((p) => ({ line: one(s.line), points: offset(along(shape, p.from, p.to).map(flat), p.side * width) }));
     });
     // Each segment, in every cell a line width across that it comes within half a line width of.
     const cells = new Map<string, { line: string; a: [number, number]; b: [number, number] }[]>();

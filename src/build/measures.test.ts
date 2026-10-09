@@ -142,6 +142,25 @@ test("measures, in each band, Lines drawn over each other on tracks too close to
   expect(found(own.map((s) => ({ ...s, band: BANDS.indexOf(9) })))).toEqual({ ...none, 9: 2000 });
 });
 
+test("doesn't count Lines of one Network and one colour as over each other or covered, as they lie on each other on purpose (#303)", () => {
+  // C4a and a second Line, each on its own shape of one track, drawn on each other: as Madrid's C4b,
+  // whose colour differs from C4a's only in case (#283), or in a colour of its own, or another Network's.
+  const found = (network: string, colour: string) =>
+    measures({
+      shapes: [east('a', 2000), east('b', 2000)],
+      strokes: [stroke('C4a', 'a', 0, 2000, 0.5), stroke('C4b', 'b', 0, 2000, 0.5)],
+      lines: [
+        { id: 'C4a', network: 'cercanias-madrid', name: 'C4a', colour: '#2C2A86', shapes: ['a'], kind: 'commuter' },
+        { id: 'C4b', network, name: 'C4b', colour, shapes: ['b'], kind: 'commuter' },
+      ],
+    });
+  const apart = found('cercanias-madrid', '#9E1B80');
+  expect(apart.over).toBeCloseTo(2000, -2);
+  expect(apart.covered).toEqual(every(2000));
+  expect(found('rodalies', '#2C2A86')).toEqual(apart);
+  expect(found('cercanias-madrid', '#2c2a86')).toEqual({ ...apart, over: 0, covered: none });
+});
+
 test('measures folds where a stroke is drawn inside a curve tighter than its offset, zoomed out', () => {
   const folds = (radius: number, side: number) => measures({ shapes: [curve('a', radius)], strokes: [stroke('R2', 'a', 0, curve('a', radius).dist.at(-1) ?? 0, side)] }).folds;
   // Three widths out, the offset is about 440 m at zoom 10 and 80 m at zoom 13.
