@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { earlierStations, LANGUAGES, type Language, liveUnavailable, moreDepartures, moreStations, pickLanguage, t, toGo, trainCounts, unlocated } from './i18n.ts';
+import { earlierStations, LANGUAGES, type Language, liveUnavailable, MACHINE_TRANSLATED, moreDepartures, moreStations, pickLanguage, t, toGo, trainCounts, unlocated } from './i18n.ts';
 
 test("speaks the first of the browser's languages it knows, whatever the region, and English when it knows none", () => {
   expect(pickLanguage(null, ['ca-ES', 'es-ES', 'en'])).toBe('ca');
@@ -33,6 +33,8 @@ test('counts the Trains on the map in the legend, Live and Scheduled, in each la
   expect(trainCounts(343, 68, 'ca')).toEqual(['343 en directe', '68 programats']);
   expect(trainCounts(343, 68, 'es')).toEqual(['343 en directo', '68 programados']);
   expect(trainCounts(343, 68, 'en')).toEqual(['343 live', '68 scheduled']);
+  expect(trainCounts(343, 68, 'eu')).toEqual(['343 zuzenean', '68 programatuta']);
+  expect(trainCounts(343, 68, 'gl')).toEqual(['343 en directo', '68 programados']);
 });
 
 test('counts one Scheduled Train in the singular, and none in the plural', () => {
@@ -40,18 +42,28 @@ test('counts one Scheduled Train in the singular, and none in the plural', () =>
   expect(trainCounts(1, 1, 'es')).toEqual(['1 en directo', '1 programado']);
   expect(trainCounts(1, 0, 'en')).toEqual(['1 live', '0 scheduled']);
   expect(trainCounts(0, 0, 'ca')).toEqual(['0 en directe', '0 programats']);
+  expect(trainCounts(0, 1, 'gl')).toEqual(['0 en directo', '1 programado']);
+  expect(trainCounts(1, 0, 'gl')).toEqual(['1 en directo', '0 programados']);
+});
+
+test('counts one as singular and any other number as plural in every language it speaks, as counting() takes them to', () => {
+  for (const lang of Object.keys(LANGUAGES)) expect([0, 1, 2, 21].map((n) => new Intl.PluralRules(lang).select(n))).toEqual(['other', 'one', 'other', 'other']);
 });
 
 test('says in the banner that a Network has no timetable today, in each language', () => {
   expect(t('noTimetable', 'ca')).toBe('sense horari avui');
   expect(t('noTimetable', 'es')).toBe('sin horario hoy');
   expect(t('noTimetable', 'en')).toBe('no timetable today');
+  expect(t('noTimetable', 'eu')).toBe('gaur ordutegirik ez');
+  expect(t('noTimetable', 'gl')).toBe('sen horario hoxe');
 });
 
 test('labels the button that follows a random Train in each language', () => {
   expect(t('followRandom', 'ca')).toBe("Segueix un tren a l'atzar");
   expect(t('followRandom', 'es')).toBe('Seguir un tren al azar');
   expect(t('followRandom', 'en')).toBe('Follow a random train');
+  expect(t('followRandom', 'eu')).toBe('Jarraitu ausazko tren bati');
+  expect(t('followRandom', 'gl')).toBe('Seguir un tren ao chou');
 });
 
 test("says in About what a Train's outline says of its Line's kind of service, in each language", () => {
@@ -64,11 +76,25 @@ test("says in About what a Train's outline says of its Line's kind of service, i
   expect(t('outlines', 'en')).toBe(
     "Zoomed in, each train is a label with its line's name, shaped by the line's kind of service: rounded for commuter and suburban lines, pointed at both ends for regional lines, and a rounded square for the lines of TMB's metro, TRAM, Cádiz's tram-train, the rack railway and the funiculars.",
   );
+  expect(t('outlines', 'eu')).toBe(
+    'Mapa handituta, tren bakoitza bere linearen izena daraman etiketa bat da, eta haren formak zerbitzu mota adierazten du: biribildua aldiriko eta hiri-inguruko lineetan, bi muturretan puntaduna eskualdeko lineetan, eta izkina biribilduko karratua TMBren metroko, TRAMeko, Cadizko tren-tranbiako, kremailerako eta funikularretako lineetan.',
+  );
+  expect(t('outlines', 'gl')).toBe(
+    'Co mapa ampliado, cada tren é unha etiqueta co nome da súa liña, e a súa forma indica o tipo de servizo: arredondada para as liñas de proximidade e as suburbanas, rematada en punta polos dous extremos para as rexionais, e cadrada coas esquinas arredondadas para as do metro de TMB, do TRAM, do tren-tranvía de Cádiz, do tren de cremalleira e dos funiculares.',
+  );
 });
 
 test("says in About's Privacy that visits are counted, naming Cloudflare Web Analytics once in each language for its link", () => {
   expect(t('visitsCounted', 'en')).toBe('Visits are counted with Cloudflare Web Analytics, which uses no cookies and keeps nothing on your device.');
   for (const lang of Object.keys(LANGUAGES) as Language[]) expect(t('visitsCounted', lang).split('Cloudflare Web Analytics')).toHaveLength(2);
+});
+
+test('says atop About, in Basque and in Galician alone, that their texts are machine-translated, naming GitHub once for its link, for corrections', () => {
+  expect(MACHINE_TRANSLATED).toEqual({
+    eu: 'Euskarazko testuak itzulpen automatikoz eginak dira, eta hiztun batek ez ditu oraindik berrikusi. Zuzendu beharreko zerbait ikusten baduzu, jakinarazi iezaguzu GitHub-en.',
+    gl: 'Os textos en galego son unha tradución automática, e aínda non os revisou ningún falante. Se ves algo que corrixir, avísanos en GitHub.',
+  });
+  for (const note of Object.values(MACHINE_TRANSLATED)) expect(note.split('GitHub')).toHaveLength(2);
 });
 
 test("counts down to a Train in minutes on a board and in Nearby, or says it's now, in each language", () => {
@@ -78,6 +104,10 @@ test("counts down to a Train in minutes on a board and in Nearby, or says it's n
   expect(toGo(0, 'minutes', 'ca')).toBe('ara');
   expect(toGo(0, 'minutes', 'es')).toBe('ahora');
   expect(toGo(0, 'minutes', 'en')).toBe('now');
+  expect(toGo(3, 'minutes', 'eu')).toBe('3 min');
+  expect(toGo(3, 'minutes', 'gl')).toBe('3 min');
+  expect(toGo(0, 'minutes', 'eu')).toBe('orain');
+  expect(toGo(0, 'minutes', 'gl')).toBe('agora');
 });
 
 test("counts down to a followed Train's next Station, or says it's now, in each language", () => {
@@ -85,6 +115,8 @@ test("counts down to a followed Train's next Station, or says it's now, in each 
   expect(toGo(1, 'inMinutes', 'es')).toBe('en 1 min');
   expect(toGo(1, 'inMinutes', 'en')).toBe('in 1 min');
   expect(toGo(0, 'inMinutes', 'en')).toBe('now');
+  expect(toGo(1, 'inMinutes', 'eu')).toBe('1 min barru');
+  expect(toGo(1, 'inMinutes', 'gl')).toBe('en 1 min');
 });
 
 test("says at the foot of a peeking followed Train how many Stations it has still to come, and where it ends when, in each language", () => {
@@ -94,6 +126,10 @@ test("says at the foot of a peeking followed Train how many Stations it has stil
   expect(moreStations(1, 'Igualada', '9:33', 'ca')).toBe('1 estació més, fins a Igualada (9:33)');
   expect(moreStations(1, 'Igualada', '9:33', 'es')).toBe('1 estación más, hasta Igualada (9:33)');
   expect(moreStations(1, 'Igualada', '9:33 AM', 'en')).toBe('1 more station, to Igualada at 9:33 AM');
+  expect(moreStations(22, 'Igualada', '09:33', 'eu')).toBe('22 geltoki gehiago, Igualada arte (09:33)');
+  expect(moreStations(22, 'Igualada', '09:33', 'gl')).toBe('22 estacións máis, ata Igualada (09:33)');
+  expect(moreStations(1, 'Igualada', '09:33', 'eu')).toBe('1 geltoki gehiago, Igualada arte (09:33)');
+  expect(moreStations(1, 'Igualada', '09:33', 'gl')).toBe('1 estación máis, ata Igualada (09:33)');
 });
 
 test("says atop a followed Train's strip how many Stations it has already left, folded away, in each language", () => {
@@ -103,6 +139,10 @@ test("says atop a followed Train's strip how many Stations it has already left, 
   expect(earlierStations(1, false, 'ca')).toBe('1 estació anterior');
   expect(earlierStations(1, false, 'es')).toBe('1 estación anterior');
   expect(earlierStations(1, false, 'en')).toBe('1 earlier station');
+  expect(earlierStations(11, false, 'eu')).toBe('Aurreko 11 geltoki');
+  expect(earlierStations(11, false, 'gl')).toBe('11 estacións anteriores');
+  expect(earlierStations(1, false, 'eu')).toBe('Aurreko 1 geltoki');
+  expect(earlierStations(1, false, 'gl')).toBe('1 estación anterior');
 });
 
 test("says atop a followed Train's strip that a tap hides the Stations it has already left, once they're shown, in each language", () => {
@@ -112,6 +152,10 @@ test("says atop a followed Train's strip that a tap hides the Stations it has al
   expect(earlierStations(1, true, 'ca')).toBe("Amaga l'estació anterior");
   expect(earlierStations(1, true, 'es')).toBe('Ocultar la estación anterior');
   expect(earlierStations(1, true, 'en')).toBe('Hide 1 earlier station');
+  expect(earlierStations(11, true, 'eu')).toBe('Ezkutatu aurreko 11 geltokiak');
+  expect(earlierStations(11, true, 'gl')).toBe('Agochar as 11 estacións anteriores');
+  expect(earlierStations(1, true, 'eu')).toBe('Ezkutatu aurreko geltokia');
+  expect(earlierStations(1, true, 'gl')).toBe('Agochar a estación anterior');
 });
 
 test('says at the foot of a peeking board how many departures more it has, in each language', () => {
@@ -121,6 +165,10 @@ test('says at the foot of a peeking board how many departures more it has, in ea
   expect(moreDepartures(1, 'ca')).toBe('1 sortida més');
   expect(moreDepartures(1, 'es')).toBe('1 salida más');
   expect(moreDepartures(1, 'en')).toBe('1 more departure');
+  expect(moreDepartures(7, 'eu')).toBe('7 irteera gehiago');
+  expect(moreDepartures(7, 'gl')).toBe('7 saídas máis');
+  expect(moreDepartures(1, 'eu')).toBe('1 irteera gehiago');
+  expect(moreDepartures(1, 'gl')).toBe('1 saída máis');
 });
 
 test("says in Nearby that the browser isn't sharing the viewer's location where they refused it, and how to allow it, with Try again, in each language", () => {
@@ -136,12 +184,22 @@ test("says in Nearby that the browser isn't sharing the viewer's location where 
     says: ["Your browser isn't sharing your location with this map", "To see nearby trains, allow location for this site in your browser's settings, then try again"],
     tryAgain: 'Try again',
   });
+  expect(unlocated('refused', 'eu')).toEqual({
+    says: ['Nabigatzaileak ez du zure kokapena mapa honekin partekatzen', 'Inguruko trenak ikusteko, baimendu kokapena gune honetarako nabigatzailearen ezarpenetan, eta saiatu berriro'],
+    tryAgain: 'Saiatu berriro',
+  });
+  expect(unlocated('refused', 'gl')).toEqual({
+    says: ['O navegador non comparte a túa localización con este mapa', 'Para ver os trens próximos, permite a localización para este sitio na configuración do navegador e téntao de novo'],
+    tryAgain: 'Tentar de novo',
+  });
 });
 
 test("says in Nearby, as ever, that the viewer's location isn't available where the browser had no fix in time, with Try again", () => {
   expect(unlocated('failed', 'ca')).toEqual({ says: ["No s'ha pogut saber on ets, així que no es poden mostrar els trens a prop"], tryAgain: 'Torna-ho a provar' });
   expect(unlocated('failed', 'es')).toEqual({ says: ['No se ha podido saber dónde estás, así que no se pueden mostrar los trenes cercanos'], tryAgain: 'Volver a intentarlo' });
   expect(unlocated('failed', 'en')).toEqual({ says: ["Your location isn't available, so nearby trains can't be shown"], tryAgain: 'Try again' });
+  expect(unlocated('failed', 'eu')).toEqual({ says: ['Ezin izan da jakin non zauden; beraz, ezin dira inguruko trenak erakutsi'], tryAgain: 'Saiatu berriro' });
+  expect(unlocated('failed', 'gl')).toEqual({ says: ['Non se puido saber onde estás, así que non se poden amosar os trens próximos'], tryAgain: 'Tentar de novo' });
 });
 
 test("says in Nearby, as ever, that the viewer's location isn't available where the browser has no geolocation at all, with no Try again", () => {
@@ -157,4 +215,6 @@ test("says in the banner's short form that a Network's live data is unavailable,
   expect(liveUnavailable('TRAM', 'ca')).toBe('TRAM: sense dades en temps real');
   expect(liveUnavailable('TRAM', 'es')).toBe('TRAM: sin datos en tiempo real');
   expect(liveUnavailable('TRAM', 'en')).toBe('TRAM live data unavailable');
+  expect(liveUnavailable('TRAM', 'eu')).toBe('TRAM: denbora errealeko daturik ez');
+  expect(liveUnavailable('TRAM', 'gl')).toBe('TRAM: sen datos en tempo real');
 });

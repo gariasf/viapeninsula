@@ -8,7 +8,7 @@ import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
 import { along, APART, atZoom, BANDS, bandZooms, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Bundle, type Credit, type Place, type DayTrips, type Kind, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, WIDTH } from '../bundle.ts';
 import { boardAt, joinDays, KEEP, mapTime, nearbyAt, trainAt, trainsAt, unavailable, type Departure, type Followed, type Received } from '../engine.ts';
-import { earlierStations, language, LANGUAGES, liveUnavailable, moreDepartures, moreStations, setLanguage, t, toGo, trainCounts, unlocated, type Language, type Unlocated } from './i18n.ts';
+import { earlierStations, language, LANGUAGES, liveUnavailable, MACHINE_TRANSLATED, moreDepartures, moreStations, setLanguage, t, toGo, trainCounts, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { linesAt } from './tap.ts';
 import { alongside, namedTwice, nameOffset, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
@@ -2029,16 +2029,13 @@ function showBanner() {
 }
 
 /**
- * Fills the About dialog, in the viewer's language, as it opens: what the map shows and that its
- * positions are estimates; Reading the map, with the pills a Train is drawn as, Live and Scheduled,
- * and its outlines, drawn with the first of the map's Lines of each kind of outline; the credits
- * showCredits() lists there; the code and its licence; and privacy.
+ * Fills the About dialog, in the viewer's language, as it opens: in a machine-translated language, that
+ * it is (#327); what the map shows and that its positions are estimates; Reading the map, with the pills
+ * a Train is drawn as, Live and Scheduled, and its outlines, drawn with the first of the map's Lines of
+ * each kind of outline; the credits showCredits() lists there; the code and its licence; and privacy.
  */
 function showAbout() {
-  // ponytail: the link goes round Cloudflare Web Analytics where the sentence names it, as every language
-  // names it so. A language that words it otherwise needs a placeholder in its string instead.
-  const analytics = 'Cloudflare Web Analytics';
-  const [beforeAnalytics = '', afterAnalytics = ''] = t('visitsCounted').split(analytics);
+  const machineTranslated = MACHINE_TRANSLATED[language()];
   const [round, pointed, badge] = (['round', 'pointed', 'badge'] as const).map((outline) => [...pills].find(([, p]) => p.outline === outline)?.[0]);
   // On a phone, About's handle closes it, as dragging it down does: a pointer's, as its close button is the keyboard's.
   const aboutHandle = el('button', { type: 'button', className: 'handle', tabIndex: -1, onclick: () => about.close() }, el('span'));
@@ -2049,6 +2046,7 @@ function showAbout() {
     el(
       'div',
       { className: 'sheet-body' },
+      ...(machineTranslated ? [el('p', { className: 'subtitle' }, ...linked(machineTranslated, 'GitHub', 'https://github.com/gariasf/viapeninsula/issues'))] : []),
       el('p', { textContent: t('estimates') }),
       el('h3', { className: 'label', textContent: t('readingTheMap') }),
       el(
@@ -2071,16 +2069,20 @@ function showAbout() {
       ),
       el('h3', { className: 'label', textContent: t('privacy') }),
       el('p', { textContent: t('noCookies') }),
-      el(
-        'p',
-        {},
-        beforeAnalytics,
-        // Cloudflare's own pages on the data and metrics Web Analytics collects.
-        el('a', { href: 'https://developers.cloudflare.com/web-analytics/data-metrics/', target: '_blank', textContent: analytics }),
-        afterAnalytics,
-      ),
+      // Cloudflare's own pages on the data and metrics Web Analytics collects.
+      el('p', {}, ...linked(t('visitsCounted'), 'Cloudflare Web Analytics', 'https://developers.cloudflare.com/web-analytics/data-metrics/')),
     ),
   );
+}
+
+/**
+ * A sentence of About's, with a link to `href` round where it names `name`.
+ * ponytail: every language names it so, once, as tests check. A language that words it otherwise needs
+ * a placeholder in its string instead.
+ */
+function linked(text: string, name: string, href: string): (Node | string)[] {
+  const [before = '', after = ''] = text.split(name);
+  return [before, el('a', { href, target: '_blank', textContent: name }), after];
 }
 
 /** Credits the basemap and each Network's data, in the viewer's language: behind the © button on a phone, in a strip on a wide window, and in the About dialog. */
