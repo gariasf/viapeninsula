@@ -18,7 +18,7 @@ const VIEW_KEY = 'view';
  * none is kept, when Barcelona. MapLibre opens a link's own view over it. A link that names only a
  * Station or a Train opens on the kept view, as one that names nothing does: the map eases from there to
  * a Station it knows (#292) or a running Train it follows, and stays there for a Station it doesn't know
- * or a Train that has finished (#306). A kept view MapLibre can't open, such as one past a pole, would
+ * or a Train that isn't running (#306). A kept view MapLibre can't open, such as one past a pole, would
  * stop the map, so it opens on Barcelona too.
  */
 export function openingView(link: string, kept: string | null): View {

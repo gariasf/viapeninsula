@@ -23,7 +23,7 @@ test('a link that names a view opens on Barcelona, whatever view is kept', () =>
 
 test('a link that names only a Station or a Train opens where the viewer last left the map, or on Barcelona the first time', () => {
   // The map eases from there to a Station it knows (#292) or a running Train it follows, and stays
-  // there for a Station it doesn't know or a Train that has finished (#306).
+  // there for a Station it doesn't know or a Train that isn't running (#306).
   for (const link of ['#station=adif:71801', '#station=adif:nope', '#train=2026-10-05/rodalies:R2_77001']) {
     expect(openingView(link, JSON.stringify(GIRONA))).toEqual(GIRONA);
     expect(openingView(link, null)).toEqual(BARCELONA);
