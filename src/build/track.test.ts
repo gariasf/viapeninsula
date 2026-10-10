@@ -730,3 +730,26 @@ test("runs AVE on both gauges all the way where a stretch has no path on standar
   // A Train that ends at B keeps to standard gauge.
   expect(points(track('to B'))).toEqual([[0, 0], [2000, 0], [4000, 0]]);
 });
+
+test("sets off from another of a Station's tracks of its gauge where OpenStreetMap has none that leads on from the one it comes in on, as at Alcázar de San Juan, and says so", () => {
+  // A's line comes into S on its north track, which ends there, and C's leaves from its south track, 10 m off.
+  const ways = rails({ a: [0, 0], n: [3000, 0], w: [2000, -10], s: [5000, -10], c: [8000, -10] }, 'a n', 'w s c');
+  const { track, log } = runs(ways, [station('A', -10, 0), station('S', 3000, -5), station('C', 8010, -10)], [[call('md', 'A S C', { railway: ['rail'], gauges: ['1668'] }, 'MD')]]);
+  expect(points(track('md'))).toEqual([[0, 0], [3000, 0], [3000, -10], [8000, -10]]);
+  expect(log).toEqual(["MD:1: A → C, 8.0 km long, 1.00× the straight line through its 3 Stations, leaving S from another track than it came in on"]);
+});
+
+test("comes into a Station on each gauge it can, as an Alvia must come into Sevilla on Iberian gauge, through Majarabique's changer, to go on to Jerez, though standard gauge is the shorter way in", () => {
+  // From A, standard-gauge track runs straight into S, and on through a changer at k onto Iberian-gauge track
+  // that runs into S beside it, 2 km longer. From S, only the Iberian-gauge track runs on, back south to C.
+  const points_: Record<string, [number, number]> = { a: [0, 0], s: [4000, 0], j: [1000, 0], k: [2000, 2000], i: [4000, 10], m: [3000, 10], c: [3000, -3000] };
+  const ways = rails(points_, ['a j s', { gauge: '1435' }], ['j k', { gauge: '1435' }], 'k i', 'i m c');
+  const { track, log } = runs(
+    ways,
+    [station('A', -10, 0), station('S', 4010, 5), station('C', 3000, -3010)],
+    [[call('alvia', 'A S C', BOTH, 'Alvia')]],
+    new Set([Object.keys(points_).indexOf('k') + 1]),
+  );
+  expect(points(track('alvia')).slice(0, 4)).toEqual([[0, 0], [1000, 0], [2000, 2000], [4000, 10]]);
+  expect(log[0]).toContain('changing gauge between A and S');
+});

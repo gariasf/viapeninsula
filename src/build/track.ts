@@ -232,24 +232,34 @@ function traceRun(graph: Graph, run: Run, log: (line: string) => void, report: (
     return { why: 'nopath', stations: [a, b], reason: `${a.name} → ${b.name} has no path along the rails` };
   }
   const stretches = cheapest(reached);
-  const edges = stretches.flatMap((a) => a.edges);
-  const [first] = edges;
-  const coords = first === undefined ? [] : [source(graph, first), ...edges.map((e) => target(graph, e))].map((v) => point(graph, v));
-  for (const e of edges) graph.shared.add(e);
-  const traced = shape(run.id, coords, first === undefined ? [] : [first, ...edges].map((e) => graph.level[e] ?? ''));
-  // Where it changes gauge: from one layer of track to another, which only a changer joins.
-  const changes: string[] = [];
+  // Its vertices, each with the level of the track up to it, where it changes gauge, from one layer of track
+  // to another, which only a changer joins, and where it sets off from another track than it came in on.
+  const [vertices, levels, changes, across]: [number[], string[], string[], string[]] = [[], [], [], []];
   let last: number | undefined;
   for (const a of stretches) {
     for (const e of a.edges) {
+      const [from, level] = [source(graph, e), graph.level[e] ?? ''];
+      if (last !== undefined && target(graph, last) !== from) across.push(stations[a.waypoint - 1]?.name ?? '');
       if (last !== undefined && graph.layer[e] !== graph.layer[last]) changes.push(`${stations[a.waypoint - 1]?.name} and ${stations[a.waypoint]?.name}`);
+      if (last === undefined || target(graph, last) !== from) {
+        vertices.push(from);
+        levels.push(level);
+      }
+      vertices.push(target(graph, e));
+      levels.push(level);
+      graph.shared.add(e);
       last = e;
     }
   }
+  const traced = shape(run.id, vertices.map((v) => point(graph, v)), levels);
   const straight = stations.slice(1).reduce((sum, b, i) => sum + metres([stations[i]?.lon ?? NaN, stations[i]?.lat ?? NaN], [b.lon, b.lat]), 0);
   const km = (traced.dist.at(-1) ?? 0) / 1000;
   const [start, end] = [stations[0]?.name, stations.at(-1)?.name];
-  log(`${run.id}: ${start} → ${end}, ${km.toFixed(1)} km long, ${((km * 1000) / straight).toFixed(2)}× the straight line through its ${stations.length} Stations${changes.map((c) => `, changing gauge between ${c}`).join('')}`);
+  log(
+    `${run.id}: ${start} → ${end}, ${km.toFixed(1)} km long, ${((km * 1000) / straight).toFixed(2)}× the straight line through its ${stations.length} Stations` +
+      changes.map((c) => `, changing gauge between ${c}`).join('') +
+      across.map((name) => `, leaving ${name} from another track than it came in on`).join(''),
+  );
   for (const a of stretches) {
     const [from, to] = [stations[a.waypoint - 1], stations[a.waypoint]];
     if (!from || !to) continue;
@@ -272,22 +282,40 @@ function traceRun(graph: Graph, run: Run, log: (line: string) => void, report: (
 
 /**
  * The ways a trace can reach the last of these Stations, through each in turn, on the first `layers`
- * layers of track, or the first stretch with no path there.
+ * layers of track, or the first stretch with no path there. At each Station it can set off again from
+ * another of its tracks of the gauge it came in on, at a cost (ACROSS), as where OpenStreetMap has no
+ * switch between them: at Alcázar de San Juan none of the tracks MD's Trains from Manzanares come in on
+ * leads on to Campo de Criptana.
  */
 function walk(graph: Graph, stations: Station[], layers: number): Arrival[] | { a: Station; b: Station } {
   const turnBacks = new Set(stations.flatMap((s) => graph.near.get(s.id) ?? []));
+  const layerOf = (v: number) => graph.layer[graph.out[v]?.[0] ?? -1] ?? 0;
   let reached: Arrival[] = (graph.near.get(stations[0]?.id ?? '') ?? []).map((vertex) => ({ vertex, edge: -1, cost: 0, waypoint: 0, edges: [] }));
   for (const [i, b] of stations.entries()) {
     const a = stations[i - 1];
     if (!a) continue;
     // A path much longer than the crow flies is no path, as in traceShape().
     const limit = 3 * metres([a.lon, a.lat], [b.lon, b.lat]) + 10_000;
-    const next = paths(graph, reached, new Set(graph.near.get(b.id)), limit, turnBacks, layers);
+    const across = (graph.near.get(a.id) ?? []).flatMap((vertex): Arrival[] => {
+      const best = reached.filter((r) => r.edge >= 0 && layerOf(r.vertex) === layerOf(vertex)).reduce<Arrival | undefined>((x, r) => (!x || r.cost < x.cost ? r : x), undefined);
+      return best ? [{ ...best, vertex, edge: -1, cost: best.cost + ACROSS }] : [];
+    });
+    // The cheapest ways onto the next Station's tracks of each gauge, as the cheapest of all may lead no
+    // further: an Alvia comes into Sevilla cheapest on standard gauge, but must come in on Iberian gauge,
+    // through Majarabique's changer, to go on to Jerez.
+    const to = graph.near.get(b.id) ?? [];
+    const next = [...new Set(to.map(layerOf))].flatMap((layer) => paths(graph, [...reached, ...across], new Set(to.filter((v) => layerOf(v) === layer)), limit, turnBacks, layers));
     if (!next.length) return { a, b };
     reached = next.map((arrival) => ({ ...arrival, waypoint: i }));
   }
   return reached;
 }
+
+/**
+ * What setting off from another of a Station's tracks than the one a run's trace came in on costs it
+ * (walk()): more than turning back on that one (REVERSE), but less than a detour of kilometres.
+ */
+const ACROSS = 5000;
 
 /**
  * A hop between two Stations traced more than this many times as long as its straight line, and 10 km
