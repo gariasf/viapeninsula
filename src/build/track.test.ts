@@ -673,10 +673,12 @@ test('drops the points a way carries on straight through, and keeps its ends, it
 });
 
 // Long distance's Trips, which have no shapes: each run of them traced through its Stations on the
-// rails of its gauges (#259). Standard gauge is 1435 mm, Iberian 1668 and metre 1000.
+// rails of its gauges (#259), as each Line of a Network of two gauges is on its own (#366). Standard
+// gauge is 1435 mm, Iberian 1668 and metre 1000.
 const STANDARD: Gauges = { railway: ['rail'], gauges: ['1435'], orElse: ['1668'] };
 const BOTH: Gauges = { railway: ['rail'], gauges: ['1435', '1668'] };
 const IBERIAN: Gauges = { railway: ['rail'], gauges: ['1668'] };
+const METRE: Gauges = { railway: ['rail', 'narrow_gauge'], gauges: ['1000'] };
 
 /** A Trip of a Line on these rails, calling at the named Stations ten minutes apart. */
 const call = (id: string, stations: string, gauges: Gauges, line = 'AVE'): FeedTrip => ({
@@ -849,9 +851,7 @@ test("reaches a Station published at another's point where it reached that one, 
 // U are 6 m from the metre-gauge track and 64 m from the Iberian-gauge one, as Renfe's Santander and Maliaño
 // are nearer FEVE's track than Adif's, Maliaño 6 m and 65 m, and T the other way round, as Ablaña is for
 // C8, which runs on FEVE's (#366).
-const METRE: Gauges = { railway: ['rail', 'narrow_gauge'], gauges: ['1000'] };
-
-test("traces each Line of a Network of two gauges on its own gauge's rails only, so that a Station nearer the other gauge's track is on its own", () => {
+test("traces each Line of a Network of two gauges on its own gauge's rails only, so that a Station nearer the other gauge's track is on its own gauge's", () => {
   const ways = rails({ a: [0, 0], b: [6000, 0], m: [0, 70], n: [6000, 70] }, 'a b', ['m n', { railway: 'narrow_gauge', gauge: '1000' }]);
   const stations = [station('A', -10, 0), station('B', 6010, 0), station('M', -10, 70), station('N', 6010, 70), station('S', 2000, 64), station('U', 4000, 64), station('T', 3000, 6)];
   const { shape, log } = trace(
