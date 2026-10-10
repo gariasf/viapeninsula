@@ -344,13 +344,13 @@ function renfeReports(source: SourceOf<'renfe'>, positions: GtfsRt, updates: Gtf
 /**
  * The Trains in Renfe's long-distance files, by their Train numbers: a position's vehicle label, and
  * the first five digits of a trip update's trip_id, which are the same (#261). Renfe lists a Train
- * once for each part of its run, at the same coordinates, with the same Delay: each Train gets one
- * report, with its GPS whatever its currentStatus says, as Renfe doesn't pin these Trains to Stations,
+ * once for each part of its run, at the same coordinates and with the same Delay, so each Train gets
+ * one report: its GPS whatever its currentStatus says, as Renfe doesn't pin these Trains to Stations,
  * and its Delay, as of the files' headers, as they give no time of their own. It's Cancelled only
- * where every trip update for its number is CANCELED and it has no position: Renfe lists CANCELED
- * trip updates after the running ones, at times for a Train it places, as for 17501's one Trip on 4
- * October 2026, with its GPS moving near Zaragoza, and for each of Intercity 01460's three on 10
- * October, so the Cercanías files' last-entry rule would take running Trains off the map.
+ * where every trip update for its number is CANCELED and it has no position: Renfe lists a CANCELED
+ * trip update after a running one for some Trains it places, as for 17501, its GPS moving near
+ * Zaragoza, on 4 October 2026, and for each of Intercity 01460's three parts on 10 October, which the
+ * Cercanías files' last-entry rule would take off the map.
  */
 function numberedReports(positions: GtfsRt, updates: GtfsRt): Report[] {
   const reports = new Map<string, Report>();

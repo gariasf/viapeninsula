@@ -665,8 +665,8 @@ export const LIVE_SOURCES: LiveSource[] = [
     alerts: { url: 'https://gtfsrt.renfe.com/alerts.json', every: 20_000 },
   },
   {
-    // Renfe's live data of its long-distance timetable's Trains, as JSON, whose Alerts are in its
-    // Cercanías source's file.
+    // Renfe's live data of its long-distance timetable's Trains, as JSON, which has no Alerts file
+    // (docs/research/alerts.md).
     id: 'renfe-long-distance',
     format: 'renfe',
     urls: { positions: 'https://gtfsrt.renfe.com/vehicle_positions_LD.json', updates: 'https://gtfsrt.renfe.com/trip_updates_LD.json' },
