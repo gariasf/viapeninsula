@@ -1,0 +1,5 @@
+stop_id,stop_name,stop_lat,stop_lon,wheelchair_boarding                                                                                               
+16008,La Felguera,43.3048310,-5.6928516,2                                                                                                             
+16009,Sama,43.2987784,-5.6833209,1                                                                                                                    
+16010,Ciaño,43.2893884,-5.6686704,2                                                                                                                   
+16011,El Entrego,43.2895167,-5.6408474,1                                                                                                              

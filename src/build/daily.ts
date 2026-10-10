@@ -174,6 +174,11 @@ function build(config: NetworkConfig, { published, days }: Awaited<ReturnType<ty
   const network: Network = { id, name, profile, runningSide, colour, pillZoom, credit: { ...credit, ...(published && { updated: published < today ? published : today }) }, live };
   const parts = days[0] ?? [];
   const [lines, stations] = [parts.flatMap((p) => p.lines), parts.flatMap((p) => p.stations)];
+  // The Stations it places where its config says, rather than where its timetables do (readFeed(), #367).
+  for (const [stationId, { lat, lon, source }] of Object.entries(config.stations ?? {})) {
+    const station = stations.find((s) => s.id === stationId);
+    console.log(station ? `${name} puts ${station.name} (${stationId}) at ${lat}, ${lon}: ${source}` : `${name}'s timetables have no Station ${stationId}, so its override of where it is isn't applied`);
+  }
   const own = ownRails(rails, config);
   const near = railsBeside(own, stations);
   const found = (f: Found) => report.add({ ...f, network: id, ways: [...new Set(f.stations?.flatMap((s) => near.get(s.id)?.map((c) => c.way.id) ?? []))] });

@@ -36,6 +36,15 @@ export interface NetworkConfig extends Omit<Network, 'credit'> {
     /** The rails each of its Lines runs on, by the Line's name, where its timetables have no shapes to trace (#259). */
     gauges?: Record<string, Gauges>;
   };
+  /**
+   * The Stations its timetables put where their Trains don't stop, by ID, as Renfe's put Asturias' El
+   * Entrego at a FEVE station 0.4 km from Adif's (#367), with where they do stop and the source that
+   * says so: the URL of an OpenStreetMap node, or of the operator's own map. The daily build lists those
+   * it applies. A Station two Networks list is one Station, as the first of them has it (stationsOf()),
+   * so it goes in each Network that lists it. A timetable's `points` (#259) put a Station elsewhere the
+   * same way, by stop_id, with no source and no line in the log, and these win where both name one.
+   */
+  stations?: Record<string, { lon: number; lat: number; source: string }>;
 }
 
 /**
@@ -347,6 +356,16 @@ export const CERCANIAS_ASTURIAS: NetworkConfig = {
   timetables: [núcleo('20', 'cercanias-asturias')],
   // C1–C8 and C5a are commuter Lines.
   lines: { kind: 'commuter' },
+  // Renfe's timetable of 10 October 2026 puts three Stations on the track of a line beside the one
+  // their Trains run on, so every Trip that calls there is left out as calling at a Station off its
+  // track (#367): C2's El Entrego at FEVE's El Entrego-La Oscura (05433), 0.4 km from Adif's, where C2
+  // ends, and C2's Sama beside FEVE's Langreo line, 0.8 km from Adif's, and C5's Tremañes-Langreo at
+  // C4's Tremañes Carreño (05203), 0.4 km from its own station on the Langreo line.
+  stations: {
+    'adif:16011': { lon: -5.6451861, lat: 43.2871373, source: 'https://www.openstreetmap.org/node/12702395582' },
+    'adif:16009': { lon: -5.6797817, lat: 43.2918595, source: 'https://www.openstreetmap.org/node/5315743121' },
+    'adif:05403': { lon: -5.6906116, lat: 43.5272283, source: 'https://www.openstreetmap.org/node/30548853' },
+  },
 };
 
 export const CERCANIAS_SEVILLA: NetworkConfig = {
@@ -484,6 +503,11 @@ export const CERCANIAS_BILBAO: NetworkConfig = {
   timetables: [núcleo('60', 'cercanias-bilbao')],
   // C1–C5 are commuter Lines.
   lines: { kind: 'commuter' },
+  // Renfe's timetable of 10 October 2026 puts Dosante Cidad at 43.00125, -3.74525, a round figure
+  // 1.4 km from its halt on the La Robla line, so its two Bilbao–León Trips a day were left out (#367).
+  stations: {
+    'adif:05736': { lon: -3.7558646, lat: 43.0113013, source: 'https://www.openstreetmap.org/node/12495839165' },
+  },
 };
 
 export const CERCANIAS_SAN_SEBASTIAN: NetworkConfig = {
