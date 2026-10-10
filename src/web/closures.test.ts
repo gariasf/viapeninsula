@@ -3,7 +3,7 @@ import { expect, test } from 'vitest';
 import { ALERTS_START, readAlerts } from '../fetcher/alerts.ts';
 import { APART, atZoom, BANDS, beside, DEGREE, inBand, onStroke, pixelMetres, zones, type Alert, type Alerts, type Line, type Shape, type Stroke } from '../bundle.ts';
 import { sideBySide } from '../build/sideBySide.ts';
-import { closureStrokes, closuresAt, hiding, placeOn, stretchesIn, type Shown } from './closures.ts';
+import { closureStrokes, closuresAt, hiding, liftedSince, placeOn, stretchesIn, type Shown } from './closures.ts';
 
 /** Some of Rodalies' and TRAM's Stations, as the bundle names them. */
 const R1 = [
@@ -200,15 +200,15 @@ test('a day file built before #340 has no Closures', () => {
 });
 
 test("a Closure an Alert closes hides Trains until a Live Train of its Line is seen within it, and then none until its Alert changes, while another Line's on the same Stations still does", () => {
-  const lifted = new Set<string>();
+  const lifted = new Map<string, number>();
   const lines = (closures: Shown[]) => closures.map((c) => c.line);
   const shown = closuresAt(ALERTS, DAY, READ);
-  expect(hiding(shown, [], lifted)).toEqual(shown);
+  expect(hiding(shown, [], lifted, 0)).toEqual(shown);
   // A T2 tram seen within Francesc Macià – Montesa lifts T2's, and not T1's or T3's there.
-  expect(lines(hiding(shown, shown.filter((c) => c.line === 'tram:T2'), lifted))).toEqual(['rodalies:R3', 'rodalies:R1', 'rodalies:R2', 'tram:T3', 'tram:T1', 'tram:T5', 'tram:T6']);
+  expect(lines(hiding(shown, shown.filter((c) => c.line === 'tram:T2'), lifted, 1000))).toEqual(['rodalies:R3', 'rodalies:R1', 'rodalies:R2', 'tram:T3', 'tram:T1', 'tram:T5', 'tram:T6']);
   // It stays lifted once the tram has gone, as alerts.json is read again, its Alert unchanged.
   const works = Date.parse('2026-10-10T12:00:00+02:00');
-  expect(lines(hiding(closuresAt(ALERTS, DAY, works), [], lifted))).not.toContain('tram:T2');
+  expect(lines(hiding(closuresAt(ALERTS, DAY, works), [], lifted, 2000))).not.toContain('tram:T2');
   // But not once TRAM changes sc-280's period or its words, as by 10 October it had moved its start
   // from 1 October to the works' first day, nor where a new Alert closes that part of T2.
   const tram = (alerts: Alert[]): Alerts => ({ ...ALERTS, tram: { status: 'ok', alerts } });
@@ -219,11 +219,28 @@ test("a Closure an Alert closes hides Trains until a Live Train of its Line is s
     [{ ...sc280, description: sc280.description.map((w) => ({ ...w, text: `${w.text} (2)` })) }, ...others],
     [{ ...sc280, id: 'sc-290', from: READ }, sc280, ...others],
   ]) {
-    expect(lines(hiding(closuresAt(tram(alerts), DAY, works), [], lifted))).toContain('tram:T2');
+    expect(lines(hiding(closuresAt(tram(alerts), DAY, works), [], lifted, 3000))).toContain('tram:T2');
   }
   // The timetable's own, which no Trip of its day runs through, is never lifted.
   const timetable = closuresAt({}, { ...DAY, closures: [{ line: 'rodalies:R13', stations: ['adif:73003', 'adif:73100'], from: 0, to: 86400, kind: 'buses' }] }, READ);
-  expect(hiding(timetable, timetable, lifted)).toEqual(timetable);
+  expect(hiding(timetable, timetable, lifted, 4000)).toEqual(timetable);
+});
+
+test('a lifted Closure says since when, the first time a Train was seen within it, and an unlifted one or the timetable\'s nothing (#422)', () => {
+  const lifted = new Map<string, number>();
+  const shown = closuresAt(ALERTS, DAY, READ);
+  const [t2] = shown.filter((c) => c.line === 'tram:T2');
+  const t1 = shown.find((c) => c.line === 'tram:T1') as Shown;
+  hiding(shown, [t2 as Shown], lifted, 1000);
+  // Seen again later, it keeps the first time.
+  hiding(shown, [t2 as Shown], lifted, 5000);
+  expect(liftedSince(t2 as Shown, lifted)).toBe(1000);
+  expect(liftedSince(t1, lifted)).toBeUndefined();
+  const timetable = closuresAt({}, { ...DAY, closures: [{ line: 'rodalies:R13', stations: ['adif:73003', 'adif:73100'], from: 0, to: 86400, kind: 'buses' }] }, READ);
+  hiding(timetable, timetable, lifted, 6000);
+  expect(liftedSince(timetable[0] as Shown, lifted)).toBeUndefined();
+  // Not once its Alert has changed.
+  expect(liftedSince({ ...(t2 as Shown), alert: { ...(t2 as Shown).alert as NonNullable<Shown['alert']>, said: 'changed' } }, lifted)).toBeUndefined();
 });
 
 /** A shape through points given in metres east and north of 0°, 0°, as a degree is DEGREE metres there both ways. */
