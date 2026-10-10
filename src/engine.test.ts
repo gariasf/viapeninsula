@@ -1632,6 +1632,20 @@ test("a Train Renfe's long-distance live data cancels by its Train number is dra
   expect(boardAt(NUMBERED, at('21:49:30'), received, ['Sitges'])).toMatchObject([{ trip: { id: R2S }, departure: at('21:57:00'), cancelled: true, live: false }]);
 });
 
+test("Renfe's long-distance live data placing one of Rodalies' Trains by its Train number doesn't keep Rodalies' live data available while Renfe's Cercanías feeds have none of its Trains", () => {
+  // Renfe's Cercanías GPS has the R2S between Castelldefels and Gavà at 22:14:00. Then Renfe's
+  // Cercanías feeds have a header and no Trains, as on 28 September (#124), while its long-distance
+  // GPS goes on placing the R2S by its Train number as it runs on.
+  const numbered = { ...EVERY_10, trips: EVERY_10.trips.map((t) => (t.id === R2S ? { ...t, number: '25478' } : t)) };
+  const shape = BUNDLE.shapes.find((s) => s.id === R2S) as Shape;
+  const ld = (moment: number) => {
+    const [lon, lat] = pointAt(shape, where(R2S, moment - 30_000) ?? NaN);
+    return renfeRead(moment, [{ number: '25478', at: moment, position: { lon, lat } }]);
+  };
+  const received = [gps(R2S, where(R2S, at('22:13:30')) ?? NaN, at('22:14:00')), ...[20, 40, 60, 80].map((s) => ld(at('22:14:00', s)))];
+  expect([at('22:14:50'), at('22:15:10')].map((moment) => unavailableAt(moment, received, numbered))).toEqual([[], ['rodalies']]);
+});
+
 // TRAM's live data as the fetcher made it into a snapshot at 11:44:50 on Friday 25 September 2026,
 // from where TRAM had its Units and its trip updates as recorded then, received as it was written,
 // and stretches of three of its Trips that day from their first Station, as the daily build placed them.

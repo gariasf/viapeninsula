@@ -683,6 +683,11 @@ interface Heard {
   confirmed?: number;
   /** The snapshot, as received, that it was last in. */
   from: Received;
+  /**
+   * When its Network's own feed last reported it, as `got` has it: not in a report by its Train number,
+   * as Renfe's long-distance live data sends, which says nothing of its Network's feed (#124, #261).
+   */
+  own?: number;
   /** The report's own Delay, in seconds, as delayOf() has it: for Renfe's, Renfe's own figure. */
   delay: number;
   /** For Renfe's: the last Delay its GPS gave it. */
@@ -734,7 +739,7 @@ function hear(before: Heard | undefined, report: Report, got: number, from: Rece
   const frozen = carriesGpsDelay && follows(before) && sameSpot(before.report.position, report.position);
   const taken = frozen ? { ...report, position: undefined } : report;
   const { position } = taken;
-  const heard = { report, got, placed: position ? got : before?.placed, confirmed: position ? report.at : before?.confirmed, from };
+  const heard = { report, got, placed: position ? got : before?.placed, confirmed: position ? report.at : before?.confirmed, from, own: report.number ? before?.own : got };
   if (!carriesGpsDelay) return { ...heard, delay: ownDelay(taken).delay };
   const figure = ownDelay({ ...taken, position: undefined }).delay;
   const { gps, counted } = before ?? {};
@@ -787,7 +792,7 @@ let last: { bundle: Bundle; received: Received[]; clock: number; eases: Map<stri
 /**
  * How each Train live data has shifted in time is drawn, snapshot by snapshot, so that it never
  * runs back along its track (ADR-0002), what live data last said about it, and when each Network's
- * live data last had one of its Trains in it, by the fetcher's clock in ms since 1970, as it got the
+ * own feed last had one of its Trains in it, by the fetcher's clock in ms since 1970, as it got the
  * report. The first snapshot places every Train outright, and after that a Train drawn far from
  * where a snapshot has it jumps there.
  *
@@ -881,7 +886,7 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
   const reported = new Map<string, number>();
   for (const [id, said] of heard) {
     const network = lines.get(trips.get(id)?.line ?? '');
-    if (network && said.got > (reported.get(network.id) ?? -Infinity)) reported.set(network.id, said.got);
+    if (network && said.own !== undefined && said.own > (reported.get(network.id) ?? -Infinity)) reported.set(network.id, said.own);
   }
   last = { bundle, received: [...received], clock, eases, heard, dwelt, reported };
   return last;
