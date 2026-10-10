@@ -1,6 +1,6 @@
 // Where each Train is. The timetable drives motion (ADR-0002); the browser and the tests share this.
 
-import { closestOnSegment, DEGREE, direction, pointAt, type Bundle, type Call, type Closure, type Freshness, type Network, type Point, type Report, type Shape, type Skipped, type Snapshot, type SpeedProfile, type Trip } from './bundle.ts';
+import { closestOnSegment, DEGREE, direction, pointAt, profiled, type Bundle, type Call, type Closure, type Freshness, type Network, type Point, type Report, type Shape, type Skipped, type Snapshot, type SpeedProfile, type Trip } from './bundle.ts';
 
 /**
  * A Train on the map: its Trip, how far along the Trip's shape it is, in metres, where that is, and
@@ -311,7 +311,7 @@ function onMap(bundle: Bundle, at: number, received: Received[], closures: reado
   const now = (at + clock - bundle.noonMinus12h) / 1000;
   const shapes = new Map(bundle.shapes.map((s) => [s.id, s]));
   const networks = new Map(bundle.networks.map((n) => [n.id, n]));
-  const lines = new Map(bundle.lines.map((l) => [l.id, networks.get(l.network)]));
+  const lines = new Map(bundle.lines.map((l) => [l.id, profiled(networks.get(l.network), l)]));
   // What live data last said about each Trip. A report that matches no Trip is dropped.
   const { eases, heard, reported } = replay(bundle, received, clock, lines, shapes);
   // Where the latest snapshot says Trains won't stop at some Stations, the Trips as they run them.
@@ -846,6 +846,8 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
       const [network, shape] = [trip && lines.get(trip.line), trip && shapes.get(trip.shape)];
       if (!trip || !network || !shape) continue;
       const { profile } = network;
+      // How far off where live data has it a Train is drawn before it jumps there: a kilometre, or where its positions have no age, so many seconds at its top speed.
+      const snap = Math.max(JUMP_DIST, (network.live?.snap ?? 0) * profile.topSpeed);
       const calls = dwelt.get(id) ?? withDwell(trip, profile);
       dwelt.set(id, calls);
       const [feed, first, second] = [r.snapshot.feeds[network.id], calls[0], calls[1]];
@@ -878,7 +880,7 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
       const out = was && live && !!said?.report.block && !!first && !!second && drawn > first.departure && there < Math.min(drawn, second.arrival);
       // Short of its first Station, one leaving is drawn standing there (#105).
       const off = Math.abs(dist(leaving ? Math.max(drawn, first?.arrival ?? drawn) : drawn) - dist(there));
-      const far = leaving ? !(off <= JUMP_DIST) : !out && (Math.abs(drawn - there) > JUMP_TIME || off > JUMP_DIST);
+      const far = leaving ? !(off <= snap) : !out && (Math.abs(drawn - there) > JUMP_TIME || off > snap);
       const time = i === 0 || far ? there : drawn;
       // A Live Metro Train at its Trip's first Station stays there until a report has it gone, by its
       // Delay, when it was reported: TMB's ETA for a Block waiting at the end of its Line keeps moving

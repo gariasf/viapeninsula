@@ -1,6 +1,6 @@
 // A yardstick for how often Live Trains jump, the same for every ticket that measures it (#31).
 
-import type { Bundle } from './bundle.ts';
+import { profiled, type Bundle } from './bundle.ts';
 import { trainsAt, type Received } from './engine.ts';
 
 /** A Network's jumps over a replay: forward and back along its Trains' Trips, and how many seconds of Live Train it drew. */
@@ -16,7 +16,7 @@ export interface Jumps {
  * speed allows, plus 5%, for a Train Live in both seconds. Jumps per Train-minute are `(forward + back) / (liveSeconds / 60)`.
  */
 export function jumps(bundle: Bundle, received: Received[]): Record<string, Jumps> {
-  const networks = new Map(bundle.lines.map((l) => [l.id, bundle.networks.find((n) => n.id === l.network)]));
+  const networks = new Map(bundle.lines.map((l) => [l.id, profiled(bundle.networks.find((n) => n.id === l.network), l)]));
   const found: Record<string, Jumps> = {};
   let was = new Map<string, number>();
   const [start = 0, end = 0] = [received[0]?.at, received.at(-1)?.at];
