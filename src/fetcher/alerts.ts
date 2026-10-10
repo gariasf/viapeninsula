@@ -3,7 +3,7 @@
 // step is, and never loads timetable data either: Renfe's route_ids end with their Line's name.
 
 import type { Alert, AlertFeed, Alerts, Words } from '../bundle.ts';
-import { LIVE_SOURCES, RODALIES, type LiveSource } from '../networks.ts';
+import { LIVE_SOURCES, type LiveSource } from '../networks.ts';
 import { HALVES, json, ms, networkOf, onTime, tramToken, type Fetched, type Get, type State } from './step.ts';
 
 /** The validators Renfe gives its file, which a conditional request names. */
@@ -158,7 +158,9 @@ type Translated = { translation?: Words[] };
  * A source's Alerts on the Lines of the Networks its config names, and Renfe's on Stations, from the
  * entities of all its files, newest first. A stop_id doesn't say which núcleo it's in, so every
  * Station's is kept: the map shows those of the Stations it has. Entities with one ID and the same
- * words are one Alert, on the Lines and Stations of them all, as Renfe gives some twice.
+ * words are one Alert, on the Lines and Stations of them all, as Renfe gives some twice. The second
+ * entry of an Alert's words is tagged with the language the config gives its Lines' Networks
+ * (secondEntryOf()).
  */
 function alertsOf(source: LiveSource, entities: NonNullable<GtfsRtAlerts['entity']>): Alert[] {
   const alerts = new Map<string, Alert>();
@@ -169,14 +171,26 @@ function alertsOf(source: LiveSource, entities: NonNullable<GtfsRtAlerts['entity
     const stations = named.flatMap(({ stopId }) => (stopId && source.format === 'renfe' ? [`adif:${stopId.trim()}`] : []));
     if (!alert || !(lines.length || stations.length)) continue;
     const [header, description = []] = [words(alert.headerText), words(alert.descriptionText)];
-    // Renfe tags every entry es, but Rodalies' Alerts give their Catalan second.
-    if (lines.some((line) => line.startsWith(`${RODALIES.id}:`))) for (const second of [header?.[1], description[1]]) if (second?.language === 'es') second.language = 'ca';
+    // Renfe tags every entry es, though some Networks' Alerts give their second in another language.
+    const language = secondEntryOf(source, lines);
+    if (language) for (const second of [header?.[1], description[1]]) if (second?.language === 'es') second.language = language;
     const said = { ...period(alert.activePeriod), effect: alert.effect ?? undefined, header, description };
     const key = JSON.stringify([id, said]);
     const same = alerts.get(key);
     alerts.set(key, { id, lines: [...new Set([...(same?.lines ?? []), ...lines])], stations: [...new Set([...(same?.stations ?? []), ...stations])], ...said });
   }
   return [...alerts.values()].sort((a, b) => (b.from ?? 0) - (a.from ?? 0) || a.id.localeCompare(b.id));
+}
+
+/**
+ * The language the config gives the second entry of the words of an Alert on these Lines: their
+ * Networks' where it gives them all the same, and none where it gives one of them another or none, as
+ * a second entry isn't tagged with a language it isn't known to be in. An Alert on no Line, as one on a
+ * Station, has none. Renfe's file of 7 October 2026 has no Alert on Lines of two núcleos.
+ */
+function secondEntryOf({ alerts }: LiveSource, lines: string[]): string | undefined {
+  const languages = new Set(lines.map((line) => alerts?.secondEntry?.[line.slice(0, line.indexOf(':'))]));
+  return languages.size === 1 ? [...languages][0] : undefined;
 }
 
 /** A route's Line, as the bundle names it, where its Network is one the source's config names: TRAM's routes 1–6 are T1–T6, and a route_id of Renfe's ends with its Line's name, after the núcleo, a T and four digits, as 51T0146R1 is R1's. */

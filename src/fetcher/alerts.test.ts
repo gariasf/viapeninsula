@@ -1,12 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
-import type { Alerts } from '../bundle.ts';
+import type { Alert, Alerts, Words } from '../bundle.ts';
 import { LIVE_SOURCES } from '../networks.ts';
 import { ALERTS_START, fetchAlerts, readAlerts, type Answer, type Validators } from './alerts.ts';
 import { START, type Fetched, type Get, type State } from './step.ts';
 
 // Renfe's alerts.json as fetched at 11:39 on Wednesday 7 October 2026, the morning after heavy rain,
-// cut down to Rodalies' 9 alerts, and TRAM's from both its halves at 12:35 (#339's first comment).
+// cut down to Rodalies' 9 alerts (renfe.json) and to the 34 others of its 43 with a second entry
+// (renfe-second-entries.json, #371), and TRAM's from both its halves at 12:35 (#339's first comment).
 const recorded = (file: string) => readFileSync(new URL(`fixtures/alerts/${file}`, import.meta.url), 'utf8');
 
 /** An answer to a request for alerts, with the validators Renfe gives its file where they're given. */
@@ -102,6 +103,76 @@ test("keeps only the Alerts on the Lines of the Networks on the map, and Renfe's
   });
   // A stop_id doesn't say which núcleo it's in, so a Station's Alert is kept whichever it is: the map shows those of the Stations it has.
   expect(alerts.find((a) => a.id === 'INFO_518355')).toMatchObject({ lines: [], stations: ['adif:70100'] });
+});
+
+/** What the first run writes for Renfe's other Alerts with a second entry, by their IDs: Valencia's 17, Bilbao's 11, San Sebastián's 5 and Murcia's 1 (#371). */
+const others = () => Object.fromEntries((readAlerts(ALERTS_START, { renfe: { alerts: answer(recorded('renfe-second-entries.json')) } }, NOW).file?.renfe?.alerts ?? []).map((a) => [a.id, a]));
+
+/** The language each of an Alert's entries is tagged with, first to last. */
+const tagged = (alert?: Alert) => alert?.description.map((d) => d.language);
+
+/** Those of `others()` that name a Line of any of these Networks. */
+const onLinesOf = (...networks: string[]) => Object.values(others()).filter((a) => a.lines.some((line) => networks.includes(line.split(':')[0] ?? '')));
+
+test("tags the second entry of each of Rodalies' Alerts ca, as the config says Rodalies' is in Catalan, though Renfe tags it es", () => {
+  expect(renfeRun().file?.renfe?.alerts.map(tagged)).toEqual(Array(8).fill(['es', 'ca']));
+});
+
+test("tags the second entry of Valencia's Alerts on its Lines ca, as the config says it's in Valencian, though Renfe tags it es", () => {
+  const valencia = onLinesOf('cercanias-valencia');
+  // Of Valencia's 17 on 7 October, 4 name Lines: a late C2 Train, buses for C3 twice and buses for C5.
+  expect(valencia.map((a) => a.id).toSorted()).toEqual(['AVISO_442947', 'AVISO_470390', 'AVISO_512648', 'AVISO_518349']);
+  for (const alert of valencia) expect(tagged(alert)).toEqual(['es', 'ca']);
+  expect(others().AVISO_518349).toEqual({
+    id: 'AVISO_518349',
+    lines: ['cercanias-valencia:C2'],
+    stations: [],
+    from: Date.parse('2026-10-07T08:52:00+02:00'),
+    description: [
+      { language: 'es', text: "Línea C2. Tren con salida prevista a las 08:30h de la estación de València Nord con destino l'Alcúdia, efectúa su salida con 17 minutos de retraso. Incidencia operativa." },
+      { language: 'ca', text: "Línia C2. Tren amb eixida prevista a les 08:30h de l'estació de València Nord amb destinació l'Alcúdia, efectua la seua eixida amb 17 minuts de retard. Incidència operativa." },
+    ],
+  });
+});
+
+test("leaves the tags of an Alert that names only a Station as Renfe gives them, es, as a stop_id doesn't say which núcleo its Station is of: Valencia's 13 lifts and notices", () => {
+  const stations = Object.values(others()).filter((a) => !a.lines.length);
+  // Valencia's 13, and one of Bilbao's.
+  expect(stations).toHaveLength(14);
+  for (const alert of stations) expect(tagged(alert)).toEqual(['es', 'es']);
+  expect(others().AVISO_518170?.description[1]?.text).toBe("Ascensor de l'estació de Carcaixent, sentit Xàtiva de via 2, es troba fora de servei. Disculpen les molèsties.");
+});
+
+test("keeps the Alerts of the núcleos the config says nothing of as Renfe gives them: Basque and Spanish in one entry, split by //, and Murcia's second entry that repeats its Spanish", () => {
+  const given: { id: string; alert: { descriptionText: { translation: Words[] } } }[] = JSON.parse(recorded('renfe-second-entries.json')).entity;
+  const kept = onLinesOf('cercanias-bilbao', 'cercanias-san-sebastian', 'cercanias-murcia-alicante');
+  // Bilbao's 10 on Lines, San Sebastián's 5 and Murcia's 1.
+  expect(kept).toHaveLength(16);
+  for (const alert of kept) {
+    const words = given.find((e) => e.id === alert.id)?.alert.descriptionText.translation.map(({ language, text }) => ({ language, text: text.trim() }));
+    expect(alert.description).toEqual(words);
+  }
+  // Bilbao's San Mamés: Basque, then //, then Spanish, in one entry, given twice.
+  const mames = 'SAN MAMES. Luis Briñas irtenbidea. 1. trenbideko eskailerak mekanikoak zerbitzuz kanpo daude. // Salida Luis Briñas. Escaleras mecánicas de vía 1 se encuentran fuera de servicio.';
+  expect(others().INFO_516422?.description).toEqual([{ language: 'es', text: mames }, { language: 'es', text: mames }]);
+  // San Sebastián's C1, which has no power: the one entry holds both, and its second is blank.
+  expect(others().AVISO_518303?.description.map((d) => d.text.split(' // ').length)).toEqual([2, 1]);
+  expect(tagged(others().AVISO_518303)).toEqual(['es', 'es']);
+  expect(others().AVISO_446239?.description[1]).toEqual(others().AVISO_446239?.description[0]);
+});
+
+test("leaves an Alert on Lines of Networks the config says different things of as Renfe tags it, and tags one on Lines of Networks it says the same of", () => {
+  // Made up: none of the 69 Alerts of 7 October names Lines of two núcleos. Valencia's late C2 Train, naming a route of Madrid's C5 or of Rodalies' R3 too.
+  const naming = (routeId: string) => {
+    const entity = JSON.parse(recorded('renfe-second-entries.json')).entity.find((e: { id: string }) => e.id === 'AVISO_518349');
+    entity.alert.informedEntity.push({ routeId });
+    return readAlerts(ALERTS_START, { renfe: renfeWith(entity) }, NOW).file?.renfe?.alerts.find((a) => a.id === 'AVISO_518349');
+  };
+  const withMadrid = naming('10T0035C5');
+  expect(withMadrid?.lines).toEqual(['cercanias-valencia:C2', 'cercanias-madrid:C5']);
+  expect(tagged(withMadrid)).toEqual(['es', 'es']);
+  expect(naming('51T0244R3')?.lines).toEqual(['cercanias-valencia:C2', 'rodalies:R3']);
+  expect(tagged(naming('51T0244R3'))).toEqual(['es', 'ca']);
 });
 
 /** TRAM's alerts as recorded, from Trambaix (TBX) and Trambesòs (TBS). */
@@ -306,4 +377,22 @@ test("asks Renfe for its whole file once the config names another Network in it,
   const url = 'https://gtfsrt.renfe.com/alerts.json';
   expect(asked).toEqual([url, url, `${url} ${ETAG} ${MODIFIED}`]);
   expect(added.file?.renfe?.alerts.find((a) => a.id === 'AVISO_470390')?.lines).toEqual(['cercanias-valencia:C5']);
+});
+
+test("asks Renfe for its whole file once the config says another Network's Alerts give their second entry in Catalan, and tags it so, though Renfe hasn't changed the file", async () => {
+  // Made up: Renfe's source as it was before Valencia's second entry was said to be in Valencian.
+  const WITHOUT_SECOND = LIVE_SOURCES.map((s) => {
+    const second = Object.entries(s.alerts?.secondEntry ?? {}).filter(([network]) => network !== 'cercanias-valencia');
+    return s.id === 'renfe' && s.alerts ? { ...s, alerts: { ...s.alerts, secondEntry: Object.fromEntries(second) } } : s;
+  });
+  const asked: string[] = [];
+  const get = answering(asked, undefined, recorded('renfe-second-entries.json'));
+  const before = readAlerts(ALERTS_START, await fetchAlerts(ALERTS_START, START.state, get, WITHOUT_SECOND), NOW, WITHOUT_SECOND);
+  const added = readAlerts(before.state, await fetchAlerts(before.state, START.state, get), NOW + 20_000);
+  await fetchAlerts(added.state, START.state, get);
+  const url = 'https://gtfsrt.renfe.com/alerts.json';
+  expect(asked).toEqual([url, url, `${url} ${ETAG} ${MODIFIED}`]);
+  const late = (run: ReturnType<typeof readAlerts>) => tagged(run.state.feeds.renfe?.alerts.find((a) => a.id === 'AVISO_518349'));
+  expect(late(before)).toEqual(['es', 'es']);
+  expect(late(added)).toEqual(['es', 'ca']);
 });
