@@ -2,7 +2,7 @@ import { featureFilter, type Feature, type ICanonicalTileID } from '@maplibre/ma
 import { assert, expect, test, vi } from 'vitest';
 import { stationsOf } from '../build/track.ts';
 import { DEGREE, places, type Place, type Point, type Shape, type Slot, type Station, type Stroke } from '../bundle.ts';
-import { alongside, CAP, namedTwice, nameOffset, nearestSide, underName, type Side, type Spot } from './names.ts';
+import { alongside, callsIn, CAP, namedTwice, nameOffset, nearestSide, underName, untieredSort, type Side, type Spot } from './names.ts';
 
 // Made up, on the equator, where a degree is DEGREE metres both ways.
 /** The point so many metres east and north of 0°, 0°. */
@@ -406,4 +406,31 @@ test('where two places have one name, each takes the label near it, from the zoo
   expect(shows(places, 12, { class: 'suburb', name: 'Sant Roc' }, 300)).toBe(false);
   expect(shows(places, 9, { class: 'suburb', name: 'Sant Roc' }, 10_300)).toBe(false);
   expect(shows(places, 12, { class: 'suburb', name: 'Sant Roc' }, 5000)).toBe(true);
+});
+
+test("counts the calls at each Station in some Trips, a Trip that calls at one twice counting twice", () => {
+  const trip = (...stations: string[]) => ({ calls: stations.map((station) => ({ station })) });
+  expect(callsIn([trip('a', 'b'), trip('b', 'c', 'b'), trip()])).toEqual(
+    new Map([
+      ['a', 1],
+      ['b', 3],
+      ['c', 1],
+    ]),
+  );
+  expect(callsIn([])).toEqual(new Map());
+});
+
+test("a place in no tier sorts by its tier's zoom and then by its calls, the busier first, and never as far as the next zoom's", () => {
+  // Bilbao-Abando's 287 Trips against San Mamés' 181 and La Concordia's 61.
+  expect(untieredSort(12, 287)).toBeLessThan(untieredSort(12, 181));
+  expect(untieredSort(12, 181)).toBeLessThan(untieredSort(12, 61));
+  // The busiest Station of all, and one that no Trip calls at, are within the zoom.
+  for (const calls of [100_000, 0]) {
+    expect(untieredSort(12, calls)).toBeGreaterThan(12);
+    expect(untieredSort(12, calls)).toBeLessThan(13);
+  }
+  // Places with as many calls sort alike, so where they collide MapLibre's own order decides, as it did.
+  expect(untieredSort(12, 38)).toBe(untieredSort(12, 38));
+  // One whose name shows a zoom further out is placed before, however busy the other.
+  expect(untieredSort(11, 0)).toBeLessThan(untieredSort(12, 100_000));
 });
