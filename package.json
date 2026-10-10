@@ -15,6 +15,7 @@
     "deploy": "npm run check && vite build && wrangler deploy && wrangler deploy -c src/fetcher/wrangler.jsonc",
     "cors": "wrangler r2 bucket cors set viapeninsula-live --file r2-cors.json --force",
     "record": "node src/record.ts",
+    "card-vs-map": "node src/cardVsMapRun.ts",
     "snippet": "node src/build/snippet.ts"
   },
   "dependencies": {
