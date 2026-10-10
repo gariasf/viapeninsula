@@ -151,13 +151,21 @@ interface Run {
   stations: Station[];
 }
 
+/** Why a run can't be traced: a Station off the rails, or a stretch with no path, with the Stations it names. */
+interface Untraced {
+  why: Cause;
+  stations: Station[];
+  reason: string;
+}
+
 /**
- * Traces the Trips of a timetable that has no shapes, as Renfe's long-distance one hasn't (#259): each
- * run of them, the Stations a Line's Trips call at in order, once, through those Stations on the rails
- * they run on (each Trip's `gauges`, layered()), keeping to `side` of double track, and to the track of
- * the runs traced before it, as traceShapes() traces a shape. A run with a Station off those rails, or a
- * stretch with no path along them, isn't drawn straight across the country: its Trips are left out,
- * logged and reported. Gives the traced runs, and each day's other Trips, each with its run as its shape.
+ * Traces the Trips of a timetable with no shapes, as Renfe's long-distance one (#259): each run of them,
+ * the Stations a Line's Trips call at in order, once, through those Stations on the rails they run on
+ * (each Trip's `gauges`, layered()), keeping to `side` of double track, and to the track of the runs
+ * traced before it, as traceShapes() traces a shape. A run with a Station off those rails, or a stretch
+ * with no path along them, isn't drawn straight across the country: its Trips are left out, logged and
+ * reported. Gives the traced runs, and each day's other Trips, each with its run as its shape. A Trip
+ * whose rails aren't given isn't traced, nor given back: src/networks.ts gives every Line's.
  */
 export function traceRuns(
   days: FeedTrip[][],
@@ -184,7 +192,7 @@ export function traceRuns(
   };
   const ran = days.map((trips) => trips.flatMap(({ gauges, ...trip }) => (gauges ? [{ trip, run: runOf({ ...trip, gauges }) }] : [])));
   // One graph for each set of rails, traced on by the runs on it in turn.
-  const traced = new Map<Run, Shape | { why: Cause; stations: Station[]; reason: string }>();
+  const traced = new Map<Run, Shape | Untraced>();
   const onRails = new Map<string, Run[]>();
   for (const run of runs.values()) {
     const { railway, gauges, orElse = [] } = run.gauges;
@@ -220,7 +228,7 @@ export function traceRuns(
  * Taboadela, short of it, to go on to Santiago. Or why it can't be: a Station off the rails, or a
  * stretch with no path. What it logs, it reports too.
  */
-function traceRun(graph: Graph, run: Run, log: (line: string) => void, report: (found: Found) => void): Shape | { why: Cause; stations: Station[]; reason: string } {
+function traceRun(graph: Graph, run: Run, log: (line: string) => void, report: (found: Found) => void): Shape | Untraced {
   const { stations } = run;
   const off = stations.find((s) => !graph.near.has(s.id));
   if (off) return { why: 'off', stations: [off], reason: `${off.name} is off the network` };
