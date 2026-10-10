@@ -635,7 +635,7 @@ const fetched = new Map<string, Promise<unknown>>();
 const joinedTracks = new Map<string, Track>();
 /** The files of the days' bundles on the map, and whether the map is looking for the days it needs. */
 let [shown, looking] = ['', false];
-/** Whether the map is to look for the days it needs again once it has, as it needed more regions meanwhile. */
+/** Whether the map is to look for the days it needs again once it has, as a look was asked for meanwhile, as when the map comes onto a region. */
 let lookAgain = false;
 /** The Stations of the track on the map, which come with its Lines. */
 let shownStations: Track['stations'] | undefined;
