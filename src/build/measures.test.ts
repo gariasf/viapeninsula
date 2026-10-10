@@ -1,8 +1,9 @@
+import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
-import { BANDS, GRAPH_BAND, LINK, STRETCH, type Line, type Shape, type Stroke } from '../bundle.ts';
+import { BANDS, cutIn, GRAPH_BAND, LINK, STRETCH, type Line, type Shape, type Stroke, type Track } from '../bundle.ts';
 import { breaks, measures, reported, summary, type Measures } from './measures.ts';
 import { collect } from './report.ts';
-import { room, type Front } from './sideBySide.ts';
+import { room, sideBySide, type Front } from './sideBySide.ts';
 
 const degree = (6_371_008.8 * Math.PI) / 180;
 const kx = degree * Math.cos((41.39 * Math.PI) / 180);
@@ -48,6 +49,36 @@ test('counts nothing for Lines drawn in one stroke each', () => {
 test('measures a stroke cut where it goes into a tunnel as the one stroke it is drawn as (#178)', () => {
   const tunnel = [stroke('R2', 'a', 0, 1990, 0.5), { ...stroke('R2', 'a', 1990, 2010, 0.5), under: 1 }, stroke('R2', 'a', 2010, 4000, 0.5)];
   expect(measures({ shapes: [east('a', 4000)], strokes: tunnel }).breaks.stubs).toBe(0);
+});
+
+test("measures a stroke a node hides, which a tunnel cuts, as the one stroke it's drawn as, and doesn't count its end as loose (#386)", async () => {
+  // C8's stroke by Ablaña (43.2671, -5.8057) on 10 Oct 2026 (fixtures/ablana.json): 314 m along one
+  // Stretch, hidden by a node at every zoom from 10 to 14, which a tunnel cuts at 189 m. split() gives
+  // each piece the part of the cut that's in it, the whole of each, so that joined it's cut whole.
+  const { lines, shapes } = JSON.parse(readFileSync(new URL('fixtures/ablana.json', import.meta.url), 'utf8')) as Pick<Track, 'lines' | 'shapes'>;
+  const { strokes, centrelines } = await sideBySide(lines, shapes);
+  const tunnel = strokes.find((s) => s.line === 'cercanias-asturias:C8' && s.under && s.band === undefined && !s.shape.startsWith(LINK));
+  const rest = strokes.find((s) => s.line === tunnel?.line && s.shape === tunnel.shape && s.from === tunnel.to && s.band === undefined);
+  if (!tunnel?.cut || !rest) throw new Error('No C8 stroke cut by a tunnel in fixtures/ablana.json');
+  expect([tunnel.from, tunnel.to, rest.to]).toEqual([0, 189, 314]);
+  for (let band = GRAPH_BAND; band < BANDS.length; band++) expect([cutIn(tunnel, band), cutIn(rest, band)]).toEqual([[189, 0], [125, 0]]);
+  // The same strokes with it in one piece, cut whole.
+  const whole: Stroke = { line: tunnel.line, shape: tunnel.shape, from: 0, to: 314, side: tunnel.side, cut: tunnel.cut.map(() => [314, 0]) };
+  const joined = strokes.filter((s) => s !== rest).map((s) => (s === tunnel ? whole : s));
+  const found = (drawn: Stroke[]) => measures({ shapes: [...shapes, ...centrelines], strokes: drawn, lines });
+  expect(found(strokes)).toEqual(found(joined));
+});
+
+test('measures a stroke as drawn from where its cuts leave it, where a cut runs over a piece a tunnel cuts into the next (#386)', () => {
+  // R2 is drawn along 4 km of R11's track, 700 m of it cut off, at its start or at its end. The tunnel is
+  // 300 m of it there, so that split() gives the 300 m piece the cut's first 300 m, and the next piece the
+  // other 400 m. Where the two are drawn over each other, 3300 m, each is found from both and halved.
+  const cut = (start: number, end: number) => BANDS.flatMap((_, band) => (band < GRAPH_BAND ? [] : [[start, end] as [number, number]]));
+  const covered = (strokes: Stroke[]) => measures({ shapes: [east('a', 4000), east('b', 4000)], strokes: [stroke('R11', 'b', 0, 4000, 0), ...strokes] }).covered[10];
+  const start = [{ ...stroke('R2', 'a', 0, 300, 0), under: 1, cut: cut(300, 0) }, { ...stroke('R2', 'a', 300, 4000, 0), cut: cut(400, 0) }];
+  const end = [{ ...stroke('R2', 'a', 0, 3700, 0), cut: cut(0, 400) }, { ...stroke('R2', 'a', 3700, 4000, 0), under: 1, cut: cut(0, 300) }];
+  expect(covered(start)).toBeCloseTo(3300, -2);
+  expect(covered(end)).toBeCloseTo(3300, -2);
 });
 
 test('counts steps, stubs, swaps and short joins', () => {
