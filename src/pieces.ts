@@ -22,18 +22,41 @@ export interface Traced {
    * each point after as the change in that change, as a straight track's are nearly nothing.
    */
   pieces: number[][];
+  /** The names of the levels the shapes' `levelsAt` give. */
+  levels: string[];
+  /** Each shape as the pieces it runs, or as it is where its points can't be pieces. */
   shapes: (Shape | Run)[];
 }
 
-/** A traced shape as the pieces it runs, and where its distances aren't what its points give. */
+/** A traced shape as the pieces it runs, with what its distances and its levels need beyond them. */
 export interface Run {
   id: string;
   /** Piece numbers, counted from 1, negative where the shape runs a piece backwards. */
   pieces: number[];
+  /**
+   * Where its distances aren't the rounded sum of the great-circle lengths from its first point to
+   * each, as the build's come from points it has rounded since, a metre off: for each, how many
+   * points on from the last fix, and what to add.
+   */
+  fixes?: number[];
+  /** Its distances, the first and then the change at each point, where there are more fixes than points: as a shape cut at the border keeps counting from where it began. */
+  dist?: number[];
+  /** Its levels, as for each, how many points on from the one before the level starts at, and its name's number in `Traced.levels`. */
+  levelsAt?: number[];
+  /** Its levels as the shape has them, where one starts between two points. */
+  levels?: Shape['levels'];
 }
 
 /** A point's coordinates are on the grid shapes are written on: millionths of a degree. */
 const MICRO = 1e6;
+
+/**
+ * Whether a coordinate is whole millionths of a degree, and less than `limit` degrees from 0: a point's
+ * key, its longitude's millionths times 2^28 and its latitude's added, stays whole up to 33° of longitude.
+ */
+function onGrid(degrees: number, limit: number): boolean {
+  return Math.round(degrees * MICRO) / MICRO === degrees && Math.abs(degrees) < limit;
+}
 
 /** Great-circle distance in metres: build/track.ts's metres(), which a shape's `dist` is the rounded sum of. */
 function metres(a: Point, b: Point): number {
@@ -72,7 +95,10 @@ function encodeTraced(shapes: Shape[]): Traced {
     }
     return id;
   };
-  const sequences = shapes.map((s) => s.coords.map(node));
+  // A shape whose points aren't on the grid, or whose distances aren't whole metres, or that is only a
+  // point, goes in as it is: it has no pieces to share.
+  const whole = shapes.map((s) => s.coords.length < 2 || s.coords.some(([lon, lat]) => !onGrid(lon, 33) || !onGrid(lat, 90)) || s.dist.some((d) => !Number.isInteger(d)));
+  const sequences = shapes.map((s, i) => (whole[i] ? [] : s.coords.map(node)));
   // Where a piece must end: at a shape's ends, where it turns back, and at a point that isn't just
   // carried on along one track, which has anything but two points next to it among all the shapes'.
   const next = xs.map(() => new Set<number>());
@@ -115,6 +141,7 @@ function encodeTraced(shapes: Shape[]): Traced {
     }
     return list;
   });
+  const names: string[] = [];
   return {
     pieces: pieces.map((run) => {
       const out = [xs[run[0] ?? 0] ?? 0, ys[run[0] ?? 0] ?? 0];
@@ -127,11 +154,55 @@ function encodeTraced(shapes: Shape[]): Traced {
       }
       return out;
     }),
-    shapes: shapes.map((s, i) => ({ id: s.id, pieces: runs[i] ?? [] })),
+    levels: names,
+    shapes: shapes.map((s, i): Shape | Run => {
+      if (whole[i]) return s;
+      const run: Run = { id: s.id, pieces: runs[i] ?? [] };
+      const fixes: number[] = [];
+      let last = 0;
+      for (const [k, d] of distancesOf(s.coords).entries()) {
+        if (d === s.dist[k]) continue;
+        fixes.push(k - last, (s.dist[k] ?? 0) - d);
+        last = k;
+      }
+      if (fixes.length > s.coords.length) run.dist = s.dist.map((d, k) => d - (s.dist[k - 1] ?? 0));
+      else if (fixes.length) run.fixes = fixes;
+      const levelsAt = s.levels && levelsAtVertices(s, names);
+      if (levelsAt) run.levelsAt = levelsAt;
+      else if (s.levels) run.levels = s.levels;
+      return run;
+    }),
   };
 }
 
-function decodeTraced({ pieces, shapes }: Traced): Shape[] {
+/** The distances a shape's points give: the rounded running sum of the great-circle lengths between them. */
+function distancesOf(coords: Point[]): number[] {
+  let sum = 0;
+  return coords.map((p, i) => Math.round((sum += i ? metres(coords[i - 1] ?? p, p) : 0)));
+}
+
+/** A shape's levels as the vertices they start at, where every one does, by the names' numbers in `names`, which it adds to. */
+function levelsAtVertices({ dist, levels }: Shape, names: string[]): number[] | undefined {
+  const out: number[] = [];
+  let last = 0;
+  for (const [from, level] of levels ?? []) {
+    // The first point at or beyond the distance, found by halving.
+    let [lo, hi] = [0, dist.length - 1];
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if ((dist[mid] ?? 0) < from) lo = mid + 1;
+      else hi = mid;
+    }
+    if (dist[lo] !== from) return undefined;
+    let name = names.indexOf(level);
+    if (name < 0) name = names.push(level) - 1;
+    out.push(lo - last, name);
+    last = lo;
+  }
+  return out;
+}
+
+function decodeTraced({ pieces, levels: names, shapes }: Traced): Shape[] {
   const points = pieces.map((p): Point[] => {
     const [x, y] = [p[0] ?? 0, p[1] ?? 0];
     const out: Point[] = [[x / MICRO, y / MICRO]];
@@ -153,8 +224,27 @@ function decodeTraced({ pieces, shapes }: Traced): Shape[] {
       // Where a piece comes on after another, its first point is the one before's last.
       for (const p of coords.length ? along.slice(1) : along) coords.push(p);
     }
-    let sum = 0;
-    const dist = coords.map((p, i) => Math.round((sum += i ? metres(coords[i - 1] ?? p, p) : 0)));
-    return { id: s.id, coords, dist };
+    let dist: number[];
+    if (s.dist) {
+      let sum = 0;
+      dist = s.dist.map((d) => (sum += d));
+    } else {
+      dist = distancesOf(coords);
+      let at = 0;
+      for (let k = 0; k < (s.fixes?.length ?? 0); k += 2) {
+        at += s.fixes?.[k] ?? 0;
+        dist[at] = (dist[at] ?? 0) + (s.fixes?.[k + 1] ?? 0);
+      }
+    }
+    let levels = s.levels;
+    if (s.levelsAt) {
+      let at = 0;
+      levels = [];
+      for (let k = 0; k < s.levelsAt.length; k += 2) {
+        at += s.levelsAt[k] ?? 0;
+        levels.push([dist[at] ?? 0, names[s.levelsAt[k + 1] ?? 0] ?? '']);
+      }
+    }
+    return { id: s.id, coords, dist, ...(levels && { levels }) };
   });
 }

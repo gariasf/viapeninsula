@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import type { Point, Shape, Slot, Track } from './bundle.ts';
 import { metres } from './build/track.ts';
-import { decodeTrack, encodeTrack, type StoredTrack } from './pieces.ts';
+import { decodeTrack, encodeTrack, type Run, type StoredTrack } from './pieces.ts';
 
 // Hand-drawn track, in metres east (x) and north (y) of a spot in Barcelona, on the 6-decimal grid the
 // build writes its shapes' points on.
@@ -58,4 +58,55 @@ test('stores a loop from a point back to itself as one piece, run either way rou
   expect(stored(t).pieces).toHaveLength(1);
   expect(stored(t).shapes.map((s) => ('pieces' in s ? s.pieces : undefined))).toEqual([[1], [-1]]);
   expect(decodeTrack(encodeTrack(t))).toEqual(t);
+});
+
+/** The runs a file stores its shapes as, by ID, for what's stored beside their pieces. */
+const runs = (t: Track) => new Map(stored(t).shapes.flatMap((s): [string, Run][] => ('pieces' in s ? [[s.id, s]] : [])));
+
+test("lists the places a shape's distances are a metre off the rounded sum of its points' lengths, as the build's come from points the file has rounded", () => {
+  const off = { ...A, dist: A.dist.map((d, i) => (i === 3 ? d + 1 : d)) };
+  const t = track([off]);
+  // One fix: three points on from the start, one more.
+  expect(runs(t).get('A')?.fixes).toEqual([3, 1]);
+  expect(decodeTrack(encodeTrack(t))).toEqual(t);
+  // A shape with none lists none.
+  expect(runs(track([A])).get('A')).not.toHaveProperty('fixes');
+});
+
+test("gives a shape's distances whole where it doesn't start at 0, as one cut at the border keeps counting from where it began", () => {
+  const cut = { ...B, dist: B.dist.map((d, i) => d + 1603 + (i % 2)) };
+  const t = track([A, cut]);
+  expect(runs(t).get('B')).toHaveProperty('dist');
+  expect(runs(t).get('B')).not.toHaveProperty('fixes');
+  // Its points are still the pieces' it shares with A.
+  expect(runs(t).get('B')?.pieces).toEqual([3, 2]);
+  expect(decodeTrack(encodeTrack(t))).toEqual(t);
+});
+
+test("keeps a shape's levels as the vertices they start at, and whole where one starts between two", () => {
+  const tunnel = shape('tunnel', main, [[300, 'tunnel -1'], [500, '']]);
+  const t = track([tunnel]);
+  expect(runs(t).get('tunnel')).not.toHaveProperty('levels');
+  expect(runs(t).get('tunnel')).toHaveProperty('levelsAt');
+  expect(decodeTrack(encodeTrack(t))).toEqual(t);
+  const between = shape('between', main, [[250, 'bridge 1']]);
+  const u = track([between]);
+  expect(runs(u).get('between')?.levels).toEqual([[250, 'bridge 1']]);
+  expect(decodeTrack(encodeTrack(u))).toEqual(u);
+});
+
+test("keeps whole a shape whose points aren't on the file's grid, or that is a single point", () => {
+  const fine: Shape = { id: 'fine', coords: [[2.1700001234, 41.39], [2.171, 41.3912345678]], dist: [0, 134] };
+  const single: Shape = { id: 'single', coords: [at(0, 0)], dist: [0] };
+  const t = track([A, fine, single]);
+  expect(stored(t).shapes.map((s) => 'pieces' in s)).toEqual([true, false, false]);
+  expect(decodeTrack(encodeTrack(t))).toEqual(t);
+});
+
+test('keeps the order of the traced shapes, and the centrelines and curves after them as they were', () => {
+  const stretch: Shape = { id: 'stretch:catalonia:0', coords: [at(0, 0), at(600, 0)], dist: [0, 600] };
+  const t = track([B, A, stretch]);
+  const file = encodeTrack(t);
+  expect(file.shapes).toEqual([stretch]);
+  expect(decodeTrack(file).shapes.map((s) => s.id)).toEqual(['B', 'A', 'stretch:catalonia:0']);
 });
