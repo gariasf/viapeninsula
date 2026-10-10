@@ -573,12 +573,13 @@ export function seenWithin<C extends ShownClosure>(bundle: Bundle, at: number, r
   const closedOn = closedIn(bundle, closures);
   const [named, shapes, networks] = [namedIn(bundle), new Map(bundle.shapes.map((s) => [s.id, s])), new Map(bundle.lines.map((l) => [l.id, l.network]))];
   // How far into live data the device has got by now, as onMap() has it.
-  const upTo = heardTo(received, at + behind(received));
+  const [upTo, cuts] = [heardTo(received, at + behind(received)), cutsIn(bundle, snapshot)];
   const seen = new Set<ShownClosure>();
   for (const { trip: id, at: reported, position, cancelled } of snapshot.reports) {
     const trip = id && !cancelled ? closest(named.get(id) ?? [], (reported - bundle.noonMinus12h) / 1000) : undefined;
-    const [shape, closed] = [trip && shapes.get(trip.shape), trip && closedOn.get(trip.line)];
-    if (!trip || !shape || !closed || !position || !works(snapshot.feeds[networks.get(trip.line) ?? ''], upTo)) continue;
+    const [shape, closed, cut] = [trip && shapes.get(trip.shape), trip && closedOn.get(trip.line), trip && cuts.get(trip.id)];
+    // Not one Cancelled, as one its operator has said won't stop at more than one of its Stations is too (cutTrip()).
+    if (!trip || (cut && !cut.trip) || !shape || !closed || !position || !works(snapshot.feeds[networks.get(trip.line) ?? ''], upTo)) continue;
     const [d, off] = 'lon' in position || 'along' in position ? placedBy(trip.calls, shape, position) : [NaN, NaN];
     for (const { closure, between, along } of closed) {
       const [from = NaN, to = NaN] = along.get(trip.shape) ?? [];

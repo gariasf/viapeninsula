@@ -1239,6 +1239,9 @@ test("a report sees a Train within a closed Closure only while it's Live: not on
   // Cancelled, though pinned to Cunit, as Renfe pinned its cancelled 13:09 from Maçanet-Massanes to Tordera on 7 October 2026.
   const cancelled: Received = { snapshot: { ...written(at('21:41:00')), reports: [{ trip: R2S, at: at('21:41:00'), cancelled: true, position: { near: 'Cunit' } }] }, at: at('21:41:00') };
   expect(seen(cancelled)).toEqual([]);
+  // Nor pinned to Cunit where Renfe has said it won't stop at any other of its Stations, which makes it Cancelled too (#346).
+  const others = BUNDLE.trips.find((t) => t.id === R2S)?.calls.flatMap((c) => (c.station === 'Cunit' ? [] : [c.station])) ?? [];
+  expect(seen(skipping(R2S, others, at('21:20:00'), [near(R2S, 'Cunit', 0, at('21:41:00'))])[0] as Received)).toEqual([]);
   // 1 km off its track beside Cunit, as Renfe's GPS had an R4 Train 42 km off its own on 25 September 2026.
   const [lon, lat] = offTrack(119202, 1000);
   expect(seen({ snapshot: { ...written(at('21:41:00')), reports: [{ trip: R2S, at: at('21:41:00'), position: { lon, lat } }] }, at: at('21:41:00') })).toEqual([]);
