@@ -116,13 +116,13 @@ test("reads a track file that stores its shapes as pieces back as the track it w
   expect(again.shapes[0]).toBe(first.shapes[0]);
 });
 
-// Where some regions lie, as the daily build of 10 Oct 2026 found them: west, south, east, north.
+// Where some regions lay, as the daily build of 10 Oct 2026 found them: west, south, east, north.
 const REGIONS: Pick<ManifestRegion, 'id' | 'networks' | 'extent'>[] = [
   { id: 'catalonia', networks: ['rodalies', 'fgc', 'tram', 'metro'], extent: [-0.86, 40.596, 3.161, 42.447] },
   { id: 'cercanias-madrid', networks: ['cercanias-madrid'], extent: [-4.269, 40.035, -3.182, 40.738] },
   { id: 'cercanias-sevilla', networks: ['cercanias-sevilla'], extent: [-6.208, 36.912, -5.53, 37.933] },
   { id: 'cercanias-leon', networks: ['cercanias-leon'], extent: [-5.566, 42.616, -4.845, 42.865] },
-  // Its C4 runs to León (#368).
+  // Its C4 ran to León then, until #368: a region's extent can take in another's.
   { id: 'cercanias-bilbao', networks: ['cercanias-bilbao'], extent: [-5.566, 42.616, -2.882, 43.329] },
 ];
 /** A phone's view, 390×844, at zoom 12, around a point: south-west and north-east corners. */
@@ -157,7 +157,7 @@ test("below zoom 7 loads no region for the view, as the file below zoom 7 draws 
 test('loads the region of the Train a link names, by the Network its Trip leads with, those of the Station a link names, by the file below zoom 7, and those near the viewer for Nearby, wherever the map is', () => {
   const view = { bounds: phone(BARCELONA), zoom: 12 };
   expect(regionsNeeded(REGIONS, view, { train: '2026-10-10/cercanias-bilbao:C4_15212' })).toEqual(['catalonia', 'cercanias-bilbao']);
-  // León's Station is in León's region and in Bilbao's, whose C4 runs to it.
+  // A Station in two regions, as León's was in León's and in Bilbao's, whose C4 ran to it until #368.
   const stations = { catalonia: ['adif:71801'], 'cercanias-leon': ['adif:15100'], 'cercanias-bilbao': ['adif:13200', 'adif:15100'] };
   expect(regionsNeeded(REGIONS, view, { station: 'adif:15100', stations })).toEqual(['catalonia', 'cercanias-leon', 'cercanias-bilbao']);
   // Until that file has come, it knows of none.
