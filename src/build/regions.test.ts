@@ -219,6 +219,26 @@ test("a region that fails keeps its last files in the manifest while the others'
   expect(files.every((f) => f.prefix.endsWith('catalonia'))).toBe(true);
 });
 
+test("a region whose track file wouldn't read back as built fails like any other: nothing of it is written, the manifest keeps its last files, and it's logged and reported", async () => {
+  // A traced shape with a field its file can't carry.
+  const odd = network('madrid', [0, 5000], 200, [[300], [300], [300]]);
+  odd.shapes = odd.shapes.map((s) => ({ ...s, kind: 'x' }) as Shape);
+  const { deps: d, files } = deps({ rodalies: network('rodalies', [0, 5000], 0, [[300], [300], [300]]), madrid: odd });
+  const regions = [{ id: 'catalonia', networks: [{ id: 'rodalies' }] }, { id: 'cercanias-madrid', networks: [{ id: 'madrid' }] }];
+  const [log, report] = [[] as string[], collect()];
+  const results = await buildRegions(regions, (r) => buildRegion(r, d), { log: (line) => log.push(line), report, last: [] });
+  expect(results.map((r) => [r.id, r.built !== undefined])).toEqual([['catalonia', true], ['cercanias-madrid', false]]);
+  const entry = (date: string) => ({ date, track: 'days/track-madrid-old.json', trips: `days/${date}-madrid-old.json`, from: 1, to: 2 });
+  const last = { regions: [{ id: 'cercanias-madrid', days: ['2026-10-09', '2026-10-10', '2026-10-11'].map(entry) }] };
+  const manifest = manifestOf(results.map(({ id, built }) => ({ id, days: built?.days })), last);
+  expect(manifest.regions.find((r) => r.id === 'cercanias-madrid')?.days.map((x) => x.track)).toEqual(Array(3).fill('days/track-madrid-old.json'));
+  // Neither its track nor its Trips were written, and the others' were.
+  expect(files.map((f) => f.prefix).filter((p) => p.includes('madrid'))).toEqual([]);
+  expect(files.some((f) => f.prefix === 'days/track-catalonia')).toBe(true);
+  expect(log[0]).toContain("cercanias-madrid isn't built, and keeps the files of its last build: cercanias-madrid's track file doesn't give back the track built");
+  expect(report.spots().map((s) => s.key)).toEqual(['region cercanias-madrid']);
+});
+
 test("logs each pair of regions whose Lines share a Stretch, how many, how long and where, or says none do", () => {
   const [a, b] = [network('leon', [0, 5000], 0, [[300]]), network('bilbao', [3000, 6000], 20, [[300]])];
   const track = (n: BuiltNetwork): Track => ({ networks: [n.network], lines: n.lines, stations: n.stations, shapes: n.shapes, strokes: [], rails: [], slots: [], tracks: [] });
