@@ -414,6 +414,71 @@ test("fails only Renfe's try where its trip updates are JSON but not its feed, k
   }
 });
 
+// Renfe's long-distance feeds as recorded at 13:47:33 on Saturday 10 October 2026, both written at
+// 13:47:20, cut down to eight Trains: Alvia 00622 Barcelona–Vigo, listed once for each of its six
+// parts; Intercity 01460, three parts each with a running trip update and a CANCELED one; Rodalies'
+// R17 15062, with both for one trip_id; R15 15007 and Alvia 02366, CANCELED with no position; R15
+// 17050, which Renfe's Cercanías feeds don't report; Alvia 04072, with trip updates and no position;
+// and AVE 03093, on its way to Girona.
+const LONG_DISTANCE = { positions: recorded('long-distance/vehicle_positions.json'), updates: recorded('long-distance/trip_updates.json') };
+
+/** When the run fetched them, and when their headers say Renfe wrote them. */
+const [SATURDAY, LD_WRITTEN] = [Date.parse('2026-10-10T13:47:33+02:00'), Date.parse('2026-10-10T13:47:20+02:00')];
+
+/** The fetcher's first run, fetching Renfe's long-distance feeds. */
+const ldRun = (files: RenfeResponses = LONG_DISTANCE) => step(START.state, { 'renfe-long-distance': files }, SATURDAY);
+
+test("makes one report for each of Renfe's long-distance Trains, by its Train number, though Renfe lists it once for each part of its run", () => {
+  const { reports } = ldRun().snapshot;
+  expect(reports.map((r) => r.number).sort()).toEqual(['00622', '01460', '02366', '03093', '04072', '15007', '15062', '17050']);
+  // Renfe names whichever part, by a trip_id whose date is its timetable's, not the Train's day: the engine finds the Trip (#261).
+  expect(reports.filter((r) => r.trip !== undefined)).toEqual([]);
+});
+
+/** What the run reports about a long-distance Train, by its Train number. */
+const ldReport = (number: string, run = ldRun()) => run.snapshot.reports.find((r) => r.number === number);
+
+test("gives a long-distance Train its GPS whatever its currentStatus says, and its trip updates' Delay, as of the files' headers", () => {
+  // Renfe has Alvia 00622 STOPPED_AT Pamplona, 32 km on from its GPS, and R15 17050 STOPPED_AT Riba-roja
+  // d'Ebre, while its GPS and its trip update have it at Faió-La Pobla de Massaluca: its long-distance
+  // positions are GPS, and give no time of their own (docs/research/high-speed.md).
+  expect(ldReport('00622')).toEqual({ number: '00622', at: LD_WRITTEN, position: { lon: -1.668315, lat: 42.53831 }, delay: 3900 });
+  expect(ldReport('17050')).toEqual({ number: '17050', at: LD_WRITTEN, position: { lon: 0.35099548, lat: 41.22487 }, delay: 1080 });
+  // AVE 03093, IN_TRANSIT_TO Girona.
+  expect(ldReport('03093')).toEqual({ number: '03093', at: LD_WRITTEN, position: { lon: 2.1897519, lat: 41.458126 }, delay: 900 });
+  // Alvia 04072's trip updates, with no position.
+  expect(ldReport('04072')).toEqual({ number: '04072', at: LD_WRITTEN, delay: 0 });
+});
+
+test('marks a long-distance Train Cancelled only where every trip update for its Train number is CANCELED and it has no position', () => {
+  // R15 15007's one trip update, and both of Alvia 02366's parts', are CANCELED, and Renfe places neither.
+  expect(ldReport('15007')).toEqual({ number: '15007', at: LD_WRITTEN, cancelled: true });
+  expect(ldReport('02366')).toEqual({ number: '02366', at: LD_WRITTEN, cancelled: true });
+  // R17 15062 has a running trip update and then a CANCELED one for the same trip_id, as 17501 had on 4
+  // October, and Intercity 01460 one of each for each of its three parts, all listed after the running
+  // ones: both run, placed by their GPS.
+  expect(ldReport('15062')).toEqual({ number: '15062', at: LD_WRITTEN, position: { lon: 1.4450948, lat: 41.15972 }, delay: 180 });
+  expect(ldReport('01460')).toEqual({ number: '01460', at: LD_WRITTEN, position: { lon: -0.8342069, lat: 38.173183 }, delay: 480 });
+  // Made up: without its position, 15062 still has a trip update that isn't CANCELED; and placed, 02366 runs.
+  const unplaced = { ...LONG_DISTANCE.positions, body: LONG_DISTANCE.positions.body.replace('"label": "15062"', '"label": "99999"') };
+  expect(ldReport('15062', ldRun({ ...LONG_DISTANCE, positions: unplaced }))?.cancelled).toBeUndefined();
+  const placed = { ...LONG_DISTANCE.positions, body: LONG_DISTANCE.positions.body.replace('"label": "15062"', '"label": "02366"') };
+  expect(ldReport('02366', ldRun({ ...LONG_DISTANCE, positions: placed }))).toEqual({ number: '02366', at: LD_WRITTEN, position: { lon: 1.4450948, lat: 41.15972 } });
+});
+
+test("fetches Renfe's long-distance feeds every other run, whose headers advance every 14-30 s, and gives both long-distance Networks their freshness", () => {
+  const fetched: number[] = [];
+  let stored = START;
+  for (let t = SATURDAY; t < SATURDAY + 3 * 60_000; t += 20_000) {
+    const due = stored.due.includes('renfe-long-distance');
+    if (due) fetched.push((t - SATURDAY) / 1000);
+    stored = step(stored.state, due ? { 'renfe-long-distance': renfeAt(LD_WRITTEN + t - SATURDAY, LONG_DISTANCE) } : {}, t);
+  }
+  expect(fetched).toEqual([0, 40, 80, 120, 160]);
+  const fine = { lastSuccess: SATURDAY, lastAttempt: SATURDAY, status: 'ok', every: 40_000 };
+  expect(ldRun().snapshot.feeds).toEqual({ 'ave-larga-distancia': fine, 'media-distancia-avant': fine });
+});
+
 // FGC's live data as recorded at 10:31 on Friday 25 September 2026: Geotren's positions, which FGC
 // last updated at 10:30:11, the trip-updates file FGC wrote at 10:30:03, and where that file is.
 const fgcRecorded = (file: string) => readFileSync(new URL(`fixtures/fgc/${file}`, import.meta.url));
@@ -1136,6 +1201,8 @@ test("asks each source for what its adapter needs, with the Worker's secrets its
     [
       'GET https://gtfsrt.renfe.com/vehicle_positions.json',
       'GET https://gtfsrt.renfe.com/trip_updates.json',
+      'GET https://gtfsrt.renfe.com/vehicle_positions_LD.json',
+      'GET https://gtfsrt.renfe.com/trip_updates_LD.json',
       `GET ${FGC_API}/trip-updates-gtfs_realtime/records?limit=1`,
       `GET ${FGC_API}/posicionament-dels-trens/records?limit=100&select=id,lin,geo_point_2d,estacionat_a,tipus_unitat,record_timestamp`,
       `GET ${FGC_FILE}`,

@@ -605,12 +605,26 @@ export type LiveSource = {
    * does after a refusal.
    */
   every: number;
-  /** Which Network each of its Trains is, by the longest start of the ID it gives the Train named here, as Renfe's trip_ids start with their núcleo: '' for all of them. */
+  /**
+   * Which Network each of its Trains is, by the longest start of the ID it gives the Train named here,
+   * as Renfe's trip_ids start with their núcleo: '' for all of them. Its freshness is each of theirs.
+   */
   networks: Record<string, string>;
   /** Its operator's Alerts, where the fetcher reads them, as GTFS-RT in JSON (ADR-0012): where they are, and how often they're fetched, in ms. */
   alerts?: { url: string; every: number };
 } & (
-  | { format: 'renfe'; urls: { positions: string; updates: string } }
+  | {
+      format: 'renfe';
+      urls: { positions: string; updates: string };
+      /**
+       * Its files name any part of a Train's run, by a trip_id that picks no day, as Renfe's
+       * long-distance ones do: each report names its Train by its Train number instead, and the
+       * engine finds its Trip by that, in any Network (#261). They give a Train's GPS whatever its
+       * currentStatus says, and a trip update for each of its parts, of which some can be CANCELED
+       * while it runs.
+       */
+      numbers?: true;
+    }
   | { format: 'fgc'; urls: { positions: string; lookup: string } }
   | { format: 'tram'; urls: { token: string; positions: string; updates: string } }
   | { format: 'tmb'; urls: { predictions: string } }
@@ -649,6 +663,20 @@ export const LIVE_SOURCES: LiveSource[] = [
     // Every run too: Renfe answers a conditional request with 304 and no body while its file is
     // unchanged, as it was for hours on 7 October 2026 (docs/research/alerts.md).
     alerts: { url: 'https://gtfsrt.renfe.com/alerts.json', every: 20_000 },
+  },
+  {
+    // Renfe's live data of its long-distance timetable's Trains, as JSON, whose Alerts are in its
+    // Cercanías source's file.
+    id: 'renfe-long-distance',
+    format: 'renfe',
+    urls: { positions: 'https://gtfsrt.renfe.com/vehicle_positions_LD.json', updates: 'https://gtfsrt.renfe.com/trip_updates_LD.json' },
+    numbers: true,
+    // Every other run: their headers advance every 14–30 s, so a try 20 s after the last could find
+    // them not updated since, and fail (docs/research/live-at-scale.md).
+    every: 40_000,
+    // A Train number starts with neither, so the step sends none of its Trains to these: they're the
+    // Networks its freshness is given to, as the engine finds each Train's Trip in any Network.
+    networks: { [AVE_LARGA_DISTANCIA.id]: AVE_LARGA_DISTANCIA.id, [MEDIA_DISTANCIA_AVANT.id]: MEDIA_DISTANCIA_AVANT.id },
   },
   {
     // Geotren, where FGC's Trains are, with only what the fetcher reads, and where to look up its

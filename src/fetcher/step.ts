@@ -316,13 +316,16 @@ interface Vehicle {
   currentStatus?: 'INCOMING_AT' | 'STOPPED_AT' | 'IN_TRANSIT_TO';
   stopId?: string;
   timestamp?: string;
+  /** In Renfe's long-distance files, its label is the Train's number. */
+  vehicle?: { label?: string };
 }
 
 /**
  * The Trains in Renfe's files of the Networks its source names, by their trip_ids. Each Train gets one
  * report, with its Delay from its trip update, and its position from the vehicle positions.
  */
-function renfeReports(source: LiveSource, positions: GtfsRt, updates: GtfsRt): Report[] {
+function renfeReports(source: SourceOf<'renfe'>, positions: GtfsRt, updates: GtfsRt): Report[] {
+  if (source.numbers) return numberedReports(positions, updates);
   const reports = new Map<string, Report>();
   for (const { tripUpdate: update } of updates.entity ?? []) {
     const trip = renfeTrip(source, update?.trip?.tripId);
@@ -334,6 +337,33 @@ function renfeReports(source: LiveSource, positions: GtfsRt, updates: GtfsRt): R
   for (const { vehicle } of positions.entity ?? []) {
     const trip = renfeTrip(source, vehicle?.trip?.tripId);
     if (trip) reports.set(trip, { ...reports.get(trip), trip, at: ms(vehicle?.timestamp), position: position(vehicle ?? {}) });
+  }
+  return [...reports.values()];
+}
+
+/**
+ * The Trains in Renfe's long-distance files, by their Train numbers: a position's vehicle label, and
+ * the first five digits of a trip update's trip_id, which are the same (#261). Renfe lists a Train
+ * once for each part of its run, at the same coordinates, with the same Delay: each Train gets one
+ * report, with its GPS whatever its currentStatus says, as Renfe doesn't pin these Trains to Stations,
+ * and its Delay, as of the files' headers, as they give no time of their own. It's Cancelled only
+ * where every trip update for its number is CANCELED and it has no position: Renfe lists CANCELED
+ * trip updates after the running ones, at times for a Train it places, as for 17501's one Trip on 4
+ * October 2026, with its GPS moving near Zaragoza, and for each of Intercity 01460's three on 10
+ * October, so the Cercanías files' last-entry rule would take running Trains off the map.
+ */
+function numberedReports(positions: GtfsRt, updates: GtfsRt): Report[] {
+  const reports = new Map<string, Report>();
+  for (const { tripUpdate: update } of updates.entity ?? []) {
+    const number = update?.trip?.tripId?.trim().slice(0, 5);
+    if (!number) continue;
+    const at = ms(updates.header.timestamp);
+    if (update?.trip?.scheduleRelationship !== 'CANCELED') reports.set(number, { number, at, delay: update?.delay });
+    else if (!reports.has(number)) reports.set(number, { number, at, cancelled: true });
+  }
+  for (const { vehicle } of positions.entity ?? []) {
+    const [number, gps] = [vehicle?.vehicle?.label?.trim(), vehicle?.position];
+    if (number && gps) reports.set(number, { ...reports.get(number), number, at: ms(positions.header.timestamp), position: { lon: gps.longitude, lat: gps.latitude }, cancelled: undefined });
   }
   return [...reports.values()];
 }
