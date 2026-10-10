@@ -790,7 +790,7 @@ function tripUpdate(field: number, update: TripUpdates['trips'][number], pbf: Pb
   // FGC's are read to their first stop with a time, and the rest skipped, as most of a feed is stops.
   if (field === 2 && (!update.expected || now !== undefined)) {
     const stop = pbf.readMessage<Stop>(stopTimeUpdate, {});
-    const time = stop.arrival ?? stop.departure;
+    const time = stop.arrival || stop.departure;
     if (!update.expected && time) [update.platform, update.expected] = [stop.platform, time];
     // Each stop reached by `now` replaces the one before it, so the last one gives where it stands. Not one
     // it skips, nor one TRAM has no data for, whose Trip's call at that number it may not make.
