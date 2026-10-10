@@ -792,8 +792,8 @@ test('a followed Train that live data shows stopped between Stations, held there
   expect(followed(R2S, at('21:49:30'))).toMatchObject({ standsAt: 'Vilanova i la Geltrú' });
 });
 
-/** A board of the next departures from some Stations at a moment by the device's clock, with the live data received by then, in `BUNDLE` unless it says. */
-const board = (stations: string[], moment: number, received: Received[] = [], bundle = BUNDLE) => boardAt(bundle, moment, by(received, moment), stations);
+/** A board of the next departures from some Stations at a moment by the device's clock, with the live data received by then, in `BUNDLE` unless it says, and the Closures the map shows, none unless it says. */
+const board = (stations: string[], moment: number, received: Received[] = [], bundle = BUNDLE, closures: ShownClosure[] = []) => boardAt(bundle, moment, by(received, moment), stations, closures);
 
 test("a Station's board lists each Train still to leave it, expected when its timetable has it leave, and not one that ends there", () => {
   // With no live data, the R2S stands at Vilanova i la Geltrú from 21:49 to 21:50.
@@ -1116,6 +1116,29 @@ test('a Live Train is drawn within a closed Closure all the same, as live data w
   // At its feed's third update since, it's Scheduled, still within the Closure.
   expect(drawnBy([], at('21:41:10'), received)).toMatchObject({ live: false });
   expect(drawnBy(CLOSED, at('21:41:10'), received)).toBeUndefined();
+});
+
+test("a board at a Station within a closed Closure shows a Scheduled Train not stopping there, when its timetable has it leave, and one at the Closure's Station it would run into it from doesn't list it, as where its Trip ends", () => {
+  // Cunit, between Calafell and Cubelles.
+  expect(board(['Cunit'], at('21:30:00'), [], BUNDLE, CLOSED)).toMatchObject([{ trip: { id: R2S }, station: 'Cunit', departure: at('21:41:00'), skipped: true, cancelled: false, live: false }]);
+  // Gone once its timetable has it leave there, however late it runs, as a Cancelled Train's row is.
+  expect(board(['Cunit'], at('21:41:01'), [late(R2S, 120, at('21:30:00'))], BUNDLE, CLOSED)).toEqual([]);
+  // Calafell, where it runs into the Closure, and Cubelles, where it comes out, on its way on.
+  expect(board(['Calafell'], at('21:30:00'), [], BUNDLE, CLOSED)).toEqual([]);
+  expect(board(['Cubelles'], at('21:30:00'), [], BUNDLE, CLOSED)).toMatchObject([{ trip: { id: R2S }, departure: at('21:45:00'), skipped: false }]);
+  // Cancelled, it's Cancelled there, as its operator says.
+  const cancelled: Received = { snapshot: { ...written(at('21:29:00')), reports: [{ trip: R2S, at: at('21:28:40'), cancelled: true }] }, at: at('21:29:10') };
+  expect(board(['Cunit'], at('21:30:00'), [cancelled], BUNDLE, CLOSED)).toMatchObject([{ cancelled: true, skipped: false }]);
+  expect(board(['Calafell'], at('21:30:00'), [cancelled], BUNDLE, CLOSED)).toMatchObject([{ cancelled: true, skipped: false }]);
+});
+
+test("a board shows a Live Train not stopping within a closed Closure while it's on its way there, and stopping once live data has it running within it, as live data wins", () => {
+  // Renfe's GPS has the R2S between Sant Vicenç de Calders and Calafell at 21:32:00, on time.
+  const coming = [gps(R2S, where(R2S, at('21:32:00')) ?? NaN, at('21:32:00'))];
+  expect(board(['Cunit'], at('21:32:10'), coming, BUNDLE, CLOSED)).toMatchObject([{ departure: at('21:41:00'), skipped: true, live: false }]);
+  // And between Segur de Calafell and Cunit at 21:40:00.
+  const within = [gps(R2S, where(R2S, at('21:40:00')) ?? NaN, at('21:40:00'))];
+  expect(board(['Cunit'], at('21:40:10'), within, BUNDLE, CLOSED)).toMatchObject([{ skipped: false, live: true }]);
 });
 
 test('a Closure down to a single track hides no Train', () => {

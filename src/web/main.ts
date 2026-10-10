@@ -2171,7 +2171,7 @@ function boardPanel(id: string, up: boolean): Panel | undefined {
   const place = shownPlaces.get(id);
   if (!place) return undefined;
   const now = Date.now();
-  const departures = bundle ? boardAt(bundle, now, received, place.stations) : [];
+  const departures = bundle ? boardAt(bundle, now, received, place.stations, shownClosures) : [];
   // With none left today, the next day's first are to come; refreshDays() runs again within a minute if it's busy now.
   const date = madridDate(new Date(mapTime(now, received)));
   if (bundle && !departures.length && emptyBoard !== date) {
@@ -2205,7 +2205,8 @@ function servedBy(place: Place): string[] {
 /**
  * A departure on a board: when it's expected to leave, with the minutes to go under a time within the
  * hour, its Train's pill, where it's headed, and its status. One Cancelled, or at a Station its Train
- * won't stop at (#346), shows when its timetable has it leave, struck through, and says so.
+ * won't stop at (#346), as a Scheduled one within a closed Closure (#345), shows when its timetable has
+ * it leave, struck through, and says so.
  */
 function departureRow({ trip, departure, delay, live, unreported, cancelled, skipped }: Departure, now: number) {
   const off = cancelled ? 'cancelled' : skipped ? 'skipped' : '';

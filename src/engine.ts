@@ -162,7 +162,11 @@ export interface Departure {
   unreported: boolean;
   /** Whether its operator has announced that it won't run: then it's expected when its timetable has it leave. */
   cancelled: boolean;
-  /** Whether its operator has said it won't stop at the Station, as where it's cut short or starts late (#346): then it's shown when its timetable has it leave. */
+  /**
+   * Whether it won't stop at the Station: as its operator has said, where it's cut short or starts late
+   * (#346), or as it's Scheduled at a Station within a closed Closure (#345). Then it's shown when its
+   * timetable has it leave.
+   */
   skipped: boolean;
 }
 
@@ -171,12 +175,14 @@ const BOARD = 10;
 
 /**
  * The next departures from some Stations, soonest first, at a moment by the device's clock (ms since
- * 1970), given the snapshots received by then: each Train still to leave one of them, but not one
- * that ends its Trip there, expected as it's drawn on the map, and a Cancelled one as its timetable
- * has it, as is one at a Station its operator has said it won't stop at (#346).
+ * 1970), given the snapshots received by then and the Closures the map shows: each Train still to
+ * leave one of them, but not one that ends its Trip there, expected as it's drawn on the map, and a
+ * Cancelled one as its timetable has it, as is one at a Station its operator has said it won't stop at
+ * (#346), and a Scheduled one at a Station within a closed Closure, which it doesn't run within, nor
+ * leaves either of the Closure's Stations into, as if its Trip ended there (#345).
  */
-export function boardAt(bundle: Bundle, at: number, received: Received[], stations: string[]): Departure[] {
-  const { of, now } = onMap(bundle, at, received);
+export function boardAt(bundle: Bundle, at: number, received: Received[], stations: string[], closures: readonly ShownClosure[] = []): Departure[] {
+  const { of, now } = onMap(bundle, at, received, closures);
   const here = new Set(stations);
   return bundle.trips
     .flatMap((trip): Departure[] => {
@@ -185,8 +191,12 @@ export function boardAt(bundle: Bundle, at: number, received: Received[], statio
       if (!on) return [];
       const { cancelled } = on;
       const [time, delay] = cancelled ? [now, 0] : [on.time, on.delay];
-      // Where it calls there more than once, as turning back, the first time it's still to leave.
-      const call = on.calls.find((c, i) => i < on.calls.length - 1 && toLeave(c, time) && here.has(c.station));
+      const shut = !cancelled && on.closed ? closedCalls(on.calls, on.closed) : undefined;
+      // Where it calls there more than once, as turning back, the first time it's still to leave: within a closed Closure, by its timetable.
+      const i = on.calls.findIndex((c, i) => i < on.calls.length - 1 && toLeave(c, shut?.at[i] ? now : time) && here.has(c.station));
+      const call = on.calls[i];
+      if (call && shut?.at[i]) return [{ trip: on.trip, station: call.station, departure: bundle.noonMinus12h + call.departure * 1000, live: false, unreported: false, cancelled: false, skipped: true }];
+      if (call && shut?.after[i]) return [];
       if (call) {
         const departure = bundle.noonMinus12h + (call.departure + delay) * 1000;
         return [{ trip: on.trip, station: call.station, departure, delay: shown(on.network, delay), live: on.live && !cancelled, unreported: !!on.train?.unreported, cancelled, skipped: false }];
