@@ -116,6 +116,14 @@ test('says in the banner that a Network has no timetable today, in each language
   expect(t('noTimetable', 'gl')).toBe('sen horario hoxe');
 });
 
+test('labels the button that tilts the map in each language', () => {
+  expect(t('tilt', 'ca')).toBe('Inclina el mapa');
+  expect(t('tilt', 'es')).toBe('Inclinar el mapa');
+  expect(t('tilt', 'en')).toBe('Tilt the map');
+  expect(t('tilt', 'eu')).toBe('Okertu mapa');
+  expect(t('tilt', 'gl')).toBe('Inclinar o mapa');
+});
+
 test('labels the button that follows a random Train in each language', () => {
   expect(t('followRandom', 'ca')).toBe("Segueix un tren a l'atzar");
   expect(t('followRandom', 'es')).toBe('Seguir un tren al azar');

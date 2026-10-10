@@ -14,7 +14,7 @@ import { linesAt, popupRoom } from './tap.ts';
 import { alongside, namedTwice, nameOffset, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
 import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
 import { atMostEvery, drifted, letsGo } from './centre.ts';
-import { keepView, lastView, markOf, openingView } from './view.ts';
+import { keepView, lastView, markOf, openingView, toggledPitch } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { contrast, lettering } from './colour.ts';
 import { cardAlerts, linesCallingAt, minutesTo, nearbyRows, progress, type CardAlert } from './cards.ts';
@@ -100,13 +100,14 @@ const OUTLINES_OF: Partial<Record<Kind, Pill['outline']>> = { commuter: 'round',
 /**
  * The cards' icons, drawn in the colour of the text around them, which a forced-colours theme sets
  * too (#116): a close cross, a chevron down and up, the die that follows a random Train, Nearby's
- * radius round a dot, About's ⓘ, the credits' © and a warning.
+ * radius round a dot, the tilted plane of the tilt button, About's ⓘ, the credits' © and a warning.
  */
 const ICONS = {
   close: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
   chevron: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
   up: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>',
   die: '<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="9" r="1.3"/><circle cx="15" cy="9" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="9" cy="15" r="1.3"/><circle cx="15" cy="15" r="1.3"/></svg>',
+  tilt: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M8 6h8l5 12H3L8 6z"/><path d="M5.5 12h13"/></svg>',
   nearby: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5" stroke-dasharray="2.6 3.1"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></svg>',
   centre: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="6"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>',
   info: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.6v.1"/></svg>',
@@ -470,7 +471,12 @@ const nearbyButton = el('button', { type: 'button', className: 'card fab nearby'
 const followRandomButton = el('button', { type: 'button', className: 'card fab', disabled: true, onclick: followRandom }, icon('die'));
 // The Centre button over them, shown while the map has let go of the Train it follows (#325).
 const centreButton = el('button', { type: 'button', className: 'card fab', hidden: true, onclick: centre }, icon('centre'));
-const trainButtons = el('div', { className: 'fabs', hidden: true }, centreButton, followRandomButton, nearbyButton);
+// The tilt button over it: it eases the map's pitch between flat and tilted, pressed while it's tilted (#326).
+const tiltButton = el('button', { type: 'button', className: 'card fab', onclick: () => map.easeTo({ pitch: toggledPitch(map.getPitch()) }) }, icon('tilt'));
+const showTilt = () => tiltButton.setAttribute('aria-pressed', String(map.getPitch() > 0));
+map.on('pitch', showTilt);
+showTilt();
+const trainButtons = el('div', { className: 'fabs', hidden: true }, tiltButton, centreButton, followRandomButton, nearbyButton);
 // The credits, which showCredits() fills: behind the © button on a phone, and a strip on a wide window.
 const creditsButton = el('summary', { className: 'card' }, icon('copyright'));
 const creditsText = el('div', { className: 'card credits-text' });
@@ -1521,6 +1527,8 @@ function showLanguage() {
   legend.title = t('about');
   nearbyLabel.textContent = t('nearbyButton');
   nearbyButton.title = t('nearby');
+  tiltButton.title = t('tilt');
+  tiltButton.setAttribute('aria-label', t('tilt'));
   followRandomButton.title = t('followRandom');
   followRandomButton.setAttribute('aria-label', t('followRandom'));
   centreButton.title = t('centre');
