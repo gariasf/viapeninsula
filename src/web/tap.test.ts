@@ -45,6 +45,8 @@ test('nothing tapped names no Line', () => {
  * Where MapLibre's Popup puts a box `w` px across and `h` high pointing from `at`, on a map `size`
  * across and high, by its insets (its `padding`), as its `_update()` does with no anchor given, by the
  * box's size in whole px, as offsetWidth and offsetHeight round it: its edges, in px.
+ * ponytail: a copy of MapLibre 6.11.1's rule, which an upgrade could change unseen. Check it against the
+ * new `_update()` in its src/ui/popup.ts on one.
  */
 function placed(at: { x: number; y: number }, w: number, h: number, size: { width: number; height: number }, inset: { top: number; right: number; bottom: number; left: number }) {
   const [width, height] = [Math.round(w), Math.round(h)];
