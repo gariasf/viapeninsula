@@ -2,6 +2,8 @@
 // Network's, a snap counted in time rather than by a kilometre, no hold at Stations, and a position
 // that holds counted as none.
 
+import { readFileSync } from 'node:fs';
+import { gunzipSync } from 'node:zlib';
 import { expect, test } from 'vitest';
 import { DEGREE, type Bundle, type LineProfile, type LiveTraits, type Network, type Report, type SpeedProfile } from './bundle.ts';
 import { trainsAt, type Received } from './engine.ts';
@@ -223,3 +225,108 @@ test("a long-distance position that holds counts as none, so the Train neither s
   expect(stood.filter((v) => v === 0).length).toBeGreaterThan(150);
   expect(Math.max(...stood)).toBeGreaterThan(7000);
 });
+
+// 12 minutes of Renfe's long-distance feeds on Saturday 10 October 2026, 11:47–11:59 UTC, read every
+// other run as the fetcher will (#261): one report for each Train number, its GPS whatever its
+// `currentStatus`, its Delay from the trip updates, and its time the file's header's. The Trains are
+// the 32 whose position held for a minute or more and then moved a kilometre or more, as 177 did on 4
+// October (their positions weren't kept), each Trip cut to the legs they run along and traced along
+// OpenStreetMap's rails of 9 October as #259 will, crudely: high-speed Trips on standard gauge, the
+// rest on every rail, with a copy of the build's own tracing (docs/research/high-speed.md).
+const REPLAY: { bundle: Bundle; received: Received[] } = JSON.parse(gunzipSync(readFileSync(new URL('fixtures/replay-2026-10-10-long-distance.json.gz', import.meta.url))).toString());
+const CONFIGS = [AVE_LARGA_DISTANCIA, MEDIA_DISTANCIA_AVANT];
+/** The replay's bundle with each Network's profile and live traits, and each Line's profile, as src/networks.ts has them, or `live` for the Networks' traits. */
+function replayed(live?: LiveTraits): Bundle {
+  const bundle: Bundle = structuredClone(REPLAY.bundle);
+  for (const n of bundle.networks) {
+    const config = CONFIGS.find((c) => c.id === n.id);
+    if (config) [n.profile, n.live] = [config.profile, live ?? config.live];
+  }
+  for (const l of bundle.lines) {
+    const own = CONFIGS.find((c) => c.id === l.network)?.lines.profiles?.[l.name];
+    if (own) l.profile = own;
+  }
+  return bundle;
+}
+
+/**
+ * The replay's holds: each Train's position unchanged for a minute or more, and then moved a kilometre
+ * or more, with when the first snapshot that held it arrived and when the one that moved it did.
+ */
+function holds(received: Received[]) {
+  const found: { trip: string; from: number; to: number }[] = [];
+  const reports = (trip: string) => received.map((r) => r.snapshot.reports.find((x) => x.trip === trip));
+  for (const trip of new Set(received.flatMap((r) => r.snapshot.reports.map((x) => x.trip ?? '')))) {
+    const at = reports(trip);
+    for (let i = 0; i < at.length; i++) {
+      const p = at[i]?.position;
+      if (!p || !('lon' in p)) continue;
+      let j = i;
+      const same = (k: number) => {
+        const q = at[k]?.position;
+        return !!q && 'lon' in q && q.lon === p.lon && q.lat === p.lat;
+      };
+      while (j + 1 < at.length && same(j + 1)) j++;
+      const next = at[j + 1]?.position;
+      // Not one that held from before the third snapshot: the first two place each Train outright.
+      if (i >= 2 && j > i && next && 'lon' in next && ((at[j]?.at ?? 0) - (at[i]?.at ?? 0)) / 1000 >= 60) {
+        if (Math.hypot((next.lon - p.lon) * 84_000, (next.lat - p.lat) * 111_195) >= 1000) found.push({ trip, from: received[i]?.at ?? 0, to: received[j + 1]?.at ?? 0 });
+      }
+      i = j;
+    }
+  }
+  return found;
+}
+
+/**
+ * What a bundle draws through each of the replay's holds: how many have the Train stand still for the
+ * 40 s before its position moves, standing more than 20 m from a Station its Trip calls at, and in the
+ * 30 s from then how many snap it back, and how many on, more than its Line's top speed has it run in a second.
+ */
+function through(bundle: Bundle, found: ReturnType<typeof holds>) {
+  const [stood, back, on] = [new Set<string>(), new Set<string>(), new Set<string>()];
+  const at = (trip: string, moment: number) => trainsAt(bundle, moment, REPLAY.received.filter((r) => r.at <= moment)).find((t) => t.trip.id === trip);
+  for (const { trip, to } of found) {
+    const t = bundle.trips.find((x) => x.id === trip);
+    const line = bundle.lines.find((l) => l.id === t?.line);
+    const top = ({ ...bundle.networks.find((n) => n.id === line?.network)?.profile, ...line?.profile }.topSpeed ?? Infinity) * 1.05;
+    const [before, held] = [at(trip, to - 40_000), at(trip, to - 1000)];
+    const near = Math.min(...(t?.calls ?? []).map((c) => Math.abs(c.dist - (held?.dist ?? Infinity))));
+    if (before && held && Math.abs(held.dist - before.dist) < 100 && near > 20) stood.add(`${trip} ${to}`);
+    const way = (t?.calls.at(-1)?.dist ?? 0) > (t?.calls[0]?.dist ?? 0) ? 1 : -1;
+    let last = held?.dist;
+    for (let s = 0; s <= 30; s++) {
+      const now = at(trip, to + s * 1000)?.dist;
+      if (last !== undefined && now !== undefined) {
+        if ((now - last) * way < -top) back.add(`${trip} ${to}`);
+        if ((now - last) * way > top) on.add(`${trip} ${to}`);
+      }
+      last = now;
+    }
+  }
+  return { holds: found.length, stood: stood.size, back: back.size, on: on.size };
+}
+
+test("replaying long-distance positions that held and then moved, a Train neither stands where its position is held nor snaps back when it moves: counting a position that holds as none is what keeps it going", () => {
+  const found = holds(REPLAY.received);
+  // 25 holds of a minute or more, ending in moves of 1 to 18 km, in 23 Trains: Reg.Exp. 12601 snaps
+  // back 1.8 km as its position moves, the 72 s it lost in the 297 s it was held, and two jump on.
+  expect(through(replayed(), found)).toEqual({ holds: 25, stood: 0, back: 1, on: 2 });
+  // Going by each position as it comes, as a Network does that has no GPS Delay to carry on from, 8
+  // stand still where they're held for the 40 s before it moves, and 22 jump on, by up to 18 km.
+  expect(through(replayed({ delay: 'operator', near: 'pinned' }), found)).toEqual({ holds: 25, stood: 8, back: 1, on: 22 });
+}, 60_000);
+
+test("counts each long-distance Network's jumps over 12 minutes of its live data, as the fetcher will read it: fewer snapped by the minute than by the kilometre", () => {
+  // Per Train-minute, (forward + back) / (liveSeconds / 60): AVE y Larga Distancia 0.105 and Media
+  // Distancia y Avant 0.081, in the replay's 23 Trains, whose positions held and then moved.
+  expect(jumps(replayed(), REPLAY.received)).toEqual({
+    'ave-larga-distancia': { forward: 3, back: 3, liveSeconds: 3426 },
+    'media-distancia-avant': { forward: 10, back: 3, liveSeconds: 9571 },
+  });
+  // As Rodalies' are, snapped past a kilometre, a Train jumps about twice as often.
+  expect(jumps(replayed({ delay: 'gps', near: 'pinned' }), REPLAY.received)).toEqual({
+    'ave-larga-distancia': { forward: 7, back: 12, liveSeconds: 3426 },
+    'media-distancia-avant': { forward: 13, back: 6, liveSeconds: 9571 },
+  });
+}, 60_000);
