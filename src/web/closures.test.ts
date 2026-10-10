@@ -90,6 +90,39 @@ test("reads the words that say what a stretch is from those last before it in it
   ]);
 });
 
+test('goes on with what a clause says into the next, after a comma, where that has only a "y" before its stretch, and not where it has none, or words of its own, or after a full stop (#396)', () => {
+  // Made up, on R1's words of 7 Oct (AVISO_518348), as none of the Alerts recorded has a comma there.
+  const buses = 'Se establece un servicio alternativo por carretera entre Blanes y Tordera';
+  expect(stretchesIn(`${buses}, y entre Tordera y Maçanet-Massanes.`, R1)).toEqual([
+    { stations: ['adif:79606', 'adif:79607'], says: 'closed' },
+    { stations: ['adif:79607', 'adif:79200'], says: 'closed' },
+  ]);
+  // Each after the one before it, whatever they say, but not after a comma alone.
+  expect(stretchesIn("Se mantiene el servicio entre L'Hospitalet de Llobregat y Blanes, y entre Blanes y Tordera, y entre Tordera y Maçanet-Massanes.", R1)).toEqual([
+    { stations: ['adif:72305', 'adif:79606'], says: 'running' },
+    { stations: ['adif:79606', 'adif:79607'], says: 'running' },
+    { stations: ['adif:79607', 'adif:79200'], says: 'running' },
+  ]);
+  expect(stretchesIn(`${buses}, entre Tordera y Maçanet-Massanes.`, R1)).toEqual([
+    { stations: ['adif:79606', 'adif:79607'], says: 'closed' },
+    { stations: ['adif:79607', 'adif:79200'] },
+  ]);
+  // Words of its own say their own, and none of the words that say what it is leave it saying nothing.
+  expect(stretchesIn(`${buses}, y se mantiene el servicio entre Tordera y Maçanet-Massanes.`, R1)).toEqual([
+    { stations: ['adif:79606', 'adif:79607'], says: 'closed' },
+    { stations: ['adif:79607', 'adif:79200'], says: 'running' },
+  ]);
+  expect(stretchesIn(`${buses}, y con normalidad entre Tordera y Maçanet-Massanes.`, R1)).toEqual([
+    { stations: ['adif:79606', 'adif:79607'], says: 'closed' },
+    { stations: ['adif:79607', 'adif:79200'] },
+  ]);
+  // A full stop ends it: Sevilla's C3 has its plan, and in the next sentence the Trains that run beside it.
+  expect(stretchesIn(`${buses}. Entre Tordera y Maçanet-Massanes el recorrido se realiza con trenes.`, R1)).toEqual([
+    { stations: ['adif:79606', 'adif:79607'], says: 'closed' },
+    { stations: ['adif:79607', 'adif:79200'] },
+  ]);
+});
+
 test('opens a stretch only at its opening words, not at one every object has a property of, as "constructor"', () => {
   expect(stretchesIn('Obras del constructor Blanes entre Blanes y Tordera.', R1)).toEqual([{ stations: ['adif:79606', 'adif:79607'] }]);
 });
@@ -134,6 +167,27 @@ test("reads no stretch of a Line in a note about one Train, which says where tha
   // JARDINES DE HÉRCULES, no presta servicio entre las estaciones de SEVILLA SANTA JUSTA y JARDINES DE
   // HERCULES. Los viajeros serán encaminados al siguiente tren de la línea C-5 o C-1 dirección UTRERA."
   for (const id of ['AVISO_518331', 'AVISO_518327']) expect(stretchesIn(said(id), stationsOf('cercanias-sevilla'))).toEqual([]);
+});
+
+test("reads TRAM's \"Servei alternatiu entre X i Y\" as closed, its \"Estació de Sant Adrià\" as the bundle's \"Estació St.Adrià\", and its line's \"no donarà servei\" as no stretch (#396)", () => {
+  // sc-286, for 14 and 15 Oct 7:30–14:30: "…la línia T6 no donarà servei per tasques de manteniment de l’arbrat
+  // a la Rambla de la Mina. Es reforçarà el servei de la línia T5. Servei alternatiu entre Estació de Sant
+  // Adrià i Parc del Besòs: Bus H14." It names T6 in the first sentence, and its stretch in the last.
+  expect(stretchesIn(said('sc-286'), stationsOf('tram'))).toEqual([{ stations: ['tram:ST-229', 'tram:ST-213'], says: 'closed' }]);
+});
+
+test("matches a Station's name without or with link words its notice has or hasn't, as Adif's \"València-La Font de Sant Lluís\" is Renfe's \"Valencia Font de Sant Lluis\" (#396)", () => {
+  // AVISO_512648, Valencia's C3, with "por carretera" for its "por autobús", which isn't among the words read.
+  const text = 'Servicio alternativo por carretera entre las estaciones de Valencia Font de Sant Lluis y Valencia Sant Isidre por obras de mejora en la infraestructura.';
+  expect(stretchesIn(text, stationsOf('cercanias-valencia'))).toEqual([{ stations: ['adif:65002', 'adif:66212'], says: 'closed' }]);
+});
+
+test("reads no stretch in words that name none: Renfe's bare \"Sin servicio ferroviario\", TRAM's \"no donarà servei\", and the streets of Bilbao's notice (#396)", () => {
+  // AVISO_518352, R2's of 7 Oct, and sc-286's first sentence, as it came.
+  expect(stretchesIn(said('AVISO_518352'), stationsOf('rodalies'))).toEqual([]);
+  expect(stretchesIn(said('sc-286').split('\n')[0] ?? '', stationsOf('tram'))).toEqual([]);
+  // INFO_508393: "…el acceso a la estación se realizará por la plaza situada entre Av. Agirre Lehendariak y Calle Fauste."
+  expect(stretchesIn(said('INFO_508393'), stationsOf('cercanias-bilbao'))).toEqual([]);
 });
 
 // alerts.json as the fetcher writes it from Renfe's alerts of 11:39 on Wednesday 7 October 2026, cut
@@ -230,6 +284,32 @@ test("shows the timetable's Closures on their day from the first bus to the last
 
 test('a day file built before #340 has no Closures', () => {
   expect(closuresAt({}, { ...DAY, closures: undefined }, READ)).toEqual([]);
+});
+
+test("on 9 Oct at 23:20, the file whole, Spain's 68 Renfe Alerts and TRAM's 3, gives the Closures it gave and now Sevilla's C3 and TRAM's T6, San Sebastián's C1 twice, and none in Bilbao's streets or elsewhere (#396)", () => {
+  const lines = [...new Set(Object.values(NIGHT).flatMap((feed) => feed.alerts.flatMap((a) => a.lines)))].map((id) => ({ id, network: id.split(':')[0] ?? '' }));
+  const day = { noonMinus12h: Date.parse('2026-10-09T00:00:00+02:00'), closures: [], lines, stations: NIGHT_STATIONS };
+  const name = new Map(NIGHT_STATIONS.map((s) => [s.id, s.name]));
+  const shown = closuresAt(NIGHT, day, Date.parse('2026-10-09T23:20:11+02:00'));
+  expect(shown.map((c) => `${c.line} ${c.kind} ${c.stations.map((id) => name.get(id)).join(' – ')} (${c.alert?.id})`)).toEqual([
+    // New: TRAM's notice for 14–15 Oct, under its period from 9 Oct (#397).
+    'tram:T6 closed Estació St.Adrià – Parc del Besòs (sc-286)',
+    // As before, from 7 Oct's rains.
+    'rodalies:R3 closed Ripoll – Puigcerdà (AVISO_518337)',
+    'rodalies:R1 closed Blanes – Maçanet-Massanes (AVISO_518348)',
+    'rodalies:R2 single Sant Vicenç de Calders – Cunit (AVISO_518332)',
+    // New: "queda interrumpida la circulación entre las estaciones de Brinkola y Zumarraga", of 7 Oct 04:46.
+    'cercanias-san-sebastian:C1 closed Brinkola – Zumarraga (AVISO_518303)',
+    // As before, from TRAM's works on 10–12 Oct, and T5–T6's.
+    'tram:T3 closed Francesc Macià – Montesa (sc-287)',
+    'tram:T1 closed Francesc Macià – Montesa (sc-287)',
+    'tram:T2 closed Francesc Macià – Montesa (sc-287)',
+    'tram:T5 closed Glòries – Can Jaumandreu (sc-279)',
+    'tram:T6 closed Glòries – Can Jaumandreu (sc-279)',
+    // New: Sevilla's C3, since 8 Sep, and San Sebastián's C1 Irun – Hernani, which the timetable has too (#340).
+    'cercanias-sevilla:C3 closed Los Rosales – Cazalla-Constantina (AVISO_512188)',
+    'cercanias-san-sebastian:C1 closed Irun – Hernani (INFO_507703)',
+  ]);
 });
 
 test("a Closure an Alert closes hides Trains until a Live Train of its Line is seen within it, and then none until its Alert changes, while another Line's on the same Stations still does", () => {

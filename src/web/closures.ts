@@ -199,6 +199,7 @@ const SAYING: [words: string, says: Says][] = [
   ['no presta servicio', 'closed'],
   ['interrumpida', 'closed'],
   ['sense servei', 'closed'],
+  ['servei alternatiu', 'closed'],
   ['no service', 'closed'],
   ['via unica', 'single'],
   ['circulacion ferroviaria', 'running'],
@@ -209,7 +210,7 @@ const SAYING: [words: string, says: Says][] = [
 const NAMING: Record<string, string[]> = { entre: ['y', 'e', 'i', '-'], de: ['a'], desde: ['hasta'], between: ['and'] };
 
 /** The words that can come between that word and the first Station, as in "entre las estaciones de Los Rosales y Cazalla-Constantina" (#396). */
-const THE_STATIONS = ['las', 'estaciones', 'de'];
+const STATIONS_OF = ['las', 'estaciones', 'de'];
 
 /**
  * The words that name one Train, by where it leaves, as in "Tren con salida a las 09:27h de la estación
@@ -218,12 +219,30 @@ const THE_STATIONS = ['las', 'estaciones', 'de'];
  */
 const ONE_TRAIN = ['tren', 'con', 'salida'];
 
-/** A text's words, as they're matched: in lower case, without accents or punctuation, but for a dash between spaces, a word of its own. */
+/** The words that join a stretch to the one before it, after a comma, as in "entre A y B, y entre C y D" (#396). */
+const AND = ['y', 'e', 'i', 'and'];
+
+/** A text's words, as they're matched: in lower case, without accents or punctuation, but for a dash between spaces, a word of its own, and "St." as "Sant". */
 const wordsOf = (text: string): string[] =>
-  [...text.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').matchAll(/[\p{L}\p{N}]+|(?<!\S)[-–](?!\S)/gu)].map(([word]) => (word === '–' ? '-' : word));
+  [...text.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').matchAll(/[\p{L}\p{N}]+|(?<!\S)[-–](?!\S)/gu)].map(([word]) => (word === '–' ? '-' : word === 'st' ? 'sant' : word));
 
 /** Where `run` comes in `words`, as a whole, from `at`, or -1. */
 const runAt = (words: string[], run: string[], at = 0) => (run.every((w, k) => words[at + k] === w) ? at : -1);
+
+/** The words a Station's name can have in one spelling and not in another, as TRAM's "Estació St.Adrià" is "Estació de Sant Adrià" in its notices, and Adif's "València-La Font de Sant Lluís" is "Valencia Font de Sant Lluis" in Renfe's (#396). */
+const LINKS = ['de', 'del', 'la', 'el', 'les', 'els', 'las', 'los'];
+
+/** How many of `words` from `at` a name takes, whole, but for those words, or 0. */
+function spanAt(words: string[], name: string[], at: number): number {
+  let [i, j] = [at, 0];
+  while (j < name.length) {
+    if (words[i] === name[j]) [i, j] = [i + 1, j + 1];
+    else if (LINKS.includes(words[i] ?? '')) i++;
+    else if (LINKS.includes(name[j] ?? '')) j++;
+    else return 0;
+  }
+  return i - at;
+}
 
 /**
  * The Station a stretch's end names, from `at` among its clause's words, and how many words it
@@ -233,7 +252,10 @@ const runAt = (words: string[], run: string[], at = 0) => (run.every((w, k) => w
  * `next` where it's given.
  */
 function endAt(words: string[], at: number, names: { id: string; words: string[] }[], next?: string[]): { id: string; length: number } | undefined {
-  const whole = names.filter((n) => n.words.length && runAt(words, n.words, at) === at).map((n) => ({ id: n.id, length: n.words.length }));
+  const whole = names.flatMap((n) => {
+    const length = spanAt(words, n.words, at);
+    return length ? [{ id: n.id, length }] : [];
+  });
   const within = names.flatMap((n) => {
     let length = 0;
     while (at + length < words.length && n.words.some((_, i) => runAt(n.words, words.slice(at, at + length + 1), i) === i)) length++;
@@ -244,31 +266,43 @@ function endAt(words: string[], at: number, names: { id: string; words: string[]
 }
 
 /**
- * The stretches an Alert's words name between two of `stations`, "entre X y Y", "de X a Y", "desde X
- * hasta Y", "entre X i Y" and "between X and Y", each once, matched in lower case, without accents or
- * punctuation, by whole names or names within names (endAt()); each with what the last words before
- * it in its clause that say so say of it, where they do: a clause ends at a comma too.
+ * The stretches an Alert's words name between two of `stations`, "entre X y Y", "entre las estaciones
+ * de X y Y", "de X a Y", "desde X hasta Y", "entre X i Y" and "between X and Y", each once, matched in
+ * lower case, without accents or punctuation, by whole names, but for the link words one spelling has
+ * and another hasn't, or names within names (endAt()); each with what the last words before it in its
+ * clause that say so say of it, where they do. A clause ends at a comma too, but one whose stretch has
+ * only a "y" before it goes on with what the clause before said. None is read in a sentence about one
+ * Train, whose words say where it doesn't run, not its Line's Trains (#396).
  */
 export function stretchesIn(text: string, stations: { id: string; name: string }[]): { stations: [string, string]; says?: Says }[] {
   const names = stations.map(({ id, name }) => ({ id, words: wordsOf(name) }));
   const saying = SAYING.map(([words, says]) => ({ words: wordsOf(words), says }));
+  /** What the last of those words in `words` say, where there are any. */
+  const sayingIn = (words: string[]) =>
+    saying.flatMap(({ words: w, says }) => words.flatMap((_, at) => (runAt(words, w, at) === at ? [{ at, says }] : []))).sort((x, y) => y.at - x.at)[0]?.says;
   const found = new Map<string, { stations: [string, string]; says?: Says }>();
   for (const sentence of text.split(/[.!?\n]/)) {
     const all = wordsOf(sentence);
     if (all.some((_, at) => runAt(all, ONE_TRAIN, at) === at)) continue;
-    for (const clause of sentence.split(/[,;:]/)) {
+    // What the clause before said, for the next to go on with where a comma ended the one before and it opens with its stretch.
+    let carried: Says | undefined;
+    let comma = false;
+    for (const clause of sentence.split(/(?<=[,;:])/)) {
       const words = wordsOf(clause);
+      const open = words.findIndex((word) => Object.hasOwn(NAMING, word));
+      const goesOn = comma && open > 0 && words.slice(0, open).every((word) => AND.includes(word));
       for (const [i, word] of words.entries()) {
         // Its own opening words only, not those every object has, as "constructor".
         if (!Object.hasOwn(NAMING, word)) continue;
-        const first = i + 1 + (runAt(words, THE_STATIONS, i + 1) === i + 1 ? THE_STATIONS.length : 0);
+        const first = i + 1 + (runAt(words, STATIONS_OF, i + 1) === i + 1 ? STATIONS_OF.length : 0);
         const a = endAt(words, first, names, NAMING[word]);
         const b = a && endAt(words, first + a.length + 1, names);
         if (!a || !b || a.id === b.id || found.has(`${a.id} ${b.id}`)) continue;
-        const before = words.slice(0, i);
-        const said = saying.flatMap(({ words: w, says }) => before.flatMap((_, at) => (at + w.length <= i && runAt(before, w, at) === at ? [{ at, says }] : []))).sort((x, y) => y.at - x.at)[0];
-        found.set(`${a.id} ${b.id}`, { stations: [a.id, b.id], ...(said && { says: said.says }) });
+        const says = sayingIn(words.slice(0, i)) ?? (goesOn ? carried : undefined);
+        found.set(`${a.id} ${b.id}`, { stations: [a.id, b.id], ...(says && { says }) });
       }
+      carried = sayingIn(words) ?? (goesOn ? carried : undefined);
+      comma = clause.endsWith(',');
     }
   }
   return [...found.values()];
