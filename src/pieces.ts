@@ -63,7 +63,7 @@ export interface Run {
    * points on from the last fix, and what to add.
    */
   fixes?: number[];
-  /** Its distances, the first and then the change at each point, where there are more fixes than points: as a shape cut at the border keeps counting from where it began. */
+  /** Its distances, the first and then the change at each point, where its fixes would be more numbers than it has points: as a shape cut at the border keeps counting from where it began. */
   dist?: number[];
   /** Its levels, as for each, how many points on from the one before the level starts at, and its name's number in `Traced.levels`. */
   levelsAt?: number[];
@@ -114,7 +114,11 @@ export function decodeTrack(file: TrackFile): Track {
   };
 }
 
-/** The slots as chains, or none where they aren't: each run goes one slot on from the one before, and names a Line and a shape the track has. */
+/**
+ * The slots as chains, or none where they aren't: each run goes one slot on from the one before, and names a Line and a shape the track has.
+ * ponytail: one slot that doesn't keeps every slot of the track whole, 393 KB brotli more on long distance's file (527.3 KB for 133.9):
+ * trackFile() says so. Keep whole only that shape's run if a build ever has one.
+ */
 function encodeChains(slots: Slot[], lines: Line[], traced: Shape[]): Chains | undefined {
   const [lineAt, shapeAt] = [new Map(lines.map((l, i) => [l.id, i])), new Map(traced.map((s, i) => [s.id, i]))];
   const on: string[] = [];
@@ -142,6 +146,7 @@ function encodeChains(slots: Slot[], lines: Line[], traced: Shape[]): Chains | u
   return { on, runs };
 }
 
+/** The slots a Chains stores, in the order they were given: each run's slots one after another from where its first starts. */
 function decodeChains({ on, runs }: Chains, lines: Line[], shapes: { id: string }[]): Slot[] {
   const slots: Slot[] = [];
   let [line, shape] = [0, 0];
@@ -171,6 +176,11 @@ function decodeChains({ on, runs }: Chains, lines: Line[], shapes: { id: string 
   return slots;
 }
 
+/**
+ * The traced shapes as the pieces they share: each point once, cut into runs where a shape ends or turns back
+ * and where the shapes' tracks don't just carry on, each run a piece found again by its inner points, run
+ * either way. A shape with no pieces to share goes in whole.
+ */
 function encodeTraced(shapes: Shape[]): Traced {
   // Each point once, by its coordinates in millionths of a degree.
   const ids = new Map<number, number>();

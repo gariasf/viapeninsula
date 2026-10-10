@@ -13,12 +13,12 @@ export function forgetJoined(joined: Map<string, Track>, keys: string[]) {
 }
 
 /** Each track file read once, however many days name it and however many times the map looks again: the files the page keeps are these objects. */
-const read = new WeakMap<TrackFile, Track>();
+const decoded = new WeakMap<TrackFile, Track>();
 
 /** A region's track file as the track it was built from (decodeTrack()), where it was stored as pieces. */
-function trackOf(file: TrackFile): Track {
-  let track = read.get(file);
-  if (!track) read.set(file, (track = decodeTrack(file)));
+function decodedTrack(file: TrackFile): Track {
+  let track = decoded.get(file);
+  if (!track) decoded.set(file, (track = decodeTrack(file)));
   return track;
 }
 
@@ -42,10 +42,10 @@ export function regionLoader(get: <T>(key: string) => Promise<T>, joined: Map<st
   };
   const tracks = new Map<DayFiles, Promise<{ track: Track; loaded: DayFiles['regions'] }>>();
   /** A day's tracks joined, once, with the regions whose track came: the map draws them before the Trips come. */
-  const joinedTrackOf = (day: DayFiles) => {
+  const trackOf = (day: DayFiles) => {
     const known = tracks.get(day);
     if (known) return known;
-    const found = settle(day.regions.map((r) => get<TrackFile>(r.track).then(trackOf))).then((got) => {
+    const found = settle(day.regions.map((r) => get<TrackFile>(r.track).then(decodedTrack))).then((got) => {
       const [loaded, came] = [day.regions.filter((_, i) => got[i]), got.flatMap((t) => (t ? [t] : []))];
       if (!came.length) throw new Error(`No region's track came for ${day.date}`);
       const files = loaded.map((r) => r.track).join(JOINED);
@@ -58,10 +58,10 @@ export function regionLoader(get: <T>(key: string) => Promise<T>, joined: Map<st
   };
   /** A day's bundle: its track, and the Trips of the regions whose track came, fetched once it had so that it isn't slowed by them. */
   const bundleOf = async (day: DayFiles): Promise<Bundle> => {
-    const { track, loaded } = await joinedTrackOf(day);
+    const { track, loaded } = await trackOf(day);
     const trips = (await settle(loaded.map((r) => get<DayTrips>(r.trips)))).flatMap((t) => (t ? [t] : []));
     if (!trips.length) throw new Error(`No region's Trips came for ${day.date}`);
     return { ...track, ...joinTrips(trips) };
   };
-  return { trackOf: joinedTrackOf, bundleOf, failed: () => failed };
+  return { trackOf, bundleOf, failed: () => failed };
 }

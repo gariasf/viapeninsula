@@ -234,10 +234,17 @@ test("logs each pair of regions whose Lines share a Stretch, how many, how long 
   expect(quiet).toEqual(['No Stretch is shared by two regions']);
 });
 
-test("fails a region whose track its file wouldn't give back as it was built, here a slot with more than the chains carry, rather than write it", () => {
+test("gives a region's track as the file that stores its slots as chains, says where they stay whole, and refuses a track its file wouldn't give back as it was built, here a slot with more than the chains carry", () => {
   const { shapes, lines } = network('rodalies', [0, 5000], 0, [[300]]);
   const track: Track = { networks: [], lines, stations: [], shapes, strokes: [], rails: [], slots: [], tracks: [] };
   const slot = { line: 'rodalies:C1', shape: 'rodalies:shape', from: 0, to: 5000, side: 0, on: 'rodalies:shape', at: [0, 5000] as [number, number] };
-  expect(trackFile({ ...track, slots: [slot] }, 'catalonia')).toHaveProperty('chains');
+  const said: string[] = [];
+  expect(trackFile({ ...track, slots: [slot] }, 'catalonia', (line) => said.push(line))).toHaveProperty('chains');
+  expect(said).toEqual([]);
+  // One that doesn't follow the one before keeps them all whole, and the build says so.
+  const gap = trackFile({ ...track, slots: [{ ...slot, to: 3000, at: [0, 3000] }, { ...slot, from: 4000, at: [4000, 5000] }] }, 'catalonia', (line) => said.push(line));
+  expect(gap).toHaveProperty('slots');
+  expect(gap).not.toHaveProperty('chains');
+  expect(said).toEqual(["catalonia's slots are whole in its track file, not chains: one doesn't follow the one before along its shape, or names a Line or shape its track hasn't"]);
   expect(() => trackFile({ ...track, slots: [{ ...slot, crowded: true } as typeof slot] }, 'catalonia')).toThrow("catalonia's track file doesn't give back the track built");
 });
