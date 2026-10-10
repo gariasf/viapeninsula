@@ -98,11 +98,12 @@ test("keeps a shape's levels as the vertices they start at, and whole where one 
   expect(decodeTrack(encodeTrack(u))).toEqual(u);
 });
 
-test("keeps whole a shape whose points aren't on the file's grid, or that is a single point", () => {
+test("keeps whole a shape whose points aren't on the file's grid, whose distances aren't whole metres, or that is a single point", () => {
   const fine: Shape = { id: 'fine', coords: [[2.1700001234, 41.39], [2.171, 41.3912345678]], dist: [0, 134] };
   const single: Shape = { id: 'single', coords: [at(0, 0)], dist: [0] };
-  const t = track([A, fine, single]);
-  expect(stored(t).shapes.map((s) => 'pieces' in s)).toEqual([true, false, false]);
+  const tenths: Shape = { ...A, id: 'tenths', dist: A.dist.map((d) => d + 0.5) };
+  const t = track([A, fine, single, tenths]);
+  expect(stored(t).shapes.map((s) => 'pieces' in s)).toEqual([true, false, false, false]);
   expect(decodeTrack(encodeTrack(t))).toEqual(t);
 });
 
@@ -193,9 +194,11 @@ const recorded = (name: string): Bundle => (JSON.parse(gunzipSync(readFileSync(n
 /** What the map reads of a file once it has been written and fetched: as JSON, where a slot's -0 is 0. */
 const written = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
-test("gives back a real Network's shapes, point for point and metre for metre, from a third of their points where its :back shapes run its others' track", () => {
+test("gives back real shapes, point for point and metre for metre, from fewer points where they share track: a third of Rodalies' of 25 September", () => {
   const points = (list: Shape[]) => list.reduce((sum, s) => sum + s.coords.length, 0);
-  for (const [name, most] of [['2026-09-25', 0.4], ['2026-10-07', 1], ['2026-10-10-long-distance', 1.01]] as const) {
+  // The most each may come to, as a share of the shapes' own points: 0.333 for Rodalies' 84 shapes, 0.942 for eight that mostly don't share,
+  // and 1.003 for 23 long-distance runs that share nothing, where each joint between two pieces counts twice.
+  for (const [name, most] of [['2026-09-25', 0.4], ['2026-10-07', 0.95], ['2026-10-10-long-distance', 1.01]] as const) {
     const { shapes } = recorded(name);
     const t = track(shapes);
     const file = written(encodeTrack(t)) as StoredTrack;
@@ -217,7 +220,7 @@ test("gives back the slots a Network's Lines are drawn with, as the build makes 
 }, 60_000);
 
 test("works out a great-circle length as the build does, to the last bit, since a shape's distances are a rounded sum of them", () => {
-  // A deterministic spread of pairs of points across Spain, 0 to 600 km apart.
+  // A deterministic spread of pairs of points across Spain, 0 to 450 km apart.
   let seed = 257;
   const next = () => (seed = (seed * 1_103_515_245 + 12_345) % 2 ** 31) / 2 ** 31;
   for (let i = 0; i < 5000; i++) {
