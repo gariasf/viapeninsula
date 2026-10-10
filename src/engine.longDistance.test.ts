@@ -250,6 +250,24 @@ test("a long-distance position that holds counts as none, so the Train neither s
   expect(Math.max(...stood)).toBeGreaterThan(7000);
 });
 
+test("a long-distance position that holds for 26 minutes and then moves 73 km, as 4 October's longest did, neither stalls the Train nor snaps it back, nor does Renfe's figure, which grows all the while, take it over", () => {
+  // 4 October's positions weren't kept, so the hold is made up to its size: GPS has the Train on time
+  // at 10:34:00, and at the same spot every 40 s for 26 minutes, where Renfe's figure grows a minute
+  // every 40 s, to 40 minutes late. At 11:00:40, as its last GPS Delay is nearly CARRY old, it's where
+  // its timetable has it on time, 73 km on.
+  const spot = (where(VIA_B, 'ave', at('10:34:00')) ?? NaN) / 1000;
+  const there = (where(VIA_B, 'ave', at('11:00:40')) ?? NaN) / 1000;
+  expect(there - spot).toBeGreaterThan(73);
+  const held = Array.from({ length: 40 }, (_, i) => heard(at('10:34:00', i * 40), [{ ...gps('ave', spot, at('10:34:00', i * 40)), delay: i * 60 }]));
+  const received = [...held, heard(at('11:00:40'), [{ ...gps('ave', there, at('11:00:40')), delay: 0 }])];
+  const each = course(VIA_B, 'ave', at('10:34:00'), 27 * 60 + 1, received);
+  // Running all the while, at the speed its timetable has it, and at once where it comes back.
+  expect(Math.min(...speeds(each))).toBeGreaterThan(20);
+  expect(Math.max(...speeds(each))).toBeLessThan((300 / 3.6) * 1.05);
+  expect(each.at(-1)).toBeCloseTo(where(VIA_B, 'ave', at('11:01:00')) ?? NaN, 3);
+  expect(jumps(VIA_B, received)).toMatchObject({ ld: { forward: 0, back: 0 } });
+});
+
 // 12 minutes of Renfe's long-distance feeds on Saturday 10 October 2026, 11:47–11:59 UTC, read every
 // other run as the fetcher will (#261): one report for each Train number, its GPS whatever its
 // `currentStatus`, its Delay from the trip updates, and its time the file's header's. The Trains are
