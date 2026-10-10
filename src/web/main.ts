@@ -159,44 +159,17 @@ const NAME_GAP = NAME_HALO + 0.5;
 /** The colour of a track Lines share, zoomed right in, where their strokes lie one over another: their names along it and their Trains tell them apart (#139). */
 const SHARED = '#9a9b9e';
 /**
- * A layer a Closure is drawn in, over its Line's stroke (#341): for which kinds of Closure; in its
- * Line's colour, what its Lines are cased in on the basemap, or a colour of its own; how wide, in line
- * widths and px more; how opaque; or hatched, in stripes of the casing's colour across the Line's.
+ * The layers a Closure is drawn in over its Line's stroke, as the maintainer picked them (#341): closed,
+ * its Line's stroke hatched across, in stripes of the colour its Lines are cased in on the basemap; down
+ * to a single track, its Line's colour narrowed to half its width, its casing either side. Each for one
+ * kind of Closure, in its Line's colour or its casing's, as wide as the Line's stroke times `width`, and
+ * `more` px. Dashes are taken: they're a tunnel's covered part (#178).
  */
-interface Coat {
-  kinds: Shown['kind'][];
-  colour: 'line' | 'casing' | `#${string}`;
-  width: number;
-  more?: number;
-  opacity?: number;
-  hatched?: true;
-}
-/** Down to a single track: its Line's colour narrowed to half its width, its casing either side. */
-const SINGLE: Coat[] = [
-  { kinds: ['single'], colour: 'casing', width: 1, more: 1 },
-  { kinds: ['single'], colour: 'line', width: 0.5 },
+const CLOSURE_COATS: { kind: Shown['kind']; colour: 'line' | 'casing'; width: number; more?: number; hatched?: true }[] = [
+  { kind: 'closed', colour: 'casing', width: 1, hatched: true },
+  { kind: 'single', colour: 'casing', width: 1, more: 1 },
+  { kind: 'single', colour: 'line', width: 0.5 },
 ];
-/**
- * The looks a Closure can be drawn in, by `?closure=`, for the maintainer to pick (#341): closed, its
- * Line's stroke hatched across, faded nearly to its casing, or ringed in red outside its casing; down to
- * a single track, its Line narrowed, and ringed, in amber. Dashes are taken: they're a tunnel's covered
- * part (#178).
- * ponytail: the one the maintainer picks stays, and the rest and `?closure=` go before merge.
- */
-const CLOSURE_LOOKS: Record<string, Coat[]> = {
-  hatched: [{ kinds: ['closed'], colour: 'casing', width: 1, hatched: true }, ...SINGLE],
-  faded: [{ kinds: ['closed'], colour: 'casing', width: 1, more: 1, opacity: 0.75 }, ...SINGLE],
-  outlined: [
-    { kinds: ['closed'], colour: '#e03131', width: 1, more: 6 },
-    { kinds: ['single'], colour: '#f59f00', width: 1, more: 6 },
-    { kinds: ['closed'], colour: 'casing', width: 1, more: 2 },
-    { kinds: ['closed'], colour: 'line', width: 1 },
-    ...SINGLE,
-  ],
-};
-/** How Closures are drawn: as the page's `?closure=` picks, one of the looks, not a name every object has, as "constructor", or hatched. */
-const pickedLook = new URLSearchParams(location.search).get('closure') ?? '';
-const closureLook = CLOSURE_LOOKS[Object.hasOwn(CLOSURE_LOOKS, pickedLook) ? pickedLook : 'hatched'] ?? [];
 /**
  * Zooming in, the Lines don't jump from their stretches to their rails at once: they cross-fade over
  * FADE zooms either side of the zoom they go back on the rails at (#205). The rest still switches at
@@ -785,26 +758,26 @@ for (const { source, id, prefix, zooms, nameZooms, opacity, throughOpacity, belo
   });
 }
 // The Closures (#341), over their Lines' strokes in each band, and zoomed right in over their rails,
-// in the coats of the look `?closure=` picks, faded as the Lines are. The rails' are simplified as theirs.
+// in their coats (CLOSURE_COATS), faded as the Lines are. The rails' are simplified as theirs.
 map.addSource('closures', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 map.addSource('closure-rails', { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, tolerance: 0.1 });
 map.addImage('closure-hatch', hatching(casing), { pixelRatio: 2 });
 /** The layers the Closures are drawn in, along the stretches below railsZoom and on the rails from it, as the Lines' strokes (strokeLayers). */
-const closureLayers = layered.flatMap(({ id, zooms, below }) =>
-  closureLook.map((coat, i) => {
+const closureLayers = layered.flatMap(({ id, zooms, opacity, below }) =>
+  CLOSURE_COATS.map((coat, i) => {
     const rails = id === 'rails';
     const layer: LineLayerSpecification = {
       id: `${id}-closures-${i}`,
       type: 'line',
       source: rails ? 'closure-rails' : 'closures',
       ...zooms,
-      filter: ['all', zooms.filter, ['in', ['get', 'kind'], ['literal', coat.kinds]]],
+      filter: ['all', zooms.filter, ['==', ['get', 'kind'], coat.kind]],
       layout: { 'line-cap': 'round', 'line-join': 'round' },
       paint: {
-        'line-color': coat.colour === 'line' ? ['get', 'colour'] : coat.colour === 'casing' ? casing : coat.colour,
+        'line-color': coat.colour === 'line' ? ['get', 'colour'] : casing,
         'line-width': byZoom(WIDTH, (px) => px * coat.width + (coat.more ?? 0)),
         'line-offset': lineOffset,
-        'line-opacity': byZoom([[railsZoom - FADE, rails ? 0 : 1], [railsZoom + FADE, rails ? 1 : 0]], (opacity) => opacity * (coat.opacity ?? 1)),
+        'line-opacity': opacity,
         ...(coat.hatched && { 'line-pattern': 'closure-hatch' }),
       },
     };
@@ -1001,7 +974,7 @@ map.on('click', ({ point: { x, y }, lngLat }) => {
 // ponytail: while the Lines fade, the pointer shows over the strokes of both drawings, though a tap
 // names only one's. Check the zoom on mouseenter if that ever misleads.
 // Over a Closure too, from its Line's stroke under it: each layer here queries the map on every move
-// of the mouse, a drag's too, and the Closures have 27 or more.
+// of the mouse, a drag's too, and the Closures have 27.
 for (const layer of ['trains', 'train-pills', 'train-pills-followed', 'stations', ...strokeLayers]) {
   map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'));
   map.on('mouseleave', layer, () => (map.getCanvas().style.cursor = ''));
