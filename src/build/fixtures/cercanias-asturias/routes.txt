@@ -1,0 +1,2 @@
+route_id,route_short_name,route_long_name,route_type,route_color,route_text_color                                                                     
+20T0003C2  ,C2  ,Oviedo                                  -El Entrego                              ,2,009746,FFFFFF                                    

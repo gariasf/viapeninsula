@@ -33,7 +33,7 @@ export function ownRails(rails: OsmWay[], network: Pick<NetworkConfig, 'rails'>)
 }
 
 /** One of a Network's timetables, to read as that Network's. */
-export type Feed = Timetable & { network: Pick<NetworkConfig, 'id' | 'name' | 'lines'> };
+export type Feed = Timetable & { network: Pick<NetworkConfig, 'id' | 'name' | 'lines' | 'stations'> };
 
 // ponytail: today's Networks' timetables and rails, by the names networks.test.ts imports, kept so it
 // runs unchanged (#240); they can go once it reads src/networks.ts.
@@ -147,7 +147,9 @@ export async function readFeed(
     if (!s || !all.has(key) || stations.has(key)) continue;
     // Where the Station is a Line's own stop, as the Metro's are, the station grouping it is its place.
     const place = s.parent_station && `${operator}:${s.parent_station}`;
-    const [lon, lat] = feed.points?.[s.stop_id] ?? [Number(s.stop_lon), Number(s.stop_lat)];
+    // Where the Network's config says it is (#367), or else its timetable's points (#259), if its timetable puts it elsewhere.
+    const at = network.stations?.[key];
+    const [lon, lat] = at ? [at.lon, at.lat] : (feed.points?.[s.stop_id] ?? [Number(s.stop_lon), Number(s.stop_lat)]);
     stations.set(key, { id: key, name: s.stop_name, lon, lat, ...(place && { place }) });
   }
 

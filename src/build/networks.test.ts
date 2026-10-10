@@ -1,15 +1,18 @@
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { mkdtemp, readdir, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, expect, test, vi } from 'vitest';
 import { places } from '../bundle.ts';
-import { AVE_LARGA_DISTANCIA, MEDIA_DISTANCIA_AVANT, RODALIES, TRAM, type NetworkConfig } from '../networks.ts';
+import { AVE_LARGA_DISTANCIA, CERCANIAS_ASTURIAS, MEDIA_DISTANCIA_AVANT, RODALIES, TRAM, type NetworkConfig } from '../networks.ts';
 import { dirSource, rows, seconds, zipFile, zipSource, type Source } from './gtfs.ts';
-import { copyOf, FGC_FEED, joinParts, METRO_FEED, onFgcRails, onMetroRails, onRodaliesRails, readFeed, readTimetables, RODALIES_FEED, TRAMBAIX_FEED, unlisted, type Feed } from './networks.ts';
+import { copyOf, FGC_FEED, joinParts, METRO_FEED, onFgcRails, onMetroRails, onRodaliesRails, ownRails, readFeed, readTimetables, RODALIES_FEED, TRAMBAIX_FEED, unlisted, type Feed } from './networks.ts';
 import type { Found } from './report.ts';
-import { closuresOf, type FeedTrip } from './trips.ts';
+import type { Snippet } from './snippet.ts';
+import { traceShapes } from './track.ts';
+import { closuresOf, placeTrips, type FeedTrip } from './trips.ts';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -552,6 +555,35 @@ test("puts a Station its timetable has away from its platforms at their middle, 
     { id: 'adif:02030', name: 'Antequera AV', lon: -4.56158, lat: 37.02951 },
     { id: 'adif:02003', name: 'Antequera-Santa Ana', lon: -4.719014, lat: 37.069881 },
   ]);
+});
+
+// Rows cut verbatim from Renfe's Cercanías feed of 2026-10-10: C2's first Trip of Saturday 10 October
+// from Oviedo to El Entrego, at the four Stations it ends at, and its shape's points within 4 km of
+// the middle of Ciaño and El Entrego. And, as the build kept them on 9 October, the rails there:
+// `npm run snippet -- "kept cercanias-asturias:C2 adif:16010 adif:16011 nopath" langreo 4`.
+const langreo = dirSource(fileURLToPath(new URL('fixtures/cercanias-asturias', import.meta.url)));
+const { rails: langreoRails } = JSON.parse(readFileSync(new URL('fixtures/osm/langreo.json', import.meta.url), 'utf8')) as Snippet;
+
+/** The Trip, read from Renfe's rows for a Network as it's configured, traced along the rails and placed. */
+async function c2Trip(network: NetworkConfig) {
+  const { stations, shapes, trips } = await readFeed(langreo, '2026-10-10', { network, ...network.timetables[0] });
+  const left: string[] = [];
+  const traced = traceShapes(shapes, stations, ownRails(langreoRails, network), network.runningSide, () => {});
+  const placed = placeTrips(trips, traced, stations, network.profile.topSpeed, (l) => left.push(l));
+  return { stations, placed, left };
+}
+
+test("places C2's Trip to El Entrego where Cercanías Asturias's config has Sama and El Entrego, on Adif's line, rather than where Renfe's timetable has them, beside FEVE's Langreo line 0.8 and 0.4 km off, which left the Trip out", async () => {
+  const published = await c2Trip({ ...CERCANIAS_ASTURIAS, stations: undefined });
+  expect(published.placed).toEqual([]);
+  expect(published.left).toEqual(['cercanias-asturias:2081S22200C2 is left out: Sama is 0.3 km off its track']);
+
+  const configured = await c2Trip(CERCANIAS_ASTURIAS);
+  expect(configured.placed.map((t) => t.id)).toEqual(['cercanias-asturias:2081S22200C2']);
+  expect(configured.left).toEqual([]);
+  // It moves those two Stations, of the four the Trip calls at, and no other.
+  const moved = configured.stations.filter((s, i) => s.lon !== published.stations[i]?.lon || s.lat !== published.stations[i]?.lat);
+  expect(moved.map((s) => s.id)).toEqual(['adif:16009', 'adif:16011']);
 });
 
 /** A way with these tags, as OpenStreetMap has Catalonia's rails. */
