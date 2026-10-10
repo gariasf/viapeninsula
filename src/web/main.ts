@@ -718,6 +718,8 @@ let namesBearing = NaN;
 /**
  * How many times Trains call at each Station in the Trips of the days shown (callsIn()), once they've
  * come: those of places in no tier rank their names where they collide, the busier's first (#372).
+ * Counted here, not by the build into each region's track: there it made Catalonia's 615 KB track a new
+ * file in each of 15 daily builds from 10 to 27 October 2026 (Madrid's in 8), for 6 KB of brotli.
  */
 let calls = new Map<string, number>();
 /** Where `names` were last laid out (showNames()): for the bearing the map had, each one's anchor and offset at each of NAME_ZOOMS. */
