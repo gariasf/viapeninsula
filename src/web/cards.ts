@@ -73,6 +73,19 @@ export function linesCallingAt(trips: Trip[], stations: string[], lines: string[
   return lines.filter((line) => calling.has(line));
 }
 
+/**
+ * The Lines a board names, of `order` (the cards' order): those whose Trips call at the place's Stations
+ * on the days on the map, and those whose timetable calls there on any day (`lines`) that an Alert is on,
+ * so that where works stop a Line's Trains at a Station for the day, the board names it and shows the
+ * Alert that says why (#392). A place with no Alert on its Lines names only those that call, as before.
+ */
+export function linesOnBoard(trips: Trip[], place: { stations: string[]; lines?: string[] }, order: string[], alerts: Alerts): string[] {
+  const calling = new Set(linesCallingAt(trips, place.stations, order));
+  const timetable = new Set(place.lines);
+  const alerted = new Set(Object.values(alerts).flatMap((feed) => feed.alerts.flatMap((a) => a.lines)));
+  return order.filter((line) => calling.has(line) || (timetable.has(line) && alerted.has(line)));
+}
+
 /** Whose words each feed's Alerts are, by its ID in alerts.json. */
 const OPERATORS: Record<string, string> = { renfe: 'Renfe', tram: 'TRAM' };
 

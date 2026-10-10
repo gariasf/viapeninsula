@@ -191,6 +191,21 @@ test("joins the regions' tracks with a Station that two of them have once, as th
   expect(sharedByLeon.networks).toEqual(['cercanias-leon']);
 });
 
+test("joins the Lines of a Station that two regions have, as a board names them (#392)", () => {
+  // As León's and Bilbao's C4's are, on 17 Stations: each region's track names only its own.
+  const [leon, bilbao]: Station[] = [
+    { id: 'adif:05753', name: 'Matallana', lon: -5.3, lat: 42.8, networks: ['cercanias-leon'], lines: ['cercanias-leon:C1'] },
+    { id: 'adif:05753', name: 'Matallana', lon: -5.3, lat: 42.8, networks: ['cercanias-bilbao'], lines: ['cercanias-bilbao:C4'] },
+  ] as [Station, Station];
+  const bare: Station = { id: 'adif:05753', name: 'Matallana', lon: -5.3, lat: 42.8, networks: ['cercanias-madrid'] };
+  const [joined] = joinTracks([regional('cercanias-leon', [leon]), regional('cercanias-bilbao', [bilbao])]).stations;
+  expect(joined?.lines).toEqual(['cercanias-bilbao:C4', 'cercanias-leon:C1']);
+  expect(leon.lines).toEqual(['cercanias-leon:C1']);
+  // A track that names none, as one built before #392, adds none, and gives none where neither has.
+  expect(joinTracks([regional('a', [leon]), regional('b', [bare])]).stations[0]?.lines).toEqual(['cercanias-leon:C1']);
+  expect('lines' in (joinTracks([regional('a', [bare]), regional('b', [bare])]).stations[0] ?? {})).toBe(false);
+});
+
 test("joins the regions' Trips of a day, and their Closures where they have any", () => {
   const trip = (id: string, line: string): Trip => ({ id, line, shape: 's', headsign: '', calls: [] });
   const day = (trips: Trip[], closures?: DayTrips['closures']): DayTrips => ({ serviceDay: '2026-10-10', noonMinus12h: madrid('2026-10-10T00:00'), trips, ...(closures && { closures }) });

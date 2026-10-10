@@ -203,10 +203,10 @@ export function daysOf({ regions }: Manifest): DayFiles[] {
 /**
  * The regions' tracks as one (ADR-0014), as a build of all their Networks at once would have made it:
  * each region's Networks, Lines, shapes, strokes, rails, slots and Network tracks in turn, and each
- * Station once, as the first region that has it has it, naming every Network whose Trains stop there,
- * as one that two regions serve is built in each, such as León's where Bilbao's C4 runs to it. No other
- * ID is in two regions' tracks: a Line's and a traced shape's start with its Network's, and a
- * Stretch's with its region's.
+ * Station once, as the first region that has it has it, naming every Network whose Trains stop there and
+ * the Lines of each that call, as one that two regions serve is built in each, such as León's where
+ * Bilbao's C4 runs to it. No other ID is in two regions' tracks: a Line's and a traced shape's start
+ * with its Network's, and a Stretch's with its region's.
  */
 export function joinTracks(tracks: Track[]): Track {
   const stations = new Map<string, Station>();
@@ -217,7 +217,9 @@ export function joinTracks(tracks: Track[]): Track {
       continue;
     }
     const networks = [...new Set([...(known.networks ?? []), ...(s.networks ?? [])])];
-    stations.set(s.id, { ...known, ...(networks.length > 0 && { networks }) });
+    // And the Lines of both, which a board names (#392), in order as the build's stationsOf() has them.
+    const lines = [...new Set([...(known.lines ?? []), ...(s.lines ?? [])])].sort();
+    stations.set(s.id, { ...known, ...(networks.length > 0 && { networks }), ...(lines.length > 0 && { lines }) });
   }
   return {
     networks: tracks.flatMap((t) => t.networks),
@@ -443,6 +445,11 @@ export interface Station {
    * Sants (#243). The build names them once it has every Network's Stations (stationsOf()); a track built before #243 names none.
    */
   networks?: string[];
+  /**
+   * The Lines whose timetable calls there on any day, by their IDs in order: those a board names where
+   * no Trip of them calls that day, as where works stop them (#392). A track built before #392 names none.
+   */
+  lines?: string[];
 }
 
 /** Where the map shows one or more Stations as one, known by their place, or a lone Station's ID: one Station board lists them all. */
@@ -452,6 +459,8 @@ export interface Place {
   stations: string[];
   /** The Networks whose Trains stop at its Stations, by their IDs: its own, whose track its name goes beside (#143). */
   networks: string[];
+  /** The Lines whose timetable calls at its Stations on any day, in order (Station's `lines`). */
+  lines: string[];
   lon: number;
   lat: number;
 }
@@ -465,6 +474,7 @@ export function places(stations: Station[]): Place[] {
     name: group[0]?.name ?? '',
     stations: group.map((s) => s.id),
     networks: [...new Set(group.flatMap((s) => s.networks ?? []))],
+    lines: [...new Set(group.flatMap((s) => s.lines ?? []))].sort(),
     lon: group.reduce((sum, s) => sum + s.lon, 0) / group.length,
     lat: group.reduce((sum, s) => sum + s.lat, 0) / group.length,
   }));

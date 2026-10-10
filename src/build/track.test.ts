@@ -6,7 +6,7 @@ import { ownRails } from './networks.ts';
 import type { OsmWay } from './osm.ts';
 import { collect, type Found } from './report.ts';
 import type { Snippet } from './snippet.ts';
-import { eachWay, fine, metres as between, nearest, onOwnTrack, railsBeside, traceRuns, traceShapes } from './track.ts';
+import { eachWay, fine, metres as between, nearest, onOwnTrack, railsBeside, stationsOf, traceRuns, traceShapes, withLines } from './track.ts';
 import { placeTrips, type FeedTrip } from './trips.ts';
 
 // A small railway, drawn in metres east (x) and north (y) of a point near Manresa.
@@ -659,6 +659,23 @@ test("moves a Station published at another Network's point onto its own track, a
   expect(moved).toMatchObject({ id: 'adif:1', place: 'adif:1' });
   expect(theirs?.[0]).toEqual({ ...fgc, place: 'adif:1' });
   expect([ours?.[1], theirs?.[1]]).toEqual([lleida, fgcLleida]);
+});
+
+test("names the Lines whose timetable calls at each Station, whichever day, and one Station two Networks share has them all (#392)", () => {
+  // Made up: R1 and R2 call at A, only R2 at B, and C has none of its Network's Lines but is one of AVE's.
+  const feed = [{ line: 'rodalies:R2', stations: ['adif:A', 'adif:B'] }, { line: 'rodalies:R1', stations: ['adif:A'] }, { line: 'rodalies:R2', stations: ['adif:A'] }, { line: '', stations: ['adif:C'] }];
+  const [a, b, c] = [station('adif:A', 0, 0), station('adif:B', 500, 0), station('adif:C', 900, 0)];
+  expect(withLines([a, b, c], feed).map((s) => s.lines)).toEqual([['rodalies:R1', 'rodalies:R2'], ['rodalies:R2'], undefined]);
+  const [rodalies, ave] = [withLines([a, b], feed), withLines([a, c], [{ line: 'ave:AVE', stations: ['adif:A', 'adif:C'] }])];
+  const joined = stationsOf([
+    { network: { id: 'rodalies' }, stations: rodalies, shapes: [] },
+    { network: { id: 'ave' }, stations: ave, shapes: [] },
+  ]);
+  expect(joined.map((s) => [s.id, s.networks, s.lines])).toEqual([
+    ['adif:A', ['rodalies', 'ave'], ['ave:AVE', 'rodalies:R1', 'rodalies:R2']],
+    ['adif:B', ['rodalies'], ['rodalies:R2']],
+    ['adif:C', ['ave'], ['ave:AVE']],
+  ]);
 });
 
 test('drops the points a way carries on straight through, and keeps its ends, its bends and where another way meets it', () => {
