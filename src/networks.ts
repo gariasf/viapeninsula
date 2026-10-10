@@ -18,7 +18,7 @@ export interface NetworkConfig extends Omit<Network, 'credit'> {
     kind: Kind;
     /** What each of its Lines that doesn't run as `kind` runs as, by the Line's name. */
     kinds?: Record<string, Kind>;
-    /** The Line each route runs on, by the route's name, where a timetable names some of a Line's Trips apart (#29). */
+    /** The Line each route runs on, by the route's name, where a timetable names some of a Line's Trips apart (#29), or a Line otherwise than the public does, as Renfe's long-distance one writes ALVIA (#258). */
     names?: Record<string, string>;
     /** Colours for the Lines a timetable gets wrong, by the Line's name, written as `colour` is. */
     colours?: Record<string, string>;
