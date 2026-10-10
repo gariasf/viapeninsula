@@ -185,6 +185,9 @@ export interface ManifestRegion {
    * Where its Stations and track lie, which the map loads it once it has in view (#266): none for a
    * region every view loads, as long distance's will (EVERYWHERE), as a manifest from before #266 names
    * none for any.
+   * ponytail: one box, which takes in places the region's track doesn't reach, so the map loads it there
+   * too: Catalonia's, from R15's end at Zaragoza to Portbou, at Huesca. Give a region a box for each part
+   * of its track, or test the view against its Network tracks in the file below zoom 7, if that shows.
    */
   extent?: [west: number, south: number, east: number, north: number];
 }
