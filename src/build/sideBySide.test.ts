@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
-import { along, APART, atZoom, BANDS, beside, cutIn, DEGREE, drawnIn, inBand, LINK, onStroke, pieces, zones, pixelMetres, pointAt, SMOOTH, type Line, type Shape, type Stroke, type Track } from '../bundle.ts';
+import { along, APART, atZoom, BANDS, beside, cutIn, DEGREE, drawnIn, inBand, LINK, onStroke, pieces, zones, pixelMetres, pointAt, SMOOTH, STRETCH, type Line, type Shape, type Stroke, type Track } from '../bundle.ts';
 import { measures } from './measures.ts';
 import { offset } from './offset.ts';
-import { KX, sideBySide } from './sideBySide.ts';
+import { KX, sharedTrack, sideBySide } from './sideBySide.ts';
 
 // Track drawn in metres east (x) and north (y) of a point in Barcelona.
 const M = (6_371_008.8 * Math.PI) / 180; // metres in a degree of latitude
@@ -583,4 +583,64 @@ test("draws each Line just as it was when a Line far off is added, as Madrid's w
     };
   };
   expect(drawn(both)).toEqual(drawn(alone));
+});
+
+test("starts the IDs of the Stretches' centrelines, their smoothed copies and the curves between them with a region's, where it's given one, and draws the same", async () => {
+  // R2, R11 and R14 share track for 2.5 km, where R14 turns off: centrelines, smoothed ones and curves in each band.
+  const lines = [line('R2', 'R2'), line('R11', 'R11'), line('R14', 'R14')];
+  const shapes = [shape('R2', [0, 0], [5000, 0]), shape('R11', [0, 0], [5000, 0]), shape('R14', [0, 0], [2500, 0], [5000, 1500])];
+  const [plain, region] = [await sideBySide(lines, shapes), await sideBySide(lines, shapes, 'catalonia')];
+  const led = (id: string) => id.replace(/^stretch:(link)?/, (lead) => `${lead}catalonia:`);
+  expect(plain.centrelines.some((c) => c.id.startsWith(LINK))).toBe(true);
+  expect(plain.centrelines.some((c) => c.id.includes(SMOOTH))).toBe(true);
+  expect(region.centrelines.map((c) => c.id)).toEqual(plain.centrelines.map((c) => led(c.id)));
+  expect(region.centrelines.every((c) => c.id.startsWith(STRETCH))).toBe(true);
+  // Everything that names one of them does so by its new ID, and is otherwise as it was.
+  const named = <T extends { shape: string }>(strokes: T[]) => strokes.map((s) => ({ ...s, shape: s.shape.startsWith(STRETCH) ? led(s.shape) : s.shape }));
+  expect(region.strokes).toEqual(named(plain.strokes).map((s) => ({ ...s, ...('across' in s ? { across: (s.across as [string, number, number][]).map(([id, a, b]) => [led(id), a, b]) } : {}) })));
+  expect(region.rails).toEqual(named(plain.rails));
+  expect(region.slots).toEqual(plain.slots.map((s) => ({ ...s, on: s.on.startsWith(STRETCH) ? led(s.on) : s.on })));
+  expect(region.tracks).toEqual(plain.tracks);
+});
+
+/** The regions the Lines of the tests below are in, by their IDs: a Line's, or its own ID. */
+const regionOf = (regions: Record<string, string>) => (l: Line) => regions[l.id] ?? l.id;
+
+test('finds the track that Lines of two regions run along, as Stretches they would share on one line graph, once for each, where it is and which Lines', () => {
+  // C4, of Bilbao's region, runs along R2's track, of León's, from 3 km to 5 km; C1 is on its own.
+  const lines = [line('R2', 'R2'), line('C4', 'C4'), line('C1', 'C1')];
+  const shapes = [shape('R2', [0, 0], [5000, 0]), shape('C4', [3000, 0], [5000, 0]), shape('C1', [0, 2000], [5000, 2000])];
+  const [found] = sharedTrack(lines, shapes, regionOf({ R2: 'leon', C4: 'bilbao', C1: 'bilbao' }));
+  expect(sharedTrack(lines, shapes, regionOf({ R2: 'leon', C4: 'bilbao', C1: 'bilbao' }))).toHaveLength(1);
+  expect(found?.regions).toEqual(['leon', 'bilbao']);
+  expect(found?.stretches).toBe(1);
+  expect(Math.abs((found?.metres ?? NaN) - 2000)).toBeLessThanOrEqual(100);
+  expect(found?.lines.sort()).toEqual(['C4', 'R2']);
+  // Where the first piece of it is: about 3 km east of the origin.
+  const [lon, lat] = found?.at ?? [NaN, NaN];
+  expect(Math.abs((lon - LON) * M * COS - 3000)).toBeLessThan(60);
+  expect(Math.abs((lat - LAT) * M)).toBeLessThan(5);
+});
+
+test('finds tracks too close to tell apart zoomed out, as a Stretch takes them, but not tracks further apart, nor those that cross', () => {
+  const lines = [line('R2', 'R2'), line('near', 'near'), line('far', 'far'), line('cross', 'cross')];
+  const shapes = [shape('R2', [0, 0], [5000, 0]), shape('near', [0, 40], [5000, 40]), shape('far', [0, 300], [5000, 300]), shape('cross', [2500, -2000], [2500, 2000])];
+  const found = sharedTrack(lines, shapes, regionOf({ R2: 'a', near: 'b', far: 'c', cross: 'd' }));
+  expect(found.map((s) => s.regions)).toEqual([['a', 'b']]);
+  expect(Math.abs((found[0]?.metres ?? NaN) - 5000)).toBeLessThanOrEqual(100);
+});
+
+test("finds nothing where Lines share track within one region, however many, or where no Line is near another's", () => {
+  const lines = [line('R2', 'R2'), line('R11', 'R11'), line('C1', 'C1')];
+  const shapes = [shape('R2', [0, 0], [5000, 0]), shape('R11', [0, 0], [5000, 0]), shape('C1', [0, 5000], [5000, 5000])];
+  expect(sharedTrack(lines, shapes, regionOf({ R2: 'catalonia', R11: 'catalonia', C1: 'madrid' }))).toEqual([]);
+});
+
+test('counts each run of shared track as a Stretch of its own, and a Line running it both ways once', () => {
+  // The same 1 km shared twice, 2 km apart, and R2 running both ways along them.
+  const lines = [line('R2', 'R2', 'R2_INV'), line('C4', 'C4')];
+  const shapes = [shape('R2', [0, 0], [5000, 0]), shape('R2_INV', [5000, 0], [0, 0]), shape('C4', [500, 0], [1500, 0], [1500, 3000], [3500, 3000], [3500, 0], [4500, 0])];
+  const [found] = sharedTrack(lines, shapes, regionOf({ R2: 'a', R2_INV: 'a', C4: 'b' }));
+  expect(found?.stretches).toBe(2);
+  expect(Math.abs((found?.metres ?? NaN) - 2000)).toBeLessThanOrEqual(100);
 });
