@@ -54,8 +54,9 @@ export interface NetworkConfig extends Omit<Network, 'credit'> {
    * into another Network, as Renfe files FEVE's Bilbao–León train under Cercanías Bilbao's C4 (#368). A
    * Trip that calls at one of them isn't the Network's: it's left out, with the Stations and track only
    * such Trips have, and logged and reported, and it's no longer one of the Trains it lists (unlisted()),
-   * though another Network may list it too, as León's C1 lists that train's last 17 calls. One Station is
-   * enough for a run beyond where the Network ends, as every Trip that runs on calls there.
+   * though another Network may list it too, as León's C1 lists that train's last 17 calls. One Station
+   * is enough where every Trip that runs on calls there, as it is for Bilbao's, on all 30 days of Renfe's
+   * file of 10 October 2026: a Trip that skipped it would run its Line on beyond the Network again.
    */
   beyond?: string[];
 }
@@ -535,11 +536,12 @@ export const CERCANIAS_BILBAO: NetworkConfig = {
   timetables: [núcleo('60', 'cercanias-bilbao')],
   // C1–C5 are commuter Lines, each traced on its own gauge's rails (#366).
   lines: { kind: 'commuter', gauges: { C1: IBERIAN, C2: IBERIAN, C3: IBERIAN, C4: METRE, C5: METRE } },
-  // Renfe files FEVE's train a day each way between Bilbao and León under C4: 63 calls in 7 h 47 min
-  // (10 October 2026), on from Balmaseda along the La Robla line to León's La Asunción, at 43 Stations no
-  // other Trip of núcleo 60 calls at, 17 of them León's own, whose calls León's C1 lists as Trips under the
-  // same numbers. It's no Trip of Bilbao's, so C4 ends at La Calzada, by Balmaseda: a Trip that calls at
-  // Arla Berrón, the first Station past Balmaseda, is left out (#368).
+  // Renfe files FEVE's train a day each way between Bilbao and León under C4 (10 October 2026): 63 calls
+  // from Bilbao in 7 h 47 min and 54 back in 7 h 52 min, on past Balmaseda and La Calzada, where C4's own
+  // Trips end, along the La Robla line to León's La Asunción, at 43 Stations no other Trip of núcleo 60
+  // calls at, 17 of them León's own, whose calls León's C1 lists as Trips under the same numbers. It's no
+  // Trip of Bilbao's, so C4 ends at La Calzada, by Balmaseda: a Trip that calls at Arla Berrón, the first
+  // Station the train calls at past La Calzada, is left out (#368).
   beyond: ['adif:05721'],
 };
 
