@@ -13,9 +13,10 @@ export interface Spot {
    * back at, Stations left out on a branch, a hop between two Stations traced much longer than its
    * straight line, Trips left out, a Line's Trips whose stop numbers don't run 1…n, replacement buses
    * where their Line has no track, a Network with no Trips on a day, a Network's Trips on each day of
-   * the week, a Network's Closures today, a Network built from the copy of its timetables that last
-   * built it, a region whose build failed, which keeps the files of its last one, a traced shape's
-   * length against the feed's, one of the largest nodes at a zoom, or the line measures.
+   * the week, which names those its config leaves out too, a Network's Closures today, a Network built
+   * from the copy of its timetables that last built it, a region whose build failed, which keeps the
+   * files of its last one, a traced shape's length against the feed's, one of the largest nodes at a
+   * zoom, or the line measures.
    */
   kind: 'kept' | 'turn' | 'branch' | 'detour' | 'trip' | 'sequence' | 'bus' | 'notrips' | 'trips' | 'closures' | 'copy' | 'region' | 'length' | 'node' | 'measures';
   /** What the next build knows it by too (keyOf()): never a Trip's ID nor a date. */
@@ -36,8 +37,8 @@ export interface Spot {
   text: string[];
   /**
    * A length's percentage off the feed's, the most Trips left out, or whose stop numbers don't run
-   * 1…n, or buses, on any one day, a Network's Trips on each day of the week, its Closures today, a
-   * node's size in line widths, or each of the measures.
+   * 1…n, or buses, on any one day, a Network's Trips on each day of the week and how many of today's
+   * its config leaves out, its Closures today, a node's size in line widths, or each of the measures.
    */
   numbers?: Record<string, number>;
 }
@@ -230,8 +231,8 @@ const DROP = 0.25;
 /**
  * How a spot's numbers moved since the last report, as `name (was → now)`, or nothing where none did:
  * a length's by more than a point, a Network's Trips on a day of the week only where they dropped by
- * more than DROP, any other by any. Compared in tenths, which every number is rounded to, so 0.1 to
- * 1.1 is a point.
+ * more than DROP, and how many of its Trips its config leaves out by any, as any other. Compared in
+ * tenths, which every number is rounded to, so 0.1 to 1.1 is a point.
  */
 function moved(was: Spot | undefined, spot: Spot): string {
   if (!was) return '';
@@ -241,7 +242,7 @@ function moved(was: Spot | undefined, spot: Spot): string {
     .filter((name) => {
       const [a, b] = [was.numbers?.[name], spot.numbers?.[name]];
       // A day first counted isn't a change: each report carries over the last one's other days of the week.
-      if (spot.kind === 'trips') return a !== undefined && b !== undefined && b < a * (1 - DROP);
+      if (spot.kind === 'trips' && name !== 'leftOut') return a !== undefined && b !== undefined && b < a * (1 - DROP);
       return a === undefined || b === undefined || Math.abs(Math.round(a * 10) - Math.round(b * 10)) > leeway;
     })
     .map((name) => `${name} (${was.numbers?.[name] ?? 'none'} → ${spot.numbers?.[name] ?? 'none'})`)

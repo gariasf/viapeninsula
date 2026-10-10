@@ -33,7 +33,7 @@ export function ownRails(rails: OsmWay[], network: Pick<NetworkConfig, 'rails'>)
 }
 
 /** One of a Network's timetables, to read as that Network's. */
-export type Feed = Timetable & { network: Pick<NetworkConfig, 'id' | 'name' | 'lines' | 'stations'> };
+export type Feed = Timetable & { network: Pick<NetworkConfig, 'id' | 'name' | 'lines' | 'stations' | 'beyond'> };
 
 // ponytail: today's Networks' timetables and rails, by the names networks.test.ts imports, kept so it
 // runs unchanged (#240); they can go once it reads src/networks.ts.
@@ -55,14 +55,17 @@ const RAIL = new Set(['0', '1', '2', '7']);
  * bus route named as none of them, as TMB's city buses are, is no Line's. Where the feed lists a Train
  * in parts, they're made one Trip, and the calls that fit none are logged (joinParts()). Where its live
  * data names a stop by its number in its Trip (`stopNumbers`), a Trip whose numbers don't run 1…n is
- * logged and given in `found`, for the report (#406): it's read all the same.
+ * logged and given in `found`, for the report (#406): it's read all the same. A Trip that calls at a
+ * Station its Network's config has beyond it isn't the Network's (`beyond`, #368): it's left out as
+ * though the feed hadn't it, with its Train number, its shape where no other Trip runs it and the
+ * Stations only it calls at, and each of the day's is logged and given back as `left`.
  */
 export async function readFeed(
   gtfs: Source,
   day: string,
   feed: Feed,
   log = console.log,
-): Promise<{ lines: Line[]; stations: Station[]; shapes: FeedShape[]; trips: FeedTrip[]; buses: FeedBus[]; listed: Map<string, Set<string>>; found: Found[] }> {
+): Promise<{ lines: Line[]; stations: Station[]; shapes: FeedShape[]; trips: FeedTrip[]; buses: FeedBus[]; listed: Map<string, Set<string>>; found: Found[]; left: string[] }> {
   const { network, prefix, operator } = feed;
   const pattern = feed.number && new RegExp(feed.number);
   const services = await serviceIdsOn(gtfs, day);
@@ -87,6 +90,19 @@ export async function readFeed(
   };
   const station = (stop: string) => `${operator}:${stationOf(stop)?.stop_id ?? stop}`;
 
+  // The Trips that call at a Station beyond the Network, each with the first such Station it calls at (#368).
+  // ponytail: a second pass over stop_times.txt each time a day is read, 2 s on top of the 3 s Bilbao's
+  // read takes, and none for any other Network; read it once for all of a timetable's days, by its
+  // source, if more Networks name some.
+  const beyond = new Set(network.beyond);
+  const away = new Map<string, string>();
+  if (beyond.size) {
+    for await (const s of rows(gtfs, 'stop_times.txt', ['trip_id', 'stop_id'])) {
+      if (beyond.has(station(s.stop_id)) && !away.has(s.trip_id)) away.set(s.trip_id, stationOf(s.stop_id)?.stop_name ?? s.stop_id);
+    }
+  }
+  const left: string[] = []; // each of the day's Trips left out
+
   // A Line's colour comes from the routes that carry Trips: Renfe also lists unused routes.
   const shapeOf = new Map<string, string>(); // each Trip's shape, on any day
   const gaugesOf = new Map<string, Gauges>(); // each shape's rails, its Trips' route's, where they're given (#366)
@@ -100,6 +116,15 @@ export async function readFeed(
     if (bus && named.has(bus) && services.has(t.service_id)) dayBuses.set(t.trip_id, { id: `${prefix}:${t.trip_id}`, line: `${network.id}:${bus}`, calls: [] });
     const route = routes.get(t.route_id);
     if (!route) continue;
+    const at = away.get(t.trip_id);
+    if (at !== undefined) {
+      if (services.has(t.service_id)) {
+        const text = `${prefix}:${t.trip_id} is left out: it calls at ${at}, a Station beyond ${network.name}`;
+        log(text);
+        left.push(text);
+      }
+      continue;
+    }
     shapeOf.set(t.trip_id, t.shape_id);
     if (route.gauges) gaugesOf.set(t.shape_id, route.gauges);
     const line = lines.get(route.name) ?? { colour: route.colour, shapes: new Set() };
@@ -239,6 +264,7 @@ export async function readFeed(
     })),
     listed: dayTrips.size ? listed : everyDay,
     found,
+    left,
   };
 }
 
@@ -308,7 +334,7 @@ export function copyOf({ prefix }: Timetable, cache = CACHE): string {
  * With no copy, it fails.
  */
 export async function readTimetables<T extends { lines: unknown[][] }>(
-  network: Pick<NetworkConfig, 'id' | 'name' | 'timetables' | 'lines' | 'stations'>,
+  network: Pick<NetworkConfig, 'id' | 'name' | 'timetables' | 'lines' | 'stations' | 'beyond'>,
   failed: unknown,
   read: (feeds: (Feed & { gtfs: Source })[]) => Promise<T>,
   report: (found: Found) => void,

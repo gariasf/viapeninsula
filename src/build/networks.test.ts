@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, expect, test, vi } from 'vitest';
 import { places } from '../bundle.ts';
-import { AVE_LARGA_DISTANCIA, CERCANIAS_ASTURIAS, MEDIA_DISTANCIA_AVANT, NETWORKS, RODALIES, TRAM, type NetworkConfig } from '../networks.ts';
+import { AVE_LARGA_DISTANCIA, CERCANIAS_ASTURIAS, CERCANIAS_BILBAO, MEDIA_DISTANCIA_AVANT, NETWORKS, RODALIES, TRAM, type NetworkConfig } from '../networks.ts';
 import { dirSource, rows, seconds, zipFile, zipSource, type Source } from './gtfs.ts';
 import { copyOf, FGC_FEED, joinParts, METRO_FEED, onFgcRails, onMetroRails, onRodaliesRails, ownRails, readFeed, readTimetables, RODALIES_FEED, TRAMBAIX_FEED, unlisted, type Feed } from './networks.ts';
 import type { Found } from './report.ts';
@@ -615,6 +615,51 @@ test("gives each shape of a Network of two gauges the rails its Line runs on, as
   const { shapes, trips } = await readFeed(asturias, '2026-10-10', { network: CERCANIAS_ASTURIAS, ...CERCANIAS_ASTURIAS.timetables[0] });
   expect(shapes.map((s) => [s.id, s.gauges])).toEqual([['cercanias-asturias:20_C2:back', { railway: ['rail'], gauges: ['1668'] }]]);
   expect(trips.map((t) => [t.id, t.gauges])).toEqual([['cercanias-asturias:2081S22200C2', undefined]]);
+});
+
+// Rows cut verbatim from Renfe's Cercanías feed of 2026-10-10: C4's first Trips of Saturday 10 October,
+// 71500 from Bilbao la Concordia to La Calzada and 71503 back, and the train Renfe files under C4 too,
+// FEVE's from Bilbao la Concordia to León's La Asunción Universidad, 71876, and 71891 back, which call at
+// 43 Stations of the La Robla line that no other Trip of núcleo 60 does, with C4's shape both ways.
+const bilbao = dirSource(fileURLToPath(new URL('fixtures/cercanias-bilbao', import.meta.url)));
+
+/** Cercanías Bilbao's timetable of that day, read for a Network as it's configured. */
+const readBilbao = (network: NetworkConfig, log: (line: string) => void = () => {}) => readFeed(bilbao, '2026-10-10', { network, ...network.timetables[0] }, log);
+
+test("leaves out the Trips that call at a Station beyond the Network, as Renfe files FEVE's Bilbao–León train under Cercanías Bilbao's C4, with the Stations only they call at, so that its shape's Stations end at La Calzada (#368)", async () => {
+  const published = await readBilbao({ ...CERCANIAS_BILBAO, beyond: undefined });
+  expect(published.trips.map((t) => t.number)).toEqual(['71500', '71876', '71503', '71891']);
+  expect(published.stations).toHaveLength(21 + 43);
+
+  const configured = await readBilbao(CERCANIAS_BILBAO);
+  expect(configured.trips.map((t) => t.number)).toEqual(['71500', '71503']);
+  expect(configured.stations.map((s) => s.name)).toContain('Balmaseda');
+  expect(configured.stations.map((s) => s.name)).toContain('La Calzada');
+  expect(configured.stations).toHaveLength(21);
+  // The 43 are none of its shapes' Stations, which is what its trace runs through, and its Line's shapes are as they were.
+  expect(configured.shapes.map((s) => [s.id, s.stations.length])).toEqual([['cercanias-bilbao:60_C4:back', 21], ['cercanias-bilbao:60_C4_INV:back', 21]]);
+  expect(published.shapes.map((s) => [s.id, s.stations.length])).toEqual([['cercanias-bilbao:60_C4:back', 64], ['cercanias-bilbao:60_C4_INV:back', 64]]);
+  expect(configured.lines.map((l) => [l.name, l.shapes])).toEqual(published.lines.map((l) => [l.name, l.shapes]));
+});
+
+test("lists no Train number of a Trip it leaves out as the Network's, so that Renfe's long-distance timetable, which lists 71876 and 71891 as Regionals, doesn't leave them to the Network", async () => {
+  const { listed } = await readBilbao(CERCANIAS_BILBAO);
+  expect([...listed.keys()]).toEqual(['71500', '71503']);
+  const long = [{ id: 'media-distancia-avant:0545105778VRFV', line: 'media-distancia-avant:Regional', shape: '', headsign: '', number: '71876', calls: [{ station: 'adif:05451', arrival: 0, departure: 0 }, { station: 'adif:05803', arrival: 1, departure: 1 }] }];
+  expect(unlisted(long, [listed])).toEqual(long);
+  expect(unlisted(long, [(await readBilbao({ ...CERCANIAS_BILBAO, beyond: undefined })).listed])).toEqual([]);
+});
+
+test("logs and gives back each Trip it leaves out, with the Station beyond it calls at", async () => {
+  const log: string[] = [];
+  const { left } = await readBilbao(CERCANIAS_BILBAO, (l) => log.push(l));
+  expect(left).toEqual([
+    'cercanias-bilbao:6081S71876C4 is left out: it calls at Arla Berrón, a Station beyond Cercanías Bilbao',
+    'cercanias-bilbao:6081S71891C4 is left out: it calls at Arla Berrón, a Station beyond Cercanías Bilbao',
+  ]);
+  expect(log).toEqual(left);
+  // Not the Trips of a day it doesn't run on.
+  expect((await readFeed(bilbao, '2026-10-11', { network: CERCANIAS_BILBAO, ...CERCANIAS_BILBAO.timetables[0] }, () => {})).left).toEqual([]);
 });
 
 /** A way with these tags, as OpenStreetMap has Catalonia's rails. */
