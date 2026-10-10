@@ -162,6 +162,16 @@ body {
   outline: none;
 }
 
+/* The tilt button while the map is tilted: inverted, and its plane filled, which a forced-colours theme keeps (#326). */
+.fab.tilt[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--card);
+}
+
+.fab.tilt[aria-pressed='true'] path:first-child {
+  fill: currentColor;
+}
+
 /* A button under the pointer, where there's one, so that it never sticks on a phone. */
 @media (hover: hover) {
   :is(.close, .handle, .more):hover,
@@ -171,6 +181,10 @@ body {
 
   :is(button.card:not(:disabled), .lang, .credits summary):hover {
     background: color-mix(in srgb, var(--ink) 6%, var(--card));
+  }
+
+  .fab.tilt[aria-pressed='true']:hover {
+    background: color-mix(in srgb, var(--card) 14%, var(--ink));
   }
 }
 

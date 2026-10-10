@@ -5,8 +5,14 @@ import type { Point } from '../bundle.ts';
 /** A view of the map: its centre, its zoom, and its bearing and pitch, in degrees. */
 export type View = { center: Point; zoom: number; bearing: number; pitch: number };
 
-/** Barcelona, with the rest of Catalonia a zoom away. */
-const BARCELONA: View = { center: [2.17, 41.39], zoom: 11, bearing: 0, pitch: 0 };
+/** How far the map tilts, in degrees, on a first visit and when the tilt button tilts it (#326). */
+export const TILT = 45;
+
+/** The pitch the tilt button eases the map to from `pitch`: flat where it's tilted at all, and tilted where it's flat. */
+export const toggledPitch = (pitch: number) => (pitch > 0 ? 0 : TILT);
+
+/** Barcelona, with the rest of Catalonia a zoom away, tilted as a first visit opens it. */
+const BARCELONA: View = { center: [2.17, 41.39], zoom: 11, bearing: 0, pitch: TILT };
 
 /**
  * What the view the viewer last left the map at is kept under on their device, as JSON, in local
@@ -15,8 +21,9 @@ const BARCELONA: View = { center: [2.17, 41.39], zoom: 11, bearing: 0, pitch: 0 
 const VIEW_KEY = 'view';
 
 /**
- * The view to open the map on: the one `kept` on this device, unless the page's `link` names a view, or
- * none is kept, when Barcelona. MapLibre opens a link's own view over it. A link that names only a
+ * The view to open the map on: the one `kept` on this device, with the pitch it was left at, unless the
+ * page's `link` names a view, when Barcelona flat, as MapLibre's hash opens a link that names no pitch,
+ * or none is kept, when Barcelona tilted (#326). MapLibre opens a link's own view over it. A link that names only a
  * Station or a Train opens on the kept view, as one that names nothing does: the map eases from there to
  * a Station it knows (#292) or a running Train it follows, and stays there for a Station it doesn't know
  * or a Train that isn't running (#306). A kept view MapLibre can't open, such as one past a pole, would
@@ -24,7 +31,8 @@ const VIEW_KEY = 'view';
  */
 export function openingView(link: string, kept: string | null): View {
   const named = new URLSearchParams(link.slice(1));
-  if (!kept || named.has('map')) return BARCELONA;
+  if (named.has('map')) return { ...BARCELONA, pitch: 0 };
+  if (!kept) return BARCELONA;
   try {
     const { center: [lon, lat], zoom, bearing, pitch } = JSON.parse(kept);
     if ([lon, lat, zoom, bearing, pitch].every(Number.isFinite) && Math.abs(lat) <= 90) return { center: [lon, lat], zoom, bearing, pitch };
