@@ -20,6 +20,7 @@ import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { contrast, lettering } from './colour.ts';
 import { cardAlerts, linesCallingAt, minutesTo, nearbyRows, progress, type CardAlert } from './cards.ts';
 import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, type Shown } from './closures.ts';
+import * as variants from './stations.prototype.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
 setWorkerUrl(workerUrl);
@@ -711,7 +712,7 @@ let standingPills: { id: string; at: Point; heading: number; box: [number, numbe
  * Each place's name: its dot, the sides of its track it can go, once the map's bearing is known, broken
  * into its lines, how wide and high those are, in px, the zoom it shows from, how much larger its dot is, and how it's lettered.
  */
-let names: { dot: Point; sides: (bearing: number) => Side[]; name: string; size: [width: number, height: number]; nameZoom: number; larger: number; style: NameStyle }[] = [];
+let names: { id: string; dot: Point; sides: (bearing: number) => Side[]; name: string; size: [width: number, height: number]; nameZoom: number; larger: number; style: NameStyle }[] = [];
 /** The map's bearing when the names were last put beside their tracks. */
 let namesBearing = NaN;
 map.addSource('lines', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
@@ -1006,6 +1007,8 @@ for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', tr
   });
 }
 
+variants.setUp(map, () => ({ bundle, places: shownPlaces, placing, networks: credited }), { nameColour, dotRing, halo });
+
 // Tapping a Train follows it, and tapping a Station shows its board. Both are small, so a tap near one
 // will do, and a Train standing at a Station is the one tapped. A tap nothing else takes, on a Line's
 // stroke or within STROKE_TAP of one, names the Lines drawn there, by their pills (#193), the strokes
@@ -1035,7 +1038,7 @@ map.on('click', ({ point: { x, y }, lngLat }) => {
   const near = (layer: string): unknown => within(10, [layer])[0]?.properties.id;
   // Where pills overlap, the one under the tap, the topmost, before one near it.
   const under: unknown = within(0, ['train-pills-followed', 'train-pills'])[0]?.properties.id;
-  const [train, place] = [under ?? near('train-pills-followed') ?? near('train-pills') ?? near('trains'), near('stations')];
+  const [train, place] = [under ?? near('train-pills-followed') ?? near('train-pills') ?? near('trains'), variants.tap(near) ?? near('stations')];
   // A tap on a pill standing over others spreads them, and while they're spread, any tap but on one of them folds them (#129).
   const { group } = spreadState;
   const inGroup = typeof train === 'string' && group?.ids.has(train);
@@ -1149,7 +1152,10 @@ addEventListener('hashchange', openLink);
 function show(days: Track | Bundle) {
   if ('trips' in days) bundle = days;
   // A day's Trips come after its track, which is drawn already, unless the days joined bring more than one.
-  if (days.stations === shownStations) return drawClosures();
+  if (days.stations === shownStations) {
+    variants.shown(days);
+    return drawClosures();
+  }
   shownStations = days.stations;
   lines = new Map(days.lines.map((l) => [l.id, l]));
   stationNames = new Map(days.stations.map((s) => [s.id, s.name]));
@@ -1221,10 +1227,12 @@ function show(days: Track | Bundle) {
     type: 'FeatureCollection',
     features: shownTracks.map(({ network, coordinates }) => ({ type: 'Feature', properties: { colour: colours.get(network) }, geometry: { type: 'LineString', coordinates } })),
   });
-  const tiered = [...shownPlaces.values()].map((p) => {
-    const { nameZoom, larger, size } = TIERS.find((tier) => tier.places.includes(p.id)) ?? UNTIERED;
-    return { ...p, nameZoom, larger, style: { bold: BOLD.has(p.id), size } };
-  });
+  const tiered = variants.tiered(
+    [...shownPlaces.values()].map((p) => {
+      const { nameZoom, larger, size } = TIERS.find((tier) => tier.places.includes(p.id)) ?? UNTIERED;
+      return { ...p, nameZoom, larger, style: { bold: BOLD.has(p.id), size } };
+    }),
+  );
   // Where a place is named after its town, the town's label goes once the place's name shows (#121).
   const once: ExpressionSpecification = ['!', namedTwice(tiered)];
   for (const [id, filter] of placeLabels) map.setFilter(id, ['all', filter ?? true, once]);
@@ -1236,15 +1244,16 @@ function show(days: Track | Bundle) {
   const [track, centrelines] = [days.shapes.filter((s) => !s.id.startsWith(STRETCH)), days.shapes.filter((s) => s.id.startsWith(STRETCH))];
   const spots = alongside(track, (days.slots ?? []).filter((s) => s.band === undefined), (line) => placing.keep.get(line) ?? 1, days.lines, new Map(centrelines.map((c) => [c.id, c])));
   // A track built before #243 names no Station's Networks: its names go beside the nearest track of any.
-  names = tiered.map(({ name, networks, nameZoom, larger, style, lon, lat }) => {
+  names = tiered.map(({ id, name, networks, nameZoom, larger, style, lon, lat }) => {
     const rows = nameLines(name, style);
-    return { dot: [lon, lat], sides: spots([lon, lat], networks), name: rows.join('\n'), size: [Math.max(...rows.map((row) => placeWidth(row, style))), rows.length * LINE_HEIGHT * style.size], nameZoom, larger, style };
+    return { id, dot: [lon, lat], sides: spots([lon, lat], networks), name: rows.join('\n'), size: variants.nameSize(id, [Math.max(...rows.map((row) => placeWidth(row, style))), rows.length * LINE_HEIGHT * style.size]), nameZoom, larger, style };
   });
   showNames();
   credited = days.networks;
   showCredits();
   showBanner();
   drawClosures();
+  variants.shown(days);
 }
 
 /**
@@ -1379,7 +1388,7 @@ function showNames() {
   namesBearing = map.getBearing();
   map.getSource<GeoJSONSource>('station-names')?.setData({
     type: 'FeatureCollection',
-    features: names.map(({ dot, sides, name, size, nameZoom, larger, style }): GeoJSON.Feature => {
+    features: names.map(({ id, dot, sides, name, size, nameZoom, larger, style }): GeoJSON.Feature => {
       const at = sides(namesBearing);
       const properties = NAME_ZOOMS.flatMap((zoom) => {
         // MapLibre lays names out at whole zooms, so a track crossing its own lies under one from this zoom to the next, at half the metres a px.
@@ -1389,7 +1398,7 @@ function showNames() {
           [0, 1].reduce((sum, step) => sum + underName(s, far, size, metresPerPx / 2 ** step, atZoom(APART, zoom + step), gap + atZoom(WIDTH, zoom + step) / 2), 0);
         // Below the zoom it shows from, no name lies anywhere; from it, fewest under it first, then fewest within NAME_GAP.
         const under = (s: Spot, far: number) => (zoom < nameZoom ? 0 : 1000 * underAt(s, far, 0) + underAt(s, far, NAME_GAP));
-        const { spot, far } = nearestSide(at, (s) => clearance(s, larger, zoom), under);
+        const { spot, far } = nearestSide(at, (s) => clearance(s, variants.larger(id, larger, zoom), zoom), under);
         // MapLibre offsets names in ems.
         return [
           [`anchor${zoom}`, spot.anchor],
