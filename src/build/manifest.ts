@@ -76,11 +76,18 @@ export function manifestDay(bundle: Bundle, files: Pick<ManifestDay, 'track' | '
  * them. A region with none left is left out, so that a stale day never stands for today. Where the
  * last manifest names days in an older shape, as one bundle of one file, or one file of track and
  * one of Trips for each day, whole Networks in each, the map can't read them, so they're left out.
- * The regions are in the order given.
+ * A region that failed where the last manifest isn't one by region, as in the first build that makes
+ * one, or where it couldn't be read, has no files to keep and would go from the map: that fails the
+ * build, as it did before the bundle was by region, and the map stays as it is. The regions are in
+ * the order given.
  */
 export function manifestOf(regions: { id: string; days?: ManifestDay[] }[], previous?: Manifest): Manifest {
   const first = regions.flatMap((r) => r.days?.map((d) => d.date) ?? []).sort()[0];
   if (!first) throw new Error('No region was built');
+  const failed = regions.filter((r) => !r.days).map((r) => r.id);
+  if (failed.length && !Array.isArray(previous?.regions)) {
+    throw new Error(`Regions that aren't built have no files of a last build by region to keep, so the map would go without them: ${failed.join(', ')}`);
+  }
   const before = addDays(first, -1);
   const named = (id: string) => (Array.isArray(previous?.regions) ? previous.regions.find((r) => r.id === id)?.days : undefined) ?? [];
   return {

@@ -220,6 +220,19 @@ test("leaves out a region whose build failed and that the last manifest names no
   expect(manifestOf([{ id: 'catalonia', days: built }, { id: 'cercanias-madrid' }, { id: 'cercanias-leon' }], last).regions.map((r) => r.id)).toEqual(['catalonia']);
 });
 
+test("fails where a region's build failed and the last manifest isn't one by region, which leaves it no files of its last build to keep, rather than have it go from the map", () => {
+  const entry = (date: string) => manifestDay(day(date, [18000, 88200]), { track: 'days/track-t.json', trips: `days/${date}.json` });
+  const built = ['2026-10-10', '2026-10-11'].map(entry);
+  const regions = [{ id: 'catalonia', days: built }, { id: 'cercanias-madrid' }];
+  // The shape before regions, whose files hold every Network: the page can't take Madrid's from them.
+  const oneBundle = { days: [{ date: '2026-10-09', track: 'days/track-a.json', trips: 'days/2026-10-09-b.json', from: 0, to: 1 }] } as unknown as Manifest;
+  expect(() => manifestOf(regions, oneBundle)).toThrow(/cercanias-madrid/);
+  // Or none that could be read.
+  expect(() => manifestOf(regions)).toThrow(/cercanias-madrid/);
+  // A manifest by region that never named Madrid's has none to keep, and Madrid, new or never built, goes without as the others publish.
+  expect(manifestOf(regions, { regions: [] }).regions.map((r) => r.id)).toEqual(['catalonia']);
+});
+
 test("lists the regions in the order given, whether built or kept", () => {
   const entry = (date: string, key: string) => manifestDay(day(date, [18000, 88200]), { track: `days/track-${key}.json`, trips: `days/${date}-${key}.json` });
   const last: Manifest = { regions: [{ id: 'b', days: [entry('2026-10-10', 'b')] }] };
