@@ -715,7 +715,7 @@ const standingAt = (kind: 'near' | 'along') =>
 test("says which stop a TRAM Train's trip update has it at, and when it's due out, where it has reached that stop and is still to leave it", () => {
   // TRAM has 5 of the 18 Trains it names a stop for still due out of one at 11:44:50, such as the T2 at
   // Cornellà Centre, the 18th stop of its Trip, until 11:45:10: its trip update has it there since
-  // 11:43:44. The other 13 had left their stop 22–120 s before, or ended their Trip there, and have none.
+  // 11:43:44. The other 13 had left their stop 12–120 s before, and have none.
   expect(standingAt('near')).toEqual([
     ['tram:TBX:2579_0241', 12, 8_000],
     ['tram:TBX:2579_0198', 18, 20_000],
@@ -731,8 +731,8 @@ test("says which stop a TRAM Train's trip update has it at, and when it's due ou
   ]);
 });
 
-/** Trambaix's trip updates as TRAM wrote them 6 s before the run, with one Trip, the T2's, whose stops are as given: each by its number, when it's reached and left, in s from the run, and how it stands in the timetable. */
-function tripUpdateOf(stops: { stop: number; arrival: number; departure: number; relationship?: number }[]): Uint8Array {
+/** Trambaix's trip updates as TRAM wrote them 6 s before the run, with one Trip, the T2's, whose stops are as given: each by its number, when it's reached and left (a last stop has no departure), in s from the run, and how it stands in the timetable. */
+function tripUpdateOf(stops: { stop: number; arrival: number; departure?: number; relationship?: number }[]): Uint8Array {
   const pbf = new PbfWriter();
   pbf.writeMessage(1, (_: null, header: PbfWriter) => header.writeVarintField(3, TRAM_NOW / 1000 - 6), null);
   pbf.writeMessage(2, (_: null, entity: PbfWriter) => {
@@ -744,7 +744,7 @@ function tripUpdateOf(stops: { stop: number; arrival: number; departure: number;
           const time = (field: number, seconds: number) => stop.writeMessage(field, (_: null, event: PbfWriter) => event.writeVarintField(2, TRAM_NOW / 1000 + seconds), null);
           stop.writeVarintField(1, s.stop);
           time(2, s.arrival);
-          time(3, s.departure);
+          if (s.departure !== undefined) time(3, s.departure);
           stop.writeStringField(4, '1019');
           if (s.relationship) stop.writeVarintField(5, s.relationship);
         }, null);
@@ -755,17 +755,31 @@ function tripUpdateOf(stops: { stop: number; arrival: number; departure: number;
   return pbf.finish();
 }
 
+/** What the run reports of the T2 whose trip update has the stops given, as its `standing`, if any. */
+const standingOf = (stops: Parameters<typeof tripUpdateOf>[0]) => {
+  const updates = { status: 200, body: tripUpdateOf(stops) };
+  return tramRun({ token: TOKEN, ...TRAM, TBX: { ...TRAM.TBX, updates } }).snapshot.reports.find((r) => r.trip === 'tram:TBX:2579_0198')?.standing;
+};
+
 test("says no stop of a TRAM Train's trip update that it skips, or has no data for, nor one it hasn't reached, nor one it has left", () => {
-  // Made up: the T2's 18th stop, reached 60 s before the run and due out 20 s after it, as the saved frame has it.
-  const standing = (relationship?: number, arrival = -60, departure = 20) => {
-    const updates = { status: 200, body: tripUpdateOf([{ stop: 17, arrival: -200, departure: -150 }, { stop: 18, arrival, departure, relationship }]) };
-    return tramRun({ token: TOKEN, ...TRAM, TBX: { ...TRAM.TBX, updates } }).snapshot.reports.find((r) => r.trip === 'tram:TBX:2579_0198')?.standing;
-  };
+  // Made up: the T2's 18th stop, reached 66 s before the run and due out 20 s after it, as the saved frame has it.
+  const standing = (relationship?: number, arrival = -66, departure = 20) => standingOf([{ stop: 17, arrival: -200, departure: -150 }, { stop: 18, arrival, departure, relationship }]);
   expect(standing()).toEqual({ stop: 18, leaves: TRAM_NOW + 20_000 });
   expect(standing(1)).toBeUndefined();
   expect(standing(2)).toBeUndefined();
   expect(standing(0, 5)).toBeUndefined();
-  expect(standing(0, -60, -5)).toBeUndefined();
+  expect(standing(0, -66, -5)).toBeUndefined();
+});
+
+test("says the last stop of a TRAM Train's trip update that it has reached, and counts none after one it hasn't", () => {
+  // The saved frame's T1 2579_0084 has its 5th stop due out 20 s after the run and its 6th reached since, due
+  // out after 80 s: it's at the 6th, as TRAM's position has it.
+  expect(standingOf([{ stop: 5, arrival: -78, departure: 20 }, { stop: 6, arrival: -32, departure: 80 }, { stop: 7, arrival: 69, departure: 170 }])).toEqual({ stop: 6, leaves: TRAM_NOW + 80_000 });
+  // The saved frame's TBS 1947_0053 has a last stop with an arrival 3 hours before the run and no departure,
+  // after stops it hasn't reached: that is no stop it has reached, and doesn't take back the one it stands at.
+  expect(standingOf([{ stop: 17, arrival: -66, departure: 20 }, { stop: 18, arrival: 33, departure: 140 }, { stop: 24, arrival: -10_682 }])).toEqual({ stop: 17, leaves: TRAM_NOW + 20_000 });
+  // One it has reached and left, and one it hasn't, with a stop after it that says otherwise: it has left.
+  expect(standingOf([{ stop: 17, arrival: -66, departure: -10 }, { stop: 18, arrival: 33, departure: 140 }, { stop: 24, arrival: -5, departure: 60 }])).toBeUndefined();
 });
 
 test('never reports a Unit out of service, which TRAM puts on line 0, even where a trip update names its Trip', () => {
