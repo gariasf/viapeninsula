@@ -2,7 +2,9 @@
 // track file and a Trips file for each day of their own, one region after another, so that a region
 // whose build fails keeps the files its last build published while the others build and publish.
 
+import { isDeepStrictEqual } from 'node:util';
 import { STRETCH, type Closure, type Line, type ManifestDay, type Network, type Shape, type Station, type Track, type Trip } from '../bundle.ts';
+import { decodeTrack, encodeTrack, type StoredTrack } from '../pieces.ts';
 import { dayTrips, manifestDay } from './manifest.ts';
 import type { Found, Spot } from './report.ts';
 import { sharedTrack, sideBySide, type Shared } from './sideBySide.ts';
@@ -69,7 +71,7 @@ export async function buildRegion<N>(
     slots,
     tracks,
   };
-  const trackKey = await write(`days/track-${region.id}`, track, `${track.lines.length} Lines, ${track.stations.length} Stations, ${track.shapes.length} shapes`);
+  const trackKey = await write(`days/track-${region.id}`, trackFile(track, region.id), `${track.lines.length} Lines, ${track.stations.length} Stations, ${track.shapes.length} shapes`);
   const days = await Promise.all(
     eachDay.map(async (trips) => {
       const key = await write(`days/${trips.serviceDay}-${region.id}`, trips, `${trips.trips.length} Trips, ${trips.closures?.length ?? 0} Closures`);
@@ -77,6 +79,19 @@ export async function buildRegion<N>(
     }),
   );
   return { track, days };
+}
+
+/**
+ * A region's track as its file stores it (ADR-0015): its traced shapes as pieces and its slots as
+ * chains. The map must read back from it the track the build made, as JSON has it, so that its Trains
+ * and its Lines are where they were: where it doesn't, the region's build fails, and it keeps the
+ * files of its last build, rather than publish a track that differs from the one built.
+ */
+export function trackFile(track: Track, region: string): StoredTrack {
+  const file = encodeTrack(track);
+  const read = decodeTrack(JSON.parse(JSON.stringify(file)) as StoredTrack);
+  if (!isDeepStrictEqual(read, JSON.parse(JSON.stringify(track)))) throw new Error(`${region}'s track file doesn't give back the track built: its shapes and slots as pieces and chains read back differently`);
+  return file;
 }
 
 /**
