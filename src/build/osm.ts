@@ -37,8 +37,9 @@ const FRESH = 7 * 24 * 60 * 60 * 1000;
 const run = promisify(execFile);
 
 /**
- * The ways in Geofabrik's EXTRACTS whose `railway` tag is one of these, and Spain's border, as the ways
- * that make it up, in no order, from the cache or from Geofabrik, and the day that copy was downloaded.
+ * The ways in Geofabrik's EXTRACTS whose `railway` tag is one of these, the nodes on them where Trains
+ * change gauge (`changers`), and Spain's border, as the ways that make it up, in no order, from the
+ * cache or from Geofabrik, and the day that copy was downloaded.
  */
 export async function osm(railways: string[], cache = '.cache') {
   const file = join(cache, `osm-${hash(JSON.stringify([EXTRACTS, railways, SPAIN]))}.opl`);
@@ -110,20 +111,34 @@ async function geofabrik(railways: string[]): Promise<string> {
 }
 
 /**
- * The rails and Spain's border in OPL, where each way is a line of fields that start with a letter:
- * `w` its id, `T` its tags and `N` its nodes, as n<id>x<lon>y<lat>. Characters that would break a line
- * up are escaped as %<hex>%.
+ * The rails, their nodes where Trains change gauge, and Spain's border in OPL, where each way is a line
+ * of fields that start with a letter: `w` its id, `T` its tags and `N` its nodes, as n<id>x<lon>y<lat>.
+ * A node with tags, as a changer, is a line too, `n` its id. Characters that would break a line up are
+ * escaped as %<hex>%.
  */
-function readOpl(opl: string): { rails: OsmWay[]; border: Point[][] } {
+function readOpl(opl: string): { rails: OsmWay[]; changers: Set<number>; border: Point[][] } {
   const unescape = (s: string) => s.replace(/%([0-9a-f]+)%/g, (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)));
-  const ways = opl.split('\n').flatMap((line): OsmWay[] => {
-    if (!line.startsWith('w')) return [];
-    const field = new Map(line.split(' ').map((f) => [f.charAt(0), f.slice(1)]));
-    const way: OsmWay = { id: Number(field.get('w')), nodes: [], geometry: [], tags: {} };
+  const fields = (line: string) => new Map(line.split(' ').map((f) => [f.charAt(0), f.slice(1)]));
+  const tags = (field: Map<string, string>) => {
+    const all: Record<string, string> = {};
     for (const tag of field.get('T')?.split(',') ?? []) {
       const [key = '', value = ''] = tag.split('=').map(unescape);
-      way.tags[key] = value;
+      all[key] = value;
     }
+    return all;
+  };
+  const lines = opl.split('\n');
+  // Where standard-gauge and Iberian-gauge track meet, as at Zaragoza Delicias (#259).
+  const changers = new Set(
+    lines.flatMap((line) => {
+      const field = line.startsWith('n') ? fields(line) : undefined;
+      return field && tags(field).railway === 'gauge_conversion' ? [Number(field.get('n'))] : [];
+    }),
+  );
+  const ways = lines.flatMap((line): OsmWay[] => {
+    if (!line.startsWith('w')) return [];
+    const field = fields(line);
+    const way: OsmWay = { id: Number(field.get('w')), nodes: [], geometry: [], tags: tags(field) };
     for (const node of field.get('N')?.split(',') ?? []) {
       const [, id, lon, lat] = /^n(\d+)x([-\d.]+)y([-\d.]+)$/.exec(node) ?? [];
       if (!id || !lon || !lat) continue; // a node with no position in the extracts
@@ -148,6 +163,7 @@ function readOpl(opl: string): { rails: OsmWay[]; border: Point[][] } {
   const today = madridDate(new Date());
   return {
     rails: rails.filter((way) => !(way.tags.opening_date && way.tags.opening_date > today)),
+    changers,
     border: border.map((way) => way.geometry.map((g): Point => [g.lon, g.lat])),
   };
 }

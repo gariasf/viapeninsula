@@ -494,6 +494,66 @@ test("lists every day's Train numbers on a day it has none of its Trips, so that
   expect(unlisted(trips, [listed]).map((t) => t.number)).toEqual(['17307', '18030', '38304']);
 });
 
+test("gives each long-distance Trip the rails its Line runs on, and a Regional whose route's ID ends VRFV, as the ex-FEVE regionals' do, metre gauge", async () => {
+  const [standard, both, iberian] = [{ railway: ['rail'], gauges: ['1435'], orElse: ['1668'] }, { railway: ['rail'], gauges: ['1435', '1668'] }, { railway: ['rail'], gauges: ['1668'] }];
+  const gauges = async (gtfs: Source, day: string, feed: Feed) => Object.fromEntries((await readFeed(gtfs, day, feed, () => {})).trips.map((t) => [`${t.line} ${t.number}`, t.gauges]));
+  expect(await gauges(longDistance, '2026-10-10', AVE_FEED)).toEqual({
+    'ave-larga-distancia:Alvia 00190': both,
+    'ave-larga-distancia:Alvia 00622': both,
+    'ave-larga-distancia:Euromed 01072': both,
+    'ave-larga-distancia:Avlo 05095': standard,
+  });
+  // RT2's 15210, which this timetable files as a Regional, as if on a route of the ex-FEVE regionals'.
+  const feve: Source = (file) => {
+    const lines = longDistance(file);
+    if (!lines || !['routes.txt', 'trips.txt'].includes(file)) return lines;
+    return (async function* () {
+      for await (const l of lines) yield l.replace('6541171500VRR', '6541171500VRFV');
+    })();
+  };
+  expect(await gauges(feve, '2026-10-13', MD_FEED)).toEqual({
+    'media-distancia-avant:Regional 15210': { railway: ['rail', 'narrow_gauge'], gauges: ['1000'] },
+    'media-distancia-avant:Reg.Exp. 17307': iberian,
+    'media-distancia-avant:MD 18030': iberian,
+    'media-distancia-avant:Proximidad 38304': iberian,
+  });
+});
+
+test('gives every long-distance Line the rails it runs on, so that none of its Trips goes untraced', () => {
+  for (const { timetables, lines } of [AVE_LARGA_DISTANCIA, MEDIA_DISTANCIA_AVANT]) {
+    for (const route of timetables[0].routes?.names ?? []) expect(lines.gauges?.[lines.names?.[route] ?? route], route).toBeDefined();
+  }
+});
+
+test("puts a Station its timetable has away from its platforms at their middle, as Renfe has Antequera AV 430 m from them, beyond the 200 m a Station's rails may be, so that its Trips can be traced", async () => {
+  // Rows cut from Renfe's long-distance feed of 2026-10-10: MD 13062 from Antequera AV, to its second call.
+  const files: Record<string, string[]> = {
+    'routes.txt': ['route_id,agency_id,route_short_name,route_long_name,route_desc,route_type,route_url,route_color,route_text_color', '0203055020VRX,1071,MD,,,2,,F2F5F5,'],
+    'trips.txt': ['route_id,service_id,trip_id,trip_headsign,trip_short_name,direction_id,block_id,shape_id,wheelchair_accessible', '0203055020VRX,2026-10-092026-11-03130621,1306212026-10-09,,13062,,,,2'],
+    'stop_times.txt': [
+      'trip_id,arrival_time,departure_time,stop_id,stop_sequence,stop_headsign,pickup_type,drop_off_type,shape_dist_traveled',
+      '1306212026-10-09,9:55:00,9:55:00,02030,01,,0,1,',
+      '1306212026-10-09,10:14:00,10:15:00,02003,02,,0,0,',
+    ],
+    'stops.txt': [
+      'stop_id,stop_code,stop_name,stop_desc,stop_lat,stop_lon,zone_id,stop_url,location_type,parent_station,stop_timezone,wheelchair_boarding',
+      '02030,,Antequera AV,,37.0334437,-4.5612901,,,,,Europe/Madrid,1',
+      '02003,,Antequera-Santa Ana,,37.0698810,-4.7190140,,,,,Europe/Madrid,1',
+    ],
+    'calendar.txt': ['service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date', '2026-10-092026-11-03130621,1,1,1,1,1,1,1,20261009,20261103'],
+  };
+  const antequera: Source = (file) => {
+    const lines = files[file];
+    return lines && (async function* () {
+      yield* lines;
+    })();
+  };
+  expect((await readFeed(antequera, '2026-10-10', MD_FEED)).stations).toEqual([
+    { id: 'adif:02030', name: 'Antequera AV', lon: -4.56158, lat: 37.02951 },
+    { id: 'adif:02003', name: 'Antequera-Santa Ana', lon: -4.719014, lat: 37.069881 },
+  ]);
+});
+
 /** A way with these tags, as OpenStreetMap has Catalonia's rails. */
 const way = (tags: Record<string, string>) => ({ id: 1, nodes: [], geometry: [], tags });
 const FGC_NAME = 'Ferrocarrils de la Generalitat de Catalunya';

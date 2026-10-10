@@ -10,13 +10,14 @@ import { round } from './track.ts';
 export interface Spot {
   /**
    * A run of a Line's legs between Stations that keep the feed's shape, a Station a Line's trace turns
-   * back at, Stations left out on a branch, Trips left out, replacement buses where their Line has no
-   * track, a Network with no Trips on a day, a Network's Trips on each day of the week, a Network's
-   * Closures today, a Network built from the copy of its timetables that last built it, a region
-   * whose build failed, which keeps the files of its last one, a traced shape's length against the
-   * feed's, one of the largest nodes at a zoom, or the line measures.
+   * back at, Stations left out on a branch, a hop between two Stations traced much longer than its
+   * straight line, Trips left out, replacement buses where their Line has no track, a Network with no
+   * Trips on a day, a Network's Trips on each day of the week, a Network's Closures today, a Network
+   * built from the copy of its timetables that last built it, a region whose build failed, which keeps
+   * the files of its last one, a traced shape's length against the feed's, one of the largest nodes at
+   * a zoom, or the line measures.
    */
-  kind: 'kept' | 'turn' | 'branch' | 'trip' | 'bus' | 'notrips' | 'trips' | 'closures' | 'copy' | 'region' | 'length' | 'node' | 'measures';
+  kind: 'kept' | 'turn' | 'branch' | 'detour' | 'trip' | 'bus' | 'notrips' | 'trips' | 'closures' | 'copy' | 'region' | 'length' | 'node' | 'measures';
   /** What the next build knows it by too (keyOf()): never a Trip's ID nor a date. */
   key: string;
   network?: string;
@@ -44,7 +45,8 @@ export interface Spot {
 /**
  * Why a run of legs keeps the feed's shape (a Station `off` the network, `nopath` along the rails, or
  * `fewer` than two Stations), or a Trip is left out (it calls at `fewer` than two Stations, its shape
- * has `notrack`, a Station is `off` its track, or it would run too `fast`).
+ * has `notrack`, a Station is `off` its track, or it would run too `fast`; or, where its timetable has
+ * no shapes, a Station of its run is `off` the network, or a stretch has `nopath` along the rails).
  */
 export type Cause = 'off' | 'nopath' | 'fewer' | 'notrack' | 'fast';
 
@@ -130,6 +132,7 @@ function keyOf({ kind, network, region, line, why, shape, day, zoom, point, stat
     kept: [line, ...ends, why],
     turn: [line, ...ends],
     branch: [line, ...ends],
+    detour: [line, ...ends],
     trip: [line, why, ...ends],
     bus: [line, ...ends],
     notrips: [network, day],
@@ -189,7 +192,7 @@ export function diff(last: Spot[] | undefined, spots: Spot[]): string {
  * they dropped (moved()), nor its Closures, nor buses where their Line has no track, which no fix
  * upstream draws (ADR-0012), nor a length, a node or the measures, which move with any change to it.
  */
-const PROBLEM: Record<Spot['kind'], boolean> = { kept: true, turn: true, branch: true, trip: true, bus: false, notrips: true, trips: false, closures: false, copy: true, region: true, length: false, node: false, measures: false };
+const PROBLEM: Record<Spot['kind'], boolean> = { kept: true, turn: true, branch: true, detour: true, trip: true, bus: false, notrips: true, trips: false, closures: false, copy: true, region: true, length: false, node: false, measures: false };
 
 /** The most characters a GitHub comment holds, counted here as UTF-8's bytes, which are never fewer however GitHub counts them. */
 const COMMENT = 65536;

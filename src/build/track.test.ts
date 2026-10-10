@@ -1,12 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import type { Shape, Station } from '../bundle.ts';
-import { RODALIES } from '../networks.ts';
+import { RODALIES, type Gauges } from '../networks.ts';
 import { ownRails } from './networks.ts';
 import type { OsmWay } from './osm.ts';
 import { collect, type Found } from './report.ts';
 import type { Snippet } from './snippet.ts';
-import { eachWay, fine, onOwnTrack, railsBeside, traceShapes } from './track.ts';
+import { eachWay, fine, onOwnTrack, railsBeside, traceRuns, traceShapes } from './track.ts';
+import type { FeedTrip } from './trips.ts';
 
 // A small railway, drawn in metres east (x) and north (y) of a point near Manresa.
 const M = (6_371_008.8 * Math.PI) / 180; // metres in a degree of latitude
@@ -16,7 +17,7 @@ const COS = Math.cos((LAT * Math.PI) / 180);
 const at = (x: number, y: number): [number, number] => [LON + x / (M * COS), LAT + y / M];
 const metres = ([lon, lat]: [number, number]) => [(lon - LON) * M * COS, (lat - LAT) * M];
 
-/** Ways through the named points, each "a b c" with any tags beyond Iberian-gauge rail. */
+/** Ways through the named points, each "a b c" with any tags beyond Iberian-gauge rail, or '' for one it hasn't. */
 function rails(points: Record<string, [x: number, y: number]>, ...ways: (string | [string, Record<string, string>])[]): OsmWay[] {
   const ids = Object.keys(points);
   return ways.map((way, i) => {
@@ -29,7 +30,7 @@ function rails(points: Record<string, [x: number, y: number]>, ...ways: (string 
         const [lon, lat] = at(...(points[n] ?? [NaN, NaN]));
         return { lon, lat };
       }),
-      tags: { railway: 'rail', gauge: '1668', ...tags },
+      tags: Object.fromEntries(Object.entries({ railway: 'rail', gauge: '1668', ...tags }).filter(([, value]) => value)),
     };
   });
 }
@@ -602,4 +603,176 @@ test('drops the points a way carries on straight through, and keeps its ends, it
   const [main] = fine(ways);
   expect(main?.nodes).toEqual([1, 3, 4, 5]);
   expect(main?.geometry.map(({ lon, lat }) => metres([lon, lat]).map(Math.round))).toEqual([[0, 0], [200, 0], [300, 0], [400, 50]]);
+});
+
+// Long distance's Trips, which have no shapes: each run of them traced through its Stations on the
+// rails of its gauges (#259). Standard gauge is 1435 mm, Iberian 1668 and metre 1000.
+const STANDARD: Gauges = { railway: ['rail'], gauges: ['1435'], orElse: ['1668'] };
+const BOTH: Gauges = { railway: ['rail'], gauges: ['1435', '1668'] };
+const IBERIAN: Gauges = { railway: ['rail'], gauges: ['1668'] };
+
+/** A Trip of a Line on these rails, calling at the named Stations ten minutes apart. */
+const call = (id: string, stations: string, gauges: Gauges, line = 'AVE'): FeedTrip => ({
+  id,
+  line,
+  shape: '',
+  headsign: '',
+  gauges,
+  calls: stations.split(' ').map((station, i) => ({ station, arrival: i * 600, departure: i * 600 })),
+});
+
+/** Traces each day's Trips, keeping right, and gives each Trip's traced track. */
+function runs(rails: OsmWay[], stations: Station[], days: FeedTrip[][], changers = new Set<number>()) {
+  const [log, found]: [string[], Found[]] = [[], []];
+  const traced = traceRuns(days, stations, rails, changers, 'right', (line) => log.push(line), (f) => found.push(f));
+  const track = (trip: string) => {
+    const shape = traced.shapes.find((s) => s.id === traced.days.flat().find((t) => t.id === trip)?.shape);
+    if (!shape) throw new Error(`No track for ${trip}`);
+    return shape;
+  };
+  return { ...traced, log, found, track };
+}
+
+// A line of one gauge from A to B by s and t, partly on three rails and partly with no gauge tag, and a
+// shorter one of another gauge by m: standard and Iberian unless given.
+const twoLines = (long: Record<string, string> = { gauge: '1435' }, short: Record<string, string> = {}, three = '1435;1668') =>
+  rails(
+    { a: [0, 0], s: [1000, 500], t: [3000, 500], b: [4000, 0], m: [2000, 0] },
+    ['a s', long],
+    ['s t', { ...long, gauge: three }],
+    ['t b', { ...long, gauge: '' }],
+    ['a m b', short],
+  );
+const BY_S_AND_T = [[0, 0], [1000, 500], [3000, 500], [4000, 0]];
+
+test("runs AVE on standard-gauge rails, and on those with three rails or no gauge tag, rather than the shorter Iberian-gauge line beside them", () => {
+  const { track } = runs(twoLines(), [station('A', -10, 0), station('B', 4010, 0)], [[call('ave', 'A B', STANDARD)]]);
+  expect(points(track('ave'))).toEqual(BY_S_AND_T);
+});
+
+test("runs MD on Iberian-gauge rails, and the ex-FEVE regionals on metre gauge, as rail or narrow_gauge, each on those with three rails or no gauge tag too, rather than a shorter line of another gauge", () => {
+  const AB = [station('A', -10, 0), station('B', 4010, 0)];
+  const md = runs(twoLines({ gauge: '1668' }, { gauge: '1435' }), AB, [[call('md', 'A B', IBERIAN, 'MD')]]);
+  expect(points(md.track('md'))).toEqual(BY_S_AND_T);
+  const feve = runs(twoLines({ railway: 'narrow_gauge', gauge: '1000' }, {}, '1000;1668'), AB, [[call('feve', 'A B', { railway: ['rail', 'narrow_gauge'], gauges: ['1000'] }, 'Regional')]]);
+  expect(points(feve.track('feve'))).toEqual(BY_S_AND_T);
+});
+
+// A standard-gauge line from A to B, and two ways on from B onto an Iberian-gauge line to C: through a
+// changer, k, and a shorter one through x, where the two gauges' track meets with none.
+const CHANGER: Record<string, [number, number]> = { a: [0, 0], b: [2000, 0], x: [3000, 0], k: [3000, 800], c: [5000, 0] };
+const changer = () => ({
+  ways: rails(CHANGER, ['a b', { gauge: '1435' }], ['b x', { gauge: '1435' }], 'x c', ['b k', { gauge: '1435' }], 'k c'),
+  changers: new Set([Object.keys(CHANGER).indexOf('k') + 1]),
+  stations: [station('A', -10, 0), station('B', 2000, -10), station('C', 5010, 0)],
+});
+
+test("runs AVE on Iberian gauge too where a stretch has no path on standard gauge, changing gauge only at a changer", () => {
+  const { ways, changers, stations } = changer();
+  const { track } = runs(ways, stations, [[call('ave', 'A B C', STANDARD)]], changers);
+  expect(points(track('ave'))).toEqual([[0, 0], [2000, 0], [3000, 800], [5000, 0]]);
+});
+
+test('runs Alvia on both gauges, the shorter way, and changes gauge only at a changer, which it logs', () => {
+  const alvia = runs(twoLines(), [station('A', -10, 0), station('B', 4010, 0)], [[call('alvia', 'A B', BOTH, 'Alvia')]]);
+  expect(points(alvia.track('alvia'))).toEqual([[0, 0], [4000, 0]]);
+  const { ways, changers, stations } = changer();
+  const { track, log } = runs(ways, stations, [[call('alvia', 'A B C', BOTH, 'Alvia')]], changers);
+  expect(points(track('alvia'))).toEqual([[0, 0], [2000, 0], [3000, 800], [5000, 0]]);
+  expect(log).toEqual(['Alvia:1: A → C, 5.4 km long, 1.08× the straight line through its 3 Stations, changing gauge between B and C']);
+});
+
+test("keeps AVE to the right-hand track of a standard-gauge double track, with an Iberian-gauge track 3 m beside it, which isn't the other of its pair", () => {
+  // Double track 4 m apart, bending gently so that the north track, the bend's inside, is the shorter, and
+  // an Iberian-gauge track 3 m south of the south one.
+  const centre: [number, number][] = [[0, 0], [2500, -20], [5000, 0]];
+  const layout: Record<string, [number, number]> = {};
+  const way = (name: string, d: number) => offset(centre, d).map((p, i) => ((layout[`${name}${i}`] = p), `${name}${i}`)).join(' ');
+  const ways = rails(layout, [way('n', 2), { gauge: '1435' }], [way('s', -2), { gauge: '1435' }], way('i', -5));
+  const { track } = runs(ways, [station('A', -10, 0), station('C', 5010, 0)], [[call('east', 'A C', STANDARD), call('west', 'C A', STANDARD)]]);
+  // Going east, the south track is on the right; going west, the north one.
+  expect(points(track('east'))).toEqual([[0, -2], [2500, -22], [5000, -2]]);
+  expect(points(track('west'))).toEqual([[5000, 2], [2500, -18], [0, 2]]);
+});
+
+test('reports a hop traced longer than twice its straight line and 10 km more, and still traces it', () => {
+  // As round three sides of a square 20 km across: 60 km against 20 km in a straight line, but less than 3
+  // times, beyond which a path is none.
+  const { track, log, found } = runs(
+    rails({ a: [0, 0], b: [0, 20_000], c: [20_000, 20_000], d: [20_000, 0] }, 'a b c d'),
+    [station('A', -10, 0), station('B', 20_010, 0)],
+    [[call('md', 'A B', IBERIAN, 'MD')]],
+  );
+  expect(points(track('md'))).toEqual([[0, 0], [0, 20_000], [20_000, 20_000], [20_000, 0]]);
+  const text = 'MD:1: A → B is traced 59.9 km, 3.0 times its 20.0 km straight line';
+  expect(log).toContain(text);
+  expect(found).toMatchObject([{ kind: 'detour', line: 'MD', shape: 'MD:1', stations: [{ id: 'A' }, { id: 'B' }], text: [text] }]);
+});
+
+test('traces each run of Stations once for all its Trips, and leaves out, logs and reports those of a run with a stretch with no path or a Station off the rails, rather than draw them straight across the country', () => {
+  // No rails between B and C, as where Renfe runs a bus, and none near E.
+  const { shapes, days, log, found } = runs(
+    rails({ a: [0, 0], b: [2000, 0], c: [4000, 0], d: [6000, 0] }, 'a b', 'c d'),
+    [station('A', -10, 0), station('B', 2000, 10), station('C', 4000, 10), station('D', 6010, 0), station('E', 3000, 2000)],
+    [
+      [call('ab', 'A B', IBERIAN, 'MD'), call('abc', 'A B C', IBERIAN, 'MD'), call('ae', 'A E', IBERIAN, 'MD')],
+      [call('ab again', 'A B', IBERIAN, 'MD'), call('cd', 'C D', IBERIAN, 'MD')],
+    ],
+  );
+  expect(shapes.map((s) => s.id)).toEqual(['MD:1', 'MD:4']);
+  // Each on its run, with its calls, but no longer its rails.
+  const on = (id: string, stations: string, shape: string) => ({ id, line: 'MD', shape, headsign: '', calls: call(id, stations, IBERIAN).calls });
+  expect(days).toStrictEqual([[on('ab', 'A B', 'MD:1')], [on('ab again', 'A B', 'MD:1'), on('cd', 'C D', 'MD:4')]]);
+  const text = ['abc is left out: B → C has no path along the rails', 'ae is left out: E is off the network'];
+  expect(log.filter((line) => line.includes('left out'))).toEqual(text);
+  expect(found).toMatchObject([
+    { kind: 'trip', why: 'nopath', trip: 'abc', line: 'MD', stations: [{ id: 'B' }, { id: 'C' }], text: [text[0]], day: 0 },
+    { kind: 'trip', why: 'off', trip: 'ae', line: 'MD', stations: [{ id: 'E' }], text: [text[1]], day: 0 },
+  ]);
+});
+
+test("runs AVE on both gauges all the way where a stretch has no path on standard gauge, as one can't tell where it must change till a later stretch: into Ourense through Taboadela's changer, on to Santiago", () => {
+  // B has a standard-gauge track from A, and an Iberian-gauge one from A through a changer at k, on which
+  // alone Trains run on to C.
+  const layout: Record<string, [number, number]> = { a: [0, 0], j: [2000, 0], s: [4000, 0], k: [3000, 100], i: [4000, 30], c: [6000, 30] };
+  const ways = rails(layout, ['a j', { gauge: '1435' }], ['j s', { gauge: '1435' }], ['j k', { gauge: '1435' }], 'k i c');
+  const stations = [station('A', -10, 0), station('B', 4000, 15), station('C', 6010, 30)];
+  const { track, log } = runs(ways, stations, [[call('ave', 'A B C', STANDARD), call('to B', 'A B', STANDARD)]], new Set([Object.keys(layout).indexOf('k') + 1]));
+  expect(points(track('ave'))).toEqual([[0, 0], [2000, 0], [3000, 100], [4000, 30], [6000, 30]]);
+  expect(log.filter((line) => line.includes('changing gauge'))).toEqual(['AVE:1: A → C, 6.0 km long, 1.00× the straight line through its 3 Stations, changing gauge between A and B']);
+  // A Train that ends at B keeps to standard gauge.
+  expect(points(track('to B'))).toEqual([[0, 0], [2000, 0], [4000, 0]]);
+});
+
+test("sets off from another of a Station's tracks of its gauge where OpenStreetMap has none that leads on from the one it comes in on, as at Alcázar de San Juan, and says so", () => {
+  // A's line comes into S on its north track, which ends there, and C's leaves from its south track, 10 m off.
+  const ways = rails({ a: [0, 0], n: [3000, 0], w: [2000, -10], s: [5000, -10], c: [8000, -10] }, 'a n', 'w s c');
+  const { track, log } = runs(ways, [station('A', -10, 0), station('S', 3000, -5), station('C', 8010, -10)], [[call('md', 'A S C', IBERIAN, 'MD')]]);
+  expect(points(track('md'))).toEqual([[0, 0], [3000, 0], [3000, -10], [8000, -10]]);
+  expect(log).toEqual(["MD:1: A → C, 8.0 km long, 1.00× the straight line through its 3 Stations, leaving S from another track than it came in on"]);
+});
+
+test("comes into a Station on each gauge it can, as an Alvia must come into Sevilla on Iberian gauge, through Majarabique's changer, to go on to Jerez, though standard gauge is the shorter way in", () => {
+  // From A, standard-gauge track runs straight into S, and on through a changer at k onto Iberian-gauge track
+  // that runs into S beside it, 2 km longer. From S, only the Iberian-gauge track runs on, back south to C.
+  const layout: Record<string, [number, number]> = { a: [0, 0], s: [4000, 0], j: [1000, 0], k: [2000, 2000], i: [4000, 10], m: [3000, 10], c: [3000, -3000] };
+  const ways = rails(layout, ['a j s', { gauge: '1435' }], ['j k', { gauge: '1435' }], 'k i', 'i m c');
+  const { track, log } = runs(
+    ways,
+    [station('A', -10, 0), station('S', 4010, 5), station('C', 3000, -3010)],
+    [[call('alvia', 'A S C', BOTH, 'Alvia')]],
+    new Set([Object.keys(layout).indexOf('k') + 1]),
+  );
+  expect(points(track('alvia')).slice(0, 4)).toEqual([[0, 0], [1000, 0], [2000, 2000], [4000, 10]]);
+  expect(log[0]).toContain('changing gauge between A and S');
+});
+
+test("reaches a Station published at another's point where it reached that one, as Renfe has Ourense Turístico at Ourense's, a minute after it", () => {
+  const { track } = runs(
+    rails({ a: [0, 0], b: [2000, 0], c: [4000, 0] }, 'a b c'),
+    // BT is B's second stop, at its point.
+    [station('A', -10, 0), station('B', 2000, 10), station('BT', 2000, 10), station('C', 4010, 0)],
+    [[call('md', 'A B BT C', IBERIAN, 'MD')]],
+  );
+  expect(points(track('md'))).toEqual([[0, 0], [2000, 0], [4000, 0]]);
 });

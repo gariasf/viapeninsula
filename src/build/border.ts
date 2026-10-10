@@ -38,6 +38,23 @@ export function crop(border: Point[][], stations: Station[], shapes: Shape[], da
   };
 }
 
+/**
+ * Each day's Trips of a timetable with no shapes, as long distance's, to trace their track along (#259):
+ * their calls within the border, and the first beyond it each way, which crop() keeps where their track
+ * reaches it, as Perpignan for AVE Int's Trains to Marseille and Lyon, beyond which the rails stop. A
+ * Trip that never comes within it is left out.
+ */
+export function toBorder(border: Point[][], stations: Station[], days: FeedTrip[][]): FeedTrip[][] {
+  const inside = within(border);
+  const kept = new Set(stations.filter((s) => inside([s.lon, s.lat])).map((s) => s.id));
+  return days.map((trips) =>
+    trips.flatMap((trip): FeedTrip[] => {
+      const calls = trip.calls.filter((_, i) => [i - 1, i, i + 1].some((j) => kept.has(trip.calls[j]?.station ?? '')));
+      return calls.some((c) => kept.has(c.station)) ? [{ ...trip, calls }] : [];
+    }),
+  );
+}
+
 /** Whether a point lies within a border: a ray from it due east crosses the border an odd number of times. */
 function within(border: Point[][]): (p: Point) => boolean {
   // Each ray only meets the border's segments that span its latitude, so they go in bands of it.

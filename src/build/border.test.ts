@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { Shape, Station } from '../bundle.ts';
-import { crop } from './border.ts';
+import { crop, toBorder } from './border.ts';
 import type { FeedTrip } from './trips.ts';
 
 // Track drawn in metres east (x) and north (y) of a point near Elvas, with the border with Portugal
@@ -65,4 +65,9 @@ test("ends a Trip at its last Station in Spain where its track doesn't reach the
   const short: Shape = { id: 'short', coords: [3000, 10_000, 30_000].map((x) => at(x, 0)), dist: [0, 7000, 27_000] };
   const { days } = crop(BORDER, STATIONS, [short], [[trip('portalegre', 'merida badajoz elvas portalegre', 'short')]]);
   expect(days[0]?.map((t) => t.calls.map((c) => c.station))).toEqual([['merida', 'badajoz']]);
+});
+
+test("cuts the Trips of a timetable with no shapes, as long distance's, before they're traced, to their calls in Spain and the first beyond the border each way, so that their track is traced to the border, and leaves out one that never comes into Spain", () => {
+  const days = toBorder(BORDER, STATIONS, [[trip('out', 'merida badajoz elvas portalegre'), trip('portugal', 'portalegre elvas')], [trip('in', 'portalegre elvas badajoz')]]);
+  expect(days.map((trips) => trips.map((t) => t.calls.map((c) => c.station)))).toEqual([[['merida', 'badajoz', 'elvas']], [['elvas', 'badajoz']]]);
 });
