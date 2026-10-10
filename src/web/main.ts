@@ -1,7 +1,7 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
 import type { BackgroundLayerSpecification, ExpressionFilterSpecification, ExpressionSpecification, FontFacesSpecification, LineLayerSpecification, ProjectionSpecification } from '@maplibre/maplibre-gl-style-spec';
-import { MapLibreMap, Popup, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
+import { MapLibreMap, Popup, setWorkerUrl, type GeoJSONSource, type LngLat } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import nunitoSans from '@fontsource/nunito-sans/files/nunito-sans-latin-400-normal.woff2?url';
 import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-normal.woff2?url';
@@ -10,7 +10,7 @@ import { along, APART, atZoom, BANDS, bandZooms, cutIn, GRAPH_BAND, STRETCH, smo
 import { boardAt, joinDays, KEEP, mapTime, nearbyAt, trainAt, trainsAt, unavailable, type Departure, type Followed, type Received } from '../engine.ts';
 import { alertCount, basemapLabel, busesReplace, earlierStations, language, LANGUAGES, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, setLanguage, t, toGo, trainCounts, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
-import { linesAt } from './tap.ts';
+import { linesAt, popupRoom } from './tap.ts';
 import { alongside, namedTwice, nameOffset, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
 import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
 import { keepView, lastView, markOf, openingView } from './view.ts';
@@ -465,7 +465,8 @@ const trainButtons = el('div', { className: 'fabs', hidden: true }, followRandom
 const creditsButton = el('summary', { className: 'card' }, icon('copyright'));
 const creditsText = el('div', { className: 'card credits-text' });
 const creditsStrip = el('div', { className: 'card credits-strip' });
-document.body.append(el('div', { className: 'dock' }, el('div', { className: 'riders' }, el('details', { className: 'credits' }, creditsButton, creditsText), trainButtons, creditsStrip), panel));
+const riders = el('div', { className: 'riders' }, el('details', { className: 'credits' }, creditsButton, creditsText), trainButtons, creditsStrip);
+document.body.append(el('div', { className: 'dock' }, riders, panel));
 // The About dialog, opened from the legend, which showAbout() fills: on a phone, a sheet of its own,
 // nearly the full height. Tapping outside it closes it too, in browsers that can.
 const about = el('dialog', { className: 'about' });
@@ -934,6 +935,8 @@ for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', tr
 const strokeLayers = layered.map((l) => l.id);
 /** Where a tap names the Lines drawn there, or what closes a Closure. Each tap closes the last one's. */
 const linesPopup = new Popup({ closeButton: false, closeOnClick: false, className: 'lines-at', maxWidth: 'none' });
+/** How far in from the map's sides the tap's popup keeps, and from the cards over the map's top and the buttons over its bottom, in px (fitPopup()). */
+const GUTTER = 16;
 /** The Lines a tap names, and whether their Alerts are shown, which their fold hides, until the next tap (#341). */
 let tappedLines = { lines: [] as string[], open: false };
 /** What the popup shows of the Lines a tap names, which changes in place as its fold turns (patch()). */
@@ -968,7 +971,10 @@ map.on('click', ({ point: { x, y }, lngLat }) => {
     const shown = onClosures
       ? closuresTapped(tapped.flatMap((f) => (closureLayers.includes(f.layer.id) ? [String(f.properties.key)] : [])))
       : linesTapped(linesAt(tapped.map((f) => ({ line: String(f.properties.line), shape: String(f.properties.shape), from: Number(f.properties.from), to: Number(f.properties.to) })), shownStrokes));
-    if (shown) linesPopup.setLngLat(lngLat).setDOMContent(shown).addTo(map);
+    if (shown) {
+      fitPopup(lngLat);
+      linesPopup.setLngLat(lngLat).setDOMContent(shown).addTo(map);
+    }
   }
 });
 // ponytail: while the Lines fade, the pointer shows over the strokes of both drawings, though a tap
@@ -1953,10 +1959,35 @@ function linesTapped(named: string[]) {
   return tappedLines.lines.length ? tappedBox : undefined;
 }
 
-/** Fills the popup of the Lines a tap names, as it opens, and again as its fold turns, in place. */
+/** Fills the popup of the Lines a tap names, as it opens, and again as its fold turns, in place, fitted again to the room round it. */
 function showTapped() {
   const toggle = () => (tappedLines.open = !tappedLines.open);
-  patch(tappedBox, [el('div', { className: 'pills' }, ...tappedLines.lines.map((id) => pill(id))), alertsOn({ lines: tappedLines.lines, stations: [] }, tappedLines.open, toggle, showTapped)]);
+  const after = () => {
+    showTapped();
+    fitPopup(linesPopup.getLngLat());
+  };
+  patch(tappedBox, [el('div', { className: 'pills' }, ...tappedLines.lines.map((id) => pill(id))), alertsOn({ lines: tappedLines.lines, stations: [] }, tappedLines.open, toggle, after)]);
+}
+
+/**
+ * Fits the tap's popup to the room round the point it points from, `at`, and places it there again
+ * where it's open (#341): GUTTER in from the map's sides, and as far from the corners' cards over the
+ * map's top and the buttons riding on the sheet over its bottom. MapLibre puts it above the point, or
+ * below or beside it where it doesn't fit, by those insets (`padding`), and popupRoom() keeps it small
+ * enough for one of those to fit: no wider than its most width, nor higher than `--popup-room` in the CSS.
+ */
+function fitPopup(at: LngLat) {
+  const box = map.getContainer().getBoundingClientRect();
+  const inset = {
+    top: Math.max(box.top, ...[legend, banner, languageChip].map((card) => card.getBoundingClientRect().bottom)) - box.top + GUTTER,
+    bottom: box.bottom - Math.min(box.bottom, riders.getBoundingClientRect().top) + GUTTER,
+    left: GUTTER,
+    right: GUTTER,
+  };
+  const room = popupRoom(map.project(at), box, inset);
+  map.getContainer().style.setProperty('--popup-room', `${room.height}px`);
+  linesPopup.setPadding(inset);
+  linesPopup.setMaxWidth(`${room.width}px`);
 }
 
 /**
