@@ -1972,16 +1972,17 @@ function showTapped() {
 /**
  * Fits the tap's popup to the room round the point it points from, `at`, and places it there again
  * where it's open (#341): GUTTER in from the map's sides, and as far from the corners' cards over the
- * map's top and the buttons riding on the sheet over its bottom. MapLibre puts it above the point, or
- * below or beside it where it doesn't fit, by those insets (`padding`), and popupRoom() keeps it small
- * enough for one of those to fit: no wider than its most width, nor higher than `--popup-room` in the CSS.
+ * map's top, the buttons riding on the sheet over its bottom, and on a wide window the panel's card at
+ * its left, as the map's own padding is (panelPadding()). MapLibre puts it above the point, or below or
+ * beside it where it doesn't fit, by those insets (`padding`), and popupRoom() keeps it small enough
+ * for one of those to fit: no wider than its most width, nor higher than `--popup-room` in the CSS.
  */
 function fitPopup(at: LngLat) {
   const box = map.getContainer().getBoundingClientRect();
   const inset = {
     top: Math.max(box.top, ...[legend, banner, languageChip].map((card) => card.getBoundingClientRect().bottom)) - box.top + GUTTER,
     bottom: box.bottom - Math.min(box.bottom, riders.getBoundingClientRect().top) + GUTTER,
-    left: GUTTER,
+    left: GUTTER + panelPadding().left,
     right: GUTTER,
   };
   const room = popupRoom(map.project(at), box, inset);
