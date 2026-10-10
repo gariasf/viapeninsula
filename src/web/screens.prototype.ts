@@ -156,11 +156,11 @@ function departure(row: Row): string {
   return `<li class="${off}">${off === 'cancelled' ? cells : `<a class="row" href="#follow">${cells}</a>`}</li>`;
 }
 
-/** A Line's state as words, and a chip for the Trains late: its Trains now, how late the worst is, how many Cancelled. */
+/** A Line's state as words, and a chip for the Trains late: its Trains now, how late the worst is, how many Cancelled. A number keeps its unit on its line (a no-break space). */
 function stateOf(s: LineState): { words: string; chips: string } {
   const words = s.trains
-    ? [`${plural(s.trains, 'Train')} now`, s.late5 ? `worst +${s.worst} min` : '', s.cancelled ? `${s.cancelled} Cancelled` : ''].filter(Boolean).join(' · ')
-    : ['No Trains now', s.cancelled ? `${s.cancelled} Cancelled` : ''].filter(Boolean).join(' · ');
+    ? [`${plural(s.trains, 'Train')} now`, s.late5 ? `worst +${s.worst}\u00a0min` : '', s.cancelled ? `${s.cancelled}\u00a0Cancelled` : ''].filter(Boolean).join(' · ')
+    : ['No Trains now', s.cancelled ? `${s.cancelled}\u00a0Cancelled` : ''].filter(Boolean).join(' · ');
   return { words, chips: s.late5 ? `<span class="delay late">${s.late5} late</span>` : '' };
 }
 
@@ -279,7 +279,7 @@ function favouriteLine(id: string): string {
   const state = LINE_STATE[id];
   if (!info || !state) return '';
   const s = stateOf(state);
-  const end = s.chips || (state.trains && !state.cancelled ? '<span class="status soft">on time</span>' : '');
+  const end = s.chips || (state.trains && !state.cancelled ? '<span class="status soft">none late</span>' : '');
   return `<li class="fav fav-line"><a class="fav-row" href="${id === R4_LINE.id ? link({ screen: 'line', line: null }) : '#line'}">${pill(id, { big: true })}<span class="what"><span class="what-title">${esc(networkName(info.network))}</span><span class="what-under">${s.words}</span></span><span class="end">${end}</span></a>${star(true, info.name)}</li>`;
 }
 
@@ -289,7 +289,7 @@ function favouritesBody(): string {
   }
   return `<h3 class="label">Stations</h3><ol class="favs">${FAVOURITES.stations.map((id) => (PLACES[id] ? favouriteStation(PLACES[id]) : '')).join('')}</ol>
     <h3 class="label">Lines</h3><ol class="favs">${FAVOURITES.lines.map(favouriteLine).join('')}</ol>
-    <p class="meta keep">Kept in this browser only. Trains aren't kept: a Train is one day's run.</p>`;
+    <p class="meta keep">Kept in this browser only. Trains aren't kept: a Train lasts one day.</p>`;
 }
 
 // ---- A Line's screen.
@@ -336,8 +336,8 @@ function variantChips(): string {
   const runs = LINE.variants.slice(0, 5);
   const chip = (label: string, count: string, selected: boolean, href: string) =>
     `<a class="chip" role="tab" aria-selected="${selected}" href="${href}"><b>${label}</b><span class="chip-n">${count}</span></a>`;
-  return `<div class="chips" role="tablist" aria-label="Runs of this Line">${chip('All', plural(LINE.variants.reduce((n, v) => n + v.trips, 0), 'Trip'), !selectedRun, link({ alt: null, v: null }))}${runs
-    .map((v, i) => chip(`${esc(v.fromName)} – ${esc(v.toName)}`, plural(v.trips, 'Trip'), selectedRun === v, link({ alt: 'chips', v: String(i) })))
+  return `<div class="chips" role="tablist" aria-label="Runs of this Line">${chip('All', `${plural(LINE.variants.reduce((n, v) => n + v.trips, 0), 'Train')} a day`, !selectedRun, link({ alt: null, v: null }))}${runs
+    .map((v, i) => chip(`${esc(v.fromName)} – ${esc(v.toName)}`, `${plural(v.trips, 'Train')} a day`, selectedRun === v, link({ alt: 'chips', v: String(i) })))
     .join('')}</div>`;
 }
 
@@ -414,7 +414,8 @@ function whatsWrong(): string {
   const order = (n: NetworkNow) => (CATALAN.includes(n.id) ? CATALAN.indexOf(n.id) : 99);
   const trouble = (n: NetworkNow) => n.unavailable || n.late5 > 0 || n.cancelled > 0;
   const troubled = NOW.networks.filter(trouble).sort((a, b) => order(a) - order(b) || b.late5 - a.late5 || a.name.localeCompare(b.name));
-  const quiet = NOW.networks.filter((n) => !trouble(n) && n.trains > 0);
+  // The Metro's Trains have no Delay to weigh (TMB runs it by headway), so it isn't said to have none late.
+  const quiet = NOW.networks.filter((n) => !trouble(n) && n.trains > 0 && n.id !== 'metro');
   // A stretch's Closures once, with its Lines' pills, as T1, T2 and T3's are one.
   const stretches = new Map<string, { lines: string[]; stations: (string | undefined)[]; kind: string }>();
   for (const c of NOW.closures) {
@@ -427,7 +428,7 @@ function whatsWrong(): string {
     .map((c) => `<li><span class="trouble-row static"><span class="lead pills">${c.lines.map((l) => pill(l)).join('')}</span><span class="what"><span class="what-title">${esc(c.stations[0] ?? '')} – ${esc(c.stations[1] ?? '')}</span><span class="what-under">${c.kind === 'single' ? 'Single track' : 'Closed, buses run instead'}</span></span></span></li>`)
     .join('');
   return `<h3 class="label">What's wrong</h3><p class="subtitle">Late is 5 minutes or more.</p><ol class="nets">${troubled.map(networkBlock).join('')}</ol>
-    <p class="meta quiet"><b>No trouble:</b> ${quiet.map((n) => esc(networkName(n.id))).join(' · ')}.</p>
+    <p class="meta quiet"><b>Nothing late or Cancelled:</b> ${quiet.map((n) => esc(networkName(n.id))).join(' · ')}. The Metro has no Delays to show.</p>
     <h4 class="sub-label">Closed or on a single track, as the map draws them</h4><ol class="trouble">${closures}</ol>`;
 }
 
@@ -436,7 +437,7 @@ function whatsNotable(): string {
     .map((s) => {
       const name = s.id === 'fgc:MM' ? 'Montserrat rack railway' : s.id === 'fgc:FV' ? 'Vallvidrera funicular' : 'Montjuïc funicular';
       const train = s.running[0];
-      const under = train ? `Running now, ${train.live ? 'Live' : 'Scheduled'}${train.delay ? ` · ${train.delay > 0 ? '+' : '−'}${Math.abs(train.delay)} min` : ''}` : s.next ? `Between rides · next ${plain(s.next.at)} from ${esc(s.next.from)}` : 'Not running';
+      const under = train ? `Running now, ${train.live ? 'Live' : 'Scheduled'}${train.delay ? ` · ${train.delay > 0 ? '+' : '−'}${Math.abs(train.delay)} min` : ''}` : s.next ? `Not running now · next ${plain(s.next.at)} from ${esc(s.next.from)}` : 'Not running';
       return `<li><span class="trouble-row static">${pill(s.id, { live: !!train?.live, train: !!train })}<span class="what"><span class="what-title">${name}</span><span class="what-under">${under}</span></span></span></li>`;
     })
     .join('');
@@ -462,7 +463,7 @@ function whatsNotable(): string {
   return `<h3 class="label">What's notable</h3>
     <h4 class="sub-label">The Train furthest behind its timetable</h4><ol class="trouble">${latest}</ol>
     <h4 class="sub-label">Rack railway and funiculars</h4><ol class="trouble">${specials}</ol>
-    <h4 class="sub-label">Trains crossing into France</h4><ol class="trouble">${france}</ol>
+    <h4 class="sub-label">Trains to and from France</h4><ol class="trouble">${france}</ol>
     <h4 class="sub-label">First and last Trains today</h4><ol class="trouble">${firstLast}</ol>`;
 }
 
