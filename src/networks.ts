@@ -41,7 +41,8 @@ export interface NetworkConfig extends Omit<Network, 'credit'> {
    * Entrego at a FEVE station 0.4 km from Adif's (#367), with where they do stop and the source that
    * says so: the URL of an OpenStreetMap node, or of the operator's own map. The daily build lists those
    * it applies. A Station two Networks list is one Station, as the first of them has it (stationsOf()),
-   * so it goes in each Network that lists it.
+   * so it goes in each Network that lists it. A timetable's `points` (#259) put a Station elsewhere the
+   * same way, by stop_id, with no source and no line in the log, and these win where both name one.
    */
   stations?: Record<string, { lon: number; lat: number; source: string }>;
 }
