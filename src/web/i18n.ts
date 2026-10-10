@@ -134,6 +134,14 @@ const STRINGS = {
     gl: 'Última actualización dos avisos: {time}',
     en: 'Alerts as of {time}',
   },
+  // A tap on a Closure from the timetable (#341): its Line's buses in place of its Trains between two Stations, {a} and {b} (busesReplace()).
+  busesReplace: {
+    ca: 'Autobusos en lloc de trens entre {a} i {b}',
+    es: 'Autobuses en lugar de trenes entre {a} y {b}',
+    eu: 'Autobusak trenen ordez {a} eta {b} artean',
+    gl: 'Autobuses no canto de trens entre {a} e {b}',
+    en: 'Buses replace trains between {a} and {b}',
+  },
   // Nearby Trains: their panel's title, and the button that opens them.
   nearby: { ca: 'Trens a prop', es: 'Trenes cercanos', eu: 'Inguruko trenak', gl: 'Trens próximos', en: 'Nearby trains' },
   nearbyButton: { ca: 'A prop', es: 'Cerca', eu: 'Inguruan', gl: 'Preto', en: 'Nearby' },
@@ -329,6 +337,16 @@ export const moreDepartures = (n: number, lang = language()): string => counting
 
 /** How many Alerts a card has, `n`, in the line they're folded into, in `lang`, or else the language the interface speaks now. */
 export const alertCount = (n: number, lang = language()): string => counting(n, 'oneAlert', 'alerts', lang);
+
+/**
+ * That buses run in a Line's Trains' place between two Stations, as the timetable's Closures say (#341),
+ * in `lang`, or else the language the interface speaks now: in Spanish with "e" for "y" before a name
+ * starting with an i sound, as in "Hernani e Irun", but not "hie", as the RAE has it.
+ */
+export const busesReplace = (a: string, b: string, lang = language()): string => {
+  const text = STRINGS.busesReplace[lang].replace('{a}', a);
+  return (lang === 'es' && /^h?[iíIÍ](?![aeoáéó])/i.test(b) ? text.replace(' y {b}', ' e {b}') : text).replace('{b}', b);
+};
 
 /**
  * Why Nearby can't show the viewer's nearby Trains: the browser is finding where they are, as Nearby's

@@ -528,7 +528,7 @@ export function zones(strokes: Stroke[]): Map<string, Zone[]> {
 }
 
 /** How near, in metres along its shape, a Train's Line goes onto a centreline for it to be on its way there, across a node. */
-const NEXT = 500;
+export const NEXT = 500;
 
 /**
  * Where a Train `dist` metres along its shape is drawn at a zoom, from its Line's slots along that

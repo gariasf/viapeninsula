@@ -472,7 +472,7 @@ body {
   border-radius: 50%;
 }
 
-:where(.sheet, .about) :where(p, ol, ul) {
+:where(.sheet, .about, .lines-at) :where(p, ol, ul) {
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1050,10 +1050,34 @@ time .in {
   max-width: min(232px, calc(100vw - 32px));
 }
 
-.lines-at .maplibregl-popup-content > div {
+.lines-at .pills {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
+}
+
+/* With the Lines' Alerts under their pills, or what closes a Closure (#341): in the cards' type, a little wider, and scrolled where it's long, or where it's higher than the room above or below where it points (main.ts's fitPopup()), less the 5 px its tip takes. A Closure's first has no rule over it, but under when its Alerts were read. */
+.lines-at:has(.alerts:not([hidden])) .maplibregl-popup-content {
+  max-width: min(300px, calc(100vw - 32px));
+  max-height: min(50dvh, 360px, var(--popup-room) - 5px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: color-mix(in srgb, var(--ink) 35%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.lines-at .alerts {
+  --time: 4.4em;
+  font: 14px/1.45 var(--font);
+}
+
+.lines-at .pills + .alerts {
+  margin-top: 6px;
+}
+
+.lines-at .alerts > .meta[hidden] + ol > li:first-child {
+  padding-top: 0;
+  border-top: 0;
 }
 
 .lines-at .maplibregl-popup-tip {
