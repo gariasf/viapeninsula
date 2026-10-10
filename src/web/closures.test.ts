@@ -241,6 +241,13 @@ const READ = Date.parse('2026-10-07T12:35:22+02:00');
 const ALERTS = readAlerts(ALERTS_START, { renfe: { alerts: recorded('renfe.json') }, tram: { 'TBX GtfsRealtimeAlerts': recorded('tram-tbx.json'), 'TBS GtfsRealtimeAlerts': recorded('tram-tbs.json') } }, READ).file ?? {};
 
 /**
+ * TRAM's Alerts as the fetcher had them at 23:10 on 10 Oct 2026, read from its two feeds at 23:10:14, as
+ * alerts.json holds them (#397): sc-280 listed again for the works' own days, from 03:05 on 10 Oct to
+ * 01:00 on 13 Oct, in the place of sc-287 of 9 Oct, which ended at 03:00; sc-286, and sc-279.
+ */
+const TRAM_10: Alerts = JSON.parse(readFileSync(new URL('../fetcher/fixtures/alerts/tram-2026-10-10.json', import.meta.url), 'utf8'));
+
+/**
  * TRAM's Trips of T1–T3, T5 and T6 on 7, 9, 10, 11 and 12 Oct 2026 and 14 Oct, by service day, cut to
  * each Trip's first and last calls and its calls at the six Stations TRAM's Alerts name, as the daily
  * build had them (#397): the day files the CDN served on 7, 9, 10 and 11 Oct, a dry run of main on
@@ -317,25 +324,28 @@ test("on 10 Oct, the first of TRAM's works, also closes T1–T3 Francesc Macià 
   );
 });
 
-test("closes TRAM's T1–T3 from Francesc Macià to Montesa only where the day's timetable turns them back, not for as long as sc-280's notice shows (#397)", () => {
-  // sc-280 as TRAM listed it on 7 Oct, from 1 Oct 07:00 to 13 Oct 01:00, for works on 10–12 Oct, which of
-  // T1–T3 are closed at a moment, by the timetable of a day (the page having only that day's).
-  const closed = (date: string, moment: string) =>
-    closuresAt(ALERTS, tramDay(date), Date.parse(moment))
-      .filter((c) => c.alert?.id === 'sc-280')
+test("closes TRAM's T1–T3 from Francesc Macià to Montesa only where the day's timetable turns them back, not for as long as its notice shows (#397)", () => {
+  // Each day's own Alerts: sc-280 as listed on 7 Oct, from 1 Oct 07:00 to 13 Oct 01:00; sc-287, in its place
+  // in the file of 9 Oct 23:20, from 1 Oct 05:00 to 10 Oct 03:00; and sc-280 as listed for the works' days.
+  const closed = (alerts: Alerts, date: string, moment: string) =>
+    closuresAt(alerts, tramDay(date), Date.parse(moment))
+      .filter((c) => c.alert?.id === 'sc-280' || c.alert?.id === 'sc-287')
       .map((c) => c.line.slice('tram:'.length));
   // 7 and 9 Oct: every one of T1–T3's Trips (160 + 154 + 154, and 159 + 166 + 163) calls at both.
-  for (const date of ['2026-10-07', '2026-10-09']) {
-    for (const time of ['04:40', '05:30', '08:15', '12:00', '17:45', '22:00', '23:20']) expect(closed(date, `${date}T${time}+02:00`)).toEqual([]);
+  for (const [alerts, date] of [[ALERTS, '2026-10-07'], [NIGHT, '2026-10-09']] as const) {
+    for (const time of ['04:40', '05:30', '08:15', '12:00', '17:45', '22:00', '23:20']) expect(closed(alerts, date, `${date}T${time}+02:00`)).toEqual([]);
   }
   // 10 Oct: T2's 159 and T3's 160 Trips call at Montesa and none at Francesc Macià; T1's 5 (06:42, 06:58, 12:00,
   // 17:03 and 02:27 the next morning) go no further than Montesa, and it has none within the hour of 05:30 or 09:00.
-  expect(closed('2026-10-10', '2026-10-10T05:30:00+02:00')).toEqual(['T2', 'T3']);
-  expect(closed('2026-10-10', '2026-10-10T09:00:00+02:00')).toEqual(['T2', 'T3']);
-  expect(closed('2026-10-10', '2026-10-10T12:00:00+02:00')).toEqual(['T2', 'T3', 'T1']);
+  expect(closed(TRAM_10, '2026-10-10', '2026-10-10T05:30:00+02:00')).toEqual(['T2', 'T3']);
+  expect(closed(TRAM_10, '2026-10-10', '2026-10-10T09:00:00+02:00')).toEqual(['T2', 'T3']);
+  expect(closed(TRAM_10, '2026-10-10', '2026-10-10T12:00:00+02:00')).toEqual(['T2', 'T3', 'T1']);
   // 11 and 12 Oct: T1's 1 and 2 Trips are all after midnight, at 02:24, and 00:34 and 00:48.
-  for (const date of ['2026-10-11', '2026-10-12']) expect(closed(date, `${date}T12:00:00+02:00`)).toEqual(['T2', 'T3']);
-  expect(closed('2026-10-11', '2026-10-12T02:30:00+02:00')).toEqual(['T2', 'T3', 'T1']);
+  for (const date of ['2026-10-11', '2026-10-12']) expect(closed(TRAM_10, date, `${date}T12:00:00+02:00`)).toEqual(['T2', 'T3']);
+  expect(closed(TRAM_10, '2026-10-11', '2026-10-12T02:30:00+02:00')).toEqual(['T2', 'T3', 'T1']);
+  // Till its Alert ends, at 01:00:05 on the 13th, though 12 Oct's last Trips run to 00:58.
+  expect(closed(TRAM_10, '2026-10-12', '2026-10-13T01:00:05+02:00')).toEqual(['T2', 'T3', 'T1']);
+  expect(closed(TRAM_10, '2026-10-12', '2026-10-13T01:00:06+02:00')).toEqual([]);
 });
 
 test("doesn't close T6 from Estació St.Adrià to Parc del Besòs, sc-286's stretch, on 9 Oct, where its notice shows from and every T6 Trip crosses it, nor on 14 or 15 Oct, whose timetable has no T6 Trip from 07:36 to 14:20 (#397)", () => {
