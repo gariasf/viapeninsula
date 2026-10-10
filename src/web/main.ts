@@ -293,7 +293,7 @@ const TIERS: { nameZoom: number; larger: number; size: number; places: string[] 
     ],
   },
 ];
-/** How a place in neither tier is drawn: named from zoom 12, and in the smallest size. */
+/** How a place in neither tier is drawn: named from zoom 12, in the smallest size, and after every tier's where names collide, by its calls a day (nameSort(), #372). */
 const UNTIERED = { nameZoom: 12, larger: 0, size: 11 };
 /**
  * The places whose names are in bold, as the maintainer picks them, by their IDs in places():
@@ -718,12 +718,15 @@ let namesBearing = NaN;
 /**
  * How many times Trains call at each Station in the Trips of the days shown (callsIn()), once they've
  * come: those of places in no tier rank their names where they collide, the busier's first (#372).
- * Counted here, not by the build into each region's track: there it made Catalonia's 615 KB track a new
- * file in each of 15 daily builds from 10 to 27 October 2026 (Madrid's in 8), for 6 KB of brotli.
+ * Counted here, not by the build into each region's track, where the count changes with the day of the
+ * week and would make Catalonia's 615 KB track a new file in each daily build, for 6 KB of brotli.
  */
 let calls = new Map<string, number>();
-/** Where `names` were last laid out (showNames()): for the bearing the map had, each one's anchor and offset at each of NAME_ZOOMS. */
-let laidOut: { names: typeof names; bearing: number; where: Record<string, unknown>[] } | undefined;
+/**
+ * Where `names` were last laid out (showNames()), for the pills clearance() reads and the bearing the
+ * map had: each one's anchor and offset at each of NAME_ZOOMS.
+ */
+let laidOut: { names: typeof names; pills: typeof pills; bearing: number; where: Record<string, unknown>[] } | undefined;
 map.addSource('lines', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 // Simplified less than MapLibre's default 0.375 px, which would facet their curves again (#203).
 map.addSource('rails', { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, tolerance: 0.1 });
@@ -1388,7 +1391,7 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
 /**
  * Puts each place's name beside its own Networks' track (alongside()) as the track lies on screen now, at each of
  * NAME_ZOOMS on the side nearestSide() takes, as far out from its dot as clearance() says, and off any track
- * crossing its own there (underName()).
+ * crossing its own there (underName()), and sorts them for where they collide (nameSort(), #372).
  * ponytail: tries a name under a crossing track at the zoom and the next, not in between, and as far
  * out at the next as at this one. Try more steps if a name lies across one mid-zoom.
  * ponytail: laid out flat, so on a tilted map a name sits a little nearer its track or further than
@@ -1396,9 +1399,9 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
  */
 function showNames() {
   namesBearing = map.getBearing();
-  // Where each name goes depends on the bearing and the names, not on its rank: the calls that come with
-  // the Trips rank them again without laying them out (#372).
-  if (laidOut?.names !== names || laidOut.bearing !== namesBearing) {
+  // Where each name goes depends on the names, the pills clearance() reads and the bearing, not on its
+  // rank: the calls that come with the Trips rank them again without laying them out (#372).
+  if (laidOut?.names !== names || laidOut.pills !== pills || laidOut.bearing !== namesBearing) {
     const where = names.map(({ dot, sides, size, nameZoom, larger, style }) => {
       const at = sides(namesBearing);
       const properties = NAME_ZOOMS.flatMap((zoom) => {
@@ -1418,7 +1421,7 @@ function showNames() {
       });
       return Object.fromEntries(properties);
     });
-    laidOut = { names, bearing: namesBearing, where };
+    laidOut = { names, pills, bearing: namesBearing, where };
   }
   const { where } = laidOut;
   map.getSource<GeoJSONSource>('station-names')?.setData({
