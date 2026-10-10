@@ -148,6 +148,9 @@ export interface Manifest {
  * A region's service days (ADR-0014): the last day before today that its last build named, where it
  * did, and today and the days after. A region whose build failed keeps the days its last build named, so
  * the others publish as ever.
+ * ponytail: each day names its region's track again, as it did, and the page reads the manifest every
+ * minute: 8.7 KB (1.4 KB gzipped) for 15 regions' 3 days. Name it once for each region if that grows
+ * with the regions in view (#266).
  */
 export interface ManifestRegion {
   id: string;
