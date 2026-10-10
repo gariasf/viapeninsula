@@ -13,7 +13,7 @@ export interface NetworkConfig extends Omit<Network, 'credit'> {
    * The region it's built and loaded in, with every other Network that names it: Networks whose Lines
    * share Stretches, so that they're drawn side by side, as Catalonia's four (ADR-0014). Its own ID
    * where it names none (regionOf()). Long distance's Networks, once they're on the map, are a region
-   * of their own too, which every view loads (#259).
+   * of their own too, which every view loads (EVERYWHERE, #266).
    */
   region?: string;
   rails: Rails;
