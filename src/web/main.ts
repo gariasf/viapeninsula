@@ -626,6 +626,8 @@ showLanguage();
 let manifest: Manifest | undefined;
 /** Each file of the service days' bundles the map has fetched, or is fetching: their track and Trips. */
 const fetched = new Map<string, Promise<unknown>>();
+/** Each set of regions' tracks joined, by the files it's from, so that looking again where one came again or failed again draws nothing again. */
+const joinedTracks = new Map<string, Track>();
 /** The files of the days' bundles on the map, and whether the map is looking for the days it needs. */
 let [shown, looking] = ['', false];
 /** The Stations of the track on the map, which come with its Lines. */
@@ -2666,6 +2668,7 @@ async function neededDays(): Promise<{ track: Promise<Track>; days: Promise<Bund
   const keys = days.flatMap((d) => d.regions.flatMap((r) => [r.track, r.trips]));
   if (keys.join() === shown) return undefined;
   for (const key of fetched.keys()) if (!keys.includes(key)) fetched.delete(key);
+  for (const files of joinedTracks.keys()) if (!files.split(',').every((file) => keys.includes(file))) joinedTracks.delete(files);
   const get = <T>(key: string) => {
     const file = fetched.get(key) ?? getJson<T>(`${LIVE_URL}/${key}`);
     fetched.set(key, file);
@@ -2692,7 +2695,10 @@ async function neededDays(): Promise<{ track: Promise<Track>; days: Promise<Bund
     const joined = settle(day.regions.map((r) => get<Track>(r.track))).then((got) => {
       const [loaded, came] = [day.regions.filter((_, i) => got[i]), got.flatMap((t) => (t ? [t] : []))];
       if (!came.length) throw new Error(`No region's track came for ${day.date}`);
-      return { track: joinTracks(came), loaded };
+      const files = loaded.map((r) => r.track).join();
+      const track = joinedTracks.get(files) ?? joinTracks(came);
+      joinedTracks.set(files, track);
+      return { track, loaded };
     });
     tracks.set(day, joined);
     return joined;
