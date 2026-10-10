@@ -72,6 +72,9 @@ function configured({ profile, live, lines }: Pick<NetworkConfig, 'profile' | 'l
   return [network(profile, live), Object.fromEntries(names.map((name) => [name, lines.profiles?.[name]]))];
 }
 
+/** The names of a config's Lines, as readFeed() gives them: each of its routes' names, as its `names` write it (Renfe's long-distance ones are capitals in the feed). */
+const named = ({ timetables, lines }: Pick<NetworkConfig, 'timetables' | 'lines'>) => timetables.flatMap((t) => t.routes?.names ?? []).map((route) => lines.names?.[route] ?? route);
+
 /** How far along its track a Trip's Train is at a moment, in metres, if it's on the map, given the snapshots received by then. */
 const where = (bundle: Bundle, trip: string, moment: number, received: Received[] = []) =>
   trainsAt(bundle, moment, received.filter((r) => r.at <= moment)).find((t) => t.trip.id === trip)?.dist;
@@ -102,16 +105,17 @@ const FAST: Row[] = [['A', '10:00:00', '10:00:00', 0], ['B', '11:00:00', '11:00:
 const SLOW: Row[] = [['A', '10:00:00', '10:00:00', 0], ['B', '11:00:00', '11:00:00', 100]];
 
 test("each Line of Renfe's long-distance Networks has the profile its Network's config gives it, with its source: AVE y Larga Distancia's 250 km/h at 0.5 m/s², AVE, Avlo and AVE Int's at 300, and Media Distancia y Avant's Rodalies' 160 km/h at 1, with Avant's and Avant Exp's at 250 and 0.5", () => {
-  const kmh = (profile: SpeedProfile) => Math.round(profile.topSpeed * 3.6);
-  const [ave, aveLines] = configured(AVE_LARGA_DISTANCIA, ['AVE', 'Avlo', 'AVE Int', 'Alvia', 'Euromed', 'Intercity', 'Trencelta']);
-  expect(Object.entries(aveLines).map(([name, own]) => [name, kmh({ ...ave.profile, ...own }), { ...ave.profile, ...own }.acceleration])).toEqual([
-    ['AVE', 300, 0.5], ['Avlo', 300, 0.5], ['AVE Int', 300, 0.5], ['Alvia', 250, 0.5], ['Euromed', 250, 0.5], ['Intercity', 250, 0.5], ['Trencelta', 250, 0.5],
-  ]);
-  const [md, mdLines] = configured(MEDIA_DISTANCIA_AVANT, ['Avant', 'Avant Exp', 'MD', 'Regional', 'Reg.Exp.', 'Proximidad']);
+  // What each Line runs at: its Network's profile with its own over it, as the engine has it, in km/h and m/s².
+  const runs = (net: Network, lines: Lines) =>
+    Object.fromEntries(Object.entries(lines).map(([name, own]) => [name, [Math.round({ ...net.profile, ...own }.topSpeed * 3.6), { ...net.profile, ...own }.acceleration]]));
+  // The Lines are those the config's routes make, by the names readFeed() gives them, so that a profile named for a Line
+  // it hasn't, as by a name written otherwise than its `names` write it, is caught.
+  for (const config of [AVE_LARGA_DISTANCIA, MEDIA_DISTANCIA_AVANT]) expect(named(config)).toEqual(expect.arrayContaining(Object.keys(config.lines.profiles ?? {})));
+  const [ave, aveLines] = configured(AVE_LARGA_DISTANCIA, named(AVE_LARGA_DISTANCIA));
+  expect(runs(ave, aveLines)).toEqual({ AVE: [300, 0.5], Avlo: [300, 0.5], 'AVE Int': [300, 0.5], Alvia: [250, 0.5], Euromed: [250, 0.5], Intercity: [250, 0.5], Trencelta: [250, 0.5] });
+  const [md, mdLines] = configured(MEDIA_DISTANCIA_AVANT, named(MEDIA_DISTANCIA_AVANT));
   expect(md.profile).toEqual(RODALIES_PROFILE);
-  expect(Object.entries(mdLines).map(([name, own]) => [name, kmh({ ...md.profile, ...own }), { ...md.profile, ...own }.acceleration])).toEqual([
-    ['Avant', 250, 0.5], ['Avant Exp', 250, 0.5], ['MD', 160, 1], ['Regional', 160, 1], ['Reg.Exp.', 160, 1], ['Proximidad', 160, 1],
-  ]);
+  expect(runs(md, mdLines)).toEqual({ Avant: [250, 0.5], 'Avant Exp': [250, 0.5], MD: [160, 1], Regional: [160, 1], 'Reg.Exp.': [160, 1], Proximidad: [160, 1] });
   // Both read their live data as Rodalies' is, and snap by the minute.
   expect(ave.live).toEqual({ delay: 'gps', near: 'pinned', snap: 60 });
   expect(md.live).toEqual({ delay: 'gps', near: 'pinned', snap: 60 });
