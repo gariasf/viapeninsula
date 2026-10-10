@@ -116,6 +116,38 @@ test("keeps the last report's count for a day of the week a Network has no Trips
   expect(report.spots().find((s) => s.key === 'trips rodalies')?.numbers).toEqual({ monday: 950, tuesday: 950 });
 });
 
+test("names the Trips a Network's config leaves out in its Trips' spot, and how many, so that the summary shows them when they first go and when they come back, and not between", () => {
+  const left = ['fgc:1 is left out: it calls at Reus, a Station beyond FGC', 'fgc:3 is left out: it calls at Reus, a Station beyond FGC'];
+  const spots = (last: Spot[] | undefined, ...leftOut: string[]) => {
+    const report = collect();
+    dayTrips(['2026-10-12'], [{ network: FGC, trips: [[trip('2', 'fgc:S1')]], left: leftOut }], () => {}, report.add, last);
+    return report.spots();
+  };
+  const before: Spot[] = [{ kind: 'trips', key: 'trips fgc', network: 'fgc', text: ["FGC's Trips on 2026-10-05: 1"], numbers: { monday: 1 } }];
+  const first = spots(before, ...left);
+  expect(first.map((s) => [s.text, s.numbers])).toEqual([[["FGC's Trips on 2026-10-12: 1", ...left], { monday: 1, leftOut: 2 }]]);
+  expect(diff(before, first).split('\n')).toEqual([
+    '### Build report: 0 new, 0 gone, 1 changed since the last build',
+    '',
+    '#### Changed',
+    '',
+    '- `trips fgc`: leftOut (none → 2)',
+    "  - FGC's Trips on 2026-10-12: 1",
+    ...left.map((l) => `  - ${l}`),
+  ]);
+  // The same two the next Monday are no change; none then is one, and it isn't carried over as a count.
+  expect(diff(first, spots(first, ...left))).toBe('Nothing in the build report is new, gone or changed since the last build.');
+  expect(diff(first, spots(first)).split('\n')).toEqual([
+    '### Build report: 0 new, 0 gone, 1 changed since the last build',
+    '',
+    '#### Changed',
+    '',
+    '- `trips fgc`: leftOut (2 → none)',
+    "  - FGC's Trips on 2026-10-12: 1",
+  ]);
+  expect(spots(first)[0]?.numbers).toEqual({ monday: 1 });
+});
+
 test("counts a last report it can't read, as one of an older shape, as none, rather than stop the build", () => {
   for (const odd of [{ spots: [] }, [null]]) {
     const report = collect();

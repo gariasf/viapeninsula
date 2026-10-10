@@ -16,14 +16,16 @@ import type { Found, Spot } from './report.ts';
  * counts for the other days, so that the summary names a Network with many fewer than the last report
  * has for the same day (moved()). It keeps them however few: a holiday runs a Sunday's timetable. A
  * day it has no Trips, which is named apart, keeps the last count, so that the next week compares
- * with the last day it had some.
+ * with the last day it had some. The Trips its config leaves out today (`left`, its readFeed()'s
+ * lines) are named in that spot too, with how many, so that the summary shows them where they first go
+ * and where they stop (#368).
  * Each day has every Network's Closures that day too, where there are any, and each Network's today,
  * where it has any, are logged and reported.
  * ponytail: a drop that lasts is named once on each day of the week, then is the count to compare
  * with, and a last report that can't be read starts the counts again, with none to compare with for
  * a week; keep a dropped day's last count, or read an older report, if either ever hides a drop.
  */
-export function dayTrips(days: string[], networks: { network: Network; trips: Trip[][]; closures?: Closure[][] }[], log = console.warn, report: (found: Found) => void = () => {}, last: Spot[] = []): DayTrips[] {
+export function dayTrips(days: string[], networks: { network: Network; trips: Trip[][]; closures?: Closure[][]; left?: string[] }[], log = console.warn, report: (found: Found) => void = () => {}, last: Spot[] = []): DayTrips[] {
   const built = days.map((serviceDay, i) => {
     for (const { network, trips } of networks) {
       if (trips[i]?.length) continue;
@@ -35,13 +37,13 @@ export function dayTrips(days: string[], networks: { network: Network; trips: Tr
     return { serviceDay, noonMinus12h: noonMinus12h(serviceDay), trips: networks.flatMap((n) => n.trips[i] ?? []), ...(closures.length > 0 && { closures }) };
   });
   const today = built[0]?.serviceDay ?? '';
-  for (const { network, trips, closures } of networks) {
+  for (const { network, trips, closures, left = [] } of networks) {
     const count = trips[0]?.length ?? 0;
     const line = `${network.name}'s Trips on ${today}: ${count}`;
     log(line);
     // A last report it can't read, as one of an older shape, has none.
-    const before = Array.isArray(last) ? last.find((s) => s?.kind === 'trips' && s.network === network.id)?.numbers : undefined;
-    report({ kind: 'trips', network: network.id, text: [line], numbers: { ...before, ...(count > 0 && { [weekdayOf(today)]: count }) } });
+    const { leftOut: _, ...before } = (Array.isArray(last) ? last.find((s) => s?.kind === 'trips' && s.network === network.id)?.numbers : undefined) ?? {};
+    report({ kind: 'trips', network: network.id, text: [line, ...left], numbers: { ...before, ...(count > 0 && { [weekdayOf(today)]: count }), ...(left.length > 0 && { leftOut: left.length }) } });
     const closed = closures?.[0]?.length;
     if (!closed) continue;
     const closedLine = `${network.name}'s Closures on ${today}: ${closed}`;

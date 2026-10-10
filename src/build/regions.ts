@@ -18,6 +18,8 @@ export interface BuiltNetwork {
   shapes: Shape[];
   trips: Trip[][];
   closures: Closure[][];
+  /** The Trips its config leaves out today, as readFeed() logs them (#368). */
+  left?: string[];
 }
 
 /** Some Networks loaded together, by their region's ID (regionsOf()). */

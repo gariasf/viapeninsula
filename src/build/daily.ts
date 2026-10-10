@@ -189,7 +189,7 @@ function build(config: NetworkConfig, { published, days }: Awaited<ReturnType<ty
   const cropped = crop(border, stations, shapes, days.map((day) => day.flatMap((p) => p.trips)));
   const trips = cropped.days.map((trips, day) => placeTrips(trips, shapes, stations, network.profile.topSpeed, console.log, (f) => found({ ...f, day })));
   const closures = days.map((day, i) => closuresOf(day.flatMap((p) => p.buses), day.flatMap((p) => p.trips), parts.flatMap((p) => p.shapes), cropped.stations, console.log, (f) => found({ ...f, day: i })));
-  return { network, lines, stations: withLines(cropped.stations, parts.flatMap((p) => p.shapes)), shapes: cropped.shapes, trips, closures };
+  return { network, lines, stations: withLines(cropped.stations, parts.flatMap((p) => p.shapes)), shapes: cropped.shapes, trips, closures, left: parts.flatMap((p) => p.left) };
 }
 
 /** A file the last build published, or none where there's none, or where it can't be read, which is logged. */
