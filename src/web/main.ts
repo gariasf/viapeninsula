@@ -1966,12 +1966,12 @@ function comingPanel({ trip, live, delay, upcoming }: Coming, up: boolean, now: 
   };
 }
 
-/** The button in a header that goes Back (#322), naming where it goes: none where there's none, or the Train it would follow has left the map. */
+/** The button in a header that goes Back (#322), naming where it goes: none where there's none, or the Train it would follow has left the map, as within a closed Closure that hides Trains (#345). */
 function backButton(): Node[] {
   // ponytail: two engine passes a second while Back goes to a Train; cache the check if a phone shows it.
   if (!back) return [];
   const where = back.to === 'train' ? undefined : back.to === 'board' ? shownPlaces.get(back.place)?.name : t('nearby');
-  if (back.to === 'train' ? !(bundle && (trainAt(bundle, Date.now(), received, back.day === bundle.serviceDay ? back.trip : `${back.day}/${back.trip}`) || comingAt(bundle, Date.now(), received, back.day === bundle.serviceDay ? back.trip : `${back.day}/${back.trip}`))) : !where) return [];
+  if (back.to === 'train' ? !(bundle && (trainAt(bundle, Date.now(), received, back.day === bundle.serviceDay ? back.trip : `${back.day}/${back.trip}`, hidingClosures) || comingAt(bundle, Date.now(), received, back.day === bundle.serviceDay ? back.trip : `${back.day}/${back.trip}`))) : !where) return [];
   const label = back.to === 'train' ? t('backToTrain').replace('{headsign}', back.headsign) : t('backTo').replace('{place}', where ?? '');
   return [el('button', { type: 'button', className: 'back', onclick: goBack }, icon('back'), el('span', { textContent: label }))];
 }
