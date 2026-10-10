@@ -4,7 +4,7 @@ import { expect, test } from 'vitest';
 import type { Alert, AlertFeed, Alerts, Bundle, Call, Line, Trip } from '../bundle.ts';
 import type { Pass } from '../engine.ts';
 import { ALERTS_START, readAlerts } from '../fetcher/alerts.ts';
-import { cardAlerts, inNameOrder, linesCallingAt, linesOnBoard, linkedWords, minutesTo, nearbyRows, progress, type Part } from './cards.ts';
+import { boardList, cardAlerts, inNameOrder, linesCallingAt, linesOnBoard, linkedWords, minutesTo, nearbyRows, progress, type Part } from './cards.ts';
 
 /** A time of day in Barcelona on Wednesday 7 Oct 2026, in summer time, in ms since 1970. */
 const at = (hours: number, minutes: number, seconds = 0) => Date.UTC(2026, 9, 7, hours - 2, minutes, seconds);
@@ -53,6 +53,16 @@ test("a row's next three passes count down in minutes, Live or Scheduled, and pa
     { minutes: 4, live: false },
     { minutes: 19, live: true },
   ]);
+});
+
+test("a board's list is its label alone while the day's Trips are on their way, and that none can be had once they've come with none left or have failed to come (#379)", () => {
+  // A page opened on a Station's link shows its board before the Trips come, which can be seconds: none to come isn't known yet.
+  expect(boardList('coming', 0)).toBe('label');
+  // Once they've come, a Station with none left says so, and one with some lists them.
+  expect(boardList('came', 0)).toBe('none');
+  expect(boardList('came', 4)).toBe('rows');
+  // Where they fail to come, as the map looks again each minute, a board ends in what it says where none can be had, not in its label for good.
+  expect(boardList('failed', 0)).toBe('none');
 });
 
 /** A Trip's calls, at Stations these many metres along its shape. */
