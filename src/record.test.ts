@@ -45,7 +45,7 @@ const [FRIDAY, SATURDAY] = [
   day('2026-09-26', { night: NIGHT, early: [5 * 60, 30 * 60] }),
 ];
 
-/** What Rodalies' feed has at a moment in Barcelona on Saturday 26 September: the Trips it reports, each a few minutes on from Badalona. */
+/** What Rodalies' feed has at a moment in Barcelona on Saturday 26 September: the Trips it reports, each halfway along from Badalona to El Masnou. */
 const AT = Date.parse('2026-09-26T00:10:00+02:00');
 const reporting = (...trips: string[]): Received[] => [
   {
@@ -72,6 +72,9 @@ test("a report after midnight finds the Trip it names in the next day's bundle, 
   const received = reporting('early', 'night');
   expect(unmatched(FRIDAY, received)).toEqual({ reports: 1, trips: 1 });
   expect(unmatched(joinDays([FRIDAY, SATURDAY]), received)).toEqual({ reports: 0, trips: 0 });
+  // And one naming a Trip of the first day alone is matched by its operator's name, though joinDays() leads its ID with its day.
+  expect(unmatched(SATURDAY, reporting('late'))).toEqual({ reports: 1, trips: 1 });
+  expect(unmatched(joinDays([FRIDAY, SATURDAY]), reporting('late'))).toEqual({ reports: 0, trips: 0 });
 });
 
 test("counts no report that names no Trip: a Metro Block's, a rack Train's by its Line, or a long-distance Train's by its number", () => {
@@ -101,6 +104,14 @@ test("cuts a recording of one day to the Trips its snapshots name, by their oper
   // The Lines and shapes of the Trips kept, and no Stations, strokes or slots: the replay doesn't need them.
   expect(cut(FRIDAY, received)).toMatchObject({ lines: [{ id: 'R1' }], shapes: [{ id: 'R1' }], stations: [], strokes: [], rails: [], slots: [] });
   expect(cut(FRIDAY, reporting()).trips).toEqual([]);
+});
+
+test("keeps the Trip a Live Train runs that no report names by its ID, as a rack Train's is named by its Line and the end of its ID", () => {
+  const rack = day('2026-09-25', { 'rack|7': NIGHT, 'rack|8': NIGHT });
+  const received = reporting('elsewhere|7');
+  for (const report of received[0]?.snapshot.reports ?? []) report.line = 'R1';
+  expect(trainsAt(rack, AT, received).map((t) => [t.trip.id, t.live])).toContainEqual(['rack|7', true]);
+  expect(cut(rack, received).trips.map((t) => t.id)).toEqual(['rack|7']);
 });
 
 test("keeps the Trips of a Line a Metro Block reported could run within an hour of the replay, where cutting one it ran while off the map would have it run another", () => {

@@ -10,15 +10,15 @@
 //   the line where its fetch failed, and the line where both did. A line can lack Madrid's Trains
 //   whole, as Renfe drops them from about one fetch in five (docs/research/live-at-scale.md);
 // - alerts.json, the operators' Alerts as the map reads them, once at the start, where they came,
-//   which the Closures are made from that #345 counts the Trains inside of (closuresAt());
+//   which the Closures are made from (closuresAt()), as #345's count of the Trains inside one needs;
 // - bundle.json, the whole bundle the replay is of, which the tests cut their Trips from: that day's,
 //   and where the last snapshot falls after midnight in Madrid, the next day's joined with it as the
-//   map joins them (#411), the first day's Trips led by their day, `2026-10-06/<id>`, as Renfe names a
-//   Train that starts after midnight by the next day's service;
+//   map joins them (#411), so that the Trains Renfe names by the next day's service after midnight
+//   find their Trips, the first day's Trips led by their day, `2026-10-06/<id>`, as joinDays() has them;
 // - replay.json.gz, `{ bundle, received }` gzipped, what `jumps()` and `trainsAt()` take: the shapes
 //   alone are megabytes. The engine tests keep those they pin in src/fixtures/, each named for its day.
 //
-// It needs no key: Renfe's feeds, the bundles and the snapshot are all public.
+// It needs no key: Renfe's feeds, the bundles, the Alerts and the snapshot are all public.
 
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -61,8 +61,9 @@ export function cut(bundle: Bundle, received: Received[]): Bundle {
  * How many reports the snapshots make of a Trip the bundle has none of, and of how many Trips, as
  * Renfe's of a Train that starts after midnight are, named by the next day's service, in the bundle of
  * the day before alone (#411): the engine drops them. A report is counted once however many
- * snapshots repeat it, by its Trip and the time its operator made it. A report that names no Trip,
- * as a Metro Block's, a rack Train's by its Line and a long-distance Train's by its number, isn't one.
+ * snapshots repeat it, by its Trip and the time its operator made it. A report the engine finds its
+ * Trip by otherwise isn't one: a Metro Block's, a rack Train's by its Line and the end of its ID,
+ * and a long-distance Train's by its number.
  */
 export function unmatched(bundle: Bundle, received: Received[]): { reports: number; trips: number } {
   const named = namedIn(bundle);
