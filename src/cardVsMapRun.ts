@@ -6,7 +6,9 @@
 // onMap() is what it samples, from a copy of src/engine.ts with it exported.
 //
 // - `LIMIT=<seconds>` replays only that long, for a look;
-// - `ZOOM=<n>` is the zoom the followed pill's reach is worked out at (13, the follow zoom's floor);
+// - `ZOOM=<n>` is the zoom the followed pill's reach is worked out at (13, the follow zoom's floor),
+//   as the card works it out at the map's (pillReach(), which holds at the zoom its Line's Trains are
+//   pills from, below it);
 // - the Networks' live traits are src/networks.ts's, as an older bundle's can differ or be missing.
 
 import { rmSync } from 'node:fs';
@@ -15,10 +17,11 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { gunzipSync } from 'node:zlib';
-import { DEGREE, type Bundle, type Station, type Trip } from './bundle.ts';
+import { DEGREE, pixelMetres, type Bundle, type Station, type Trip } from './bundle.ts';
 import { differences, type Moment, type Near } from './cardVsMap.ts';
 import type { Received } from './engine.ts';
 import { NETWORKS } from './networks.ts';
+import { ARROW_GAP, boxOf, FOLLOWED_TEXT, OUTLINES_OF, pillReach } from './web/pill.ts';
 
 // The engine with its onMap() exported: the replay's own answer for each Trip, and what it knows about it.
 const engineSource = await readFile(new URL('./engine.ts', import.meta.url), 'utf8');
@@ -42,17 +45,11 @@ const { onMap } = (await import(pathToFileURL(engineCopy).href)) as {
   onMap: (bundle: Bundle, at: number, received: Received[]) => { of: (trip: Trip) => OnMap | undefined };
 };
 
-const [PILL_TEXT, FOLLOWED_TEXT, PILL_PADDING, ARROW_GAP] = [10, 12, 2, 7];
 const zoom = Number(process.env.ZOOM ?? 13);
 /** How long ago a report can have been, in ms, for the card's `confirmed N s ago` to name the Station it pins the Train to as where it is. */
 const CONFIRMED = 30_000;
-/** Followed pill half-lengths along its track, in px, as main.ts's boxOf() has them, with the name's width as its fallback measure (6 px a letter at PILL_TEXT) has it. */
-const boxAcross = (kind: string, name: string) => {
-  const [w, across] = { commuter: [15, 9], regional: [12, 2] }[kind] ?? [15, 13];
-  return Math.max(w!, w! - across! + ((name.length * 6 * FOLLOWED_TEXT) / PILL_TEXT) + 2 * PILL_PADDING) / 2;
-};
-/** Metres a px is on the ground at a latitude, at the map's zoom, 512 px tiles. */
-const metresPerPx = (lat: number) => (40_075_016.686 / (512 * 2 ** zoom)) * Math.cos((lat * Math.PI) / 180);
+/** How many seconds a card's words can come back in, as a flap: the Train says one thing, another, and the first again within this many. */
+const FLAP = 10;
 
 type Counts = Record<string, number>;
 const results: Record<string, Record<string, { all: Counts; live: Counts }>> = {};
@@ -71,6 +68,8 @@ for (const dir of process.argv.slice(2)) {
   if (Number.isNaN(t1)) throw new Error(`LIMIT=${process.env.LIMIT} isn't a number of seconds`);
   const keyOf = new Map(bundle.stations.map((s) => [s.id, s.place ?? s.name]));
   const lineOf = new Map(bundle.lines.map((l) => [l.id, l]));
+  // The zoom each Network's Trains are drawn as pills from: round pills from zoom 10 where a track names none (main.ts's show()).
+  const pillZoomOf = new Map(bundle.networks.map((n) => [n.id, n.pillZoom]));
   const networkOf = (trip: Trip) => lineOf.get(trip.line)?.network ?? '';
   // Stations by a grid of about 0.0045 degrees (500 m), to look for those near a Train.
   const cell = (lon: number, lat: number) => `${Math.floor(lon / 0.0045)} ${Math.floor(lat / 0.0045)}`;
@@ -96,6 +95,8 @@ for (const dir of process.argv.slice(2)) {
   const [from, to] = [(t0 - bundle.noonMinus12h) / 1000, (t1 - bundle.noonMinus12h) / 1000];
   const candidates = bundle.trips.filter((t) => (t.calls[0]?.arrival ?? Infinity) - 3600 <= to && (t.calls.at(-1)?.departure ?? -Infinity) + 4 * 3600 >= from);
   const was = new Map<string, number>();
+  // What each Train's card said in each of the last FLAP seconds, to count the words that come back.
+  let saying = new Map<string, string[]>();
   let stalled = new Map<string, number>();
   let heard = 0;
   for (let at = t0; at <= t1; at += 1000) {
@@ -103,6 +104,7 @@ for (const dir of process.argv.slice(2)) {
     const { of } = onMap(bundle, at, received.slice(0, heard));
     const now = new Map<string, number>();
     const stalling = new Map<string, number>();
+    const said = new Map<string, string[]>();
     for (const trip of candidates) {
       const o = of(trip);
       const { train } = o ?? {};
@@ -110,7 +112,11 @@ for (const dir of process.argv.slice(2)) {
       const network = networkOf(trip);
       const row = (found[network] ??= { all: {}, live: {} });
       const line = lineOf.get(trip.line);
-      const half = boxAcross(line?.kind ?? 'commuter', line?.name ?? '') * metresPerPx(train.lat);
+      // The followed pill's reach as the card has it: boxOf() with the name as wide as textWidth() has it with no canvas, 6 px a letter at PILL_TEXT.
+      const box = boxOf((line && OUTLINES_OF[line.kind]) ?? 'round', (line?.name.length ?? 0) * 6, FOLLOWED_TEXT);
+      const pillZoom = pillZoomOf.get(line?.network ?? '') ?? 10;
+      const half = pillReach(box, zoom, pillZoom, train.lat);
+      const arrowReach = half + ARROW_GAP * pixelMetres(Math.max(zoom, pillZoom), train.lat);
       // As the operator runs it: its calls as `o.calls` has them, one for one (cutTrip(), #346).
       const made = o.trip;
       const calls = o.calls.map((c) => ({ ...c, key: keyOf.get(c.station) ?? c.station }));
@@ -126,8 +132,8 @@ for (const dir of process.argv.slice(2)) {
         dist: train.dist,
         calls,
         standing: !!train.standsAt,
-        near: nearTo(train.lon, train.lat, half + ARROW_GAP * metresPerPx(train.lat)),
-        reach: { pill: half, arrow: half + ARROW_GAP * metresPerPx(train.lat) },
+        near: nearTo(train.lon, train.lat, arrowReach),
+        reach: { pill: half, arrow: arrowReach },
         profile: o.profile,
         ...(pinned && { pin: { dist: pinned.dist, call: made.calls.indexOf(pinned) } }),
       };
@@ -139,7 +145,16 @@ for (const dir of process.argv.slice(2)) {
       const counts = [row.all, ...(train.live ? [row.live] : [])];
       const add = (key: string, n = 1) => counts.forEach((c) => (c[key] = (c[key] ?? 0) + n));
       add('seconds');
-      if (d.standingHeaderNext) add('standing');
+      if (d.says.at === 'standing') add('standing');
+      if (d.standingHeaderNext) add('1.standingHeaderNext');
+      // What the card says (#455): how long each of its words lasts, and how often they change and come straight back.
+      add(`w.${d.says.at}`);
+      const [words, lately] = [`${d.says.at} ${d.says.key}`, saying.get(trip.id)];
+      said.set(trip.id, [...(lately ?? []), words].slice(-FLAP));
+      if (lately && lately.at(-1) !== words) {
+        add('w.changes');
+        if (lately.slice(0, -1).includes(words)) add('w.flaps');
+      }
       if (d.atNextBeforeArriving) add('1.atNextBeforeArriving');
       if (d.at) add(`a.at.${d.at}`);
       if (d.pill) add(`2.pill.${d.pill}`);
@@ -179,6 +194,7 @@ for (const dir of process.argv.slice(2)) {
     }
     was.clear();
     for (const [id, dist] of now) was.set(id, dist);
+    saying = said;
     stalled = stalling;
   }
   console.error(`${dir}: ${Math.round((t1 - t0) / 1000)} s`);

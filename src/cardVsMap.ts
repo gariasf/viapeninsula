@@ -4,9 +4,12 @@
 // timetable, so they can't disagree about which leg the Train is on: what can differ is what the
 // words say about it, how near a Station the pill is drawn, and the time the card gives against the
 // moment the drawn Train gets there. This takes one Train at one second and says which of those
-// differ; src/cardVsMapRun.ts runs it over a recording (`npm run card-vs-map`).
+// differ; src/cardVsMapRun.ts runs it over a recording (`npm run card-vs-map`). Its words are the
+// card's own, by whereabouts() (#455): where it says the Train is, by how far it's drawn from its
+// Stations, against how far the followed pill reaches.
 
 import type { Call, SpeedProfile } from './bundle.ts';
+import { whereabouts } from './web/cards.ts';
 
 /** How near a Station a Train is drawn, in metres, for its dot to be at it: about 7 px at zoom 13. */
 export const AT = 50;
@@ -41,7 +44,7 @@ export interface Moment {
   standing: boolean;
   /** Every Station within `reach` of where it's drawn, nearest first. */
   near: Near[];
-  /** How far its followed pill reaches along its track, in metres: its box alone, and with its arrow. */
+  /** How far its followed pill reaches along its track, in metres: its box alone, which the card goes by (pillReach()), and with its arrow. */
   reach: { pill: number; arrow: number };
   profile: SpeedProfile;
   /** Where its last report pinned it to a Station, as Renfe's do: how far along its Trip that Station is, in metres, and its place in the Trip's calls. */
@@ -53,7 +56,13 @@ export type Kind = 'next' | 'otherCall' | 'notCall';
 
 /** What differs between the card and the drawn Train in one second: each flag one of the ticket's causes, counted on its own. */
 export interface Differences {
-  /** Cause 1: the card says `Left A` and the header `Next station B` while the Train is drawn at B, or stands at B and the header still says next. */
+  /** What the card says of where the Train is, and the Station or Stations it names: A, B or `A – B` by the key the card names them by. */
+  says: { at: 'arriving' | 'standing' | 'leaving' | 'between'; key: string };
+  /**
+   * Cause 1: the Train is drawn at B without standing there, and the card doesn't say it's arriving
+   * there: before #455 it said `Left A` and the header `Next station B`. And it stands at B and the
+   * header doesn't say so, which it said as `Next station` then too.
+   */
   atNextBeforeArriving: boolean;
   standingHeaderNext: boolean;
   /** The card's Station isn't the one the Train is drawn at: at a Station the card doesn't have it at or just left, by kind. */
@@ -82,10 +91,12 @@ export function differences(m: Moment): Differences | undefined {
   const upcoming = m.calls.filter((c) => c.departure >= m.time);
   const earlier = m.calls.length - upcoming.length;
   const next = upcoming[0];
-  if (!next) return undefined;
-  // Which Station the card has it at (standing: the next) or just left (`now · Left A`), if it has left one.
-  const lastLeft = m.standing ? undefined : m.calls[earlier - 1];
-  const has = (m.standing ? next : lastLeft)?.key;
+  // What the card says: it stands at the next, or is arriving at it within the pill's reach, or leaving the one it left within as far after it, or between them.
+  const says = whereabouts(m.calls, m.dist, upcoming.length, m.standing, m.reach.pill);
+  if (!next || !says) return undefined;
+  // Which Station the card has it at: the one it names, as arriving at, standing at or leaving; none, between two.
+  const named = says.at === 'between' ? undefined : (says.at === 'leaving' ? says.last : says.next);
+  const has = named?.key;
   const kindOf = (key: string): Kind => (key === next.key ? 'next' : m.calls.some((c) => c.key === key) ? 'otherCall' : 'notCall');
   const unnamed = (metres: number) => m.near.find((n) => n.metres <= metres && n.key !== has);
   const kind = (n: Near | undefined) => n && kindOf(n.key);
@@ -101,8 +112,9 @@ export function differences(m: Moment): Differences | undefined {
   const brake = m.profile.topSpeed ** 2 / (2 * m.profile.braking);
   const arrow = unnamed(m.reach.arrow);
   return {
-    atNextBeforeArriving: !m.standing && m.near.some((n) => n.metres <= AT && n.key === next.key),
-    standingHeaderNext: m.standing,
+    says: { at: says.at, key: says.at === 'between' ? `${says.last.key} – ${says.next.key}` : (named?.key ?? '') },
+    atNextBeforeArriving: !m.standing && says.at !== 'arriving' && m.near.some((n) => n.metres <= AT && n.key === next.key),
+    standingHeaderNext: m.standing && says.at !== 'standing',
     at: kind(unnamed(AT)),
     pill: kind(unnamed(m.reach.pill)),
     arrow: kind(arrow),
