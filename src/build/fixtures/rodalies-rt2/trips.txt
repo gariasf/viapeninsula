@@ -1,0 +1,3 @@
+route_id,service_id,trip_id,trip_headsign,wheelchair_accessible,block_id,shape_id                                                                     
+51T0109RT2,5184M,5184M15210RT2 ,     ,2,5184M15210,51_RT2                                                                                             
+51T0110RT2,5188S,5188S15211RT2 ,     ,2,5188S15211,51_RT2_INV                                                                                         

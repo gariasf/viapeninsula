@@ -7,7 +7,7 @@ import { afterAll, afterEach, expect, test, vi } from 'vitest';
 import { places } from '../bundle.ts';
 import { AVE_LARGA_DISTANCIA, MEDIA_DISTANCIA_AVANT, RODALIES, TRAM, type NetworkConfig } from '../networks.ts';
 import { dirSource, rows, seconds, zipFile, zipSource, type Source } from './gtfs.ts';
-import { copyOf, FGC_FEED, joinParts, METRO_FEED, onFgcRails, onMetroRails, onRodaliesRails, readFeed, readTimetables, RODALIES_FEED, TRAMBAIX_FEED, type Feed } from './networks.ts';
+import { copyOf, FGC_FEED, joinParts, METRO_FEED, onFgcRails, onMetroRails, onRodaliesRails, readFeed, readTimetables, RODALIES_FEED, TRAMBAIX_FEED, unlisted, type Feed } from './networks.ts';
 import type { Found } from './report.ts';
 import { closuresOf, type FeedTrip } from './trips.ts';
 
@@ -409,6 +409,24 @@ test("takes a call of a Train's other Trip at one of its Stations up to 2 minute
   const joined = joinParts([longest, trip('b', ['B', '10:12'], ['C', '10:20']), trip('c', ['A', '10:03'], ['B', '10:10'])], new Map(), '2026-10-10', (l) => log.push(l));
   expect(joined).toEqual([longest]);
   expect(log).toEqual(['MD 00001 drops its call at A at 10:03 on 2026-10-10: it lies outside the run its Trips share']);
+});
+
+// Rows cut verbatim from Renfe's Cercanías feed of 2026-10-10: RT2's Train 15210 from Salou-Port
+// Aventura to Tarragona on Tuesday 13 October, and 15211 back on Saturday 17 October, with their shapes.
+const rt2 = dirSource(fileURLToPath(new URL('fixtures/rodalies-rt2', import.meta.url)));
+
+test("lists the Train numbers of the day's Trips, with the Stations each calls at", async () => {
+  expect((await readFeed(rt2, '2026-10-13', RODALIES_FEED)).listed).toEqual(new Map([['15210', new Set(['adif:65411', 'adif:71500'])]]));
+  expect((await readFeed(rt2, '2026-10-17', RODALIES_FEED)).listed).toEqual(new Map([['15211', new Set(['adif:71500', 'adif:65411'])]]));
+});
+
+test("leaves a Train that Rodalies or a núcleo lists too to their timetable, which has its shapes, by its Train number and a Station they share: RT2's 15210, a Regional in Renfe's long-distance one", async () => {
+  const { trips } = await readFeed(longDistance, '2026-10-13', MD_FEED, () => {});
+  expect(trips.map((t) => t.number)).toEqual(['15210', '17307', '18030', '38304']);
+  const { listed } = await readFeed(rt2, '2026-10-13', RODALIES_FEED);
+  expect(unlisted(trips, [listed]).map((t) => t.number)).toEqual(['17307', '18030', '38304']);
+  // Another Train of that number, which calls at none of its Stations, isn't the same.
+  expect(unlisted(trips, [new Map([['15210', new Set(['adif:71801'])]])])).toEqual(trips);
 });
 
 /** A way with these tags, as OpenStreetMap has Catalonia's rails. */

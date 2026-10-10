@@ -58,7 +58,7 @@ export async function readFeed(
   day: string,
   feed: Feed,
   log = console.log,
-): Promise<{ lines: Line[]; stations: Station[]; shapes: FeedShape[]; trips: FeedTrip[]; buses: FeedBus[] }> {
+): Promise<{ lines: Line[]; stations: Station[]; shapes: FeedShape[]; trips: FeedTrip[]; buses: FeedBus[]; listed: Map<string, Set<string>> }> {
   const { network, prefix, operator } = feed;
   const pattern = feed.number && new RegExp(feed.number);
   const services = await serviceIdsOn(gtfs, day);
@@ -166,6 +166,9 @@ export async function readFeed(
     [...ends].map(([id, { first, last }]) => ({ shape: `${prefix}:${shapeOf.get(id)}`, from: first[1], to: last[1] })),
   );
   const ids = new Set(shapes.map((s) => s.id));
+  // The Train numbers of its Trips that day, with the Stations each calls at, whose Trains another timetable lists too are its (unlisted()).
+  const listed = new Map<string, Set<string>>();
+  for (const { number, calls } of dayTrips.values()) if (number) listed.set(number, new Set([...(listed.get(number) ?? []), ...calls.map((c) => c.station)]));
   const trips = [...dayTrips].flatMap(([id, { shape, ...rest }]) => {
     const trip = { ...rest, shape: shapeFor({ shape, from: ends.get(id)?.first[1] ?? '', to: ends.get(id)?.last[1] ?? '' }) };
     const calls = trip.calls.sort((a, b) => a.seq - b.seq).map(({ seq: _, ...call }) => call);
@@ -203,6 +206,7 @@ export async function readFeed(
         return { station: stations.get(id) ?? { id, name: s?.stop_name ?? stop, lon: Number(s?.stop_lon), lat: Number(s?.stop_lat) }, ...call };
       }),
     })),
+    listed,
   };
 }
 
@@ -240,6 +244,16 @@ export function joinParts(trips: FeedTrip[], stations: Map<string, Station>, day
   );
 }
 
+/**
+ * Trips less the Trains another timetable lists too, by each of its Train numbers and the Stations it
+ * calls at (readFeed()'s `listed`): those with one of the numbers that call at one of its Stations
+ * (CONTEXT.md), which are kept from that timetable, as Rodalies' and the núcleos' have shapes. Renfe's
+ * long-distance timetable lists 98 of Rodalies' regional Trains on 10 Oct 2026, and 55 of the núcleos'.
+ */
+export function unlisted(trips: FeedTrip[], listed: Map<string, Set<string>>[]): FeedTrip[] {
+  return trips.filter((t) => !listed.some((l) => t.calls.some((c) => l.get(t.number ?? '')?.has(c.station))));
+}
+
 /** The folder readTimetables() keeps its copies in unless given another, so the one copyOf() names too. */
 const CACHE = '.cache';
 
@@ -257,7 +271,7 @@ export function copyOf({ prefix }: Timetable, cache = CACHE): string {
  * With no copy, it fails.
  */
 export async function readTimetables<T extends { lines: unknown[][] }>(
-  network: NetworkConfig,
+  network: Pick<NetworkConfig, 'id' | 'name' | 'timetables' | 'lines'>,
   failed: unknown,
   read: (feeds: (Feed & { gtfs: Source })[]) => Promise<T>,
   report: (found: Found) => void,

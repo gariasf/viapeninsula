@@ -1,0 +1,3 @@
+route_id,route_short_name,route_long_name,route_type,route_color,route_text_color                                                                     
+51T0109RT2 ,RT2 ,Salou-Port Aventura                     -Tarragona                               ,2,F965DE,FFFFFF                                    
+51T0110RT2 ,RT2 ,Tarragona                               -Salou-Port Aventura                     ,2,F965DE,FFFFFF                                    
