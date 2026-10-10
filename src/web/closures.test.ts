@@ -309,8 +309,8 @@ test("on 7 Oct, closes R1 Blanes – Maçanet-Massanes and R3 Ripoll – Puigcer
   ]);
 });
 
-test("on 10 Oct, the first of TRAM's works, also closes T1–T3 Francesc Macià – Montesa, from sc-280 listed again for the works' days, where the day's file turns them back (#397)", () => {
-  // Its period as TRAM gave it on 7 Oct, from 1 Oct 07:00 to 13 Oct 01:00, which holds the works' three days.
+test("on 10 Oct, the first of TRAM's works, also closes T1–T3 Francesc Macià – Montesa, from sc-280 as TRAM listed it on 7 Oct, where the day's file turns them back (#397)", () => {
+  // Its period then, from 1 Oct 07:00 to 13 Oct 01:00, holds the works' three days.
   const sc280 = { alert: { feed: 'tram', id: 'sc-280', said: expect.any(String) }, from: Date.parse('2026-10-01T07:00:05+02:00') };
   expect(closuresAt(ALERTS, WORKS, NOON).filter((c) => c.alert?.id === 'sc-280')).toEqual(
     ['T2', 'T3', 'T1'].map((name) => ({ line: `tram:${name}`, stations: ['tram:ST-172', 'tram:ST-188'], kind: 'closed', ...sc280 })),
@@ -338,7 +338,7 @@ test("closes TRAM's T1–T3 from Francesc Macià to Montesa only where the day's
   expect(closed('2026-10-11', '2026-10-12T02:30:00+02:00')).toEqual(['T2', 'T3', 'T1']);
 });
 
-test("closes T6 from Estació St.Adrià to Parc del Besòs, sc-286's stretch for 14 and 15 Oct, on neither the day its notice shows from nor the days of its works, where the timetable has no T6 Trip for their hours (#397)", () => {
+test("doesn't close T6 from Estació St.Adrià to Parc del Besòs, sc-286's stretch, on 9 Oct, where its notice shows from and every T6 Trip crosses it, nor on 14 or 15 Oct, whose timetable has no T6 Trip from 07:36 to 14:20 (#397)", () => {
   // sc-286 as of 9 Oct at 23:20: its period runs from 9 Oct 05:00 to 15 Oct 14:30.
   const lines = [...new Set(Object.values(NIGHT).flatMap((feed) => feed.alerts.flatMap((a) => a.lines)))].map((id) => ({ id, network: id.split(':')[0] ?? '' }));
   const on = (date: string, time: string, alert: string) => {
@@ -348,11 +348,11 @@ test("closes T6 from Estació St.Adrià to Parc del Besòs, sc-286's stretch for
   };
   // 9 Oct: all of T6's 85 Trips call at both, from 05:44 to 22:35.
   for (const time of ['05:30', '06:00', '12:00', '18:00', '22:00', '22:35', '23:20']) expect(on('2026-10-09', time, 'sc-286')).toEqual([]);
-  // 14 Oct, from TRAM's timetable: T6's 50 Trips call at both too, and none leaves between 07:36 and 14:20, the
-  // hours of the works, so within the hour of the moments between there are none to turn back, and by the edges
-  // they cross: sc-286's Closure is in force at no moment.
+  // 14 Oct, from TRAM's timetable: T6's 50 Trips call at both too, and none runs between 07:36 and 14:20, the
+  // hours of the works: from half an hour on from 07:36 to half an hour before 14:20 the Line has none within
+  // the hour, and before and after those, those that run cross it, so sc-286's Closure is in force at no moment.
   for (const time of ['05:30', '07:00', '07:36', '07:50', '08:10', '10:00', '12:00', '13:45', '14:05', '14:25', '18:00']) expect(on('2026-10-14', time, 'sc-286')).toEqual([]);
-  // The same Line's sc-279, Glòries – Can Jaumandreu, is: T6's Trips run to Can Jaumandreu and no further, but not in those hours.
+  // T6's sc-279, Glòries – Can Jaumandreu, is, while T6 has Trips within the hour, as they run to Can Jaumandreu and no further.
   expect(on('2026-10-14', '07:50', 'sc-279')).toEqual(['tram:T5', 'tram:T6']);
   expect(on('2026-10-14', '10:00', 'sc-279')).toEqual(['tram:T5']);
   expect(on('2026-10-14', '14:05', 'sc-279')).toEqual(['tram:T5', 'tram:T6']);
@@ -365,10 +365,10 @@ test("a TRAM Closure is in force from half an hour before the first of its Line'
   expect(t2('2026-10-10T04:30:00+02:00')).toBe(true);
   expect(t2('2026-10-11T02:51:30+02:00')).toBe(true);
   expect(t2('2026-10-11T02:51:31+02:00')).toBe(false);
-  // Not before the Alert's period begins, or after it ends, whatever the timetable runs.
-  const sooner = (c: Alert) => ({ ...ALERTS, tram: { status: 'ok', alerts: [{ ...c, from: Date.parse('2026-10-10T06:00:00+02:00'), to: Date.parse('2026-10-10T18:00:00+02:00') }] } });
+  // Not before the Alert's period begins, or after it ends, whatever the timetable runs: made up, sc-280 with its period cut to 06:00–18:00.
   const sc280 = ALERTS.tram?.alerts.find((a) => a.id === 'sc-280') as Alert;
-  const within = (time: string) => closuresAt(sooner(sc280), WORKS, Date.parse(time)).filter((c) => c.alert?.feed === 'tram').length;
+  const cut: Alerts = { tram: { status: 'ok', alerts: [{ ...sc280, from: Date.parse('2026-10-10T06:00:00+02:00'), to: Date.parse('2026-10-10T18:00:00+02:00') }] } };
+  const within = (time: string) => closuresAt(cut, WORKS, Date.parse(time)).length;
   expect([within('2026-10-10T05:59:59+02:00'), within('2026-10-10T06:00:00+02:00'), within('2026-10-10T18:00:00+02:00'), within('2026-10-10T18:00:01+02:00')]).toEqual([0, 2, 2, 0]);
 });
 
@@ -402,7 +402,7 @@ test("keeps a TRAM single track within its Alert's period, as its Trains run thr
   expect(single).toEqual([{ line: 'tram:T1', stations: ['tram:ST-172', 'tram:ST-188'], kind: 'single', alert: { feed: 'tram', id: 'sc-999', said: expect.any(String) }, from: note.from }]);
 });
 
-test("joined with the day before, as the map joins them at midnight, TRAM's Trips running after it are the hour's around a moment (#397)", () => {
+test("goes by the day before's Trips that still run after midnight, on the new day's clock, as the days the map has joined give them (#397)", () => {
   // Each day's Trips on the last day's clock (joinDays()): 10 Oct's, turned back, run to 02:21 on the 11th.
   const bundle = (date: string): Bundle => {
     const day = TRAM_TRIPS[date];

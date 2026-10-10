@@ -149,23 +149,29 @@ export const liftedSince = (c: Shown, lifted: ReadonlyMap<string, number>): numb
  * The feeds whose Alerts' active periods are when their notices show, not when their works are, so
  * that a Closure they make is in force only at the moments the timetable runs a Line's Trains short of
  * it (turnedBack(), ADR-0012, #397): TRAM's, whose `sc-280` showed from 1 Oct for works on 10–12 Oct.
- * Renfe's have no end, and a Live Train within lifts them (#345).
- * ponytail: by feed, here; give the source a trait in src/networks.ts, and the page the Alerts file's
- * feeds', when TMB's or FGC's Alerts make Closures and say how their periods are used.
+ * Renfe's have no end, and a Live Train within lifts what they hide (#345).
+ * ponytail: by the feed's ID, here. Give the source a trait in src/networks.ts, and the Alerts file
+ * the feed's, when another operator's Alerts make Closures and their periods mean something else.
  */
 const BY_TIMETABLE = ['tram'];
 
-/** Half the hour around a moment, in seconds, whose Trips of a Line say whether its Closure is in force (turnedBack()). */
+/**
+ * Half the hour around a moment, in seconds, whose Trips of a Line say whether its Closure is in force
+ * (turnedBack()). On 7–12 Oct 2026 no TRAM Line but T1 went more than 17 minutes of its service day with
+ * none of its Trips running, so by day the hour never lets a Closure go out between two.
+ */
 const AROUND = 30 * 60;
 
 /**
  * Whether a closed Closure of a Line, between two Stations, is in force at a moment by the timetable
- * (#397): the Line has a Trip running at some time within AROUND of it, `at` seconds into the day
- * `trips` are timed by, and none of those Trips calls at both Stations, as a timetable that turns them
- * back at its ends has them. Where it has none, as at night, or one does, it isn't: nothing is hidden
- * or drawn, as TRAM's T1–T3 Trips ran across Francesc Macià – Montesa until 10 Oct, with `sc-280`'s
- * notice shown from 1 Oct (a Trip of one of the days the map has joined, as joinDays() has them).
- * ponytail: every Trip of the page for each, once a minute; index them by Line if that shows.
+ * (#397): some Trip of the Line runs at some time within AROUND of it, and none of the Trips that do
+ * calls at both Stations, as a timetable that turns them back at its ends has them, as T1–T3's at
+ * Montesa on 10–12 Oct. Where none runs, as at night, or one calls at both, as every one of T1–T3's did
+ * from 1 Oct, when `sc-280` began to show, to 9 Oct, it isn't. `trips` are those of the days the map
+ * has joined, on the last day's clock (joinDays()), and `at` is the moment in seconds into that day.
+ * ponytail: goes over every Trip on the page for each Closure, once a minute: 0.3 ms more for
+ * `closuresAt()` with the 12,190 Trips of Catalonia's day file of 9 Oct, and 0.6 ms with five times
+ * that. Index them by Line if the page ever has many more.
  */
 function turnedBack(trips: { line: string; calls: Pick<Call, 'station' | 'arrival' | 'departure'>[] }[], line: string, [a, b]: [string, string], at: number): boolean {
   let running = false;
