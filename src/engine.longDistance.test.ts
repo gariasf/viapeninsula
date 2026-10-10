@@ -204,6 +204,25 @@ test("a long-distance Train carries on from its last GPS Delay, whatever Renfe's
   expect(where(VIA_B, 'ave', at('10:51:30'), figure)).toBeCloseTo(where(VIA_B, 'ave', at('10:46:30')) ?? NaN, 3);
 });
 
+test("a long-distance Train that vanishes from its feed for minutes, as in Guadarrama's 28 km tunnel, runs on its last GPS Delay, Scheduled, and is Live again where its position comes back, without a jump", () => {
+  const behind = (late: number, moment: number) => gps('ave', (where(VIA_B, 'ave', moment - late * 1000) ?? NaN) / 1000, moment);
+  // GPS has the Train 30 s late at 10:40:00 and 10:40:40, then the feed has none for it for 6 minutes
+  // with its other Trains in it, and then has it 30 s late again at 10:46:40.
+  const received = [
+    heard(at('10:40:00'), [behind(30, at('10:40:00'))]),
+    heard(at('10:40:40'), [behind(30, at('10:40:40'))]),
+    ...[0, 20, 40, 60, 80, 100, 120, 140, 160, 180, 200, 220, 240, 260, 280, 300].map((s) => heard(at('10:40:40', 20 + s), [])),
+    heard(at('10:46:40'), [behind(30, at('10:46:40'))]),
+  ];
+  const train = (moment: number) => trainsAt(VIA_B, moment, received.filter((r) => r.at <= moment)).find((t) => t.trip.id === 'ave');
+  expect(train(at('10:41:10'))?.live).toBe(true);
+  // Scheduled from its feed's third update on, 30 s late.
+  expect(train(at('10:44:00'))).toMatchObject({ live: false });
+  expect(train(at('10:44:00'))?.dist).toBeCloseTo(where(VIA_B, 'ave', at('10:43:30')) ?? NaN, 3);
+  expect(train(at('10:46:50'))).toMatchObject({ live: true });
+  expect(jumps(VIA_B, received)).toMatchObject({ ld: { forward: 0, back: 0 } });
+});
+
 test("a long-distance position that holds counts as none, so the Train neither stalls where it's held nor jumps when it moves again", () => {
   // GPS has the Train on time at 10:40:00, and at the same spot every 40 s for another 160, as the
   // feed's does while a position freezes, where Renfe's figure grows a minute every 40 s. At 10:43:20
