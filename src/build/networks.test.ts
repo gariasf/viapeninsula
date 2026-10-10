@@ -257,7 +257,7 @@ const skipping: Source = (file) => {
   })();
 };
 
-test("reports a TRAM Trip whose stop numbers don't run 1…n, with its Line, and none whose do, as all 5,576 of its Trips of 9 and 10 October 2026 do (#406)", async () => {
+test("reports a TRAM Trip whose stop numbers don't run 1…n, with its Line, and none whose do, as all 5,576 Trips in its feeds of 9 and 10 October 2026 do (#406)", async () => {
   expect((await readFeed(tram, '2026-10-01', TRAMBAIX_FEED)).found).toEqual([]);
   const log: string[] = [];
   const { found, trips } = await readFeed(skipping, '2026-10-01', TRAMBAIX_FEED, (l) => log.push(l));

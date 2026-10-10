@@ -167,8 +167,8 @@ async function readDays(feeds: (Feed & { gtfs: Source })[]) {
  * and its Trips on each of DAYS, none where its timetable has none (dayTrips()), all within Spain:
  * its Trips are placed on their whole track, which is then cut at the border. And the Closures its
  * replacement buses make on each of DAYS (closuresOf()). What its tracing and placing log goes into
- * the report too, with the OpenStreetMap ways its Stations are on, and what its timetables find wrong
- * with their own Trips on each of DAYS, as a TRAM Trip's stop numbers (readFeed(), #406).
+ * the report too, with the OpenStreetMap ways its Stations are on; so does what its timetables find
+ * wrong with their own Trips on each of DAYS, as a TRAM Trip's stop numbers (readFeed(), #406).
  */
 function build(config: NetworkConfig, { published, days }: Awaited<ReturnType<typeof readDays>>) {
   const { id, name, profile, runningSide, colour, pillZoom, credit, live } = config;
