@@ -530,9 +530,11 @@ interface Waypoint {
  * Puebla de Híjar, the Station before. A shape that starts and ends at one Station, as Sevilla's C4
  * runs round its circle from Santa Justa to Santa Justa, has that Station at both ends (#365).
  * ponytail: a line beyond that bends back past a Station it has left, as a horseshoe can, still comes
- * out of order, and eachWay() can run a Trip there the wrong way; and Trips that run a circle the
- * other way round start and end at its Station as the others do, so eachWay() runs them the way the
- * shape is drawn. Order by the Trips' calls if either ever does.
+ * out of order, and eachWay() can run a Trip there the wrong way; Trips that run a circle the other
+ * way round start and end at its Station as the others do, so eachWay() runs them the way the shape
+ * is drawn; and a shuttle's shape, out to a Station and back along its own points, starts and ends at
+ * one Station too, so it's traced out and back, which fails the length check where the rails have a
+ * shorter way back than the feed's. Order by the Trips' calls if any ever does.
  */
 function inOrder(feed: FeedShape, stations: Station[]): Waypoint[] {
   const all = stations.map((station) => {
