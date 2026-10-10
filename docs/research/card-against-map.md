@@ -17,6 +17,7 @@ Research for #352, under #234 (part of #1). It builds on [ADR-0002](../adr/0002-
 - **Times against the drawn Train** (cause 5) are small. A card's time is more than 20 s later than the drawn Train's arrival (drawn ahead of its Delay) for 0.5 to 4.2% of Train-seconds, more than 20 s earlier (drawn behind) for 0.2 to 1.3%, and more than a minute for none but the Metro's 0.04%. The card reads `now` by the Delay with the Train far short in 0.00 to 0.12% of Train-seconds.
 - **Renfe's pins** (cause 6): 21% of Rodalies' Live seconds and 26% of Madrid's carry a pin confirmed within 30 s, and in 39% of those (Rodalies; 57% of Madrid's) the Train is drawn more than 200 m short of the pinned Station, in 32% (20% in Madrid) beyond it. It's the engine's Delay, not the card's words, and #233's long pins.
 - **None of the card-only fixes touches the drawn Trains,** so the Delay measures stay what they are, to the second (below).
+- **After #455** (11 October 2026, section 7): the card says `Arriving at B`, `At B · leaves 10:42`, `Leaving A` or `Between A and B` by how far the Train is drawn from its Stations against the followed pill's reach; causes 1 and 2's next-call counts are 0 on the six recordings at zoom 13, and the Delay measures are what they were.
 
 ## 1. What is measured, exactly
 
@@ -142,3 +143,22 @@ LIMIT=300 ZOOM=14 npm run card-vs-map -- <dir>
 ```
 
 It prints one JSON of counts in Train-seconds, by recording and Network, `all` and `live`. `src/cardVsMap.test.ts` pins the definitions on a made-up Trip. A Record run's artifact is a `bundle.json` and a `replay.json.gz`, with the feeds' own `trip_updates.json` and `vehicle_positions.json`. The folder keeps each as the zip Actions served, and the two by hand on Saturday, which Actions never had, zipped the same way, with a `SHA256SUMS`. The six recordings above, replayed together, give section 2's Train-seconds to the unit. `jumps()` and `trainsAt()` on a recording's `replay.json.gz` are in [punctuality.md](punctuality.md)'s "Re-verify quickly".
+
+## 7. After #455 (11 October 2026)
+
+#455 built the first row of section 4's table. `whereabouts()` (`src/web/cards.ts`) says `standing`, `arriving`, `leaving` or `between` from how far the Train is drawn from the Station it comes to and the one it left, against the followed pill's reach (`pillReach()`, `src/web/pill.ts`, which holds `boxOf()` and the pill's sizes now, so the card, the map's pill and this measure go by one definition and the measure's own copy of `boxOf()` is gone). A Station is as far from the Train as the nearer of how far along its Trip it is and how far it's drawn from its place's dot, which at an interchange is the middle of its Stations and not where a Line's Trains stop. Where both Stations are within reach, as on a short leg, it says arriving. The header's next Station is labelled `Arriving at` or `At station`, with `leaves` before its time, and the strip's Train row says `Arriving at B`, `Leaving A` or `Between A and B`.
+
+The measure took two changes, so that it counts what the map draws: a Station is the place the map shows it as, each at the middle of its Stations (`places()`), not each Station by its own coordinates; and the arrow, which points ahead, covers no Station the Train has left. Sections 2 to 4's numbers stand as they were (origin/main `833d09a` reproduces them to the Train-second, jumps and stalls too). The same six recordings, zoom 13, as a share of Train-seconds before the card's words and after, under the new yardstick:
+
+| | Rodalies | FGC | TRAM | Metro | Madrid | other núcleos |
+|---|---:|---:|---:|---:|---:|---:|
+| **1** drawn at B, card `Left A` | 2.56 → 0 | 5.94 → 0 | 8.25 → 0 | 7.36 → 0 | 3.43 → 0 | 4.03 → 0 |
+| header `Next station` while standing | 13.40 → 0 | 21.94 → 0 | 6.75 → 0 | 23.10 → 0 | 11.03 → 0 | 14.23 → 0 |
+| **2** pill covers the next call, the card doesn't have it | 3.91 → 0 | 8.44 → 0 | 11.28 → 0 | 9.91 → 0 | 5.24 → 0 | 5.67 → 0 |
+| pill and arrow cover it | 4.94 → 0.94 | 11.18 → 2.53 | 17.58 → 6.26 | 14.94 → 4.01 | 6.72 → 1.38 | 7.57 → 1.77 |
+| pill covers another call, or the one just left | 0.00 → 0.00 | 0.00 → 0.00 | 0.00 → 0.00 | 0.00 → 0.01 | 0.00 → 0.00 | 0.01 → 0.01 |
+| pill covers a Station that isn't a call (#457's) | 3.65 → 3.85 | 3.23 → 3.81 | 3.73 → 4.79 | 4.92 → 5.39 | 0.02 → 0.02 | 0.58 → 0.59 |
+
+What the card says, of Train-seconds: `Arriving at` 4.07 / 8.70 / 11.58 / 11.89 / 5.34 / 5.85%, `At` 13.40 / 21.94 / 6.75 / 23.10 / 11.03 / 14.23%, `Leaving` 3.79 / 8.86 / 13.31 / 10.23 / 4.68 / 5.50% and `Between` 78.74 / 60.50 / 68.35 / 54.77 / 78.95 / 74.43%. Its words change 0.7 (Rodalies), 1.5 (FGC), 1.9 (TRAM), 2.1 (Metro), 0.9 (Madrid) and 1.0 times a Train-minute. One that comes straight back within 10 s is 15, 10, 4, 78 and 14 times outside the Metro, every one the drawn Train snapping back (the card follows it), and 86 times in the Metro's 52,662 changes, each a Train passing the dot of an interchange more than two reaches before its platform.
+
+The pill alone is what the card goes by, as picked on #352; its arrow stands 7 px further, and covers the next Station's dot while the card says `Between` for the 0.94 to 6.26% above. At zoom 11 the counts of 1 and of the pill on the next call are 0 too (the reach is 4 times as long on the ground, and `Arriving` 10 to 24% of Train-seconds), with the Station just left under the pill, unnamed, for 3.3% of FGC's, 1.1% of the núcleos' and 0.3% of the Metro's. At zoom 15, where the pill reaches 22 to 32 m, `1` is 0.23 to 1.57%, as `AT` is 50 m, 28 px there: the yardstick's, not the card's. The Delay measures are as before, to the second (jumps 831, 347, 98, 32, 2,675 and 490; stalls of 30 s 62, 160, 262, 296, 736 and 86): nothing here reads `place()`.
