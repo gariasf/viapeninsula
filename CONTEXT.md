@@ -57,7 +57,7 @@ A length of track, or of tracks too close together to tell apart zoomed out, tha
 _Avoid_: Bundle (that's the data the map loads), corridor, edge
 
 **Piece**:
-A run of a traced shape's points between junctions, shape ends and turn-backs, which the track file stores once for every shape that runs it, either way (ADR-0015). Not a Stretch: a Stretch is track Lines share on the map, a Piece is how the file stores a shape. Nor the `pieces` of `sideBySide()`, which cut each segment of a shape into legs of at most 50 m, nor `pieces()` of `bundle.ts`, the parts of a stroke along one Stretch at one side.
+A run of a traced shape's points between junctions, shape ends and turn-backs, which the track file stores once for every shape that runs it, either way (ADR-0015). Not a Stretch: a Stretch is track Lines share on the map, a Piece is how the file stores a shape. Nor the `pieces` of `sideBySide()`, which cut the track between two of a shape's points into legs of at most 50 m, nor `pieces()` of `bundle.ts`, the parts a stroke that eases from one side to another is drawn in.
 _Avoid_: Segment, edge, part
 
 **Station**:
