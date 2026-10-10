@@ -76,6 +76,7 @@ Where each kind of spot points:
 | Stretch that keeps the feed's shape | halfway between its two Stations, or the middle of the run of stretches | fit the run, at most 15 |
 | Turns back | the Station it turns at | 16 |
 | Station left out on a branch | that Station | 15 |
+| A run of Stations left out on a branch (a spot of two or more, #388) | halfway between its ends, with no ring: the view is fitted to show the run, which can be kilometres across | fit the run, at most 15 |
 | Trip left out | the Station named in the reason, or its first | 15 |
 | Length drift | the shape's middle | fit the shape |
 | A largest node (measures) | the node, as `summary()` already prints it | the zoom it was found at |
@@ -172,7 +173,7 @@ Not filed. In order:
 2. **Diff against the last build, in the job summary.** The daily build fetches `report.json` from `LIVE_URL`, as it does the manifest, and writes new, gone and changed spots to `$GITHUB_STEP_SUMMARY` with map and OSM links, or one line when nothing changed. It publishes `report.json` after the manifest. A dry run prints the diff. With no last report, all spots are new.
 3. **A real snippet becomes a test.** `npm run snippet` cuts a spot's rails, Stations and feed shape into `src/build/fixtures/osm/`, and a test in `track.test.ts` traces it. First snippet: L'Aldea (#63). A short "review a build report" section, with the upstream steps above, goes in the README or `docs/`.
 4. **Fail when a Network loses many Trips.** More than a quarter of today's Trips against the last report's count fails the daily build. Depends on 2.
-5. **A spot's ring on the map.** `#map=…&mark=<lat>,<lon>` draws a ring there until the next tap. The summary's links add `mark=`. A page change, independent of the rest.
+5. **A spot's ring on the map.** `#map=…&mark=<lat>,<lon>` draws a ring there until the next tap. The summary's links add `mark=` for a spot of one Station or none, and not for a run of Stations (#388), whose view is fitted to show it. A page change, independent of the rest.
 6. **Tell the maintainer when something is new.** The daily build comments on one standing "Build report" issue, only when the diff has new spots. Needs `issues: write`. After a week of 2's summaries.
 
 1 and 2 are the report. 3 is worth doing before the first region outside Catalonia (#218). 4 to 6 can wait for the first Spain-wide build.

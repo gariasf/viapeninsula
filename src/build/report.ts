@@ -66,8 +66,8 @@ export interface Found extends Omit<Spot, 'key' | 'stations'> {
   stations?: Station[];
 }
 
-/** The zoom the map shows a turn-back at, and Stations left out on a branch. */
-const ZOOM: Partial<Record<Spot['kind'], number>> = { turn: 16, branch: 15 };
+/** The zoom the map shows a turn-back at. A branch's Station alone is at 15, as fit() has it, a run's at what fits it. */
+const ZOOM: Partial<Record<Spot['kind'], number>> = { turn: 16 };
 
 /** How many pixels across the map fits a run of legs kept, a shape's length or a Trip's Stations in: a phone's, less a margin. */
 const FIT = 300;
@@ -254,14 +254,16 @@ function item(spot: Spot, moves = ''): string {
 }
 
 /**
- * Links to a spot on the map, which rings it (#254), and on OpenStreetMap, to see it and to edit it,
+ * Links to a spot on the map, which rings it (#254) unless it's a run of Stations, and on OpenStreetMap, to see it and to edit it,
  * and to the ways its Stations are on. A Trip left out at a Station its feed doesn't list is nowhere:
  * NaN where it's found, null once read back.
  */
-function links({ point: [lon, lat] = [NaN, NaN], zoom, ways = [] }: Spot): string[] {
+function links({ point: [lon, lat] = [NaN, NaN], zoom, ways = [], stations = [] }: Spot): string[] {
+  // A run's view is fitted to show it, and a ring halfway between its ends could mark a hillside.
+  const mark = stations.length > 1 ? '' : `&mark=${lat},${lon}`;
   return [
     ...(Number.isFinite(lon) && Number.isFinite(lat) && zoom !== undefined
-      ? [`[map](${MAP}/#map=${zoom}/${lat}/${lon}&mark=${lat},${lon})`, `[OpenStreetMap](${OSM}/#map=17/${lat}/${lon})`, `[edit](${OSM}/edit#map=18/${lat}/${lon})`]
+      ? [`[map](${MAP}/#map=${zoom}/${lat}/${lon}${mark})`, `[OpenStreetMap](${OSM}/#map=17/${lat}/${lon})`, `[edit](${OSM}/edit#map=18/${lat}/${lon})`]
       : []),
     ...(ways.length ? [`ways ${ways.map((id) => `[${id}](${OSM}/way/${id})`).join(', ')}`] : []),
   ];
