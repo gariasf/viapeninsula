@@ -755,8 +755,10 @@ map.addSource('tracks', { type: 'geojson', data: { type: 'FeatureCollection', fe
 map.addSource('stations', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 map.addSource('station-names', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 // Today's Lines and Stations are drawn as soon as its track comes, before the Trips, which are most of the bundle.
+// Where no region's track comes, as where the one region in view fails to, the map opens without, and the next
+// look fetches it again.
 void Promise.resolve(needed?.days.then(async (days) => showDays(days, await needed.regions), (error: unknown) => console.error(error))).finally(looked);
-show(needed ? await needed.track : joinTracks([]));
+show((await needed?.track) ?? joinTracks([]));
 // Around midnight the days the map needs change, and each day's build names three more.
 setInterval(refreshDays, 60_000);
 // And the regions it needs, as the map moves (#266).
@@ -2761,14 +2763,15 @@ function creditOf({ text, url, licence, updated }: Credit): string {
  * (`loaded`, #266), joined (joinTracks()), and a day with none of them isn't loaded, as where the map
  * opens zoomed out. A region whose file fails to come is left out of its day, and a day whose bundle
  * fails to come is left out; they're fetched again next time.
- * Today's track comes on its own first, so the map can draw it before the Trips come. Notes today's
- * Networks with no Trips, every region's, which the banner names.
+ * Today's track comes on its own first, so the map can draw it before the Trips come, or none where no
+ * region's came, as the days then fail with why. Notes today's Networks with no Trips, every region's,
+ * which the banner names.
  * ponytail: the map's time is the device's until a snapshot corrects it, and the days follow a
  * correction only at the next refreshDays(), so for up to a minute after one, a device whose clock is
  * hours off can have the wrong days, and no Trains. Refresh them from poll() as a snapshot moves the
  * map's date, if that shows.
  */
-async function neededDays(): Promise<{ track: Promise<Track>; days: Promise<Bundle>; regions: Promise<string[]> } | undefined> {
+async function neededDays(): Promise<{ track: Promise<Track | undefined>; days: Promise<Bundle>; regions: Promise<string[]> } | undefined> {
   try {
     manifest = await getJson<Manifest>(`${LIVE_URL}/manifest.json`);
   } catch (error) {
@@ -2809,7 +2812,8 @@ async function neededDays(): Promise<{ track: Promise<Track>; days: Promise<Bund
     () => [...loaded].filter((id) => days.every((d) => d.regions.every((r) => r.id !== id || (fetched.has(r.track) && fetched.has(r.trips))))),
     () => [],
   );
-  return { track: today ? load.trackOf(today).then((t) => t.track) : joined, days: joined, regions: came };
+  // Settled at once, as the map's first look awaits it only once the map has loaded.
+  return { track: (today ? load.trackOf(today).then((t) => t.track) : joined).catch(() => undefined), days: joined, regions: came };
 }
 
 /**
@@ -2824,7 +2828,8 @@ async function refreshDays() {
   try {
     const needed = await neededDays();
     if (needed) {
-      show(await needed.track);
+      const track = await needed.track;
+      if (track) show(track);
       showDays(await needed.days, await needed.regions);
     }
   } catch (error) {
