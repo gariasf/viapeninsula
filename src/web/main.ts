@@ -7,7 +7,7 @@ import nunitoSans from '@fontsource/nunito-sans/files/nunito-sans-latin-400-norm
 import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-normal.woff2?url';
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
 import { along, APART, atZoom, BANDS, bandZooms, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Alerts, type Bundle, type Credit, type Place, type DayTrips, type Kind, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH } from '../bundle.ts';
-import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, trainAt, trainsAt, unavailable, type Coming, type Departure, type Followed, type Received } from '../engine.ts';
+import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, unavailable, type Coming, type Departure, type Followed, type Received } from '../engine.ts';
 import { alertCount, basemapLabel, busesReplace, earlierStations, language, LANGUAGES, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, setLanguage, t, toGo, trainCounts, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { linesAt, popupRoom } from './tap.ts';
@@ -17,7 +17,7 @@ import { keepView, lastView, markOf, openingView } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { contrast, lettering } from './colour.ts';
 import { cardAlerts, linesCallingAt, minutesTo, nearbyRows, progress, type CardAlert } from './cards.ts';
-import { closureKey, closureStrokes, closuresAt, placeOn, type Shown } from './closures.ts';
+import { closureKey, closureStrokes, closuresAt, hiding, placeOn, type Shown } from './closures.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
 setWorkerUrl(workerUrl);
@@ -567,6 +567,8 @@ let alerts: Alerts = {};
  * what showClosures() reads is declared, and calling it then would throw.
  */
 let drawClosures = () => {};
+/** Lifts the Closures each snapshot has a Live Train of their Line within, as it comes (hideClosures(), #345). Until the map has its Trips, nothing, as for drawClosures. */
+let liftClosures = () => {};
 /** The Lines of the days on the map, by their IDs, which the cards name as pills from the start (pill()). */
 let lines = new Map<string, Line>();
 /** How each Line's Trains are drawn as pills, by the Line's ID. */
@@ -632,8 +634,17 @@ let placeOfStation = new Map<string, Place>();
  * shown on the track goes, along its stretches and on its rails, by closureKey(), once worked out (#341).
  */
 let placing = { shapes: new Map<string, Shape>(), slots: new Map<string, Slot[]>(), curves: new Map<string, Zone[]>(), keep: new Map<string, number>(), closures: new Map<string, [GeoJSON.Feature[], GeoJSON.Feature[]]>() };
-/** The Closures the map shows now (closuresAt()), which a tap on one names, and within whose closed ones Scheduled Trains aren't drawn (#345). */
+/** The Closures the map shows now (closuresAt()), which a tap on one names. */
 let shownClosures: Shown[] = [];
+/** Those of them that hide Trains (hiding(), #345): within whose closed ones Scheduled Trains aren't drawn, and boards show them not stopping. */
+let hidingClosures: Shown[] = [];
+/**
+ * The Closures live data has lifted (hiding(), #345), for the page's life.
+ * ponytail: the page's memory, so a page opened while a stale Alert's Closure has its Line's Trains
+ * running hides them until one is seen within it again. The fetcher keeping where each Line's Trains
+ * were last seen, and publishing it beside alerts.json, would lift it from the first.
+ */
+const lifted = new Set<string>();
 /** The Lines' strokes along their Stretches, which a tap on one names (linesAt()). */
 let shownStrokes: Stroke[] = [];
 /** Each Network's track, drawn once zoomed out (#190), which the banner goes by for a Network with no Trips today (bannerNetworks()). */
@@ -800,6 +811,7 @@ const closureLayers = layered.flatMap(({ id, zooms, opacity, below }) =>
   }),
 );
 drawClosures = showClosures;
+liftClosures = hideClosures;
 drawClosures();
 // A tier's dots are larger than the rest, and drawn over them where they meet.
 map.addLayer({
@@ -1174,6 +1186,7 @@ function show(days: Track | Bundle) {
  */
 function showClosures() {
   shownClosures = bundle ? closuresAt(alerts, bundle, mapTime(Date.now(), received)) : [];
+  hideClosures();
   const drawn = shownClosures.map((closure) => {
     const key = closureKey(closure);
     const features = placing.closures.get(key) ?? placeClosure(closure);
@@ -1182,6 +1195,17 @@ function showClosures() {
   });
   map.getSource<GeoJSONSource>('closures')?.setData({ type: 'FeatureCollection', features: drawn.flatMap(([stretches = []]) => stretches) });
   map.getSource<GeoJSONSource>('closure-rails')?.setData({ type: 'FeatureCollection', features: drawn.flatMap(([, rails = []]) => rails) });
+}
+
+/**
+ * Which of the Closures shown hide Trains (hiding(), #345), once those the latest snapshot has a Live
+ * Train of their Line within are lifted (seenWithin()): the same list while they're the same, as the
+ * engine works out each list's once (6 ms on 10 Oct's bundle).
+ */
+function hideClosures() {
+  const latest = received.at(-1)?.snapshot;
+  const hides = hiding(shownClosures, bundle && latest ? seenWithin(bundle, latest, shownClosures) : [], lifted);
+  if (hides.length !== hidingClosures.length || hides.some((c, i) => c !== hidingClosures[i])) hidingClosures = hides;
 }
 
 /**
@@ -1211,7 +1235,7 @@ function placeClosure({ line: id, stations }: Shown): [GeoJSON.Feature[], GeoJSO
 
 /**
  * Every Train on the map now, in its Line's colour, Live or Scheduled, but for a Scheduled one within
- * a closed Closure (trainsAt(), #345). Zoomed out, until the Lines
+ * a closed Closure that hides Trains (trainsAt(), hiding(), #345). Zoomed out, until the Lines
  * are back on the rails, each sits on its Line's stroke, half a line width to the side its Network's
  * Trains keep to, so that Trains going opposite ways show apart (onStroke()). A tapped group of
  * Trains standing together at a Station goes side by side across their track (spreading()), so that
@@ -1221,7 +1245,7 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
   const zoom = map.getZoom();
   const [followed, bearing] = [followedId(), map.getBearing()];
   if (following) following.at = undefined;
-  const placed = (bundle ? trainsAt(bundle, Date.now(), received, shownClosures) : []).map((train) => {
+  const placed = (bundle ? trainsAt(bundle, Date.now(), received, hidingClosures) : []).map((train) => {
     const { trip, dist, lon, lat, heading, standsAt } = train;
     // ponytail: takes the Network's running side, so L2's Trains between Tetuan and Paral·lel, and
     // Cercanías Madrid's beyond Pinar de las Rozas, which keep left, sit half a line width to the wrong
@@ -1520,7 +1544,7 @@ function showCount(features: GeoJSON.Feature[]) {
 /** Follows a Train picked at random but for the one the map follows: a Live one in view, else a Live one anywhere on the map, else any. */
 function followRandom() {
   const followed = followedId();
-  const others = (bundle ? trainsAt(bundle, Date.now(), received, shownClosures) : []).filter((t) => t.trip.id !== followed);
+  const others = (bundle ? trainsAt(bundle, Date.now(), received, hidingClosures) : []).filter((t) => t.trip.id !== followed);
   const live = others.filter((t) => t.live);
   // ponytail: in view by the map's bounds, which take in what's under the panel too, and on a rotated
   // map the corners around the view. Test where each Train is on screen above the panel, as
@@ -1891,7 +1915,7 @@ function moreButton(text: string) {
 function followedPanel(up: boolean): Panel | undefined {
   const now = Date.now();
   waiting = false;
-  const train = bundle && trainAt(bundle, now, received, followedId() ?? '', shownClosures);
+  const train = bundle && trainAt(bundle, now, received, followedId() ?? '', hidingClosures);
   // Its Trip still to come, where its Train isn't on the map yet (#322).
   const coming = bundle && !train ? comingAt(bundle, now, received, followedId() ?? '') : undefined;
   waiting = !!coming;
@@ -2171,7 +2195,7 @@ function boardPanel(id: string, up: boolean): Panel | undefined {
   const place = shownPlaces.get(id);
   if (!place) return undefined;
   const now = Date.now();
-  const departures = bundle ? boardAt(bundle, now, received, place.stations, shownClosures) : [];
+  const departures = bundle ? boardAt(bundle, now, received, place.stations, hidingClosures) : [];
   // With none left today, the next day's first are to come; refreshDays() runs again within a minute if it's busy now.
   const date = madridDate(new Date(mapTime(now, received)));
   if (bundle && !departures.length && emptyBoard !== date) {
@@ -2205,7 +2229,7 @@ function servedBy(place: Place): string[] {
 /**
  * A departure on a board: when it's expected to leave, with the minutes to go under a time within the
  * hour, its Train's pill, where it's headed, and its status. One Cancelled, or at a Station its Train
- * won't stop at (#346), as one within a closed Closure but for one Live within it (#345), shows when its
+ * won't stop at (#346), as one within a closed Closure that hides Trains but for one Live within it (#345), shows when its
  * timetable has it leave, struck through, and says so.
  */
 function departureRow({ trip, departure, delay, live, unreported, cancelled, skipped }: Departure, now: number) {
@@ -2264,7 +2288,7 @@ function nearbyPanel(near: Point | Unlocated, up: boolean): Panel {
     return { header, body: [said, ...(tryAgain ? [el('button', { type: 'button', className: 'card try-again', onclick: askAgain }, tryAgain)] : [])] };
   }
   const now = Date.now();
-  const rows = nearbyRows(bundle ? nearbyAt(bundle, now, received, near, NEARBY, SOON, shownClosures) : [], now);
+  const rows = nearbyRows(bundle ? nearbyAt(bundle, now, received, near, NEARBY, SOON, hidingClosures) : [], now);
   said.append(el('p', { className: 'subtitle', textContent: t('passingNearby') }));
   // Where no Train passes, saying so is what a try found too, so the status says it, for a screen reader to
   // hear; but only once the Trips have come, which can be after the viewer is found, as the map can't tell before.
@@ -2589,6 +2613,7 @@ async function poll() {
   const at = Date.now();
   if (snapshot) received = [...received.filter((r) => r.at > at - KEEP), { snapshot, at }];
   else emptyPolls++;
+  liftClosures();
   showBanner();
   clearTimeout(nextPoll);
   if (!document.hidden) nextPoll = setTimeout(poll, 20_000);

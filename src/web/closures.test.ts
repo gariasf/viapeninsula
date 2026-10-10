@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import { ALERTS_START, readAlerts } from '../fetcher/alerts.ts';
-import { APART, atZoom, BANDS, beside, DEGREE, inBand, onStroke, pixelMetres, zones, type Line, type Shape, type Stroke } from '../bundle.ts';
+import { APART, atZoom, BANDS, beside, DEGREE, inBand, onStroke, pixelMetres, zones, type Alert, type Alerts, type Line, type Shape, type Stroke } from '../bundle.ts';
 import { sideBySide } from '../build/sideBySide.ts';
-import { closureStrokes, closuresAt, placeOn, stretchesIn } from './closures.ts';
+import { closureStrokes, closuresAt, hiding, placeOn, stretchesIn, type Shown } from './closures.ts';
 
 /** Some of Rodalies' and TRAM's Stations, as the bundle names them. */
 const R1 = [
@@ -145,9 +145,9 @@ const DAY = {
 };
 
 test("on 7 Oct, closes R1 Blanes – Maçanet-Massanes and R3 Ripoll – Puigcerdà, R2 Sant Vicenç de Calders – Cunit to a single track, and TRAM's T1–T3 Francesc Macià – Montesa and T5–T6 Glòries – Can Jaumandreu, from their Alerts, newest first", () => {
-  const renfe = (id: string, from: string) => ({ alert: { feed: 'renfe', id }, from: Date.parse(`2026-10-07T${from}:00+02:00`) });
-  const sc280 = { alert: { feed: 'tram', id: 'sc-280' }, from: Date.parse('2026-10-01T07:00:05+02:00') };
-  const sc279 = { alert: { feed: 'tram', id: 'sc-279' }, from: Date.parse('2026-10-01T02:05:27+02:00') };
+  const renfe = (id: string, from: string) => ({ alert: { feed: 'renfe', id, said: expect.any(String) }, from: Date.parse(`2026-10-07T${from}:00+02:00`) });
+  const sc280 = { alert: { feed: 'tram', id: 'sc-280', said: expect.any(String) }, from: Date.parse('2026-10-01T07:00:05+02:00') };
+  const sc279 = { alert: { feed: 'tram', id: 'sc-279', said: expect.any(String) }, from: Date.parse('2026-10-01T02:05:27+02:00') };
   expect(closuresAt(ALERTS, DAY, READ)).toEqual([
     { line: 'rodalies:R3', stations: ['adif:77200', 'adif:77309'], kind: 'closed', ...renfe('AVISO_518337', '09:23') },
     { line: 'rodalies:R1', stations: ['adif:79606', 'adif:79200'], kind: 'closed', ...renfe('AVISO_518348', '08:38') },
@@ -183,7 +183,7 @@ test("shows the timetable's Closures on their day from the first bus to the last
     ],
   };
   const at = (time: string) => closuresAt(ALERTS, day, Date.parse(`2026-10-09T${time}+02:00`)).filter((c) => c.line === 'rodalies:R13' || c.line === 'rodalies:R3');
-  expect(at('05:32:59')).toEqual([{ line: 'rodalies:R3', stations: ['adif:77200', 'adif:77309'], kind: 'closed', alert: { feed: 'renfe', id: 'AVISO_518337' }, from: Date.parse('2026-10-07T09:23:00+02:00') }]);
+  expect(at('05:32:59')).toEqual([{ line: 'rodalies:R3', stations: ['adif:77200', 'adif:77309'], kind: 'closed', alert: { feed: 'renfe', id: 'AVISO_518337', said: expect.any(String) }, from: Date.parse('2026-10-07T09:23:00+02:00') }]);
   expect(at('05:33:00').map((c) => [c.line, c.alert?.id])).toEqual([
     ['rodalies:R3', 'AVISO_518337'],
     ['rodalies:R13', undefined],
@@ -197,6 +197,33 @@ test("shows the timetable's Closures on their day from the first bus to the last
 
 test('a day file built before #340 has no Closures', () => {
   expect(closuresAt({}, { ...DAY, closures: undefined }, READ)).toEqual([]);
+});
+
+test("a Closure an Alert closes hides Trains until a Live Train of its Line is seen within it, and then none until its Alert changes, while another Line's on the same Stations still does", () => {
+  const lifted = new Set<string>();
+  const lines = (closures: Shown[]) => closures.map((c) => c.line);
+  const shown = closuresAt(ALERTS, DAY, READ);
+  expect(hiding(shown, [], lifted)).toEqual(shown);
+  // A T2 tram seen within Francesc Macià – Montesa lifts T2's, and not T1's or T3's there.
+  expect(lines(hiding(shown, shown.filter((c) => c.line === 'tram:T2'), lifted))).toEqual(['rodalies:R3', 'rodalies:R1', 'rodalies:R2', 'tram:T3', 'tram:T1', 'tram:T5', 'tram:T6']);
+  // It stays lifted once the tram has gone, as alerts.json is read again, its Alert unchanged.
+  const works = Date.parse('2026-10-10T12:00:00+02:00');
+  expect(lines(hiding(closuresAt(ALERTS, DAY, works), [], lifted))).not.toContain('tram:T2');
+  // But not once TRAM changes sc-280's period or its words, as by 10 October it had moved its start
+  // from 1 October to the works' first day, nor where a new Alert closes that part of T2.
+  const tram = (alerts: Alert[]): Alerts => ({ ...ALERTS, tram: { status: 'ok', alerts } });
+  const sc280 = ALERTS.tram?.alerts.find((a) => a.id === 'sc-280') as Alert;
+  const others = ALERTS.tram?.alerts.filter((a) => a !== sc280) ?? [];
+  for (const alerts of [
+    [{ ...sc280, from: Date.parse('2026-10-10T03:05:05+02:00') }, ...others],
+    [{ ...sc280, description: sc280.description.map((w) => ({ ...w, text: `${w.text} (2)` })) }, ...others],
+    [{ ...sc280, id: 'sc-290', from: READ }, sc280, ...others],
+  ]) {
+    expect(lines(hiding(closuresAt(tram(alerts), DAY, works), [], lifted))).toContain('tram:T2');
+  }
+  // The timetable's own, which no Trip of its day runs through, is never lifted.
+  const timetable = closuresAt({}, { ...DAY, closures: [{ line: 'rodalies:R13', stations: ['adif:73003', 'adif:73100'], from: 0, to: 86400, kind: 'buses' }] }, READ);
+  expect(hiding(timetable, timetable, lifted)).toEqual(timetable);
 });
 
 /** A shape through points given in metres east and north of 0°, 0°, as a degree is DEGREE metres there both ways. */

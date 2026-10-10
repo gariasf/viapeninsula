@@ -84,19 +84,32 @@ export function closureStrokes(line: string, { from, to }: { from: number; to: n
 
 /**
  * A Closure the map draws: its Line, its two Stations, whether it's closed, by buses or nothing, or
- * down to a single track, the Alert whose words say so, by its feed's ID and its own, none for the
- * timetable's, and when it began, in ms since 1970, where it says.
+ * down to a single track, the Alert whose words say so, by its feed's ID and its own, with what it
+ * says, its period, effect and words, as the fetcher tells one Alert of an ID from another, none for
+ * the timetable's, and when it began, in ms since 1970, where it says.
  */
 export interface Shown {
   line: string;
   stations: [string, string];
   kind: 'closed' | 'single';
-  alert?: { feed: string; id: string };
+  alert?: { feed: string; id: string; said: string };
   from?: number;
 }
 
 /** Which part of a Line a Closure is of: its Line and its Stations, either way round. */
 export const closureKey = ({ line, stations }: Pick<Shown, 'line' | 'stations'>) => `${line} ${stations.toSorted().join(' ')}`;
+
+/**
+ * The Closures among those shown that hide their Lines' Trains (#345): all but those an Alert closes
+ * that a Live Train of their Line has been seen within since that Alert last changed, its words or
+ * period, as `lifted` remembers them, which this adds those `seen` to (seenWithin()). The timetable's,
+ * which no Trip of their day runs through, are never lifted.
+ */
+export function hiding(shown: Shown[], seen: readonly Shown[], lifted: Set<string>): Shown[] {
+  const key = (c: Shown) => `${closureKey(c)} ${c.alert?.feed} ${c.alert?.id} ${c.alert?.said}`;
+  for (const c of seen) if (c.alert) lifted.add(key(c));
+  return shown.filter((c) => !c.alert || !lifted.has(key(c)));
+}
 
 /**
  * The Closures the map draws at `now` (ms since 1970), one for each part of a Line (ADR-0012). From
@@ -130,7 +143,8 @@ export function closuresAt(
       if (says !== 'closed' && says !== 'single') continue;
       for (const line of alert.lines) {
         const ids = new Set(stationsOf(line).map((s) => s.id));
-        if (ends.every((s) => ids.has(s))) add({ line, stations: ends, kind: says, alert: { feed, id: alert.id }, ...(alert.from !== undefined && { from: alert.from }) });
+        const said = JSON.stringify([alert.from, alert.to, alert.effect, alert.header, alert.description]);
+        if (ends.every((s) => ids.has(s))) add({ line, stations: ends, kind: says, alert: { feed, id: alert.id, said }, ...(alert.from !== undefined && { from: alert.from }) });
       }
     }
   }
