@@ -28,6 +28,8 @@ const opened = params.has('open');
 /** A Line's strip with a chip for each of its Trips' runs (`?alt=chips`, and `&v=2` for the third run's), instead of one strip for them all. */
 const chips = params.get('alt') === 'chips';
 const variant = params.has('v') ? Number(params.get('v')) : undefined;
+/** The buttons main has gained since this page's base (47f0070): `?main=tilt` adds #326's Tilt over the column, `?main=centre` #325's Centre too, shown while a followed Train is let go. For the frames that draw the column as it is now. */
+const mainButtons = params.get('main');
 /** On a wide window, A's bar along the top instead of its rail. */
 const topBar = params.get('bar') === 'top';
 /** The whole sheet at its full length, for reading it (`?full=1`). */
@@ -102,6 +104,8 @@ const ICON = {
   star: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m12 3.2 2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 17.1 6.6 19.9l1.1-6.1L3.2 9.6l6.1-.8L12 3.2z"/></svg>',
   starOn: '<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m12 3.2 2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 17.1 6.6 19.9l1.1-6.1L3.2 9.6l6.1-.8L12 3.2z"/></svg>',
   now: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2.5-7 4 14 2.5-7h5"/></svg>',
+  tilt: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M8 6h8l5 12H3L8 6z"/><path d="M5.5 12h13"/></svg>',
+  centre: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="6"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>',
   station: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="6.5"/></svg>',
 };
 
@@ -176,10 +180,16 @@ const CREDITS = 'OpenFreeMap © OpenMapTiles © OpenStreetMap contributors | Ren
 
 /** The buttons that ride on the sheet's top edge: the credits, and on B Now and Nearby bottom right, with the random follow's die. */
 function riders(): string {
+  // As on main now, over the die: Tilt, and Centre while a followed Train is let go (#326, #325).
+  const onMain = mainButtons
+    ? `<button type="button" class="card fab tilt" aria-label="Tilt the map">${ICON.tilt}</button>${mainButtons === 'centre' ? `<button type="button" class="card fab" aria-label="Centre the map on the train">${ICON.centre}</button>` : ''}`
+    : '';
   const fabs =
     nav === 'a'
-      ? ''
-      : `<div class="fabs"><button type="button" class="card fab" aria-label="Follow a random Train">${ICON.die}</button><a class="card fab nearby" href="${link({ screen: 'now' })}"${screen === 'now' ? ' aria-current="page"' : ''}>${ICON.now}<span>Now</span></a><button type="button" class="card fab nearby">${ICON.nearby}<span>Nearby</span></button></div>`;
+      ? onMain
+        ? `<div class="fabs">${onMain}</div>`
+        : ''
+      : `<div class="fabs">${onMain}<button type="button" class="card fab" aria-label="Follow a random Train">${ICON.die}</button><a class="card fab nearby" href="${link({ screen: 'now' })}"${screen === 'now' ? ' aria-current="page"' : ''}>${ICON.now}<span>Now</span></a><button type="button" class="card fab nearby">${ICON.nearby}<span>Nearby</span></button></div>`;
   return `<div class="riders"><details class="credits"><summary class="card" aria-label="Show or hide the credits">${ICON.copyright}</summary><div class="card credits-text">${CREDITS}</div></details>${fabs}<div class="card credits-strip">${CREDITS}</div></div>`;
 }
 
