@@ -230,8 +230,9 @@ const runAt = (words: string[], run: string[], at = 0) => (run.every((w, k) => w
  * some of its Lines' Trains, as in "Tren con salida a las 09:27h de la estación de BENACAZÓN, no presta
  * servicio entre las estaciones de X y Y", or "para los trenes con origen/destino Madrid: Se establece
  * un Plan Alternativo de Transporte por carretera entre las estaciones de X y Y" (#396).
- * ponytail: the two wordings 9 Oct's file has; a note worded otherwise is read as its Line's, which a
- * day's file shows, and each new wording goes here.
+ * ponytail: the two wordings 9 Oct's file has. A note worded otherwise is read as its Line's, which a
+ * day's file shows, and each new wording goes here; and an Alert that closes its Line and also names
+ * one of its Trains in these words makes no Closure either, as the whole Alert is read (ADR-0012).
  */
 const SOME_TRAINS = [
   ['tren', 'con', 'salida'],
@@ -248,8 +249,14 @@ function aboutSomeTrains(text: string): boolean {
   return SOME_TRAINS.some((run) => words.some((_, at) => runAt(words, run, at) === at));
 }
 
-/** The words a Station's name can have in one spelling and not in another, as TRAM's "Estació St.Adrià" is "Estació de Sant Adrià" in its notices, and Adif's "València-La Font de Sant Lluís" is "Valencia Font de Sant Lluis" in Renfe's (#396). */
-const LINKS = ['de', 'del', 'la', 'el', 'les', 'els', 'las', 'los'];
+/**
+ * The words a Station's name can have in one spelling and not in another: "de", as TRAM's "Estació St.Adrià"
+ * is "Estació de Sant Adrià" in its notices, and "la", as Adif's "València-La Font de Sant Lluís" is "Valencia
+ * Font de Sant Lluis" in Renfe's (#396).
+ * ponytail: the two that 9 Oct's file needs, as each is one more way for two Stations to read alike: "del",
+ * "el", "les", "els", "las" and "los" change no reading in any file we have. Another goes in with the file that has it.
+ */
+const LINKS = ['de', 'la'];
 
 /** How many of `words` from `at` a name takes, whole, but for those words, or 0. */
 function spanAt(words: string[], name: string[], at: number): number {
