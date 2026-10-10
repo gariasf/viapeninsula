@@ -4,7 +4,7 @@ import { expect, test } from 'vitest';
 import type { Bundle, Point, Shape, Slot, Track } from './bundle.ts';
 import { sideBySide } from './build/sideBySide.ts';
 import { metres } from './build/track.ts';
-import { decodeTrack, encodeTrack, type Run, type StoredTrack } from './pieces.ts';
+import { decodeTrack, encodeTrack, metres as piecesMetres, type Run, type StoredTrack } from './pieces.ts';
 
 // Hand-drawn track, in metres east (x) and north (y) of a spot in Barcelona, on the 6-decimal grid the
 // build writes its shapes' points on.
@@ -204,3 +204,16 @@ test("gives back the slots a Network's Lines are drawn with, as the build makes 
   expect(file).toHaveProperty('chains');
   expect(decodeTrack(written(file))).toEqual(written(t));
 }, 60_000);
+
+test("works out a great-circle length as the build does, to the last bit, since a shape's distances are a rounded sum of them", () => {
+  // A deterministic spread of pairs of points across Spain, 0 to 600 km apart.
+  let seed = 257;
+  const next = () => (seed = (seed * 1_103_515_245 + 12_345) % 2 ** 31) / 2 ** 31;
+  for (let i = 0; i < 5000; i++) {
+    const a: Point = [-9 + next() * 13, 36 + next() * 8];
+    const b: Point = [a[0] + (next() - 0.5) * 8, a[1] + (next() - 0.5) * 5];
+    expect(piecesMetres(a, b)).toBe(metres(a, b));
+    // And either way round, as a piece run backwards is summed.
+    expect(piecesMetres(b, a)).toBe(piecesMetres(a, b));
+  }
+});

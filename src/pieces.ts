@@ -82,8 +82,12 @@ function onGrid(degrees: number, limit: number): boolean {
   return Math.round(degrees * MICRO) / MICRO === degrees && Math.abs(degrees) < limit;
 }
 
-/** Great-circle distance in metres: build/track.ts's metres(), which a shape's `dist` is the rounded sum of. */
-function metres(a: Point, b: Point): number {
+/**
+ * Great-circle distance in metres: build/track.ts's metres(), which a shape's `dist` is the rounded sum
+ * of. It is a copy, so that the page needn't take the build's tracing in; pieces.test.ts has them agree
+ * to the last bit, as a sum of them rounded would move a Train a metre where they don't.
+ */
+export function metres(a: Point, b: Point): number {
   const rad = Math.PI / 180;
   const h = Math.sin(((b[1] - a[1]) * rad) / 2) ** 2 + Math.cos(a[1] * rad) * Math.cos(b[1] * rad) * Math.sin(((b[0] - a[0]) * rad) / 2) ** 2;
   return 2 * EARTH * Math.asin(Math.sqrt(h));
