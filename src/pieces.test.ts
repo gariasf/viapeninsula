@@ -130,21 +130,37 @@ test("stores a shape's slots, which run one after another along it, as a chain o
   const file = encodeTrack(t);
   expect(file).not.toHaveProperty('slots');
   expect(decodeTrack(file)).toEqual(t);
-  // Each run: how its Line and shape's places moved on from the run before, and its band; then, for each slot, its length, its side,
-  // how its centreline's place moved on, where it starts less where the one before ended, and how far it goes: none says where it starts.
+  // Each run: how its Line and shape's places moved on from the run before, its band, and where its first slot starts; then, for each
+  // slot, its length, its side, how its centreline's place moved on, where it starts less where the one before ended, and how far it
+  // goes: none says where it starts, as each follows the one before.
   expect((file as StoredTrack).chains).toEqual({
     on: ['stretch:r:0', 'stretch:r:1', 'A'],
     runs: [
-      [0, 0, 0, 300, 0.5, 0, 0, 302, 300, 0, 1, 0, 296],
-      [0, 1, 0, 600, -0.5, 1, 598, -598],
-      [0, -1, 2, 600, 0, 2, 0, 600],
-      [1, 0, 0, 600, 1.5, 0, 0, 600],
+      [0, 0, 0, 0, 300, 0.5, 0, 0, 302, 300, 0, 1, 0, 296],
+      [0, 1, 0, 0, 600, -0.5, 1, 598, -598],
+      [0, -1, 2, 0, 600, 0, 2, 0, 600],
+      [1, 0, 0, 0, 600, 1.5, 0, 0, 600],
     ],
   });
 });
 
-test("keeps the slots whole where they aren't chains from the start of their shape, or name a Line or shape the track hasn't", () => {
-  const gap: Slot[] = [{ line: 'R1', shape: 'A', from: 100, to: 600, side: 0, on: 'stretch:r:0', at: [100, 600] }];
+test("starts a chain where its shape's first slot does, as one cut at the border keeps counting from where it began", () => {
+  const cut = { ...A, id: 'cut', dist: A.dist.map((d) => d + 1603) };
+  const slots: Slot[] = [
+    { line: 'R1', shape: 'cut', from: 1603, to: 1903, side: 0, on: 'stretch:r:0', at: [10, 310] },
+    { line: 'R1', shape: 'cut', from: 1903, to: 2203, side: 0, on: 'stretch:r:0', at: [310, 610] },
+  ];
+  const t = track([cut], { lines: [line('R1', ['cut'])], slots });
+  const file = encodeTrack(t) as StoredTrack;
+  expect(file.chains?.runs).toEqual([[0, 0, 0, 1603, 300, 0, 0, 10, 300, 300, 0, 0, 0, 300]]);
+  expect(decodeTrack(file)).toEqual(t);
+});
+
+test("keeps the slots whole where one doesn't follow the one before, or they name a Line or shape the track hasn't", () => {
+  const gap: Slot[] = [
+    { line: 'R1', shape: 'A', from: 0, to: 300, side: 0, on: 'stretch:r:0', at: [0, 300] },
+    { line: 'R1', shape: 'A', from: 400, to: 600, side: 0, on: 'stretch:r:0', at: [400, 600] },
+  ];
   const t = track([A], { lines: [line('R1', ['A'])], slots: gap });
   expect(encodeTrack(t)).toHaveProperty('slots', gap);
   expect(decodeTrack(encodeTrack(t))).toEqual(t);

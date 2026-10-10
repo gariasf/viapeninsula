@@ -20,15 +20,16 @@ export interface StoredTrack extends Omit<Track, 'slots'> {
 }
 
 /**
- * Each shape's slots in one graph, one band, run on one after another from its start, so each is
- * its length, its side, the centreline it goes on, and where on it. The runs are in the track's order.
+ * Each shape's slots in one graph, one band, run on one after another from where its first starts, so
+ * each is its length, its side, the centreline it goes on, and where on it. The runs are in the track's order.
  */
 export interface Chains {
   /** The centrelines the slots go on, each once, as the first slot to go on it has it. */
   on: string[];
   /**
    * For each run, its Line's and its shape's places in the track's Lines and traced shapes, as the
-   * change from the run before, and its band's number plus 1, or 0 for the main graph; then for each
+   * change from the run before, its band's number plus 1, or 0 for the main graph, and how far along
+   * the shape its first slot starts, which is 0 but for a shape cut at the border; then for each
    * slot: its length, its side, its centreline's place in `on` as the change from the slot before,
    * where it starts as the change from where the slot before ended, and how far it goes along the
    * centreline, negative where it goes back.
@@ -107,7 +108,7 @@ export function decodeTrack(file: TrackFile): Track {
   };
 }
 
-/** The slots as chains, or none where they aren't: each shape's runs start at 0 and go one on from the one before, and name a Line and a shape the track has. */
+/** The slots as chains, or none where they aren't: each run goes one slot on from the one before, and names a Line and a shape the track has. */
 function encodeChains(slots: Slot[], lines: Line[], traced: Shape[]): Chains | undefined {
   const [lineAt, shapeAt] = [new Map(lines.map((l, i) => [l.id, i])), new Map(traced.map((s, i) => [s.id, i]))];
   const on: string[] = [];
@@ -119,9 +120,9 @@ function encodeChains(slots: Slot[], lines: Line[], traced: Shape[]): Chains | u
     if (l === undefined || h === undefined) return undefined;
     if (!runs.length || l !== line || h !== shape || b !== band) {
       // A new run, in the places it's counted from: the last run's, and 0 for the first.
-      row = [l - line, h - shape, b];
+      row = [l - line, h - shape, b, s.from];
       runs.push(row);
-      [line, shape, band, to, at, here] = [l, h, b, 0, 0, 0];
+      [line, shape, band, to, at, here] = [l, h, b, s.from, 0, 0];
     }
     if (s.from !== to) return undefined;
     let place = placeOf.get(s.on);
@@ -142,8 +143,8 @@ function decodeChains({ on, runs }: Chains, lines: Line[], shapes: { id: string 
     line += row[0] ?? 0;
     shape += row[1] ?? 0;
     const band = (row[2] ?? 0) - 1;
-    let [to, at, here] = [0, 0, 0];
-    for (let k = 3; k < row.length; k += 5) {
+    let [to, at, here] = [row[3] ?? 0, 0, 0];
+    for (let k = 4; k < row.length; k += 5) {
       const from = to;
       to = from + (row[k] ?? 0);
       here += row[k + 2] ?? 0;
