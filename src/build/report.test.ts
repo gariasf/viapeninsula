@@ -80,7 +80,7 @@ test('places a spot halfway between its first and last Stations, to about a metr
   expect(node?.point).toEqual([2.17598, 41.39514]);
 });
 
-test("gives each spot the zoom the map shows it at: a turn-back's 16, a branch's 15, a node's own, and the closest that fits a run kept, a shape's length or a Trip's Stations across a phone, at most 15", () => {
+test("gives each spot the zoom the map shows it at: a turn-back's 16, a node's own, and the closest that fits a run kept, a run left out on a branch, a shape's length or a Trip's Stations across a phone, at most 15, which is a Station alone's", () => {
   const spots = report(
     // About 22 km from north to south: 115 m a pixel at zoom 9, 58 m at zoom 10.
     { kind: 'kept', why: 'off', line: 'rodalies:R3', stations: [A, B, C], text: [''] },
@@ -89,7 +89,9 @@ test("gives each spot the zoom the map shows it at: a turn-back's 16, a branch's
     // About 42 km across: 230 m a pixel at zoom 8, 115 m at zoom 9.
     { kind: 'length', line: 'rodalies:R2', shape: 'rodalies:51_R2', point: [2.25, 41], extent: [[2, 41], [2.25, 41.01], [2.5, 41]], text: [''], numbers: { percent: 0.1 } },
     { kind: 'turn', line: 'rodalies:R16', stations: [B], text: [''] },
+    // 11 km, half the first run's.
     { kind: 'branch', line: 'rodalies:R2N', stations: [A, B], text: [''] },
+    { kind: 'branch', line: 'rodalies:R2N', stations: [C], text: [''] },
     { kind: 'trip', why: 'off', line: 'rodalies:R2N', trip: 'to França', stations: [C], text: [''] },
     // Too fast from A to C, as 22 km apart as the first run kept.
     { kind: 'trip', why: 'fast', line: 'cercanias-madrid:C2', trip: '1076L20990C2', stations: [A, C], text: [''] },
@@ -98,7 +100,8 @@ test("gives each spot the zoom the map shows it at: a turn-back's 16, a branch's
     { kind: 'measures', text: [''], numbers: { breaks: 236 } },
   );
   expect(Object.fromEntries(spots.map((s) => [s.key, s.zoom]))).toEqual({
-    'branch rodalies:R2N adif:1 adif:2': 15,
+    'branch rodalies:R2N adif:1 adif:2': 10,
+    'branch rodalies:R2N adif:3': 15,
     'kept rodalies:R3 adif:1 adif:3 off': 9,
     'kept rodalies:R4 adif:1 adif:5 nopath': 15,
     'length rodalies:R2 rodalies:51_R2': 8,
@@ -169,6 +172,18 @@ test('lists the spots new since the last build, then those gone, then those whos
 
 test('links each spot to the map at its zoom and point, with a ring there', () => {
   expect(diff([], [TURN])).toContain('[map](https://viapeninsula.gariasf.com/#map=16/40.75356/0.61431&mark=40.75356,0.61431)');
+});
+
+test("rings the point of a spot of one Station or none or any but a branch's run, whose view is fitted to show it", () => {
+  const [one, run, kept] = report(
+    { kind: 'branch', network: 'cercanias-santander', line: 'cercanias-santander:C3', stations: [A, B, C], text: [''] },
+    { kind: 'branch', network: 'cercanias-santander', line: 'cercanias-santander:C3', stations: [A], text: [''] },
+    { kind: 'kept', why: 'off', line: 'rodalies:R3', stations: [A, B, C], text: [''] },
+  ) as [Spot, Spot, Spot];
+  // The run is 22 km from end to end, so zoom 9 fits it across a phone.
+  expect(diff([], [run]).split('\n').find((l) => l.startsWith('- '))).toContain('[map](https://viapeninsula.gariasf.com/#map=9/41.1/2.1) · [OpenStreetMap]');
+  expect(diff([], [one]).split('\n').find((l) => l.startsWith('- '))).toContain('[map](https://viapeninsula.gariasf.com/#map=15/41/2&mark=41,2)');
+  expect(diff([], [kept]).split('\n').find((l) => l.startsWith('- '))).toContain('[map](https://viapeninsula.gariasf.com/#map=9/41.1/2.1&mark=41.1,2.1)');
 });
 
 test('counts a Trip count, a node or any other measure as changed when it moves at all, a length only past a point', () => {
