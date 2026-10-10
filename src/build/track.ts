@@ -13,7 +13,7 @@ export interface FeedShape {
   line: string;
   coords: Point[];
   stations: string[];
-  /** The rails its Line runs on, where its Network names them, as one of two gauges does (`lines.gauges`, #366): else the Network's. */
+  /** The rails its Line runs on, where its Network's config names them, as a Network of two gauges does (`lines.gauges`, #366): else the Network's. */
   gauges?: Gauges;
 }
 
@@ -117,10 +117,11 @@ const SLACK = 1000;
  * Traces each shape along the rails, through the Stations its Trips serve in order along the shape,
  * the way its Trips run it. Between Stations it takes the shortest path a train can, except that a
  * trace keeps to its track rather than change tracks for a few metres, to the track of a double
- * track on the Network's running side, and to the track Lines traced before it take the same way.
- * A shape whose Line's gauges are given is traced on the rails of those alone (layered()), so that its
- * Stations are on the ways of its gauge nearest them, though another gauge's track runs nearer, as
- * Renfe's Maliaño is 6 m from FEVE's and 65 m from Adif's, where Cercanías Santander's C1 stops (#366).
+ * track on the Network's running side, and to the track Lines traced before it on its rails take the
+ * same way. A shape whose Line's gauges are given is traced on the rails of those alone (layered()),
+ * so that its Stations are on the ways of its gauge nearest them, though another gauge's track runs
+ * nearer, as Renfe's Maliaño is 6 m from FEVE's and 65 m from Adif's, where Cercanías Santander's C1
+ * stops (#366).
  * What it logs, it reports too.
  */
 export function traceShapes(

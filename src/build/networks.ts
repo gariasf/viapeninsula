@@ -107,7 +107,8 @@ export async function readFeed(
     if (number) numbers.set(t.trip_id, number);
     if (!services.has(t.service_id)) continue;
     const trip = { id: `${prefix}:${t.trip_id}`, line: `${network.id}:${route.name}`, shape: `${prefix}:${t.shape_id}`, headsign: t.trip_headsign };
-    // A Trip with a shape is placed on it, and its shape is traced on its rails.
+    // Only a Trip with no shape takes its Line's rails, to trace its run along (traceRuns()): one with a
+    // shape is placed on it, which is traced on them, and placeTrips() would write them into its day file.
     dayTrips.set(t.trip_id, { ...trip, ...(number && { number }), ...(route.gauges && feed.shapeless && { gauges: route.gauges }), calls: [] });
   }
 

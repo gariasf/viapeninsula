@@ -67,10 +67,10 @@ export interface Rails {
  * The rails a Line runs on where its timetable has no shapes, as Renfe's long-distance one hasn't (#259),
  * or where its Network runs on two gauges, as Cercanías Santander does (#366): the ways whose `railway` is
  * one of these, and whose gauge is one of `gauges`, or that have no gauge tag, as a way with three rails
- * has two gauges, as `1435;1668`. A Network's Lines' are those of its `rails`, which keep out a way with no
- * gauge tag where they name gauges. On two gauges, its Trains change from one to the other only at a
- * railway=gauge_conversion node. A run of its Trips with a stretch with no path on `gauges` is traced on
- * `orElse`'s too, all the way, changing to them only at such a node.
+ * has two gauges, as `1435;1668`. A map Network's Lines take them from its `rails`, which keep out a way
+ * with no gauge tag where they name gauges (#479). A Line on two gauges, as Alvia's, changes from one to
+ * the other only at a railway=gauge_conversion node. A run of its Trips with a stretch with no path on
+ * `gauges` is traced on `orElse`'s too, all the way, changing to them only at such a node.
  */
 export interface Gauges {
   railway: string[];
@@ -623,8 +623,8 @@ const RENFE_LONG_DISTANCE = 'https://ssl.renfe.com/gtransit/Fichero_AV_LD/google
 // and their colours are their config's, as the feed gives every route F2F5F5. Their Trains are read and
 // traced (#259), but not on the map until they're drawn (#262, #263), so each has only what reading them,
 // tracing them and running their Trains needs: how they run (#260), with the rest to come with those. As
-// the timetable has no shapes, each Line runs on the rails of its gauge, as named above (#259,
-// docs/research/high-speed.md).
+// the timetable has no shapes, each Line runs on the rails of its gauge, STANDARD, BOTH, IBERIAN or METRE
+// above (#259, docs/research/high-speed.md).
 
 /**
  * How the engine reads Renfe's long-distance live data (#260), by what #260's triage found of it on 4
