@@ -12,7 +12,7 @@ import { alertCount, basemapLabel, busesReplace, earlierStations, language, LANG
 import { rounded } from './curve.ts';
 import { forgetJoined, regionLoader } from './regions.ts';
 import { linesAt, popupRoom } from './tap.ts';
-import { alongside, namedTwice, nameOffset, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
+import { alongside, callsIn, namedTwice, nameOffset, nameSort, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
 import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
 import { atMostEvery, drifted, letsGo } from './centre.ts';
 import { keepView, lastView, markOf, openingView, toggledPitch } from './view.ts';
@@ -293,7 +293,7 @@ const TIERS: { nameZoom: number; larger: number; size: number; places: string[] 
     ],
   },
 ];
-/** How a place in neither tier is drawn: named from zoom 12, and in the smallest size. */
+/** How a place in neither tier is drawn: named from zoom 12, in the smallest size, and after every tier's where names collide, by its calls a day (nameSort(), #372). */
 const UNTIERED = { nameZoom: 12, larger: 0, size: 11 };
 /**
  * The places whose names are in bold, as the maintainer picks them, by their IDs in places():
@@ -709,11 +709,24 @@ let spreadState: { group?: Group; moved: Map<string, number>; easing: boolean } 
 let standingPills: { id: string; at: Point; heading: number; box: [number, number]; standsAt: string }[] = [];
 /**
  * Each place's name: its dot, the sides of its track it can go, once the map's bearing is known, broken
- * into its lines, how wide and high those are, in px, the zoom it shows from, how much larger its dot is, and how it's lettered.
+ * into its lines, how wide and high those are, in px, the zoom it shows from, whether it's in a tier,
+ * its Stations, how much larger its dot is, and how it's lettered.
  */
-let names: { dot: Point; sides: (bearing: number) => Side[]; name: string; size: [width: number, height: number]; nameZoom: number; larger: number; style: NameStyle }[] = [];
+let names: { dot: Point; sides: (bearing: number) => Side[]; name: string; size: [width: number, height: number]; nameZoom: number; tier: boolean; stations: string[]; larger: number; style: NameStyle }[] = [];
 /** The map's bearing when the names were last put beside their tracks. */
 let namesBearing = NaN;
+/**
+ * How many times Trains call at each Station in the Trips of the days shown (callsIn()), once they've
+ * come: those of places in no tier rank their names where they collide, the busier's first (#372).
+ * Counted here, not by the build into each region's track, where the count changes with the day of the
+ * week and would make Catalonia's 615 KB track a new file in each daily build, for 6 KB of brotli.
+ */
+let calls = new Map<string, number>();
+/**
+ * Where `names` were last laid out (showNames()), for the pills clearance() reads and the bearing the
+ * map had: each one's anchor and offset at each of NAME_ZOOMS.
+ */
+let laidOut: { names: typeof names; pills: typeof pills; bearing: number; where: Record<string, unknown>[] } | undefined;
 map.addSource('lines', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 // Simplified less than MapLibre's default 0.375 px, which would facet their curves again (#203).
 map.addSource('rails', { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, tolerance: 0.1 });
@@ -928,14 +941,15 @@ map.addLayer(
   'line-names',
 );
 // Each place's name beside its track (showNames()), from its tier's zoom, and where names collide, the
-// one named from further out. Right of a track, a name's lines line up along the track's side.
+// one named from further out, and of those in no tier, the one with more calls a day (#372). Right of
+// a track, a name's lines line up along the track's side.
 map.addLayer({
   id: 'station-names',
   type: 'symbol',
   source: 'station-names',
   filter: ['>=', ['zoom'], ['get', 'nameZoom']],
   layout: {
-    'symbol-sort-key': ['get', 'nameZoom'],
+    'symbol-sort-key': ['get', 'sort'],
     'text-field': ['get', 'name'],
     'text-font': ['case', ['get', 'bold'], ['literal', ['Noto Sans Bold']], ['literal', FONT]],
     'text-size': ['get', 'size'],
@@ -1147,9 +1161,16 @@ addEventListener('hashchange', openLink);
  * the banner, where they've changed, and once their Trips have come, moves their Trains.
  */
 function show(days: Track | Bundle) {
-  if ('trips' in days) bundle = days;
-  // A day's Trips come after its track, which is drawn already, unless the days joined bring more than one.
-  if (days.stations === shownStations) return drawClosures();
+  if ('trips' in days) {
+    bundle = days;
+    calls = callsIn(days.trips);
+  }
+  // A day's Trips come after its track, which is drawn already, unless the days joined bring more than one:
+  // the names' ranks by calls come with them.
+  if (days.stations === shownStations) {
+    if ('trips' in days) showNames();
+    return drawClosures();
+  }
   shownStations = days.stations;
   lines = new Map(days.lines.map((l) => [l.id, l]));
   stationNames = new Map(days.stations.map((s) => [s.id, s.name]));
@@ -1222,8 +1243,9 @@ function show(days: Track | Bundle) {
     features: shownTracks.map(({ network, coordinates }) => ({ type: 'Feature', properties: { colour: colours.get(network) }, geometry: { type: 'LineString', coordinates } })),
   });
   const tiered = [...shownPlaces.values()].map((p) => {
-    const { nameZoom, larger, size } = TIERS.find((tier) => tier.places.includes(p.id)) ?? UNTIERED;
-    return { ...p, nameZoom, larger, style: { bold: BOLD.has(p.id), size } };
+    const tier = TIERS.find((t) => t.places.includes(p.id));
+    const { nameZoom, larger, size } = tier ?? UNTIERED;
+    return { ...p, nameZoom, tier: tier !== undefined, larger, style: { bold: BOLD.has(p.id), size } };
   });
   // Where a place is named after its town, the town's label goes once the place's name shows (#121).
   const once: ExpressionSpecification = ['!', namedTwice(tiered)];
@@ -1236,9 +1258,9 @@ function show(days: Track | Bundle) {
   const [track, centrelines] = [days.shapes.filter((s) => !s.id.startsWith(STRETCH)), days.shapes.filter((s) => s.id.startsWith(STRETCH))];
   const spots = alongside(track, (days.slots ?? []).filter((s) => s.band === undefined), (line) => placing.keep.get(line) ?? 1, days.lines, new Map(centrelines.map((c) => [c.id, c])));
   // A track built before #243 names no Station's Networks: its names go beside the nearest track of any.
-  names = tiered.map(({ name, networks, nameZoom, larger, style, lon, lat }) => {
+  names = tiered.map(({ name, networks, nameZoom, tier, stations, larger, style, lon, lat }) => {
     const rows = nameLines(name, style);
-    return { dot: [lon, lat], sides: spots([lon, lat], networks), name: rows.join('\n'), size: [Math.max(...rows.map((row) => placeWidth(row, style))), rows.length * LINE_HEIGHT * style.size], nameZoom, larger, style };
+    return { dot: [lon, lat], sides: spots([lon, lat], networks), name: rows.join('\n'), size: [Math.max(...rows.map((row) => placeWidth(row, style))), rows.length * LINE_HEIGHT * style.size], nameZoom, tier, stations, larger, style };
   });
   showNames();
   credited = days.networks;
@@ -1369,7 +1391,7 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
 /**
  * Puts each place's name beside its own Networks' track (alongside()) as the track lies on screen now, at each of
  * NAME_ZOOMS on the side nearestSide() takes, as far out from its dot as clearance() says, and off any track
- * crossing its own there (underName()).
+ * crossing its own there (underName()), and sorts them for where they collide (nameSort(), #372).
  * ponytail: tries a name under a crossing track at the zoom and the next, not in between, and as far
  * out at the next as at this one. Try more steps if a name lies across one mid-zoom.
  * ponytail: laid out flat, so on a tilted map a name sits a little nearer its track or further than
@@ -1377,9 +1399,10 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
  */
 function showNames() {
   namesBearing = map.getBearing();
-  map.getSource<GeoJSONSource>('station-names')?.setData({
-    type: 'FeatureCollection',
-    features: names.map(({ dot, sides, name, size, nameZoom, larger, style }): GeoJSON.Feature => {
+  // Where each name goes depends on the names, the pills clearance() reads and the bearing, not on its
+  // rank: the calls that come with the Trips rank them again without laying them out (#372).
+  if (laidOut?.names !== names || laidOut.pills !== pills || laidOut.bearing !== namesBearing) {
+    const where = names.map(({ dot, sides, size, nameZoom, larger, style }) => {
       const at = sides(namesBearing);
       const properties = NAME_ZOOMS.flatMap((zoom) => {
         // MapLibre lays names out at whole zooms, so a track crossing its own lies under one from this zoom to the next, at half the metres a px.
@@ -1396,7 +1419,16 @@ function showNames() {
           [`offset${zoom}`, nameOffset(spot, far, size).map((px) => px / style.size)],
         ];
       });
-      return { type: 'Feature', properties: { name, nameZoom, ...style, ...Object.fromEntries(properties) }, geometry: { type: 'Point', coordinates: dot } };
+      return Object.fromEntries(properties);
+    });
+    laidOut = { names, pills, bearing: namesBearing, where };
+  }
+  const { where } = laidOut;
+  map.getSource<GeoJSONSource>('station-names')?.setData({
+    type: 'FeatureCollection',
+    features: names.map(({ dot, name, nameZoom, tier, stations, style }, i): GeoJSON.Feature => {
+      const sort = nameSort({ nameZoom, tier, stations }, calls);
+      return { type: 'Feature', properties: { name, nameZoom, sort, ...style, ...where[i] }, geometry: { type: 'Point', coordinates: dot } };
     }),
   });
 }
