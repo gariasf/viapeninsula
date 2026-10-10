@@ -2563,7 +2563,9 @@ test("the minutes to go on a board and in Nearby are the same on a device whose 
     };
   };
   const right = minutes(at('21:29:30'), []);
-  expect(right.board.length + right.nearby.length).toBeGreaterThan(0);
+  // Both have rows a few minutes off, so a wrong clock shows in them.
+  expect(Math.max(...right.board)).toBeGreaterThan(0);
+  expect(Math.max(...right.nearby)).toBeGreaterThan(0);
   for (const hours of [-13, 3, 14]) {
     const off = hours * 3600;
     // Two snapshots, 20 s apart, as the fetcher writes them: enough to show a clock that's ahead.
