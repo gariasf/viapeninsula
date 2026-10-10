@@ -13,10 +13,12 @@ import type { Shown } from './closures.ts';
  * - `small`: the heap at zoom 10: zoomed out from 12, smaller dots and halos; `halo`: the halos only.
  * - `letter`: on the light basemap, a Line's colour darkened to 4.5:1 on white where it letters, rings
  *   a Scheduled Train and colours an arrow, as lettering() lightens it on the dark one (#316).
- * - `target`: railisland's followed Train, the size of the rest, ringed as a target, its colour pulsing out.
+ * - `target`: railisland's followed Train, the size of the rest, ringed as a target, its colour pulsing
+ *   out, unless the viewer prefers less motion, where its rings stand still.
  * - `under`: each Train's arrow drawn under every pill, so that none lies on another Train's pill (#156).
  * - `glow` and `trail`, on the dark basemap only: railisland's glow under a Live Train, and the trail it
- *   leaves along its track. `pick` takes the glow, which the light basemap leaves out.
+ *   leaves along its track, unless the viewer prefers less motion. `pick` takes the glow, which the
+ *   light basemap leaves out.
  * - `pick`: the variants recommended together (PICK).
  * In the query string, as the link's hash holds the map's own state (#208).
  * Throwaway: once the maintainer picks, a build ticket builds the pick, and this goes.
@@ -27,6 +29,8 @@ const PICK = ['dash', 'letter', 'halo', 'under', 'target', 'glow'];
 /** Whether a variant is on. */
 export const has = (part: string) => parts.has(part) || (parts.has('pick') && PICK.includes(part));
 const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+/** Whether the viewer prefers less motion, where the target doesn't pulse and no trails are laid. */
+const lessMotion = matchMedia('(prefers-reduced-motion: reduce)');
 for (const part of ['dash', 'grey']) document.documentElement.classList.toggle(`trains-${part}`, has(part));
 
 /** How a Line's Trains are drawn as pills, as main.ts's Pill has it. */
@@ -90,11 +94,14 @@ export function setUp(on: MapLibreMap, read: () => State, { scheduledFill }: { s
   [map, state] = [on, read];
   // For the screenshots' script: the map, as `window.map` is the #map div.
   if (import.meta.env.DEV) Object.assign(window, { __map: map });
+  // Each layer added from the zoom the Trains are drawn from, as main.ts's are.
+  const minzoom = map.getLayer('trains')?.minzoom ?? 0;
   if (has('target')) {
     const ring = (id: string, radius: number, width: number, opacity: number): LayerSpecification => ({
       id,
       type: 'circle',
       source: 'trains',
+      minzoom,
       filter: ['get', 'followed'],
       paint: { 'circle-radius': radius, 'circle-opacity': 0, 'circle-stroke-width': width, 'circle-stroke-color': ['get', 'lettering'], 'circle-stroke-opacity': opacity },
     });
@@ -120,6 +127,7 @@ export function setUp(on: MapLibreMap, read: () => State, { scheduledFill }: { s
       id,
       type: 'symbol',
       source: 'trains',
+      minzoom,
       filter,
       layout: { 'icon-image': image, 'icon-size': size, 'icon-allow-overlap': true, 'icon-ignore-placement': true },
     });
@@ -154,6 +162,7 @@ export function setUp(on: MapLibreMap, read: () => State, { scheduledFill }: { s
       id,
       type: 'line',
       source: 'trails',
+      minzoom,
       layout: { 'line-cap': 'butt', 'line-join': 'round' },
       paint: {
         'line-color': colour,
@@ -167,9 +176,9 @@ export function setUp(on: MapLibreMap, read: () => State, { scheduledFill }: { s
   }
 }
 
-/** After main.ts draws its Trains each time: pulses the followed one's ring, and lays each Live Train's trail behind it. */
+/** After main.ts draws its Trains each time: pulses the followed one's ring, and lays each Live Train's trail behind it, unless the viewer prefers less motion. */
 export function drew(features: GeoJSON.Feature[]) {
-  if (!map) return;
+  if (!map || lessMotion.matches) return;
   if (has('target') && features.some((f) => f.properties?.followed)) {
     // By the clock, so that a screenshot at a fixed time shows the pulse where it is then.
     const phase = (Date.now() % PULSE) / PULSE;
