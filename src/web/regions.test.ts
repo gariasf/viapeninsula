@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { DayFiles, DayTrips, Track, Trip } from '../bundle.ts';
-import { regionLoader } from './regions.ts';
+import { forgetJoined, regionLoader } from './regions.ts';
 
 /** A region's track of one Line and one Station, named for it. */
 const track = (id: string): Track => ({
@@ -81,4 +81,15 @@ test("gives the same joined track again for the same files, as looking again aft
   // Other files are another track.
   const fewer = await regionLoader(files(['cercanias-leon.track']).get, joined, () => {}).bundleOf(day);
   expect(fewer.stations).not.toBe(first.stations);
+});
+
+test("forgets the joins of tracks that aren't all among the files the days now need, and keeps those that are, so that they don't pile up", async () => {
+  const joined = new Map<string, Track>();
+  await regionLoader(files().get, joined, () => {}).bundleOf(day);
+  expect(joined.size).toBe(1);
+  forgetJoined(joined, IDS.flatMap((id) => [`${id}.track`, `${id}.trips`]));
+  expect(joined.size).toBe(1);
+  // One of its files isn't needed any more: what's joined with it is no use again.
+  forgetJoined(joined, ['catalonia.track', 'cercanias-leon.track']);
+  expect(joined.size).toBe(0);
 });

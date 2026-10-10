@@ -10,7 +10,7 @@ import { along, APART, atZoom, BANDS, bandZooms, cutIn, GRAPH_BAND, STRETCH, smo
 import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, unavailable, type Coming, type Departure, type Followed, type Received } from '../engine.ts';
 import { alertCount, basemapLabel, busesReplace, earlierStations, language, LANGUAGES, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, setLanguage, t, toGo, trainCounts, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
-import { regionLoader } from './regions.ts';
+import { forgetJoined, regionLoader } from './regions.ts';
 import { linesAt, popupRoom } from './tap.ts';
 import { alongside, namedTwice, nameOffset, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
 import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
@@ -2669,7 +2669,7 @@ async function neededDays(): Promise<{ track: Promise<Track>; days: Promise<Bund
   const keys = days.flatMap((d) => d.regions.flatMap((r) => [r.track, r.trips]));
   if (keys.join() === shown) return undefined;
   for (const key of fetched.keys()) if (!keys.includes(key)) fetched.delete(key);
-  for (const files of joinedTracks.keys()) if (!files.split(',').every((file) => keys.includes(file))) joinedTracks.delete(files);
+  forgetJoined(joinedTracks, keys);
   const get = <T>(key: string) => {
     const file = fetched.get(key) ?? getJson<T>(`${LIVE_URL}/${key}`);
     fetched.set(key, file);

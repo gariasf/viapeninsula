@@ -3,6 +3,14 @@
 
 import { joinTracks, joinTrips, type Bundle, type DayFiles, type DayTrips, type Track } from '../bundle.ts';
 
+/** What joins the names of the files a track was joined from, in `joined`'s keys. */
+const JOINED = ',';
+
+/** Forgets what was joined from files that aren't all among `keys`, the files the days now needed name. */
+export function forgetJoined(joined: Map<string, Track>, keys: string[]) {
+  for (const files of joined.keys()) if (!files.split(JOINED).every((file) => keys.includes(file))) joined.delete(files);
+}
+
 /**
  * Loads days through `get`, which fetches a file by its name. A region whose file fails to come is left
  * out of its day, which is drawn from the rest, and `failed()` says some did, so that the map looks
@@ -29,7 +37,7 @@ export function regionLoader(get: <T>(key: string) => Promise<T>, joined: Map<st
     const found = settle(day.regions.map((r) => get<Track>(r.track))).then((got) => {
       const [loaded, came] = [day.regions.filter((_, i) => got[i]), got.flatMap((t) => (t ? [t] : []))];
       if (!came.length) throw new Error(`No region's track came for ${day.date}`);
-      const files = loaded.map((r) => r.track).join();
+      const files = loaded.map((r) => r.track).join(JOINED);
       const track = joined.get(files) ?? joinTracks(came);
       joined.set(files, track);
       return { track, loaded };
