@@ -6,10 +6,11 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import nunitoSans from '@fontsource/nunito-sans/files/nunito-sans-latin-400-normal.woff2?url';
 import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-normal.woff2?url';
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
-import { along, APART, atZoom, BANDS, bandZooms, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Alerts, type Bundle, type Credit, type Place, type DayTrips, type Kind, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH } from '../bundle.ts';
+import { along, APART, atZoom, BANDS, bandZooms, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, daysOf, EARTH, LIVE_URL, madridDate, places, type Alerts, type Bundle, type Credit, type Place, type Kind, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH } from '../bundle.ts';
 import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, unavailable, type Coming, type Departure, type Followed, type Received } from '../engine.ts';
 import { alertCount, basemapLabel, busesReplace, earlierStations, language, LANGUAGES, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, setLanguage, t, toGo, trainCounts, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
+import { forgetJoined, regionLoader } from './regions.ts';
 import { linesAt, popupRoom } from './tap.ts';
 import { alongside, namedTwice, nameOffset, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
 import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
@@ -626,6 +627,8 @@ showLanguage();
 let manifest: Manifest | undefined;
 /** Each file of the service days' bundles the map has fetched, or is fetching: their track and Trips. */
 const fetched = new Map<string, Promise<unknown>>();
+/** Each set of regions' tracks joined, by the files it's from, so that looking again where one came again or failed again draws nothing again. */
+const joinedTracks = new Map<string, Track>();
 /** The files of the days' bundles on the map, and whether the map is looking for the days it needs. */
 let [shown, looking] = ['', false];
 /** The Stations of the track on the map, which come with its Lines. */
@@ -2641,8 +2644,9 @@ function creditOf({ text, url, licence, updated }: Credit): string {
 
 /**
  * The service days the map needs now, by the map's time (mapTime(), daysNeeded()), joined, where
- * they aren't the ones it shows. A day whose bundle fails to come is left out, and fetched again
- * next time.
+ * they aren't the ones it shows. A day's bundle is its regions' (ADR-0014), all of them for now,
+ * joined (joinTracks()). A region whose file fails to come is left out of its day, and a day whose
+ * bundle fails to come is left out; they're fetched again next time.
  * Today's track comes on its own first, so the map can draw it before the Trips come. Notes today's
  * Networks with no Trips, which the banner names.
  * ponytail: the map's time is the device's until a snapshot corrects it, and the days follow a
@@ -2658,31 +2662,32 @@ async function neededDays(): Promise<{ track: Promise<Track>; days: Promise<Bund
     console.warn(error);
   }
   // The next day's first Trains come SOON before they're on the map, so they're among the nearby Trains.
-  const needed = daysNeeded(manifest.days, mapTime(Date.now(), received), { early: SOON, late: LATE, emptyBoard });
+  const needed = daysNeeded(daysOf(manifest), mapTime(Date.now(), received), { early: SOON, late: LATE, emptyBoard });
   if (!needed) throw new Error('The manifest names no service day');
   const { today, days } = needed;
   noTripsIds = today.noTrips ?? [];
-  const keys = days.flatMap((d) => [d.track, d.trips]);
+  const keys = days.flatMap((d) => d.regions.flatMap((r) => [r.track, r.trips]));
   if (keys.join() === shown) return undefined;
   for (const key of fetched.keys()) if (!keys.includes(key)) fetched.delete(key);
+  forgetJoined(joinedTracks, keys);
   const get = <T>(key: string) => {
     const file = fetched.get(key) ?? getJson<T>(`${LIVE_URL}/${key}`);
     fetched.set(key, file);
     file.catch(() => fetched.delete(key));
     return file as Promise<T>;
   };
+  // A region whose file fails to come is left out of its day, and fetched again next time.
+  const load = regionLoader(get, joinedTracks);
   const joined = async () => {
-    // Each day's Trips are fetched once its track has come, so the track isn't slowed by them.
-    const got = await Promise.allSettled(days.map((d) => get<Track>(d.track).then((track) => Promise.all([track, get<DayTrips>(d.trips)]))));
+    const got = await Promise.allSettled(days.map(load.bundleOf));
     // Without today's bundle there's nothing to draw; without another day's, the map does without it until next time.
-    const failed = got.flatMap((g, i) => (g.status === 'rejected' ? [[days[i], g.reason] as const] : []));
-    for (const [day, reason] of failed) if (day === today) throw reason;
-    if (failed.length) console.warn(...failed.map(([, reason]) => reason));
-    const bundles = got.flatMap((g) => (g.status === 'fulfilled' ? [{ ...g.value[0], ...g.value[1] }] : []));
-    shown = failed.length ? '' : keys.join();
-    return joinDays(bundles);
+    const lost = got.flatMap((g, i) => (g.status === 'rejected' ? [[days[i], g.reason] as const] : []));
+    for (const [day, reason] of lost) if (day === today) throw reason;
+    if (lost.length) console.warn(...lost.map(([, reason]) => reason));
+    shown = load.failed() || lost.length ? '' : keys.join();
+    return joinDays(got.flatMap((g) => (g.status === 'fulfilled' ? [g.value] : [])));
   };
-  return { track: get<Track>(today.track), days: joined() };
+  return { track: load.trackOf(today).then((t) => t.track), days: joined() };
 }
 
 /** Shows the days the map needs now, where they've changed. The Trains keep to the days shown meanwhile. */

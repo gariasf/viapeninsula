@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { APART, atZoom, BANDS, beside, daysNeeded, DEGREE, onStroke, pixelMetres, smoothId, type ManifestDay, type Shape, type Slot } from './bundle.ts';
+import { APART, atZoom, BANDS, beside, daysNeeded, daysOf, DEGREE, joinTrips, joinTracks, onStroke, pixelMetres, smoothId, type DayTrips, type Manifest, type ManifestDay, type Network, type Shape, type Slot, type Station, type Track, type Trip } from './bundle.ts';
 
 test('finds the point a distance along a line, moved to its right, or its left where negative', () => {
   // 1 km east along the equator, where a degree is DEGREE metres both ways.
@@ -76,4 +76,110 @@ test('the map needs the next day while a Station board has had no departures lef
 
 test("where the manifest is out of date, its last day stands for today, with no next day", () => {
   expect(needed('2026-09-29T12:00', '2026-09-27')).toEqual(['2026-09-27']);
+});
+
+/** A region's entry for a service day, with the files it names for it. */
+const entry = (region: string, date: string, from: string, to: string, noTrips?: string[]): ManifestDay => ({
+  ...day(date, from, to),
+  track: `${region}.track`,
+  trips: `${region}.${date}.trips`,
+  ...(noTrips && { noTrips }),
+});
+
+test("joins each service day's entries of the regions as one: its first Train coming onto the map from any of them and its last leaving it, the Networks with none, and each region's files", () => {
+  const manifest: Manifest = {
+    regions: [
+      { id: 'catalonia', days: [entry('catalonia', '2026-09-26', '2026-09-26T05:00', '2026-09-27T00:40', ['tram']), entry('catalonia', '2026-09-27', '2026-09-27T06:00', '2026-09-28T00:10')] },
+      { id: 'cercanias-madrid', days: [entry('cercanias-madrid', '2026-09-26', '2026-09-26T04:30', '2026-09-26T23:30', ['cercanias-madrid']), entry('cercanias-madrid', '2026-09-25', '2026-09-25T04:30', '2026-09-26T00:10')] },
+    ],
+  };
+  expect(daysOf(manifest)).toEqual([
+    { date: '2026-09-25', from: madrid('2026-09-25T04:30'), to: madrid('2026-09-26T00:10'), regions: [{ id: 'cercanias-madrid', track: 'cercanias-madrid.track', trips: 'cercanias-madrid.2026-09-25.trips' }] },
+    {
+      date: '2026-09-26',
+      from: madrid('2026-09-26T04:30'),
+      to: madrid('2026-09-27T00:40'),
+      noTrips: ['tram', 'cercanias-madrid'],
+      regions: [
+        { id: 'catalonia', track: 'catalonia.track', trips: 'catalonia.2026-09-26.trips' },
+        { id: 'cercanias-madrid', track: 'cercanias-madrid.track', trips: 'cercanias-madrid.2026-09-26.trips' },
+      ],
+    },
+    { date: '2026-09-27', from: madrid('2026-09-27T06:00'), to: madrid('2026-09-28T00:10'), regions: [{ id: 'catalonia', track: 'catalonia.track', trips: 'catalonia.2026-09-27.trips' }] },
+  ]);
+});
+
+test('times a service day by the regions with Trains that day, one with none having no times, which the manifest holds as null', () => {
+  // A region with no Trips that day: Infinity and -Infinity, which JSON has as null.
+  const none = { ...entry('cercanias-cadiz', '2026-09-26', '2026-09-26T05:00', '2026-09-26T23:00'), from: Infinity, to: -Infinity };
+  const manifest = JSON.parse(JSON.stringify({ regions: [{ id: 'cercanias-cadiz', days: [none] }, { id: 'catalonia', days: [entry('catalonia', '2026-09-26', '2026-09-26T05:00', '2026-09-27T00:40')] }] })) as Manifest;
+  expect(daysOf(manifest)[0]).toMatchObject({ from: madrid('2026-09-26T05:00'), to: madrid('2026-09-27T00:40') });
+  // A day none of them has Trains on is never wanted for its Trains, as before.
+  const empty = JSON.parse(JSON.stringify({ regions: [{ id: 'cercanias-cadiz', days: [none] }] })) as Manifest;
+  const [only] = daysOf(empty);
+  expect(only?.from).toBe(Infinity);
+  expect(only?.to).toBe(-Infinity);
+});
+
+test("the map needs the days of every region as it needs one region's", () => {
+  const manifest: Manifest = {
+    regions: [
+      { id: 'catalonia', days: [entry('catalonia', '2026-09-26', '2026-09-26T05:00', '2026-09-26T23:30'), entry('catalonia', '2026-09-27', '2026-09-27T06:00', '2026-09-28T00:10')] },
+      // Madrid's last Train leaves later.
+      { id: 'cercanias-madrid', days: [entry('cercanias-madrid', '2026-09-26', '2026-09-26T05:30', '2026-09-27T00:10'), entry('cercanias-madrid', '2026-09-27', '2026-09-27T05:30', '2026-09-27T23:00')] },
+    ],
+  };
+  const needs = (moment: string) => daysNeeded(daysOf(manifest), madrid(moment), { early: 60 * 60_000, late: 60 * 60_000 })?.days.map((d) => d.date);
+  expect(needs('2026-09-26T23:45')).toEqual(['2026-09-26']);
+  expect(needs('2026-09-27T00:11')).toEqual(['2026-09-26', '2026-09-27']);
+});
+
+/** A region's track of one Network, one Line, one Station that Line calls at, and one stroke, rail, slot and Network track, all named for it. */
+const regional = (id: string, stations: Station[] = [{ id: `adif:${id}`, name: id, lon: 2, lat: 41 }]): Track => {
+  const network: Network = { id, name: id, profile: { acceleration: 1, braking: 1, topSpeed: 40, dwell: 30 }, runningSide: 'right', colour: '#000', pillZoom: 10, credit: { text: id, url: '' } };
+  const [line, shape] = [`${id}:C1`, `${id}:shape`];
+  return {
+    networks: [network],
+    lines: [{ id: line, network: id, name: 'C1', colour: '#000', shapes: [shape], kind: 'commuter' }],
+    stations,
+    shapes: [{ id: shape, coords: [[2, 41], [2.1, 41]], dist: [0, 1000] }, { id: `stretch:${id}:0`, coords: [[2, 41], [2.1, 41]], dist: [0, 1000] }],
+    strokes: [{ line, shape: `stretch:${id}:0`, from: 0, to: 1000, side: 0 }],
+    rails: [{ line, shape, from: 0, to: 1000, side: 0 }],
+    slots: [{ line, shape, from: 0, to: 1000, side: 0, on: `stretch:${id}:0`, at: [0, 1000] }],
+    tracks: [{ line, shape, from: 0, to: 1000, side: 0 }],
+  };
+};
+
+test("joins the regions' tracks as one: each region's Networks, Lines, shapes, strokes, rails, slots and Network tracks in turn", () => {
+  const joined = joinTracks([regional('catalonia'), regional('cercanias-madrid'), regional('cercanias-leon')]);
+  expect(joined.networks.map((n) => n.id)).toEqual(['catalonia', 'cercanias-madrid', 'cercanias-leon']);
+  expect(joined.lines.map((l) => l.id)).toEqual(['catalonia:C1', 'cercanias-madrid:C1', 'cercanias-leon:C1']);
+  expect(joined.shapes.map((s) => s.id)).toEqual(['catalonia:shape', 'stretch:catalonia:0', 'cercanias-madrid:shape', 'stretch:cercanias-madrid:0', 'cercanias-leon:shape', 'stretch:cercanias-leon:0']);
+  for (const each of ['strokes', 'rails', 'slots', 'tracks'] as const) expect(joined[each].map((s) => s.line)).toEqual(['catalonia:C1', 'cercanias-madrid:C1', 'cercanias-leon:C1']);
+});
+
+test("joins the regions' tracks with a Station that two of them have once, as the first has it, naming the Networks of both", () => {
+  const sharedByLeon: Station = { id: 'adif:15210', name: 'León', lon: -5.57, lat: 42.6, networks: ['cercanias-leon'] };
+  const sharedByBilbao: Station = { id: 'adif:15210', name: 'León FEVE', lon: -5.571, lat: 42.601, networks: ['cercanias-bilbao'] };
+  const joined = joinTracks([regional('cercanias-leon', [sharedByLeon]), regional('cercanias-bilbao', [sharedByBilbao, { id: 'adif:13100', name: 'Bilbao', lon: -2.9, lat: 43.2, networks: ['cercanias-bilbao'] }])]);
+  expect(joined.stations).toEqual([{ ...sharedByLeon, networks: ['cercanias-leon', 'cercanias-bilbao'] }, { id: 'adif:13100', name: 'Bilbao', lon: -2.9, lat: 43.2, networks: ['cercanias-bilbao'] }]);
+  // The files the map loaded are left as they were.
+  expect(sharedByLeon.networks).toEqual(['cercanias-leon']);
+});
+
+test("joins the regions' Trips of a day, and their Closures where they have any", () => {
+  const trip = (id: string, line: string): Trip => ({ id, line, shape: 's', headsign: '', calls: [] });
+  const day = (trips: Trip[], closures?: DayTrips['closures']): DayTrips => ({ serviceDay: '2026-10-10', noonMinus12h: madrid('2026-10-10T00:00'), trips, ...(closures && { closures }) });
+  const closure = { line: 'rodalies:R3', stations: ['adif:1', 'adif:2'] as [string, string], from: 100, to: 200, kind: 'buses' as const };
+  const joined = joinTrips([day([trip('a', 'rodalies:R1')], [closure]), day([trip('b', 'cercanias-madrid:C1')]), day([trip('c', 'cercanias-leon:C1')])]);
+  expect(joined.trips.map((t) => t.id)).toEqual(['a', 'b', 'c']);
+  expect(joined.closures).toEqual([closure]);
+  expect([joined.serviceDay, joined.noonMinus12h]).toEqual(['2026-10-10', madrid('2026-10-10T00:00')]);
+  // No Closures anywhere, none in it, as a day's own has none.
+  expect('closures' in joinTrips([day([]), day([])])).toBe(false);
+});
+
+test("names no day for a manifest of an older shape, whose days hold every Network in one file, which this map can't read", () => {
+  const older = { days: [{ date: '2026-10-09', track: 'days/track-a.json', trips: 'days/2026-10-09-b.json', from: 0, to: 1 }] } as unknown as Manifest;
+  expect(daysOf(older)).toEqual([]);
 });

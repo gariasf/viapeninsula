@@ -87,16 +87,20 @@ interface Neighbour {
  * for zoomed right in, marking where another Line runs on that track too (#139). And the slots of
  * every one of each Line's shapes, all along it, where the map puts the Line's Trains zoomed out: on
  * its stroke, along the centreline of the Stretch each piece of it is drawn on (#176). And `tracks`,
- * each Network's track once, for below zoom 7 (#190).
+ * each Network's track once, for below zoom 7 (#190). Of the Lines of one region, which has its own
+ * graph: no Line is drawn beside another region's (ADR-0014), as sharedTrack() finds.
  */
-export async function sideBySide(lines: Line[], shapes: Shape[]): Promise<{ strokes: Stroke[]; centrelines: Shape[]; rails: Stroke[]; slots: Slot[]; tracks: Stroke[] }> {
+export async function sideBySide(lines: Line[], shapes: Shape[], region = ''): Promise<{ strokes: Stroke[]; centrelines: Shape[]; rails: Stroke[]; slots: Slot[]; tracks: Stroke[] }> {
   const walked = walk(lines, shapes);
-  const main = await graphed(walked, lines, { near: NEAR, bands: [...BANDS.keys()].filter((b) => b >= GRAPH_BAND), prefix: '' });
+  // The centrelines' and curves' IDs start with the region's, where it's given: regions' tracks are built
+  // one by one and joined by the map, so each one's IDs are its own (ADR-0014).
+  const lead = region && `${region}:`;
+  const main = await graphed(walked, lines, { near: NEAR, bands: [...BANDS.keys()].filter((b) => b >= GRAPH_BAND), prefix: lead });
   // Below GRAPH_BAND, a graph for each band, of tracks within about a line width there (ADR-0007).
   const below = [];
   for (const [band, zoom] of BANDS.entries()) {
     if (band >= GRAPH_BAND) continue;
-    below.push(await graphed(walked, lines, { near: atZoom(APART, zoom) * pixelMetres(zoom, LATITUDE), bands: [band], own: band, prefix: `${zoom}-` }));
+    below.push(await graphed(walked, lines, { near: atZoom(APART, zoom) * pixelMetres(zoom, LATITUDE), bands: [band], own: band, prefix: `${lead}${zoom}-` }));
   }
   const all = [main, ...below];
   return { strokes: all.flatMap((g) => g.strokes), centrelines: all.flatMap((g) => g.centrelines), rails: main.rails, slots: all.flatMap((g) => g.slots), tracks: networkTrack(lines, shapes) };
@@ -115,6 +119,78 @@ function networkTrack(lines: Line[], shapes: Shape[]): Stroke[] {
   }
   const { pieces, runs } = walk([...networks.values()], shapes);
   return runs.flatMap((run) => strokes(owner.get(run[0]?.shape ?? '') ?? '', run, () => 0, pieces));
+}
+
+/** Where Lines of two regions run along each other's track (sharedTrack()). */
+export interface Shared {
+  /** The two regions, in the order of their first Lines. */
+  regions: [first: string, second: string];
+  /** How many separate runs of track there are, and how long they are along the first region's, in metres. */
+  stretches: number;
+  metres: number;
+  /** Where the first piece of them is. */
+  at: Point;
+  /** The IDs of the Lines of both regions along them. */
+  lines: string[];
+}
+
+/**
+ * Where Lines of different regions run along each other's track: on the same track, or on tracks within
+ * NEAR of each other, which one line graph would take for a Stretch of its own and draw side by side
+ * (ADR-0006). Each region has a graph of its own (ADR-0014), so there they're drawn over each other.
+ * Each pair of regions that has any, with how many runs, how long and where.
+ */
+export function sharedTrack(lines: Line[], shapes: Shape[], regionOf: (line: Line) => string): Shared[] {
+  const { pieces, every } = walk(lines, shapes);
+  const [regions, cells] = [lines.map(regionOf), grid(pieces, NEAR)];
+  const found = new Map<string, { regions: [string, string]; pieces: Set<number>; lines: Set<number> }>();
+  for (const [i, p] of pieces.entries()) {
+    const near = cluster(neighbours(i, pieces, cells, NEAR), NEAR);
+    // Each pair once, from the side of the region that comes first: the pieces of its track that the other's Lines are along.
+    for (const own of new Set([...p.on.keys()].map((l) => regions[l] ?? ''))) {
+      for (const n of near) {
+        const other = regions[n.line] ?? '';
+        if (other === own || regions.indexOf(other) < regions.indexOf(own)) continue;
+        const pair = found.get(`${own} ${other}`) ?? { regions: [own, other] as [string, string], pieces: new Set<number>(), lines: new Set<number>() };
+        found.set(`${own} ${other}`, pair);
+        pair.pieces.add(i);
+        pair.lines.add(n.line);
+        for (const l of p.on.keys()) if (regions[l] === own) pair.lines.add(l);
+      }
+    }
+  }
+  return [...found.values()].map(({ regions: pair, pieces: on, lines: along }) => {
+    // Pieces one after another along a shape are one Stretch.
+    const next = new Map<number, number[]>();
+    for (const steps of every) {
+      for (const [k, { piece }] of steps.entries()) {
+        const before = steps[k - 1]?.piece;
+        if (before === undefined || !on.has(before) || !on.has(piece)) continue;
+        next.set(before, [...(next.get(before) ?? []), piece]);
+        next.set(piece, [...(next.get(piece) ?? []), before]);
+      }
+    }
+    let stretches = 0;
+    const seen = new Set<number>();
+    for (const start of on) {
+      if (seen.has(start)) continue;
+      stretches++;
+      for (const stack = [start]; stack.length; ) {
+        const i = stack.pop() ?? start;
+        if (seen.has(i)) continue;
+        seen.add(i);
+        stack.push(...(next.get(i) ?? []));
+      }
+    }
+    const first = pieces[Math.min(...on)];
+    return {
+      regions: pair,
+      stretches,
+      metres: [...on].reduce((sum, i) => sum + (pieces[i]?.length ?? 0), 0),
+      at: [Math.round(((first?.x ?? 0) / KX) * 1e5) / 1e5, Math.round(((first?.y ?? 0) / DEGREE) * 1e5) / 1e5] as Point,
+      lines: [...along].map((l) => lines[l]?.id ?? ''),
+    };
+  });
 }
 
 /**

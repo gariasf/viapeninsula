@@ -2,7 +2,7 @@
 
 Each daily build, and each deploy whose build changed, diffs its report against the last one published and writes the diff to the run's job summary (#250): the spots new since the last build, those gone, and those whose numbers moved. Each spot comes with its key, its lines of the log, and links to the map there, which rings it until the next tap, to OpenStreetMap there, to edit OpenStreetMap there, and to the ways its Stations are on. On most days it's one line: nothing changed. Why it's built this way is in `docs/research/build-report.md`.
 
-Where a problem spot is new (a run of legs that keeps the feed's shape, a turn-back, a branch, Trips left out, a Network with no Trips on a day, or one built from its copy), the build also comments on the standing [Build report](https://github.com/gariasf/viapeninsula/issues/290) issue, which notifies the maintainer: the new problem spots, with their links, and the run's link (#255). It never comments for a length, a node or the measures, which move with any change to the map, nor for a Network's Trips or Closures, nor for buses where their Line has no track, which no fix upstream can draw (ADR-0012), so those are only in the summary.
+Where a problem spot is new (a run of legs that keeps the feed's shape, a turn-back, a branch, Trips left out, a Network with no Trips on a day, one built from its copy, or a region whose build failed), the build also comments on the standing [Build report](https://github.com/gariasf/viapeninsula/issues/290) issue, which notifies the maintainer: the new problem spots, with their links, and the run's link (#255). It never comments for a length, a node or the measures, which move with any change to the map, nor for a Network's Trips or Closures, nor for buses where their Line has no track, which no fix upstream can draw (ADR-0012), so those are only in the summary.
 
 ## A new spot
 
@@ -20,6 +20,10 @@ A Network shows as changed when it has more than a quarter fewer Trips today tha
 ## A Network built from its copy
 
 A Network one of whose timetables can't be downloaded or read, or gives it no Lines, is built from the copy of them that last built it, which the build keeps in `.cache` (#286). Its `copy <network>` spot gives the day the copy was kept and why, and stays until a new timetable gives the Network Lines again, when it shows as gone. A server that's down for a morning needs nothing. If it lasts, open the timetable's URL: a Network with no Lines, as Rodalies in Renfe's file of 5 Oct 2026, needs a new source; a moved file, a new URL in `src/networks.ts`.
+
+## A region whose build failed
+
+The bundle is built by region (ADR-0014), and a region whose build throws goes without new files: the manifest names those of its last build, from the day before today on, and its `region <id>` spot gives why, in one line, with the whole error in the run's log. Its Networks' other spots are carried over from the last report, so they don't show as gone. The other regions are built and published as ever, so the map is whole, but for the failed region's Trains and Lines running out of days: its last build named at most three from today on, so a failure that lasts three days takes the region off the map. A region with no copy of a timetable, as once the Actions cache is lost, fails so; so does a trace that strays more than 5% from its feed's shape, or a solver that finds no order (`src/build/order.ts`). Read the run's log for the stack, fix what it names, and run the build again: the spot shows as gone once the region builds. The one build that first publishes a manifest by region, and a build that couldn't read the last manifest, have no files of a last build to keep for a region that fails: the build fails as a whole instead, with the region's name in the error, and nothing publishes or deploys.
 
 ## A spot as a test
 

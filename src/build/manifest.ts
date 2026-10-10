@@ -1,4 +1,4 @@
-// Each service day's Trips, and the manifest that names each day's bundle, and when the map needs it.
+// Each service day's Trips, and the manifest that names each region's bundle for each day, and when the map needs it.
 
 import { addDays, type Bundle, type Closure, type DayTrips, type Manifest, type ManifestDay, type Network, type Trip } from '../bundle.ts';
 import { noonMinus12h, weekdayOf } from './gtfs.ts';
@@ -8,9 +8,10 @@ import type { Found, Spot } from './report.ts';
  * Each day's Trips, every Network's. A Network whose timetable has no Trips on a day, as Renfe's had
  * no Rodalies Trips after 4 October 2026, goes without them that day, and is logged, and reported by
  * how many days after today it is, so the other Networks build and publish as ever (ADR-0010); its
- * Lines, Stations and track, which come from every day of its timetable, still do. No Trips at all on
- * the first day, today, means a broken build, not a day without Trains, so it throws. On a later day
- * it can mean timetables that end before it, whose next ones come before that day.
+ * Lines, Stations and track, which come from every day of its timetable, still do. A region's Networks
+ * having no Trips at all today is no failure: the build of every region fails where none has any
+ * (buildRegions()), which is a broken build, not a day without Trains. On a later day it can mean
+ * timetables that end before it, whose next ones come before that day.
  * Each Network's Trips today are logged, and reported by the day of the week beside the last report's
  * counts for the other days, so that the summary names a Network with many fewer than the last report
  * has for the same day (moved()). It keeps them however few: a holiday runs a Sunday's timetable. A
@@ -33,8 +34,7 @@ export function dayTrips(days: string[], networks: { network: Network; trips: Tr
     const closures = networks.flatMap((n) => n.closures?.[i] ?? []);
     return { serviceDay, noonMinus12h: noonMinus12h(serviceDay), trips: networks.flatMap((n) => n.trips[i] ?? []), ...(closures.length > 0 && { closures }) };
   });
-  if (!built[0]?.trips.length) throw new Error(`No Network's timetable has Trips on ${days[0]}`);
-  const today = built[0].serviceDay;
+  const today = built[0]?.serviceDay ?? '';
   for (const { network, trips, closures } of networks) {
     const count = trips[0]?.length ?? 0;
     const line = `${network.name}'s Trips on ${today}: ${count}`;
@@ -69,11 +69,34 @@ export function manifestDay(bundle: Bundle, files: Pick<ManifestDay, 'track' | '
 }
 
 /**
- * The manifest naming the days built, and the day before them where the last manifest named it:
- * its last Trains can still be running past midnight. Where it named it in a bundle of one file, as
- * builds did before the track and Trips were split, the map can't read it, so it's left out.
+ * The manifest naming each region's days built, and for each the day before them where the last
+ * manifest named it: its last Trains can still be running past midnight. A region that's given no days
+ * is one whose build failed: it keeps what the last manifest names for it from that day before on, so
+ * that the others publish as ever, and each day's Trips are those built with the track named beside
+ * them. A region with none left is left out, so that a stale day never stands for today. Where the
+ * last manifest names days in an older shape, as one bundle of one file, or one file of track and
+ * one of Trips for each day, whole Networks in each, the map can't read them, so they're left out.
+ * A region that failed where the last manifest isn't one by region, as in the first build that makes
+ * one, or where it couldn't be read, has no files to keep and would go from the map: that fails the
+ * build, as it did before the bundle was by region, and the map stays as it is. The regions are in
+ * the order given.
  */
-export function manifestOf(built: ManifestDay[], previous?: Manifest): Manifest {
-  const before = addDays(built[0]?.date ?? '', -1);
-  return { days: [...(previous?.days.filter((d) => d.date === before && d.track && d.trips) ?? []), ...built] };
+export function manifestOf(regions: { id: string; days?: ManifestDay[] }[], previous?: Manifest): Manifest {
+  const first = regions.flatMap((r) => r.days?.map((d) => d.date) ?? []).sort()[0];
+  if (!first) throw new Error('No region was built');
+  // The regions the last manifest names, where it's one by region.
+  const last = Array.isArray(previous?.regions) ? previous.regions : undefined;
+  const failed = regions.filter((r) => !r.days).map((r) => r.id);
+  if (failed.length && !last) {
+    throw new Error(`Regions that aren't built have no files of a last build by region to keep, so the map would go without them: ${failed.join(', ')}`);
+  }
+  const before = addDays(first, -1);
+  const named = (id: string) => last?.find((r) => r.id === id)?.days ?? [];
+  return {
+    regions: regions.flatMap(({ id, days }) => {
+      const kept = named(id).filter((d) => d.track && d.trips);
+      const all = days ? [...kept.filter((d) => d.date === before), ...days] : kept.filter((d) => d.date >= before);
+      return all.length ? [{ id, days: all }] : [];
+    }),
+  };
 }

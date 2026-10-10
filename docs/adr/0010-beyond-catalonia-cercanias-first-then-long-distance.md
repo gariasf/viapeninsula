@@ -25,10 +25,10 @@ How long distance's Trains are made, traced and moved (one Train from its parts,
 
 ## Consequences
 
-- The bundle stays one file through all of Cercanías. Before long distance it's split by region, loading the regions in view (`bundle-at-scale.md`), in an ADR of its own.
+- The bundle was one file through all of Cercanías, and before long distance it's split by region, loading the regions in view (`bundle-at-scale.md`): built by region since #256, with the page loading every region, and the regions in view only from #266 (ADR-0014).
 - ADR-0003 is amended by the tickets that change the fetcher: Madrid's (Freshness for each Network, one feed filling many, and a Network that vanishes from a feed that still answers held for two runs), long distance's (its feeds and rates), and the split's (a snapshot for each region).
 - v1's story 14 changes: a Train leaves the map at Spain's border.
 - Ouigo's timetable comes from NAP, with a key and the credit its licence asks for ("Powered by MITRAMS", with the date of its last update).
 - What the map shows for a Network whose timetable is missing (#226) is decided there, within the rule above.
-- A Network whose timetable can't be downloaded or read, or gives it no Lines, is built from the copy that last built it (#286). With no copy, as once the Actions cache is lost, the build still fails, and the days already published stay. Renfe's long-distance timetable, whose Networks are read but not yet on the map, is the exception: with no copy, the build logs it and goes on (#258).
+- A Network whose timetable can't be downloaded or read, or gives it no Lines, is built from the copy that last built it (#286). With no copy, as once the Actions cache is lost, the Network's region fails, and keeps the files of its last build while the other regions publish (#256, ADR-0014). Renfe's long-distance timetable, whose Networks are read but not yet on the map, is the exception: with no copy, the build logs it and goes on (#258).
 - A Train that Rodalies or a núcleo lists too, by its Train number and a Station they share, as Renfe's long-distance timetable lists Catalonia's regionals, is theirs, not long distance's (#258). On a day their timetable lists none of their Trips, as Renfe's Cercanías file of 10 Oct 2026 lists none of Rodalies' from 22 October, the Trains it lists on other days are still theirs, and aren't drawn: #288 chose not to fill Rodalies from the long-distance file.
