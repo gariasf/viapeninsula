@@ -3,7 +3,7 @@
 // data reads. The daily build reads its Networks from here alone, and the map what it needs of them
 // from the bundle (docs/research/network-config.md). The fetcher reads its live sources from here too.
 
-import type { Credit, Kind, Network } from './bundle.ts';
+import type { Credit, Kind, LineProfile, Network } from './bundle.ts';
 
 /** One Network: what the daily build needs to know of it, and through the bundle, the map. */
 export interface NetworkConfig extends Omit<Network, 'credit'> {
@@ -24,6 +24,8 @@ export interface NetworkConfig extends Omit<Network, 'credit'> {
     colours?: Record<string, string>;
     /** The colour of every other Line, where its timetables give none of their own, as Renfe's long-distance one gives every route F2F5F5. */
     colour?: string;
+    /** How the Trains of each of its Lines that don't run as its profile has them run, by the Line's name: only what differs, as AVE's top speed is above Alvia's (#260). */
+    profiles?: Record<string, LineProfile>;
   };
 }
 
@@ -535,9 +537,33 @@ const RENFE_LONG_DISTANCE = 'https://ssl.renfe.com/gtransit/Fichero_AV_LD/google
 // but not on the map until they're traced (#259) and drawn (#262, #263), so each has only what reading
 // them needs.
 
-export const AVE_LARGA_DISTANCIA: Pick<NetworkConfig, 'id' | 'name' | 'timetables' | 'lines'> = {
+/**
+ * How the engine reads Renfe's long-distance live data (#260), by what #260's triage found of it on 4
+ * October 2026. A Train carries on from its last GPS Delay, as Rodalies' do: of 125 GPS fixes within
+ * 400 m of a Station their Train calls at, Renfe's own figure was within a minute of the GPS's for 73,
+ * and over two minutes off for 14, up to 7.5, and it moves in whole minutes. Positions freeze: 44% of
+ * consecutive polls repeat one, and 177 holds of a minute or more ended in jumps of over a kilometre,
+ * up to 73 km, so a position unchanged since the Train's report before counts as none. A `STOPPED_AT`
+ * position isn't at its Station (6 of 177 were within 500 m of it), so no position holds a Train there.
+ * And a position has no time of its own: the feed's header time stands for it, though the visor, which
+ * has one, puts a position a median 9 s older than the file's, and 35 s at the 90th percentile. A
+ * kilometre at 300 km/h is 12 s, so a Train jumps for being a minute off, as JUMP_TIME has it.
+ */
+const RENFE_LONG_DISTANCE_LIVE = { delay: 'gps', near: 'pinned', snap: 60 } as const;
+
+/** AVE's, Avlo's and AVE Int's top speed, on the high-speed lines, above the Network's 250 km/h. */
+const HIGH_SPEED = { topSpeed: 300 / 3.6 };
+
+export const AVE_LARGA_DISTANCIA: Pick<NetworkConfig, 'id' | 'name' | 'profile' | 'live' | 'timetables' | 'lines'> = {
   id: 'ave-larga-distancia',
   name: 'AVE y Larga Distancia',
+  // Fitted by #260's triage to the hops of Monday 5 October 2026's Trips as traced along OpenStreetMap's
+  // rails: 300 km/h at 0.5 m/s² fits all 442 of AVE's, Avlo's and AVE Int's, and 250 fits all of Alvia's
+  // and Euromed's and 99% of Intercity's. So the Network's Lines run at 250, but those three at 300
+  // (below). Renfe's times are whole minutes and the shortest stop it gives a time at is a minute (10
+  // October 2026), so a call it gives none at is a stop of under a minute: half of one, as Rodalies'.
+  profile: { acceleration: 0.5, braking: 0.5, topSpeed: 250 / 3.6, dwell: 30 },
+  live: RENFE_LONG_DISTANCE_LIVE,
   timetables: [
     {
       url: RENFE_LONG_DISTANCE,
@@ -557,12 +583,23 @@ export const AVE_LARGA_DISTANCIA: Pick<NetworkConfig, 'id' | 'name' | 'timetable
     // Renfe's purple, AVE's since 2022 and on renfe.com, rather than the magenta of Renfe's 2025 AVE
     // map, which can't be told from Ouigo's (#262).
     colour: '#81005E',
+    // High speed's 300 km/h, where the Network's 250 is Alvia's, Euromed's, Intercity's and Trencelta's.
+    profiles: { AVE: HIGH_SPEED, Avlo: HIGH_SPEED, 'AVE Int': HIGH_SPEED },
   },
 };
 
-export const MEDIA_DISTANCIA_AVANT: Pick<NetworkConfig, 'id' | 'name' | 'timetables' | 'lines'> = {
+/** Avant's and Avant Exp's: high speed on the same track as AVE's, at 250 km/h and 0.5 m/s². */
+const AVANT = { acceleration: 0.5, braking: 0.5, topSpeed: 250 / 3.6 };
+
+export const MEDIA_DISTANCIA_AVANT: Pick<NetworkConfig, 'id' | 'name' | 'profile' | 'live' | 'timetables' | 'lines'> = {
   id: 'media-distancia-avant',
   name: 'Media Distancia y Avant',
+  // Rodalies' 160 km/h at 1 m/s², which #260's triage found fits 99% of MD's hops on Monday 5 October
+  // 2026, as traced, the misses being road legs. The ex-FEVE regionals, which the feed names REGIONAL
+  // too, stay on it. Avant's and Avant Exp's hops all fit 250 km/h at 0.5 m/s² (below). Its dwell is
+  // half a minute, as above.
+  profile: { acceleration: 1, braking: 1, topSpeed: 160 / 3.6, dwell: 30 },
+  live: RENFE_LONG_DISTANCE_LIVE,
   // The ex-FEVE regionals, whose route IDs end VRFV, are named REGIONAL too.
   timetables: [
     {
@@ -582,6 +619,7 @@ export const MEDIA_DISTANCIA_AVANT: Pick<NetworkConfig, 'id' | 'name' | 'timetab
     // As MD's lines are on Renfe's own map ("mapa general", May 2024): Avant's plum there would read as
     // AVE y Larga Distancia's purple on the high-speed track they share (#263).
     colour: '#000000',
+    profiles: { Avant: AVANT, 'Avant Exp': AVANT },
   },
 };
 

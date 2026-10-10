@@ -236,6 +236,13 @@ export interface LiveTraits {
    * whose Trip ended more than the engine's ENDED before it is dropped, as one that matches no Trip is.
    */
   lingers?: true;
+  /**
+   * Its positions come with no age of their own, as Renfe's long-distance ones, which a header time
+   * stands for, and a kilometre is 12 seconds at 300 km/h: a Train is drawn off where they have it by
+   * up to this many seconds at its Line's top speed before it jumps there rather than eases, if
+   * that's more than a kilometre (#260).
+   */
+  snap?: number;
 }
 
 /** How a Network's Trains run between Stations, in metres and seconds. */
@@ -255,6 +262,16 @@ export interface Line {
   shapes: string[];
   /** What it runs as, which its Trains' pills are outlined by. */
   kind: Kind;
+  /** How its Trains run where that isn't as its Network's do, as AVE's are quicker than Alvia's: only what differs (#260), profiled(). */
+  profile?: LineProfile;
+}
+
+/** What of a Network's SpeedProfile a Line can have its own: not `dwell`, which the manifest goes by for the Network (manifestDay()). */
+export type LineProfile = Partial<Omit<SpeedProfile, 'dwell'>>;
+
+/** A Network as one of its Lines runs on it: the Line's own profile over the Network's, where the Line has one (#260). */
+export function profiled(network: Network | undefined, line: Pick<Line, 'profile'>): Network | undefined {
+  return network && line.profile ? { ...network, profile: { ...network.profile, ...line.profile } } : network;
 }
 
 /** A Line's kind of service (CONTEXT.md). */

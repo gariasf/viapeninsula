@@ -202,6 +202,7 @@ export async function readFeed(
       colour: network.lines.colours?.[name] ?? network.lines.colour ?? `#${line.colour}`,
       shapes: [...line.shapes].flatMap((id) => [`${prefix}:${id}`, `${prefix}:${id}:back`].filter((way) => ids.has(way))),
       kind: network.lines.kinds?.[name] ?? network.lines.kind,
+      ...(network.lines.profiles?.[name] && { profile: network.lines.profiles[name] }),
     })),
     stations: [...stations.values()],
     shapes,

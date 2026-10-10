@@ -341,6 +341,19 @@ test("splits Renfe's long-distance timetable into its two Networks, whose Lines 
   ]);
 });
 
+test("gives each Line the profile its Network's config names for it, which AVE's, Avlo's and AVE Int's is: a Line without one has none, and runs as its Network's does", async () => {
+  const profiles = async (feed: Feed) => (await readFeed(longDistance, '2026-10-10', feed)).lines.map(({ id, profile }) => [id, profile]);
+  expect(await profiles(AVE_FEED)).toEqual([
+    ['ave-larga-distancia:Alvia', undefined],
+    ['ave-larga-distancia:Euromed', undefined],
+    ['ave-larga-distancia:Avlo', { topSpeed: 300 / 3.6 }],
+  ]);
+  expect((await profiles(MD_FEED)).map(([, profile]) => profile)).toEqual([undefined, undefined, undefined, undefined]);
+  // A Network whose config names none, as every Network on the map, has no Line with one: its bundle is as it was.
+  expect(rodalies.lines.length).toBeGreaterThan(0);
+  expect(rodalies.lines.every((l) => !('profile' in l))).toBe(true);
+});
+
 test("makes each Train's Trips on a day one Trip, from its Trip with the most calls: Alvia 00622's six one Barcelona–Vigo, with Ourense's arrival and departure one call, and Alvia 00190's identical twins one", async () => {
   const { trips } = await readFeed(longDistance, '2026-10-10', AVE_FEED);
   // By its Train number, which is its trip_short_name.
