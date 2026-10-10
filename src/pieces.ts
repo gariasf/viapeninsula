@@ -289,6 +289,11 @@ function levelsAtVertices({ dist, levels }: Shape, names: string[]): number[] | 
   return out;
 }
 
+/**
+ * The traced shapes the pieces make. A piece's points are one array of `[lon, lat]` for every shape that
+ * runs it, so the shapes share their points as they share the track: nothing may change a point in place,
+ * as nothing of the map's or the engine's does.
+ */
 function decodeTraced({ pieces, levels: names, shapes }: Traced): Shape[] {
   const points = pieces.map((p): Point[] => {
     const [x, y] = [p[0] ?? 0, p[1] ?? 0];
