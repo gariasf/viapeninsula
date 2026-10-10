@@ -769,6 +769,8 @@ export type LiveSource = {
      * of, where its feed tags it as it does the first, es, as Renfe tags every entry. Only an Alert that
      * names Lines has a Network: one on a Station alone, as a stop_id doesn't say its núcleo, is kept as
      * the feed tags it, and so is one on Lines of Networks this gives different languages, or none.
+     * ponytail: every Alert of a Network with a second entry is taken to give it so, though Murcia's one
+     * repeats its Spanish: a Network that mixes them would need a check that the two texts differ.
      */
     secondEntry?: Record<string, string>;
   };
