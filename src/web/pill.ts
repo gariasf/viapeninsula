@@ -46,6 +46,10 @@ export function boxOf(outline: Outline, width: number, size: number): [number, n
  * pills from and the latitude it's at. It follows the zoom, so that the Stations the pill covers on the
  * map are those a card says its Train is arriving at. Short of the zoom its Trains are pills from, none
  * is drawn, so it reaches as far as it does at that zoom.
+ * ponytail: the pill's half-length, its longest reach, whichever way the track runs, though the pill is
+ * level on the screen and reaches only its 8.7 px of height up a north–south track. Turn it with
+ * toEdge(box, heading − bearing) if `Arriving` is found early there, which would change the words as
+ * the viewer turns the map.
  */
 export function pillReach([halfWidth]: [number, number], zoom: number, pillZoom: number, lat: number): number {
   return halfWidth * pixelMetres(Math.max(zoom, pillZoom), lat);
