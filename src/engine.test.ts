@@ -4,7 +4,7 @@ import { expect, test } from 'vitest';
 import { beside, DEGREE, places, pointAt, type Bundle, type Network, type Point, type Report, type Shape, type Snapshot, type Trip } from './bundle.ts';
 import { noonMinus12h } from './build/gtfs.ts';
 import { stationsOf } from './build/track.ts';
-import { boardAt, joinDays, KEEP, mapTime, nearbyAt, trainAt, trainsAt, unavailable, type Received } from './engine.ts';
+import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, trainAt, trainsAt, unavailable, type Received } from './engine.ts';
 import { jumps } from './jumps.ts';
 import { NETWORKS } from './networks.ts';
 
@@ -734,6 +734,20 @@ test("a followed Train's upcoming Stations are those it has still to leave, each
   // Standing at Vilanova i la Geltrú, from 21:49 to 21:50, it still has that Station to leave.
   expect(followed(R2S, at('21:49:30'))?.upcoming[0]).toEqual({ station: 'Vilanova i la Geltrú', arrival: at('21:49:00'), departure: at('21:50:00') });
   expect(followed(R2S, at('21:49:30'))).toMatchObject({ delay: 0, live: false });
+});
+
+test("a Trip that hasn't come onto the map yet is still to come: all its Stations, the first expected when it leaves, until its Train appears (#322)", () => {
+  const coming = (moment: number) => comingAt(BUNDLE, moment, [], R2S);
+  const calls = TRIPS[R2S]?.calls ?? [];
+  expect(coming(at('21:00:00'))?.upcoming.map((u) => u.station)).toEqual(calls.map(([station]) => station));
+  expect(coming(at('21:00:00'))?.upcoming[0]).toMatchObject({ station: calls[0]?.[0], arrival: at('21:30:00'), departure: at('21:30:00') });
+  expect(coming(at('21:00:00'))).toMatchObject({ delay: 0, live: false });
+  // Its Train comes onto the map at 21:29:30, and then it's followed as a Train; and once it has ended, there's none.
+  expect(coming(at('21:29:29'))).toBeDefined();
+  expect(coming(at('21:29:30'))).toBeUndefined();
+  expect(followed(R2S, at('21:29:30'))).toBeDefined();
+  expect(coming(at('23:00:00'))).toBeUndefined();
+  expect(comingAt(BUNDLE, at('21:00:00'), [], 'nowhere')).toBeUndefined();
 });
 
 test("a followed Train running late is expected at each Station as late as it's drawn, and gets there then", () => {

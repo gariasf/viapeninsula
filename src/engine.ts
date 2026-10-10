@@ -119,6 +119,35 @@ export function trainAt(bundle: Bundle, at: number, received: Received[], id: st
   };
 }
 
+/** A Trip that's yet to start, as the follow panel shows it: when it leaves each Station, and how far to trust that. */
+export interface Coming {
+  trip: Trip;
+  /** Each Station of the Trip, as trainAt()'s `upcoming` has them, running its Delay late: the first, when it leaves, in both. */
+  upcoming: { station: string; arrival: number; departure: number }[];
+  /** Its Delay, in seconds, as live data last gave it: none to show for a Metro Train (#103). */
+  delay?: number;
+  live: boolean;
+}
+
+/**
+ * A Trip that has yet to leave its first Station and isn't on the map yet, as a Train comes onto it
+ * only a few seconds before it leaves (#322): to follow it as a Trip still to come. None for one
+ * that's on the map, that has ended or is Cancelled, or that isn't in the days given.
+ */
+export function comingAt(bundle: Bundle, at: number, received: Received[], id: string): Coming | undefined {
+  const trip = bundle.trips.find((t) => t.id === id);
+  const on = trip && onMap(bundle, at, received).of(trip);
+  const first = on?.calls[0];
+  if (!on || on.train || on.cancelled || !first || on.time >= first.departure) return undefined;
+  const expected = (seconds: number) => bundle.noonMinus12h + (seconds + on.delay) * 1000;
+  return {
+    trip: on.trip,
+    upcoming: on.calls.map((c, i) => ({ station: c.station, arrival: expected(i ? c.arrival : c.departure), departure: expected(c.departure) })),
+    delay: shown(on.network, on.delay),
+    live: on.live,
+  };
+}
+
 /** A Train on a Station's board: when it's expected to leave the Station, and how far to trust that. */
 export interface Departure {
   trip: Trip;

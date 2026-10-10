@@ -7,7 +7,7 @@ import nunitoSans from '@fontsource/nunito-sans/files/nunito-sans-latin-400-norm
 import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-normal.woff2?url';
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
 import { along, APART, atZoom, BANDS, bandZooms, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, EARTH, LIVE_URL, madridDate, places, type Alerts, type Bundle, type Credit, type Place, type DayTrips, type Kind, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH } from '../bundle.ts';
-import { boardAt, joinDays, KEEP, mapTime, nearbyAt, trainAt, trainsAt, unavailable, type Departure, type Followed, type Received } from '../engine.ts';
+import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, trainAt, trainsAt, unavailable, type Coming, type Departure, type Followed, type Received } from '../engine.ts';
 import { alertCount, basemapLabel, busesReplace, earlierStations, language, LANGUAGES, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, setLanguage, t, toGo, trainCounts, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { linesAt, popupRoom } from './tap.ts';
@@ -109,6 +109,7 @@ const ICONS = {
   nearby: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5" stroke-dasharray="2.6 3.1"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></svg>',
   info: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.6v.1"/></svg>',
   copyright: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M14.9 9.4a4 4 0 1 0 0 5.2"/></svg>',
+  back: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>',
   warning: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4.5M12 17.4v.1"/></svg>',
 };
 /** How many departures a board shows peeking on a phone, and Nearby rows (#321). */
@@ -523,6 +524,13 @@ wide.addEventListener('change', () => {
  * stays followed as the days joined change around midnight, and where it's drawn.
  */
 let following: { day: string; trip: string; at?: Point } | undefined;
+/** Whether the panel shows a Trip still to come, as its Train isn't on the map yet (#322): so that the map doesn't stop following it. */
+let waiting = false;
+/**
+ * Where Back goes (#322): the panel this one was opened from, by a departure or a Station, as it was,
+ * peeking or pulled up and scrolled to `scroll`. One level: the panel it returns to has none of its own.
+ */
+let back: { to: 'train'; day: string; trip: string; headsign: string; up: boolean; scroll: number } | { to: 'board'; place: string; up: boolean; scroll: number } | { to: 'nearby'; near: Point; up: boolean; scroll: number } | undefined;
 /** The place whose board the panel shows, by its ID in places(), while the map follows no Train. */
 let boardPlace: string | undefined;
 /** The last date, by the map's time (mapTime()), that a Station board had no departures left, when the map needs the next day's Trips for it. */
@@ -616,6 +624,8 @@ let bundle: Bundle | undefined;
 let stationNames = new Map<string, string>();
 /** Where the map shows the Stations, by their IDs in places(). */
 let shownPlaces = new Map<string, Place>();
+/** Each Station's place in shownPlaces, for the buttons that open its board (#322). */
+let placeOfStation = new Map<string, Place>();
 /**
  * What places each Line's Trains on its stroke zoomed out: the shapes, its slots by `<line> <shape>`,
  * its curves (zones()), and which side its Trains keep to, 1 right and -1 left; and where each Closure
@@ -1022,8 +1032,8 @@ requestAnimationFrame(function move(now) {
   }
   if (following) {
     // A Train that has left the map, reaching its last Station or cancelled, is followed no more.
-    if (!following.at) closePanel();
-    else keepInView(following.at);
+    if (!following.at && !waiting) closePanel();
+    else if (following.at) keepInView(following.at);
   }
   // The panel's times and ages change by the second.
   if ((following || boardPlace || nearMe) && performance.now() - panelShown > 1000) showPanel();
@@ -1067,6 +1077,7 @@ function show(days: Track | Bundle) {
   lines = new Map(days.lines.map((l) => [l.id, l]));
   stationNames = new Map(days.stations.map((s) => [s.id, s.name]));
   shownPlaces = new Map(places(days.stations).map((p) => [p.id, p]));
+  placeOfStation = new Map([...shownPlaces.values()].flatMap((p) => p.stations.map((station): [string, Place] => [station, p])));
   const shapes = new Map(days.shapes.map((s) => [s.id, s]));
   const slots = new Map<string, Slot[]>();
   // A track built before #176 has none: its Trains go on their own track.
@@ -1520,14 +1531,68 @@ function followRandom() {
 }
 
 /** Follows a Trip's Train, by its ID in the days on the map: brings it into view, beside the panel, and keeps it there. */
-function follow(id: string) {
+function follow(id: string, up = false) {
   const [, day, trip] = /^(\d{4}-\d{2}-\d{2})\/(.*)$/.exec(id) ?? [];
   following = day && trip ? { day, trip } : { day: bundle?.serviceDay ?? '', trip: id };
-  [boardPlace, nearMe] = [undefined, undefined];
+  [boardPlace, nearMe, back] = [undefined, undefined, undefined];
   trainSource?.setData(trains());
-  openPanel(false);
+  openPanel(up);
   writeLink();
   if (following.at) easeOnto(following.at);
+  // A Trip still to come, its Train not on the map yet: to its first Station, which it leaves from (#322).
+  else if (waiting) {
+    const at = startOf();
+    if (at) easeOnto(at);
+  }
+}
+
+/** The Station a Trip still to come leaves from, where the map eases onto (#322). */
+function startOf(): Point | undefined {
+  const first = bundle?.trips.find((t) => t.id === followedId())?.calls[0]?.station;
+  const at = shownStations?.find((s) => s.id === first);
+  return at && [at.lon, at.lat];
+}
+
+/** What the panel shows now, to go Back to (#322): none while it shows no Train, board or Nearby that's found the viewer. */
+function here(): NonNullable<typeof back> | undefined {
+  const [up, scroll] = [pulledUp, panel.querySelector('.sheet-body')?.scrollTop ?? 0];
+  if (following) return { to: 'train', day: following.day, trip: following.trip, headsign: bundle?.trips.find((t) => t.id === followedId())?.headsign ?? '', up, scroll };
+  if (boardPlace) return { to: 'board', place: boardPlace, up, scroll };
+  return nearMe && typeof nearMe !== 'string' ? { to: 'nearby', near: nearMe, up, scroll } : undefined;
+}
+
+/** Opens another panel from this one, by a departure or a Station, which has a Back to this one (#322). */
+function openFrom(open: () => void, at?: Point) {
+  const [was, keyboard] = [here(), panel.contains(document.activeElement)];
+  open();
+  back = was;
+  showPanel();
+  // The Back row makes the header taller, so the map's padding and where it eases to are worked out again.
+  const to = at ?? following?.at ?? (waiting ? startOf() : undefined);
+  if (to) easeOnto(to);
+  else map.easeTo({ padding: panelPadding() });
+  if (keyboard) focusTitle();
+}
+
+/** Puts the keyboard's focus on the panel's title, where the button it was on has gone with the panel it opened (#322), as Nearby's does after a Try again. */
+function focusTitle() {
+  panel.querySelector<HTMLElement>('.title')?.focus();
+}
+
+/** Goes back to the panel this one was opened from, as it was (#322): a Train is followed again and the map eases onto it, a board or Nearby leaves the map where it is. */
+function goBack() {
+  const [to, keyboard] = [back, panel.contains(document.activeElement)];
+  if (!to) return;
+  if (to.to === 'train') follow(`${to.day}/${to.trip}`, to.up);
+  else {
+    [following, boardPlace, nearMe, back] = [undefined, to.to === 'board' ? to.place : undefined, to.to === 'nearby' ? to.near : undefined, undefined];
+    trainSource?.setData(trains());
+    openPanel(to.up);
+    writeLink();
+    map.easeTo({ padding: panelPadding() });
+  }
+  panel.querySelector('.sheet-body')?.scrollTo(0, to.scroll);
+  if (keyboard) focusTitle();
 }
 
 /** Brings `at` into the middle of the map beside the panel, at zoom 13, or closer if the map already is: a Train the map follows, or a Station whose link names no view (#292). */
@@ -1537,7 +1602,7 @@ function easeOnto(at: Point) {
 
 /** Shows a place's board, by its ID in places(), following no Train. */
 function showBoard(place: string) {
-  [following, boardPlace, nearMe] = [undefined, place, undefined];
+  [following, boardPlace, nearMe, back] = [undefined, place, undefined, undefined];
   trainSource?.setData(trains());
   openPanel(false);
   writeLink();
@@ -1550,7 +1615,7 @@ function showBoard(place: string) {
  * stays where it is: the basemap's tiles for where they are would tell OpenFreeMap.
  */
 function showNearby() {
-  [following, boardPlace, nearMe] = [undefined, undefined, 'locating'];
+  [following, boardPlace, nearMe, back] = [undefined, undefined, 'locating', undefined];
   trainSource?.setData(trains());
   openPanel(true);
   writeLink();
@@ -1595,7 +1660,7 @@ function locate() {
 
 /** Stops following a Train, or closes a Station's board or the nearby Trains. */
 function closePanel() {
-  [following, boardPlace, nearMe] = [undefined, undefined, undefined];
+  [following, boardPlace, nearMe, back] = [undefined, undefined, undefined, undefined];
   showPanel();
   writeLink();
   map.easeTo({ padding: panelPadding() });
@@ -1824,7 +1889,12 @@ function moreButton(text: string) {
  */
 function followedPanel(up: boolean): Panel | undefined {
   const now = Date.now();
+  waiting = false;
   const train = bundle && trainAt(bundle, now, received, followedId() ?? '');
+  // Its Trip still to come, where its Train isn't on the map yet (#322).
+  const coming = bundle && !train ? comingAt(bundle, now, received, followedId() ?? '') : undefined;
+  waiting = !!coming;
+  if (coming) return comingPanel(coming, up, now);
   if (!train) return undefined;
   const { trip, live, unreported, since, speed, unitType, upcoming } = train;
   const last = upcoming.at(-1);
@@ -1834,7 +1904,7 @@ function followedPanel(up: boolean): Panel | undefined {
   status.push(el('span', {}, el('span', { className: 'sr-only', textContent: `${t('speed')} ` }), `~${Math.round(speed * 3.6)} km/h`));
   if (unitType) status.push(`${t('unit')} ${unitType}`);
   return {
-    header: el('header', {}, el('h2', { className: 'title' }, pill(trip.line, { live, train: true }), ` ${trip.headsign}`), closeButton(t('stopFollowing'))),
+    header: el('header', {}, ...backButton(), el('h2', { className: 'title', tabIndex: -1 }, pill(trip.line, { live, train: true }), ` ${trip.headsign}`), closeButton(t('stopFollowing'))),
     body: [
       el('p', { className: 'meta status-line' }, el('span', { className: `dot ${live ? 'live' : 'scheduled'}` }), ...status.flatMap((part, i) => (i ? [' · ', part] : [part]))),
       ...nextStation(train, now),
@@ -1849,20 +1919,48 @@ function followedPanel(up: boolean): Panel | undefined {
   };
 }
 
+/**
+ * The panel of a Trip still to come (#322), as a Train comes onto the map only seconds before it
+ * leaves: where and when it leaves, and its Stations, as the followed Train's have them.
+ */
+function comingPanel({ trip, live, delay, upcoming }: Coming, up: boolean, now: number): Panel {
+  const [first, last] = [upcoming[0], upcoming.at(-1)];
+  const leaves = first && t('leavesAt').replace('{station}', stationName(first.station)).replace('{time}', clock().format(first.departure));
+  return {
+    header: el('header', {}, ...backButton(), el('h2', { className: 'title', tabIndex: -1 }, pill(trip.line, { live, train: true }), ` ${trip.headsign}`), closeButton(t('stopFollowing'))),
+    body: [
+      el('p', { className: 'meta status-line' }, el('span', { className: `dot ${live ? 'live' : 'scheduled'}` }), leaves ?? '', ...(first ? countdown(first.departure, now, 'inMinutes').flatMap((n) => [' · ', n]) : [])),
+      ...nextStation({ upcoming, standsAt: undefined, delay, live }, now),
+      alertsOn({ lines: [trip.line], stations: [] }),
+      ...(up ? [el('hr', { className: 'dash' }), ...strip({ trip, upcoming, standsAt: undefined })] : last && upcoming.length > 1 ? [moreButton(moreStations(upcoming.length - 1, trip.headsign, clock().format(last.arrival)))] : []),
+    ],
+  };
+}
+
+/** The button in a header that goes Back (#322), naming where it goes: none where there's none, or the Train it would follow has left the map. */
+function backButton(): Node[] {
+  // ponytail: two engine passes a second while Back goes to a Train; cache the check if a phone shows it.
+  if (!back) return [];
+  const where = back.to === 'train' ? undefined : back.to === 'board' ? shownPlaces.get(back.place)?.name : t('nearby');
+  if (back.to === 'train' ? !(bundle && (trainAt(bundle, Date.now(), received, back.day === bundle.serviceDay ? back.trip : `${back.day}/${back.trip}`) || comingAt(bundle, Date.now(), received, back.day === bundle.serviceDay ? back.trip : `${back.day}/${back.trip}`))) : !where) return [];
+  const label = back.to === 'train' ? t('backToTrain').replace('{headsign}', back.headsign) : t('backTo').replace('{place}', where ?? '');
+  return [el('button', { type: 'button', className: 'back', onclick: goBack }, icon('back'), el('span', { textContent: label }))];
+}
+
 /** When a followed Train's expected at a Station it has still to come to: at the one it stands at, when it leaves. */
 function due(call: Followed['upcoming'][number], standing: boolean): number {
   return standing ? call.departure : call.arrival;
 }
 
 /** A followed Train's next Station: its name, when the Train's expected there, with its status beside it, and the minutes to it within the hour. */
-function nextStation({ upcoming: [next], standsAt, delay, live }: Followed, now: number): Node[] {
+function nextStation({ upcoming: [next], standsAt, delay, live }: Pick<Followed, 'upcoming' | 'standsAt' | 'delay' | 'live'>, now: number): Node[] {
   if (!next) return [];
   const at = due(next, !!standsAt);
   return [
     el(
       'div',
       { className: 'next-station' },
-      el('div', {}, el('p', { className: 'label', textContent: t('nextStation') }), el('strong', { className: 'next-name', textContent: stationName(next.station) })),
+      el('div', {}, el('p', { className: 'label', textContent: t('nextStation') }), stationLink(next.station, el('strong', { className: 'next-name', textContent: stationName(next.station) }))),
       el('div', { className: 'next-when' }, el('span', { className: 'at' }, el('time', {}, ...timeOfDay(at)), status({ delay, live })), ...countdown(at, now, 'inMinutes')),
     ),
   ];
@@ -1895,7 +1993,7 @@ function tripBar({ trip, dist, upcoming }: Followed) {
  * those it has already left at its top, greyed, by name only, as the map has no time it passed them
  * but its timetable's, and the Train then as a compact mark after them (#349).
  */
-function strip({ trip, upcoming, standsAt }: Followed): Node[] {
+function strip({ trip, upcoming, standsAt }: Pick<Followed, 'trip' | 'upcoming' | 'standsAt'>): Node[] {
   // How many Stations it has already left, and the last of them, before those it has still to leave.
   const earlier = trip.calls.length - upcoming.length;
   const lastLeft = trip.calls[earlier - 1];
@@ -1907,7 +2005,7 @@ function strip({ trip, upcoming, standsAt }: Followed): Node[] {
     ...(past ? trip.calls.slice(0, earlier).map((call, i) => station(i ? 'passed soft' : 'passed soft origin', [], stationName(call.station), el('span', { className: 'sr-only', textContent: `, ${t('passed')}` }))) : []),
     ...(lastLeft && !standsAt ? [past ? station('train soft compact', [t('now')]) : station('train soft', [t('now')], t('left').replace('{station}', stationName(lastLeft.station)))] : []),
     ...upcoming.map((call, i) =>
-      station([i === 0 && standsAt ? 'train' : '', i === 0 ? 'next' : '', i === upcoming.length - 1 ? 'terminus' : ''].filter(Boolean).join(' '), timeOfDay(due(call, i === 0 && !!standsAt)), stationName(call.station)),
+      station([i === 0 && standsAt ? 'train' : '', i === 0 ? 'next' : '', i === upcoming.length - 1 ? 'terminus' : ''].filter(Boolean).join(' '), timeOfDay(due(call, i === 0 && !!standsAt)), stationLink(call.station, stationName(call.station))),
     ),
   );
   list.setAttribute('aria-label', t(past ? 'stations' : 'nextStations'));
@@ -1917,6 +2015,18 @@ function strip({ trip, upcoming, standsAt }: Followed): Node[] {
   const fold = foldButton([earlierStations(earlier, showPast)], showPast, () => (showPast = !showPast));
   fold.hidden = !earlier;
   return [fold, list];
+}
+
+/**
+ * A Station a followed Train has still to come to, as a button that opens its place's board (#322),
+ * the map no longer following the Train and easing onto the Station (easeOnto()): its `name` as
+ * it's written there, or just that where no place on the map has it.
+ */
+function stationLink(station: string, name: Node | string) {
+  const place = placeOfStation.get(station);
+  if (!place) return el('span', {}, name);
+  const open = () => openFrom(() => showBoard(place.id), [place.lon, place.lat]);
+  return el('button', { type: 'button', className: 'station-link', onclick: open }, name);
 }
 
 /**
@@ -2072,7 +2182,8 @@ function boardPanel(id: string, up: boolean): Panel | undefined {
     header: el(
       'header',
       { className: 'nameboard' },
-      el('div', {}, el('h2', { className: 'title', textContent: place.name }), el('div', { className: 'served' }, ...servedBy(place).map((line) => pill(line, { small: true })))),
+      ...backButton(),
+      el('div', {}, el('h2', { className: 'title', textContent: place.name, tabIndex: -1 }), el('div', { className: 'served' }, ...servedBy(place).map((line) => pill(line, { small: true })))),
       closeButton(t('closeBoard')),
     ),
     body: [
@@ -2097,14 +2208,24 @@ function servedBy(place: Place): string[] {
  */
 function departureRow({ trip, departure, delay, live, unreported, cancelled, skipped }: Departure, now: number) {
   const off = cancelled ? 'cancelled' : skipped ? 'skipped' : '';
-  return el(
-    'li',
-    { className: off },
+  const cells = [
     el('time', {}, ...timeOfDay(departure), ...(off ? [] : countdown(departure, now, 'minutes'))),
     pill(trip.line, { live, train: true }),
     el('span', { className: 'dest', textContent: trip.headsign }),
     off ? el('span', { className: `status ${off}`, textContent: t(cancelled ? 'cancelled' : 'notStopping') }) : status({ delay, live, unreported }),
-  );
+  ];
+  // A Cancelled one has no Train to follow (#322).
+  return el('li', { className: off }, ...(cancelled ? cells : followButton(trip, departure, cells)));
+}
+
+/** A row that's a button following a Trip's Train, which a screen reader hears as its Line, where it's headed and when (#322): the cells that are its row, as it spreads them. */
+function followButton(trip: Trip, at: number, cells: Node[]) {
+  const label = t('followDeparture').replace('{line}', lines.get(trip.line)?.name ?? '').replace('{headsign}', trip.headsign).replace('{time}', clock().format(at));
+  const button = el('button', { type: 'button', className: 'row', onclick: () => openFrom(() => follow(trip.id)) }, ...cells);
+  // With what the row says at its end, its Delay or that it isn't stopping, which the label would drop.
+  const says = cells.at(-1)?.textContent?.trim();
+  button.setAttribute('aria-label', says ? `${label}, ${says}` : label);
+  return [button];
 }
 
 /**
@@ -2132,7 +2253,7 @@ function countdown(at: number, now: number, phrase: 'minutes' | 'inMinutes'): No
  */
 function nearbyPanel(near: Point | Unlocated, up: boolean): Panel {
   // The title takes the keyboard's focus as a Try again gives way to what the try found (locate()).
-  const header = el('header', {}, el('h2', { className: 'title', textContent: t('nearby'), tabIndex: -1 }), closeButton(t('closeNearby')));
+  const header = el('header', {}, ...backButton(), el('h2', { className: 'title', textContent: t('nearby'), tabIndex: -1 }), closeButton(t('closeNearby')));
   const said = el('div');
   said.setAttribute('role', 'status');
   if (typeof near === 'string') {
@@ -2162,22 +2283,25 @@ function nearbyPanel(near: Point | Unlocated, up: boolean): Panel {
           el(
             'li',
             {},
-            pill(next.trip.line, { live: next.live, train: true }),
-            el('span', { className: 'dest', textContent: next.trip.headsign }),
-            el(
-              'span',
-              { className: 'when' },
+            // Each row follows its next Train, the one its pill and Delay belong to (#322).
+            ...followButton(next.trip, next.at, [
+              pill(next.trip.line, { live: next.live, train: true }),
+              el('span', { className: 'dest', textContent: next.trip.headsign }),
               el(
                 'span',
-                { className: 'times' },
-                // now · 3 · 9 min
-                ...passes.flatMap(({ minutes, live }, i) => [
-                  ...(i ? [' · '] : []),
-                  el('span', { className: live ? 'live' : 'soft', textContent: i === passes.length - 1 ? toGo(minutes, 'minutes') : minutes ? String(minutes) : t('now') }),
-                ]),
+                { className: 'when' },
+                el(
+                  'span',
+                  { className: 'times' },
+                  // now · 3 · 9 min
+                  ...passes.flatMap(({ minutes, live }, i) => [
+                    ...(i ? [' · '] : []),
+                    el('span', { className: live ? 'live' : 'soft', textContent: i === passes.length - 1 ? toGo(minutes, 'minutes') : minutes ? String(minutes) : t('now') }),
+                  ]),
+                ),
+                delayChip(next.delay) ?? '',
               ),
-              delayChip(next.delay) ?? '',
-            ),
+            ]),
           ),
         ),
       ),
