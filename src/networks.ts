@@ -37,11 +37,11 @@ export interface NetworkConfig extends Omit<Network, 'credit'> {
     gauges?: Record<string, Gauges>;
   };
   /**
-   * Where a Station is, by its ID, where its timetables put it somewhere its Trains don't stop, as
-   * Renfe's put Asturias' El Entrego at a FEVE station 0.4 km from Adif's (#367): where its Trains stop,
-   * and the source that says so, an OpenStreetMap node's URL or the operator's own map. The daily build
-   * lists those it applies. A Station two Networks list is one Station, as the first of them has it
-   * (stationsOf()), so it goes in each Network that lists it.
+   * The Stations its timetables put where their Trains don't stop, by ID, as Renfe's put Asturias' El
+   * Entrego at a FEVE station 0.4 km from Adif's (#367), with where they do stop and the source that
+   * says so: the URL of an OpenStreetMap node, or of the operator's own map. The daily build lists those
+   * it applies. A Station two Networks list is one Station, as the first of them has it (stationsOf()),
+   * so it goes in each Network that lists it.
    */
   stations?: Record<string, { lon: number; lat: number; source: string }>;
 }
@@ -355,11 +355,11 @@ export const CERCANIAS_ASTURIAS: NetworkConfig = {
   timetables: [núcleo('20', 'cercanias-asturias')],
   // C1–C8 and C5a are commuter Lines.
   lines: { kind: 'commuter' },
-  // Renfe's timetable of 10 October 2026 puts three Stations where Adif's and FEVE's lines run beside
-  // each other, off the track their Trains run on, so every Trip that calls there is left out (#367):
-  // C2's El Entrego at FEVE's El Entrego-La Oscura (05433), 0.4 km from Adif's, where C2 ends, and
-  // C2's Sama beside FEVE's Langreo line, 0.8 km from Adif's, and C5's Tremañes-Langreo at C4's
-  // Tremañes Carreño (05203), 0.4 km from its own, on the Langreo line.
+  // Renfe's timetable of 10 October 2026 puts three Stations on the track of a line beside the one
+  // their Trains run on, so every Trip that calls there is left out as calling at a Station off its
+  // track (#367): C2's El Entrego at FEVE's El Entrego-La Oscura (05433), 0.4 km from Adif's, where C2
+  // ends, and C2's Sama beside FEVE's Langreo line, 0.8 km from Adif's, and C5's Tremañes-Langreo at
+  // C4's Tremañes Carreño (05203), 0.4 km from its own station on the Langreo line.
   stations: {
     'adif:16011': { lon: -5.6451861, lat: 43.2871373, source: 'https://www.openstreetmap.org/node/12702395582' },
     'adif:16009': { lon: -5.6797817, lat: 43.2918595, source: 'https://www.openstreetmap.org/node/5315743121' },
