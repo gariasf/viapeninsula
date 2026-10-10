@@ -332,7 +332,7 @@ export function namedTwice(places: (Pick<Place, 'name' | 'lon' | 'lat'> & { name
 /**
  * How many times Trains call at each Station in these Trips, a Trip that calls at one twice counting
  * twice: the calls a day of the days' Trips the map has loaded, which rank the names of places in no
- * tier where they collide (untieredSort(), #372).
+ * tier where they collide (nameSort(), #372).
  */
 export function callsIn(trips: { calls: { station: string }[] }[]): Map<string, number> {
   const calls = new Map<string, number>();
@@ -341,15 +341,17 @@ export function callsIn(trips: { calls: { station: string }[] }[]): Map<string, 
 }
 
 /**
- * What the name of a place in no tier sorts by (`symbol-sort-key`, which MapLibre places lowest first,
- * the first placed keeping its spot where two names collide): the zoom its name shows from and, below
- * the next whole zoom, the more calls a day it has the lower, so that the busier Station's name wins a
- * collision, and never outranks a tier's. Places with as many calls sort alike, and MapLibre's own
- * order between them decides, as it did (tiles from west to east and north to south, then the order
- * the places come in).
+ * What a place's name sorts by (`symbol-sort-key`, which MapLibre places lowest first, the first placed
+ * keeping its spot where two names collide): the zoom its name shows from, so that a tier's names come
+ * before the next's, and for a place in no tier, below the next whole zoom, the more calls a day at its
+ * Stations the lower, so that the busier Station's name wins a collision and none outranks a tier's
+ * (#372). A place in a tier is placed as it was. Places with as many calls sort alike, and MapLibre's own
+ * order between them decides, as it did: tiles from west to east and then north to south, then the order
+ * the places come in.
  */
-export function untieredSort(nameZoom: number, calls: number): number {
-  return nameZoom + 1 / (2 + calls);
+export function nameSort({ nameZoom, tier, stations }: { nameZoom: number; tier: boolean; stations: string[] }, calls: Map<string, number>): number {
+  if (tier) return nameZoom;
+  return nameZoom + 1 / (2 + stations.reduce((n, station) => n + (calls.get(station) ?? 0), 0));
 }
 
 /** A name's box's extent either way from where MapLibre anchors it by `anchor`, in px, x right and y down. */

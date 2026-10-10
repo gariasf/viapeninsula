@@ -12,7 +12,7 @@ import { alertCount, basemapLabel, busesReplace, earlierStations, language, LANG
 import { rounded } from './curve.ts';
 import { forgetJoined, regionLoader } from './regions.ts';
 import { linesAt, popupRoom } from './tap.ts';
-import { alongside, callsIn, namedTwice, nameOffset, nearestSide, rightOf, underName, untieredSort, type Side, type Spot } from './names.ts';
+import { alongside, callsIn, namedTwice, nameOffset, nameSort, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
 import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
 import { atMostEvery, drifted, letsGo } from './centre.ts';
 import { keepView, lastView, markOf, openingView, toggledPitch } from './view.ts';
@@ -1424,8 +1424,7 @@ function showNames() {
   map.getSource<GeoJSONSource>('station-names')?.setData({
     type: 'FeatureCollection',
     features: names.map(({ dot, name, nameZoom, tier, stations, style }, i): GeoJSON.Feature => {
-      // Where names collide, one in a tier is placed as it was, by its tier's zoom alone; one in none, by its calls a day after that.
-      const sort = tier ? nameZoom : untieredSort(nameZoom, stations.reduce((n, station) => n + (calls.get(station) ?? 0), 0));
+      const sort = nameSort({ nameZoom, tier, stations }, calls);
       return { type: 'Feature', properties: { name, nameZoom, sort, ...style, ...where[i] }, geometry: { type: 'Point', coordinates: dot } };
     }),
   });
