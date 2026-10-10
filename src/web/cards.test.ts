@@ -3,6 +3,7 @@ import { gunzipSync } from 'node:zlib';
 import { expect, test } from 'vitest';
 import type { AlertFeed, Alerts, Bundle, Call, Line, Trip } from '../bundle.ts';
 import type { Pass } from '../engine.ts';
+import { ALERTS_START, readAlerts } from '../fetcher/alerts.ts';
 import { cardAlerts, inNameOrder, linesCallingAt, linesOnBoard, minutesTo, nearbyRows, progress } from './cards.ts';
 
 /** A time of day in Barcelona on Wednesday 7 Oct 2026, in summer time, in ms since 1970. */
@@ -254,6 +255,22 @@ test("an Alert is in the viewer's language where its feed has it, or else in its
     by: 'TRAM',
   });
   expect(cardAlerts(ALERTS, T1, 'eu', NOW).alerts[0]).toMatchObject({ header: { language: 'ca', text: 'Afectació T1, T2 i T3' }, description: { language: 'ca', text: 'Sense servei entre Francesc Macià i Montesa.' } });
+});
+
+test("a Catalan viewer reads Valencia's Alert in its second entry, in Valencian, and a Spanish viewer in its first, as the fetcher tags the file Renfe gave on 7 Oct", () => {
+  // Renfe's Alerts of Valencia, Bilbao, San Sebastián and Murcia with a second entry, as the fetcher writes them (#371).
+  const text = readFileSync(new URL('../fetcher/fixtures/alerts/renfe-second-entries.json', import.meta.url), 'utf8');
+  const renfe = readAlerts(ALERTS_START, { renfe: { alerts: { status: 200, body: { text } } } }, NOW).file ?? {};
+  const C2 = { lines: ['cercanias-valencia:C2'], stations: [] };
+  const first = { language: 'es', text: "Línea C2. Tren con salida prevista a las 08:30h de la estación de València Nord con destino l'Alcúdia, efectúa su salida con 17 minutos de retraso. Incidencia operativa." };
+  const second = { language: 'ca', text: "Línia C2. Tren amb eixida prevista a les 08:30h de l'estació de València Nord amb destinació l'Alcúdia, efectua la seua eixida amb 17 minuts de retard. Incidència operativa." };
+  expect(cardAlerts(renfe, C2, 'ca', NOW).alerts[0]).toMatchObject({ id: 'AVISO_518349', description: second, by: 'Renfe' });
+  expect(cardAlerts(renfe, C2, 'es', NOW).alerts[0]).toMatchObject({ id: 'AVISO_518349', description: first, by: 'Renfe' });
+  // An English-speaking viewer, as for Rodalies', reads Renfe's own first entry, with its language marked.
+  expect(cardAlerts(renfe, C2, 'en', NOW).alerts[0]).toMatchObject({ id: 'AVISO_518349', description: first });
+  // A Station's Alert, which names no Line, stays Spanish for a Catalan viewer: Carcaixent's lift gives its second entry tagged es.
+  const lift = cardAlerts(renfe, { lines: [], stations: ['adif:64103'] }, 'ca', NOW).alerts.find((a) => a.id === 'AVISO_518170');
+  expect(lift?.description).toEqual({ language: 'es', text: 'Ascensor de la estación de Carcaixent, sentido Xàtiva de vía 2, se encuentra fuera de servicio. Disculpen las molestias.' });
 });
 
 test("a card says when its Alerts were read where that's over 15 minutes ago, by the feed read longest ago of those whose Alerts it shows", () => {

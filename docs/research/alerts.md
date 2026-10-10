@@ -220,6 +220,8 @@ A pattern looked for "entre X y Y" (and `i`, `e`, or ` - `), "de X a Y", "desde 
 
 The interface speaks Catalan, Spanish and English. Renfe's Catalan entry could serve the Catalan interface only by its place, second, as its tag says Spanish too. And a second entry isn't always the first in another language: in Bilbao, at Desertu-Barakaldo and Abaroa-San Miguel, it tells of another lift at the same Station. No feed in reach gives Renfe's alerts in English. Translating them is allowed under CC BY 4.0, as long as the map says so; TMB's and TRAM's terms forbid altering theirs.
 
+**What `alerts.json` does with that (#339, #371).** The fetcher tags the second entry `ca` where a Network's config says it's in Catalan, as `alerts.secondEntry` of Renfe's source in `src/networks.ts` does for Rodalies and for Cercanías Valencia, whose Valencian is tagged `ca` too: the page picks an entry by the viewer's language as it's tagged, and the interface has no Valencian. It knows an Alert's Network only by its Lines, so an Alert that names only a Station keeps Renfe's tag, `es` on both entries. Of Valencia's 17 on 7 October, 4 name Lines and are tagged, and 13 (12 lifts out of service and an accessibility notice) name only a Station, as a stop_id doesn't say its núcleo. Bilbao's and San Sebastián's Basque and Spanish share one entry, which no tag can split, and Murcia's repeats its Spanish: both stay as Renfe gives them.
+
 ## What it means for #279
 
 1. **Renfe's alerts are where the day's incidents are,** and most of them are Line-wide. Show them on the Line: its legend entry, its card, its Line screen, and Now. TRAM's add planned closures with dates and Lines, the stretch in the text; TMB's are a Station's access, by our Station's code.
@@ -228,7 +230,7 @@ The interface speaks Catalan, Spanish and English. Renfe's Catalan entry could s
 4. **Stale alerts need a rule.** None has an end. Options: show each with its start ("since 6 Oct, 17:13"), drop one older than some days unless it gives dates, and let live Trains on a Line outweigh a Line-wide "no Trains" alert.
 5. **The Trains on a closed stretch:** hide them or mark them (#233), now that alerts say where.
 6. **Which alerts count:** Renfe's mix today is 42 Station access, 17 service changes, 5 one-Train notes, 3 warnings, one about tickets and one test; TMB's 12 are all access, and TRAM's 2 both closures. Access suits a Station's card; FGC's notes a Train's; service changes the map and Now.
-7. **Languages:** Spanish, and Catalan by position for Rodalies; nothing in English. Show the viewer's language where there is one, and say whose words they are.
+7. **Languages:** Spanish, and Catalan by position for Rodalies (and Valencian for Valencia's, #371); nothing in English. Show the viewer's language where there is one, and say whose words they are.
 8. **The fetcher:** Renfe's alerts in a file of their own, every run with a conditional request or once a minute, skipping the stuck rule. FGC's not yet. TMB's and TRAM's once the grill wants them, with the keys the fetcher has.
 9. **A word for CONTEXT.md:** it has no term for these yet. "Alert", an operator's notice about a Line, a Station or a Train, would do, with "closed stretch" for the part of a Line its Trains don't run.
 
