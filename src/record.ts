@@ -13,7 +13,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
-import { LIVE_URL, madridDate, type Bundle, type DayTrips, type Manifest, type Snapshot, type Track, type Trip } from './bundle.ts';
+import { daysOf, joinTracks, joinTrips, LIVE_URL, madridDate, type Bundle, type DayTrips, type Manifest, type Snapshot, type Track, type Trip } from './bundle.ts';
 import { trainsAt, type Received } from './engine.ts';
 
 const [dir, minutes = '15'] = process.argv.slice(2);
@@ -39,11 +39,11 @@ try {
 }
 
 const today = madridDate(new Date());
-const day = (JSON.parse(await get(`${LIVE_URL}/manifest.json`)) as Manifest).days.find((d) => d.date === today);
+const day = daysOf(JSON.parse(await get(`${LIVE_URL}/manifest.json`)) as Manifest).find((d) => d.date === today);
 if (!day) throw new Error(`The manifest has no bundle for ${today}: publish it with \`npm run daily\` first`);
-// The day's track and its Trips, joined as the map joins them.
-const [track, dayTrips] = await Promise.all([get(`${LIVE_URL}/${day.track}`), get(`${LIVE_URL}/${day.trips}`)]);
-const bundle: Bundle = { ...(JSON.parse(track) as Track), ...(JSON.parse(dayTrips) as DayTrips) };
+// The day's regions' tracks and Trips, joined as the map joins them.
+const regions = await Promise.all(day.regions.map(async (r) => [JSON.parse(await get(`${LIVE_URL}/${r.track}`)) as Track, JSON.parse(await get(`${LIVE_URL}/${r.trips}`)) as DayTrips] as const));
+const bundle: Bundle = { ...joinTracks(regions.map(([track]) => track)), ...joinTrips(regions.map(([, trips]) => trips)) };
 await writeFile(join(dir, 'bundle.json'), JSON.stringify(bundle));
 
 // As the map does: each look for live data records the snapshot got, or where none came, the last one.

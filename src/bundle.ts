@@ -136,14 +136,27 @@ export interface Words {
   text: string;
 }
 
-/** Names the bundle for each service day. Cached briefly; the bundles it names never change. */
+/**
+ * Names each region's bundle for each service day. Cached briefly; the bundles it names never change.
+ * The regions are in the order of their first Networks, which is the order the map lists the Networks in.
+ */
 export interface Manifest {
+  regions: ManifestRegion[];
+}
+
+/**
+ * A region's service days (ADR-0014): the last day before today that its last build named, where it
+ * did, and today and the days after. A region whose build failed keeps the days its last build named, so
+ * the others publish as ever.
+ */
+export interface ManifestRegion {
+  id: string;
   days: ManifestDay[];
 }
 
 /**
- * A service day's files, its track and its Trips, and when its first Train comes onto the map and its
- * last leaves it, on time, in ms since 1970.
+ * A region's files for a service day, its track and its Trips, and when its first Train comes onto
+ * the map and its last leaves it, on time, in ms since 1970.
  */
 export interface ManifestDay {
   date: string;
@@ -153,6 +166,74 @@ export interface ManifestDay {
   to: number;
   /** The Networks with no Trips that day, by their IDs, where there are any: they're built without them, and the map says so (#226). */
   noTrips?: string[];
+}
+
+/**
+ * A service day as the map takes it from the manifest, across its regions: when its first Train in any
+ * of them comes onto the map and its last leaves it, in ms since 1970 (never, where none has a Train
+ * that day), the Networks with no Trips that day in any, and each region's files for it, in the manifest's order.
+ */
+export interface DayFiles extends Pick<ManifestDay, 'date' | 'from' | 'to' | 'noTrips'> {
+  regions: { id: string; track: string; trips: string }[];
+}
+
+/**
+ * The service days the manifest names, oldest first, each once, joined from its regions' entries for it.
+ * A region with no Trips that day has no times for it (JSON holds them as null), and the others time it.
+ */
+export function daysOf({ regions }: Manifest): DayFiles[] {
+  const found = new Map<string, DayFiles>();
+  // A manifest of an older shape has no regions: it names no day the map can read.
+  for (const { id, days } of regions ?? []) {
+    for (const d of days) {
+      const day = found.get(d.date) ?? { date: d.date, from: Infinity, to: -Infinity, regions: [] };
+      found.set(d.date, day);
+      if (Number.isFinite(d.from)) day.from = Math.min(day.from, d.from);
+      if (Number.isFinite(d.to)) day.to = Math.max(day.to, d.to);
+      if (d.noTrips?.length) day.noTrips = [...new Set([...(day.noTrips ?? []), ...d.noTrips])];
+      day.regions.push({ id, track: d.track, trips: d.trips });
+    }
+  }
+  return [...found.values()].sort((a, b) => (a.date < b.date ? -1 : 1));
+}
+
+/**
+ * The regions' tracks as one (ADR-0014), as a build of all their Networks at once would have made it:
+ * each region's Networks, Lines, shapes, strokes, rails, slots and Network tracks in turn, and each
+ * Station once, as the first region that has it has it, naming every Network whose Trains stop there,
+ * as one that two regions serve is built in each, such as León's where Bilbao's C4 runs to it. No other
+ * ID is in two regions' tracks: a Line's and a traced shape's start with its Network's, and a
+ * Stretch's with its region's.
+ */
+export function joinTracks(tracks: Track[]): Track {
+  const stations = new Map<string, Station>();
+  for (const s of tracks.flatMap((t) => t.stations)) {
+    const known = stations.get(s.id);
+    if (!known) {
+      stations.set(s.id, s);
+      continue;
+    }
+    const networks = [...new Set([...(known.networks ?? []), ...(s.networks ?? [])])];
+    stations.set(s.id, { ...known, ...(networks.length > 0 && { networks }) });
+  }
+  return {
+    networks: tracks.flatMap((t) => t.networks),
+    lines: tracks.flatMap((t) => t.lines),
+    stations: [...stations.values()],
+    shapes: tracks.flatMap((t) => t.shapes),
+    strokes: tracks.flatMap((t) => t.strokes),
+    rails: tracks.flatMap((t) => t.rails),
+    slots: tracks.flatMap((t) => t.slots),
+    tracks: tracks.flatMap((t) => t.tracks),
+  };
+}
+
+/** The regions' Trips of one service day as one: each region's Trips, and Closures where any has them, in turn. */
+export function joinTrips(days: DayTrips[]): DayTrips {
+  const first = days[0];
+  if (!first) throw new Error('No region has Trips to join');
+  const closures = days.flatMap((d) => d.closures ?? []);
+  return { serviceDay: first.serviceDay, noonMinus12h: first.noonMinus12h, trips: days.flatMap((d) => d.trips), ...(closures.length > 0 && { closures }) };
 }
 
 /**
@@ -672,7 +753,7 @@ export function madridDate(at: Date): string {
  * today's last Train has left the map, or a Station board has had no departures left on
  * `emptyBoard`, today's date. Where the manifest is out of date, its last day stands for today.
  */
-export function daysNeeded(days: ManifestDay[], at: number, { early, late, emptyBoard }: { early: number; late: number; emptyBoard?: string }): { today: ManifestDay; days: ManifestDay[] } | undefined {
+export function daysNeeded<D extends Pick<ManifestDay, 'date' | 'from' | 'to'>>(days: D[], at: number, { early, late, emptyBoard }: { early: number; late: number; emptyBoard?: string }): { today: D; days: D[] } | undefined {
   const today = days.find((d) => d.date === madridDate(new Date(at))) ?? days.at(-1);
   if (!today) return undefined;
   const next = days[days.indexOf(today) + 1];

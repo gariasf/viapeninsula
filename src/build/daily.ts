@@ -2,12 +2,14 @@
 // days, today's first, and publishes them to R2, so a build that fails leaves the map the days
 // before it published. A Network one of whose timetables can't be downloaded or read, or gives it
 // no Lines, is built from the copy of them that last built it, which the build keeps in .cache
-// (readTimetables()), so the others build as ever. Each day's bundle comes in two files, so the map
-// can draw the Lines before the Trips come: the track, which is the same file for each day, and the
-// day's Trips, with its Closures. Beside them it writes out/report.json, each spot its log names,
-// once (report.ts), which it publishes after the manifest, and it prints what changed since the last
-// build's, in the run's job summary too. In Actions, once it has published, it writes out/comment.md
-// where a problem spot is new, which daily.yml posts on the standing "Build report" issue.
+// (readTimetables()), so the others build as ever. The bundle is built by region, one after another
+// (ADR-0014): each region's Networks have a track file, the same for each day, so the map can draw
+// the Lines before the Trains come, and a Trips file for each day, with its Closures. A region whose
+// build fails goes without new files, and the manifest names those of its last build, so the
+// others publish as ever (buildRegions()). Beside them it writes out/report.json, each spot its log
+// names, once (report.ts), which it publishes after the manifest, and it prints what changed since
+// the last build's, in the run's job summary too. In Actions, once it has published, it writes
+// out/comment.md where a problem spot is new, which daily.yml posts on the standing "Build report" issue.
 // `npm run daily` publishes; `npm run daily -- --dry-run` only writes the files to out/. The secrets
 // a timetable's URL needs, as TMB's TMB_APP_ID and TMB_APP_KEY, come from the environment, which
 // `npm run daily` loads from .env.local.
@@ -17,16 +19,16 @@ import { createHash } from 'node:crypto';
 import { appendFile, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { brotliCompressSync, constants } from 'node:zlib';
-import { addDays, LIVE_URL, madridDate, type Manifest, type Network, type Track } from '../bundle.ts';
-import { LONG_DISTANCE, NETWORKS, type NetworkConfig, type Timetable } from '../networks.ts';
+import { addDays, LIVE_URL, madridDate, type Manifest, type Network } from '../bundle.ts';
+import { LONG_DISTANCE, NETWORKS, regionsOf, type NetworkConfig, type Timetable } from '../networks.ts';
 import { download, feedStart, type Source } from './gtfs.ts';
-import { dayTrips, manifestDay, manifestOf } from './manifest.ts';
+import { manifestOf } from './manifest.ts';
 import { ownRails, RAILWAYS, readFeed, readTimetables, unlisted, type Feed } from './networks.ts';
 import { crop } from './border.ts';
 import { measures, reported, summary } from './measures.ts';
 import { osm } from './osm.ts';
-import { sideBySide } from './sideBySide.ts';
-import { railsBeside, stationsOf, traceShapes } from './track.ts';
+import { buildRegion, buildRegions, sharedStretches } from './regions.ts';
+import { railsBeside, traceShapes } from './track.ts';
 import { collect, comment, diff, type Found, type Spot } from './report.ts';
 import { closuresOf, placeTrips } from './trips.ts';
 
@@ -42,15 +44,47 @@ const longDistance = Promise.all(LONG_DISTANCE.map(downloaded));
 const downloads = await Promise.all(NETWORKS.map(downloaded));
 // The rails of every kind any Network runs on, and Spain's border.
 const { rails, border } = await osm(RAILWAYS);
-const networks = [];
+// The last build's manifest names the files of a region whose build fails, and yesterday's bundle,
+// whose last Trains can still be running, and its report is what this build's is diffed against, with
+// each Network's Trips on each day of the week.
+const [lastManifest, lastReport] = await Promise.all([
+  lastPublished<Manifest>('manifest.json', "yesterday's bundle goes unnamed, and a region that fails has no last files"),
+  lastPublished<Spot[]>('report.json', 'every spot is new'),
+]);
 // The Train numbers each Network's timetables list on each of DAYS, with their Stations, whose Trains
 // Renfe's long-distance timetable lists too are theirs (unlisted()).
 const listed = DAYS.map((): Map<string, Set<string>>[] => []);
-for (const { network, failed } of downloads) {
-  const read = await readTimetables(network, failed, readDays, report.add);
-  for (const [i, parts] of read.days.entries()) listed[i]?.push(...parts.map((p) => p.listed));
-  networks.push(build(network, read));
-}
+await mkdir('out/days', { recursive: true });
+// Each region, one after another: its Networks read and built, its Lines drawn side by side, and its
+// files written. A region that fails keeps the files of its last build (buildRegions()).
+const results = await buildRegions(
+  regionsOf(downloads.map((d) => ({ id: d.network.id, region: d.network.region, ...d }))),
+  (region) => {
+    console.log(`Region ${region.id}: ${region.networks.map((n) => n.network.name).join(', ')}`);
+    return buildRegion(region, {
+      dates: DAYS,
+      async network({ network, failed }) {
+        const read = await readTimetables(network, failed, readDays, report.add);
+        for (const [i, parts] of read.days.entries()) listed[i]?.push(...parts.map((p) => p.listed));
+        return build(network, read);
+      },
+      write,
+      log: console.warn,
+      report: report.add,
+      last: lastReport,
+    });
+  },
+  { report, last: lastReport },
+);
+const built = results.flatMap(({ id, built: region }) => (region ? [{ id, ...region }] : []));
+// Where Lines of two regions run along each other's track, they're drawn over each other, not side by side.
+sharedStretches(built);
+// How the Lines are drawn, for comparing one day's track, or one change to sideBySide(), with another (#160).
+const drawn = measures({ shapes: built.flatMap((r) => r.track.shapes), strokes: built.flatMap((r) => r.track.strokes), lines: built.flatMap((r) => r.track.lines) });
+const logged = `Lines drawn: ${summary(drawn)}`;
+console.log(logged);
+for (const found of reported(drawn, logged)) report.add(found);
+
 // Renfe's long-distance Trains, each one Trip made from the parts its timetable lists it in, less those
 // a Network on the map lists too, are only counted till #259 traces them and #262 and #263 draw them,
 // so nothing of them goes in the report. A long-distance timetable that can't be read, nor its copy,
@@ -67,42 +101,10 @@ for (const { network, failed } of await longDistance) {
     console.warn(`${network.name}'s Trains aren't read: ${error instanceof Error ? error.message : error}`);
   }
 }
-// The last build's manifest names the bundle for yesterday, whose last Trains can still be running,
-// and its report is what this build's is diffed against, with each Network's Trips on each day of the week.
-const [lastManifest, lastReport] = await Promise.all([
-  lastPublished<Manifest>('manifest.json', "yesterday's bundle goes unnamed"),
-  lastPublished<Spot[]>('report.json', 'every spot is new'),
-]);
-const eachDay = dayTrips(DAYS, networks, console.warn, report.add, lastReport);
-const [lines, traced] = [networks.flatMap((n) => n.lines), networks.flatMap((n) => n.shapes)];
-const { strokes, centrelines, rails: ownTrack, slots, tracks } = await sideBySide(lines, traced);
-const shapes = [...traced, ...centrelines];
-// How the Lines are drawn, for comparing one day's track, or one change to sideBySide(), with another (#160).
-const drawn = measures({ shapes, strokes, lines });
-const logged = `Lines drawn: ${summary(drawn)}`;
-console.log(logged);
-for (const found of reported(drawn, logged)) report.add(found);
 
-await mkdir('out/days', { recursive: true });
-const track: Track = {
-  networks: networks.map((n) => n.network),
-  lines,
-  stations: stationsOf(networks),
-  shapes,
-  strokes,
-  rails: ownTrack,
-  slots,
-  tracks,
-};
-const trackKey = await write('days/track', track, `${track.lines.length} Lines, ${track.stations.length} Stations, ${track.shapes.length} shapes`);
-const built = await Promise.all(
-  eachDay.map(async (trips) => {
-    const key = await write(`days/${trips.serviceDay}`, trips, `${trips.trips.length} Trips, ${trips.closures?.length ?? 0} Closures`);
-    return manifestDay({ ...track, ...trips }, { track: trackKey, trips: key });
-  }),
-);
 const spots = report.spots();
-await writeFile('out/manifest.json', JSON.stringify(manifestOf(built, lastManifest)));
+const manifest = manifestOf(results.map(({ id, built: region }) => ({ id, days: region?.days })), lastManifest);
+await writeFile('out/manifest.json', JSON.stringify(manifest));
 await writeFile('out/report.json', JSON.stringify(spots));
 // The diff and the comment only report, so a last report they can't read, as one of an older shape,
 // doesn't stop the build, and the comment then tells of every problem spot, as with no last report,
@@ -125,7 +127,7 @@ if (!process.argv.includes('--dry-run')) {
   // The bundles go up first, so the manifest never names a file that isn't there yet. The CDN
   // passes a file stored with brotli as it is to browsers that take it, which squeezes it about
   // twice as small as the CDN would on the fly.
-  for (const key of [trackKey, ...built.map((d) => d.trips)]) publish(key, 'public, max-age=31536000, immutable', 'br');
+  for (const key of new Set(built.flatMap((r) => r.days.flatMap((d) => [d.track, d.trips])))) publish(key, 'public, max-age=31536000, immutable', 'br');
   publish('manifest.json', 'public, max-age=60');
   publish('report.json', 'public, max-age=60');
   // Only once the report is up, as the next build diffs against it, so that it doesn't tell of the same spots again.
