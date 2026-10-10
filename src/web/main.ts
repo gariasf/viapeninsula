@@ -755,7 +755,7 @@ map.addSource('tracks', { type: 'geojson', data: { type: 'FeatureCollection', fe
 map.addSource('stations', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 map.addSource('station-names', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 // Today's Lines and Stations are drawn as soon as its track comes, before the Trips, which are most of the bundle.
-void Promise.resolve(needed?.days.then((days) => showDays(days, needed.regions), (error: unknown) => console.error(error))).finally(looked);
+void Promise.resolve(needed?.days.then(async (days) => showDays(days, await needed.regions), (error: unknown) => console.error(error))).finally(looked);
 show(needed ? await needed.track : joinTracks([]));
 // Around midnight the days the map needs change, and each day's build names three more.
 setInterval(refreshDays, 60_000);
@@ -2768,7 +2768,7 @@ function creditOf({ text, url, licence, updated }: Credit): string {
  * hours off can have the wrong days, and no Trains. Refresh them from poll() as a snapshot moves the
  * map's date, if that shows.
  */
-async function neededDays(): Promise<{ track: Promise<Track>; days: Promise<Bundle>; regions: string[] } | undefined> {
+async function neededDays(): Promise<{ track: Promise<Track>; days: Promise<Bundle>; regions: Promise<string[]> } | undefined> {
   try {
     manifest = await getJson<Manifest>(`${LIVE_URL}/manifest.json`);
   } catch (error) {
@@ -2804,7 +2804,12 @@ async function neededDays(): Promise<{ track: Promise<Track>; days: Promise<Bund
     shown = load.failed() || lost.length ? '' : keys.join();
     return joinDays(got.flatMap((g) => (g.status === 'fulfilled' ? [g.value] : [])));
   })();
-  return { track: today ? load.trackOf(today).then((t) => t.track) : joined, days: joined, regions: [...loaded] };
+  // The regions loaded whose files for these days have all come: one whose file failed has to come at a later look.
+  const came = joined.then(
+    () => [...loaded].filter((id) => days.every((d) => d.regions.every((r) => r.id !== id || (fetched.has(r.track) && fetched.has(r.trips))))),
+    () => [],
+  );
+  return { track: today ? load.trackOf(today).then((t) => t.track) : joined, days: joined, regions: came };
 }
 
 /**
@@ -2820,7 +2825,7 @@ async function refreshDays() {
     const needed = await neededDays();
     if (needed) {
       show(await needed.track);
-      showDays(await needed.days, needed.regions);
+      showDays(await needed.days, await needed.regions);
     }
   } catch (error) {
     console.warn(error);
@@ -2837,7 +2842,7 @@ function looked() {
   refreshDays();
 }
 
-/** Shows days that have come, with the regions they're from (neededDays()), and opens a link that waited for them. */
+/** Shows days that have come, with the regions whose files have (neededDays()), and opens a link that waited for them. */
 function showDays(days: Bundle, regions: string[]) {
   show(days);
   shownRegions = new Set(regions);
