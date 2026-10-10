@@ -55,7 +55,7 @@ describe('differences', () => {
     expect(d).toMatchObject({ says: { at: 'arriving', key: 'B' }, atNextBeforeArriving: false, at: undefined, pill: undefined, arrow: undefined });
   });
 
-  it("has its arrow, which points ahead, cover no Station it has left, and the next one as it comes into reach", () => {
+  it('has its arrow, which points ahead, cover no Station it has left, and the next one as it comes into reach', () => {
     // 130 m past A, the pill reaching 100 m and its arrow 150: A is behind it.
     expect(differences(moment(40, 130, { near: [{ key: 'A', metres: 130 }] }))).toMatchObject({ says: { at: 'between' }, pill: undefined, arrow: undefined });
     // 140 m short of B: its arrow covers it, though the pill doesn't.

@@ -127,7 +127,7 @@ test("on a leg shorter than twice the pill's reach it's arriving where it's with
   expect(whereabouts(short, 75, 1, false, 130)).toMatchObject({ at: 'arriving' });
 });
 
-test('at its Trip\'s last Station it arrives there and then stands there, and having left it has none to say', () => {
+test("at its Trip's last Station it arrives there and then stands there, and having left it has none to say", () => {
   expect(whereabouts(ABC, 3950, 1, false, 100)).toEqual({ at: 'arriving', next: C });
   expect(whereabouts(ABC, 4000, 1, true, 100)).toEqual({ at: 'standing', next: C });
   expect(whereabouts(ABC, 4000, 0, false, 100)).toBeUndefined();
