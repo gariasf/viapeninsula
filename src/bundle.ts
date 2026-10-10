@@ -240,7 +240,7 @@ export interface Line {
 }
 
 /** A Line's kind of service (CONTEXT.md). */
-export type Kind = 'commuter' | 'regional' | 'metro' | 'tram' | 'rack' | 'funicular';
+export type Kind = 'commuter' | 'regional' | 'long-distance' | 'metro' | 'tram' | 'rack' | 'funicular';
 
 /**
  * Part of one of a Line's shapes, from one distance along it to another in metres, drawn `side`

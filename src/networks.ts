@@ -22,6 +22,8 @@ export interface NetworkConfig extends Omit<Network, 'credit'> {
     names?: Record<string, string>;
     /** Colours for the Lines a timetable gets wrong, by the Line's name, written as `colour` is. */
     colours?: Record<string, string>;
+    /** The colour of every other Line, where its timetables give none of their own, as Renfe's long-distance one gives every route F2F5F5. */
+    colour?: string;
   };
 }
 
@@ -48,10 +50,15 @@ export interface Timetable {
   operator: string;
   /** A stop's Station is its parent station, where the feed makes each platform a stop of its own. */
   parents?: true;
-  /** Which of its rail routes are this Network's, where not all are: those whose route_id starts so. */
-  routes?: { idPrefix: string };
-  /** A Trip's Train number, where the operator publishes one: what this pattern first matches in its trip_id after the service_id. */
+  /** Which of its rail routes are this Network's, where not all are: those whose route_id starts so, and whose route_short_name is one of these. */
+  routes?: { idPrefix?: string; names?: string[] };
+  /**
+   * A Trip's Train number, where the operator publishes one: what this pattern first matches in its
+   * trip_short_name, or where it has none, in its trip_id after the service_id.
+   */
   number?: string;
+  /** It lists a Train as several Trips, one for each part of its run it sells, which are made one (joinParts()). */
+  parts?: true;
   /** Its terms ask the map to show the day it was last updated, in its credit: its feed's start date. */
   updated?: true;
 }
@@ -509,6 +516,69 @@ export const NETWORKS = [
   CERCANIAS_SANTANDER,
   CERCANIAS_ZARAGOZA,
 ];
+
+/**
+ * Renfe's timetable of AVE, long distance and Media Distancia, under CC BY 4.0 as its Cercanías one
+ * is. It has no shapes (docs/research/high-speed.md). Its Stations are Adif's, as the Cercanías
+ * file's are, but for those in France and Portugal, which go by their UIC codes.
+ */
+const RENFE_LONG_DISTANCE = 'https://ssl.renfe.com/gtransit/Fichero_AV_LD/google_transit.zip';
+
+// Renfe's long-distance timetable makes two Networks, as Renfe's own maps divide it (ADR-0010): each
+// takes the routes named as its Lines are. Their Lines are the names the timetable gives its Trips, as
+// it names no others, but written as Renfe writes them in public, rather than in the feed's capitals,
+// and their colours are their config's, as the feed gives every route F2F5F5. Their Trains are read,
+// but not on the map until they're traced (#259) and drawn (#262, #263), so each has only what reading
+// them needs.
+
+export const AVE_LARGA_DISTANCIA: Pick<NetworkConfig, 'id' | 'name' | 'timetables' | 'lines'> = {
+  id: 'ave-larga-distancia',
+  name: 'AVE y Larga Distancia',
+  timetables: [
+    {
+      url: RENFE_LONG_DISTANCE,
+      prefix: 'ave-larga-distancia',
+      operator: 'adif',
+      routes: { names: ['AVE', 'AVLO', 'ALVIA', 'EUROMED', 'Intercity', 'AVE INT', 'TRENCELTA'] },
+      // A Trip's trip_short_name is its Train number's five digits.
+      number: '^\\d{5}',
+      parts: true,
+    },
+  ],
+  lines: {
+    kind: 'long-distance',
+    names: { AVLO: 'Avlo', ALVIA: 'Alvia', EUROMED: 'Euromed', 'AVE INT': 'AVE Int', TRENCELTA: 'Trencelta' },
+    // Renfe's purple, AVE's since 2022 and on renfe.com, rather than the magenta of Renfe's 2025 AVE
+    // map, which can't be told from Ouigo's (#262).
+    colour: '#81005E',
+  },
+};
+
+export const MEDIA_DISTANCIA_AVANT: Pick<NetworkConfig, 'id' | 'name' | 'timetables' | 'lines'> = {
+  id: 'media-distancia-avant',
+  name: 'Media Distancia y Avant',
+  // The ex-FEVE regionals, whose route IDs end VRFV, are named REGIONAL too.
+  timetables: [
+    {
+      url: RENFE_LONG_DISTANCE,
+      prefix: 'media-distancia-avant',
+      operator: 'adif',
+      routes: { names: ['AVANT', 'AVANT EXP', 'MD', 'REGIONAL', 'REG.EXP.', 'PROXIMDAD'] },
+      number: '^\\d{5}',
+      parts: true,
+    },
+  ],
+  lines: {
+    kind: 'regional',
+    names: { AVANT: 'Avant', 'AVANT EXP': 'Avant Exp', REGIONAL: 'Regional', 'REG.EXP.': 'Reg.Exp.', PROXIMDAD: 'Proximidad' },
+    // As MD's lines are on Renfe's own map ("mapa general", May 2024): Avant's plum there would read as
+    // AVE y Larga Distancia's purple on the high-speed track they share (#263).
+    colour: '#000000',
+  },
+};
+
+/** The Networks of Renfe's long-distance timetable, whose Trains the daily build reads, but doesn't draw yet (#258). */
+export const LONG_DISTANCE = [AVE_LARGA_DISTANCIA, MEDIA_DISTANCIA_AVANT];
 
 /**
  * A source of live data, read in the fetcher by the adapter for its format: its files, by what that

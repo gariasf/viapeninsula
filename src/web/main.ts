@@ -91,9 +91,10 @@ const OUTLINES: Record<Pill['outline'] | 'arrow', { w: number; h: number; across
 /**
  * Each kind of service's pills: rounded for commuter and suburban Lines, pointed at both ends for
  * regional ones, and badges for metros and trams, as their operators badge their Lines, and for rack
- * railways and funiculars (#90).
+ * railways and funiculars (#90). Long-distance Lines get theirs once they're on the map (#262): till
+ * then they'd be round, as the Lines of a track that names no kinds are.
  */
-const OUTLINES_OF: Record<Kind, Pill['outline']> = { commuter: 'round', regional: 'pointed', metro: 'badge', tram: 'badge', rack: 'badge', funicular: 'badge' };
+const OUTLINES_OF: Partial<Record<Kind, Pill['outline']>> = { commuter: 'round', regional: 'pointed', metro: 'badge', tram: 'badge', rack: 'badge', funicular: 'badge' };
 /**
  * The cards' icons, drawn in the colour of the text around them, which a forced-colours theme sets
  * too (#116): a close cross, a chevron down and up, the die that follows a random Train, Nearby's
