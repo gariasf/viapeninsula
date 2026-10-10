@@ -62,7 +62,7 @@ export const KEEP = CARRY + 5 * 60_000;
  * Every Train on the map at a moment by the device's clock (ms since 1970), given the snapshots
  * received by then, where its Trip's timetable puts it, shifted in time by live data (ADR-0002):
  * eased towards as late or early as live data has it, or where that's far, jumping there. Between
- * Stations it accelerates, cruises and brakes, as its Network's speed profile has it, so that it
+ * Stations it accelerates, cruises and brakes, as its Line's speed profile has it (#260), so that it
  * leaves and arrives exactly on time. A Train its operator has cancelled leaves the map, and one it
  * has said won't stop at some Stations runs its Trip as cutTrip() has it (#346). One that
  * live data stops reporting stays Live through two of its feed's updates and turns Scheduled at the
@@ -782,7 +782,7 @@ interface Ease {
 /** How long a Train drawn off where live data has it takes to ease back, in seconds: until the next snapshot. */
 const EASE = 20;
 
-/** How far a Train can be drawn from where live data has it before it jumps there: a minute of its timetable, or 1 km. */
+/** How far a Train can be drawn from where live data has it before it jumps there: a minute of its timetable, or 1 km, or more where its Network's live data says so (`snap`, #260). */
 const [JUMP_TIME, JUMP_DIST] = [60, 1000];
 
 /**
@@ -846,8 +846,9 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
       const [network, shape] = [trip && lines.get(trip.line), trip && shapes.get(trip.shape)];
       if (!trip || !network || !shape) continue;
       const { profile } = network;
-      // How far off where live data has it a Train is drawn before it jumps there: a kilometre, or where its positions have no age, so many seconds at its top speed.
-      const snap = Math.max(JUMP_DIST, (network.live?.snap ?? 0) * profile.topSpeed);
+      // How far off where live data has it a Train is drawn before it jumps there: a kilometre, or where its
+      // positions have no age, so many seconds at its top speed.
+      const jumpDist = Math.max(JUMP_DIST, (network.live?.snap ?? 0) * profile.topSpeed);
       const calls = dwelt.get(id) ?? withDwell(trip, profile);
       dwelt.set(id, calls);
       const [feed, first, second] = [r.snapshot.feeds[network.id], calls[0], calls[1]];
@@ -880,7 +881,7 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
       const out = was && live && !!said?.report.block && !!first && !!second && drawn > first.departure && there < Math.min(drawn, second.arrival);
       // Short of its first Station, one leaving is drawn standing there (#105).
       const off = Math.abs(dist(leaving ? Math.max(drawn, first?.arrival ?? drawn) : drawn) - dist(there));
-      const far = leaving ? !(off <= snap) : !out && (Math.abs(drawn - there) > JUMP_TIME || off > snap);
+      const far = leaving ? !(off <= jumpDist) : !out && (Math.abs(drawn - there) > JUMP_TIME || off > jumpDist);
       const time = i === 0 || far ? there : drawn;
       // A Live Metro Train at its Trip's first Station stays there until a report has it gone, by its
       // Delay, when it was reported: TMB's ETA for a Block waiting at the end of its Line keeps moving

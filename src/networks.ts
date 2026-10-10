@@ -535,7 +535,7 @@ const RENFE_LONG_DISTANCE = 'https://ssl.renfe.com/gtransit/Fichero_AV_LD/google
 // it names no others, but written as Renfe writes them in public, rather than in the feed's capitals,
 // and their colours are their config's, as the feed gives every route F2F5F5. Their Trains are read,
 // but not on the map until they're traced (#259) and drawn (#262, #263), so each has only what reading
-// them needs.
+// them and running their Trains needs: how they run (#260), with the rest to come with those.
 
 /**
  * How the engine reads Renfe's long-distance live data (#260), by what #260's triage found of it on 4

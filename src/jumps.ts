@@ -12,8 +12,8 @@ export interface Jumps {
 
 /**
  * How often each Network's Live Trains jump over a replay of snapshots, as received: sampled every
- * second from the first snapshot's arrival to the last, a jump is a move in 1 s longer than line
- * speed allows, plus 5%, for a Train Live in both seconds. Jumps per Train-minute are `(forward + back) / (liveSeconds / 60)`.
+ * second from the first snapshot's arrival to the last, a jump is a move in 1 s longer than its
+ * Line's top speed allows, plus 5%, for a Train Live in both seconds. Jumps per Train-minute are `(forward + back) / (liveSeconds / 60)`.
  */
 export function jumps(bundle: Bundle, received: Received[]): Record<string, Jumps> {
   const networks = new Map(bundle.lines.map((l) => [l.id, profiled(bundle.networks.find((n) => n.id === l.network), l)]));

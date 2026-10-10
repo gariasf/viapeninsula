@@ -240,7 +240,8 @@ export interface LiveTraits {
    * Its positions come with no time of their own, as Renfe's long-distance ones, which the feed's
    * header time stands for, and a kilometre is 12 seconds at 300 km/h: a Train is drawn off where they
    * have it by up to this many seconds at its Line's top speed before it jumps there rather than
-   * eases, where that's more than a kilometre (#260).
+   * eases, where that's more than a kilometre (#260). A Train a minute off jumps whatever this says
+   * (JUMP_TIME), so 60 or more is that time rule alone.
    */
   snap?: number;
 }
@@ -262,7 +263,11 @@ export interface Line {
   shapes: string[];
   /** What it runs as, which its Trains' pills are outlined by. */
   kind: Kind;
-  /** How its Trains run where that isn't as its Network's do, as AVE's are quicker than Alvia's: only what differs (#260), profiled(). */
+  /**
+   * How its Trains run where that isn't as its Network's do, as AVE's are quicker than Alvia's: only what differs (#260), profiled().
+   * ponytail: the engine and jumps() go by it. placeTrips()'s speed check (#259) and quarterPixel() (#262) still go by the
+   * Network's top speed, as no Line on the map has a profile of its own; go by the Line's when long distance reaches them.
+   */
   profile?: LineProfile;
 }
 
