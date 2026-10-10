@@ -141,8 +141,9 @@ function status(row: { delay?: number; live?: boolean; unreported?: boolean }): 
   return delayChip(row.delay) || (row.unreported ? '<span class="status soft">no live data</span>' : row.live && row.delay !== undefined ? '<span class="status soft">on time</span>' : '');
 }
 
+// The label says what a press does, so it changes with the state and the button isn't also aria-pressed: a screen reader would read the state twice.
 const star = (on: boolean, what: string) =>
-  `<button type="button" class="star${on ? ' on' : ''}" aria-pressed="${on}" aria-label="${on ? `Remove ${esc(what)} from Favourites` : `Add ${esc(what)} to Favourites`}">${on ? ICON.starOn : ICON.star}</button>`;
+  `<button type="button" class="star${on ? ' on' : ''}" aria-label="${on ? `Remove ${esc(what)} from Favourites` : `Add ${esc(what)} to Favourites`}">${on ? ICON.starOn : ICON.star}</button>`;
 
 const closeButton = (label: string) => `<a class="close" href="${link({ screen: 'map' })}" aria-label="${label}">${ICON.close}</a>`;
 
@@ -168,6 +169,8 @@ const legend = `<button type="button" class="maplibregl-ctrl card legend"><span 
 /** The banner under the legend, as the map has it while its Network's live data is unavailable and its Trains are in view: here, on a Line's screen, fitted to the Line. */
 const bannerNetwork = screen === 'line' ? NOW.networks.find((n) => n.id === LINE.network && n.unavailable) : undefined;
 const banner = bannerNetwork ? `<div class="maplibregl-ctrl banner" role="status"><div class="card warning">${ICON.warning}<span><b>${esc(bannerNetwork.name)}</b> live data unavailable</span></div></div>` : '';
+// A's rail on a wide window sits under the legend, so under the banner too while there's one.
+if (bannerNetwork) document.body.classList.add('has-banner');
 const language = `<div class="maplibregl-ctrl card lang"><span class="code">EN</span>${ICON.chevron}<select aria-label="Language"><option>English</option></select></div>`;
 const CREDITS = 'OpenFreeMap © OpenMapTiles © OpenStreetMap contributors | Renfe, CC BY 4.0 | FGC, CC BY 4.0 | Powered by TRAM Barcelona | TMB, updated Oct 6, 2026';
 
@@ -543,7 +546,11 @@ function renderIndex() {
 function renderFrame() {
   const { sheet: sheetHtml = '', drop = '' } = content();
   const mapNode = `<div id="map" class="maplibregl-map" style="background-image:url(${background()})">${glow()}<div class="maplibregl-control-container"><div class="maplibregl-ctrl-top-left">${legend}${banner}</div><div class="maplibregl-ctrl-top-right">${language}</div></div></div>`;
-  document.body.innerHTML = `${mapNode}${nav === 'a' ? tabs() : searchBar() + drop}<div class="dock">${riders()}${sheetHtml}</div>`;
+  // B's field and what drops from it come first in the page, as they do on screen, so that the keyboard reaches them first (A's bar follows the map's corners, as it sits under them).
+  document.body.innerHTML = `${nav === 'b' ? searchBar() + drop : ''}${mapNode}${nav === 'a' ? tabs() : ''}<div class="dock">${riders()}${sheetHtml}</div>`;
+
+  // B's drop-down covers the legend and the language while it's open, so the keyboard can't reach them under it either.
+  if (drop) document.querySelector('.maplibregl-control-container')?.setAttribute('inert', '');
 
   // The chip of the run selected stays in view.
   const chosen = document.querySelector<HTMLElement>('.chips [aria-selected="true"]');

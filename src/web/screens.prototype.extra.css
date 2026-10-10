@@ -263,6 +263,11 @@ html.full :is(.riders, .tabs, .searchbar, .drop) {
     min-height: 64px;
   }
 
+  /* Under the banner, where there's one under the legend. */
+  .nav-a.has-banner:not(.top-bar) .tabs {
+    top: 94px;
+  }
+
   .nav-a:not(.top-bar) .dock {
     left: 92px;
   }
@@ -275,18 +280,18 @@ html.full :is(.riders, .tabs, .searchbar, .drop) {
     left: 50%;
     flex-direction: row;
     width: max-content;
-    height: 48px;
+    height: 52px;
     padding: 4px;
-    border-radius: 24px;
+    border-radius: 26px;
     translate: -50% 0;
   }
 
   .nav-a.top-bar .tab {
     flex-direction: row;
     gap: 8px;
-    min-height: 40px;
+    min-height: 44px;
     padding: 0 16px 0 12px;
-    border-radius: 20px;
+    border-radius: 22px;
   }
 
   .nav-a .dock {
