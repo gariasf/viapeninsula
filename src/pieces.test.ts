@@ -170,6 +170,17 @@ test("keeps the slots whole where one doesn't follow the one before, or they nam
   expect(decodeTrack(encodeTrack(u))).toEqual(u);
 });
 
+test('gives back a track with no traced shapes, and a Line with no slots', () => {
+  const none = track([], { lines: [line('R1', [])] });
+  expect(decodeTrack(encodeTrack(none))).toEqual(none);
+  const stretch: Shape = { id: 'stretch:catalonia:0', coords: [at(0, 0), at(600, 0)], dist: [0, 600] };
+  const only = track([stretch], { lines: [line('R1', [])] });
+  expect(decodeTrack(encodeTrack(only))).toEqual(only);
+  // A Line none of whose shapes has a slot is no run of any.
+  const some = track([A], { lines: [line('R1', ['A']), line('R2', [])], slots: [{ line: 'R1', shape: 'A', from: 0, to: 600, side: 0, on: 'stretch:r:0', at: [0, 600] }] });
+  expect(decodeTrack(encodeTrack(some))).toEqual(some);
+});
+
 test('reads a track built before it as it is', () => {
   const old = track([A, B], { lines: [line('R1', ['A', 'B'])] });
   expect(decodeTrack(old)).toBe(old);
