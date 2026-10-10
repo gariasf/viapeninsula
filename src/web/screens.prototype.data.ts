@@ -81,7 +81,7 @@ export interface LineScreen {
   network: string;
   /** Its track, a point each 150 m or so: [lon, lat]. */
   shape: [number, number][];
-  stations: { id: string; name: string; calls: number; starts: number; ends: number }[];
+  stations: { id: string; name: string; calls: number; starts: number; ends: number; continues?: { line: string; to: string } }[];
   trains: (TrainNow & {
     next?: { station: string; at: string; minutes: number };
     standsAt?: number;
@@ -4472,7 +4472,11 @@ export const LINE: LineScreen = {
    "name": "Rajadell",
    "calls": 4,
    "starts": 0,
-   "ends": 4
+   "ends": 4,
+   "continues": {
+    "line": "RL4",
+    "to": "Lleida-Pirineus"
+   }
   }
  ],
  "trains": [

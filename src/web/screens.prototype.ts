@@ -310,7 +310,7 @@ function lineStrip(): string {
     const turns = s.starts + s.ends;
     // Where Trains start or end though the Line goes on, or the Line's own end.
     let note = '';
-    if (!calls && tail) note = `${plural(s.calls, 'Train')} a day go on to ${esc(s.name)}`;
+    if (!calls && tail) note = `Ends here: ${plural(s.calls, 'Train')} a day${s.continues ? `, which go on as ${esc(s.continues.line)} to ${esc(s.continues.to)}` : ''}`;
     else if (!calls && i === lastMain) note = `${plural(LINE.stations[i + 1]?.calls ?? 0, 'Train')} go on to ${esc(LINE.stations[i + 1]?.name ?? '')}`;
     else if (!calls && turns >= 4 && !first && !last) note = `${turns} of ${s.calls} Trains start or end here`;
     const end = first || last || (!calls && (tail || (turns >= 4 && s.calls > turns / 2 ? true : turns >= 4)));
