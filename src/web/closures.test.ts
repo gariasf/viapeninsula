@@ -296,4 +296,5 @@ test("draws a Closure on its Line's stroke between its two Stations in every zoo
     expect(missed).toBeLessThan(near);
     expect(gap).toBeLessThan(0.01);
   }
-});
+  // Drawing six Lines side by side in every band takes about 1.5 s here and over 5 s on CI's runners.
+}, 60_000);
