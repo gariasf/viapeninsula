@@ -3,7 +3,7 @@
 import { copyFile, mkdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { madridDate, type Line, type Station } from '../bundle.ts';
-import { FGC, METRO, NETWORKS, RODALIES, TRAM, type NetworkConfig, type Rails, type Timetable } from '../networks.ts';
+import { FGC, METRO, NETWORKS, RODALIES, TRAM, type Gauges, type NetworkConfig, type Rails, type Timetable } from '../networks.ts';
 import { rows, seconds, serviceIdsOn, zipFile, zipSource, type Source } from './gtfs.ts';
 import type { OsmWay } from './osm.ts';
 import type { Found } from './report.ts';
@@ -13,6 +13,8 @@ import type { FeedBus, FeedTrip } from './trips.ts';
 /**
  * The rails of every kind any Network runs on, as osm() is asked for them. The kinds are sorted, so the
  * copy osm() keeps isn't named by the Networks' order.
+ * ponytail: the map's Networks' kinds, which hold long distance's (rail and narrow_gauge, `lines.gauges`);
+ * add theirs if one of its Lines ever runs on another.
  */
 export const RAILWAYS = [...new Set(NETWORKS.flatMap((n) => n.rails.railway))].sort();
 
@@ -62,12 +64,13 @@ export async function readFeed(
   const { network, prefix, operator } = feed;
   const pattern = feed.number && new RegExp(feed.number);
   const services = await serviceIdsOn(gtfs, day);
-  const routes = new Map<string, { name: string; colour: string }>();
+  const routes = new Map<string, { name: string; colour: string; gauges?: Gauges }>();
   const busRoutes = new Map<string, string>(); // each bus route's name
   for await (const r of rows(gtfs, 'routes.txt', ['route_id', 'route_short_name', 'route_type', 'route_color'])) {
     if (!r.route_id.startsWith(feed.routes?.idPrefix ?? '') || !(feed.routes?.names?.includes(r.route_short_name) ?? true)) continue;
     const name = network.lines.names?.[r.route_short_name] ?? r.route_short_name;
-    if (RAIL.has(r.route_type)) routes.set(r.route_id, { name, colour: r.route_color });
+    const gauges = Object.entries(feed.routes?.gauges ?? {}).find(([end]) => r.route_id.endsWith(end))?.[1] ?? network.lines.gauges?.[name];
+    if (RAIL.has(r.route_type)) routes.set(r.route_id, { name, colour: r.route_color, ...(gauges && { gauges }) });
     if (r.route_type === '3') busRoutes.set(r.route_id, name);
   }
   const named = new Set([...routes.values()].map((r) => r.name));
@@ -102,7 +105,7 @@ export async function readFeed(
     if (number) numbers.set(t.trip_id, number);
     if (!services.has(t.service_id)) continue;
     const trip = { id: `${prefix}:${t.trip_id}`, line: `${network.id}:${route.name}`, shape: `${prefix}:${t.shape_id}`, headsign: t.trip_headsign };
-    dayTrips.set(t.trip_id, { ...trip, ...(number && { number }), calls: [] });
+    dayTrips.set(t.trip_id, { ...trip, ...(number && { number }), ...(route.gauges && { gauges: route.gauges }), calls: [] });
   }
 
   const served = new Map<string, Set<string>>(); // the Stations each shape's Trips serve
@@ -144,7 +147,8 @@ export async function readFeed(
     if (!s || !all.has(key) || stations.has(key)) continue;
     // Where the Station is a Line's own stop, as the Metro's are, the station grouping it is its place.
     const place = s.parent_station && `${operator}:${s.parent_station}`;
-    stations.set(key, { id: key, name: s.stop_name, lon: Number(s.stop_lon), lat: Number(s.stop_lat), ...(place && { place }) });
+    const [lon, lat] = feed.points?.[s.stop_id] ?? [Number(s.stop_lon), Number(s.stop_lat)];
+    stations.set(key, { id: key, name: s.stop_name, lon, lat, ...(place && { place }) });
   }
 
   // Renfe's long-distance timetable has no shapes, and its Trips name none.

@@ -33,6 +33,8 @@ export interface NetworkConfig extends Omit<Network, 'credit'> {
     colour?: string;
     /** How the Trains of each of its Lines that don't run as its profile has them run, by the Line's name: only what differs, as AVE's top speed is above Alvia's (#260). */
     profiles?: Record<string, LineProfile>;
+    /** The rails each of its Lines runs on, by the Line's name, where its timetables have no shapes to trace (#259). */
+    gauges?: Record<string, Gauges>;
   };
 }
 
@@ -72,8 +74,12 @@ export interface Timetable {
   operator: string;
   /** A stop's Station is its parent station, where the feed makes each platform a stop of its own. */
   parents?: true;
-  /** Which of its rail routes are this Network's, where not all are: those whose route_id starts so, and whose route_short_name is one of these. */
-  routes?: { idPrefix?: string; names?: string[] };
+  /**
+   * Which of its rail routes are this Network's, where not all are: those whose route_id starts so, and
+   * whose route_short_name is one of these. And the rails those whose route_id ends so run on, whatever
+   * their Line runs on (`lines.gauges`), as the ex-FEVE regionals', which are Regional (#259).
+   */
+  routes?: { idPrefix?: string; names?: string[]; gauges?: Record<string, Gauges> };
   /**
    * A Trip's Train number, where the operator publishes one: what this pattern first matches in its
    * trip_id after the service_id, or in its trip_short_name where `shortNames`.
@@ -87,6 +93,8 @@ export interface Timetable {
   shapeless?: true;
   /** Its terms ask the map to show the day it was last updated, in its credit: its feed's start date. */
   updated?: true;
+  /** Where some of its Stations are, by stop_id, where it has them too far from their rails to trace (#259). */
+  points?: Record<string, [lon: number, lat: number]>;
 }
 
 /** OpenStreetMap's names for FGC, as the operator of its rails. */
@@ -569,9 +577,11 @@ const RENFE_LONG_DISTANCE = 'https://ssl.renfe.com/gtransit/Fichero_AV_LD/google
 // Renfe's long-distance timetable makes two Networks, as Renfe's own maps divide it (ADR-0010): each
 // takes the routes named as its Lines are. Their Lines are the names the timetable gives its Trips, as
 // it names no others, but written as Renfe writes them in public, rather than in the feed's capitals,
-// and their colours are their config's, as the feed gives every route F2F5F5. Their Trains are read,
-// but not on the map until they're traced (#259) and drawn (#262, #263), so each has only what reading
-// them and running their Trains needs: how they run (#260), with the rest to come with those.
+// and their colours are their config's, as the feed gives every route F2F5F5. Their Trains are read and
+// traced (#259), but not on the map until they're drawn (#262, #263), so each has only what reading them,
+// tracing them and running their Trains needs: how they run (#260), with the rest to come with those. As
+// the timetable has no shapes, each Line runs on the rails of its gauge (#259, docs/research/high-speed.md):
+// standard gauge is 1435 mm, Iberian 1668 and metre 1000.
 
 /**
  * How the engine reads Renfe's long-distance live data (#260), by what #260's triage found of it on 4
@@ -590,7 +600,21 @@ const RENFE_LONG_DISTANCE_LIVE = { delay: 'gps', near: 'pinned', snap: 60 } as c
 /** AVE's, Avlo's and AVE Int's top speed, on the high-speed lines, above the Network's 250 km/h. */
 const HIGH_SPEED = { topSpeed: 300 / 3.6 };
 
-export const AVE_LARGA_DISTANCIA: Pick<NetworkConfig, 'id' | 'name' | 'profile' | 'live' | 'timetables' | 'lines'> = {
+/** AVE's rails: standard gauge, and Iberian gauge too, through a changer, where a stretch has no path on standard gauge alone. */
+const STANDARD: Gauges = { railway: ['rail'], gauges: ['1435'], orElse: ['1668'] };
+/** The rails of the Trains that change gauge, as Alvia's: both gauges, changing at a changer. */
+const BOTH: Gauges = { railway: ['rail'], gauges: ['1435', '1668'] };
+const IBERIAN: Gauges = { railway: ['rail'], gauges: ['1668'] };
+/** FEVE's lines, which OpenStreetMap tags narrow_gauge almost everywhere, and rail on 111 km in Spain (seen 4 Oct 2026). */
+const METRE: Gauges = { railway: ['rail', 'narrow_gauge'], gauges: ['1000'] };
+
+/**
+ * Renfe has Antequera AV 430 m north of its platforms, beyond the 200 m a Station's rails may be: it's
+ * at their middle, on the high-speed line to Granada, and 25 m from its Iberian-gauge tracks.
+ */
+const RENFE_LONG_DISTANCE_POINTS: Timetable['points'] = { '02030': [-4.56158, 37.02951] };
+
+export const AVE_LARGA_DISTANCIA: Pick<NetworkConfig, 'id' | 'name' | 'profile' | 'live' | 'runningSide' | 'timetables' | 'lines'> = {
   id: 'ave-larga-distancia',
   name: 'AVE y Larga Distancia',
   // Fitted by #260's triage to the hops of Monday 5 October 2026's Trips as traced along OpenStreetMap's
@@ -603,6 +627,10 @@ export const AVE_LARGA_DISTANCIA: Pick<NetworkConfig, 'id' | 'name' | 'profile' 
   // it gives none at is a stop of under a minute: half of one, as Rodalies'.
   profile: { acceleration: 0.5, braking: 0.5, topSpeed: 250 / 3.6, dwell: 30 },
   live: RENFE_LONG_DISTANCE_LIVE,
+  // As the high-speed lines keep right (docs/research/high-speed.md). Its Trains on the old Norte lines,
+  // and on FEVE's, keep left, which one side for a Network can't say, but where OpenStreetMap tags which
+  // way Trains run a track, a trace follows it (ADR-0004).
+  runningSide: 'right',
   timetables: [
     {
       url: RENFE_LONG_DISTANCE,
@@ -614,6 +642,7 @@ export const AVE_LARGA_DISTANCIA: Pick<NetworkConfig, 'id' | 'name' | 'profile' 
       shortNames: true,
       parts: true,
       shapeless: true,
+      points: RENFE_LONG_DISTANCE_POINTS,
     },
   ],
   lines: {
@@ -624,13 +653,15 @@ export const AVE_LARGA_DISTANCIA: Pick<NetworkConfig, 'id' | 'name' | 'profile' 
     colour: '#81005E',
     // High speed's 300 km/h, where the Network's 250 is Alvia's, Euromed's, Intercity's and Trencelta's.
     profiles: { AVE: HIGH_SPEED, Avlo: HIGH_SPEED, 'AVE Int': HIGH_SPEED },
+    // AVE Int, AVE's trains to France, as AVE. The rest change gauge.
+    gauges: { AVE: STANDARD, Avlo: STANDARD, 'AVE Int': STANDARD, Alvia: BOTH, Euromed: BOTH, Intercity: BOTH, Trencelta: BOTH },
   },
 };
 
 /** Avant's and Avant Exp's: high speed on the same track as AVE's, at 250 km/h and 0.5 m/s². */
 const AVANT = { acceleration: 0.5, braking: 0.5, topSpeed: 250 / 3.6 };
 
-export const MEDIA_DISTANCIA_AVANT: Pick<NetworkConfig, 'id' | 'name' | 'profile' | 'live' | 'timetables' | 'lines'> = {
+export const MEDIA_DISTANCIA_AVANT: Pick<NetworkConfig, 'id' | 'name' | 'profile' | 'live' | 'runningSide' | 'timetables' | 'lines'> = {
   id: 'media-distancia-avant',
   name: 'Media Distancia y Avant',
   // Rodalies' 160 km/h at 1 m/s², which #260's triage found fits 99% of MD's hops on Monday 5 October
@@ -642,17 +673,20 @@ export const MEDIA_DISTANCIA_AVANT: Pick<NetworkConfig, 'id' | 'name' | 'profile
   // minute, as above.
   profile: { acceleration: 1, braking: 1, topSpeed: 160 / 3.6, dwell: 30 },
   live: RENFE_LONG_DISTANCE_LIVE,
-  // The ex-FEVE regionals, whose route IDs end VRFV, are named REGIONAL too.
+  // As AVE y Larga Distancia's.
+  runningSide: 'right',
+  // The ex-FEVE regionals, whose route IDs end VRFV, are named REGIONAL too, but run on metre gauge.
   timetables: [
     {
       url: RENFE_LONG_DISTANCE,
       prefix: 'media-distancia-avant',
       operator: 'adif',
-      routes: { names: ['AVANT', 'AVANT EXP', 'MD', 'REGIONAL', 'REG.EXP.', 'PROXIMDAD'] },
+      routes: { names: ['AVANT', 'AVANT EXP', 'MD', 'REGIONAL', 'REG.EXP.', 'PROXIMDAD'], gauges: { VRFV: METRE } },
       number: '^\\d{5}',
       shortNames: true,
       parts: true,
       shapeless: true,
+      points: RENFE_LONG_DISTANCE_POINTS,
     },
   ],
   lines: {
@@ -662,6 +696,7 @@ export const MEDIA_DISTANCIA_AVANT: Pick<NetworkConfig, 'id' | 'name' | 'profile
     // AVE y Larga Distancia's purple on the high-speed track they share (#263).
     colour: '#000000',
     profiles: { Avant: AVANT, 'Avant Exp': AVANT },
+    gauges: { Avant: STANDARD, 'Avant Exp': STANDARD, MD: IBERIAN, Regional: IBERIAN, 'Reg.Exp.': IBERIAN, Proximidad: IBERIAN },
   },
 };
 
