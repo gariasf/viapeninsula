@@ -351,11 +351,16 @@ function variantChips(): string {
     .join('')}</div>`;
 }
 
+/** The codes of the languages an Alert's words come in, by the names the interface gives them. */
+const LANG_CODES: Record<string, string> = { Español: 'es', Català: 'ca', Euskara: 'eu', Galego: 'gl' };
+
 function alertRows(rows: AlertRow[], byLine: boolean): string {
   return `<ol>${rows
     .map((a) => {
-      const meta = [a.from === undefined ? '' : `From ${dateTime(a.from)}`, a.by, a.language ? `<span lang="${a.language === 'Español' ? 'es' : 'ca'}">${a.language}</span>` : ''].filter(Boolean).join(' · ');
-      return `<li>${byLine && a.lines.length ? `<div class="served">${a.lines.slice(0, 12).map((l) => pill(l, { small: true })).join('')}</div>` : ''}${a.header ? `<strong>${esc(a.header)}</strong>` : ''}<p>${esc(a.text)}</p><p class="meta">${meta}</p></li>`;
+      // The operators' words in their own language are marked as it, for a screen reader's voice (as the app's are).
+      const lang = a.language ? ` lang="${LANG_CODES[a.language] ?? ''}"` : '';
+      const meta = [a.from === undefined ? '' : `From ${dateTime(a.from)}`, a.by, a.language ? `<span${lang}>${a.language}</span>` : ''].filter(Boolean).join(' · ');
+      return `<li>${byLine && a.lines.length ? `<div class="served">${a.lines.slice(0, 12).map((l) => pill(l, { small: true })).join('')}</div>` : ''}${a.header ? `<strong${lang}>${esc(a.header)}</strong>` : ''}<p${lang}>${esc(a.text)}</p><p class="meta">${meta}</p></li>`;
     })
     .join('')}</ol>`;
 }
