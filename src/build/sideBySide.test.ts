@@ -173,6 +173,18 @@ test('marks where a Line runs in a tunnel, and how deep, so that the map draws i
   }
 });
 
+test('marks the parts of a Line in a tunnel that a Line above lies within a line width of, for each band that has it so (#417)', async () => {
+  // R2 in a tunnel under T4 on the street, 10 m apart: within a line width at zoom 14 (14 m), and at 13 (26 m), but 20 m on from them, only at 13.
+  const r2 = { ...shape('R2', [0, 0], [5000, 0]), levels: [[0, 'tunnel -1']] as [number, string][] };
+  const t4 = shape('T4', [0, 10], [2000, 10], [2000, 20], [5000, 20]);
+  const { strokes } = await sideBySide([line('R2', 'R2'), line('T4', 'T4')], [r2, t4]);
+  const covered = (zoom: number) => strokes.filter((s) => s.line === 'R2').flatMap((s) => (s.covered ?? []).filter(([band]) => band === BANDS.indexOf(zoom)).map(([, from, to]) => [from, to]));
+  const near = ([from, to]: number[]) => [Math.round((from ?? 0) / 50) * 50, Math.round((to ?? 0) / 50) * 50];
+  expect(covered(14).map(near)).toEqual([[0, 2000]]);
+  expect(covered(13).map(near)).toEqual([[0, 5000]]);
+  expect(strokes.filter((s) => s.line === 'T4').some((s) => s.covered)).toBe(false);
+});
+
 test('draws a Line going into a tunnel just where it would be drawn on the ground, its curves too (#178)', async () => {
   // R2 and R11 are drawn between their tracks for 2.5 km, both going into a tunnel 500 m before R2 goes on alone.
   const shapes = [shape('R2', [0, 0], [5000, 0]), shape('R11', [2500, 40], [0, 40])];
