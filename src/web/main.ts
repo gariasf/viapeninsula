@@ -2509,12 +2509,12 @@ function nearbyPanel(near: Point | Unlocated, up: boolean): Panel {
   const rows = nearbyRows(bundle ? nearbyAt(bundle, now, received, near, NEARBY, SOON, hidingClosures) : [], mapTime(now, received));
   said.append(el('p', { className: 'subtitle', textContent: t('passingNearby') }));
   // Where no Train passes, saying so is what a try found too, so the status says it, for a screen reader to
-  // hear; but only once the Trips have come, those of the regions round the viewer too (#266), which can be
-  // after the viewer is found, as the map can't tell before.
+  // hear; but only once the Trips of the regions round the viewer have come (#266), which can be after the
+  // viewer is found, as the map can't tell before: at once where no region is, though the map has loaded none.
   // ponytail: a screen reader hears the status again whenever a refresh empties the list, and maybe its
   // heading alone as the list fills; keep the status to what the try found if that's too chatty.
   if (!rows.length) {
-    if (bundle && come({ nearby: { at: near, metres: NEARBY } })) said.append(el('p', { textContent: t('noneNearby') }));
+    if (come({ nearby: { at: near, metres: NEARBY } })) said.append(el('p', { textContent: t('noneNearby') }));
     return { header, body: [said] };
   }
   return {
