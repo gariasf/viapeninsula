@@ -753,3 +753,13 @@ test("comes into a Station on each gauge it can, as an Alvia must come into Sevi
   expect(points(track('alvia')).slice(0, 4)).toEqual([[0, 0], [1000, 0], [2000, 2000], [4000, 10]]);
   expect(log[0]).toContain('changing gauge between A and S');
 });
+
+test("reaches a Station published at another's point where it reached that one, as Renfe has Ourense Turístico at Ourense's, a minute after it", () => {
+  const { track } = runs(
+    rails({ a: [0, 0], b: [2000, 0], c: [4000, 0] }, 'a b c'),
+    // BT is B's second stop, at its point.
+    [station('A', -10, 0), station('B', 2000, 10), station('BT', 2000, 10), station('C', 4010, 0)],
+    [[call('md', 'A B BT C', { railway: ['rail'], gauges: ['1668'] }, 'MD')]],
+  );
+  expect(points(track('md'))).toEqual([[0, 0], [2000, 0], [4000, 0]]);
+});

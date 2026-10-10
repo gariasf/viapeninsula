@@ -302,9 +302,11 @@ function walk(graph: Graph, stations: Station[], layers: number): Arrival[] | { 
     });
     // The cheapest ways onto the next Station's tracks of each gauge, as the cheapest of all may lead no
     // further: an Alvia comes into Sevilla cheapest on standard gauge, but must come in on Iberian gauge,
-    // through Majarabique's changer, to go on to Jerez.
+    // through Majarabique's changer, to go on to Jerez. A Station at the last one's point, as Renfe has
+    // Ourense Turístico at Ourense's, is reached where that one was.
     const to = graph.near.get(b.id) ?? [];
-    const next = [...new Set(to.map(layerOf))].flatMap((layer) => paths(graph, [...reached, ...across], new Set(to.filter((v) => layerOf(v) === layer)), limit, turnBacks, layers));
+    const here = reached.filter((r) => to.includes(r.vertex)).map((r) => ({ ...r, from: r, edges: [] }));
+    const next = here.length ? here : [...new Set(to.map(layerOf))].flatMap((layer) => paths(graph, [...reached, ...across], new Set(to.filter((v) => layerOf(v) === layer)), limit, turnBacks, layers));
     if (!next.length) return { a, b };
     reached = next.map((arrival) => ({ ...arrival, waypoint: i }));
   }
