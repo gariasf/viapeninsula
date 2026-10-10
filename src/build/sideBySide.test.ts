@@ -335,6 +335,29 @@ test('keeps Lines where they are while another runs past them the other way, and
   expect(north('R4', 8000)).toBeGreaterThan(Math.max(north('R2S', 8000) ?? NaN, north('R14', 8000) ?? NaN));
 });
 
+test("draws a Line beside the one it runs with here on one Stretch, though turned against it for the Line it runs with elsewhere (#383)", async () => {
+  // A runs east for 3 km, 1.5 km of it with B 15 m north of it. C runs west along A's track, the other
+  // way, and on north from its end, and B turns north 15 m east of that for 2 km. A and C run opposite
+  // ways for 3 km, B with A for 1.5 km and with C for 2: one turn each puts B with C, against A.
+  const lines = [line('A', 'A'), line('B', 'B'), line('C', 'C')];
+  const shapes = [shape('A', [-1500, 0], [3000, 0]), shape('B', [-1500, 15], [15, 15], [15, 2000]), shape('C', [3000, 0], [0, 0], [0, 2000])];
+  const { strokes, centrelines } = await sideBySide(lines, shapes);
+  const byId = new Map(centrelines.map((c) => [c.id, c]));
+  // The Stretch each Line is drawn on at 1 km west of the origin.
+  const at = (name: string) =>
+    strokes
+      .filter((s) => s.line === name && s.band === undefined && !s.shape.startsWith(LINK))
+      .filter((s) => {
+        const ends = along(byId.get(s.shape) ?? { coords: [], dist: [] }, s.from, s.to);
+        const [start, end] = [ends[0]?.[0] ?? NaN, ends.at(-1)?.[0] ?? NaN].map((lon) => (lon - LON) * M * COS);
+        return Math.min(start ?? NaN, end ?? NaN) < -1000 && Math.max(start ?? NaN, end ?? NaN) > -1000;
+      });
+  const [a, b] = [at('A'), at('B')];
+  expect(a).toHaveLength(1);
+  expect(b.map((s) => s.shape)).toEqual(a.map((s) => s.shape));
+  expect(Math.abs((a[0]?.side ?? NaN) - (b[0]?.side ?? NaN))).toBe(1);
+});
+
 /**
  * How far each of a Line's Trains, run along these of its shapes from 200 m in to 200 m short of their
  * ends, is drawn beyond half a line width from where its stroke is drawn, as they go that far to their
