@@ -394,21 +394,29 @@ test("joins the Trip of a Train with the most calls in a call another of its Tri
   ]);
 });
 
+/** A Trip of Train 00001 calling at Stations at times, each a moment. */
+const part = (id: string, ...calls: [station: string, time: string][]): FeedTrip => ({
+  id,
+  line: 'MD',
+  shape: '',
+  headsign: '',
+  number: '00001',
+  calls: calls.map(([station, time]) => ({ station, arrival: at(time), departure: at(time) })),
+});
+const longest = part('a', ['A', '10:00'], ['B', '10:10'], ['C', '10:20']);
+
 test("takes a call of a Train's other Trip at one of its Stations up to 2 minutes from its own for that one, but not one 3 minutes off", () => {
-  /** A Trip of Train 00001 calling at Stations at times, each a moment. */
-  const trip = (id: string, ...calls: [station: string, time: string][]): FeedTrip => ({
-    id,
-    line: 'MD',
-    shape: '',
-    headsign: '',
-    number: '00001',
-    calls: calls.map(([station, time]) => ({ station, arrival: at(time), departure: at(time) })),
-  });
   const log: string[] = [];
-  const longest = trip('a', ['A', '10:00'], ['B', '10:10'], ['C', '10:20']);
-  const joined = joinParts([longest, trip('b', ['B', '10:12'], ['C', '10:20']), trip('c', ['A', '10:03'], ['B', '10:10'])], new Map(), '2026-10-10', (l) => log.push(l));
+  const joined = joinParts([longest, part('b', ['B', '10:12'], ['C', '10:20']), part('c', ['A', '10:03'], ['B', '10:10'])], new Map(), '2026-10-10', (l) => log.push(l));
   expect(joined).toEqual([longest]);
   expect(log).toEqual(['MD 00001 drops its call at A at 10:03 on 2026-10-10: it lies outside the run its Trips share']);
+});
+
+test("logs a call it drops once, where one of a Train's Trips ends and another starts, as MD 35807's Trips from Sevilla and to Madrid do at Fuente del Arco, which the one with the most calls passes", () => {
+  const log: string[] = [];
+  const stations = new Map([['X', { id: 'X', name: 'Fuente del Arco', lon: -5.94, lat: 38.13 }]]);
+  joinParts([longest, part('d', ['A', '10:00'], ['X', '10:05']), part('e', ['X', '10:05'], ['C', '10:20'])], stations, '2026-10-10', (l) => log.push(l));
+  expect(log).toEqual(['MD 00001 drops its call at Fuente del Arco at 10:05 on 2026-10-10: it lies outside the run its Trips share']);
 });
 
 // Rows cut verbatim from Renfe's Cercanías feed of 2026-10-10: RT2's Train 15210 from Salou-Port

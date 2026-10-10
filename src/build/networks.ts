@@ -228,7 +228,9 @@ const SAME_CALL = 120;
 export function joinParts(trips: FeedTrip[], stations: Map<string, Station>, day: string, log = console.log): FeedTrip[] {
   const parts = new Map<string, FeedTrip[]>();
   for (const t of trips) parts.set(t.number ?? t.id, [...(parts.get(t.number ?? t.id) ?? []), t]);
-  return [...parts.values()].map((each) =>
+  // Each once, though one of a Train's Trips ends there and another starts there.
+  const dropped = new Set<string>();
+  const joined = [...parts.values()].map((each) =>
     each
       .toSorted((a, b) => b.calls.length - a.calls.length)
       .reduce((trip, part) => {
@@ -237,11 +239,13 @@ export function joinParts(trips: FeedTrip[], stations: Map<string, Station>, day
         const between = part.calls.filter((_, i) => !shared[i] && first < i && i < last);
         for (const [i, c] of part.calls.entries()) {
           if (shared[i] || (first < i && i < last)) continue;
-          log(`${trip.line} ${trip.number} drops its call at ${stations.get(c.station)?.name ?? c.station} at ${clock(c.arrival).slice(0, 5)} on ${day}: it lies outside the run its Trips share`);
+          dropped.add(`${trip.line} ${trip.number} drops its call at ${stations.get(c.station)?.name ?? c.station} at ${clock(c.arrival).slice(0, 5)} on ${day}: it lies outside the run its Trips share`);
         }
         return { ...trip, calls: [...trip.calls, ...between].sort((a, b) => a.arrival - b.arrival) };
       }),
   );
+  for (const line of dropped) log(line);
+  return joined;
 }
 
 /**
