@@ -6,11 +6,11 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import nunitoSans from '@fontsource/nunito-sans/files/nunito-sans-latin-400-normal.woff2?url';
 import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-normal.woff2?url';
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
-import { along, APART, atZoom, BANDS, bandZooms, coveredIn, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, daysOf, EARTH, LIVE_URL, madridDate, places, type Alerts, type Bundle, type Credit, type Place, type Kind, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH } from '../bundle.ts';
+import { along, APART, atZoom, BANDS, bandZooms, coveredIn, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, daysOf, EARTH, joinTracks, LIVE_URL, madridDate, networkTracks, places, type Alerts, type Bundle, type Credit, type DayFiles, type Place, type Kind, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH, type ZoomedOut } from '../bundle.ts';
 import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, unavailable, type Coming, type Departure, type Followed, type Received } from '../engine.ts';
 import { alertCount, alertsChanged, basemapLabel, busesReplace, earlierStations, language, LANGUAGES, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, setLanguage, t, toGo, trainCounts, trainsRunHere, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
-import { forgetJoined, regionLoader } from './regions.ts';
+import { forgetJoined, regionLoader, regionsNeeded } from './regions.ts';
 import { linesAt, popupRoom } from './tap.ts';
 import { alongside, callsIn, namedTwice, nameOffset, nameSort, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
 import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
@@ -635,8 +635,24 @@ const fetched = new Map<string, Promise<unknown>>();
 const joinedTracks = new Map<string, Track>();
 /** The files of the days' bundles on the map, and whether the map is looking for the days it needs. */
 let [shown, looking] = ['', false];
+/** Whether the map is to look for the days it needs again once it has, as it needed more regions meanwhile. */
+let lookAgain = false;
 /** The Stations of the track on the map, which come with its Lines. */
 let shownStations: Track['stations'] | undefined;
+/**
+ * The regions the map loads, by their IDs (#266): each once it comes into view from zoom 7, or once a
+ * link, Nearby or a Train the map follows needs it (regionsNeeded()), and never let go of, so that a
+ * followed Train's region stays loaded wherever the map goes.
+ */
+const loaded = new Set<string>();
+/** Which of them the days on the map have, once their files have come: a link waits for its own, and Nearby says no Train passes only once the viewer's have come. */
+let shownRegions = new Set<string>();
+/** The file below zoom 7 (ZoomedOut) as the map last got it, and the key of the one it has or is getting, which the manifest names. */
+let [zoomedOut, zoomedOutKey]: [ZoomedOut | undefined, string | undefined] = [undefined, undefined];
+/** Whether the page's link names a Station or a Train whose regions are still to come, which openLink() opens once they have. */
+let linkWaits = false;
+/** Each Network's track, drawn once zoomed out (#190), which the banner goes by for a Network with no Trips today (bannerNetworks()). */
+let shownTracks: NetworkTrack[] = [];
 
 let nextPoll: ReturnType<typeof setTimeout> | undefined;
 document.addEventListener('visibilitychange', () => {
@@ -651,7 +667,10 @@ setInterval(getAlerts, 60_000);
 
 // Names and pills are measured in the typeface, so it loads first. Where it fails to, they're measured in what the browser falls back to.
 const typefaceLoaded = Promise.all(['400', '700'].map((weight) => document.fonts.load(`${weight} 12px ${TYPEFACE}`))).catch(() => undefined);
-const [needed] = await Promise.all([neededDays().then((n) => n ?? Promise.reject(new Error('No service day to show'))), map.once('load'), typefaceLoaded]);
+// None, where the map opens with no region in view or needed, as zoomed out: it loads them as they come
+// into view (#266). Its first look for them is one as refreshDays() makes, which waits for it.
+looking = true;
+const [needed] = await Promise.all([neededDays(), map.once('load'), typefaceLoaded]);
 /**
  * The basemap's paper, its background's colour: what the Lines are cased in on positron, and on the
  * dark basemap what their colours are lettered against (lettering()).
@@ -699,8 +718,6 @@ let hidingClosures: Shown[] = [];
 const lifted = new Map<string, number>();
 /** The Lines' strokes along their Stretches, which a tap on one names (linesAt()). */
 let shownStrokes: Stroke[] = [];
-/** Each Network's track, drawn once zoomed out (#190), which the banner goes by for a Network with no Trips today (bannerNetworks()). */
-let shownTracks: NetworkTrack[] = [];
 /** What moves a tapped group of Trains standing together at a Station apart (#129). */
 const spread = spreading();
 /**
@@ -738,10 +755,12 @@ map.addSource('tracks', { type: 'geojson', data: { type: 'FeatureCollection', fe
 map.addSource('stations', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 map.addSource('station-names', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 // Today's Lines and Stations are drawn as soon as its track comes, before the Trips, which are most of the bundle.
-needed.days.then(show, (error: unknown) => console.error(error));
-show(await needed.track);
+void Promise.resolve(needed?.days.then((days) => showDays(days, needed.regions), (error: unknown) => console.error(error))).finally(looked);
+show(needed ? await needed.track : joinTracks([]));
 // Around midnight the days the map needs change, and each day's build names three more.
 setInterval(refreshDays, 60_000);
+// And the regions it needs, as the map moves (#266).
+map.on('moveend', want);
 
 // Track goes under the basemap's labels; Stations and names go on top of everything.
 const firstLabel = map.getStyle().layers.find((l) => l.type === 'symbol')?.id;
@@ -890,11 +909,13 @@ const closureLayers = layered.flatMap(({ id, zooms, opacity, below }) =>
 drawClosures = showClosures;
 liftClosures = hideClosures;
 drawClosures();
-// A tier's dots are larger than the rest, and drawn over them where they meet.
+// A tier's dots are larger than the rest, and drawn over them where they meet. Not below zoom 7, where
+// the map draws each Network's track alone, every region's, as it loads none there for the view (#266).
 map.addLayer({
   id: 'stations',
   type: 'circle',
   source: 'stations',
+  minzoom: linesZoom,
   layout: { 'circle-sort-key': ['get', 'larger'] },
   paint: {
     'circle-radius': byZoom(DOT, (px) => ['+', px, ['get', 'larger']]),
@@ -1161,8 +1182,9 @@ openLink();
 addEventListener('hashchange', openLink);
 
 /**
- * Draws the Lines and Stations of the days on the map, and credits their Networks and names them in
- * the banner, where they've changed, and once their Trips have come, moves their Trains.
+ * Draws the Lines and Stations of the days on the map, and each Network's track below zoom 7, with
+ * the Networks credited and named in the banner (showZoomedOut()), where they've changed, and once
+ * their Trips have come, moves their Trains.
  */
 function show(days: Track | Bundle) {
   if ('trips' in days) {
@@ -1237,16 +1259,7 @@ function show(days: Track | Bundle) {
   });
   map.getSource<GeoJSONSource>('lines')?.setData(drawn(days.strokes));
   map.getSource<GeoJSONSource>('rails')?.setData(drawn(days.rails, true));
-  // A track built before #190 has none.
-  const colours = new Map(days.networks.map((n) => [n.id, n.colour]));
-  shownTracks = (days.tracks ?? []).flatMap(({ line: id, shape: shapeId, from, to }) => {
-    const [line, shape] = [lines.get(id), shapes.get(shapeId)];
-    return line && shape ? [{ network: line.network, coordinates: along(shape, from, to) }] : [];
-  });
-  map.getSource<GeoJSONSource>('tracks')?.setData({
-    type: 'FeatureCollection',
-    features: shownTracks.map(({ network, coordinates }) => ({ type: 'Feature', properties: { colour: colours.get(network) }, geometry: { type: 'LineString', coordinates } })),
-  });
+  showZoomedOut(zoomedOut ?? { networks: days.networks, tracks: networkTracks(days) });
   const tiered = [...shownPlaces.values()].map((p) => {
     const tier = TIERS.find((t) => t.places.includes(p.id));
     const { nameZoom, larger, size } = tier ?? UNTIERED;
@@ -1268,10 +1281,24 @@ function show(days: Track | Bundle) {
     return { dot: [lon, lat], sides: spots([lon, lat], networks), name: rows.join('\n'), size: [Math.max(...rows.map((row) => placeWidth(row, style))), rows.length * LINE_HEIGHT * style.size], nameZoom, tier, stations, larger, style };
   });
   showNames();
-  credited = days.networks;
+  drawClosures();
+}
+
+/**
+ * Draws each Network's track below zoom 7 (#190), and credits the Networks and names them in the
+ * banner: every region's, from the file below zoom 7 (#266), so that zoomed out the map needs no region
+ * loaded, or until that file has come, or where the manifest names none, the days on the map's.
+ */
+function showZoomedOut({ networks, tracks }: Pick<ZoomedOut, 'networks' | 'tracks'>) {
+  const colours = new Map(networks.map((n) => [n.id, n.colour]));
+  shownTracks = tracks;
+  map.getSource<GeoJSONSource>('tracks')?.setData({
+    type: 'FeatureCollection',
+    features: tracks.map(({ network, coordinates }) => ({ type: 'Feature', properties: { colour: colours.get(network) }, geometry: { type: 'LineString', coordinates } })),
+  });
+  credited = networks;
   showCredits();
   showBanner();
-  drawClosures();
 }
 
 /**
@@ -1778,6 +1805,8 @@ function locate() {
     if (!nearMe || ask !== asks) return;
     const focused = document.activeElement;
     nearMe = where;
+    // The regions round the viewer load, wherever the map is (#266).
+    want();
     showPanel();
     // A try that finds the viewer takes Try again away, and with it the keyboard's focus, which goes to the panel's title rather than the page.
     if (focused?.isConnected === false) panel.querySelector<HTMLElement>('.title')?.focus();
@@ -1802,9 +1831,13 @@ function closePanel() {
   map.easeTo({ padding: panelPadding() });
 }
 
-/** Shows the panel afresh: a followed Train and a board peeking on a phone, Nearby pulled up, with its body scrolled to the top (#321), and the Stations a followed Train has left folded away (#349), and its Alerts (#342). */
+/**
+ * Shows the panel afresh: a followed Train and a board peeking on a phone, Nearby pulled up, with its
+ * body scrolled to the top (#321), and the Stations a followed Train has left folded away (#349), and
+ * its Alerts (#342). A link still waiting for its regions opens no more: the viewer has opened another.
+ */
 function openPanel(up: boolean) {
-  [pulledUp, showPast, showAlerts] = [up, false, false];
+  [pulledUp, showPast, showAlerts, linkWaits] = [up, false, false, false];
   panel.classList.remove('sliding');
   panel.style.height = '';
   showPanel();
@@ -1815,14 +1848,20 @@ function openPanel(up: boolean) {
  * Opens what the page's link names besides the view: a point to ring (#254), a Station's board, or
  * once its Trips have come, a Train to follow, which the map stops following straight away if it's
  * no longer running. A Station the map doesn't know goes from the link. Where the link names no
- * view, the map goes to the Station, by follow()'s rule (#292).
+ * view, the map goes to the Station, by follow()'s rule (#292). A Station or a Train opens once its
+ * regions have come, which load meanwhile (#266), and those whose Trips fail to come are logged where
+ * show() gets them, and looked for again.
  */
 function openLink() {
   showMark(markOf(openedLink));
   const link = new URLSearchParams(openedLink.slice(1));
   const [station, train] = [link.get('station'), link.get('train')];
   const place = station && [...shownPlaces.values()].find((p) => p.stations.includes(station));
-  if (place) {
+  // A Station or a Train waits for its regions, which load meanwhile, wherever the map is (#266), and a
+  // Station for the file below zoom 7 to say which those are.
+  linkWaits = !place && (!!station || !!train) && !come({ station, train });
+  if (linkWaits) want();
+  else if (place) {
     showBoard(place.id);
     // ponytail: eased before the board's departures come on a page just opened, so on a phone the
     // Station then sits just above the board, not mid-way above it; ease again as they come if that
@@ -1830,8 +1869,7 @@ function openLink() {
     // Barcelona; check it as MapLibre's Hash does if such links show.
     if (!link.has('map')) easeOnto([place.lon, place.lat]);
   } else if (station) writeLink();
-  // Trips that fail to come are logged where show() gets them.
-  else if (train) needed.days.then(() => follow(train), () => {});
+  else if (train) follow(train);
 }
 
 /**
@@ -2468,11 +2506,12 @@ function nearbyPanel(near: Point | Unlocated, up: boolean): Panel {
   const rows = nearbyRows(bundle ? nearbyAt(bundle, now, received, near, NEARBY, SOON, hidingClosures) : [], mapTime(now, received));
   said.append(el('p', { className: 'subtitle', textContent: t('passingNearby') }));
   // Where no Train passes, saying so is what a try found too, so the status says it, for a screen reader to
-  // hear; but only once the Trips have come, which can be after the viewer is found, as the map can't tell before.
+  // hear; but only once the Trips have come, those of the regions round the viewer too (#266), which can be
+  // after the viewer is found, as the map can't tell before.
   // ponytail: a screen reader hears the status again whenever a refresh empties the list, and maybe its
   // heading alone as the list fills; keep the status to what the try found if that's too chatty.
   if (!rows.length) {
-    if (bundle) said.append(el('p', { textContent: t('noneNearby') }));
+    if (bundle && come({ nearby: { at: near, metres: NEARBY } })) said.append(el('p', { textContent: t('noneNearby') }));
     return { header, body: [said] };
   }
   return {
@@ -2718,30 +2757,34 @@ function creditOf({ text, url, licence, updated }: Credit): string {
 
 /**
  * The service days the map needs now, by the map's time (mapTime(), daysNeeded()), joined, where
- * they aren't the ones it shows. A day's bundle is its regions' (ADR-0014), all of them for now,
- * joined (joinTracks()). A region whose file fails to come is left out of its day, and a day whose
- * bundle fails to come is left out; they're fetched again next time.
+ * they aren't the ones it shows. A day's bundle is its regions' (ADR-0014), those the map loads
+ * (`loaded`, #266), joined (joinTracks()), and a day with none of them isn't loaded, as where the map
+ * opens zoomed out. A region whose file fails to come is left out of its day, and a day whose bundle
+ * fails to come is left out; they're fetched again next time.
  * Today's track comes on its own first, so the map can draw it before the Trips come. Notes today's
- * Networks with no Trips, which the banner names.
+ * Networks with no Trips, every region's, which the banner names.
  * ponytail: the map's time is the device's until a snapshot corrects it, and the days follow a
  * correction only at the next refreshDays(), so for up to a minute after one, a device whose clock is
  * hours off can have the wrong days, and no Trains. Refresh them from poll() as a snapshot moves the
  * map's date, if that shows.
  */
-async function neededDays(): Promise<{ track: Promise<Track>; days: Promise<Bundle> } | undefined> {
+async function neededDays(): Promise<{ track: Promise<Track>; days: Promise<Bundle>; regions: string[] } | undefined> {
   try {
     manifest = await getJson<Manifest>(`${LIVE_URL}/manifest.json`);
   } catch (error) {
     if (!manifest) throw error;
     console.warn(error);
   }
+  getZoomedOut(manifest);
+  for (const id of neededRegions(manifest)) loaded.add(id);
   // The next day's first Trains come SOON before they're on the map, so they're among the nearby Trains.
   const needed = daysNeeded(daysOf(manifest), mapTime(Date.now(), received), { early: SOON, late: LATE, emptyBoard });
   if (!needed) throw new Error('The manifest names no service day');
-  const { today, days } = needed;
-  noTripsIds = today.noTrips ?? [];
+  noTripsIds = needed.today.noTrips ?? [];
+  const days = needed.days.map((d): DayFiles => ({ ...d, regions: d.regions.filter((r) => loaded.has(r.id)) })).filter((d) => d.regions.length);
+  const today = days.find((d) => d.date === needed.today.date);
   const keys = days.flatMap((d) => d.regions.flatMap((r) => [r.track, r.trips]));
-  if (keys.join() === shown) return undefined;
+  if (!keys.length || keys.join() === shown) return undefined;
   for (const key of fetched.keys()) if (!keys.includes(key)) fetched.delete(key);
   forgetJoined(joinedTracks, keys);
   const get = <T>(key: string) => {
@@ -2752,7 +2795,7 @@ async function neededDays(): Promise<{ track: Promise<Track>; days: Promise<Bund
   };
   // A region whose file fails to come is left out of its day, and fetched again next time.
   const load = regionLoader(get, joinedTracks);
-  const joined = async () => {
+  const joined = (async () => {
     const got = await Promise.allSettled(days.map(load.bundleOf));
     // Without today's bundle there's nothing to draw; without another day's, the map does without it until next time.
     const lost = got.flatMap((g, i) => (g.status === 'rejected' ? [[days[i], g.reason] as const] : []));
@@ -2760,22 +2803,97 @@ async function neededDays(): Promise<{ track: Promise<Track>; days: Promise<Bund
     if (lost.length) console.warn(...lost.map(([, reason]) => reason));
     shown = load.failed() || lost.length ? '' : keys.join();
     return joinDays(got.flatMap((g) => (g.status === 'fulfilled' ? [g.value] : [])));
-  };
-  return { track: load.trackOf(today).then((t) => t.track), days: joined() };
+  })();
+  return { track: today ? load.trackOf(today).then((t) => t.track) : joined, days: joined, regions: [...loaded] };
 }
 
-/** Shows the days the map needs now, where they've changed. The Trains keep to the days shown meanwhile. */
+/**
+ * Shows the days the map needs now, where they've changed, a region new to it as its track comes,
+ * before its Trips, as the map draws the first (#266). The Trains keep to the days shown meanwhile. One
+ * look at a time: one asked for meanwhile, as the map comes onto a region, follows it (looked()).
+ */
 async function refreshDays() {
-  if (looking || document.hidden) return;
+  if (document.hidden) return;
+  if (looking) return void (lookAgain = true);
   looking = true;
   try {
     const needed = await neededDays();
-    if (needed) show(await needed.days);
+    if (needed) {
+      show(await needed.track);
+      showDays(await needed.days, needed.regions);
+    }
   } catch (error) {
     console.warn(error);
   } finally {
-    looking = false;
+    looked();
   }
+}
+
+/** Ends a look for the days the map needs, and looks again where one was asked for meanwhile. */
+function looked() {
+  looking = false;
+  if (!lookAgain) return;
+  lookAgain = false;
+  refreshDays();
+}
+
+/** Shows days that have come, with the regions they're from (neededDays()), and opens a link that waited for them. */
+function showDays(days: Bundle, regions: string[]) {
+  show(days);
+  shownRegions = new Set(regions);
+  openWaitingLink();
+}
+
+/**
+ * The regions the map needs now (regionsNeeded(), #266): those in view, those every view loads, the
+ * page's link's, as it was opened or pasted, and those round the viewer, where Nearby has found them.
+ */
+function neededRegions({ regions = [] }: Manifest): string[] {
+  const link = new URLSearchParams(openedLink.slice(1));
+  const nearby = nearMe && typeof nearMe !== 'string' ? { at: nearMe, metres: NEARBY } : undefined;
+  return regionsNeeded(regions, { bounds: map.getBounds().toArray(), zoom: map.getZoom() }, { train: link.get('train'), station: link.get('station'), stations: zoomedOut?.stations, nearby });
+}
+
+/** Looks for the days the map needs again where it needs a region it hasn't loaded (neededRegions()), as it comes into view. */
+function want() {
+  if (manifest && !neededRegions(manifest).every((id) => loaded.has(id))) refreshDays();
+}
+
+/**
+ * Whether the days on the map have every region a link's Station or Train, or Nearby, needs
+ * (regionsNeeded()): a Station's once the file below zoom 7 has said which they are, where the
+ * manifest names one.
+ */
+function come(needs: { station?: string | null; train?: string | null; nearby?: { at: Point; metres: number } }): boolean {
+  if (needs.station && !zoomedOut && manifest?.zoomedOut) return false;
+  return regionsNeeded(manifest?.regions ?? [], undefined, { ...needs, stations: zoomedOut?.stations }).every((id) => shownRegions.has(id));
+}
+
+/** Opens the page's link where it waited for its regions (openLink()), as the viewer hasn't opened another Train, board or Nearby meanwhile (openPanel()). */
+function openWaitingLink() {
+  if (linkWaits) openLink();
+}
+
+/**
+ * Gets the file below zoom 7 the manifest names (ZoomedOut, #266), where it's another than the map
+ * has, and draws it as it comes, which opens a link whose Station waited for it to say where it is.
+ * Where it fails to come, it's got at the next look.
+ */
+function getZoomedOut({ zoomedOut: key }: Manifest) {
+  if (!key || key === zoomedOutKey) return;
+  zoomedOutKey = key;
+  getJson<ZoomedOut>(`${LIVE_URL}/${key}`).then(
+    (file) => {
+      if (zoomedOutKey !== key) return;
+      zoomedOut = file;
+      showZoomedOut(file);
+      openWaitingLink();
+    },
+    (error: unknown) => {
+      if (zoomedOutKey === key) zoomedOutKey = undefined;
+      console.warn(error);
+    },
+  );
 }
 
 /** Fetches the live snapshot, and again 20 s later if the tab is still visible. */

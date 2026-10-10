@@ -1,8 +1,8 @@
 import { expect, test } from 'vitest';
-import type { DayFiles, DayTrips, Point, Shape, Track, Trip } from '../bundle.ts';
+import type { DayFiles, DayTrips, ManifestRegion, Point, Shape, Track, Trip } from '../bundle.ts';
 import { metres } from '../build/track.ts';
 import { encodeTrack } from '../pieces.ts';
-import { forgetJoined, regionLoader } from './regions.ts';
+import { forgetJoined, regionLoader, regionsNeeded } from './regions.ts';
 
 /** A region's track of one Line and one Station, named for it. */
 const track = (id: string): Track => ({
@@ -114,4 +114,60 @@ test("reads a track file that stores its shapes as pieces back as the track it w
   // Another loader, as the page's next look makes, finds the shape it decoded already.
   const again = await regionLoader(get, new Map(), () => {}).bundleOf(days);
   expect(again.shapes[0]).toBe(first.shapes[0]);
+});
+
+// Where some regions lie, as the daily build of 10 Oct 2026 found them: west, south, east, north.
+const REGIONS: Pick<ManifestRegion, 'id' | 'networks' | 'extent'>[] = [
+  { id: 'catalonia', networks: ['rodalies', 'fgc', 'tram', 'metro'], extent: [-0.86, 40.596, 3.161, 42.447] },
+  { id: 'cercanias-madrid', networks: ['cercanias-madrid'], extent: [-4.269, 40.035, -3.182, 40.738] },
+  { id: 'cercanias-sevilla', networks: ['cercanias-sevilla'], extent: [-6.208, 36.912, -5.53, 37.933] },
+  { id: 'cercanias-leon', networks: ['cercanias-leon'], extent: [-5.566, 42.616, -4.845, 42.865] },
+  // Its C4 runs to León (#368).
+  { id: 'cercanias-bilbao', networks: ['cercanias-bilbao'], extent: [-5.566, 42.616, -2.882, 43.329] },
+];
+/** A phone's view, 390×844, at zoom 12, around a point: south-west and north-east corners. */
+const phone = ([lon, lat]: Point): [Point, Point] => [[lon - 0.0335, lat - 0.054], [lon + 0.0335, lat + 0.054]];
+const [BARCELONA, MADRID]: [Point, Point] = [[2.17, 41.39], [-3.69, 40.41]];
+
+test('from zoom 7, where the map draws Lines and Trains, loads the regions in view, and none out of it', () => {
+  expect(regionsNeeded(REGIONS, { bounds: phone(BARCELONA), zoom: 12 })).toEqual(['catalonia']);
+  expect(regionsNeeded(REGIONS, { bounds: phone(MADRID), zoom: 12 })).toEqual(['cercanias-madrid']);
+  // Out in the sea off Valencia, none.
+  expect(regionsNeeded(REGIONS, { bounds: phone([0.5, 39.4]), zoom: 12 })).toEqual([]);
+});
+
+test('loads a region within half a view of the view, so that a pan comes onto its track drawn, but not one further off', () => {
+  // West of Madrid's track, a quarter of the view's width short of it, and then seven tenths.
+  expect(regionsNeeded(REGIONS, { bounds: phone([-4.32, 40.41]), zoom: 12 })).toEqual(['cercanias-madrid']);
+  expect(regionsNeeded(REGIONS, { bounds: phone([-4.35, 40.41]), zoom: 12 })).toEqual([]);
+});
+
+test("below zoom 7 loads no region for the view, as the file below zoom 7 draws every region's track there, but one with no extent at every view, as long distance's will be, and every region of a manifest from before #266", () => {
+  // Spain at zoom 6.
+  const spain: [Point, Point] = [[-9.5, 35.5], [4.5, 44]];
+  expect(regionsNeeded(REGIONS, { bounds: spain, zoom: 6.9 })).toEqual([]);
+  // A made-up region every view loads, far from Barcelona and zoomed out alike.
+  const everywhere = [...REGIONS, { id: 'long-distance', networks: ['ave-larga-distancia', 'media-distancia-avant'] }];
+  expect(regionsNeeded(everywhere, { bounds: spain, zoom: 5 })).toEqual(['long-distance']);
+  expect(regionsNeeded(everywhere, { bounds: phone(BARCELONA), zoom: 12 })).toEqual(['catalonia', 'long-distance']);
+  // A manifest that names no extents, as one before #266.
+  expect(regionsNeeded(REGIONS.map(({ id }) => ({ id })), { bounds: phone(BARCELONA), zoom: 12 })).toEqual(REGIONS.map((r) => r.id));
+});
+
+test('loads the region of the Train a link names, by the Network its Trip leads with, those of the Station a link names, by the file below zoom 7, and those near the viewer for Nearby, wherever the map is', () => {
+  const view = { bounds: phone(BARCELONA), zoom: 12 };
+  expect(regionsNeeded(REGIONS, view, { train: '2026-10-10/cercanias-bilbao:C4_15212' })).toEqual(['catalonia', 'cercanias-bilbao']);
+  // León's Station is in León's region and in Bilbao's, whose C4 runs to it.
+  const stations = { catalonia: ['adif:71801'], 'cercanias-leon': ['adif:15100'], 'cercanias-bilbao': ['adif:13200', 'adif:15100'] };
+  expect(regionsNeeded(REGIONS, view, { station: 'adif:15100', stations })).toEqual(['catalonia', 'cercanias-leon', 'cercanias-bilbao']);
+  // Until that file has come, it knows of none.
+  expect(regionsNeeded(REGIONS, view, { station: 'adif:15100' })).toEqual(['catalonia']);
+  // Nearby at Sevilla-Santa Justa, and 1.1 km south of Sevilla's track, where its Trains pass within 1,500 m, but not 2.2 km south.
+  const nearby = (at: Point) => regionsNeeded(REGIONS, view, { nearby: { at, metres: 1500 } });
+  expect(nearby([-5.975, 37.392])).toEqual(['catalonia', 'cercanias-sevilla']);
+  expect(nearby([-5.9, 36.902])).toEqual(['catalonia', 'cercanias-sevilla']);
+  expect(nearby([-5.9, 36.892])).toEqual(['catalonia']);
+  // Zoomed out, or with no view, those alone.
+  expect(regionsNeeded(REGIONS, { bounds: phone(BARCELONA), zoom: 6 }, { train: 'cercanias-madrid:4021C' })).toEqual(['cercanias-madrid']);
+  expect(regionsNeeded(REGIONS, undefined, { train: 'cercanias-madrid:4021C' })).toEqual(['cercanias-madrid']);
 });
