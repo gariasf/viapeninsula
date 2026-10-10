@@ -4,7 +4,7 @@ import { expect, test } from 'vitest';
 import { beside, DEGREE, places, pointAt, type Bundle, type Network, type Point, type Report, type Shape, type Snapshot, type Trip } from './bundle.ts';
 import { noonMinus12h } from './build/gtfs.ts';
 import { stationsOf } from './build/track.ts';
-import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, trainAt, trainsAt, unavailable, type Received } from './engine.ts';
+import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, unavailable, type Received, type ShownClosure } from './engine.ts';
 import { jumps } from './jumps.ts';
 import { NETWORKS } from './networks.ts';
 
@@ -792,8 +792,8 @@ test('a followed Train that live data shows stopped between Stations, held there
   expect(followed(R2S, at('21:49:30'))).toMatchObject({ standsAt: 'Vilanova i la Geltrú' });
 });
 
-/** A board of the next departures from some Stations at a moment by the device's clock, with the live data received by then, in `BUNDLE` unless it says. */
-const board = (stations: string[], moment: number, received: Received[] = [], bundle = BUNDLE) => boardAt(bundle, moment, by(received, moment), stations);
+/** A board of the next departures from some Stations at a moment by the device's clock, with the live data received by then, in `BUNDLE` unless it says, and the Closures the map shows, none unless it says. */
+const board = (stations: string[], moment: number, received: Received[] = [], bundle = BUNDLE, closures: ShownClosure[] = []) => boardAt(bundle, moment, by(received, moment), stations, closures);
 
 test("a Station's board lists each Train still to leave it, expected when its timetable has it leave, and not one that ends there", () => {
   // With no live data, the R2S stands at Vilanova i la Geltrú from 21:49 to 21:50.
@@ -1082,6 +1082,188 @@ test("a Train cut short is headed for its new last Station on boards and Nearby,
   // Live, Renfe's GPS 2 minutes late before Sants, it's still shown not stopping when its timetable has it leave.
   const live = skipping(R2S, PAST_SANTS, at('21:30:00'), [gps(R2S, where(R2S, at('22:28:00')) ?? NaN, at('22:30:00'), 120)]);
   expect(board(['Barcelona-Passeig de Gràcia'], at('22:30:10'), live)).toMatchObject([{ departure: at('22:41:00'), skipped: true, live: false }]);
+});
+
+/** The R2S closed from Calafell to Cubelles, Segur de Calafell and Cunit between them (#345). Made up, as R1 was from Blanes to Maçanet-Massanes on 7 October 2026. */
+const CLOSED: ShownClosure[] = [{ line: 'R2S', stations: ['Calafell', 'Cubelles'], kind: 'closed' }];
+
+/** The R2S's Train as it's drawn at a moment, given the Closures the map shows, if it's on the map. */
+const drawnBy = (closures: ShownClosure[], moment: number, received: Received[] = []) => trainsAt(BUNDLE, moment, by(received, moment), closures).find((t) => t.trip.id === R2S);
+
+test("a Scheduled Train isn't drawn within a closed Closure, between its two Stations: it's drawn up to the one, standing there, and again from the other on", () => {
+  // It stands at Calafell from 21:34:30 to 21:35, and at Cubelles from 21:44:30 to 21:45.
+  expect(drawnBy(CLOSED, at('21:35:00'))?.dist).toBe(114402);
+  expect(drawnBy(CLOSED, at('21:35:01'))).toBeUndefined();
+  // Standing at Segur de Calafell, between them, too.
+  expect(drawnBy(CLOSED, at('21:37:45'))).toBeUndefined();
+  expect(drawnBy(CLOSED, at('21:44:29'))).toBeUndefined();
+  expect(drawnBy(CLOSED, at('21:44:30'))?.dist).toBe(123032);
+  expect(drawnBy(CLOSED, at('21:47:00'))?.dist).toBe(where(R2S, at('21:47:00')));
+  // Its Stations either way round, as an Alert can name them.
+  expect(drawnBy([{ line: 'R2S', stations: ['Cubelles', 'Calafell'], kind: 'closed' }], at('21:40:00'))).toBeUndefined();
+  // Followed, it's off the map there.
+  expect(trainAt(BUNDLE, at('21:40:00'), [], R2S, CLOSED)).toBeUndefined();
+  // Another Line's Closure there hides it nowhere.
+  expect(drawnBy([{ line: 'R1', stations: ['Calafell', 'Cubelles'], kind: 'closed' }], at('21:40:00'))?.dist).toBe(where(R2S, at('21:40:00')));
+});
+
+test('a Live Train is drawn within a closed Closure all the same, as live data wins, until it turns Scheduled', () => {
+  // Renfe's GPS has the R2S between Segur de Calafell and Cunit at 21:40:00, as its timetable does, and then Renfe's feeds leave it out.
+  const received = [gps(R2S, where(R2S, at('21:40:00')) ?? NaN, at('21:40:00')), ...leftOut(at('21:40:20'), at('21:41:00'))];
+  const live = drawnBy(CLOSED, at('21:40:10'), received);
+  expect(live?.live).toBe(true);
+  expect(live?.dist).toBeCloseTo(where(R2S, at('21:40:10')) ?? NaN, 3);
+  // At its feed's third update since, it's Scheduled, still within the Closure.
+  expect(drawnBy([], at('21:41:10'), received)).toMatchObject({ live: false });
+  expect(drawnBy(CLOSED, at('21:41:10'), received)).toBeUndefined();
+});
+
+test("a board at a Station within a closed Closure shows a Scheduled Train not stopping there, when its timetable has it leave, and one at the Closure's Station it would run into it from doesn't list it, as where its Trip ends", () => {
+  // Cunit, between Calafell and Cubelles.
+  expect(board(['Cunit'], at('21:30:00'), [], BUNDLE, CLOSED)).toMatchObject([{ trip: { id: R2S }, station: 'Cunit', departure: at('21:41:00'), skipped: true, cancelled: false, live: false }]);
+  // Gone once its timetable has it leave there, however late it runs, as a Cancelled Train's row is.
+  expect(board(['Cunit'], at('21:41:01'), [late(R2S, 120, at('21:30:00'))], BUNDLE, CLOSED)).toEqual([]);
+  // Calafell, where it runs into the Closure, and Cubelles, where it comes out, on its way on.
+  expect(board(['Calafell'], at('21:30:00'), [], BUNDLE, CLOSED)).toEqual([]);
+  expect(board(['Cubelles'], at('21:30:00'), [], BUNDLE, CLOSED)).toMatchObject([{ trip: { id: R2S }, departure: at('21:45:00'), skipped: false }]);
+  // Cancelled, it's Cancelled there, as its operator says.
+  const cancelled: Received = { snapshot: { ...written(at('21:29:00')), reports: [{ trip: R2S, at: at('21:28:40'), cancelled: true }] }, at: at('21:29:10') };
+  expect(board(['Cunit'], at('21:30:00'), [cancelled], BUNDLE, CLOSED)).toMatchObject([{ cancelled: true, skipped: false }]);
+  expect(board(['Calafell'], at('21:30:00'), [cancelled], BUNDLE, CLOSED)).toMatchObject([{ cancelled: true, skipped: false }]);
+});
+
+test("a board shows a Live Train not stopping within a closed Closure while it's on its way there, and stopping once live data has it running within it, as live data wins", () => {
+  // Renfe's GPS has the R2S between Sant Vicenç de Calders and Calafell at 21:32:00, on time.
+  const coming = [gps(R2S, where(R2S, at('21:32:00')) ?? NaN, at('21:32:00'))];
+  expect(board(['Cunit'], at('21:32:10'), coming, BUNDLE, CLOSED)).toMatchObject([{ departure: at('21:41:00'), skipped: true, live: false }]);
+  // And between Segur de Calafell and Cunit at 21:40:00.
+  const within = [gps(R2S, where(R2S, at('21:40:00')) ?? NaN, at('21:40:00'))];
+  expect(board(['Cunit'], at('21:40:10'), within, BUNDLE, CLOSED)).toMatchObject([{ skipped: false, live: true }]);
+});
+
+test('Nearby leaves out a Scheduled Train within a closed Closure, but not one running up to it', () => {
+  // Around Cunit, the R2S passes only within the Closure: around Calafell, it comes on its way there too.
+  const [cunit, calafell]: [Point, Point] = [[1.63194242, 41.1950415], [1.57500937, 41.1896703]];
+  const passes = (point: Point, closures: ShownClosure[]) => nearbyAt(BUNDLE, at('21:30:00'), [], point, 1500, 60 * 60_000, closures);
+  expect(passes(cunit, [])).toMatchObject([{ trip: { id: R2S } }]);
+  expect(passes(cunit, CLOSED)).toEqual([]);
+  expect(passes(calafell, CLOSED)).toEqual(passes(calafell, []));
+  expect(passes(calafell, CLOSED)).toHaveLength(1);
+});
+
+test("a Scheduled Train that runs through a closed Closure without calling at both its Stations isn't drawn within it either, by where it is along its track, nor listed leaving one of them into it, nor in Nearby there", () => {
+  // Made up: two of R2 Sud's faster Trains on the R2S's track, as many run past its smaller Stations, one
+  // calling at Calafell and then at none until Vilanova i la Geltrú, the other at neither end.
+  const fast = bundleOf('2026-09-24', { id: 'rodalies', name: 'Rodalies de Catalunya', profile: PROFILE }, {
+    [R2S]: { line: 'R2S', calls: TRIPS[R2S]?.calls ?? [] },
+    'by Calafell': {
+      line: 'R2S',
+      calls: [
+        ['Sant Vicenç de Calders', '21:30:00', '21:30:00', 110172, 1.52480358, 41.1862102],
+        ['Calafell', '21:34:00', '21:35:00', 114402, 1.57500937, 41.1896703],
+        ['Vilanova i la Geltrú', '21:45:00', '21:45:00', 128092, 1.73077249, 41.2203207],
+      ],
+    },
+    'by neither': {
+      line: 'R2S',
+      calls: [
+        ['Sant Vicenç de Calders', '21:30:00', '21:30:00', 110172, 1.52480358, 41.1862102],
+        ['Vilanova i la Geltrú', '21:45:00', '21:45:00', 128092, 1.73077249, 41.2203207],
+      ],
+    },
+  });
+  // All on the R2S's track, as a route's Trips share one.
+  const bundle = { ...fast, trips: fast.trips.map((t) => ({ ...t, shape: R2S })) };
+  const drawn = (id: string, moment: number, closures: ShownClosure[]) => trainsAt(bundle, moment, [], closures).find((t) => t.trip.id === id);
+  for (const id of ['by Calafell', 'by neither']) {
+    // Between Calafell, 114402 m along, and Cubelles, 123032 m, at 21:38, and past Cubelles at 21:44.
+    expect(drawn(id, at('21:38:00'), [])?.dist).toSatisfy((d: number) => d > 114402 && d < 123032);
+    expect(drawn(id, at('21:38:00'), CLOSED)).toBeUndefined();
+    expect(drawn(id, at('21:44:00'), [])?.dist).toBeGreaterThan(123032);
+    expect(drawn(id, at('21:44:00'), CLOSED)?.dist).toBe(drawn(id, at('21:44:00'), [])?.dist);
+  }
+  // Standing at Calafell, the Closure's edge, it's drawn.
+  expect(drawn('by Calafell', at('21:34:30'), CLOSED)?.dist).toBe(114402);
+  // Calafell's board lists it no more than the R2S, as both leave it into the Closure.
+  expect(boardAt(bundle, at('21:30:00'), [], ['Calafell'], [])).toHaveLength(2);
+  expect(boardAt(bundle, at('21:30:00'), [], ['Calafell'], CLOSED)).toEqual([]);
+  // Around Cunit, within the Closure, Nearby lists none of the three.
+  const cunit: Point = [1.63194242, 41.1950415];
+  expect(nearbyAt(bundle, at('21:30:00'), [], cunit, 1500, 60 * 60_000, [])).toHaveLength(3);
+  expect(nearbyAt(bundle, at('21:30:00'), [], cunit, 1500, 60 * 60_000, CLOSED)).toEqual([]);
+});
+
+test('a Closure down to a single track hides no Train', () => {
+  // As R2's from Sant Vicenç de Calders to Cunit was on 7 October 2026.
+  const single: ShownClosure[] = [{ line: 'R2S', stations: ['Sant Vicenç de Calders', 'Cunit'], kind: 'single' }];
+  expect(drawnBy(single, at('21:36:00'))?.dist).toBe(where(R2S, at('21:36:00')));
+});
+
+test("a Live Train seen within a closed Closure lifts it for its Line: the Line's next Train is drawn within it, and boards show it stopping there", () => {
+  // Renfe's GPS has the R2S between Segur de Calafell and Cunit at 21:40:00, as its timetable does.
+  const within = gps(R2S, where(R2S, at('21:40:00')) ?? NaN, at('21:40:00'));
+  expect(seenWithin(EVERY_10, within.at, [within], CLOSED)).toEqual(CLOSED);
+  // The map then leaves it out of the Closures that hide Trains. The R2S 10 minutes behind, Scheduled,
+  // is there at 21:50:00, and at Cunit leaves at 21:51, as its timetable has it.
+  const lifted = CLOSED.filter((c) => !seenWithin(EVERY_10, within.at, [within], CLOSED).includes(c));
+  const next = (closures: ShownClosure[]) => trainsAt(EVERY_10, at('21:50:00'), [within], closures).find((t) => t.trip.id === `${R2S} +10`);
+  expect(next(CLOSED)).toBeUndefined();
+  expect(next(lifted)).toMatchObject({ live: false, dist: where(R2S, at('21:40:00')) });
+  expect(board(['Cunit'], at('21:45:00'), [within], EVERY_10, CLOSED)[0]).toMatchObject({ trip: { id: `${R2S} +10` }, skipped: true });
+  expect(board(['Cunit'], at('21:45:00'), [within], EVERY_10, lifted)[0]).toMatchObject({ trip: { id: `${R2S} +10` }, departure: at('21:51:00'), skipped: false });
+});
+
+test("a Live Train seen within a closed Closure lifts its own Line's, not another Line's on the same Stations", () => {
+  // Made up: the R2S 10 minutes behind runs as an R13, on the same track, and each Line has a Closure from Calafell to Cubelles.
+  const shared = { ...EVERY_10, lines: [...EVERY_10.lines, { id: 'R13', network: 'rodalies', name: 'R13', colour: '#000', shapes: [], kind: 'regional' as const }], trips: EVERY_10.trips.map((t) => (t.id === `${R2S} +10` ? { ...t, line: 'R13' } : t)) };
+  const both: ShownClosure[] = [...CLOSED, { line: 'R13', stations: ['Calafell', 'Cubelles'], kind: 'closed' }];
+  const within = gps(R2S, where(R2S, at('21:40:00')) ?? NaN, at('21:40:00'));
+  expect(seenWithin(shared, within.at, [within], both)).toEqual(CLOSED);
+});
+
+test("a Train standing at either of a closed Closure's Stations doesn't lift it, nor Renfe's GPS just past one, but Renfe pinning it to a Station between them does", () => {
+  const seen = (received: Received) => seenWithin(BUNDLE, received.at, [received], CLOSED);
+  // Pinned to Calafell or Cubelles, the R2S may go no further, as an R1 Train Renfe ran only as far as Blanes on 7 October 2026.
+  expect(seen(near(R2S, 'Calafell', 0, at('21:35:00')))).toEqual([]);
+  expect(seen(near(R2S, 'Cubelles', 0, at('21:45:00')))).toEqual([]);
+  // Calafell is 114402 m along its track, and Cubelles 123032 m.
+  expect(seen(gps(R2S, 114402 + 150, at('21:35:10')))).toEqual([]);
+  expect(seen(gps(R2S, 123032 - 150, at('21:44:20')))).toEqual([]);
+  expect(seen(gps(R2S, 114402 + 250, at('21:35:20')))).toEqual(CLOSED);
+  // Pinned to Cunit, as Renfe pins a Train coming into a Station or standing there.
+  expect(seen(near(R2S, 'Cunit', 0, at('21:41:00')))).toEqual(CLOSED);
+});
+
+test("a report sees a Train within a closed Closure only while it's Live: not one Cancelled, nor GPS far off its track, nor what a feed failing since last said, but by TRAM's distance too", () => {
+  const seen = (received: Received) => seenWithin(BUNDLE, received.at, [received], CLOSED);
+  // Cancelled, though pinned to Cunit, as Renfe pinned its cancelled 13:09 from Maçanet-Massanes to Tordera on 7 October 2026.
+  const cancelled: Received = { snapshot: { ...written(at('21:41:00')), reports: [{ trip: R2S, at: at('21:41:00'), cancelled: true, position: { near: 'Cunit' } }] }, at: at('21:41:00') };
+  expect(seen(cancelled)).toEqual([]);
+  // Nor pinned to Cunit where Renfe has said it won't stop at any other of its Stations, which makes it Cancelled too (#346).
+  const others = BUNDLE.trips.find((t) => t.id === R2S)?.calls.flatMap((c) => (c.station === 'Cunit' ? [] : [c.station])) ?? [];
+  expect(seen(skipping(R2S, others, at('21:20:00'), [near(R2S, 'Cunit', 0, at('21:41:00'))])[0] as Received)).toEqual([]);
+  // 1 km off its track beside Cunit, as Renfe's GPS had an R4 Train 42 km off its own on 25 September 2026.
+  const [lon, lat] = offTrack(119202, 1000);
+  expect(seen({ snapshot: { ...written(at('21:41:00')), reports: [{ trip: R2S, at: at('21:41:00'), position: { lon, lat } }] }, at: at('21:41:00') })).toEqual([]);
+  // Renfe's GPS had it within at 21:40:00, and its feeds then failed: two updates on, it's still Live, and at the third, not.
+  const within = gps(R2S, where(R2S, at('21:40:00')) ?? NaN, at('21:40:00'));
+  expect(seen(failing(at('21:40:40'), within))).toEqual(CLOSED);
+  expect(seen(failing(at('21:41:00'), within))).toEqual([]);
+  // Made up: TRAM's distance for the R2S, which TRAM counts from a Trip's first Station, here Sant Vicenç de Calders, 110172 m along its track.
+  const along = (metres: number): Received => ({ snapshot: { ...written(at('21:41:00')), reports: [{ trip: R2S, at: at('21:41:00'), position: { along: metres } }] }, at: at('21:41:00') });
+  expect(seen(along(119202 - 110172))).toEqual(CLOSED);
+  expect(seen(along(123032 - 110172 - 150))).toEqual([]);
+});
+
+test("the latest snapshot sees a Train within a closed Closure only while trainsAt() has it Live, not once the map has received none since for a while, as a tab hidden meanwhile, while an Alert may have changed", () => {
+  // Renfe's GPS has the R2S between Segur de Calafell and Cunit at 21:40:00, and then the map receives nothing.
+  const within = gps(R2S, where(R2S, at('21:40:00')) ?? NaN, at('21:40:00'));
+  expect(train(R2S, at('21:42:00'), [within])?.live).toBe(true);
+  expect(seenWithin(BUNDLE, at('21:42:00'), [within], CLOSED)).toEqual(CLOSED);
+  expect(train(R2S, at('21:42:20'), [within])?.live).toBe(false);
+  expect(seenWithin(BUNDLE, at('21:42:20'), [within], CLOSED)).toEqual([]);
+  // Its tab shown again at 23:00, before the next snapshot comes.
+  expect(seenWithin(BUNDLE, at('23:00:00'), [within], CLOSED)).toEqual([]);
 });
 
 test('never runs back when its last Delay runs out, among the snapshots the map keeps', () => {
@@ -2106,6 +2288,59 @@ test("over 45 minutes of the rains of 7 October 2026, Trains are drawn where the
   // Villaverde Bajo at 13:41 (2), and C10's to El Barrial at 13:32 (2 and 1.3). The rest, 1 Live, is
   // the first snapshot's, written before Renfe's first feeds recorded.
   expect(drawnWhereNotRun(RAINS.received)).toEqual({ live: 1040, scheduled: 80, stopping: 0, notStopping: 66 });
+}, 60_000);
+
+// The Trains drawn within R1's Blanes – Maçanet-Massanes and R3's Ripoll – Puigcerdà from 13:00 to
+// 13:45 on 7 October 2026, in the rains, which Renfe's Alerts of that morning closed (#345): that day's
+// bundle cut to their Trips and the Stations they call at, and the snapshots the fetcher would have
+// written over Renfe's feeds as recorded every 20 s from 13:00:09, each received as it was written.
+const CLOSED_RAINS: { bundle: Bundle; received: Received[] } = JSON.parse(gunzipSync(readFileSync(new URL('fixtures/replay-2026-10-07-closures.json.gz', import.meta.url))).toString());
+
+/** The closed Closures the map showed at 13:00 that day, as closuresAt() has them from Renfe's Alerts read at 11:39 (#341): R1's Blanes – Maçanet-Massanes and R3's Ripoll – Puigcerdà. */
+const ALERTED: ShownClosure[] = [
+  { line: 'rodalies:R1', stations: ['adif:79606', 'adif:79200'], kind: 'closed' },
+  { line: 'rodalies:R3', stations: ['adif:77200', 'adif:77309'], kind: 'closed' },
+];
+
+/**
+ * How long the rains' Trains are drawn within those Closures, more than 30 m from either end, Live and
+ * Scheduled, in seconds every 10 s, given the Closures the map shows; and at 13:00, Tordera's rows
+ * between Blanes and Maçanet-Massanes, running and not stopping, and the rows at those two.
+ */
+function drawnWithin(closures: ShownClosure[]) {
+  const { bundle, received } = CLOSED_RAINS;
+  const drawn = { live: 0, scheduled: 0 };
+  for (let moment = received[0]?.at ?? 0; moment <= (received.at(-1)?.at ?? 0); moment += 10_000) {
+    for (const { trip, dist, live } of trainsAt(bundle, moment, by(received, moment), closures)) {
+      const ends = ALERTED.find((c) => c.line === trip.line)?.stations.map((s) => trip.calls.find((c) => c.station === s)?.dist ?? NaN) ?? [];
+      if (Math.min(...ends) + 30 < dist && dist < Math.max(...ends) - 30) drawn[live ? 'live' : 'scheduled'] += 10;
+    }
+  }
+  const at = (stations: string[]) => boardAt(bundle, received[0]?.at ?? 0, by(received, received[0]?.at ?? 0), stations, closures);
+  const tordera = at(['adif:79607']);
+  return { ...drawn, running: tordera.filter((d) => !d.skipped).length, notStopping: tordera.filter((d) => d.skipped).length, atEnds: at(['adif:79606']).length + at(['adif:79200']).length };
+}
+
+test("over 45 minutes of the rains of 7 October 2026, Trains are drawn within the Closures Renfe's Alerts made only while Live, and Tordera's board shows the rest not stopping", () => {
+  // Without them, as before #345: 18.8 Train-minutes Scheduled, all R1's, of the Train Renfe stopped
+  // reporting at Blanes at 13:02, to Maçanet-Massanes, and of the one from Maçanet-Massanes at 13:09
+  // until Renfe cancelled it at 13:15. 22.7 Live: R3's to La Tor de Querol, from Ripoll on, and R1's,
+  // run on past Blanes for a minute after Renfe's last GPS at 13:02, and from 13:44 as Renfe's GPS had it.
+  expect(drawnWithin([])).toEqual({ live: 1360, scheduled: 1130, running: 3, notStopping: 0, atEnds: 4 });
+  // With them, none Scheduled. Tordera's board shows two of its three not stopping, and the third,
+  // 40 minutes late, not at all, as its timetable left at 12:28, as a Cancelled Train's row goes then.
+  // Blanes and Maçanet-Massanes list only the one leaving Blanes for L'Hospitalet de Llobregat.
+  expect(drawnWithin(ALERTED)).toEqual({ live: 1360, scheduled: 0, running: 0, notStopping: 2, atEnds: 1 });
+}, 60_000);
+
+test("over 45 minutes of the rains of 7 October 2026, Renfe's reports saw R3's Train within Ripoll – Puigcerdà from the first, which lifts its Closure, and no R1 Train within Blanes – Maçanet-Massanes", () => {
+  const { bundle, received } = CLOSED_RAINS;
+  const first = ALERTED.map((c) => received.find((r, i) => seenWithin(bundle, r.at, received.slice(0, i + 1), ALERTED).includes(c))?.at);
+  // R1's isn't lifted: not by the cancelled 13:09 from Maçanet-Massanes, which Renfe pinned to Tordera
+  // from 13:24 to 13:29, nor by the Train Renfe pinned to Blanes until 13:02 and ran no further, nor by
+  // the one drawn Live past Blanes from 13:44 by its GPS Delay of 13:17, which Renfe pinned two
+  // Stations short of Blanes. R3's GPS had its Train 13 km within at 13:00:03, as it ran there.
+  expect(first).toEqual([undefined, received[0]?.at]);
 }, 60_000);
 
 // Made up: an R1 Trip from Badalona to El Masnou each night, from 23:50 to 00:20, on every day's

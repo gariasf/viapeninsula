@@ -81,7 +81,7 @@ An operator's notice about a Line, a Station or a Train, from its live alerts fe
 _Avoid_: Incident, notice, warning, disruption
 
 **Closure**:
-A part of a Line between two of its Stations that's closed, with buses or nothing in its Trains' place, or down to a single track, for as long as its Alert or the timetable says. The map draws only the Closures it can place on the Line's track.
+A part of a Line between two of its Stations that's closed, with buses or nothing in its Trains' place, or down to a single track, for as long as its Alert or the timetable says. The map draws only the Closures it can place on the Line's track. Within a closed one, a Train isn't drawn, and boards show it not stopping, unless it's Live within it: live data wins. Once a Live Train of its Line is seen within one an Alert makes, it hides none of that Line's Trains until its Alert changes, though it's still drawn.
 _Avoid_: Closed stretch (a Stretch is track, ADR-0006), cut, blockade
 
 ### Passport
