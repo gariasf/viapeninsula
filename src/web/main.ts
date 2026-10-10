@@ -624,6 +624,8 @@ let bundle: Bundle | undefined;
 let stationNames = new Map<string, string>();
 /** Where the map shows the Stations, by their IDs in places(). */
 let shownPlaces = new Map<string, Place>();
+/** Each Station's place in shownPlaces, for the buttons that open its board (#322). */
+let placeOfStation = new Map<string, Place>();
 /**
  * What places each Line's Trains on its stroke zoomed out: the shapes, its slots by `<line> <shape>`,
  * its curves (zones()), and which side its Trains keep to, 1 right and -1 left; and where each Closure
@@ -1075,6 +1077,7 @@ function show(days: Track | Bundle) {
   lines = new Map(days.lines.map((l) => [l.id, l]));
   stationNames = new Map(days.stations.map((s) => [s.id, s.name]));
   shownPlaces = new Map(places(days.stations).map((p) => [p.id, p]));
+  placeOfStation = new Map([...shownPlaces.values()].flatMap((p) => p.stations.map((station): [string, Place] => [station, p])));
   const shapes = new Map(days.shapes.map((s) => [s.id, s]));
   const slots = new Map<string, Slot[]>();
   // A track built before #176 has none: its Trains go on their own track.
@@ -1538,10 +1541,16 @@ function follow(id: string, up = false) {
   if (following.at) easeOnto(following.at);
   // A Trip still to come, its Train not on the map yet: to its first Station, which it leaves from (#322).
   else if (waiting) {
-    const first = bundle?.trips.find((t) => t.id === followedId())?.calls[0]?.station;
-    const at = shownStations?.find((s) => s.id === first);
-    if (at) easeOnto([at.lon, at.lat]);
+    const at = startOf();
+    if (at) easeOnto(at);
   }
+}
+
+/** The Station a Trip still to come leaves from, where the map eases onto (#322). */
+function startOf(): Point | undefined {
+  const first = bundle?.trips.find((t) => t.id === followedId())?.calls[0]?.station;
+  const at = shownStations?.find((s) => s.id === first);
+  return at && [at.lon, at.lat];
 }
 
 /** What the panel shows now, to go Back to (#322): none while it shows no Train, board or Nearby that's found the viewer. */
@@ -1553,16 +1562,26 @@ function here(): NonNullable<typeof back> | undefined {
 }
 
 /** Opens another panel from this one, by a departure or a Station, which has a Back to this one (#322). */
-function openFrom(open: () => void) {
-  const was = here();
+function openFrom(open: () => void, at?: Point) {
+  const [was, keyboard] = [here(), panel.contains(document.activeElement)];
   open();
   back = was;
   showPanel();
+  // The Back row makes the header taller, so the map's padding and where it eases to are worked out again.
+  const to = at ?? following?.at ?? (waiting ? startOf() : undefined);
+  if (to) easeOnto(to);
+  else map.easeTo({ padding: panelPadding() });
+  if (keyboard) focusTitle();
+}
+
+/** Puts the keyboard's focus on the panel's title, where the button it was on has gone with the panel it opened (#322), as Nearby's does after a Try again. */
+function focusTitle() {
+  panel.querySelector<HTMLElement>('.title')?.focus();
 }
 
 /** Goes back to the panel this one was opened from, as it was (#322): a Train is followed again and the map eases onto it, a board or Nearby leaves the map where it is. */
 function goBack() {
-  const to = back;
+  const [to, keyboard] = [back, panel.contains(document.activeElement)];
   if (!to) return;
   if (to.to === 'train') follow(`${to.day}/${to.trip}`, to.up);
   else {
@@ -1573,6 +1592,7 @@ function goBack() {
     map.easeTo({ padding: panelPadding() });
   }
   panel.querySelector('.sheet-body')?.scrollTo(0, to.scroll);
+  if (keyboard) focusTitle();
 }
 
 /** Brings `at` into the middle of the map beside the panel, at zoom 13, or closer if the map already is: a Train the map follows, or a Station whose link names no view (#292). */
@@ -1869,6 +1889,7 @@ function moreButton(text: string) {
  */
 function followedPanel(up: boolean): Panel | undefined {
   const now = Date.now();
+  waiting = false;
   const train = bundle && trainAt(bundle, now, received, followedId() ?? '');
   // Its Trip still to come, where its Train isn't on the map yet (#322).
   const coming = bundle && !train ? comingAt(bundle, now, received, followedId() ?? '') : undefined;
@@ -1883,7 +1904,7 @@ function followedPanel(up: boolean): Panel | undefined {
   status.push(el('span', {}, el('span', { className: 'sr-only', textContent: `${t('speed')} ` }), `~${Math.round(speed * 3.6)} km/h`));
   if (unitType) status.push(`${t('unit')} ${unitType}`);
   return {
-    header: el('header', {}, ...backButton(), el('h2', { className: 'title' }, pill(trip.line, { live, train: true }), ` ${trip.headsign}`), closeButton(t('stopFollowing'))),
+    header: el('header', {}, ...backButton(), el('h2', { className: 'title', tabIndex: -1 }, pill(trip.line, { live, train: true }), ` ${trip.headsign}`), closeButton(t('stopFollowing'))),
     body: [
       el('p', { className: 'meta status-line' }, el('span', { className: `dot ${live ? 'live' : 'scheduled'}` }), ...status.flatMap((part, i) => (i ? [' · ', part] : [part]))),
       ...nextStation(train, now),
@@ -1906,7 +1927,7 @@ function comingPanel({ trip, live, delay, upcoming }: Coming, up: boolean, now: 
   const [first, last] = [upcoming[0], upcoming.at(-1)];
   const leaves = first && t('leavesAt').replace('{station}', stationName(first.station)).replace('{time}', clock().format(first.departure));
   return {
-    header: el('header', {}, ...backButton(), el('h2', { className: 'title' }, pill(trip.line, { live, train: true }), ` ${trip.headsign}`), closeButton(t('stopFollowing'))),
+    header: el('header', {}, ...backButton(), el('h2', { className: 'title', tabIndex: -1 }, pill(trip.line, { live, train: true }), ` ${trip.headsign}`), closeButton(t('stopFollowing'))),
     body: [
       el('p', { className: 'meta status-line' }, el('span', { className: `dot ${live ? 'live' : 'scheduled'}` }), leaves ?? '', ...(first ? countdown(first.departure, now, 'inMinutes').flatMap((n) => [' · ', n]) : [])),
       ...nextStation({ upcoming, standsAt: undefined, delay, live }, now),
@@ -1918,6 +1939,7 @@ function comingPanel({ trip, live, delay, upcoming }: Coming, up: boolean, now: 
 
 /** The button in a header that goes Back (#322), naming where it goes: none where there's none, or the Train it would follow has left the map. */
 function backButton(): Node[] {
+  // ponytail: two engine passes a second while Back goes to a Train; cache the check if a phone shows it.
   if (!back) return [];
   const where = back.to === 'train' ? undefined : back.to === 'board' ? shownPlaces.get(back.place)?.name : t('nearby');
   if (back.to === 'train' ? !(bundle && (trainAt(bundle, Date.now(), received, back.day === bundle.serviceDay ? back.trip : `${back.day}/${back.trip}`) || comingAt(bundle, Date.now(), received, back.day === bundle.serviceDay ? back.trip : `${back.day}/${back.trip}`))) : !where) return [];
@@ -2001,13 +2023,9 @@ function strip({ trip, upcoming, standsAt }: Pick<Followed, 'trip' | 'upcoming' 
  * it's written there, or just that where no place on the map has it.
  */
 function stationLink(station: string, name: Node | string) {
-  const place = [...shownPlaces.values()].find((p) => p.stations.includes(station));
+  const place = placeOfStation.get(station);
   if (!place) return el('span', {}, name);
-  const open = () =>
-    openFrom(() => {
-      showBoard(place.id);
-      easeOnto([place.lon, place.lat]);
-    });
+  const open = () => openFrom(() => showBoard(place.id), [place.lon, place.lat]);
   return el('button', { type: 'button', className: 'station-link', onclick: open }, name);
 }
 
@@ -2165,7 +2183,7 @@ function boardPanel(id: string, up: boolean): Panel | undefined {
       'header',
       { className: 'nameboard' },
       ...backButton(),
-      el('div', {}, el('h2', { className: 'title', textContent: place.name }), el('div', { className: 'served' }, ...servedBy(place).map((line) => pill(line, { small: true })))),
+      el('div', {}, el('h2', { className: 'title', textContent: place.name, tabIndex: -1 }), el('div', { className: 'served' }, ...servedBy(place).map((line) => pill(line, { small: true })))),
       closeButton(t('closeBoard')),
     ),
     body: [
@@ -2204,7 +2222,9 @@ function departureRow({ trip, departure, delay, live, unreported, cancelled, ski
 function followButton(trip: Trip, at: number, cells: Node[]) {
   const label = t('followDeparture').replace('{line}', lines.get(trip.line)?.name ?? '').replace('{headsign}', trip.headsign).replace('{time}', clock().format(at));
   const button = el('button', { type: 'button', className: 'row', onclick: () => openFrom(() => follow(trip.id)) }, ...cells);
-  button.setAttribute('aria-label', label);
+  // With what the row says at its end, its Delay or that it isn't stopping, which the label would drop.
+  const says = cells.at(-1)?.textContent?.trim();
+  button.setAttribute('aria-label', says ? `${label}, ${says}` : label);
   return [button];
 }
 
