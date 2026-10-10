@@ -2017,12 +2017,14 @@ function moreButton(text: string) {
  */
 function followedPanel(up: boolean): Panel | undefined {
   const now = Date.now();
+  // The minutes to go count by the map's time, as the times they count to are the fetcher's (#356).
+  const mapNow = mapTime(now, received);
   waiting = false;
   const train = bundle && trainAt(bundle, now, received, followedId() ?? '', hidingClosures);
   // Its Trip still to come, where its Train isn't on the map yet (#322).
   const coming = bundle && !train ? comingAt(bundle, now, received, followedId() ?? '') : undefined;
   waiting = !!coming;
-  if (coming) return comingPanel(coming, up, now);
+  if (coming) return comingPanel(coming, up, mapNow);
   if (!train) return undefined;
   const { trip, live, unreported, since, speed, unitType, upcoming } = train;
   const last = upcoming.at(-1);
@@ -2035,7 +2037,7 @@ function followedPanel(up: boolean): Panel | undefined {
     header: el('header', {}, ...backButton(), el('h2', { className: 'title', tabIndex: -1 }, pill(trip.line, { live, train: true }), ` ${trip.headsign}`), closeButton(t('stopFollowing'))),
     body: [
       el('p', { className: 'meta status-line' }, el('span', { className: `dot ${live ? 'live' : 'scheduled'}` }), ...status.flatMap((part, i) => (i ? [' · ', part] : [part]))),
-      ...nextStation(train, now),
+      ...nextStation(train, mapNow),
       tripBar(train),
       alertsOn({ lines: [trip.line], stations: [] }),
       ...(up
@@ -2298,9 +2300,10 @@ function boardPanel(id: string, up: boolean): Panel | undefined {
   const place = shownPlaces.get(id);
   if (!place) return undefined;
   const now = Date.now();
+  const mapNow = mapTime(now, received);
   const departures = bundle ? boardAt(bundle, now, received, place.stations, hidingClosures) : [];
   // With none left today, the next day's first are to come; refreshDays() runs again within a minute if it's busy now.
-  const date = madridDate(new Date(mapTime(now, received)));
+  const date = madridDate(new Date(mapNow));
   if (bundle && !departures.length && emptyBoard !== date) {
     emptyBoard = date;
     refreshDays();
@@ -2317,7 +2320,7 @@ function boardPanel(id: string, up: boolean): Panel | undefined {
     body: [
       alertsOn({ lines: servedBy(place), stations: place.stations }),
       el('h3', { className: 'label', textContent: t('nextDepartures') }),
-      departures.length ? el('ol', { className: 'rows' }, ...shown.map((departure) => departureRow(departure, now))) : el('p', { textContent: t('noDepartures') }),
+      departures.length ? el('ol', { className: 'rows' }, ...shown.map((departure) => departureRow(departure, mapNow))) : el('p', { textContent: t('noDepartures') }),
       ...(shown.length < departures.length ? [moreButton(moreDepartures(departures.length - shown.length))] : []),
     ],
   };
@@ -2391,7 +2394,7 @@ function nearbyPanel(near: Point | Unlocated, up: boolean): Panel {
     return { header, body: [said, ...(tryAgain ? [el('button', { type: 'button', className: 'card try-again', onclick: askAgain }, tryAgain)] : [])] };
   }
   const now = Date.now();
-  const rows = nearbyRows(bundle ? nearbyAt(bundle, now, received, near, NEARBY, SOON, hidingClosures) : [], now);
+  const rows = nearbyRows(bundle ? nearbyAt(bundle, now, received, near, NEARBY, SOON, hidingClosures) : [], mapTime(now, received));
   said.append(el('p', { className: 'subtitle', textContent: t('passingNearby') }));
   // Where no Train passes, saying so is what a try found too, so the status says it, for a screen reader to
   // hear; but only once the Trips have come, which can be after the viewer is found, as the map can't tell before.

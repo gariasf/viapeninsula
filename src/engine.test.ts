@@ -7,6 +7,7 @@ import { stationsOf } from './build/track.ts';
 import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, unavailable, type Received, type ShownClosure } from './engine.ts';
 import { jumps } from './jumps.ts';
 import { NETWORKS } from './networks.ts';
+import { minutesTo } from './web/cards.ts';
 
 /** A speed profile like Rodalies', in metres and seconds, which the times below are worked out from. */
 const PROFILE = { acceleration: 1, braking: 1, topSpeed: 160 / 3.6, dwell: 30 };
@@ -2550,4 +2551,28 @@ test('on the night the clocks go back, the previous day runs an hour longer, and
   ]);
   // Both are 10 minutes out of Badalona then.
   expect(trainsAt(saturday, moment)[0]?.dist).toBe(trainsAt(sunday, moment)[0]?.dist);
+});
+
+test("the minutes to go on a board and in Nearby are the same on a device whose clock is hours off as on a right one (#356)", () => {
+  const point = offTrack(MIDWAY, 1000);
+  const minutes = (moment: number, received: Received[]) => {
+    const now = mapTime(moment, by(received, moment));
+    return {
+      board: boardAt(BUNDLE, moment, by(received, moment), ['Sitges']).map((d) => minutesTo(d.departure, now)),
+      nearby: nearbyAt(BUNDLE, moment, by(received, moment), point, 1500, 60 * 60_000).map((p) => minutesTo(p.at, now)),
+    };
+  };
+  const right = minutes(at('21:29:30'), []);
+  // Both have rows a few minutes off, so a wrong clock shows in them.
+  expect(Math.max(...right.board)).toBeGreaterThan(0);
+  expect(Math.max(...right.nearby)).toBeGreaterThan(0);
+  for (const hours of [-13, 3, 14]) {
+    const off = hours * 3600;
+    // Two snapshots, 20 s apart, as the fetcher writes them: enough to show a clock that's ahead.
+    const received = [
+      { snapshot: written(at('21:29:00')), at: at('21:29:00', off) },
+      { snapshot: written(at('21:29:20')), at: at('21:29:20', off) },
+    ];
+    expect(minutes(at('21:29:30', off), received)).toEqual(right);
+  }
 });
