@@ -717,3 +717,16 @@ test('traces each run of Stations once for all its Trips, and leaves out, logs a
     { kind: 'trip', why: 'off', trip: 'ae', line: 'MD', stations: [{ id: 'E' }], text: [text[1]], day: 0 },
   ]);
 });
+
+test("runs AVE on both gauges all the way where a stretch has no path on standard gauge, as one can't tell where it must change till a later stretch: into Ourense through Taboadela's changer, on to Santiago", () => {
+  // B has a standard-gauge track from A, and an Iberian-gauge one from A through a changer at k, on which
+  // alone Trains run on to C.
+  const points_: Record<string, [number, number]> = { a: [0, 0], j: [2000, 0], s: [4000, 0], k: [3000, 100], i: [4000, 30], c: [6000, 30] };
+  const ways = rails(points_, ['a j', { gauge: '1435' }], ['j s', { gauge: '1435' }], ['j k', { gauge: '1435' }], 'k i c');
+  const stations = [station('A', -10, 0), station('B', 4000, 15), station('C', 6010, 30)];
+  const { track, log } = runs(ways, stations, [[call('ave', 'A B C', STANDARD), call('to B', 'A B', STANDARD)]], new Set([Object.keys(points_).indexOf('k') + 1]));
+  expect(points(track('ave'))).toEqual([[0, 0], [2000, 0], [3000, 100], [4000, 30], [6000, 30]]);
+  expect(log.filter((line) => line.includes('changing gauge'))).toEqual(['AVE:1: A → C, 6.0 km long, 1.00× the straight line through its 3 Stations, changing gauge between A and B']);
+  // A Train that ends at B keeps to standard gauge.
+  expect(points(track('to B'))).toEqual([[0, 0], [2000, 0], [4000, 0]]);
+});

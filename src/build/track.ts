@@ -214,27 +214,22 @@ export function traceRuns(
 }
 
 /**
- * One run traced along the rails, through its Stations in order: on its own gauges where it can, and
- * where a stretch has no path there, on its others too, as AVE runs on standard gauge, and on Iberian
- * gauge too only beyond a changer where it must. Or why it can't be: a Station off the rails, or a
- * stretch with no path.
+ * One run traced along the rails, through its Stations in order, on its own gauges where it can, and
+ * where a stretch has no path there, on its others too, all the way: one can't tell where it must
+ * change gauge till a later stretch, as AVE can reach Ourense on standard gauge, but must change at
+ * Taboadela, short of it, to go on to Santiago. Or why it can't be: a Station off the rails, or a
+ * stretch with no path. What it logs, it reports too.
  */
 function traceRun(graph: Graph, run: Run, log: (line: string) => void, report: (found: Found) => void): Shape | { why: Cause; stations: Station[]; reason: string } {
   const { stations } = run;
   const off = stations.find((s) => !graph.near.has(s.id));
   if (off) return { why: 'off', stations: [off], reason: `${off.name} is off the network` };
-  const turnBacks = new Set(stations.flatMap((s) => graph.near.get(s.id) ?? []));
-  let reached: Arrival[] = (graph.near.get(stations[0]?.id ?? '') ?? []).map((vertex) => ({ vertex, edge: -1, cost: 0, waypoint: 0, edges: [] }));
-  for (const [i, b] of stations.entries()) {
-    const a = stations[i - 1];
-    if (!a) continue;
-    // A path much longer than the crow flies is no path, as in traceShape().
-    const limit = 3 * metres([a.lon, a.lat], [b.lon, b.lat]) + 10_000;
-    const to = new Set(graph.near.get(b.id));
-    let next = paths(graph, reached, to, limit, turnBacks, run.gauges.gauges.length);
-    if (!next.length && run.gauges.orElse?.length) next = paths(graph, reached, to, limit, turnBacks);
-    if (!next.length) return { why: 'nopath', stations: [a, b], reason: `${a.name} → ${b.name} has no path along the rails` };
-    reached = next.map((arrival) => ({ ...arrival, waypoint: i }));
+  const { gauges, orElse = [] } = run.gauges;
+  let reached = walk(graph, stations, gauges.length);
+  if (!Array.isArray(reached) && orElse.length) reached = walk(graph, stations, Infinity);
+  if (!Array.isArray(reached)) {
+    const { a, b } = reached;
+    return { why: 'nopath', stations: [a, b], reason: `${a.name} → ${b.name} has no path along the rails` };
   }
   const stretches = cheapest(reached);
   const edges = stretches.flatMap((a) => a.edges);
@@ -255,10 +250,17 @@ function traceRun(graph: Graph, run: Run, log: (line: string) => void, report: (
   const km = (traced.dist.at(-1) ?? 0) / 1000;
   const [start, end] = [stations[0]?.name, stations.at(-1)?.name];
   log(`${run.id}: ${start} → ${end}, ${km.toFixed(1)} km long, ${((km * 1000) / straight).toFixed(2)}× the straight line through its ${stations.length} Stations${changes.map((c) => `, changing gauge between ${c}`).join('')}`);
-  // A hop much longer than the crow flies may have gone wrong, if not so long as to be no path.
   for (const a of stretches) {
     const [from, to] = [stations[a.waypoint - 1], stations[a.waypoint]];
     if (!from || !to) continue;
+    // Where it turns back on the way, as traceShape() reports it.
+    for (const v of turnsBack(graph, a.edges)) {
+      const at = stations.find((s) => graph.near.get(s.id)?.includes(v));
+      const text = `${run.id}: ${from.name} → ${to.name} turns back at ${at?.name}`;
+      log(text);
+      report({ kind: 'turn', line: run.line, shape: run.id, stations: at ? [at] : [], text: [text] });
+    }
+    // A hop much longer than the crow flies may have gone wrong, if not so long as to be no path.
     const [hop, line] = [a.edges.reduce((sum, e) => sum + (graph.metres[e] ?? 0), 0), metres([from.lon, from.lat], [to.lon, to.lat])];
     if (hop <= DETOUR * line + 10_000) continue;
     const text = `${run.id}: ${from.name} → ${to.name} is traced ${(hop / 1000).toFixed(1)} km, ${(hop / line).toFixed(1)} times its ${(line / 1000).toFixed(1)} km straight line`;
@@ -266,6 +268,25 @@ function traceRun(graph: Graph, run: Run, log: (line: string) => void, report: (
     report({ kind: 'detour', line: run.line, shape: run.id, stations: [from, to], text: [text] });
   }
   return traced;
+}
+
+/**
+ * The ways a trace can reach the last of these Stations, through each in turn, on the first `layers`
+ * layers of track, or the first stretch with no path there.
+ */
+function walk(graph: Graph, stations: Station[], layers: number): Arrival[] | { a: Station; b: Station } {
+  const turnBacks = new Set(stations.flatMap((s) => graph.near.get(s.id) ?? []));
+  let reached: Arrival[] = (graph.near.get(stations[0]?.id ?? '') ?? []).map((vertex) => ({ vertex, edge: -1, cost: 0, waypoint: 0, edges: [] }));
+  for (const [i, b] of stations.entries()) {
+    const a = stations[i - 1];
+    if (!a) continue;
+    // A path much longer than the crow flies is no path, as in traceShape().
+    const limit = 3 * metres([a.lon, a.lat], [b.lon, b.lat]) + 10_000;
+    const next = paths(graph, reached, new Set(graph.near.get(b.id)), limit, turnBacks, layers);
+    if (!next.length) return { a, b };
+    reached = next.map((arrival) => ({ ...arrival, waypoint: i }));
+  }
+  return reached;
 }
 
 /**
@@ -386,11 +407,9 @@ function traceShape(graph: Graph, feed: FeedShape, stations: Station[], log: (li
     for (const e of edges) graph.shared.add(e);
     for (const a of stretches) {
       const [from, to] = [waypoints[a.waypoint - 1], waypoints[a.waypoint]];
-      // Where it turns back on the way: where the next edge isn't one a train can carry on along.
-      for (const [k, e] of a.edges.entries()) {
-        const f = a.edges[k + 1];
-        if (f === undefined || onward(graph, e).next.includes(f)) continue;
-        const at = waypoints.find((w) => graph.near.get(w.station.id)?.includes(target(graph, e)));
+      // Where it turns back on the way.
+      for (const v of turnsBack(graph, a.edges)) {
+        const at = waypoints.find((w) => graph.near.get(w.station.id)?.includes(v));
         const line = `${feed.id}: ${from?.station.name} → ${to?.station.name} turns back at ${at?.station.name}`;
         log(line);
         report({ kind: 'turn', line: feed.line, shape: feed.id, stations: at ? [at.station] : [], text: [line] });
@@ -785,6 +804,14 @@ function paths(graph: Graph, from: Arrival[], to: Set<number>, limit: number, tu
     }
   }
   return found;
+}
+
+/** Where a stretch of a trace turns back on the way: the vertex at each edge whose next isn't one a train can carry on along. */
+function turnsBack(graph: Graph, edges: number[]): number[] {
+  return edges.flatMap((e, k) => {
+    const f = edges[k + 1];
+    return f === undefined || onward(graph, e).next.includes(f) ? [] : [target(graph, e)];
+  });
 }
 
 /** The edges a train on edge e can go on along, and which of them is straight ahead. */
