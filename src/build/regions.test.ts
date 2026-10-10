@@ -1,8 +1,9 @@
 import { expect, test } from 'vitest';
 import { STRETCH, type Network, type Shape, type Station, type Track, type Trip } from '../bundle.ts';
+import { decodeTrack, type StoredTrack } from '../pieces.ts';
 import { noonMinus12h } from './gtfs.ts';
 import { manifestOf } from './manifest.ts';
-import { buildRegion, buildRegions, sharedStretches, type BuiltNetwork } from './regions.ts';
+import { buildRegion, buildRegions, sharedStretches, trackFile, type BuiltNetwork } from './regions.ts';
 import { collect, diff, type Found, type Spot } from './report.ts';
 
 // Track drawn in metres east (x) and north (y) of a point in Barcelona, as sideBySide.test.ts has it.
@@ -87,7 +88,12 @@ test("builds a region's Networks into one track file and a Trips file for each d
   const built = await buildRegion({ id: 'catalonia', networks: [{ id: 'rodalies' }, { id: 'fgc' }] }, d);
   expect(files.map((f) => f.prefix)).toEqual(['days/track-catalonia', ...DATES.map((day) => `days/${day}-catalonia`)]);
   // One track with both Networks' Lines, Stations and shapes, and Stretches with the region's IDs, drawn side by side where they share.
-  const track = files[0]?.content as Track;
+  // Its file stores the traced shapes as pieces and its slots as chains, which the map reads back as the track the build made.
+  const file = files[0]?.content as StoredTrack;
+  expect(file.traced.shapes.map((s) => s.id)).toEqual(['rodalies:shape', 'fgc:shape']);
+  expect(file.shapes.every((s) => s.id.startsWith(STRETCH))).toBe(true);
+  expect(file).not.toHaveProperty('slots');
+  const track = decodeTrack(file);
   expect(track.networks.map((n) => n.id)).toEqual(['rodalies', 'fgc']);
   expect(track.lines.map((l) => l.id)).toEqual(['rodalies:C1', 'fgc:C1']);
   expect(track.stations.map((s) => [s.id, s.networks])).toEqual([['adif:rodalies-1', ['rodalies']], ['adif:rodalies-2', ['rodalies']], ['adif:fgc-1', ['fgc']], ['adif:fgc-2', ['fgc']]]);
@@ -110,7 +116,8 @@ test("builds a region's Networks into one track file and a Trips file for each d
   );
   // The first Train comes onto the map at its first Station at 05:00 less the dwell, and the last leaves at 06:10 plus it: 30 s.
   expect(built.days[0]).toMatchObject({ from: noonMinus12h('2026-10-10') + (300 * 60 - 30) * 1000, to: noonMinus12h('2026-10-10') + (360 * 60 + 600 + 30) * 1000 });
-  expect(built.track).toBe(track);
+  // What the map reads of the file, once fetched as JSON, is the track built.
+  expect(JSON.parse(JSON.stringify(track))).toEqual(JSON.parse(JSON.stringify(built.track)));
 });
 
 test("builds a region whose Networks have no Trips today as the others, its track and an empty day, and names them, rather than failing it", async () => {
@@ -212,6 +219,26 @@ test("a region that fails keeps its last files in the manifest while the others'
   expect(files.every((f) => f.prefix.endsWith('catalonia'))).toBe(true);
 });
 
+test("a region whose track file wouldn't read back as built fails like any other: nothing of it is written, the manifest keeps its last files, and it's logged and reported", async () => {
+  // A traced shape with a field its file can't carry.
+  const odd = network('madrid', [0, 5000], 200, [[300], [300], [300]]);
+  odd.shapes = odd.shapes.map((s) => ({ ...s, kind: 'x' }) as Shape);
+  const { deps: d, files } = deps({ rodalies: network('rodalies', [0, 5000], 0, [[300], [300], [300]]), madrid: odd });
+  const regions = [{ id: 'catalonia', networks: [{ id: 'rodalies' }] }, { id: 'cercanias-madrid', networks: [{ id: 'madrid' }] }];
+  const [log, report] = [[] as string[], collect()];
+  const results = await buildRegions(regions, (r) => buildRegion(r, d), { log: (line) => log.push(line), report, last: [] });
+  expect(results.map((r) => [r.id, r.built !== undefined])).toEqual([['catalonia', true], ['cercanias-madrid', false]]);
+  const entry = (date: string) => ({ date, track: 'days/track-madrid-old.json', trips: `days/${date}-madrid-old.json`, from: 1, to: 2 });
+  const last = { regions: [{ id: 'cercanias-madrid', days: ['2026-10-09', '2026-10-10', '2026-10-11'].map(entry) }] };
+  const manifest = manifestOf(results.map(({ id, built }) => ({ id, days: built?.days })), last);
+  expect(manifest.regions.find((r) => r.id === 'cercanias-madrid')?.days.map((x) => x.track)).toEqual(Array(3).fill('days/track-madrid-old.json'));
+  // Neither its track nor its Trips were written, and the others' were.
+  expect(files.map((f) => f.prefix).filter((p) => p.includes('madrid'))).toEqual([]);
+  expect(files.some((f) => f.prefix === 'days/track-catalonia')).toBe(true);
+  expect(log[0]).toContain("cercanias-madrid isn't built, and keeps the files of its last build: cercanias-madrid's track file doesn't give back the track built");
+  expect(report.spots().map((s) => s.key)).toEqual(['region cercanias-madrid']);
+});
+
 test("logs each pair of regions whose Lines share a Stretch, how many, how long and where, or says none do", () => {
   const [a, b] = [network('leon', [0, 5000], 0, [[300]]), network('bilbao', [3000, 6000], 20, [[300]])];
   const track = (n: BuiltNetwork): Track => ({ networks: [n.network], lines: n.lines, stations: n.stations, shapes: n.shapes, strokes: [], rails: [], slots: [], tracks: [] });
@@ -225,4 +252,19 @@ test("logs each pair of regions whose Lines share a Stretch, how many, how long 
   const quiet: string[] = [];
   expect(sharedStretches(none.map((n) => ({ id: n.network.id, track: track(n) })), (line) => quiet.push(line))).toEqual([]);
   expect(quiet).toEqual(['No Stretch is shared by two regions']);
+});
+
+test("gives a region's track as the file that stores its slots as chains, says where they stay whole, and refuses a track its file wouldn't give back as it was built, here a slot with more than the chains carry", () => {
+  const { shapes, lines } = network('rodalies', [0, 5000], 0, [[300]]);
+  const track: Track = { networks: [], lines, stations: [], shapes, strokes: [], rails: [], slots: [], tracks: [] };
+  const slot = { line: 'rodalies:C1', shape: 'rodalies:shape', from: 0, to: 5000, side: 0, on: 'rodalies:shape', at: [0, 5000] as [number, number] };
+  const said: string[] = [];
+  expect(trackFile({ ...track, slots: [slot] }, 'catalonia', (line) => said.push(line))).toHaveProperty('chains');
+  expect(said).toEqual([]);
+  // One that doesn't follow the one before keeps them all whole, and the build says so.
+  const gap = trackFile({ ...track, slots: [{ ...slot, to: 3000, at: [0, 3000] }, { ...slot, from: 4000, at: [4000, 5000] }] }, 'catalonia', (line) => said.push(line));
+  expect(gap).toHaveProperty('slots');
+  expect(gap).not.toHaveProperty('chains');
+  expect(said).toEqual(["catalonia's slots are whole in its track file, not chains: one doesn't follow the one before along its shape, or names a Line or shape its track hasn't"]);
+  expect(() => trackFile({ ...track, slots: [{ ...slot, crowded: true } as typeof slot] }, 'catalonia')).toThrow("catalonia's track file doesn't give back the track built");
 });

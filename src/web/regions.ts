@@ -2,6 +2,7 @@
 // come, joined as one, which it draws before the Trips, and then the Trips of those whose track came.
 
 import { joinTracks, joinTrips, type Bundle, type DayFiles, type DayTrips, type Track } from '../bundle.ts';
+import { decodeTrack, type TrackFile } from '../pieces.ts';
 
 /** What joins the names of the files a track was joined from, in `joined`'s keys. */
 const JOINED = ',';
@@ -9,6 +10,16 @@ const JOINED = ',';
 /** Forgets what was joined from files that aren't all among `keys`, the files the days now needed name. */
 export function forgetJoined(joined: Map<string, Track>, keys: string[]) {
   for (const files of joined.keys()) if (!files.split(JOINED).every((file) => keys.includes(file))) joined.delete(files);
+}
+
+/** Each track file read once, however many days name it and however many times the map looks again: the files the page keeps are these objects. */
+const decoded = new WeakMap<TrackFile, Track>();
+
+/** A region's track file as the track it was built from (decodeTrack()), where it was stored as pieces. */
+function decodedTrack(file: TrackFile): Track {
+  let track = decoded.get(file);
+  if (!track) decoded.set(file, (track = decodeTrack(file)));
+  return track;
 }
 
 /**
@@ -34,7 +45,7 @@ export function regionLoader(get: <T>(key: string) => Promise<T>, joined: Map<st
   const trackOf = (day: DayFiles) => {
     const known = tracks.get(day);
     if (known) return known;
-    const found = settle(day.regions.map((r) => get<Track>(r.track))).then((got) => {
+    const found = settle(day.regions.map((r) => get<TrackFile>(r.track).then(decodedTrack))).then((got) => {
       const [loaded, came] = [day.regions.filter((_, i) => got[i]), got.flatMap((t) => (t ? [t] : []))];
       if (!came.length) throw new Error(`No region's track came for ${day.date}`);
       const files = loaded.map((r) => r.track).join(JOINED);

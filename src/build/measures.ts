@@ -2,6 +2,7 @@
 // they break up (#138), and how faithfully they follow their track (#160).
 
 import { along, APART, atZoom, bandAt, BANDS, beside, cutIn, DEGREE, direction, drawnIn, EARTH, inBand, LENGTH, LINK, pieces, pixelMetres, pointAt, STRETCH, type Line, type Point, type Shape, type Stroke, type Track } from '../bundle.ts';
+import { decodeTrack, type TrackFile } from '../pieces.ts';
 import { folded, offset, simplify, TOLERANCE } from './offset.ts';
 import type { Found } from './report.ts';
 import { KX, lanes, LATITUDE, room, sideBySide, type Front } from './sideBySide.ts';
@@ -600,7 +601,7 @@ function turnsBack(h: number[], start: number, stop: number, within: number): bo
 // downloads: the measures of its strokes, and of the strokes sideBySide() draws from its Lines now.
 if (import.meta.main) {
   const { readFile } = await import('node:fs/promises');
-  const track = JSON.parse(await readFile(process.argv[2] ?? '', 'utf8')) as Track;
+  const track = decodeTrack(JSON.parse(await readFile(process.argv[2] ?? '', 'utf8')) as TrackFile);
   console.log('drawn:', summary(measures(track)));
   const shapes = track.shapes.filter((s) => !s.id.startsWith(STRETCH));
   const now = await sideBySide(track.lines, shapes);
