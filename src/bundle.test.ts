@@ -178,3 +178,8 @@ test("joins the regions' Trips of a day, and their Closures where they have any"
   // No Closures anywhere, none in it, as a day's own has none.
   expect('closures' in joinTrips([day([]), day([])])).toBe(false);
 });
+
+test("names no day for a manifest of an older shape, whose days hold every Network in one file, which this map can't read", () => {
+  const older = { days: [{ date: '2026-10-09', track: 'days/track-a.json', trips: 'days/2026-10-09-b.json', from: 0, to: 1 }] } as unknown as Manifest;
+  expect(daysOf(older)).toEqual([]);
+});
