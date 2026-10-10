@@ -1,0 +1,943 @@
+/* The screens' mockup (#328), throwaway: what the app's own CSS (screens.prototype.css, its style.css as deployed) doesn't have. A's tab bar, rail and bar, B's field and its drop-down, Search's results, Favourites, a Line's strip with its Trains, and Now. */
+
+/* The map is a capture of the live one, behind the cards; the page doesn't scroll. */
+body {
+  overflow: hidden;
+  background: var(--card);
+}
+
+#map {
+  background: center / cover no-repeat;
+}
+
+a {
+  color: inherit;
+}
+
+:is(.tab, .result, .fav-name, .fav-row, .row, .trouble-row, .station-link, .close, .chip, .clear) {
+  text-decoration: none;
+}
+
+/* The close button is a link here, a button there. */
+a.close {
+  color: inherit;
+}
+
+/* The page at its full length (`?full=1`), for reading what a sheet holds. */
+html.full,
+html.full body {
+  height: auto;
+  overflow: visible;
+}
+
+html.full #map {
+  position: fixed;
+  inset: 0;
+}
+
+html.full .dock {
+  position: relative;
+  inset: auto;
+  margin: 8px;
+}
+
+html.full .sheet,
+html.full .sheet.up {
+  position: relative;
+  height: auto;
+  max-height: none;
+}
+
+html.full .sheet-body {
+  overflow: visible;
+}
+
+html.full .riders {
+  display: none;
+}
+
+/* ---- A: the tab bar, docked to the bottom on a phone, with the sheet above it. ---- */
+.nav-a {
+  --bar: 64px;
+}
+
+.tabs {
+  position: absolute;
+  right: 8px;
+  bottom: max(8px, env(safe-area-inset-bottom));
+  left: 8px;
+  z-index: 4;
+  display: flex;
+  gap: 4px;
+  height: var(--bar);
+  padding: 4px;
+  border-radius: 18px;
+}
+
+.tab {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 14px;
+  color: inherit;
+  font: 700 12px/1.2 var(--font);
+}
+
+.tab-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 24px;
+}
+
+.tab[aria-current='page'] {
+  background: color-mix(in srgb, var(--ink) 13%, transparent);
+}
+
+.tab[aria-current='page'] .tab-icon svg {
+  stroke-width: 2.6;
+}
+
+@media (hover: hover) {
+  .tab:hover {
+    background: var(--hover);
+  }
+
+  .tab[aria-current='page']:hover {
+    background: color-mix(in srgb, var(--ink) 18%, transparent);
+  }
+}
+
+/* The sheet docks above the bar, as high as it is without it: the map above it is the less. */
+.nav-a .dock {
+  bottom: calc(max(8px, env(safe-area-inset-bottom)) + var(--bar) + 8px);
+}
+
+/* ---- B: a field across the top, and the legend and the language under it. ---- */
+.searchbar {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  left: 8px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 48px;
+  padding: 0 6px 0 14px;
+  border-radius: 24px;
+}
+
+.searchbar svg,
+.field svg {
+  flex: none;
+}
+
+.searchbar input,
+.field input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: 16px/1.2 var(--font);
+  outline: none;
+  appearance: none;
+}
+
+.searchbar input::placeholder,
+.field input::placeholder {
+  color: var(--ink-soft);
+  opacity: 1;
+}
+
+.searchbar input::-webkit-search-cancel-button,
+.field input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.searchbar:focus-within,
+.field:focus-within {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.clear {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  color: inherit;
+}
+
+.nav-b .maplibregl-ctrl-top-left,
+.nav-b .maplibregl-ctrl-top-right {
+  top: 56px;
+}
+
+/* What drops from the field while it has the focus: Favourites, or what it found. */
+.drop {
+  position: absolute;
+  top: 64px;
+  right: 8px;
+  left: 8px;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  max-height: min(62dvh, calc(100dvh - 72px));
+  overflow: hidden;
+  border-radius: 18px;
+  font: 14px/1.45 var(--font);
+  --time: 4.4em;
+}
+
+.drop-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 16px 14px;
+  overscroll-behavior: contain;
+  scrollbar-color: color-mix(in srgb, var(--ink) 35%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.drop :where(p, ol, ul) {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.label.first {
+  margin-top: 14px;
+}
+
+.sub-label {
+  margin: 12px 0 2px;
+  color: var(--ink-soft);
+  font: 700 12px/1.4 var(--font);
+  letter-spacing: 0.02em;
+}
+
+/* Now and Nearby bottom right, over the credits' strip, where #321 has Nearby; the die as it is. */
+.nav-b .fabs a.fab.nearby {
+  color: inherit;
+  text-decoration: none;
+}
+
+.fab.nearby[aria-current='page'] {
+  background: color-mix(in srgb, var(--ink) 13%, var(--card));
+}
+
+/* ---- On a wide window. ---- */
+@media (min-width: 640px) {
+  /* A's rail, down the left edge under the legend; the sheet moves over to make room for it. */
+  .nav-a:not(.top-bar) .tabs {
+    top: 64px;
+    right: auto;
+    bottom: auto;
+    left: 8px;
+    flex-direction: column;
+    width: 76px;
+    height: auto;
+    padding: 6px;
+  }
+
+  .nav-a:not(.top-bar) .tab {
+    width: 100%;
+    min-height: 64px;
+  }
+
+  .nav-a:not(.top-bar) .dock {
+    left: 92px;
+  }
+
+  /* A's bar along the top, mid-screen, between the legend and the language. */
+  .nav-a.top-bar .tabs {
+    top: 8px;
+    right: auto;
+    bottom: auto;
+    left: 50%;
+    flex-direction: row;
+    width: max-content;
+    height: 48px;
+    padding: 4px;
+    border-radius: 24px;
+    translate: -50% 0;
+  }
+
+  .nav-a.top-bar .tab {
+    flex-direction: row;
+    gap: 8px;
+    min-height: 40px;
+    padding: 0 16px 0 12px;
+    border-radius: 20px;
+  }
+
+  .nav-a .dock {
+    bottom: max(8px, env(safe-area-inset-bottom));
+  }
+
+  /* B's field is the sheet's width, with the legend beside it; what drops from it is as wide. */
+  .searchbar {
+    right: auto;
+    width: 380px;
+  }
+
+  .nav-b .maplibregl-ctrl-top-left {
+    top: 0;
+    left: 388px;
+  }
+
+  .nav-b .maplibregl-ctrl-top-right {
+    top: 0;
+  }
+
+  .drop {
+    right: auto;
+    width: 380px;
+    max-height: calc(100dvh - 72px);
+  }
+}
+
+/* ---- The sheets' parts. ---- */
+.sheet :is(a.row, a.result, a.fav-row, a.trouble-row) {
+  color: inherit;
+}
+
+/* Search's field, in the sheet's header, as tall as the corners' buttons. */
+.field {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  height: 44px;
+  margin: 2px 0 0;
+  padding: 0 4px 0 14px;
+  border-radius: 22px;
+}
+
+/* Results, and Favourites' rows: a mark, what it is with a line under it, and what's said at its end. */
+.results {
+  display: block;
+}
+
+.results li + li {
+  border-top: 1px solid var(--hairline);
+}
+
+.result,
+.fav-row,
+.trouble-row {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  align-items: center;
+  column-gap: 10px;
+  min-height: 56px;
+  padding: 6px 4px;
+  border-radius: 10px;
+}
+
+.fav-row,
+.trouble-row {
+  grid-template-columns: auto 1fr auto;
+  column-gap: 12px;
+}
+
+.lead {
+  display: grid;
+  place-items: center start;
+}
+
+.lead .num {
+  font-variant-numeric: tabular-nums;
+}
+
+.what {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.what-title {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.what-under {
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.what-under .served {
+  margin-top: 3px;
+}
+
+.end {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  color: var(--ink-soft);
+}
+
+.station-mark {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  color: var(--ink);
+}
+
+.pill.big {
+  min-width: 3.1em;
+  height: 26px;
+  padding: 0 8px;
+  font-size: 14px;
+  border-radius: 13px;
+}
+
+.pill.big.badge {
+  border-radius: 5px;
+}
+
+.pill.big.pointed {
+  padding: 0 11px;
+  clip-path: polygon(9px 0, calc(100% - 9px) 0, 100% 50%, calc(100% - 9px) 100%, 9px 100%, 0 50%);
+}
+
+.pill.big.pointed.scheduled::before {
+  clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 8px 100%, 0 50%);
+}
+
+.hints li {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  align-items: center;
+  column-gap: 8px;
+  min-height: 56px;
+  padding: 6px 4px;
+  border-top: 1px solid var(--hairline);
+}
+
+.hints li:first-child {
+  border-top: 0;
+}
+
+.empty {
+  margin-top: 16px;
+  color: var(--ink-soft);
+}
+
+.more-results {
+  margin-top: 8px;
+}
+
+/* The star: a button as big as the close button. */
+.star {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .star:hover,
+  :is(.clear, a.close):hover {
+    background: var(--hover);
+  }
+
+  :is(.result, .fav-row, .trouble-row:not(.static), .train-row, .fav-name, .die-row):hover {
+    background: var(--hover);
+  }
+}
+
+/* Favourites: each Station with its next departures, each Line with its state now. */
+.favs {
+  display: block;
+}
+
+.favs > li {
+  border-top: 1px solid var(--hairline);
+}
+
+.favs > li:first-child {
+  border-top: 0;
+}
+
+.fav {
+  padding: 4px 0 6px;
+}
+
+.fav-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.fav-name {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 6px 0 0;
+  border-radius: 10px;
+  font: 400 19px/1.3 var(--serif);
+}
+
+.fav .rows {
+  margin-top: 2px;
+}
+
+.fav-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+}
+
+.fav-line .fav-row {
+  flex: 1;
+  min-width: 0;
+}
+
+.keep {
+  margin-top: 14px;
+}
+
+.empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 40px 24px;
+  text-align: center;
+  color: var(--ink-soft);
+}
+
+.empty-state b {
+  color: var(--ink);
+  font: 400 20px/1.3 var(--serif);
+}
+
+.empty-star svg {
+  width: 40px;
+  height: 40px;
+}
+
+/* A Line's screen: its pill and its two ends, then its state, and the strip. */
+.title.line-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.title.line-title .pill {
+  margin: 0;
+  flex: none;
+}
+
+.line-state {
+  padding: 2px 0 6px;
+}
+
+.line-state .status-line {
+  margin: 0 0 6px;
+}
+
+.state-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+/* A chip that opens details: the Cancelled Trains, or the Alerts, as a fold's pill is, amber for an Alert. */
+.chip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1.5px solid var(--rule);
+  border-radius: 18px;
+  background: none;
+  color: inherit;
+  font: 700 13px/1 var(--font);
+  cursor: pointer;
+}
+
+.chip-btn > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chip-btn.cancelled {
+  color: var(--cancelled);
+  border-color: color-mix(in srgb, var(--cancelled) 55%, transparent);
+}
+
+.chip-btn.warn {
+  border-color: var(--warn-rule);
+  background: var(--warn);
+  color: var(--warn-ink);
+}
+
+@media (hover: hover) {
+  .chip-btn:hover {
+    background: color-mix(in srgb, currentColor 10%, transparent);
+  }
+
+  .chip-btn.warn:hover {
+    background: color-mix(in srgb, var(--warn-ink) 10%, var(--warn));
+  }
+}
+
+.line-details {
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1.5px dashed var(--rule);
+}
+
+.line-details .label:first-child {
+  margin-top: 4px;
+}
+
+.strip-label {
+  margin-top: 8px;
+}
+
+.line-strip {
+  --line: #555;
+  margin-top: 4px;
+}
+
+/* A Station: a mark on the Line, its name a button that opens its board, and where Trains start or end. */
+.strip.line-strip li {
+  grid-template-columns: 18px 1fr;
+  column-gap: 12px;
+  min-height: 44px;
+}
+
+.strip.line-strip li::before {
+  left: 7px;
+}
+
+.strip.line-strip li.origin::before {
+  top: 50%;
+}
+
+.strip.line-strip li.terminus::before {
+  bottom: 50%;
+}
+
+.strip.line-strip li.train::before {
+  top: 0;
+}
+
+.strip.line-strip li.train .mark {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  background: none;
+}
+
+.stop-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 4px 0;
+}
+
+.station-link {
+  display: block;
+  min-height: 0;
+  padding: 0;
+  border-radius: 6px;
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.stop-note {
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+/* Where some Trains end: a hollow bar across the Line, as its own end is a solid one. */
+.strip.line-strip li.turn .mark {
+  width: 20px;
+  height: 8px;
+  border: 3px solid var(--line);
+  border-radius: 4px;
+  background: var(--card);
+}
+
+.strip.line-strip li.stop.tail::before {
+  background: repeating-linear-gradient(var(--line) 0 5px, transparent 5px 9px);
+}
+
+.strip.line-strip li.stop.tail .mark {
+  width: 20px;
+  height: 7px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--line);
+}
+
+.strip.line-strip li.origin .mark,
+.strip.line-strip li.terminus:not(.tail) .mark {
+  width: 20px;
+  height: 7px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--line);
+}
+
+.strip.line-strip li.stop:not(.origin, .terminus, .turn, .tail) .stop-name {
+  font-weight: 400;
+}
+
+/* A Train on it: an arrow the way it goes, Live filled and Scheduled ringed, then its pill, where it's headed and its Delay. */
+.strip.line-strip li.train {
+  min-height: 52px;
+}
+
+.train .mark i {
+  position: relative;
+  display: block;
+  width: 18px;
+  height: 16px;
+  background: var(--ink);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+
+.train .mark i::after {
+  content: '';
+  position: absolute;
+  inset: 3px 4.5px 6px;
+  background: var(--line);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+
+.train.scheduled .mark i::after {
+  background: var(--card);
+}
+
+.train.up .mark i {
+  rotate: 180deg;
+}
+
+.train-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  column-gap: 8px;
+  min-height: 44px;
+  margin: 2px 0 2px -6px;
+  padding: 4px 6px;
+  border-radius: 10px;
+}
+
+.train-row .dest {
+  min-width: 0;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.train-row .sub {
+  grid-column: 1 / -1;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.from {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+/* The runs of a Line, as a chip each, for the Line whose strip is one run at a time. */
+.chips {
+  display: flex;
+  gap: 8px;
+  margin: 8px -16px 0 0;
+  padding: 2px 16px 6px 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.chip {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 1.5px solid var(--rule);
+  border-radius: 14px;
+  color: inherit;
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.chip[aria-selected='true'] {
+  border-color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
+.chip-n {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.chip.warn,
+.delay.warn {
+  border: 1px solid var(--warn-rule);
+  background: var(--warn);
+  color: var(--warn-ink);
+}
+
+span.chip.warn {
+  display: inline-block;
+  min-height: 0;
+  padding: 0 8px;
+  border-radius: 5px;
+  font: 700 12px/18px var(--font);
+}
+
+/* Now: what's wrong by Network, then what's notable, then the Alerts. */
+.die-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  margin: 8px 0 0;
+  padding: 0 16px;
+  border-radius: 24px;
+  color: inherit;
+  font: 700 14px/1 var(--font);
+  cursor: pointer;
+}
+
+.nets {
+  display: block;
+}
+
+.net {
+  padding: 10px 0 6px;
+  border-top: 1px solid var(--hairline);
+}
+
+.net:first-child {
+  border-top: 0;
+}
+
+.net-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.net-name {
+  margin: 0;
+  font: 400 17px/1.3 var(--serif);
+}
+
+.trouble {
+  display: block;
+}
+
+.trouble li {
+  border-top: 1px solid var(--hairline);
+}
+
+.trouble li:first-child {
+  border-top: 0;
+}
+
+.trouble-row.static {
+  min-height: 48px;
+}
+
+.all {
+  margin-top: 4px;
+}
+
+.alerts.all li:first-child {
+  border-top: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .tab,
+  .result,
+  .star {
+    transition: background-color 0.1s;
+  }
+}
+
+@media (forced-colors: active) {
+  .train .mark i,
+  .train .mark i::after {
+    forced-color-adjust: none;
+  }
+
+  .train .mark i {
+    background: CanvasText;
+  }
+
+  .train .mark i::after {
+    background: CanvasText;
+  }
+
+  .train.scheduled .mark i::after {
+    background: Canvas;
+  }
+
+  .tab[aria-current='page'] {
+    outline: 2px solid CanvasText;
+  }
+}
+
+/* A board's star sits on its nameboard, in the nameboard's lettering. */
+.sheet header.nameboard .star {
+  color: #fff;
+}
+
+.sheet header.nameboard .star:hover {
+  background: var(--hover);
+}
+
+.sheet header.nameboard a.close {
+  color: #fff;
+}
+
+.die-row {
+  min-height: 44px;
+}
