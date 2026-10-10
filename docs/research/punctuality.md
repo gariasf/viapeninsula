@@ -3,7 +3,7 @@
 Research for #329, under #318 (more than a map). It builds on [ADR-0003](../adr/0003-live-data-snapshot-on-r2.md) (live data is a snapshot file on R2), [ADR-0011](../adr/0011-more-than-a-map-the-map-first-and-viewer-data-in-the-browser.md) (history reaches viewers only as static files), [live-at-scale.md](live-at-scale.md), [live-data-sources.md](live-data-sources.md) and [bundle-at-scale.md](bundle-at-scale.md). It answers the ticket's six boxes in order. Nothing in `src/` changed; the throwaway scripts are in a scratch directory, not in the repo.
 
 - **Date:** Saturday 10 October 2026, 10:15 to 12:10 CEST.
-- **Recordings:** the Record workflow's three of 45 minutes, each the production snapshots as the map received them, with that day's whole `bundle.json`: run 37533038357 (Tuesday 6 Oct 23:19–00:04, late evening), 37618244697 (Wednesday 7 Oct 14:03–14:48, midday) and 37646767458 (Wednesday 7 Oct 17:47–18:32, the weekday peak). A fourth and a fifth, by hand, on Saturday 10 Oct, 10:38–10:52 and 11:04–11:49, with today's bundle, which has every núcleo, and FGC's own on-time flag polled once a minute beside the second. And the fixtures of 25 and 28 Sep in `src/fixtures/`, for ordinary weekdays.
+- **Recordings:** the Record workflow's three of 45 minutes, each the production snapshots as the map received them, with that day's whole `bundle.json`: run 37533038357 (Tuesday 6 Oct 23:19–00:04, late evening), 37618244697 (Wednesday 7 Oct 14:03–14:48, midday) and 37646767458 (Wednesday 7 Oct 17:47–18:32, the weekday peak). A fourth and a fifth, by hand, on Saturday 10 Oct, 10:38–10:52 and 11:04–11:49, with today's bundle, which has every núcleo, and FGC's own on-time flag polled once a minute beside the second. And the fixtures of 25 and 28 Sep in `src/fixtures/`, for ordinary weekdays. The five recordings are kept privately, as zips on the maintainer's Mac (#414; "Files kept" says where): `recording-2026-10-06-2319.zip`, `recording-2026-10-07-1403.zip`, `recording-2026-10-07-1747.zip` and the Saturday's `recording-2026-10-10-1038.zip` and `recording-2026-10-10-1104.zip` (each with `log.txt`, the log of its snapshots, and the second also with FGC's flag, `geotren.ndjson`).
 - **Days' Trips:** the live manifest's bundles for Friday 9 to Monday 12 Oct, and the Wednesday 7 and Tuesday 6 bundles of the recordings. Renfe's long-distance and Euskotren's timetables, downloaded on 10 Oct, for their Calls.
 - **Method:** a copy of `src/engine.ts` outside the repo, with a few internals exported, run in Node 24 on the maintainer's Mac (M4 Pro). Each recording's snapshots go in in order, with the last 35 minutes of them (`KEEP`) as the browser keeps them. For each Trip live data has named, the Calls its drawn time crosses between two snapshots take the Train's Delay then, as `onMap()` has it, with where it came from. A Call is a Trip's call at a Station, as the bundle has it; a Trip is **named** while some snapshot's report is about it, and **unreported** if none is. Timings are Node's, not Cloudflare's.
 - **A caveat on the days.** 7 October was a day of rain and disruption in Catalonia: Renfe flagged 56% (midday) and 31% (peak) of the Rodalies Trips its timetable had running in the two windows of that day as cancelled, and 13% on the Tuesday evening. Rodalies' figures below are a bad day's. A normal weekday of Rodalies hasn't been recorded; the Saturday morning's 59 minutes are the only ordinary Rodalies sample.
@@ -354,7 +354,7 @@ A list for the maintainer to pick from. None is filed.
 
 Each with the recommendation the note makes; the build tickets wait for them.
 
-1. **Where the history goes:** a bucket of its own with no public domain (recommended), or `viapeninsula-live` under `history/`, which the CDN serves to anyone. TRAM's terms (content not altered, kept up to date) and TMB's (cited, not altered) weren't read against keeping a copy or publishing figures from it.
+1. **Where the history goes:** a bucket of its own with no public domain (recommended), or `viapeninsula-live` under `history/`, which the CDN serves to anyone. TRAM's terms (content not altered, kept up to date) and TMB's (cited, not altered) were read for #414's recordings, not for a history: "Files kept" says what they allow, and TRAM's say that its data is deleted when the agreement ends.
 2. **How long:** 7 days of chunks and 400 days of compacted days (recommended), or for ever, or 35 days, which loses the year's worth of working a day out again.
 3. **What "on time" is on screens:** within 5 minutes (recommended: railisland's, and FGC's own flag is at about 6), with Renfe's own 3 minutes said for Rodalies. The record keeps seconds either way.
 4. **A last Call's last-known Delay:** counted where the Train was placed within 10 minutes, marked (recommended: last Calls from 70% to 98%), or Live only.
@@ -386,15 +386,33 @@ ADR-0011 expects it. For the maintainer to put in ADR-0003 once a pick is made, 
 
 ## Files kept
 
-Not in the repo, and not durable: the session's scratch directory (`scratchpad/329/`), which the system may clear. `tools/` (`mkengine.mjs` and `engine-x.ts`, a copy of the engine with internals exported; `replay.ts`, `analyse2.ts`, `trust.ts`, `synth.ts`, `aggr.ts`, `parse.ts` and the rest), `recordings/` (the three runs, the Saturday's two, and the fixtures unpacked), `days/` (the live bundles of 9–12 Oct), `out/` (events and tables). Copy it somewhere before the replay is wanted again. What stays: the three runs' artifacts until 5–6 November (Actions keeps them 30 days); the bundles, which nothing deletes; and in the repo the fixtures of 25 and 28 Sep and one of 7 Oct 13:00–13:45 (16 Trips, #346's), cut to the Trips they name, which are other windows.
+Not in the repo, and not durable: the session's scratch directory (`scratchpad/329/`), which the system may clear. `tools/` (`mkengine.mjs` and `engine-x.ts`, a copy of the engine with internals exported; `replay.ts`, `analyse2.ts`, `trust.ts`, `synth.ts`, `aggr.ts`, `parse.ts` and the rest), `recordings/` (the three runs, the Saturday's two, and the fixtures unpacked), `days/` (the live bundles of 9–12 Oct), `out/` (events and tables). Copy it somewhere before the replay is wanted again. What stays: the five recordings, kept privately as zips in `.cache/recordings-2026-10/` of the maintainer's checkout (#414: gitignored, so a clone doesn't have them, and not published): the three runs' artifacts as Actions served them, whose own copies Actions keeps only to 5–6 November, and the Saturday's two, which Actions never had, zipped the same way, with a `SHA256SUMS` beside them (the folder holds ten recordings of 6–10 Oct in all, and `RELEASE-NOTES.md`, a draft of notes on each written for a release that was not made); the bundles, which nothing deletes; and in the repo the fixtures of 25 and 28 Sep and one of 7 Oct 13:00–13:45 (16 Trips, #346's), cut to the Trips they name, which are other windows.
+
+**What the recordings' sources allow** (read for #414 on 10 October 2026, so that the choice to publish them can be made again with the facts; nothing is published). A recording carries each operator's live reports in its snapshots and its timetable in the day's bundle. Renfe's data is CC BY 4.0, and its portal's terms ([data.renfe.com/legal](https://data.renfe.com/legal)) allow copying, distribution, public communication and transformation, citing the source and the date of the last update. FGC's datasets are CC BY 4.0. TMB's terms ([developer.tmb.cat/docs/terms-conditions](https://developer.tmb.cat/docs/terms-conditions), s. 4) allow reproduction, distribution and public communication of its timetable and real-time data, citing the source and the date of the last update and not altering them, "únicament i exclusivament per a l'aplicació i/o servei indicat a la sol·licitud": the use named in the maintainer's application, which only he can check; s. 5 lets TMB end the licence or the data at any time. OpenStreetMap's track is ODbL 1.0, with its credit. **TRAM's are not clear.** Its "General conditions and agreement for the reuse of TRAM open data" ([English](https://opendata.tram.cat/assets/pdf/condicions_en.pdf), also in Catalan and Spanish) grant "a non-exclusive licence to reuse the content of the databases" and are silent on copying, distributing or publishing. Its static data is free and open, but its dynamic data, which is the live reports, goes with a personal identifier; what a system shows is to be "always up to date, referring to the last update"; and when the agreement ends (a year from first use, renewing by itself, or on breach) the developer "will be obliged to delete all assigned data that may be stored on its information systems". TRAM was not asked. This is a reading of the texts, not a lawyer's.
 
 ## Re-verify quickly
 
 ```sh
-# A recording of the Record workflow: the whole day's bundle, and snapshots
-# (its artifacts expire 30 days after the run, 5–6 November for the three used here)
+# A recording of the Record workflow: the whole day's bundle, and snapshots. The five used here are zips in
+# .cache/recordings-2026-10/ of the maintainer's checkout (#414: private, gitignored; Actions' own copies expire 30 days after
+# the run): 37533038357 is recording-2026-10-06-2319.zip, 37618244697 recording-2026-10-07-1403.zip, 37646767458
+# recording-2026-10-07-1747.zip, and the Saturday's two (no run) recording-2026-10-10-1038.zip and -1104.zip
+(cd .cache/recordings-2026-10 && shasum -a 256 -c SHA256SUMS)   # each zip is the artifact as Actions served it
+mkdir -p /tmp/rec && unzip -q .cache/recordings-2026-10/recording-2026-10-07-1747.zip -d /tmp/rec/recording-2026-10-07-1747
+# Each is a bundle.json, a replay.json.gz (`{ bundle, received }`: the snapshots as the map received them, with `at`, and the
+# bundle cut to the Trips they need), and Renfe's own trip_updates.json and vehicle_positions.json. The repo's own code on it,
+# from a checkout (Node 24): jumps() and trainsAt() over the replay, or the script that reads a recording's two files, #352's
+node --input-type=module -e '
+  import { readFileSync } from "node:fs"; import { gunzipSync } from "node:zlib";
+  import { jumps } from "./src/jumps.ts"; import { trainsAt } from "./src/engine.ts";
+  const { bundle, received } = JSON.parse(gunzipSync(readFileSync("/tmp/rec/recording-2026-10-07-1747/replay.json.gz")));
+  console.log(jumps(bundle, received));                                // forward, back and Live seconds, by Network
+  console.log(trainsAt(bundle, received.at(-1).at, received).length)   // Trains on the map at the last snapshot: 346
+'
+npm run card-vs-map -- /tmp/rec/recording-2026-10-07-1747
+# A run newer than these: its artifact is kept 90 days
 gh run list --workflow record.yml --limit 10
-gh run download 37646767458 -D /tmp/rec
+gh run download <run id> -D /tmp/rec
 # Trips named in Renfe's Cercanías feed, by núcleo (a missing "20" is Asturias)
 curl -s https://gtfsrt.renfe.com/vehicle_positions.json | jq '[.entity[].vehicle.trip.tripId[:2]] | group_by(.) | map({(.[0]): length}) | add'
 # The snapshot's reports, by Network
