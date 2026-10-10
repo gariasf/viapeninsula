@@ -760,8 +760,25 @@ export type LiveSource = {
    * as Renfe's trip_ids start with their núcleo: '' for all of them. Its freshness is each of theirs.
    */
   networks: Record<string, string>;
-  /** Its operator's Alerts, where the fetcher reads them, as GTFS-RT in JSON (ADR-0012): where they are, and how often they're fetched, in ms. */
-  alerts?: { url: string; every: number };
+  /**
+   * Its operator's Alerts, where the fetcher reads them, as GTFS-RT in JSON (ADR-0012): where they are,
+   * how often they're fetched, in ms, and by Network the language of an Alert's second entry, where its
+   * feed tags it as the first, though it's in another (`secondEntry`).
+   */
+  alerts?: {
+    url: string;
+    every: number;
+    /**
+     * The language the second entry of an Alert's words is in, by the ID of the Network its Lines are
+     * of, where its feed tags it as it does the first, es, as Renfe tags every entry. Only an Alert that
+     * names Lines has a Network: one on a Station alone, as a stop_id doesn't say its núcleo, is kept as
+     * the feed tags it, and so is one on Lines of Networks this gives different languages, or none.
+     * ponytail: every Alert of a Network with a second entry is taken to give it so, though Murcia's one
+     * repeats its Spanish and one of San Sebastián's has a blank second: a Network that mixes them would
+     * need a check that the second has words of its own.
+     */
+    secondEntry?: Record<string, string>;
+  };
 } & (
   | {
       format: 'renfe';
@@ -811,8 +828,15 @@ export const LIVE_SOURCES: LiveSource[] = [
       '70': CERCANIAS_ZARAGOZA.id,
     },
     // Every run too: Renfe answers a conditional request with 304 and no body while its file is
-    // unchanged, as it was for hours on 7 October 2026 (docs/research/alerts.md).
-    alerts: { url: 'https://gtfsrt.renfe.com/alerts.json', every: 20_000 },
+    // unchanged, as it was for hours on 7 October 2026 (docs/research/alerts.md). It tags every entry
+    // es, but Rodalies' Alerts give their second in Catalan and Valencia's in Valencian, both ca: the
+    // page picks an entry by the viewer's language as it's tagged, and the interface has no Valencian.
+    // Bilbao's and San Sebastián's give Basque and Spanish in one entry, which no tag can split.
+    alerts: {
+      url: 'https://gtfsrt.renfe.com/alerts.json',
+      every: 20_000,
+      secondEntry: { [RODALIES.id]: 'ca', [CERCANIAS_VALENCIA.id]: 'ca' },
+    },
   },
   {
     // Renfe's live data of its long-distance timetable's Trains, as JSON, which has no Alerts file
