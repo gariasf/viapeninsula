@@ -83,11 +83,17 @@ const STRINGS = {
   unit: { ca: 'Unitat', es: 'Unidad', eu: 'Unitatea', gl: 'Unidade', en: 'Unit' },
   nextStations: { ca: 'Properes estacions', es: 'Próximas estaciones', eu: 'Hurrengo geltokiak', gl: 'Próximas estacións', en: 'Next stations' },
   nextStation: { ca: 'Propera estació', es: 'Próxima estación', eu: 'Hurrengo geltokia', gl: 'Próxima estación', en: 'Next station' },
+  // Its label instead, as the followed Train is arriving at it or stands at it (#455), and what comes before the time it's expected to leave at, then.
+  nextStationArriving: { ca: 'Arribant a', es: 'Llegando a', eu: 'Iristen', gl: 'Chegando a', en: 'Arriving at' },
+  nextStationStanding: { ca: "A l'estació", es: 'En la estación', eu: 'Geltokian', gl: 'Na estación', en: 'At station' },
+  leaves: { ca: 'surt', es: 'sale', eu: 'irteera', gl: 'sae', en: 'leaves' },
   // The followed Train's strip's name with its fold open, as it lists the Stations the Train has already left too; and what a screen reader hears after each of those, whose subject is the Train, so that it needn't agree with a Station's name.
   stations: { ca: 'Estacions', es: 'Estaciones', eu: 'Geltokiak', gl: 'Estacións', en: 'Stations' },
   passed: { ca: 'ja hi ha passat', es: 'ya ha pasado', eu: 'dagoeneko igaro da', gl: 'xa pasou', en: 'passed' },
-  // Where the followed Train's next Stations start: the Station it last left.
-  left: { ca: 'Ha sortit de {station}', es: 'Ha salido de {station}', eu: '{station} geltokitik irten da', gl: 'Saíu de {station}', en: 'Left {station}' },
+  // Where the followed Train's next Stations start: where it is by how it's drawn (#455), arriving at the Station it comes to, leaving the one it left, or between the two, {a} and {b}.
+  arriving: { ca: 'Arribant a {station}', es: 'Llegando a {station}', eu: '{station} geltokira iristen', gl: 'Chegando a {station}', en: 'Arriving at {station}' },
+  leaving: { ca: 'Sortint de {station}', es: 'Saliendo de {station}', eu: '{station} geltokitik irteten', gl: 'Saíndo de {station}', en: 'Leaving {station}' },
+  between: { ca: 'Entre {a} i {b}', es: 'Entre {a} y {b}', eu: '{a} eta {b} artean', gl: 'Entre {a} e {b}', en: 'Between {a} and {b}' },
   // How long until a Train comes: under a time on a board or in Nearby, and under the followed Train's next Station's.
   minutes: { ca: '{n} min', es: '{n} min', eu: '{n} min', gl: '{n} min', en: '{n} min' },
   inMinutes: { ca: "d'aquí a {n} min", es: 'en {n} min', eu: '{n} min barru', gl: 'en {n} min', en: 'in {n} min' },
@@ -375,22 +381,31 @@ export const alertCount = (n: number, lang = language()): string => counting(n, 
 export const alertsChanged = (by: string, time: string, lang = language()): string => STRINGS.alertsChanged[lang].replace('{by}', by).replace('{time}', time);
 
 /**
- * A string that names two Stations, `a` and `b`, in `lang`: in Spanish with "e" for "y" before a name
+ * A string naming two Stations, `{a}` and `{b}`, in `lang`: in Spanish with "e" for "y" before a name
  * starting with an i sound, as in "Hernani e Irun", but not "hie", as the RAE has it.
  */
-const between = (key: 'busesReplace' | 'notRunning', a: string, b: string, lang: Language): string => {
+const twoStations = (key: 'busesReplace' | 'notRunning' | 'between', a: string, b: string, lang: Language): string => {
   const text = STRINGS[key][lang].replace('{a}', a);
   return (lang === 'es' && /^h?[iíIÍ](?![aeoáéó])/i.test(b) ? text.replace(' y {b}', ' e {b}') : text).replace('{b}', b);
 };
 
 /** That buses run in a Line's Trains' place between two Stations, as the timetable's Closures say (#341), in `lang`, or else the language the interface speaks now. */
-export const busesReplace = (a: string, b: string, lang = language()): string => between('busesReplace', a, b, lang);
+export const busesReplace = (a: string, b: string, lang = language()): string => twoStations('busesReplace', a, b, lang);
 
 /** That a followed Train doesn't run between two Stations, `a` and `b`, a closed Closure's, which it's within and the map doesn't draw it in (#420), in `lang`, or else the language the interface speaks now. */
-export const notRunning = (a: string, b: string, lang = language()): string => between('notRunning', a, b, lang);
+export const notRunning = (a: string, b: string, lang = language()): string => twoStations('notRunning', a, b, lang);
 
 /** That a Line's Trains have run within a lifted Closure since `time` (#422), in `lang`, or else the language the interface speaks now. */
 export const trainsRunHere = (line: string, time: string, lang = language()): string => STRINGS.trainsRunHere[lang].replace('{line}', line).replace('{time}', time);
+
+/** That a followed Train is arriving at a Station, by how it's drawn (#455), in `lang`, or else the language the interface speaks now. */
+export const arrivingAt = (station: string, lang = language()): string => STRINGS.arriving[lang].replace('{station}', station);
+
+/** That a followed Train is leaving a Station, by how it's drawn (#455), in `lang`, or else the language the interface speaks now. */
+export const leavingStation = (station: string, lang = language()): string => STRINGS.leaving[lang].replace('{station}', station);
+
+/** That a followed Train is between two Stations, by how it's drawn (#455), in `lang`, or else the language the interface speaks now. */
+export const betweenStations = (a: string, b: string, lang = language()): string => twoStations('between', a, b, lang);
 
 /**
  * Why Nearby can't show the viewer's nearby Trains: the browser is finding where they are, as Nearby's

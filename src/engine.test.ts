@@ -7,7 +7,7 @@ import { stationsOf } from './build/track.ts';
 import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, unavailable, type Received, type ShownClosure } from './engine.ts';
 import { jumps } from './jumps.ts';
 import { NETWORKS } from './networks.ts';
-import { minutesTo } from './web/cards.ts';
+import { minutesTo, whereabouts } from './web/cards.ts';
 
 /** A speed profile like Rodalies', in metres and seconds, which the times below are worked out from. */
 const PROFILE = { acceleration: 1, braking: 1, topSpeed: 160 / 3.6, dwell: 30 };
@@ -792,6 +792,35 @@ test('a followed Train that live data shows stopped between Stations, held there
   const received = [0, 20, 40, 60].map((delay, i) => late(R2S, delay, at('21:59:40', i * 20)));
   expect(followed(R2S, at('22:00:50'), received)).toMatchObject({ speed: 0, standsAt: undefined });
   expect(followed(R2S, at('21:49:30'))).toMatchObject({ standsAt: 'Vilanova i la Geltrú' });
+});
+
+test("a followed Train's card says where it is by where it's drawn, Scheduled or Live: standing, leaving, between, and arriving within its pill's reach of its next Station (#455)", () => {
+  // The R2S's 7,284 m from Vilanova i la Geltrú (stood at from 21:49:00 to 21:50:00) to Sitges (21:56:00 to 21:57:00):
+  // it cruises at 21.5 m/s, and brakes at 1 m/s² over its last 231 m, so it's 50 m short of Sitges 10 s before it gets there.
+  const reach = 130;
+  const says = (moment: number, received: Received[] = []) => {
+    const f = followed(R2S, moment, received);
+    // The card goes by the Train the map draws.
+    expect(f?.dist).toBe(where(R2S, moment, received));
+    const w = f && whereabouts(f.trip.calls, f.dist, f.upcoming.length, !!f.standsAt, reach);
+    if (!w) return undefined;
+    return w.at === 'between' ? [w.at, w.last.station, w.next.station] : [w.at, w.at === 'leaving' ? w.last.station : w.next.station];
+  };
+  expect(says(at('21:49:30'))).toEqual(['standing', 'Vilanova i la Geltrú']);
+  expect(says(at('21:50:10'))).toEqual(['leaving', 'Vilanova i la Geltrú']);
+  expect(says(at('21:50:20'))).toEqual(['between', 'Vilanova i la Geltrú', 'Sitges']);
+  expect(says(at('21:55:40'))).toEqual(['between', 'Vilanova i la Geltrú', 'Sitges']);
+  expect(says(at('21:55:50'))).toEqual(['arriving', 'Sitges']);
+  expect(says(at('21:56:30'))).toEqual(['standing', 'Sitges']);
+  expect(says(at('21:57:10'))).toEqual(['leaving', 'Sitges']);
+  // Live, a minute late as Renfe's GPS has it from 21:55:00 (where its timetable had it at 21:54:00): the same, a minute on.
+  const live = [gps(R2S, where(R2S, at('21:54:00')) ?? NaN, at('21:55:00'))];
+  expect(followed(R2S, at('21:56:00'), live)?.live).toBe(true);
+  expect(followed(R2S, at('21:56:00'), live)?.delay).toBeCloseTo(60, 3);
+  expect(says(at('21:56:40'), live)).toEqual(['between', 'Vilanova i la Geltrú', 'Sitges']);
+  expect(says(at('21:56:50'), live)).toEqual(['arriving', 'Sitges']);
+  expect(says(at('21:57:30'), live)).toEqual(['standing', 'Sitges']);
+  expect(says(at('21:58:10'), live)).toEqual(['leaving', 'Sitges']);
 });
 
 /** A board of the next departures from some Stations at a moment by the device's clock, with the live data received by then, in `BUNDLE` unless it says, and the Closures the map shows, none unless it says. */
