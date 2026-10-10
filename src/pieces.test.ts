@@ -1,5 +1,8 @@
+import { readFileSync } from 'node:fs';
+import { gunzipSync } from 'node:zlib';
 import { expect, test } from 'vitest';
-import type { Point, Shape, Slot, Track } from './bundle.ts';
+import type { Bundle, Point, Shape, Slot, Track } from './bundle.ts';
+import { sideBySide } from './build/sideBySide.ts';
 import { metres } from './build/track.ts';
 import { decodeTrack, encodeTrack, type Run, type StoredTrack } from './pieces.ts';
 
@@ -150,3 +153,38 @@ test("keeps the slots whole where they aren't chains from the start of their sha
   expect(encodeTrack(u)).toHaveProperty('slots', lost);
   expect(decodeTrack(encodeTrack(u))).toEqual(u);
 });
+
+test('reads a track built before it as it is', () => {
+  const old = track([A, B], { lines: [line('R1', ['A', 'B'])] });
+  expect(decodeTrack(old)).toBe(old);
+});
+
+// What production built, kept for the engine's tests: Rodalies' shapes of 25 September, Lines drawn by
+// the build of 7 October with their levels, and Renfe's long-distance runs of 10 October.
+const recorded = (name: string): Bundle => (JSON.parse(gunzipSync(readFileSync(new URL(`fixtures/replay-${name}.json.gz`, import.meta.url))).toString()) as { bundle: Bundle }).bundle;
+
+/** What the map reads of a file once it has been written and fetched: as JSON, where a slot's -0 is 0. */
+const written = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+
+test("gives back a real Network's shapes, point for point and metre for metre, from a third of their points where its :back shapes run its others' track", () => {
+  const points = (list: Shape[]) => list.reduce((sum, s) => sum + s.coords.length, 0);
+  for (const [name, most] of [['2026-09-25', 0.4], ['2026-10-07', 1], ['2026-10-10-long-distance', 1.01]] as const) {
+    const { shapes } = recorded(name);
+    const t = track(shapes);
+    const file = written(encodeTrack(t)) as StoredTrack;
+    expect(decodeTrack(file)).toEqual(written(t));
+    // Each piece's points, counted as the numbers that make them: two for each.
+    expect(file.traced.pieces.reduce((sum, p) => sum + p.length / 2, 0)).toBeLessThan(most * points(shapes));
+  }
+}, 60_000);
+
+test("gives back the slots a Network's Lines are drawn with, as the build makes them", async () => {
+  // The Lines round Madrid-Atocha Cercanías on 9 Oct 2026 (build/fixtures/atocha.json).
+  const { lines, shapes } = JSON.parse(readFileSync(new URL('build/fixtures/atocha.json', import.meta.url), 'utf8')) as Pick<Track, 'lines' | 'shapes'>;
+  const { slots, centrelines, strokes, rails, tracks } = await sideBySide(lines, shapes, 'cercanias-madrid');
+  const t: Track = { networks: [], lines, stations: [], shapes: [...shapes, ...centrelines], strokes, rails, slots, tracks };
+  expect(slots.length).toBeGreaterThan(0);
+  const file = encodeTrack(t);
+  expect(file).toHaveProperty('chains');
+  expect(decodeTrack(written(file))).toEqual(written(t));
+}, 60_000);
