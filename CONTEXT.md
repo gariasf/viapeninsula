@@ -15,7 +15,7 @@ A timetable entry: the ordered stops and times that a Train runs. Where a timeta
 _Avoid_: Service, schedule
 
 **Train number**:
-An operator's public identifier for a Train, where one exists (Renfe's five digits). It isn't unique across Spain: two sources describe the same Train only when the Train number matches and their stops overlap.
+An operator's public identifier for a Train, where one exists (Renfe's five digits). It isn't unique across Spain: two timetables describe the same Train only when the Train number matches and their stops overlap, and a live report that names a Train only by its number describes the Trip of that number, in any Network, whose timetable runs nearest when it was reported.
 _Avoid_: Train ID, service code
 
 **Unit**:
