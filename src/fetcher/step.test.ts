@@ -696,13 +696,39 @@ const tramReport = (trip: string) => tramRun().snapshot.reports.find((r) => r.tr
 test("gives a TRAM Train its distance since its Trip's first Station, and where that reads 0, the stop it's at or has just left, each with TRAM's Delay", () => {
   // A T1 towards Bon Viatge, 6,120 m from Francesc Macià, between La Sardana and Montesa, 10 s late.
   expect(tramReport('TBX:2579_0094')).toEqual({ trip: 'tram:TBX:2579_0094', at: TRAM_NOW, position: { along: 6120 }, delay: 10 });
-  // A T2 towards Llevant-Les Planes at Cornellà Centre or just gone from it, at the platform TRAM
-  // numbers 1019, 82 s early.
-  expect(tramReport('TBX:2579_0198')).toEqual({ trip: 'tram:TBX:2579_0198', at: TRAM_NOW, position: { near: 'tram:1019' }, delay: -82 });
+  // A T2 towards Llevant-Les Planes at Cornellà Centre, at the platform TRAM numbers 1019, 82 s early.
+  // TRAM's position has it at or just gone from that stop, but its trip update has it there, the 18th
+  // stop of its Trip, since 11:43:44 and due out at 11:45:10.
+  expect(tramReport('TBX:2579_0198')).toEqual({ trip: 'tram:TBX:2579_0198', at: TRAM_NOW, position: { near: 'tram:1019' }, delay: -82, standing: { stop: 18, leaves: TRAM_NOW + 20_000 } });
   // Of the 24 Trains, TRAM gives 6 a distance, and the other 18 the stop they're at or have just left.
   const positions = tramRun().snapshot.reports.map((r) => r.position);
   expect(positions.filter((p) => p && 'along' in p)).toHaveLength(6);
   expect(positions.filter((p) => p && 'near' in p)).toHaveLength(18);
+});
+
+/** The Trains of the saved frame whose position is of one kind, with the stop their report has them standing at, by its number in their Trip, and in ms how long after the run it's due out. */
+const standingAt = (kind: 'near' | 'along') =>
+  tramRun()
+    .snapshot.reports.filter((r) => r.position && kind in r.position)
+    .flatMap((r) => (r.standing ? [[r.trip, r.standing.stop, r.standing.leaves - TRAM_NOW]] : []));
+
+test("says which stop a TRAM Train's trip update has it at, and when it's due out, where it has reached that stop and is still to leave it", () => {
+  // TRAM has 5 of the 18 Trains it names a stop for still due out of one at 11:44:50, such as the T2 at
+  // Cornellà Centre, the 18th stop of its Trip, until 11:45:10: its trip update has it there since
+  // 11:43:44. The other 13 had left their stop 22–120 s before, or ended their Trip there, and have none.
+  expect(standingAt('near')).toEqual([
+    ['tram:TBX:2579_0241', 12, 8_000],
+    ['tram:TBX:2579_0198', 18, 20_000],
+    ['tram:TBX:2579_0256', 19, 20_000],
+    ['tram:TBX:2579_0160', 9, 20_000],
+    ['tram:TBX:2579_0084', 6, 80_000],
+  ]);
+  // A distance TRAM gives as a Train reaches a stop is that stop's: 2 of the 6 that have one are standing there still,
+  // and the T1 between La Sardana and Montesa is due out at the moment of the run, which is no longer to come.
+  expect(standingAt('along')).toEqual([
+    ['tram:TBX:2579_0185', 2, 20_000],
+    ['tram:TBS:1947_0268', 12, 4_000],
+  ]);
 });
 
 test('never reports a Unit out of service, which TRAM puts on line 0, even where a trip update names its Trip', () => {

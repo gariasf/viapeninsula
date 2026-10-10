@@ -67,6 +67,15 @@ export interface Report {
   delay?: number;
   /** Where its operator gives no Delay, when it expects it at a Station, in ms since 1970, as FGC does. */
   expected?: { station: string; at: number };
+  /**
+   * Where its operator's trip update has it at a stop it has reached and is still to leave, as TRAM's
+   * does while a tram stands past its timetable's 10 s (#344): the stop, by its number in the Trip,
+   * GTFS's `stop_sequence`, which TRAM counts from 1 without a gap, so that the Trip's call at that
+   * number less one is the Station; and when it's due to leave it, in ms since 1970. TRAM's own Delay
+   * stays what it was as the Train arrived, and its position names the stop it's at or has just left,
+   * so only this tells a Train that stands from one that has gone.
+   */
+  standing?: { stop: number; leaves: number };
   /** Whether its operator has announced that it won't run. */
   cancelled?: true;
   /** The type of Unit it runs as, where its operator publishes it: FGC's series, such as 213x2 for two 213s coupled. */

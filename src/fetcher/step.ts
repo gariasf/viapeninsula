@@ -480,11 +480,13 @@ interface Geotren {
 /**
  * A feed of trip updates, as FGC and TRAM publish them: when it was written, in seconds since 1970,
  * and for each Trip, when it was updated, the Unit running it where it says, and the first stop it
- * gives a time for, by its platform, such as FGC's PC1, with when the Train is expected there.
+ * gives a time for, by its platform, such as FGC's PC1, with when the Train is expected there. And,
+ * where the feed is read as of a moment (gtfsRt()), the last stop it has reached by then, where it's
+ * still to leave it: its number in the Trip, and when it's due out, in seconds since 1970.
  */
 interface TripUpdates {
   written: number;
-  trips: { id: string; updated?: number; unit?: string; platform?: string; expected?: number }[];
+  trips: { id: string; updated?: number; unit?: string; platform?: string; expected?: number; standing?: { stop: number; leaves: number } }[];
 }
 
 /**
@@ -674,19 +676,23 @@ interface ActiveVehicle {
  * The Trains one of TRAM's halves has in service, from where it has its Units and its trip updates,
  * which name the Trip each Unit runs. A Train whose Trip they don't name, as before it starts, gets
  * no report. Each report is as of the run, since TRAM's figures carry no time of their own, though
- * the trip updates say when TRAM wrote them.
+ * the trip updates say when TRAM wrote them. Where a trip update has the Train at a stop it has
+ * reached by the run and is still to leave, its report says which stop, and when it's due out: TRAM's
+ * Delay stays what it was as the Train arrived, and its position names the stop it's at or has just
+ * left (#42), so nothing else tells a Train standing past its timetable's 10 s from one that has gone (#344).
  */
 function tramReports(source: LiveSource, half: Half, { positions, updates }: TramResponses[Half], now: number, said: (file: string, at: number) => void): Report[] {
-  const feed = gtfsRt(`${half} gtfsrealtime`, updates);
+  const feed = gtfsRt(`${half} gtfsrealtime`, updates, now);
   said(`${half} gtfsrealtime`, feed.written * 1000);
-  const trips = new Map(feed.trips.map((t) => [t.unit, t.id]));
+  const trips = new Map(feed.trips.map((t) => [t.unit, t]));
   const units = json<ActiveVehicle[]>(`${half} activevehicles`, positions);
   if (!Array.isArray(units)) throw new Error(`${half} activevehicles: not a list`);
   return units.flatMap(({ vehicleId, lineName, originStopCode, vehiclePosition, delay }) => {
-    const trip = trips.get(String(vehicleId));
-    const network = trip && networkOf(source, trip);
+    const update = trips.get(String(vehicleId));
+    const network = update && networkOf(source, update.id);
     const position = vehiclePosition ? { along: vehiclePosition } : { near: `tram:${originStopCode}` };
-    return network && lineName !== '0' ? [{ trip: `${network}:${half}:${trip}`, at: now, position, delay }] : [];
+    const standing = update?.standing && { stop: update.standing.stop, leaves: update.standing.leaves * 1000 };
+    return update && network && lineName !== '0' ? [{ trip: `${network}:${half}:${update.id}`, at: now, position, delay, standing }] : [];
   });
 }
 
@@ -751,27 +757,29 @@ const ADAPTERS = { renfe, fgc, tram, tmb };
 /**
  * The parts of a GTFS-RT feed of trip updates the step reads, from its protocol buffers in a response:
  * its header's time, and each trip update's Trip, time, Unit and first stop with a time (field
- * numbers as GTFS-RT's). Or an error that says why it can't be read.
+ * numbers as GTFS-RT's). Given a moment (ms since 1970), each trip update's last stop that has
+ * been reached by then too, where it's still to leave it, which reads all of its stops. Or an error
+ * that says why it can't be read.
  */
-function gtfsRt(file: string, fetched: Fetched<Uint8Array>): TripUpdates {
+function gtfsRt(file: string, fetched: Fetched<Uint8Array>, now?: number): TripUpdates {
   const bytes = body(file, fetched);
   try {
-    return new PbfReader(bytes).readFields(feedMessage, { written: 0, trips: [] });
+    return new PbfReader(bytes).readFields((field, feed: TripUpdates, pbf) => feedMessage(field, feed, pbf, now === undefined ? undefined : now / 1000), { written: 0, trips: [] });
   } catch {
     throw new Error(`${file}: not GTFS-RT`);
   }
 }
 
-function feedMessage(field: number, feed: TripUpdates, pbf: PbfReader) {
+function feedMessage(field: number, feed: TripUpdates, pbf: PbfReader, now?: number) {
   if (field === 1) feed.written = pbf.readMessage((field, header: { timestamp: number }) => {
     if (field === 3) header.timestamp = pbf.readVarint();
   }, { timestamp: 0 }).timestamp;
   if (field === 2) pbf.readMessage((field) => {
-    if (field === 3) feed.trips.push(pbf.readMessage(tripUpdate, { id: '' }));
+    if (field === 3) feed.trips.push(pbf.readMessage((field, update: TripUpdates['trips'][number], pbf) => tripUpdate(field, update, pbf, now), { id: '' }));
   }, null);
 }
 
-function tripUpdate(field: number, update: TripUpdates['trips'][number], pbf: PbfReader) {
+function tripUpdate(field: number, update: TripUpdates['trips'][number], pbf: PbfReader, now?: number) {
   if (field === 1) update.id = pbf.readMessage((field, trip: { id: string }) => {
     if (field === 1) trip.id = pbf.readString();
   }, { id: '' }).id;
@@ -779,18 +787,29 @@ function tripUpdate(field: number, update: TripUpdates['trips'][number], pbf: Pb
   if (field === 3) update.unit = pbf.readMessage((field, vehicle: { id?: string }) => {
     if (field === 1) vehicle.id = pbf.readString();
   }, {}).id;
-  if (field === 2 && !update.expected) {
+  // FGC's are read to their first stop with a time, and the rest skipped, as most of a feed is stops.
+  if (field === 2 && (!update.expected || now !== undefined)) {
     const stop = pbf.readMessage<Stop>(stopTimeUpdate, {});
-    if (stop.time) [update.platform, update.expected] = [stop.platform, stop.time];
+    const time = stop.arrival ?? stop.departure;
+    if (!update.expected && time) [update.platform, update.expected] = [stop.platform, time];
+    // Each stop reached by `now` replaces the one before it, so the last one gives where it stands.
+    if (now !== undefined && stop.sequence !== undefined && stop.arrival !== undefined && stop.arrival <= now) {
+      update.standing = stop.departure !== undefined && stop.departure > now ? { stop: stop.sequence, leaves: stop.departure } : undefined;
+    }
   }
 }
 
-/** A stop, by its platform, and when the Train is expected there, in seconds since 1970: at its arrival, or where it gives none, its departure. */
-type Stop = { platform?: string; time?: number };
+/** A stop, by its platform and its number in the Trip, and when the Train is expected there, in seconds since 1970: its arrival and its departure. */
+type Stop = { platform?: string; sequence?: number; arrival?: number; departure?: number };
 
 function stopTimeUpdate(field: number, stop: Stop, pbf: PbfReader) {
+  if (field === 1) stop.sequence = pbf.readVarint();
   if (field === 4) stop.platform = pbf.readString();
-  if ((field === 2 || field === 3) && !stop.time) stop.time = pbf.readMessage((field, event: { time?: number }) => {
-    if (field === 2) event.time = pbf.readVarint(true);
-  }, {}).time;
+  if (field === 2 || field === 3) {
+    const { time } = pbf.readMessage((field, event: { time?: number }) => {
+      if (field === 2) event.time = pbf.readVarint(true);
+    }, {});
+    if (field === 2) stop.arrival = time;
+    else stop.departure = time;
+  }
 }
