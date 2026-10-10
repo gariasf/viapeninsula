@@ -20,6 +20,7 @@ test("keys each spot by its kind, its Line or Network and its Stations, never by
     { kind: 'turn', line: 'rodalies:R16', shape: 'rodalies:51_R16:back', stations: [B], text: [''] },
     { kind: 'branch', line: 'rodalies:R2N', shape: 'rodalies:51_R2N', stations: [A, B], text: [''] },
     { kind: 'trip', why: 'fast', line: 'metro:L1', trip: 'metro:1.1.11828731', stations: [B, A], text: [''] },
+    { kind: 'sequence', network: 'tram', line: 'tram:T2', trip: 'tram:TBX:2555_0194', text: [''] },
     { kind: 'bus', line: 'rodalies:R3', trip: 'rodalies:5178X87400R3', stations: [B, A], text: [''] },
     { kind: 'notrips', network: 'rodalies', day: 2, text: [''] },
     { kind: 'trips', network: 'fgc', text: [''], numbers: { monday: 2041 } },
@@ -40,6 +41,7 @@ test("keys each spot by its kind, its Line or Network and its Stations, never by
     'node 7 40.458 -3.677',
     'notrips rodalies 2',
     'region cercanias-madrid',
+    'sequence tram:T2',
     'trip metro:L1 fast adif:1 adif:2',
     'trips fgc',
     'turn rodalies:R16 adif:2',
@@ -220,12 +222,13 @@ const RUN = 'https://github.com/gariasf/viapeninsula/actions/runs/37330911997';
 /** The keys of the spots a comment lists, in its order. */
 const listed = (body?: string) => body?.split('\n').flatMap((line) => line.match(/^- `([^`]+)`/)?.[1] ?? []);
 
-test("comments only on problem spots new since the last build: a run kept, a turn-back, a branch, Trips left out, no Trips, a Network built from its copy or a region kept as it was, never a length, a node, the measures, a Network's Trips or Closures, or buses where their Line has no track", () => {
+test("comments only on problem spots new since the last build: a run kept, a turn-back, a branch, Trips left out, a Trip whose stop numbers don't run 1…n, no Trips, a Network built from its copy or a region kept as it was, never a length, a node, the measures, a Network's Trips or Closures, or buses where their Line has no track", () => {
   const copy: Spot = { kind: 'copy', key: 'copy tram', network: 'tram', text: ['TRAM is built from the copy of its timetables kept on 2026-10-05: https://opendata.tram.cat/GTFS/zip/TBX.zip: HTTP 499'] };
   const region: Spot = { kind: 'region', key: 'region cercanias-madrid', region: 'cercanias-madrid', text: ['cercanias-madrid keeps the files of its last build: Cercanías Madrid has no copy of its timetables to build it from'] };
   const kept: Spot = { kind: 'kept', key: 'kept rodalies:R3 adif:78600 adif:78605 nopath', text: [] };
   const branch: Spot = { kind: 'branch', key: 'branch rodalies:R2N adif:79100 adif:79101', text: [] };
   const trip: Spot = { kind: 'trip', key: 'trip metro:L1 fast tmb:1.111 tmb:1.112', text: [], numbers: { trips: 1 } };
+  const sequence: Spot = { kind: 'sequence', key: 'sequence tram:T2', network: 'tram', line: 'tram:T2', text: [], numbers: { trips: 1 } };
   const trips: Spot = { kind: 'trips', key: 'trips fgc', network: 'fgc', text: [], numbers: { monday: 2041 } };
   // No fix upstream draws a Closure where its Line has no track (ADR-0012).
   const bus: Spot = { kind: 'bus', key: 'bus rodalies:R3 adif:77102 adif:78802', text: [], numbers: { trips: 47 } };
@@ -234,12 +237,13 @@ test("comments only on problem spots new since the last build: a run kept, a tur
   // A new node, and numbers that moved, a known problem spot's too, and a Network's Trips by half: nothing to comment.
   expect(comment(last, [{ ...LENGTH, numbers: { percent: 3 } }, { ...MEASURES, numbers: { breaks: 1 } }, NODE, { ...TRIP, numbers: { trips: 6 } }, { ...trips, numbers: { monday: 1020 } }], RUN)).toBeUndefined();
   // In order of key, as reports are.
-  expect(listed(comment(last, [branch, bus, closures, copy, kept, LENGTH, MEASURES, NODE, NO_TRIPS, region, { ...TRIP, numbers: { trips: 6 } }, trip, { ...trips, key: 'trips tram', network: 'tram' }, TURN], RUN))).toEqual([
+  expect(listed(comment(last, [branch, bus, closures, copy, kept, LENGTH, MEASURES, NODE, NO_TRIPS, region, sequence, { ...TRIP, numbers: { trips: 6 } }, trip, { ...trips, key: 'trips tram', network: 'tram' }, TURN], RUN))).toEqual([
     'branch rodalies:R2N adif:79100 adif:79101',
     'copy tram',
     'kept rodalies:R3 adif:78600 adif:78605 nopath',
     'notrips rodalies 0',
     'region cercanias-madrid',
+    'sequence tram:T2',
     'trip metro:L1 fast tmb:1.111 tmb:1.112',
     'turn rodalies:R16 adif:65402',
   ]);

@@ -80,9 +80,10 @@ export interface Report {
    * position names the stop it's at or has just left, so nothing else of TRAM's says a stop reached is
    * still to be left. That isn't that the tram stands: for one that came early it's its timetable's
    * departure, which its trams don't wait for (docs/research/live-data-sources.md).
-   * ponytail: the stop is matched by its number, not its platform, so a feed that skipped numbers, or
-   * a Trip the build cut calls from, would name another stop than its tram's; have the build check
-   * each TRAM Trip's numbers run 1…n if that shows.
+   * ponytail: the stop is matched by its number, not its platform, so a feed that skipped numbers
+   * would name another stop than its tram's: the build reports a TRAM Trip whose numbers don't run
+   * 1…n (#406), but not one it cuts calls from after reading it, as crop() does at Spain's border,
+   * which TRAM's Trips don't reach.
    */
   standing?: { stop: number; leaves: number };
   /** Whether its operator has announced that it won't run. */
