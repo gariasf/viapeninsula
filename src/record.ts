@@ -9,6 +9,8 @@
 //   since 1970, as a snapshot's is in replay.json.gz, and each feed as its file parses, left out of
 //   the line where its fetch failed, and the line where both did. A line can lack Madrid's Trains
 //   whole, as Renfe drops them from about one fetch in five (docs/research/live-at-scale.md);
+// - alerts.json, the operators' Alerts as the map reads them, once at the start, where they came,
+//   which the Closures are made from that #345 counts the Trains inside of (closuresAt());
 // - bundle.json, the whole bundle the replay is of, which the tests cut their Trips from: that day's,
 //   and where the last snapshot falls after midnight in Madrid, the next day's joined with it as the
 //   map joins them (#411), the first day's Trips led by their day, `2026-10-06/<id>`, as Renfe names a
@@ -93,6 +95,15 @@ if (import.meta.main) {
     console.log(`Renfe's feeds recorded at ${new Date().toISOString()}`);
   } catch (error) {
     console.warn(`Renfe's feeds not recorded: ${error}`);
+  }
+
+  // The Alerts the map reads, at the start, which a recording's Closures are made from (#364).
+  // ponytail: once, so an Alert that comes or goes while it records is missed; keep each change in a
+  // file of its own if that matters.
+  try {
+    await writeFile(join(dir, 'alerts.json'), await get(`${LIVE_URL}/alerts.json`));
+  } catch (error) {
+    console.warn(`The Alerts not recorded: ${error}`);
   }
 
   const today = madridDate(new Date());
