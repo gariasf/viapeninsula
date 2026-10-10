@@ -137,6 +137,8 @@ test("at its Trip's last Station it arrives there and then stands there, and hav
 
 test("a Train with no Station before it is on its way to its first, and one on a Trip that runs back along its track is by its way along it, as progress() has it", () => {
   expect(whereabouts(ABC, 10, 3, false, 100)).toEqual({ at: 'arriving', next: A });
+  // However far short of it it's drawn, as it has no Station it has left to be leaving or between.
+  expect(whereabouts(ABC, 500, 3, false, 100)).toEqual({ at: 'arriving', next: A });
   // Out 4 km and back to 2.5 km, 1 km into its way back, 500 m short of its last Station and 1 km past the one it left.
   const back = [A, { ...B, dist: 4000 }, { ...C, dist: 2500 }];
   expect(whereabouts(back, 3000, 1, false, 400)).toMatchObject({ at: 'between', last: back[1], next: back[2] });
