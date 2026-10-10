@@ -84,16 +84,18 @@ export function manifestDay(bundle: Bundle, files: Pick<ManifestDay, 'track' | '
 export function manifestOf(regions: { id: string; days?: ManifestDay[] }[], previous?: Manifest): Manifest {
   const first = regions.flatMap((r) => r.days?.map((d) => d.date) ?? []).sort()[0];
   if (!first) throw new Error('No region was built');
+  // The regions the last manifest names, where it's one by region.
+  const last = Array.isArray(previous?.regions) ? previous.regions : undefined;
   const failed = regions.filter((r) => !r.days).map((r) => r.id);
-  if (failed.length && !Array.isArray(previous?.regions)) {
+  if (failed.length && !last) {
     throw new Error(`Regions that aren't built have no files of a last build by region to keep, so the map would go without them: ${failed.join(', ')}`);
   }
   const before = addDays(first, -1);
-  const named = (id: string) => (Array.isArray(previous?.regions) ? previous.regions.find((r) => r.id === id)?.days : undefined) ?? [];
+  const named = (id: string) => last?.find((r) => r.id === id)?.days ?? [];
   return {
     regions: regions.flatMap(({ id, days }) => {
-      const last = named(id).filter((d) => d.track && d.trips);
-      const all = days ? [...last.filter((d) => d.date === before), ...days] : last.filter((d) => d.date >= before);
+      const kept = named(id).filter((d) => d.track && d.trips);
+      const all = days ? [...kept.filter((d) => d.date === before), ...days] : kept.filter((d) => d.date >= before);
       return all.length ? [{ id, days: all }] : [];
     }),
   };
