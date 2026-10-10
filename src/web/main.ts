@@ -471,10 +471,32 @@ const nearbyButton = el('button', { type: 'button', className: 'card fab nearby'
 const followRandomButton = el('button', { type: 'button', className: 'card fab', disabled: true, onclick: followRandom }, icon('die'));
 // The Centre button over them, shown while the map has let go of the Train it follows (#325).
 const centreButton = el('button', { type: 'button', className: 'card fab', hidden: true, onclick: centre }, icon('centre'));
-// The tilt button over it: it eases the map's pitch between flat and tilted, pressed while it's tilted (#326).
-const tiltButton = el('button', { type: 'button', className: 'card fab', onclick: () => map.easeTo({ pitch: toggledPitch(map.getPitch()) }) }, icon('tilt'));
+// The tilt button over them: it eases the map's pitch between flat and tilted, pressed while it's tilted
+// (#326). Another easing that starts meanwhile, a panel's padding, stops it short, so it's started again
+// (a few times at most) unless the viewer tilts it themselves.
+let tiltTo: number | undefined;
+/** How many times more the tilt is started again. */
+let tiltTries = 0;
+const tiltButton = el(
+  'button',
+  {
+    type: 'button',
+    className: 'card fab tilt',
+    onclick: () => {
+      tiltTries = 3;
+      map.easeTo({ pitch: (tiltTo = toggledPitch(map.getPitch())) });
+    },
+  },
+  icon('tilt'),
+);
 const showTilt = () => tiltButton.setAttribute('aria-pressed', String(map.getPitch() > 0));
 map.on('pitch', showTilt);
+map.on('pitchstart', (e) => e.originalEvent && (tiltTo = undefined));
+map.on('moveend', () => {
+  if (tiltTo === undefined || map.getPitch() === tiltTo || !tiltTries--) tiltTo = undefined;
+  // After the easing that stopped it has begun, which this moveend came in the middle of.
+  else setTimeout(() => tiltTo !== undefined && map.easeTo({ pitch: tiltTo, padding: panelPadding() }));
+});
 showTilt();
 const trainButtons = el('div', { className: 'fabs', hidden: true }, tiltButton, centreButton, followRandomButton, nearbyButton);
 // The credits, which showCredits() fills: behind the © button on a phone, and a strip on a wide window.
@@ -1050,7 +1072,7 @@ trainButtons.hidden = false;
 let [moved, drawn, drawnAt] = [-Infinity, -Infinity, ''];
 requestAnimationFrame(function move(now) {
   if (following || map.isMoving()) moved = now;
-  const view = `${map.getZoom()} ${map.getBearing()}`;
+  const view = `${map.getZoom()} ${map.getBearing()} ${map.getPitch()}`;
   // ponytail: no more often than IDLE_EVERY once the map stands, so zoomed right in, at 18, a Train at
   // 110 km/h then steps about 4.5 px at a time. Let the rate rise with the zoom there too if that shows.
   const every = following || spreadState.easing || view !== drawnAt ? 0 : Math.min(IDLE_MOST, now - moved > MOVED ? Math.max(IDLE_EVERY, quarterPixel()) : quarterPixel());

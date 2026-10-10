@@ -163,12 +163,12 @@ body {
 }
 
 /* The tilt button while the map is tilted: inverted, and its plane filled, which a forced-colours theme keeps (#326). */
-.fab.card[aria-pressed='true'] {
+.fab.tilt[aria-pressed='true'] {
   background: var(--ink);
   color: var(--card);
 }
 
-.fab[aria-pressed='true'] path:first-child {
+.fab.tilt[aria-pressed='true'] path:first-child {
   fill: currentColor;
 }
 
@@ -183,7 +183,7 @@ body {
     background: color-mix(in srgb, var(--ink) 6%, var(--card));
   }
 
-  .fab.card[aria-pressed='true']:hover {
+  .fab.tilt[aria-pressed='true']:hover {
     background: color-mix(in srgb, var(--card) 14%, var(--ink));
   }
 }
