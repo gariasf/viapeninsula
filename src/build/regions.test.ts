@@ -1,9 +1,10 @@
 import { expect, test } from 'vitest';
 import { STRETCH, type Network, type Shape, type Station, type Track, type Trip } from '../bundle.ts';
+import { EVERYWHERE } from '../networks.ts';
 import { decodeTrack, type StoredTrack } from '../pieces.ts';
 import { noonMinus12h } from './gtfs.ts';
 import { manifestOf } from './manifest.ts';
-import { buildRegion, buildRegions, sharedStretches, trackFile, type BuiltNetwork } from './regions.ts';
+import { buildRegion, buildRegions, sharedStretches, trackFile, zoomedOut, type BuiltNetwork } from './regions.ts';
 import { collect, diff, type Found, type Spot } from './report.ts';
 
 // Track drawn in metres east (x) and north (y) of a point in Barcelona, as sideBySide.test.ts has it.
@@ -267,4 +268,46 @@ test("gives a region's track as the file that stores its slots as chains, says w
   expect(gap).not.toHaveProperty('chains');
   expect(said).toEqual(["catalonia's slots are whole in its track file, not chains: one doesn't follow the one before along its shape, or names a Line or shape its track hasn't"]);
   expect(() => trackFile({ ...track, slots: [{ ...slot, crowded: true } as typeof slot] }, 'catalonia')).toThrow("catalonia's track file doesn't give back the track built");
+});
+
+/** A region's track of one Network, its Line along a shape from x metres to another, y metres north, with its Network's track along all of it. */
+function regionTrack(id: string, [from, to]: [number, number], y: number): Track {
+  const { network: n, lines, stations, shapes } = network(id, [from, to], y, [[300]]);
+  return { networks: [n], lines, stations, shapes, strokes: [], rails: [], slots: [], tracks: [{ line: `${id}:C1`, shape: `${id}:shape`, from: 0, to: to - from, side: 0 }] };
+}
+
+test("names each region's Networks and where it lies in the manifest, and puts every region's Networks, Network tracks and Stations in the file below zoom 7, a failed region's from the track file the manifest names for it, and leaves the region every view loads with no extent", async () => {
+  const entry = (region: string, date: string) => ({ date, track: `days/track-${region}-old.json`, trips: `days/${date}-${region}.json`, from: 1, to: 2 });
+  const manifest = {
+    regions: [
+      { id: 'catalonia', days: [entry('catalonia', '2026-10-10')] },
+      // Its build failed: the manifest names its last build's files, from yesterday on.
+      { id: 'cercanias-madrid', days: [entry('cercanias-madrid', '2026-10-09'), entry('cercanias-madrid', '2026-10-10')] },
+      { id: EVERYWHERE, days: [entry(EVERYWHERE, '2026-10-10')] },
+    ],
+  };
+  // Catalonia's 5 km east from Barcelona, long distance's 2 km of it 2 km north, and Madrid's 3 km between, made up.
+  const built = new Map([['catalonia', regionTrack('rodalies', [0, 5000], 0)], [EVERYWHERE, regionTrack('ave-larga-distancia', [0, 2000], 2000)]]);
+  const read: string[] = [];
+  const { regions, file } = await zoomedOut(manifest, built, async (key) => {
+    read.push(key);
+    return regionTrack('cercanias-madrid', [1000, 4000], 1000);
+  });
+  expect(read).toEqual(['days/track-cercanias-madrid-old.json']);
+  // The manifest's days as they were, then the Networks and where each lies, outward to a thousandth of a degree.
+  expect(regions).toEqual([
+    { ...manifest.regions[0], networks: ['rodalies'], extent: [2.17, 41.39, 2.23, 41.39] },
+    { ...manifest.regions[1], networks: ['cercanias-madrid'], extent: [2.181, 41.398, 2.218, 41.399] },
+    { ...manifest.regions[2], networks: ['ave-larga-distancia'] },
+  ]);
+  expect(file.networks.map((n) => n.id)).toEqual(['rodalies', 'cercanias-madrid', 'ave-larga-distancia']);
+  // Each straight track by its ends, to a ten-thousandth of a degree.
+  expect(file.tracks).toEqual([
+    { network: 'rodalies', coordinates: [[2.17, 41.39], [2.2299, 41.39]] },
+    { network: 'cercanias-madrid', coordinates: [[2.182, 41.399], [2.218, 41.399]] },
+    { network: 'ave-larga-distancia', coordinates: [[2.17, 41.408], [2.194, 41.408]] },
+  ]);
+  expect(file.stations).toEqual({ catalonia: ['adif:rodalies-1', 'adif:rodalies-2'], 'cercanias-madrid': ['adif:cercanias-madrid-1', 'adif:cercanias-madrid-2'], [EVERYWHERE]: ['adif:ave-larga-distancia-1', 'adif:ave-larga-distancia-2'] });
+  // Where that file can't be read, the build fails, rather than lose the region's track below zoom 7.
+  await expect(zoomedOut(manifest, built, () => Promise.reject(new Error('HTTP 503')))).rejects.toThrow('HTTP 503');
 });

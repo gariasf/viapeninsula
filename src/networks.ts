@@ -616,6 +616,13 @@ export const NETWORKS = [
   CERCANIAS_ZARAGOZA,
 ];
 
+/**
+ * The region every view loads, wherever the map is and at every zoom (ADR-0014), as AVE y Larga
+ * Distancia's Trains show at every zoom (ADR-0010): long distance's, whose Networks name it, once
+ * they're on the map (#262). The manifest gives it no extent, which is what the map loads it by (#266).
+ */
+export const EVERYWHERE = 'long-distance';
+
 /** The region a Network is built and loaded in: the one its config names, or else a region of its own, its ID (ADR-0014). */
 export function regionOf({ id, region }: Pick<NetworkConfig, 'id' | 'region'>): string {
   return region ?? id;
@@ -667,9 +674,10 @@ const HIGH_SPEED = { topSpeed: 300 / 3.6 };
  */
 const RENFE_LONG_DISTANCE_POINTS: Timetable['points'] = { '02030': [-4.56158, 37.02951] };
 
-export const AVE_LARGA_DISTANCIA: Pick<NetworkConfig, 'id' | 'name' | 'profile' | 'live' | 'runningSide' | 'timetables' | 'lines'> = {
+export const AVE_LARGA_DISTANCIA: Pick<NetworkConfig, 'id' | 'name' | 'region' | 'profile' | 'live' | 'runningSide' | 'timetables' | 'lines'> = {
   id: 'ave-larga-distancia',
   name: 'AVE y Larga Distancia',
+  region: EVERYWHERE,
   // Fitted by #260's triage to the hops of Monday 5 October 2026's Trips as traced along OpenStreetMap's
   // rails: 300 km/h at 0.5 m/s² fits all 442 of AVE's, Avlo's and AVE Int's, and 250 fits all of Alvia's
   // and Euromed's and 99% of Intercity's. So the Network's Lines run at 250, but those three at 300
@@ -714,9 +722,10 @@ export const AVE_LARGA_DISTANCIA: Pick<NetworkConfig, 'id' | 'name' | 'profile' 
 /** Avant's and Avant Exp's: high speed on the same track as AVE's, at 250 km/h and 0.5 m/s². */
 const AVANT = { acceleration: 0.5, braking: 0.5, topSpeed: 250 / 3.6 };
 
-export const MEDIA_DISTANCIA_AVANT: Pick<NetworkConfig, 'id' | 'name' | 'profile' | 'live' | 'runningSide' | 'timetables' | 'lines'> = {
+export const MEDIA_DISTANCIA_AVANT: Pick<NetworkConfig, 'id' | 'name' | 'region' | 'profile' | 'live' | 'runningSide' | 'timetables' | 'lines'> = {
   id: 'media-distancia-avant',
   name: 'Media Distancia y Avant',
+  region: EVERYWHERE,
   // Rodalies' 160 km/h at 1 m/s², which #260's triage found fits 99% of MD's hops on Monday 5 October
   // 2026, as traced, the misses being road legs. The ex-FEVE regionals, which the feed names REGIONAL
   // too, stay on it. Avant's and Avant Exp's hops fit 250 km/h at 0.5 m/s² (below), as run crudely on

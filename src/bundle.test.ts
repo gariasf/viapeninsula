@@ -222,3 +222,16 @@ test("names no day for a manifest of an older shape, whose days hold every Netwo
   const older = { days: [{ date: '2026-10-09', track: 'days/track-a.json', trips: 'days/2026-10-09-b.json', from: 0, to: 1 }] } as unknown as Manifest;
   expect(daysOf(older)).toEqual([]);
 });
+
+test("reads a manifest with what #266 adds to it, each region's Networks and extent and the file below zoom 7, as the same days, so that the recorder and a page from before it read it as ever", () => {
+  const manifest: Manifest = { regions: [{ id: 'catalonia', days: [entry('catalonia', '2026-09-26', '2026-09-26T05:00', '2026-09-27T00:40')] }, { id: 'cercanias-madrid', days: [entry('cercanias-madrid', '2026-09-26', '2026-09-26T04:30', '2026-09-26T23:30')] }] };
+  const added: Manifest = {
+    regions: manifest.regions.map((r) => ({ ...r, networks: [r.id], extent: [-1, 40, 3, 43] })),
+    zoomedOut: 'days/zoomed-out-0123456789ab.json',
+  };
+  expect(daysOf(added)).toEqual(daysOf(manifest));
+  expect(daysOf(added)[0]?.regions).toEqual([
+    { id: 'catalonia', track: 'catalonia.track', trips: 'catalonia.2026-09-26.trips' },
+    { id: 'cercanias-madrid', track: 'cercanias-madrid.track', trips: 'cercanias-madrid.2026-09-26.trips' },
+  ]);
+});

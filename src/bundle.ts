@@ -150,6 +150,22 @@ export interface Words {
  */
 export interface Manifest {
   regions: ManifestRegion[];
+  /** The file below zoom 7 (ZoomedOut, #266), where the build makes one, as a manifest from before #266 doesn't. */
+  zoomedOut?: string;
+}
+
+/**
+ * What the map draws below zoom 7, every region's, in one file of its own, built with the regions
+ * (#266): every region's Networks, which the map credits and names in the banner, and each Network's
+ * track, as the map draws it below zoom 7 (#190), simplified, so that it never loads a region for the
+ * view there; and each region's Stations, by their IDs, by the region's, which a link that names a
+ * Station finds the regions it loads by.
+ */
+export interface ZoomedOut {
+  networks: Network[];
+  /** Each Network's track below zoom 7, as banner.ts's NetworkTrack. */
+  tracks: { network: string; coordinates: Point[] }[];
+  stations: Record<string, string[]>;
 }
 
 /**
@@ -163,6 +179,14 @@ export interface Manifest {
 export interface ManifestRegion {
   id: string;
   days: ManifestDay[];
+  /** Its Networks, by their IDs, which a link to one of their Trains finds it by (#266). */
+  networks?: string[];
+  /**
+   * Where its Stations and track lie, which the map loads it once it has in view (#266): none for a
+   * region every view loads, as long distance's will (EVERYWHERE), as a manifest from before #266 names
+   * none for any.
+   */
+  extent?: [west: number, south: number, east: number, north: number];
 }
 
 /**
@@ -239,6 +263,15 @@ export function joinTracks(tracks: Track[]): Track {
     slots: tracks.flatMap((t) => t.slots),
     tracks: tracks.flatMap((t) => t.tracks),
   };
+}
+
+/** Each Network's track as the map draws it below zoom 7 (#190), from a track's: none from a track built before #190. */
+export function networkTracks({ lines, shapes, tracks }: Pick<Track, 'lines' | 'shapes' | 'tracks'>): ZoomedOut['tracks'] {
+  const [byLine, byShape] = [new Map(lines.map((l) => [l.id, l])), new Map(shapes.map((s) => [s.id, s]))];
+  return (tracks ?? []).flatMap(({ line: id, shape: shapeId, from, to }) => {
+    const [line, shape] = [byLine.get(id), byShape.get(shapeId)];
+    return line && shape ? [{ network: line.network, coordinates: along(shape, from, to) }] : [];
+  });
 }
 
 /** The regions' Trips of one service day as one: each region's Trips, and Closures where any has them, in turn. */
