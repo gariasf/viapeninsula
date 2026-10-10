@@ -140,6 +140,17 @@ test('fails when Geofabrik fails and there is no copy', async () => {
   await expect(osm(RAILWAYS, await temp())).rejects.toThrow("Couldn't get OpenStreetMap's rails");
 });
 
+test('reads the nodes where Trains change gauge, tagged railway=gauge_conversion, and no others', async () => {
+  // As at Zaragoza Delicias, where standard-gauge track runs into Iberian-gauge track through a changer.
+  const node = (id: number, lon: number, tags: Record<string, string>) => `<node id="${id}" version="1" lat="41.66" lon="${lon}">${xmlTags(tags)}</node>`;
+  const delicias =
+    node(7, -0.93, {}) + node(8, -0.92, { railway: 'gauge_conversion', name: 'Cambiador Zaragoza Delicias' }) + node(9, -0.91, { railway: 'level_crossing' }) +
+    xmlWay(14, [7, 8], { railway: 'rail', gauge: '1435' }) +
+    xmlWay(15, [8, 9], { railway: 'rail', gauge: '1668' });
+  await geofabrik(SPAIN + delicias);
+  expect((await osm(RAILWAYS, await temp())).changers).toEqual(new Set([8]));
+});
+
 test("leaves out rails that haven't opened yet", async () => {
   // Like the new tunnel to El Prat airport, mapped as rail with the year it opens.
   const opening = (id: number, date: string) => xmlWay(id, [1, 2], { railway: 'rail', opening_date: date });
