@@ -136,11 +136,15 @@ export function traceShapes(
   // ponytail: no changers join a Line's layers, as every Line of the map's Networks runs on one gauge;
   // pass osm()'s, as traceRuns() does, if one ever runs on two.
   const graphs = new Map<string, Graph>();
-  const graphOf = ({ gauges }: FeedShape) => {
-    const key = JSON.stringify(gauges ?? null);
-    const served = shapes.filter((s) => JSON.stringify(s.gauges ?? null) === key).flatMap((s) => s.stations);
-    const graph = graphs.get(key) ?? railGraph(gauges ? layered(rails, gauges, new Set()) : rails, [...new Set(served)].flatMap((id) => byId.get(id) ?? []), side);
-    graphs.set(key, graph);
+  const railsOf = ({ gauges }: FeedShape) => JSON.stringify(gauges ?? null);
+  const graphOf = (feed: FeedShape) => {
+    const key = railsOf(feed);
+    let graph = graphs.get(key);
+    if (!graph) {
+      const served = shapes.filter((s) => railsOf(s) === key).flatMap((s) => s.stations);
+      graph = railGraph(feed.gauges ? layered(rails, feed.gauges, new Set()) : rails, [...new Set(served)].flatMap((id) => byId.get(id) ?? []), side);
+      graphs.set(key, graph);
+    }
     return graph;
   };
   const wrong: string[] = [];
