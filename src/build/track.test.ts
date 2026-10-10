@@ -40,7 +40,7 @@ const station = (id: string, x: number, y: number): Station => {
   return { id, name: id, lon, lat };
 };
 
-type FeedIn = { id: string; line?: string; feed: [number, number][]; stations: string };
+type FeedIn = { id: string; line?: string; feed: [number, number][]; stations: string; gauges?: Gauges };
 
 function trace(rails: OsmWay[], stations: Station[], ...shapes: FeedIn[]) {
   return traceKeeping('right', rails, stations, ...shapes);
@@ -50,7 +50,7 @@ function trace(rails: OsmWay[], stations: Station[], ...shapes: FeedIn[]) {
 function traceKeeping(side: 'left' | 'right', rails: OsmWay[], stations: Station[], ...shapes: FeedIn[]) {
   const [log, found]: [string[], Found[]] = [[], []];
   const traced = traceShapes(
-    shapes.map((s) => ({ id: s.id, line: s.line ?? 'line', coords: s.feed.map(([x, y]) => at(x, y)), stations: s.stations.split(' ') })),
+    shapes.map((s) => ({ id: s.id, line: s.line ?? 'line', coords: s.feed.map(([x, y]) => at(x, y)), stations: s.stations.split(' '), ...(s.gauges && { gauges: s.gauges }) })),
     stations,
     rails,
     side,
@@ -842,4 +842,25 @@ test("reaches a Station published at another's point where it reached that one, 
     [[call('md', 'A B BT C', IBERIAN, 'MD')]],
   );
   expect(points(track('md'))).toEqual([[0, 0], [2000, 0], [4000, 0]]);
+});
+
+// A Network of two gauges, as Cercanías Asturias, Bilbao and Santander are (ADR-0010): Adif's Iberian-gauge
+// line along y = 0, and FEVE's metre-gauge one 70 m north of it, each with the feed's shape 2 m off it. S and
+// U are 6 m from the metre-gauge track and 64 m from the Iberian-gauge one, as Renfe's Santander and Maliaño
+// are nearer FEVE's track than Adif's, Maliaño 6 m and 65 m, and T the other way round, as Ablaña is for
+// C8, which runs on FEVE's (#366).
+const METRE: Gauges = { railway: ['rail', 'narrow_gauge'], gauges: ['1000'] };
+
+test("traces each Line of a Network of two gauges on its own gauge's rails only, so that a Station nearer the other gauge's track is on its own", () => {
+  const ways = rails({ a: [0, 0], b: [6000, 0], m: [0, 70], n: [6000, 70] }, 'a b', ['m n', { railway: 'narrow_gauge', gauge: '1000' }]);
+  const stations = [station('A', -10, 0), station('B', 6010, 0), station('M', -10, 70), station('N', 6010, 70), station('S', 2000, 64), station('U', 4000, 64), station('T', 3000, 6)];
+  const { shape, log } = trace(
+    ways,
+    stations,
+    { id: 'C1', feed: [[0, -2], [6000, -2]], stations: 'A S U B', gauges: IBERIAN },
+    { id: 'C8', feed: [[0, 72], [6000, 72]], stations: 'M T N', gauges: METRE },
+  );
+  expect(points(shape('C1'))).toEqual([[0, 0], [2000, 0], [4000, 0], [6000, 0]]);
+  expect(points(shape('C8'))).toEqual([[0, 70], [3000, 70], [6000, 70]]);
+  expect(log.filter((line) => !line.includes('km long'))).toEqual([]);
 });
