@@ -167,7 +167,8 @@ async function readDays(feeds: (Feed & { gtfs: Source })[]) {
  * and its Trips on each of DAYS, none where its timetable has none (dayTrips()), all within Spain:
  * its Trips are placed on their whole track, which is then cut at the border. And the Closures its
  * replacement buses make on each of DAYS (closuresOf()). What its tracing and placing log goes into
- * the report too, with the OpenStreetMap ways its Stations are on.
+ * the report too, with the OpenStreetMap ways its Stations are on, and what its timetables find wrong
+ * with their own Trips on each of DAYS, as a TRAM Trip's stop numbers (readFeed(), #406).
  */
 function build(config: NetworkConfig, { published, days }: Awaited<ReturnType<typeof readDays>>) {
   const { id, name, profile, runningSide, colour, pillZoom, credit, live } = config;
@@ -182,6 +183,8 @@ function build(config: NetworkConfig, { published, days }: Awaited<ReturnType<ty
   const own = ownRails(rails, config);
   const near = railsBeside(own, stations);
   const found = (f: Found) => report.add({ ...f, network: id, ways: [...new Set(f.stations?.flatMap((s) => near.get(s.id)?.map((c) => c.way.id) ?? []))] });
+  // What its timetables' own Trips give away, as each day's were read (readFeed()).
+  for (const [i, day] of days.entries()) for (const part of day) for (const f of part.found) found({ ...f, day: i });
   const shapes = traceShapes(parts.flatMap((p) => p.shapes), stations, own, network.runningSide, console.log, found);
   const cropped = crop(border, stations, shapes, days.map((day) => day.flatMap((p) => p.trips)));
   const trips = cropped.days.map((trips, day) => placeTrips(trips, shapes, stations, network.profile.topSpeed, console.log, (f) => found({ ...f, day })));

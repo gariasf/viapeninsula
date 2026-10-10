@@ -104,6 +104,11 @@ export interface Timetable {
   shortNames?: true;
   /** It lists a Train as several Trips, one for each part of its run it sells, which are made one (joinParts()). */
   parts?: true;
+  /**
+   * Its live data names a stop by its stop_sequence, so that a Trip's call at that number less one is
+   * the Station, as TRAM's does (#344): the build reports a Trip whose numbers don't run 1…n (#406).
+   */
+  stopNumbers?: true;
   /** It has no shapes, as Renfe's long-distance timetable hasn't: any other that loses its shapes.txt is read from its copy. */
   shapeless?: true;
   /** Its terms ask the map to show the day it was last updated, in its credit: its feed's start date. */
@@ -228,8 +233,8 @@ export const TRAM: NetworkConfig = {
   // TRAM publishes a feed for each of its halves, Trambaix (T1–T3) and Trambesòs (T4–T6), and their
   // shapes' IDs clash. Each feed makes each platform a stop of its own.
   timetables: [
-    { url: 'https://opendata.tram.cat/GTFS/zip/TBX.zip', prefix: 'tram:TBX', operator: 'tram', parents: true },
-    { url: 'https://opendata.tram.cat/GTFS/zip/TBS.zip', prefix: 'tram:TBS', operator: 'tram', parents: true },
+    { url: 'https://opendata.tram.cat/GTFS/zip/TBX.zip', prefix: 'tram:TBX', operator: 'tram', parents: true, stopNumbers: true },
+    { url: 'https://opendata.tram.cat/GTFS/zip/TBS.zip', prefix: 'tram:TBS', operator: 'tram', parents: true, stopNumbers: true },
   ],
   // TRAM's terms ask for these words, and a link.
   credit: { text: 'Powered by TRAM Barcelona', url: 'https://www.tram.cat/' },

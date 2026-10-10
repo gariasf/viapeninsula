@@ -53,14 +53,16 @@ const RAIL = new Set(['0', '1', '2', '7']);
  * feed, and its Trips and replacement buses on one service day (YYYY-MM-DD). Renfe lists the buses
  * it runs in its Trains' place as Trips of bus routes named as their Line's routes are, as R3's: a
  * bus route named as none of them, as TMB's city buses are, is no Line's. Where the feed lists a Train
- * in parts, they're made one Trip, and the calls that fit none are logged (joinParts()).
+ * in parts, they're made one Trip, and the calls that fit none are logged (joinParts()). Where its live
+ * data names a stop by its number in its Trip (`stopNumbers`), a Trip whose numbers don't run 1…n is
+ * logged and given in `found`, for the report (#406): it's read all the same.
  */
 export async function readFeed(
   gtfs: Source,
   day: string,
   feed: Feed,
   log = console.log,
-): Promise<{ lines: Line[]; stations: Station[]; shapes: FeedShape[]; trips: FeedTrip[]; buses: FeedBus[]; listed: Map<string, Set<string>> }> {
+): Promise<{ lines: Line[]; stations: Station[]; shapes: FeedShape[]; trips: FeedTrip[]; buses: FeedBus[]; listed: Map<string, Set<string>>; found: Found[] }> {
   const { network, prefix, operator } = feed;
   const pattern = feed.number && new RegExp(feed.number);
   const services = await serviceIdsOn(gtfs, day);
@@ -188,9 +190,18 @@ export async function readFeed(
   // long-distance file still has Rodalies' regional Trains then, which aren't long distance's (#258).
   const listed = new Map<string, Set<string>>();
   for (const { number, calls } of dayTrips.values()) if (number) listed.set(number, new Set([...(listed.get(number) ?? []), ...calls.map((c) => c.station)]));
+  const found: Found[] = [];
   const trips = [...dayTrips].flatMap(([id, { shape, ...rest }]) => {
     const trip = { ...rest, shape: shapeFor({ shape, from: ends.get(id)?.first[1] ?? '', to: ends.get(id)?.last[1] ?? '' }) };
-    const calls = trip.calls.sort((a, b) => a.seq - b.seq).map(({ seq: _, ...call }) => call);
+    const ordered = trip.calls.sort((a, b) => a.seq - b.seq);
+    // Where its live data names a stop by its number, the Trip's call at that number less one is its Station only if they run 1…n.
+    const off = feed.stopNumbers ? ordered.findIndex((c, i) => c.seq !== i + 1) : -1;
+    if (off >= 0) {
+      const text = `${trip.id}'s stop numbers don't run 1…${ordered.length}: its call ${off + 1} is numbered ${ordered[off]?.seq}`;
+      log(text);
+      found.push({ kind: 'sequence', line: trip.line, trip: trip.id, text: [text] });
+    }
+    const calls = ordered.map(({ seq: _, ...call }) => call);
     // A Trip without a headsign is headed for its last Station.
     const headsign = trip.headsign || (stations.get(calls.at(-1)?.station ?? '')?.name ?? '');
     const periods = repeats.get(id);
@@ -227,6 +238,7 @@ export async function readFeed(
       }),
     })),
     listed: dayTrips.size ? listed : everyDay,
+    found,
   };
 }
 

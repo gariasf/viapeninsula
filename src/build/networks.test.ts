@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, expect, test, vi } from 'vitest';
 import { places } from '../bundle.ts';
-import { AVE_LARGA_DISTANCIA, CERCANIAS_ASTURIAS, MEDIA_DISTANCIA_AVANT, RODALIES, TRAM, type NetworkConfig } from '../networks.ts';
+import { AVE_LARGA_DISTANCIA, CERCANIAS_ASTURIAS, MEDIA_DISTANCIA_AVANT, NETWORKS, RODALIES, TRAM, type NetworkConfig } from '../networks.ts';
 import { dirSource, rows, seconds, zipFile, zipSource, type Source } from './gtfs.ts';
 import { copyOf, FGC_FEED, joinParts, METRO_FEED, onFgcRails, onMetroRails, onRodaliesRails, ownRails, readFeed, readTimetables, RODALIES_FEED, TRAMBAIX_FEED, unlisted, type Feed } from './networks.ts';
 import type { Found } from './report.ts';
@@ -246,6 +246,31 @@ test("keeps TRAM's T2, which its feed files as rail rather than tram, and heads 
   // Each platform is a stop of its own, such as A_FRMC for platform A at Francesc Macià.
   expect(trip?.calls[0]).toEqual({ station: 'tram:ST-172', arrival: 17760, departure: 17760 });
   expect(stations).toHaveLength(24);
+});
+
+/** That feed's Trip with the row of its 13th stop left out of stop_times.txt, so that its numbers run 1…12, 14…24. */
+const skipping: Source = (file) => {
+  const lines = tram(file);
+  if (file !== 'stop_times.txt' || !lines) return lines;
+  return (async function* () {
+    for await (const l of lines) if (l.split(',')[4] !== '13') yield l;
+  })();
+};
+
+test("reports a TRAM Trip whose stop numbers don't run 1…n, with its Line, and none whose do, as all 5,576 of its Trips of 9 and 10 October 2026 do (#406)", async () => {
+  expect((await readFeed(tram, '2026-10-01', TRAMBAIX_FEED)).found).toEqual([]);
+  const log: string[] = [];
+  const { found, trips } = await readFeed(skipping, '2026-10-01', TRAMBAIX_FEED, (l) => log.push(l));
+  const text = "tram:TBX:2555_0194's stop numbers don't run 1…23: its call 13 is numbered 14";
+  expect(found).toEqual([{ kind: 'sequence', line: 'tram:T2', trip: 'tram:TBX:2555_0194', text: [text] }]);
+  expect(log).toEqual([text]);
+  // The Trip is read all the same: the report only says what its numbers would name.
+  expect(trips.map((t) => t.calls.length)).toEqual([23]);
+});
+
+test("checks stop numbers only of the timetables whose config says its live data names a stop by one, TRAM's two, as FGC's feed has 632 Trips whose numbers skip one and the Metro's 342 that start after 1 (10 Oct 2026)", async () => {
+  expect(NETWORKS.flatMap((n) => n.timetables.filter((t) => t.stopNumbers).map((t) => t.prefix))).toEqual(['tram:TBX', 'tram:TBS']);
+  expect((await readFeed(skipping, '2026-10-01', { ...TRAMBAIX_FEED, stopNumbers: undefined })).found).toEqual([]);
 });
 
 // Rows cut verbatim from TMB's feed of 2026-09-21: an L11 Trip, the Montjuïc funicular's Trips for
