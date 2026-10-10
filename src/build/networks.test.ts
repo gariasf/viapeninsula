@@ -586,6 +586,12 @@ test("places C2's Trip to El Entrego where Cercanías Asturias's config has Sama
   expect(moved.map((s) => s.id)).toEqual(['adif:16009', 'adif:16011']);
 });
 
+test("gives each shape of a Network of two gauges the rails its Line runs on, as Cercanías Asturias' C2 runs on Adif's Iberian gauge, to be traced on those alone, and its Trips none, as they're placed on their shapes (#366)", async () => {
+  const { shapes, trips } = await readFeed(asturias, '2026-10-10', { network: CERCANIAS_ASTURIAS, ...CERCANIAS_ASTURIAS.timetables[0] });
+  expect(shapes.map((s) => [s.id, s.gauges])).toEqual([['cercanias-asturias:20_C2:back', { railway: ['rail'], gauges: ['1668'] }]]);
+  expect(trips.map((t) => [t.id, t.gauges])).toEqual([['cercanias-asturias:2081S22200C2', undefined]]);
+});
+
 /** A way with these tags, as OpenStreetMap has Catalonia's rails. */
 const way = (tags: Record<string, string>) => ({ id: 1, nodes: [], geometry: [], tags });
 const FGC_NAME = 'Ferrocarrils de la Generalitat de Catalunya';

@@ -33,7 +33,11 @@ export interface NetworkConfig extends Omit<Network, 'credit'> {
     colour?: string;
     /** How the Trains of each of its Lines that don't run as its profile has them run, by the Line's name: only what differs, as AVE's top speed is above Alvia's (#260). */
     profiles?: Record<string, LineProfile>;
-    /** The rails each of its Lines runs on, by the Line's name, where its timetables have no shapes to trace (#259). */
+    /**
+     * The rails each of its Lines runs on, by the Line's name: where its timetables have no shapes, to trace
+     * its Trips along (#259), and where it runs on two gauges, to trace each Line's shapes along its own
+     * gauge's alone, of the Network's `rails` (#366).
+     */
     gauges?: Record<string, Gauges>;
   };
   /**
@@ -60,9 +64,11 @@ export interface Rails {
 }
 
 /**
- * The rails a Line runs on where its timetable has no shapes, as Renfe's long-distance one hasn't (#259):
- * the ways whose `railway` is one of these, and whose gauge is one of `gauges`, or that have no gauge tag,
- * as a way with three rails has two gauges, as `1435;1668`. On two gauges, its Trains change from one to
+ * The rails a Line runs on where its timetable has no shapes, as Renfe's long-distance one hasn't (#259),
+ * or where its Network runs on two gauges, as Cercanías Santander does (#366): the ways whose `railway` is
+ * one of these, and whose gauge is one of `gauges`, or that have no gauge tag, as a way with three rails
+ * has two gauges, as `1435;1668`. A map Network's Lines take them from its `rails`, which keep out a way
+ * with no gauge tag where they name gauges (#479). A Line on two gauges, as Alvia's, changes from one to
  * the other only at a railway=gauge_conversion node. A run of its Trips with a stretch with no path on
  * `gauges` is traced on `orElse`'s too, all the way, changing to them only at such a node.
  */
@@ -326,6 +332,18 @@ function núcleo(code: string, prefix: string): Timetable {
   return { url: RENFE_CERCANIAS, prefix, operator: 'adif', routes: { idPrefix: code }, number: '^\\d{5}' };
 }
 
+// The rails of the Lines of each gauge, for the Lines of a Network of two gauges, each traced on its own
+// (#366), and for long distance's, whose timetable has no shapes (#259): standard gauge is 1435 mm,
+// Iberian 1668 and metre 1000.
+
+/** AVE's rails: standard gauge, and Iberian gauge too, through a changer, for a run with a stretch with no path on standard gauge alone. */
+const STANDARD: Gauges = { railway: ['rail'], gauges: ['1435'], orElse: ['1668'] };
+/** The rails of the Trains that change gauge, as Alvia's: both gauges, changing at a changer. */
+const BOTH: Gauges = { railway: ['rail'], gauges: ['1435', '1668'] };
+const IBERIAN: Gauges = { railway: ['rail'], gauges: ['1668'] };
+/** FEVE's lines, which OpenStreetMap tags narrow_gauge almost everywhere, and rail on 111 km in Spain (seen 4 Oct 2026). */
+const METRE: Gauges = { railway: ['rail', 'narrow_gauge'], gauges: ['1000'] };
+
 // As Madrid's, these núcleos' Trains accelerate and brake at 1 m/s² and stand half a minute at
 // small Stations. Each one's top speed covers the fastest stretch its Trips run on 7 October 2026,
 // as the build measures it along their track, but for a stretch no train could run, whose Trips it
@@ -354,8 +372,9 @@ export const CERCANIAS_ASTURIAS: NetworkConfig = {
   rails: { railway: ['rail', 'narrow_gauge'], gauge: ['1668', '1000'] },
   // Asturias is núcleo 20.
   timetables: [núcleo('20', 'cercanias-asturias')],
-  // C1–C8 and C5a are commuter Lines.
-  lines: { kind: 'commuter' },
+  // C1–C8 and C5a are commuter Lines. Each is traced on its own gauge's rails, as C8, on FEVE's, calls
+  // at Renfe's La Pereda-Riosa and Ablaña, nearer Adif's track than FEVE's (#366).
+  lines: { kind: 'commuter', gauges: { C1: IBERIAN, C2: IBERIAN, C3: IBERIAN, C4: METRE, C5: METRE, C5a: METRE, C6: METRE, C7: METRE, C8: METRE } },
   // Renfe's timetable of 10 October 2026 puts three Stations on the track of a line beside the one
   // their Trains run on, so every Trip that calls there is left out as calling at a Station off its
   // track (#367): C2's El Entrego at FEVE's El Entrego-La Oscura (05433), 0.4 km from Adif's, where C2
@@ -501,8 +520,8 @@ export const CERCANIAS_BILBAO: NetworkConfig = {
   // Bilbao is núcleo 60. Renfe files FEVE's train a day each way between Bilbao and León under C4,
   // so C4 is drawn on to León.
   timetables: [núcleo('60', 'cercanias-bilbao')],
-  // C1–C5 are commuter Lines.
-  lines: { kind: 'commuter' },
+  // C1–C5 are commuter Lines, each traced on its own gauge's rails (#366).
+  lines: { kind: 'commuter', gauges: { C1: IBERIAN, C2: IBERIAN, C3: IBERIAN, C4: METRE, C5: METRE } },
   // Renfe's timetable of 10 October 2026 puts Dosante Cidad at 43.00125, -3.74525, a round figure
   // 1.4 km from its halt on the La Robla line, so its two Bilbao–León Trips a day were left out (#367).
   stations: {
@@ -538,8 +557,9 @@ export const CERCANIAS_SANTANDER: NetworkConfig = {
   rails: { railway: ['rail', 'narrow_gauge'], gauge: ['1668', '1000'] },
   // Santander is núcleo 62.
   timetables: [núcleo('62', 'cercanias-santander')],
-  // C1–C3 are commuter Lines.
-  lines: { kind: 'commuter' },
+  // C1–C3 are commuter Lines. Each is traced on its own gauge's rails, as Renfe's Santander and Maliaño,
+  // where C1 stops, are nearer FEVE's track than Adif's: Maliaño 6 m from FEVE's and 65 m from Adif's (#366).
+  lines: { kind: 'commuter', gauges: { C1: IBERIAN, C2: METRE, C3: METRE } },
 };
 
 export const CERCANIAS_ZARAGOZA: NetworkConfig = {
@@ -603,8 +623,8 @@ const RENFE_LONG_DISTANCE = 'https://ssl.renfe.com/gtransit/Fichero_AV_LD/google
 // and their colours are their config's, as the feed gives every route F2F5F5. Their Trains are read and
 // traced (#259), but not on the map until they're drawn (#262, #263), so each has only what reading them,
 // tracing them and running their Trains needs: how they run (#260), with the rest to come with those. As
-// the timetable has no shapes, each Line runs on the rails of its gauge (#259, docs/research/high-speed.md):
-// standard gauge is 1435 mm, Iberian 1668 and metre 1000.
+// the timetable has no shapes, each Line runs on the rails of its gauge, STANDARD, BOTH, IBERIAN or METRE
+// above (#259, docs/research/high-speed.md).
 
 /**
  * How the engine reads Renfe's long-distance live data (#260), by what #260's triage found of it on 4
@@ -622,14 +642,6 @@ const RENFE_LONG_DISTANCE_LIVE = { delay: 'gps', near: 'pinned', snap: 60 } as c
 
 /** AVE's, Avlo's and AVE Int's top speed, on the high-speed lines, above the Network's 250 km/h. */
 const HIGH_SPEED = { topSpeed: 300 / 3.6 };
-
-/** AVE's rails: standard gauge, and Iberian gauge too, through a changer, for a run with a stretch with no path on standard gauge alone. */
-const STANDARD: Gauges = { railway: ['rail'], gauges: ['1435'], orElse: ['1668'] };
-/** The rails of the Trains that change gauge, as Alvia's: both gauges, changing at a changer. */
-const BOTH: Gauges = { railway: ['rail'], gauges: ['1435', '1668'] };
-const IBERIAN: Gauges = { railway: ['rail'], gauges: ['1668'] };
-/** FEVE's lines, which OpenStreetMap tags narrow_gauge almost everywhere, and rail on 111 km in Spain (seen 4 Oct 2026). */
-const METRE: Gauges = { railway: ['rail', 'narrow_gauge'], gauges: ['1000'] };
 
 /**
  * Renfe has Antequera AV 430 m north of its platforms, beyond the 200 m a Station's rails may be: it's

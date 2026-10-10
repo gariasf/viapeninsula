@@ -87,6 +87,7 @@ export async function readFeed(
 
   // A Line's colour comes from the routes that carry Trips: Renfe also lists unused routes.
   const shapeOf = new Map<string, string>(); // each Trip's shape, on any day
+  const gaugesOf = new Map<string, Gauges>(); // each shape's rails, its Trips' route's, where they're given (#366)
   const numbers = new Map<string, string>(); // each Trip's Train number, on any day
   const lines = new Map<string, { colour: string; shapes: Set<string> }>();
   const dayTrips = new Map<string, Omit<FeedTrip, 'calls'> & { calls: (FeedTrip['calls'][number] & { seq: number })[] }>();
@@ -98,6 +99,7 @@ export async function readFeed(
     const route = routes.get(t.route_id);
     if (!route) continue;
     shapeOf.set(t.trip_id, t.shape_id);
+    if (route.gauges) gaugesOf.set(t.shape_id, route.gauges);
     const line = lines.get(route.name) ?? { colour: route.colour, shapes: new Set() };
     line.shapes.add(t.shape_id);
     lines.set(route.name, line);
@@ -105,7 +107,9 @@ export async function readFeed(
     if (number) numbers.set(t.trip_id, number);
     if (!services.has(t.service_id)) continue;
     const trip = { id: `${prefix}:${t.trip_id}`, line: `${network.id}:${route.name}`, shape: `${prefix}:${t.shape_id}`, headsign: t.trip_headsign };
-    dayTrips.set(t.trip_id, { ...trip, ...(number && { number }), ...(route.gauges && { gauges: route.gauges }), calls: [] });
+    // Only a Trip with no shape takes its Line's rails, to trace its run along (traceRuns()): one with a
+    // shape is placed on it, which is traced on them, and placeTrips() would write them into its day file.
+    dayTrips.set(t.trip_id, { ...trip, ...(number && { number }), ...(route.gauges && feed.shapeless && { gauges: route.gauges }), calls: [] });
   }
 
   const served = new Map<string, Set<string>>(); // the Stations each shape's Trips serve
@@ -172,6 +176,7 @@ export async function readFeed(
       line: lineOf.get(id) ?? '',
       coords: pts.sort((a, b) => a.seq - b.seq).map((p) => [p.lon, p.lat]),
       stations: [...(served.get(id) ?? [])],
+      ...(gaugesOf.has(id) && { gauges: gaugesOf.get(id) }),
     })),
     [...stations.values()],
     [...ends].map(([id, { first, last }]) => ({ shape: `${prefix}:${shapeOf.get(id)}`, from: first[1], to: last[1] })),

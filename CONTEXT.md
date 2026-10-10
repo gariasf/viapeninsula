@@ -49,7 +49,7 @@ Which track of a double track a Network's Trains run on, looking the way they go
 _Avoid_: Handedness, traffic side
 
 **Gauge**:
-How far apart a track's rails are: Iberian (1668 mm), standard (1435 mm, the high-speed lines') or metre (1000 mm, FEVE's lines'). A Train runs on the track of its gauge, and one that runs on two, as an Alvia does, changes from one to the other only at a gauge changer.
+How far apart a track's rails are: Iberian (1668 mm), standard (1435 mm, the high-speed lines') or metre (1000 mm, FEVE's lines'). A Train runs on the track of its gauge, and one that runs on two, as an Alvia does, changes from one to the other only at a gauge changer. A Network can run on two, as Cercanías Santander does, each of its Lines on one: C1 on Iberian gauge, and C2 and C3 on metre gauge, though a Station a Line calls at may be nearer the other's track.
 _Avoid_: Track width
 
 **Stretch**:

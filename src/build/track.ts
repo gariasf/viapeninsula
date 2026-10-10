@@ -13,6 +13,8 @@ export interface FeedShape {
   line: string;
   coords: Point[];
   stations: string[];
+  /** The rails its Line runs on, where its Network's config names them, as a Network of two gauges does (`lines.gauges`, #366): else the Network's. */
+  gauges?: Gauges;
 }
 
 /** A Trip, by its shape and its first and last Stations. */
@@ -115,7 +117,11 @@ const SLACK = 1000;
  * Traces each shape along the rails, through the Stations its Trips serve in order along the shape,
  * the way its Trips run it. Between Stations it takes the shortest path a train can, except that a
  * trace keeps to its track rather than change tracks for a few metres, to the track of a double
- * track on the Network's running side, and to the track Lines traced before it take the same way.
+ * track on the Network's running side, and to the track Lines traced before it on its rails take the
+ * same way. A shape whose Line's gauges are given is traced on the rails of those alone (layered()),
+ * so that its Stations are on the ways of its gauge nearest them, though another gauge's track runs
+ * nearer, as Renfe's Maliaño is 6 m from FEVE's and 65 m from Adif's, where Cercanías Santander's C1
+ * stops (#366).
  * What it logs, it reports too.
  */
 export function traceShapes(
@@ -127,10 +133,24 @@ export function traceShapes(
   report: (found: Found) => void = () => {},
 ): Shape[] {
   const byId = new Map(stations.map((s) => [s.id, s]));
-  const graph = railGraph(rails, [...new Set(shapes.flatMap((s) => s.stations))].flatMap((id) => byId.get(id) ?? []), side);
+  // One graph for each set of rails, traced on by the shapes on it in turn, as traceRuns() has it.
+  // ponytail: no changers join a Line's layers, as every Line of the map's Networks runs on one gauge;
+  // pass osm()'s, as traceRuns() does, if one ever runs on two.
+  const graphs = new Map<string, Graph>();
+  const railsOf = ({ gauges }: FeedShape) => JSON.stringify(gauges ?? null);
+  const graphOf = (feed: FeedShape) => {
+    const key = railsOf(feed);
+    let graph = graphs.get(key);
+    if (!graph) {
+      const served = shapes.filter((s) => railsOf(s) === key).flatMap((s) => s.stations);
+      graph = railGraph(feed.gauges ? layered(rails, feed.gauges, new Set()) : rails, [...new Set(served)].flatMap((id) => byId.get(id) ?? []), side);
+      graphs.set(key, graph);
+    }
+    return graph;
+  };
   const wrong: string[] = [];
   const traced = shapes.map((feed) => {
-    const { shape, length } = traceShape(graph, feed, feed.stations.flatMap((id) => byId.get(id) ?? []), log, report);
+    const { shape, length } = traceShape(graphOf(feed), feed, feed.stations.flatMap((id) => byId.get(id) ?? []), log, report);
     if (length.feed) {
       const [total, km, feedKm] = [shape.dist.at(-1) ?? 0, length.traced, length.feed].map((m) => (m / 1000).toFixed(1));
       const percent = (length.traced / length.feed - 1) * 100;
