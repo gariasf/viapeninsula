@@ -456,6 +456,29 @@ The note takes the first of each; none blocks anything, and each takes a word.
 4. **The weekday recordings as recorded, or with the first frame's `skipped` lists** (section 6): the tables take them as recorded and put the other in parentheses where it differs. *Recorded, or listed.*
 5. **Should a lifted Closure's Scheduled Trains that live data hasn't named go too?** #345 made its pick on 10 October (a Scheduled Train inside a closed Closure goes until a Live Train of its Line is seen within it) and the lift is the one question left: R1's 18.1 Train-minutes at Wednesday's midday are one Trip that Renfe names and loses, `5178X25650`, Live for 7.5 minutes inside the Closure and Scheduled for 18.1 (15.6 strictly inside); counted as drawn, as #345 has it. *Hide, or as built.*
 
+## 12. Asturias and León in Renfe's files (#409)
+
+Asturias' núcleo (20) has no Trains in Renfe's Cercanías file on Saturday 10 October, and it isn't a weekend's absence. Vehicles whose trip_id starts `20` in the Cercanías `vehicle_positions.json`, by recording (counted in each recording's own file, by trip_id prefix and by position inside Asturias):
+
+| Recording (CEST) | Day | Vehicles in the file | núcleo 20 | núcleo 47 |
+|---|---|---|---|---|
+| 6 Oct 17:12 | Tuesday | 293 | 37 | 0 |
+| 6 Oct 23:19 | Tuesday night | 144 | 22 | 0 |
+| 7 Oct 14:02 | Wednesday | 276 | 36 | 1 |
+| 7 Oct 17:47 | Wednesday | 289 | 40 | 1 |
+| 10 Oct 10:38, 11:04, 13:15, 16:34, 17:57 | Saturday | 224, 214, 219, 218, 122 | **0 in each** | 2, 0, 2, 2, 0 |
+| 10 Oct 23:01, read once | Saturday | 153 | **0** | 1 |
+
+With #215's 27 at 10:17 on Sunday 4 October, Asturias was in the file on a Sunday, a Tuesday and a Wednesday, and is in none of the five Saturday files, over 12 hours of it: so it's neither weekends nor mornings, and what the Tuesday and Wednesday recordings can't say is when it went, between 7 October 17:47 and 10 October 10:38, as no recording lies between. The trip updates agree (`20` is 37, 22, 36 and 40 of those files' updates, and 0 of Saturday's). No vehicle at all lies inside Asturias' box in Saturday's Cercanías files. The feed's own status was `ok` throughout (`cercanias-asturias: ok` in every Saturday snapshot of the replays, the 42 + 134 + 134 + 6 + 132 of them), as the fetcher never loads the timetable, and the banner is #124's rule, which counted Asturias' 18 to 22 Trains running at a time (8,383 Train-snapshots) against none reported.
+
+**The long-distance file (`vehicle_positions_LD.json`)** has them only as the through Trains of FEVE's regional service, and almost none of Asturias'. Read 36 times from 13:47 to 13:59 CEST on 10 October (`renfe-ld-feeds-2026-10-10-1347`), 116 distinct vehicles, six of them numbered 718xx (71801, 71811, 71830, 71850, 71853, 71872); the one in Asturias is 71850 (a Santander to Oviedo regional, at Colloto), in 36 of 36 reads, and at 23:01 71813 at Oviedo. 71850 is also a Trip of Cercanías Asturias' C6, so #261 names it Live. Of the 340 rail Trips Asturias' timetable runs on a Saturday, 9 have a Train number in Renfe's long-distance timetable (C1 1, C6 6, C7 2: 71811, 71820, 71823, 71830, 71831, 71833, 71850, 71852 and 12100); the other 331, C1–C3's 22xxx and C4–C8's 70xxx, are in neither file. So the long-distance file's ceiling for Asturias is 9 of 340 Trips (2.6%), and in those 13 minutes it named one of the 21 running on average (0.7 a read, 71850 alone). It isn't where Asturias' Trains went.
+
+So the ticket's second question, whether the map should say "no live data" for a Network whose long-distance file has its Trains, doesn't arise: it hasn't. The banner ("Cercanías Asturias live data unavailable") is #124's rule where the file works and has none of the Network's Trains, and #261's reports by number don't turn it off, as they don't count as the Network's own feed's (`Heard.own`): 71850 is drawn Live and the other 20 Scheduled, which is what the banner says. Whether a Network that stays without Trains should say "unavailable", which reads as a fault, or something calmer, waits for the weekday sample.
+
+**León (47)** isn't absent, only thin: 2 to 3 rail Trips run at a time (a rail Trip's `BUS` twins have no reports), and its reports came for 344 of 717 Train-snapshots on Saturday (48%): 24 of 84 at 10:38, 36 of 239 at 11:04, 182 of 286 at 13:15, 12 of 18 at 16:34 and 90 of 90 at 17:57. Its two Trains of 09:34 to 12:15 and 09:44 to 11:27 (`71093` and `71082`) are named in 22 of 42 snapshots at 10:38 and, of the 45 minutes after, one of them is, in 80 of 134: the "none in the 10 stretches" of the ticket is that window. That's the quiet of any núcleo (León's Live is 66% in section 2's table), under #124's 5 Trains on the map, so never a banner.
+
+*What's left:* the weekday morning peak the ticket asks for, from Monday 12 October (`npm run record -- <dir> 45`, then count `trip_id` prefixes `20` and `47` in each `vehicle_positions.json` of the run against the Trains the timetable has running), and whether Asturias is back by then.
+
 ## Not measured
 
 - **The truth for a Train no feed names.** Renfe's visor reads Renfe's feed; Adif's and Rodalies' apps weren't reachable, and no one was at a platform. A Scheduled Train that's never named is a phantom only where it doesn't run, which only the platform tells; Renfe's boards locate 6 of the 14 unreported Trains of 15:01 with a Station-level position the open feed lacks, and a Trip's long-distance twin (section 3) is a reason to think it runs, not proof.
