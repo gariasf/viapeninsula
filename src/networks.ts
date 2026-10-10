@@ -674,8 +674,9 @@ export const LIVE_SOURCES: LiveSource[] = [
     // Every other run: their headers advance every 14–30 s, so a try 20 s after the last could find
     // them not updated since, and fail (docs/research/live-at-scale.md).
     every: 40_000,
-    // A Train number starts with neither, so the step sends none of its Trains to these: they're the
-    // Networks its freshness is given to, as the engine finds each Train's Trip in any Network.
+    // A Train number starts with neither, so the step sends none of its Trains to these, nor keeps
+    // their SKIPPED Stations, which it keeps by Trip: they're the Networks its freshness is given to,
+    // as the engine finds each Train's Trip in any Network.
     networks: { [AVE_LARGA_DISTANCIA.id]: AVE_LARGA_DISTANCIA.id, [MEDIA_DISTANCIA_AVANT.id]: MEDIA_DISTANCIA_AVANT.id },
   },
   {

@@ -322,7 +322,8 @@ interface Vehicle {
 
 /**
  * The Trains in Renfe's files of the Networks its source names, by their trip_ids. Each Train gets one
- * report, with its Delay from its trip update, and its position from the vehicle positions.
+ * report, with its Delay from its trip update, and its position from the vehicle positions. A source
+ * whose files name Train numbers gets numberedReports()'s instead.
  */
 function renfeReports(source: SourceOf<'renfe'>, positions: GtfsRt, updates: GtfsRt): Report[] {
   if (source.numbers) return numberedReports(positions, updates);

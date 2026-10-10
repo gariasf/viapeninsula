@@ -686,6 +686,8 @@ interface Heard {
   /**
    * When its Network's own feed last reported it, as `got` has it: not in a report by its Train number,
    * as Renfe's long-distance live data sends, which says nothing of its Network's feed (#124, #261).
+   * ponytail: a long-distance Network's own Trains, once on the map (#262), have only such reports,
+   * so they'd never count: count a report by number where its feed is its Trip's Network's by then.
    */
   own?: number;
   /** The report's own Delay, in seconds, as delayOf() has it: for Renfe's, Renfe's own figure. */
@@ -850,6 +852,10 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
       const was = isLive(heard.get(id), feed, upTo);
       if (report) {
         // A report the fetcher kept from a feed's last good response is as old as that response.
+        // ponytail: one by Train number, from Renfe's long-distance feed, goes by its Trip's
+        // Network's feed, not its own, so it's Live only within three of that feed's updates, and
+        // kept while its own feed fails, it never ages. Give such a report its own feed's freshness
+        // if either shows (#261).
         const got = feed?.lastSuccess ?? NaN;
         heard.set(id, hear(heard.get(id), report, got, r, network.live?.delay === 'gps', (given) => delayOf(trip, calls, shape, network, given, bundle.noonMinus12h)));
       }
@@ -1267,10 +1273,12 @@ function nearest({ coords, dist }: Shape, from: number, to: number, { lon, lat }
 /**
  * How far from its Trip's track a Train's GPS can be, in metres, and still measure its Delay, where its
  * report names its Train number: Renfe's long-distance live data has a Train on any part of its run,
- * which its Trip may cover only some of. From 13:47 to 13:59 on 10 October 2026, none of its GPS
- * positions was between 110 m and 20 km from the track of the Trip its Train number matched: those of
- * the Trips running then were within 110 m, and R16 18093's, whose Trip had ended at L'Aldea 77
- * minutes before, was 70 km on, near Orpesa, which drew it back on that Trip 83 minutes late (#261).
+ * which its Trip may cover only some of. GPS nearest an end of the track measures none anyway, as for
+ * Zaragoza's 18073, running on up to 8.7 km past Casetas at 14:59 on 10 October 2026. That day, GPS
+ * nearest a point within the track was within 40 m of it, in 410 positions from 13:47 to 13:59 and
+ * 14:54 to 15:00, or over 20 km off, in 81, as R16 18093's near Orpesa: it came nearest its Trip's
+ * track short of L'Aldea, where the Trip had ended 77 minutes before, and drew it back there 83
+ * minutes late (#261).
  */
 const OFF_TRACK = 1000;
 
