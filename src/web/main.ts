@@ -374,6 +374,8 @@ const keepShownView = () => keepView({ center: map.getCenter().toArray(), zoom: 
 // the map pans with a Train it follows (#325).
 keepShownView();
 map.on('moveend', atMostEvery(1000, keepShownView));
+// And as the page hides, so that a move within the last second isn't lost when a phone's tab is closed.
+document.addEventListener('visibilitychange', () => document.hidden && keepShownView());
 /** The basemap's place labels, by their layers' IDs, with the filters it gives them, which show() adds to. */
 const placeLabels = new Map<string, ExpressionFilterSpecification | undefined>();
 // OpenFreeMap's positron, or its dark basemap where the system's setting is dark.
@@ -486,6 +488,10 @@ const aboutCredits = el('ul');
 const wide = matchMedia('(min-width: 640px)');
 /** Whether the viewer prefers less motion, where a sheet changes state without moving. */
 const lessMotion = matchMedia('(prefers-reduced-motion: reduce)');
+/** The Train the viewer's hand took the map off, as followKey() names it, which the map pans with no more (#325). */
+let released: string | undefined;
+/** Whether the wheel and a pinch zoom about the middle now, as the map pans with the Train (showCentring()). */
+let centring = false;
 /** Whether the sheet is pulled up on a phone, rather than peeking. Each opening starts afresh (openPanel()). */
 let pulledUp = false;
 /** Whether a finger is dragging the sheet, which shows all it has meanwhile. */
@@ -1768,22 +1774,26 @@ function showMark(at: Point | undefined) {
   map.getSource<GeoJSONSource>('mark')?.setData({ type: 'FeatureCollection', features: at ? [{ type: 'Feature', geometry: { type: 'Point', coordinates: at }, properties: {} }] : [] });
 }
 
+/** The Train the map follows, by its day and Trip, to tell it from another. */
+function followKey(): string | undefined {
+  return following && `${following.day}/${following.trip}`;
+}
+
 /** The ID of the Trip the map follows in the days on the map, which lead an earlier day's Trips with that day (joinDays()). */
 function followedId(): string | undefined {
   if (!following || !bundle) return undefined;
   return following.day === bundle.serviceDay ? following.trip : `${following.day}/${following.trip}`;
 }
 
-/** The Train the viewer's hand took the map off, as `${day}/${trip}`, which the map pans with no more (#325). */
-let released: string | undefined;
 /** Whether the map has let go of the Train it follows, which a drag or an arrow key does, so that it's no more kept in the middle (#325). */
-const letGo = () => !!following && released === `${following.day}/${following.trip}`;
+function letGo() {
+  return !!following && released === followKey();
+}
 for (const type of ['dragstart', 'movestart'] as const) {
   map.on(type, (e) => {
-    if (following && !lessMotion.matches && letsGo(e)) released = `${following.day}/${following.trip}`;
+    if (following && !lessMotion.matches && letsGo(e)) released = followKey();
   });
 }
-let centring = false;
 /** Shows the Centre button while the map has let go, and has the wheel and a pinch zoom about the middle while it pans with the Train, where the Train is (#325). */
 function showCentring() {
   centreButton.hidden = lessMotion.matches || !letGo();
@@ -1858,6 +1868,8 @@ function showPanel(up = wide.matches || pulledUp || dragging) {
   panel.hidden = !shown;
   panel.classList.toggle('up', up);
   patch(panel, shown ? [el('div', { className: 'sheet-top' }, handle(up), shown.header), el('div', { className: 'sheet-body' }, ...shown.body)] : []);
+  // Where the Train followed has changed, so that the Centre button doesn't wait for the next draw.
+  showCentring();
 }
 
 /** Shows what the panel shows pulled up, or peeking, and gives how high it is then, in px. */
