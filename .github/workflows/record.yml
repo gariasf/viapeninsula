@@ -1,9 +1,10 @@
 # Records live data as `npm run record` does, for audits such as #233's: Renfe's feeds, the day's
 # bundle, and production snapshots as the map receives them, so that nobody has to be at a computer
 # for it. It runs from the button in the Actions tab, for as many minutes as asked, and on the
-# schedule below. Each run keeps its recording as an artifact for 30 days, named for when it started
-# in Barcelona: `gh run download <run id>` fetches it. GitHub can start a scheduled run minutes late,
-# and under heavy load not at all, so check the runs afterwards.
+# schedule below. Each run keeps its recording as an artifact for 90 days, the most Actions allows,
+# named for when it started in Barcelona: `gh run download <run id>` fetches it. A longer-lived copy
+# of one an audit leans on is #414's. GitHub can start a scheduled run minutes late, and under heavy
+# load not at all, so check the runs afterwards.
 name: Record
 
 on:
@@ -51,4 +52,4 @@ jobs:
         with:
           name: ${{ steps.started.outputs.name }}
           path: recording/
-          retention-days: 30
+          retention-days: 90
