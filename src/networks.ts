@@ -49,6 +49,15 @@ export interface NetworkConfig extends Omit<Network, 'credit'> {
    * same way, by stop_id, with no source and no line in the log, and these win where both name one.
    */
   stations?: Record<string, { lon: number; lat: number; source: string }>;
+  /**
+   * Stations beyond it, by ID, where its operator files under one of its Lines a train that runs on
+   * into another Network, as Renfe files FEVE's Bilbao–León train under Cercanías Bilbao's C4 (#368). A
+   * Trip that calls at one of them isn't the Network's: it's left out, with the Stations and track only
+   * such Trips have, and logged and reported, and a timetable that lists the Train too has it as its
+   * own (unlisted()). It takes one Station for a run beyond where the Network ends, as every Trip that
+   * runs on calls there.
+   */
+  beyond?: string[];
 }
 
 /**
@@ -522,16 +531,15 @@ export const CERCANIAS_BILBAO: NetworkConfig = {
   // Adif's Iberian gauge for C1–C3, and FEVE's metre gauge for C4 and C5 (ADR-0010), whose traces
   // keep off Euskotren's metre-gauge rails beside them (7 October 2026).
   rails: { railway: ['rail', 'narrow_gauge'], gauge: ['1668', '1000'] },
-  // Bilbao is núcleo 60. Renfe files FEVE's train a day each way between Bilbao and León under C4,
-  // so C4 is drawn on to León.
+  // Bilbao is núcleo 60.
   timetables: [núcleo('60', 'cercanias-bilbao')],
   // C1–C5 are commuter Lines, each traced on its own gauge's rails (#366).
   lines: { kind: 'commuter', gauges: { C1: IBERIAN, C2: IBERIAN, C3: IBERIAN, C4: METRE, C5: METRE } },
-  // Renfe's timetable of 10 October 2026 puts Dosante Cidad at 43.00125, -3.74525, a round figure
-  // 1.4 km from its halt on the La Robla line, so its two Bilbao–León Trips a day were left out (#367).
-  stations: {
-    'adif:05736': { lon: -3.7558646, lat: 43.0113013, source: 'https://www.openstreetmap.org/node/12495839165' },
-  },
+  // Renfe files FEVE's train a day each way between Bilbao and León under C4: 63 calls in 7 h 47 min
+  // (10 October 2026), on from Balmaseda along the La Robla line to León's La Asunción, at 43 Stations no
+  // other Trip of núcleo 60 calls at, 17 of them León's own. It's no Trip of Bilbao's, so C4 ends at
+  // La Calzada, by Balmaseda: a Trip that calls at Arla Berrón, the first Station past Balmaseda, is left out (#368).
+  beyond: ['adif:05721'],
 };
 
 export const CERCANIAS_SAN_SEBASTIAN: NetworkConfig = {

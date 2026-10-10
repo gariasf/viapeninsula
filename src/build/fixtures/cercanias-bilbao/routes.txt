@@ -1,0 +1,3 @@
+route_id,route_short_name,route_long_name,route_type,route_color,route_text_color                                                                     
+60T0007C4  ,C4  ,Bilbao La Concordia                     -La Calzada                              ,2,E93CAC,FFFFFF                                    
+60T0008C4  ,C4  ,La Calzada                              -Bilbao La Concordia                     ,2,E93CAC,FFFFFF                                    
