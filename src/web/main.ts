@@ -1203,8 +1203,7 @@ function showClosures() {
  * engine works out each list's once (6 ms on 10 Oct's bundle).
  */
 function hideClosures() {
-  const latest = received.at(-1)?.snapshot;
-  const hides = hiding(shownClosures, bundle && latest ? seenWithin(bundle, latest, shownClosures) : [], lifted);
+  const hides = hiding(shownClosures, bundle ? seenWithin(bundle, Date.now(), received, shownClosures) : [], lifted);
   if (hides.length !== hidingClosures.length || hides.some((c, i) => c !== hidingClosures[i])) hidingClosures = hides;
 }
 

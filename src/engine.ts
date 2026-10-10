@@ -559,20 +559,26 @@ const outside = (stretches: [from: number, to: number][], parts: [from: number, 
 const MARGIN = 200;
 
 /**
- * The closed Closures among these that a snapshot has a Live Train of their Line within (#345): where
- * a report, from its feed while that works, of a Train not Cancelled, pins it to a Station between the
- * Closure's two, or its GPS, no further than MARGIN from its Trip's track, or TRAM's distance, puts it
- * on that track between them, more than MARGIN from either, as its Line's Trips that call at both have
- * them (closedIn()).
+ * The closed Closures among these that the latest snapshot received has a Live Train of their Line
+ * within, at a moment by the device's clock (ms since 1970), given the snapshots received by then
+ * (#345): where a report of a Train not Cancelled, and Live then as trainsAt() has it, so not once its
+ * feed has failed, nor once the map has received no snapshot for a while, as a tab hidden meanwhile, by
+ * when an Alert may have changed, pins it to a Station between the Closure's two, or its GPS, no
+ * further than MARGIN from its Trip's track, or TRAM's distance, puts it on that track between them,
+ * more than MARGIN from either, as its Line's Trips that call at both have them (closedIn()).
  */
-export function seenWithin<C extends ShownClosure>(bundle: Bundle, snapshot: Snapshot, closures: readonly C[]): C[] {
+export function seenWithin<C extends ShownClosure>(bundle: Bundle, at: number, received: Received[], closures: readonly C[]): C[] {
+  const snapshot = received.at(-1)?.snapshot;
+  if (!snapshot) return [];
   const closedOn = closedIn(bundle, closures);
   const [named, shapes, networks] = [namedIn(bundle), new Map(bundle.shapes.map((s) => [s.id, s])), new Map(bundle.lines.map((l) => [l.id, l.network]))];
+  // How far into live data the device has got by now, as onMap() has it.
+  const upTo = heardTo(received, at + behind(received));
   const seen = new Set<ShownClosure>();
-  for (const { trip: id, at, position, cancelled } of snapshot.reports) {
-    const trip = id && !cancelled ? closest(named.get(id) ?? [], (at - bundle.noonMinus12h) / 1000) : undefined;
+  for (const { trip: id, at: reported, position, cancelled } of snapshot.reports) {
+    const trip = id && !cancelled ? closest(named.get(id) ?? [], (reported - bundle.noonMinus12h) / 1000) : undefined;
     const [shape, closed] = [trip && shapes.get(trip.shape), trip && closedOn.get(trip.line)];
-    if (!trip || !shape || !closed || !position || !works(snapshot.feeds[networks.get(trip.line) ?? ''], snapshot.generated)) continue;
+    if (!trip || !shape || !closed || !position || !works(snapshot.feeds[networks.get(trip.line) ?? ''], upTo)) continue;
     const [d, off] = 'lon' in position || 'along' in position ? placedBy(trip.calls, shape, position) : [NaN, NaN];
     for (const { closure, between, along } of closed) {
       const [from = NaN, to = NaN] = along.get(trip.shape) ?? [];
