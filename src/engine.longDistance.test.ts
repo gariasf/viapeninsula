@@ -226,7 +226,7 @@ test("a long-distance Train that vanishes from its feed for minutes, as in Guada
 test("a long-distance position that holds counts as none, so the Train neither stalls where it's held nor jumps when it moves again", () => {
   // GPS has the Train on time at 10:40:00, and at the same spot every 40 s for another 160, as the
   // feed's does while a position freezes, where Renfe's figure grows a minute every 40 s. At 10:43:20
-  // it's where its timetable has it on time, 11 km on.
+  // it's where its timetable has it on time, 9 km on.
   const spot = (where(VIA_B, 'ave', at('10:40:00')) ?? NaN) / 1000;
   const held = [0, 40, 80, 120, 160].map((s) => heard(at('10:40:00', s), [{ ...gps('ave', spot, at('10:40:00', s)), delay: s * 1.5 }]));
   const moved = heard(at('10:43:20'), [{ ...gps('ave', (where(VIA_B, 'ave', at('10:43:20')) ?? NaN) / 1000, at('10:43:20')), delay: 0 }]);
@@ -248,10 +248,10 @@ test("a long-distance position that holds counts as none, so the Train neither s
 // 12 minutes of Renfe's long-distance feeds on Saturday 10 October 2026, 11:47–11:59 UTC, read every
 // other run as the fetcher will (#261): one report for each Train number, its GPS whatever its
 // `currentStatus`, its Delay from the trip updates, and its time the file's header's. The Trains are
-// the 32 whose position held for a minute or more and then moved a kilometre or more, as 177 did on 4
+// the 23 whose position held for a minute or more and then moved a kilometre or more, as 177 did on 4
 // October (their positions weren't kept), each Trip cut to the legs they run along and traced along
 // OpenStreetMap's rails of 9 October as #259 will, crudely: high-speed Trips on standard gauge, the
-// rest on every rail, with a copy of the build's own tracing (docs/research/high-speed.md).
+// rest on every rail, with a copy of the build's own tracing, and each shape simplified to 20 m.
 const REPLAY: { bundle: Bundle; received: Received[] } = JSON.parse(gunzipSync(readFileSync(new URL('fixtures/replay-2026-10-10-long-distance.json.gz', import.meta.url))).toString());
 const CONFIGS = [AVE_LARGA_DISTANCIA, MEDIA_DISTANCIA_AVANT];
 /** The replay's bundle with each Network's profile and live traits, and each Line's profile, as src/networks.ts has them, or `live` for the Networks' traits. */
