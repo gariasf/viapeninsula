@@ -681,6 +681,19 @@ test('runs Alvia on both gauges, the shorter way, and changes gauge only at a ch
   expect(log).toEqual(['Alvia:1: A → C, 5.4 km long, 1.08× the straight line through its 3 Stations, changing gauge between B and C']);
 });
 
+test("keeps AVE to the right-hand track of a standard-gauge double track, with an Iberian-gauge track 3 m beside it, which isn't the other of its pair", () => {
+  // Double track 4 m apart, bending gently so that the north track, the bend's inside, is the shorter, and
+  // an Iberian-gauge track 3 m south of the south one.
+  const centre: [number, number][] = [[0, 0], [2500, -20], [5000, 0]];
+  const layout: Record<string, [number, number]> = {};
+  const way = (name: string, d: number) => offset(centre, d).map((p, i) => ((layout[`${name}${i}`] = p), `${name}${i}`)).join(' ');
+  const ways = rails(layout, [way('n', 2), { gauge: '1435' }], [way('s', -2), { gauge: '1435' }], way('i', -5));
+  const { track } = runs(ways, [station('A', -10, 0), station('C', 5010, 0)], [[call('east', 'A C', STANDARD), call('west', 'C A', STANDARD)]]);
+  // Going east, the south track is on the right; going west, the north one.
+  expect(points(track('east'))).toEqual([[0, -2], [2500, -22], [5000, -2]]);
+  expect(points(track('west'))).toEqual([[5000, 2], [2500, -18], [0, 2]]);
+});
+
 test('reports a hop traced longer than twice its straight line and 10 km more, and still traces it', () => {
   // As round three sides of a square 20 km across: 60 km against 20 km in a straight line, but less than 3
   // times, beyond which a path is none.

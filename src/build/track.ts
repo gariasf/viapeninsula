@@ -728,7 +728,8 @@ export function railsBeside(rails: OsmWay[], stations: Station[]): Map<string, (
  * keeps to its side of the pair it runs on, and of an odd number, a track pairs with its nearest. A
  * tag on one track alone counts for nothing: R8 runs both ways over a track tagged one way near
  * Castellbisbal, with another line's track alongside. Judged at each edge's middle, across the
- * tracks there that are each TWIN to APART from the next.
+ * tracks there that are each TWIN to APART from the next, of its own layer (layered()): a track of
+ * another gauge alongside isn't the other of its pair, as an Iberian-gauge line beside a high-speed one.
  */
 function wrongTracks(graph: Graph): boolean[] {
   // Flat metres, at the rails' middle latitude: across Spain's rails, east to west, up to about 7% off.
@@ -758,6 +759,7 @@ function wrongTracks(graph: Graph): boolean[] {
     for (let i = -1; i <= 1; i++) {
       for (let j = -1; j <= 1; j++) {
         for (const f of cells.get(cell(mx + i * WIDE, my + j * WIDE)) ?? []) {
+          if (graph.layer[f] !== graph.layer[e]) continue;
           const [[cx, cy], [dx, dy]] = ends(f);
           const [vx, vy] = [dx - cx, dy - cy];
           const l2 = vx * vx + vy * vy;
