@@ -663,7 +663,7 @@ test("moves a Station published at another Network's point onto its own track, a
 
 test("names the Lines whose timetable calls at each Station, whichever day, and one Station two Networks share has them all (#392)", () => {
   // Made up: R1 and R2 call at A, only R2 at B, and C has none of its Network's Lines but is one of AVE's.
-  const feed = [{ line: 'rodalies:R2', stations: ['adif:A', 'adif:B'] }, { line: 'rodalies:R1', stations: ['adif:A'] }, { line: 'rodalies:R2', stations: ['adif:A'] }];
+  const feed = [{ line: 'rodalies:R2', stations: ['adif:A', 'adif:B'] }, { line: 'rodalies:R1', stations: ['adif:A'] }, { line: 'rodalies:R2', stations: ['adif:A'] }, { line: '', stations: ['adif:C'] }];
   const [a, b, c] = [station('adif:A', 0, 0), station('adif:B', 500, 0), station('adif:C', 900, 0)];
   expect(withLines([a, b, c], feed).map((s) => s.lines)).toEqual([['rodalies:R1', 'rodalies:R2'], ['rodalies:R2'], undefined]);
   const [rodalies, ave] = [withLines([a, b], feed), withLines([a, c], [{ line: 'ave:AVE', stations: ['adif:A', 'adif:C'] }])];
