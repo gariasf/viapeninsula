@@ -75,7 +75,7 @@ test('a Train at its first Station has gone nowhere, and one with no Station lef
 /** A Trip on a Line, calling at these Stations. */
 const trip = (line: string, ...stations: string[]): Trip => ({ id: `${line} ${stations.join()}`, line, shape: line, headsign: '', calls: stations.map((station, i) => ({ station, arrival: 60 * i, departure: 60 * i, dist: 1000 * i })) });
 
-test("a board's Lines are those whose Trips call at any of its place's Stations, in the order the days list them", () => {
+test("a board's Lines are those whose Trips call at any of its place's Stations, in the order of the Lines it's given", () => {
   // Sants, Rodalies' and the Metro's Stations, from their Trips.
   const trips = [trip('R2', 'adif:71801', 'adif:71802'), trip('L3', 'tmb:1.326'), trip('R1', 'adif:79400', 'adif:71801'), trip('R4', 'adif:78805'), trip('R2', 'adif:72305', 'adif:71801')];
   expect(linesCallingAt(trips, ['adif:71801', 'tmb:1.326'], ['R1', 'R2', 'R4', 'L3'])).toEqual(['R1', 'R2', 'L3']);
@@ -104,11 +104,13 @@ test("a Network's Lines are named in the order of their names, digits as numbers
 });
 
 test("Networks stay in the order the track lists them, each one's Lines together, and the track's own order is left alone", () => {
-  const { lines } = RECORDED.bundle;
+  // With a Line only a later day has, which the days joined put last (joinDays()): made up, as R17 is on 10 Oct.
+  const lines = [...RECORDED.bundle.lines, { id: 'rodalies:R17', network: 'rodalies', name: 'R17' }];
   const [before, named] = [lines.map((l) => l.id), inNameOrder(lines)];
   expect(named).toHaveLength(lines.length);
   // Each Network starts one run of Lines, none of its Lines among another's.
   expect(named.flatMap((l, i) => (l.network === named[i - 1]?.network ? [] : [l.network]))).toEqual(['rodalies', 'fgc', 'tram', 'metro']);
+  expect(namesIn(named, 'rodalies').slice(-4)).toEqual(['R16', 'R17', 'RG1', 'RL4']);
   expect(lines.map((l) => l.id)).toEqual(before);
 });
 
