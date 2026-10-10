@@ -695,13 +695,22 @@ const layered = [
   // Under the first band's casing, the lowest of the stretches' layers.
   { source: 'rails', id: 'rails', prefix: 'rail', zooms: { minzoom: railsZoom - FADE, filter: true as ExpressionFilterSpecification }, nameZooms: { minzoom: railsZoom }, opacity: railsFade, throughOpacity: railsFade, below: 'line-casing' },
 ];
+// Variant for #309 (not for merging): a Line below another's, where one above lies within a line width, narrower and fainter.
+const coveredWidth = 0.6;
+const coveredOpacity = byZoom([[railsZoom - FADE, 0.45], [railsZoom + FADE, 0]], (opacity) => opacity);
 for (const { source, id, prefix, zooms, nameZooms, opacity, throughOpacity, below } of layered) {
+  if (source === 'lines') {
+    map.addLayer({ id: `${prefix}-casing-covered`, type: 'line', source, ...zooms, filter: ['all', zooms.filter, ['has', 'covered']], layout: lineLayout, paint: { 'line-color': casing, 'line-width': byZoom(WIDTH, (px) => px * coveredWidth + 2), 'line-offset': lineOffset, 'line-opacity': coveredOpacity } }, below);
+    map.addLayer({ id: `${id}-covered`, type: 'line', source, ...zooms, filter: ['all', zooms.filter, ['has', 'covered']], layout: lineLayout, paint: { 'line-color': lineColour, 'line-width': byZoom(WIDTH, (px) => px * coveredWidth), 'line-offset': lineOffset, 'line-opacity': coveredOpacity } }, below);
+  }
+  const notCovered: ExpressionFilterSpecification = ['all', zooms.filter, ['!', ['has', 'covered']]];
   map.addLayer(
     {
       id: `${prefix}-casing`,
       type: 'line',
       source,
       ...zooms,
+      filter: notCovered,
       layout: lineLayout,
       paint: { 'line-color': casing, 'line-width': byZoom(WIDTH, (px) => px + 2), 'line-offset': lineOffset, 'line-opacity': opacity },
     },
@@ -713,6 +722,7 @@ for (const { source, id, prefix, zooms, nameZooms, opacity, throughOpacity, belo
       type: 'line',
       source,
       ...zooms,
+      filter: notCovered,
       layout: lineLayout,
       paint: {
         'line-color': lineColour,
@@ -1090,7 +1100,7 @@ function show(days: Track | Bundle) {
         const [start, end] = cutIn(s, band);
         return start + end < s.to - s.from ? [{ ...s, from: s.from + start, to: s.to - end, band }] : [];
       });
-    }).flatMap(({ line: id, shape: shapeId, from, to, side, band, shared, under, crowded }): GeoJSON.Feature[] => {
+    }).flatMap(({ line: id, shape: shapeId, from, to, side, band, shared, under, covered, crowded }): GeoJSON.Feature[] => {
       const [line, shape] = [lines.get(id), band === undefined ? shapes.get(shapeId) : inBand(shapes, shapeId, band)];
       if (!line || !shape) return [];
       const properties = {
@@ -1109,6 +1119,7 @@ function show(days: Track | Bundle) {
         ...(band !== undefined && { band }),
         ...(shared && { shared }),
         ...(under && { under }),
+        ...(covered && { covered }),
         ...(crowded && { crowded }),
         // Each Line's name goes on its own stroke: text-offset is in ems.
         ...Object.fromEntries(APART.map(([zoom, px]) => [`textOffset${zoom}`, [0, (side * px) / NAME_SIZE]])),
