@@ -469,9 +469,9 @@ function cutTrip(trip: Trip, { stations, since }: Skipped, noonMinus12h: number,
 /** A Closure the map shows, as closuresAt() gives it (#341): its Line, its two Stations, either way round, and whether it's closed, or down to a single track, which hides no Train (#345). */
 export type ShownClosure = Pick<Closure, 'line' | 'stations'> & { kind: 'closed' | 'single' };
 
-/** A closed Closure's two Stations, the Stations between them, and where it lies along their shapes, as the Trips of its Line that call at both have them (#345). */
+/** A closed Closure, the Stations between its two, and where it lies along their shapes, as the Trips of its Line that call at both have them (#345). */
 interface Shut {
-  ends: string[];
+  closure: ShownClosure;
   between: Set<string>;
   /** From the one Station to the other, in metres along each shape such a Trip runs on. */
   along: Map<string, [from: number, to: number]>;
@@ -497,7 +497,8 @@ function closedIn(bundle: Bundle, closures: readonly ShownClosure[]): Map<string
   const known = closedOf.get(closures);
   if (known?.bundle === bundle) return known.closed;
   const closed = new Map<string, Shut[]>();
-  for (const { line, stations, kind } of closures) {
+  for (const closure of closures) {
+    const { line, stations, kind } = closure;
     if (kind !== 'closed') continue;
     const [between, along] = [new Set<string>(), new Map<string, [number, number]>()];
     for (const { line: of, shape, calls } of bundle.trips) {
@@ -507,7 +508,7 @@ function closedIn(bundle: Bundle, closures: readonly ShownClosure[]): Map<string
       for (const c of calls.slice(Math.min(a, b) + 1, Math.max(a, b))) between.add(c.station);
       along.set(shape, [Math.min(from.dist, to.dist), Math.max(from.dist, to.dist)]);
     }
-    closed.set(line, [...(closed.get(line) ?? []), { ends: stations, between, along }]);
+    closed.set(line, [...(closed.get(line) ?? []), { closure, between, along }]);
   }
   closedOf.set(closures, { bundle, closed });
   return closed;
@@ -521,7 +522,7 @@ function closedIn(bundle: Bundle, closures: readonly ShownClosure[]): Map<string
  * lie along its shape, between whose ends it's within, whatever it calls at.
  */
 function closedCalls(calls: Call[], closed: Shut[], shape: string) {
-  const on = ({ ends, between }: Shut, call?: Call) => !!call && (between.has(call.station) || ends.includes(call.station));
+  const on = ({ closure, between }: Shut, call?: Call) => !!call && (between.has(call.station) || closure.stations.includes(call.station));
   const along = closed.flatMap((s): [from: number, to: number][] => {
     const part = s.along.get(shape);
     return part ? [part] : [];
@@ -543,6 +544,43 @@ const inside = (parts: [from: number, to: number][], dist: number) => parts.some
 /** As much of these stretches of a shape, in metres along it, as lies outside these parts of it, their ends included (#345). */
 const outside = (stretches: [from: number, to: number][], parts: [from: number, to: number][]) =>
   parts.reduce((left, [from, to]) => left.flatMap(([a, b]) => ([[a, Math.min(b, from)], [Math.max(a, to), b]] as [number, number][]).filter(([x, y]) => x <= y)), stretches);
+
+/**
+ * How far within a closed Closure a report has to put a Train for it to be seen there, in metres along
+ * its track from either of the Closure's Stations, and how near that track its GPS has to be (#345). On
+ * 7 October 2026, from 13:00 to 13:45, Renfe's GPS had 3 of 467 Trains coming into a Station past it,
+ * by up to 5 m, just before Renfe pinned them there (and 9 by 1–11 km, pinned after they had gone by),
+ * and Rodalies' Trains leaving one within 13 m short of it. It had them within 45 m of their track in
+ * 99% of 1,131 reports, and one 26 km off. TRAM's distance put its trams within 74 m of their stop's on
+ * the bundle's track. So a Train standing at either Station, or coming into it, isn't seen within, and
+ * one running in is this far in within a report or two. T1–T3's stops nearest Francesc Macià and
+ * Montesa within their Closure, L'Illa and La Sardana, are 583 m and 432 m in.
+ */
+const MARGIN = 200;
+
+/**
+ * The closed Closures among these that a snapshot has a Live Train of their Line within (#345): where
+ * a report, from its feed while that works, of a Train not Cancelled, pins it to a Station between the
+ * Closure's two, or its GPS, no further than MARGIN from its Trip's track, or TRAM's distance, puts it
+ * on that track between them, more than MARGIN from either, as its Line's Trips that call at both have
+ * them (closedIn()).
+ */
+export function seenWithin<C extends ShownClosure>(bundle: Bundle, snapshot: Snapshot, closures: readonly C[]): C[] {
+  const closedOn = closedIn(bundle, closures);
+  const [named, shapes, networks] = [namedIn(bundle), new Map(bundle.shapes.map((s) => [s.id, s])), new Map(bundle.lines.map((l) => [l.id, l.network]))];
+  const seen = new Set<ShownClosure>();
+  for (const { trip: id, at, position, cancelled } of snapshot.reports) {
+    const trip = id && !cancelled ? closest(named.get(id) ?? [], (at - bundle.noonMinus12h) / 1000) : undefined;
+    const [shape, closed] = [trip && shapes.get(trip.shape), trip && closedOn.get(trip.line)];
+    if (!trip || !shape || !closed || !position || !works(snapshot.feeds[networks.get(trip.line) ?? ''], snapshot.generated)) continue;
+    const [d, off] = 'lon' in position || 'along' in position ? placedBy(trip.calls, shape, position) : [NaN, NaN];
+    for (const { closure, between, along } of closed) {
+      const [from = NaN, to = NaN] = along.get(trip.shape) ?? [];
+      if (('near' in position && between.has(position.near)) || (off <= MARGIN && inside([[from + MARGIN, to - MARGIN]], d))) seen.add(closure);
+    }
+  }
+  return closures.filter((c) => seen.has(c));
+}
 
 /** Whether a Train so far along its shape, in metres, is on the map: not where it's off it, before its first Station or after its last, nor beyond where its track starts or ends, as past Spain's border. */
 const onTrack = (shape: Shape, dist: number | undefined): dist is number => dist !== undefined && dist >= (shape.dist[0] ?? 0) && dist <= (shape.dist.at(-1) ?? 0);
@@ -1157,10 +1195,7 @@ function delayOf(trip: Trip, calls: Call[], shape: Shape, { profile, live }: Net
     if (call && i > 0) delay = Math.min(delay, reported - call.arrival);
   }
   if (position && ('lon' in position || 'along' in position)) {
-    const dists = calls.map((c) => c.dist);
-    // TRAM counts from a Trip's first Station, whichever way along its track the Trip runs.
-    const [first = 0, last = 0] = [dists[0], dists.at(-1)];
-    const d = 'lon' in position ? nearest(shape, Math.min(...dists), Math.max(...dists), position) : first + Math.sign(last - first) * position.along;
+    const [d] = placedBy(calls, shape, position);
     const passed = passing(calls, profile, d, reported - delay);
     if (passed !== undefined) {
       delays.set(report, { trip, delay: reported - passed, measured: true });
@@ -1181,8 +1216,19 @@ function expectedDelay(trip: Trip, expected: Report['expected'], noonMinus12h: n
   return call && (expected.at - noonMinus12h) / 1000 - call.arrival;
 }
 
-/** How far along a shape the point of it nearest a position is, in metres, between two distances along it. */
-function nearest({ coords, dist }: Shape, from: number, to: number, { lon, lat }: { lon: number; lat: number }): number {
+/**
+ * How far along its Trip's shape a report puts a Train, in metres, by its GPS or by TRAM's distance, and
+ * how far from that track its GPS is. TRAM counts from a Trip's first Station, whichever way along its
+ * track the Trip runs.
+ */
+function placedBy(calls: Call[], shape: Shape, position: { lon: number; lat: number } | { along: number }): [d: number, off: number] {
+  const dists = calls.map((c) => c.dist);
+  const [first = 0, last = 0] = [dists[0], dists.at(-1)];
+  return 'lon' in position ? nearest(shape, Math.min(...dists), Math.max(...dists), position) : [first + Math.sign(last - first) * position.along, 0];
+}
+
+/** How far along a shape the point of it nearest a position is, in metres, between two distances along it, and how far that point is from the position. */
+function nearest({ coords, dist }: Shape, from: number, to: number, { lon, lat }: { lon: number; lat: number }): [d: number, metres: number] {
   const [p, kx]: [Point, number] = [[lon, lat], DEGREE * Math.cos((lat * Math.PI) / 180)];
   let [closest, found] = [Infinity, from];
   for (let i = 1; i < coords.length; i++) {
@@ -1191,7 +1237,7 @@ function nearest({ coords, dist }: Shape, from: number, to: number, { lon, lat }
     const [t, metres] = closestOnSegment(a, b, p, kx);
     if (metres < closest) [closest, found] = [metres, start + t * (stop - start)];
   }
-  return Math.max(from, Math.min(to, found));
+  return [Math.max(from, Math.min(to, found)), closest];
 }
 
 /**
