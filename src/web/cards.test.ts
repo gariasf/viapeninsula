@@ -122,7 +122,7 @@ test("digits count as numbers, and a letter after them sorts after that number a
 
 test("a board at Montesa names T1, T2 and T3 in that order, though TRAM's timetable lists them T2, T3, T1 (#399)", () => {
   const { lines, trips } = RECORDED.bundle;
-  // tram:ST-188, as 10 Oct's track names Montesa: this recording's Stations are cut down to its replay's.
+  // tram:ST-188, as 10 Oct's track names Montesa: this recording's bundle has no Stations, but its Trips call at it.
   const montesa = ['tram:ST-188'];
   // Given the track's order, a board names them as it has them.
   expect(linesCallingAt(trips, montesa, lines.map((l) => l.id))).toEqual(['tram:T2', 'tram:T3', 'tram:T1']);

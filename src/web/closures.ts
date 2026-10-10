@@ -101,7 +101,7 @@ export const closureKey = ({ line, stations }: Pick<Shown, 'line' | 'stations'>)
 
 /** A row of what a tap on Closures names (tappedRows()): one Alert's, or one of the timetable's. */
 export interface Tapped {
-  /** The last of its Closures there are, which its Stations and its start come from. */
+  /** The last of its Closures in the order `shown` has them, which its Stations and its start come from; not `all`'s last, which is in Lines' order. */
   closure: Shown;
   /** The Lines it's on, each once, in the order the cards name Lines. */
   on: string[];
@@ -112,8 +112,9 @@ export interface Tapped {
 /**
  * What a tap on the Closures `shown` with these `keys` (closureKey()) names: a row for each Alert that
  * makes any of them, as `shown` has the Alerts, newest first, then one for each of the timetable's, which
- * are one for each Line, in the order of their Lines, not as the day's file lists them. A row's Lines and
- * Closures are in `order` too, the order the cards name Lines in (#399), not as its Alert lists them (#341).
+ * are one for each part of a Line, in the order of their Lines (a Line's parts as the day's file lists
+ * them). A row's Lines and Closures are in `order` too, the order the cards name Lines in (#399), not as
+ * its Alert lists them (#341).
  */
 export function tappedRows(shown: Shown[], keys: string[], order: string[]): Tapped[] {
   const place = (c: Shown) => order.indexOf(c.line);
