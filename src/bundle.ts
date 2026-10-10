@@ -205,9 +205,9 @@ export function daysOf({ regions }: Manifest): DayFiles[] {
  * The regions' tracks as one (ADR-0014), as a build of all their Networks at once would have made it:
  * each region's Networks, Lines, shapes, strokes, rails, slots and Network tracks in turn, and each
  * Station once, as the first region that has it has it, naming every Network whose Trains stop there and
- * the Lines of each that call, as one that two regions serve is built in each, such as León's where
- * Bilbao's C4 runs to it. No other ID is in two regions' tracks: a Line's and a traced shape's start
- * with its Network's, and a Stretch's with its region's.
+ * the Lines of each that call, as one that two regions serve is built in each, as León's was where
+ * Bilbao's C4 ran to it (#368). No other ID is in two regions' tracks: a Line's and a traced shape's
+ * start with its Network's, and a Stretch's with its region's.
  */
 export function joinTracks(tracks: Track[]): Track {
   const stations = new Map<string, Station>();

@@ -11,12 +11,13 @@ Where a problem spot is new (a run of legs that keeps the feed's shape, a turn-b
 3. If OpenStreetMap is right and the build's rule is wrong, file an issue here with the spot's key and links.
 4. If both are right, as at L'Aldea, where R16's Trains do turn back (#63), do nothing: the spot stays in `report.json` and won't show again.
 5. If the operator's timetable is wrong, as where Renfe puts a Station on the neighbouring line's track so that its Trips are left out as "El Entrego is 0.4 km off its track", or the legs to it keep the feed's shape, find the Station where its Trains stop in OpenStreetMap, and add it to its Network's `stations` in `src/networks.ts` (#367): its ID, those coordinates, and the URL of the OpenStreetMap node as its source. The dry run's log lists each one it applies, and the spot shows as gone in its summary. A Station two Lines call at on different tracks, as Los Rosales, can't have one position on both: check each Line's trace first (`kept` and `length` spots) in the dry run. Then tell the operator, with the Station's ID and the coordinates.
+6. If the operator files under one of a Network's Lines a train that runs on into another Network, as Renfe files FEVE's Bilbao–León train under Cercanías Bilbao's C4, so that the Line's trace runs on to the other (its `length` spot is far longer than its Trips' usual run, and the log says two regions share a Stretch), name in the Network's `beyond` in `src/networks.ts` (#368) the first Station on the way beyond where it ends, which every Trip that runs on calls at. The build then leaves out each Trip that calls there, with the Stations and track only they have, logs it, and names it in the Network's `trips` spot, whose `leftOut` counts them. The Train is the long-distance timetable's own once its Network is drawn.
 
 A fix in OpenStreetMap reaches the map when the build next downloads Geofabrik's extracts, which it keeps for a week. The spot then shows as gone: that's the check that the fix worked.
 
 ## A Network with fewer Trips
 
-A Network shows as changed when it has more than a quarter fewer Trips today than the last report has for the same day of the week (#252). The build keeps them all. A holiday runs a Sunday's timetable, so on one there's nothing to do. Otherwise, look in the same summary for Trips left out, as a gap in the rails leaves them, then at the operator's timetable, which may have lost them.
+A Network shows as changed when it has more than a quarter fewer Trips today than the last report has for the same day of the week (#252). The build keeps them all. A holiday runs a Sunday's timetable, so on one there's nothing to do. Otherwise, look in the same summary for Trips left out, as a gap in the rails leaves them, and for the Network's `leftOut`, which counts those its config leaves out (#368), then at the operator's timetable, which may have lost them.
 
 ## A Network built from its copy
 

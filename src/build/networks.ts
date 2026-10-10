@@ -91,8 +91,9 @@ export async function readFeed(
   const station = (stop: string) => `${operator}:${stationOf(stop)?.stop_id ?? stop}`;
 
   // The Trips that call at a Station beyond the Network, each with the first it's seen to (#368).
-  // ponytail: a second pass over stop_times.txt for each day it's read, 2 s of the 3 Bilbao's takes, which
-  // no other Network pays; read it once for a timetable's days, by its source, if more Networks name some.
+  // ponytail: a second pass over stop_times.txt each time a day is read, 2 s on top of the 3 s Bilbao's
+  // read takes, and none for any other Network; read it once for all of a timetable's days, by its
+  // source, if more Networks name some.
   const beyond = new Set(network.beyond);
   const away = new Map<string, string>();
   if (beyond.size) {
