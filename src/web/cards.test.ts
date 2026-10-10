@@ -1,7 +1,9 @@
+import { readFileSync } from 'node:fs';
+import { gunzipSync } from 'node:zlib';
 import { expect, test } from 'vitest';
-import type { AlertFeed, Alerts, Call, Trip } from '../bundle.ts';
+import type { AlertFeed, Alerts, Bundle, Call, Line, Trip } from '../bundle.ts';
 import type { Pass } from '../engine.ts';
-import { cardAlerts, linesCallingAt, minutesTo, nearbyRows, progress } from './cards.ts';
+import { cardAlerts, inNameOrder, linesCallingAt, minutesTo, nearbyRows, progress } from './cards.ts';
 
 /** A time of day in Barcelona on Wednesday 7 Oct 2026, in summer time, in ms since 1970. */
 const at = (hours: number, minutes: number, seconds = 0) => Date.UTC(2026, 9, 7, hours - 2, minutes, seconds);
@@ -77,6 +79,52 @@ test("a board's Lines are those whose Trips call at any of its place's Stations,
   // Sants, Rodalies' and the Metro's Stations, from their Trips.
   const trips = [trip('R2', 'adif:71801', 'adif:71802'), trip('L3', 'tmb:1.326'), trip('R1', 'adif:79400', 'adif:71801'), trip('R4', 'adif:78805'), trip('R2', 'adif:72305', 'adif:71801')];
   expect(linesCallingAt(trips, ['adif:71801', 'tmb:1.326'], ['R1', 'R2', 'R4', 'L3'])).toEqual(['R1', 'R2', 'L3']);
+});
+
+/**
+ * 25 Sep 2026's recording, whose bundle lists the Lines as their timetables do: Rodalies' R1, R2N, R2S,
+ * R2, R3, R4, R8, R7, RL4, R11 …, TRAM's T2, T3, T1 …, and has real Trips of T1, T2 and T3 at Montesa.
+ */
+const RECORDED: { bundle: Bundle } = JSON.parse(gunzipSync(readFileSync(new URL('../fixtures/replay-2026-09-25.json.gz', import.meta.url))).toString());
+
+/** A Network's Lines' names, in the order they come. */
+const namesIn = (lines: Pick<Line, 'network' | 'name'>[], network: string) => lines.filter((l) => l.network === network).map((l) => l.name);
+
+test("a Network's Lines are named in the order of their names, digits as numbers, not as its timetable lists them (#399)", () => {
+  const { lines } = RECORDED.bundle;
+  // As the timetables list them.
+  expect(namesIn(lines, 'tram')).toEqual(['T2', 'T3', 'T1', 'T4', 'T5', 'T6']);
+  expect(namesIn(lines, 'rodalies').slice(0, 10)).toEqual(['R1', 'R2N', 'R2S', 'R2', 'R3', 'R4', 'R8', 'R7', 'RL4', 'R11']);
+  const named = inNameOrder(lines);
+  expect(namesIn(named, 'tram')).toEqual(['T1', 'T2', 'T3', 'T4', 'T5', 'T6']);
+  // R2 before R2N and R2S, R11 after R8, and RL4 after R11 and R16.
+  expect(namesIn(named, 'rodalies')).toEqual(['R1', 'R2', 'R2N', 'R2S', 'R3', 'R4', 'R7', 'R8', 'R11', 'R13', 'R14', 'R15', 'R16', 'RG1', 'RL4']);
+  expect(namesIn(named, 'fgc')).toEqual(['L6', 'L7', 'L8', 'L12', 'R5', 'R6', 'RL2', 'S1', 'S2', 'S3', 'S4', 'S8']);
+  expect(namesIn(named, 'metro')).toEqual(['L1', 'L2', 'L3', 'L4', 'L5', 'L11']);
+});
+
+test("Networks stay in the order the track lists them, each one's Lines together, and the track's own order is left alone", () => {
+  const { lines } = RECORDED.bundle;
+  const [before, named] = [lines.map((l) => l.id), inNameOrder(lines)];
+  expect(named).toHaveLength(lines.length);
+  // Each Network starts one run of Lines, none of its Lines among another's.
+  expect(named.flatMap((l, i) => (l.network === named[i - 1]?.network ? [] : [l.network]))).toEqual(['rodalies', 'fgc', 'tram', 'metro']);
+  expect(lines.map((l) => l.id)).toEqual(before);
+});
+
+test("digits count as numbers, and a letter after them sorts after that number and before the next: C4, C4a, C4b, C5 … C8b, C10", () => {
+  // Cercanías Madrid's Lines, as 10 Oct 2026's track lists them.
+  const madrid = ['C1', 'C10', 'C2', 'C3', 'C4', 'C4a', 'C4b', 'C5', 'C8a', 'C7', 'C8b'].map((name) => ({ network: 'cercanias-madrid', name }));
+  expect(inNameOrder(madrid).map((l) => l.name)).toEqual(['C1', 'C2', 'C3', 'C4', 'C4a', 'C4b', 'C5', 'C7', 'C8a', 'C8b', 'C10']);
+});
+
+test("a board at Montesa names T1, T2 and T3 in that order, though TRAM's timetable lists them T2, T3, T1 (#399)", () => {
+  const { lines, trips } = RECORDED.bundle;
+  // tram:ST-188, as 10 Oct's track names Montesa: this recording's Stations are cut down to its replay's.
+  const montesa = ['tram:ST-188'];
+  // Given the track's order, a board names them as it has them.
+  expect(linesCallingAt(trips, montesa, lines.map((l) => l.id))).toEqual(['tram:T2', 'tram:T3', 'tram:T1']);
+  expect(linesCallingAt(trips, montesa, inNameOrder(lines).map((l) => l.id))).toEqual(['tram:T1', 'tram:T2', 'tram:T3']);
 });
 
 /**
