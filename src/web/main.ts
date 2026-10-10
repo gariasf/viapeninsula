@@ -2153,12 +2153,13 @@ function moreButton(text: string) {
 /**
  * The followed Train's panel: its Line's pill and where it's headed; Live or Scheduled, how long ago
  * live data last placed it, its modelled speed, and its Unit type where its operator reports one; its
- * next Station, when it's expected there, with its Delay but for a Metro Train's, and the minutes to
- * it; how far along its Trip it is; and its Line's Alerts, folded away (#342). Peeking, it ends in how
- * many Stations it has still to come; pulled up, it shows them, from the Train to its Trip's last
- * Station (#321), after a fold that shows those it has left (#349). Its Stations within a closed Closure
- * that hides Trains are marked as not stopped at in the strip, and not counted in how many it has to
- * come (#420). Where its Train is within one, it's the panel of a Trip still to come (comingPanel()).
+ * next Station, as it's arriving at it or stands at it by how it's drawn (#455), when it's expected
+ * there, with its Delay but for a Metro Train's, and the minutes to it; how far along its Trip it is;
+ * and its Line's Alerts, folded away (#342). Peeking, it ends in how many Stations it has still to
+ * come; pulled up, it shows them, from the Train to its Trip's last Station (#321), after a fold that
+ * shows those it has left (#349). Its Stations within a closed Closure that hides Trains are marked as
+ * not stopped at in the strip, and not counted in how many it has to come (#420). Where its Train is
+ * within one, it's the panel of a Trip still to come (comingPanel()).
  */
 function followedPanel(up: boolean): Panel | undefined {
   const now = Date.now();
@@ -2176,7 +2177,7 @@ function followedPanel(up: boolean): Panel | undefined {
   // The Stations it stops at, which it has still to come, the next of them first.
   const running = upcoming.filter((c) => !c.skipped);
   const last = running.at(-1);
-  // Where it is by how it's drawn, within its pill's reach of its next Station or not (#455).
+  // Where it is by how it's drawn: how near its pill reaches its Stations (#455).
   const where = whereabouts(trip.calls, train.dist, upcoming.length, !!train.standsAt, followedReach(train), dotAway(train));
   const status: (Node | string)[] = [t(live ? 'live' : 'scheduled')];
   if (unreported) status.push(t('noLiveTrain'));
