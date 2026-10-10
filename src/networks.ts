@@ -48,6 +48,19 @@ export interface Rails {
   notOperator?: string[];
 }
 
+/**
+ * The rails a Line runs on where its timetable has no shapes, as Renfe's long-distance one hasn't (#259):
+ * the ways whose `railway` is one of these, and whose gauge is one of `gauges`, or that have no gauge tag,
+ * as a way with three rails has two gauges, as `1435;1668`. On two gauges, its Trains change from one to
+ * the other only at a railway=gauge_conversion node. Where a stretch has no path on `gauges`, it's traced
+ * on `orElse` too, changing to them only there.
+ */
+export interface Gauges {
+  railway: string[];
+  gauges: string[];
+  orElse?: string[];
+}
+
 /** One of a Network's timetables: where its GTFS feed is, and how to read it. */
 export interface Timetable {
   url: string;

@@ -2,6 +2,7 @@
 // replacement buses make of a Line, where they run in its Trains' place.
 
 import { closestOnSegment, DEGREE, type Closure, type Point, type Shape, type Station, type Trip } from '../bundle.ts';
+import type { Gauges } from '../networks.ts';
 import type { Cause, Found } from './report.ts';
 import { nearest, type FeedShape } from './track.ts';
 
@@ -14,6 +15,8 @@ export interface FeedTrip {
   number?: string;
   /** Its calls in order, with arrival and departure in seconds into the service day. */
   calls: { station: string; arrival: number; departure: number }[];
+  /** The rails it runs on, where its timetable has no shapes, as Renfe's long-distance one hasn't, to trace it along (traceRuns()). */
+  gauges?: Gauges;
 }
 
 /** A replacement bus's Trip as the feed times it, which isn't a Train: its stops needn't be any Train's Stations. */
