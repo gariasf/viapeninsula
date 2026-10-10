@@ -942,7 +942,7 @@ const blockOf = ({ line, number }: NonNullable<Report['block']>) => `${line} ${n
 const namedOf = new WeakMap<Bundle, Map<string, Trip[]>>();
 
 /** A bundle's Trips by their IDs as their operators name them, those of one ID on each of the days joined. */
-function namedIn(bundle: Bundle): Map<string, Trip[]> {
+export function namedIn(bundle: Bundle): Map<string, Trip[]> {
   const known = namedOf.get(bundle) ?? bundle.trips.reduce((named, trip) => add(named, trip.id.replace(/^\d{4}-\d{2}-\d{2}\//, ''), trip), new Map<string, Trip[]>());
   namedOf.set(bundle, known);
   return known;
