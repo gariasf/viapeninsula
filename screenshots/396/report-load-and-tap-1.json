@@ -1,0 +1,234 @@
+{
+ "site": "https://viapeninsula.gariasf.com",
+ "at": "2026-10-10T23:15:58.393Z",
+ "views": {
+  "desktop/c3": {
+   "what": "Sevilla C3 Los Rosales - Cazalla-Constantina: read closed, NOT drawn",
+   "zoom": 10,
+   "centre": [
+    37.768837226415094,
+    -5.763814924528302
+   ],
+   "tap": {
+    "popup": "C3 2 alerts",
+    "popupHasFold": true,
+    "sheet": null
+   },
+   "opened": "C3 2 alerts ATENCIÓN Línea C3: Por obras de mejora en la infraestructura y para los trenes con origen/destino Madrid: Se establece un Plan Alternativo de Transporte por carretera entre las estaciones de Los Rosales y Cazalla-Constantina. Entre Los Rosales y Sevilla Santa Justa el recorrido se realiza con trenes de la línea C1. (Consulta nuevos horarios por obras en canales oficiales y App). Gracias por tu comprensión. From Sep 8, 2026, 5:22 AM · Renfe · Castellano Para los trenes de la línea C3 con origen o destino MÉRIDA, CÁCERES, PLASENCIA y MADRID son válidos los títulos de viaje de Cercanías sin reserva de plaza asignada. Desde el día 3 de febrero, el transporte de bicicletas y otros elementos de movilidad individual y el viaje con animales de compañía, se rige por las condiciones generales de Media Distancia Convencional. From Jun 9, 2025, 6:44 PM · Renfe · Castellano"
+  },
+  "desktop/t6": {
+   "what": "TRAM T6 Estacio St.Adria - Parc del Besos: drawn (until #397)",
+   "zoom": 15,
+   "centre": [
+    41.41749236363636,
+    2.224912318181818
+   ],
+   "tap": {
+    "popup": "T6 T6 - Service disruption due to tree maintenance On 14 and 15 October, from 7:30 a.m. to 2:30 p.m., line T6 will not provide service due to tree maintenance works on Rambla de la Mina. Service on line T5 will be reinforced. Alternative transport between Estació de Sant Adrià and Parc del Besòs: H14 Bus. From Oct 9, 2026, 5:00 AM · TRAM",
+    "popupHasFold": false,
+    "sheet": null
+   },
+   "opened": null
+  },
+  "desktop/c1-brinkola": {
+   "what": "San Sebastian C1 Brinkola - Zumarraga: drawn",
+   "zoom": 12,
+   "centre": [
+    43.052081550000004,
+    -2.3295585
+   ],
+   "tap": {
+    "popup": null,
+    "popupHasFold": false,
+    "sheet": "Legazpi C1 5 alerts NEXT DEPARTURES 6:12AM C1 , Scheduled Hernani Doesn't stop here 6:46AM C1 , Scheduled Brinkola Doesn't stop here 7:09AM C1 , Scheduled Brink"
+   },
+   "opened": null
+  },
+  "desktop/c1-irun": {
+   "what": "San Sebastian C1 Irun - Hernani: drawn",
+   "zoom": 11,
+   "centre": [
+    43.31949939453125,
+    -1.91822259375
+   ],
+   "tap": {
+    "popup": null,
+    "popupHasFold": false,
+    "sheet": "Pasaia C1 5 alerts NEXT DEPARTURES No upcoming departures"
+   },
+   "opened": null
+  },
+  "desktop/r1": {
+   "what": "Rodalies R1 Blanes - Macanet-Massanes: as before",
+   "zoom": 11,
+   "centre": [
+    41.72006822941176,
+    2.710070182352941
+   ],
+   "tap": {
+    "popup": "R1 Circulación ferroviaria entre L'Hospitalet de Llobregat y Blanes fuera de su horario habitual. Se establece un servicio alternativo por carretera entre Blanes y Maçanet-Massanes From Oct 7, 2026, 8:38 AM · Renfe · Castellano",
+    "popupHasFold": false,
+    "sheet": null
+   },
+   "opened": null
+  },
+  "desktop/r3": {
+   "what": "Rodalies R3 Ripoll - Puigcerda: as before",
+   "zoom": 10,
+   "centre": [
+    42.32648225,
+    2.05604925
+   ],
+   "tap": {
+    "popup": "R3 Circulación ferroviaria entre La Garriga - Puigcerdà/La Tor de Querol con afectaciones. Servicio alternativo por carretera entre Ripoll - Puigcerdà i Fabra i Puig - Puigcerdà. From Oct 7, 2026, 9:23 AM · Renfe · Castellano",
+    "popupHasFold": false,
+    "sheet": null
+   },
+   "opened": null
+  },
+  "desktop/r2": {
+   "what": "Rodalies R2 single track Sant Vicenc de Calders - Cunit: as before",
+   "zoom": 12,
+   "centre": [
+    41.189767745498195,
+    1.5785637478991597
+   ],
+   "tap": {
+    "popup": "R2 R13 R16 R14 R15 R2S R17 5 alerts",
+    "popupHasFold": true,
+    "sheet": null
+   },
+   "opened": null
+  },
+  "desktop": {
+   "files": {
+    "viapeninsula.gariasf.com/assets/index-BN0CTSzj.js": 200,
+    "viapeninsula-live.gariasf.com/alerts.json": 200,
+    "viapeninsula-live.gariasf.com/manifest.json": 200
+   },
+   "problemsOnLoad": [
+    "requestfailed: static.cloudflareinsights.com/beacon.min.js/v4bc70e2c01a94c73b74392e423484066179121581592 net::ERR_CONNECTION_REFUSED",
+    "console.error: Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "console.warning: [.WebGL-0x124004a3000]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+    "console.warning: [.WebGL-0x124004a3000]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
+    "console.warning: layers[highway-shield-non-us].filter[1]: Expected value to be of type number, but found null instead. Falling back to false.",
+    "console.warning: layers[highway-shield-us-interstate].filter[1]: Expected value to be of type number, but found null instead. Falling back to false.",
+    "console.warning: layers[road_shield_us].filter[1]: Expected value to be of type number, but found null instead. Falling back to false."
+   ],
+   "problemsAfterTaps": []
+  },
+  "phone/c3": {
+   "what": "Sevilla C3 Los Rosales - Cazalla-Constantina: read closed, NOT drawn",
+   "zoom": 9.5,
+   "centre": [
+    37.768837226415094,
+    -5.763814924528302
+   ],
+   "tap": {
+    "popup": "C3 2 alerts",
+    "popupHasFold": true,
+    "sheet": null
+   },
+   "opened": "C3 2 alerts ATENCIÓN Línea C3: Por obras de mejora en la infraestructura y para los trenes con origen/destino Madrid: Se establece un Plan Alternativo de Transporte por carretera entre las estaciones de Los Rosales y Cazalla-Constantina. Entre Los Rosales y Sevilla Santa Justa el recorrido se realiza con trenes de la línea C1. (Consulta nuevos horarios por obras en canales oficiales y App). Gracias por tu comprensión. From Sep 8, 2026, 5:22 AM · Renfe · Castellano Para los trenes de la línea C3 con origen o destino MÉRIDA, CÁCERES, PLASENCIA y MADRID son válidos los títulos de viaje de Cercanías sin reserva de plaza asignada. Desde el día 3 de febrero, el transporte de bicicletas y otros elementos de movilidad individual y el viaje con animales de compañía, se rige por las condiciones generales de Media Distancia Convencional. From Jun 9, 2025, 6:44 PM · Renfe · Castellano"
+  },
+  "phone/t6": {
+   "what": "TRAM T6 Estacio St.Adria - Parc del Besos: drawn (until #397)",
+   "zoom": 14,
+   "centre": [
+    41.41749236363636,
+    2.224912318181818
+   ],
+   "tap": {
+    "popup": "T6 T6 - Service disruption due to tree maintenance On 14 and 15 October, from 7:30 a.m. to 2:30 p.m., line T6 will not provide service due to tree maintenance works on Rambla de la Mina. Service on line T5 will be reinforced. Alternative transport between Estació de Sant Adrià and Parc del Besòs: H14 Bus. From Oct 9, 2026, 5:00 AM · TRAM",
+    "popupHasFold": false,
+    "sheet": null
+   },
+   "opened": null
+  },
+  "phone/c1-brinkola": {
+   "what": "San Sebastian C1 Brinkola - Zumarraga: drawn",
+   "zoom": 11,
+   "centre": [
+    43.052081550000004,
+    -2.3295585
+   ],
+   "tap": {
+    "popup": null,
+    "popupHasFold": false,
+    "sheet": "Legazpi C1 5 alerts NEXT DEPARTURES 6:12AM C1 , Scheduled Hernani Doesn't stop here 6:46AM C1 , Scheduled Brinkola Doesn't stop here 7:09AM C1 , Scheduled Brink"
+   },
+   "opened": null
+  },
+  "phone/c1-irun": {
+   "what": "San Sebastian C1 Irun - Hernani: drawn",
+   "zoom": 10,
+   "centre": [
+    43.31949939453125,
+    -1.91822259375
+   ],
+   "tap": {
+    "popup": null,
+    "popupHasFold": false,
+    "sheet": "Pasaia C1 5 alerts NEXT DEPARTURES No upcoming departures"
+   },
+   "opened": null
+  },
+  "phone/r1": {
+   "what": "Rodalies R1 Blanes - Macanet-Massanes: as before",
+   "zoom": 10,
+   "centre": [
+    41.72006822941176,
+    2.710070182352941
+   ],
+   "tap": {
+    "popup": "R1 Circulación ferroviaria entre L'Hospitalet de Llobregat y Blanes fuera de su horario habitual. Se establece un servicio alternativo por carretera entre Blanes y Maçanet-Massanes From Oct 7, 2026, 8:38 AM · Renfe · Castellano",
+    "popupHasFold": false,
+    "sheet": null
+   },
+   "opened": null
+  },
+  "phone/r3": {
+   "what": "Rodalies R3 Ripoll - Puigcerda: as before",
+   "zoom": 9,
+   "centre": [
+    42.32648225,
+    2.05604925
+   ],
+   "tap": {
+    "popup": "R3 Circulación ferroviaria entre La Garriga - Puigcerdà/La Tor de Querol con afectaciones. Servicio alternativo por carretera entre Ripoll - Puigcerdà i Fabra i Puig - Puigcerdà. From Oct 7, 2026, 9:23 AM · Renfe · Castellano",
+    "popupHasFold": false,
+    "sheet": null
+   },
+   "opened": null
+  },
+  "phone/r2": {
+   "what": "Rodalies R2 single track Sant Vicenc de Calders - Cunit: as before",
+   "zoom": 11,
+   "centre": [
+    41.189767745498195,
+    1.5785637478991597
+   ],
+   "tap": {
+    "popup": null,
+    "popupHasFold": false,
+    "sheet": "Calafell R2 R2S 4 alerts NEXT DEPARTURES 6:02AM R2S , Scheduled Barcelona Estació de França 6:37AM R2S , Scheduled Barcelona Estació de França 7:00AM R2S , Sche"
+   },
+   "opened": null
+  },
+  "phone": {
+   "files": {
+    "viapeninsula.gariasf.com/assets/index-BN0CTSzj.js": 200,
+    "viapeninsula-live.gariasf.com/alerts.json": 200,
+    "viapeninsula-live.gariasf.com/manifest.json": 200
+   },
+   "problemsOnLoad": [
+    "requestfailed: static.cloudflareinsights.com/beacon.min.js/v4bc70e2c01a94c73b74392e423484066179121581592 net::ERR_CONNECTION_REFUSED",
+    "console.error: Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "console.warning: layers[highway-shield-non-us].filter[1]: Expected value to be of type number, but found null instead. Falling back to false.",
+    "console.warning: layers[highway-shield-us-interstate].filter[1]: Expected value to be of type number, but found null instead. Falling back to false.",
+    "console.warning: layers[road_shield_us].filter[1]: Expected value to be of type number, but found null instead. Falling back to false."
+   ],
+   "problemsAfterTaps": []
+  }
+ }
+}

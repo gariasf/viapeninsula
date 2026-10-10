@@ -1,0 +1,151 @@
+{
+ "site": "https://viapeninsula.gariasf.com",
+ "at": "2026-10-10T23:21:47.201Z",
+ "views": {
+  "desktop/c1-brinkola": {
+   "what": "San Sebastian C1 Brinkola - Zumarraga: drawn",
+   "zoom": 12,
+   "centre": [
+    43.052081550000004,
+    -2.3295585
+   ],
+   "tapAt": [
+    633,
+    258
+   ],
+   "tapStationM": 2090,
+   "tap": {
+    "popup": "C1 #DonostiaAldiriakC1 Hornidura elektrikorik ez dagoelako, Brinkola eta Zumarragako geltokien arteko zerbitzua eten egin da. // #SanSebastianC1 Debido a falta de suministro eléctrico, queda interrumpida la circulación entre las estaciones de Brinkola y Zumarraga. From Oct 7, 2026, 6:46 AM · Renfe · Castellano",
+    "popupHasFold": false,
+    "sheet": null
+   },
+   "opened": null
+  },
+  "desktop/c1-irun": {
+   "what": "San Sebastian C1 Irun - Hernani: drawn",
+   "zoom": 11,
+   "centre": [
+    43.31949939453125,
+    -1.91822259375
+   ],
+   "tapAt": [
+    808,
+    378
+   ],
+   "tapStationM": 3302,
+   "tap": {
+    "popup": "C1 #DonostiaAldiriakC1 Azpiegituran egin beharreko lanak direla eta, zenbait ordu eta egunetan etenda dago Irun eta Hernaniko geltokien arteko zirkulazioa, bi noranzkoetan. Errepide bidezko garraio alternatiboa ezartzen da. Begiratu ordutegiak geltokietako beira-arasetan. // #SanSebastianC1 Debido a obras en la infraestructura, en determinadas franjas horarias y días se encuentra interrumpida la circulación entre las estaciones de Irun y Hernani en ambos sentidos. Se establece transporte alternativo por carretera. Consulten horarios en las vitrinas de las estaciones. From Aug 14, 2026, 4:54 AM · Renfe · Castellano",
+    "popupHasFold": false,
+    "sheet": null
+   },
+   "opened": null
+  },
+  "desktop/r2": {
+   "what": "Rodalies R2 single track Sant Vicenc de Calders - Cunit: as before",
+   "zoom": 12,
+   "centre": [
+    41.189767745498195,
+    1.5785637478991597
+   ],
+   "tapAt": [
+    468,
+    409
+   ],
+   "tapStationM": 2046,
+   "tap": {
+    "popup": "R2 R13 R16 R14 R15 R2S R17 5 alerts",
+    "popupHasFold": true,
+    "sheet": null
+   },
+   "opened": null
+  },
+  "desktop": {
+   "files": {
+    "viapeninsula.gariasf.com/assets/index-BN0CTSzj.js": 200,
+    "viapeninsula-live.gariasf.com/alerts.json": 200,
+    "viapeninsula-live.gariasf.com/manifest.json": 200
+   },
+   "problemsOnLoad": [
+    "requestfailed: static.cloudflareinsights.com/beacon.min.js/v4bc70e2c01a94c73b74392e423484066179121581592 net::ERR_CONNECTION_REFUSED",
+    "console.error: Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "console.warning: [.WebGL-0x114004d2a00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+    "console.warning: [.WebGL-0x114004d2a00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
+    "console.warning: layers[highway-shield-non-us].filter[1]: Expected value to be of type number, but found null instead. Falling back to false.",
+    "console.warning: layers[highway-shield-us-interstate].filter[1]: Expected value to be of type number, but found null instead. Falling back to false.",
+    "console.warning: layers[road_shield_us].filter[1]: Expected value to be of type number, but found null instead. Falling back to false."
+   ],
+   "problemsAfterTaps": []
+  },
+  "phone/c1-brinkola": {
+   "what": "San Sebastian C1 Brinkola - Zumarraga: drawn",
+   "zoom": 11,
+   "centre": [
+    43.052081550000004,
+    -2.3295585
+   ],
+   "tapAt": [
+    192,
+    351
+   ],
+   "tapStationM": 2090,
+   "tap": {
+    "popup": "C1 #DonostiaAldiriakC1 Hornidura elektrikorik ez dagoelako, Brinkola eta Zumarragako geltokien arteko zerbitzua eten egin da. // #SanSebastianC1 Debido a falta de suministro eléctrico, queda interrumpida la circulación entre las estaciones de Brinkola y Zumarraga. From Oct 7, 2026, 6:46 AM · Renfe · Castellano",
+    "popupHasFold": false,
+    "sheet": null
+   },
+   "opened": null
+  },
+  "phone/c1-irun": {
+   "what": "San Sebastian C1 Irun - Hernani: drawn",
+   "zoom": 10,
+   "centre": [
+    43.31949939453125,
+    -1.91822259375
+   ],
+   "tapAt": [
+    279,
+    411
+   ],
+   "tapStationM": 3302,
+   "tap": {
+    "popup": "C1 #DonostiaAldiriakC1 Azpiegituran egin beharreko lanak direla eta, zenbait ordu eta egunetan etenda dago Irun eta Hernaniko geltokien arteko zirkulazioa, bi noranzkoetan. Errepide bidezko garraio alternatiboa ezartzen da. Begiratu ordutegiak geltokietako beira-arasetan. // #SanSebastianC1 Debido a obras en la infraestructura, en determinadas franjas horarias y días se encuentra interrumpida la circulación entre las estaciones de Irun y Hernani en ambos sentidos. Se establece transporte alternativo por carretera. Consulten horarios en las vitrinas de las estaciones. From Aug 14, 2026, 4:54 AM · Renfe · Castellano",
+    "popupHasFold": false,
+    "sheet": null
+   },
+   "opened": null
+  },
+  "phone/r2": {
+   "what": "Rodalies R2 single track Sant Vicenc de Calders - Cunit: as before",
+   "zoom": 11,
+   "centre": [
+    41.189767745498195,
+    1.5785637478991597
+   ],
+   "tapAt": [
+    109,
+    427
+   ],
+   "tapStationM": 2046,
+   "tap": {
+    "popup": "R2 R13 R16 R14 R15 R2S R17 5 alerts",
+    "popupHasFold": true,
+    "sheet": null
+   },
+   "opened": null
+  },
+  "phone": {
+   "files": {
+    "viapeninsula.gariasf.com/assets/index-BN0CTSzj.js": 200,
+    "viapeninsula-live.gariasf.com/alerts.json": 200,
+    "viapeninsula-live.gariasf.com/manifest.json": 200
+   },
+   "problemsOnLoad": [
+    "requestfailed: static.cloudflareinsights.com/beacon.min.js/v4bc70e2c01a94c73b74392e423484066179121581592 net::ERR_CONNECTION_REFUSED",
+    "console.error: Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "console.warning: layers[highway-shield-non-us].filter[1]: Expected value to be of type number, but found null instead. Falling back to false.",
+    "console.warning: layers[highway-shield-us-interstate].filter[1]: Expected value to be of type number, but found null instead. Falling back to false."
+   ],
+   "problemsAfterTaps": []
+  }
+ }
+}
