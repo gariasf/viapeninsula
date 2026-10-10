@@ -164,8 +164,8 @@ export interface Departure {
   cancelled: boolean;
   /**
    * Whether it won't stop at the Station: as its operator has said, where it's cut short or starts late
-   * (#346), or as it's Scheduled at a Station within a closed Closure (#345). Then it's shown when its
-   * timetable has it leave.
+   * (#346), or as it's at a Station within a closed Closure, but for one Live within it (#345). Then
+   * it's shown when its timetable has it leave.
    */
   skipped: boolean;
 }
@@ -178,8 +178,8 @@ const BOARD = 10;
  * 1970), given the snapshots received by then and the Closures the map shows: each Train still to
  * leave one of them, but not one that ends its Trip there, expected as it's drawn on the map, and a
  * Cancelled one as its timetable has it, as is one at a Station its operator has said it won't stop at
- * (#346), and a Scheduled one at a Station within a closed Closure, which it doesn't run within, nor
- * leaves either of the Closure's Stations into, as if its Trip ended there (#345).
+ * (#346), and one at a Station within a closed Closure, but for one Live within it, which it doesn't
+ * run within, nor leaves either of the Closure's Stations into, as if its Trip ended there (#345).
  */
 export function boardAt(bundle: Bundle, at: number, received: Received[], stations: string[], closures: readonly ShownClosure[] = []): Departure[] {
   const { of, now } = onMap(bundle, at, received, closures);
@@ -228,7 +228,8 @@ export interface Pass {
  * the map shows: each whose track still ahead of it comes within the radius, or that's within it,
  * listed once, for when it next comes within it, expected within the window, as it's drawn on the
  * map. Not one that's Cancelled, nor one near only Stations its operator has said it won't stop at,
- * which it runs past (#346), nor a Scheduled one near only where it runs within a closed Closure (#345).
+ * which it runs past (#346), nor one near only where it runs within a closed Closure, but for one Live
+ * within it (#345).
  */
 export function nearbyAt(bundle: Bundle, at: number, received: Received[], point: Point, radius: number, window: number, closures: readonly ShownClosure[] = []): Pass[] {
   const { of, now } = onMap(bundle, at, received, closures);

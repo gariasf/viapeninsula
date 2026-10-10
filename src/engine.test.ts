@@ -1087,7 +1087,7 @@ test("a Train cut short is headed for its new last Station on boards and Nearby,
 /** The R2S closed from Calafell to Cubelles, Segur de Calafell and Cunit between them (#345). Made up, as R1 was from Blanes to Maçanet-Massanes on 7 October 2026. */
 const CLOSED: ShownClosure[] = [{ line: 'R2S', stations: ['Calafell', 'Cubelles'], kind: 'closed' }];
 
-/** How far along its track the R2S's Train is drawn at a moment, given the Closures the map shows, if it's on the map. */
+/** The R2S's Train as it's drawn at a moment, given the Closures the map shows, if it's on the map. */
 const drawnBy = (closures: ShownClosure[], moment: number, received: Received[] = []) => trainsAt(BUNDLE, moment, by(received, moment), closures).find((t) => t.trip.id === R2S);
 
 test("a Scheduled Train isn't drawn within a closed Closure, between its two Stations: it's drawn up to the one, standing there, and again from the other on", () => {

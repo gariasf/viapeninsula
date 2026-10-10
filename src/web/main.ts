@@ -2205,8 +2205,8 @@ function servedBy(place: Place): string[] {
 /**
  * A departure on a board: when it's expected to leave, with the minutes to go under a time within the
  * hour, its Train's pill, where it's headed, and its status. One Cancelled, or at a Station its Train
- * won't stop at (#346), as a Scheduled one within a closed Closure (#345), shows when its timetable has
- * it leave, struck through, and says so.
+ * won't stop at (#346), as one within a closed Closure but for one Live within it (#345), shows when its
+ * timetable has it leave, struck through, and says so.
  */
 function departureRow({ trip, departure, delay, live, unreported, cancelled, skipped }: Departure, now: number) {
   const off = cancelled ? 'cancelled' : skipped ? 'skipped' : '';
