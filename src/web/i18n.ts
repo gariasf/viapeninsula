@@ -83,7 +83,7 @@ const STRINGS = {
   unit: { ca: 'Unitat', es: 'Unidad', eu: 'Unitatea', gl: 'Unidade', en: 'Unit' },
   nextStations: { ca: 'Properes estacions', es: 'Próximas estaciones', eu: 'Hurrengo geltokiak', gl: 'Próximas estacións', en: 'Next stations' },
   nextStation: { ca: 'Propera estació', es: 'Próxima estación', eu: 'Hurrengo geltokia', gl: 'Próxima estación', en: 'Next station' },
-  // Its label instead, as the followed Train is arriving at it or stands at it (#455), and what comes before the time it's expected to leave at, then.
+  // The label instead, as the followed Train is arriving at it or stands at it (#455), and what goes before the time it leaves at then.
   nextStationArriving: { ca: 'Arribant a', es: 'Llegando a', eu: 'Iristen', gl: 'Chegando a', en: 'Arriving at' },
   nextStationStanding: { ca: "A l'estació", es: 'En la estación', eu: 'Geltokian', gl: 'Na estación', en: 'At station' },
   leaves: { ca: 'surt', es: 'sale', eu: 'irteera', gl: 'sae', en: 'leaves' },

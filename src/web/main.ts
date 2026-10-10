@@ -6,7 +6,7 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import nunitoSans from '@fontsource/nunito-sans/files/nunito-sans-latin-400-normal.woff2?url';
 import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-normal.woff2?url';
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
-import { along, APART, atZoom, BANDS, bandZooms, coveredIn, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, daysOf, EARTH, joinTracks, LIVE_URL, madridDate, networkTracks, places, type Alerts, type Bundle, type Credit, type Call, type DayFiles, type Place, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH, type ZoomedOut } from '../bundle.ts';
+import { along, APART, atZoom, BANDS, bandZooms, coveredIn, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, daysOf, DEGREE, EARTH, joinTracks, LIVE_URL, madridDate, networkTracks, places, type Alerts, type Bundle, type Credit, type Call, type DayFiles, type Place, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH, type ZoomedOut } from '../bundle.ts';
 import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, unavailable, type Coming, type Departure, type Followed, type Received, type Train } from '../engine.ts';
 import { alertCount, alertsChanged, arrivingAt, basemapLabel, betweenStations, busesReplace, earlierStations, language, LANGUAGES, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, notRunning, setLanguage, t, toGo, trainCounts, trainsRunHere, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
@@ -2177,7 +2177,7 @@ function followedPanel(up: boolean): Panel | undefined {
   const running = upcoming.filter((c) => !c.skipped);
   const last = running.at(-1);
   // Where it is by how it's drawn, within its pill's reach of its next Station or not (#455).
-  const where = whereabouts(trip.calls, train.dist, upcoming.length, !!train.standsAt, followedReach(train));
+  const where = whereabouts(trip.calls, train.dist, upcoming.length, !!train.standsAt, followedReach(train), dotAway(train));
   const status: (Node | string)[] = [t(live ? 'live' : 'scheduled')];
   if (unreported) status.push(t('noLiveTrain'));
   else if (since !== undefined) status.push(t(live ? 'confirmed' : 'lastConfirmed').replace('{ago}', ago(since)));
@@ -2267,6 +2267,20 @@ function nextStation({ upcoming, standsAt, delay, live }: Pick<Followed, 'upcomi
 function followedReach({ trip, lat }: Followed): number {
   const pill = pills.get(trip.line);
   return pill ? pillReach(pill.followedBox, map.getZoom(), pill.zoom, lat) : 0;
+}
+
+/**
+ * How far a followed Train is drawn from the dot of the place a call's Station is shown in, in metres
+ * (whereabouts()'s `dotAway`, #455), none where no place on the map has the Station.
+ * ponytail: flat, from where the engine draws it on its shape, though zoomed out, it sits on its Line's
+ * stroke, up to half a line width to the side. Go by where the map draws it if that shows.
+ */
+function dotAway({ lon, lat }: Followed): (call: Call) => number {
+  const kx = DEGREE * Math.cos((lat * Math.PI) / 180);
+  return ({ station }) => {
+    const place = placeOfStation.get(station);
+    return place ? Math.hypot((place.lon - lon) * kx, (place.lat - lat) * DEGREE) : Infinity;
+  };
 }
 
 /**

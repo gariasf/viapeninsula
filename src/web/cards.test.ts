@@ -149,6 +149,24 @@ test('a pill that reaches nothing makes a Train arriving only where it is drawn 
   expect(whereabouts(ABC, 2000, 2, false, 0)).toMatchObject({ at: 'arriving' });
 });
 
+test("a Train is arriving at or leaving a Station too where it's drawn within its pill's reach of the dot its place is shown by, which is the middle of an interchange's Stations, not where its own Line stops (#455)", () => {
+  // The pill reaches 120 m. How far it's drawn from A's place's dot and B's, where no dot is known: none.
+  const says = (dist: number, a = Infinity, b = Infinity) => whereabouts(ABC, dist, 2, false, 120, (call) => (call.station === 'a' ? a : call.station === 'b' ? b : Infinity));
+  // Drawn 1,650 m along, it's 350 m short of B's platform: B's place is shown 100 m ahead of it.
+  expect(says(1650)).toEqual({ at: 'between', last: A, next: B });
+  expect(says(1650, undefined, 100)).toEqual({ at: 'arriving', next: B });
+  // 300 m past A's platform, with A's place shown 100 m behind it.
+  expect(says(300)).toEqual({ at: 'between', last: A, next: B });
+  expect(says(300, 100)).toEqual({ at: 'leaving', last: A, next: B });
+  // Out of reach of both dots as of both platforms.
+  expect(says(1000, 1000, 1000)).toEqual({ at: 'between', last: A, next: B });
+});
+
+test('a Station no place on the map shows has no dot to go by, only where its platform is along the Trip', () => {
+  expect(whereabouts(ABC, 1950, 2, false, 100, () => Infinity)).toEqual({ at: 'arriving', next: B });
+  expect(whereabouts(ABC, 1000, 2, false, 100, () => Infinity)).toEqual({ at: 'between', last: A, next: B });
+});
+
 /** A Trip on a Line, calling at these Stations. */
 const trip = (line: string, ...stations: string[]): Trip => ({ id: `${line} ${stations.join()}`, line, shape: line, headsign: '', calls: stations.map((station, i) => ({ station, arrival: 60 * i, departure: 60 * i, dist: 1000 * i })) });
 
