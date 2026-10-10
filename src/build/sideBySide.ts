@@ -1189,19 +1189,21 @@ function neighbours(index: number, pieces: Piece[], cells: Map<string, number[]>
  * satisfy every pair, and a Line turned against its neighbour here, for another it runs with
  * elsewhere, is not passing by (#383: C4 beside C1 into Gijón-Sanz Crespo). The graphs below
  * GRAPH_BAND, of tracks a line width apart, keep to the turns: judged by pair they bundled more
- * Lines at zoom 7 to 9, which covered each other 10 km more.
+ * Lines at zoom 7 to 9, which covered each other 2 to 14 km more.
  */
 function cluster(nearby: Neighbour[], near: number, turned?: number[], same?: number[][]): Neighbour[] {
   const way = (n: Neighbour) => n.way * (turned?.[n.line] ?? 1);
   const ahead = Math.sign(nearby.reduce((sum, n) => sum + (n.on ? way(n) : 0), 0)) || 1;
-  const apart = (n: Neighbour) =>
-    !same
-      ? way(n) !== ahead
-      : nearby.reduce((sum, o) => {
-          if (!o.on) return sum;
-          const net = Math.sign(same[Math.min(o.line, n.line)]?.[Math.max(o.line, n.line)] ?? 0) || (turned?.[o.line] ?? 1) * (turned?.[n.line] ?? 1);
-          return sum + o.way * n.way * net;
-        }, 0) < 0;
+  // Pair by pair, each of the piece's own Lines votes: with `n` as the two run, or against it. A tie goes by the turns.
+  const apart = (n: Neighbour) => {
+    if (!same) return way(n) !== ahead;
+    const vote = nearby.reduce((sum, o) => {
+      if (!o.on) return sum;
+      const net = Math.sign(same[Math.min(o.line, n.line)]?.[Math.max(o.line, n.line)] ?? 0) || (turned?.[o.line] ?? 1) * (turned?.[n.line] ?? 1);
+      return sum + o.way * n.way * net;
+    }, 0);
+    return vote < 0 || (vote === 0 && way(n) !== ahead);
+  };
   const found = nearby.filter((n) => n.alongside && (n.on || !turned || !apart(n)));
   let [from, to] = [found.findIndex((n) => n.on), found.findLastIndex((n) => n.on)];
   while (from > 0 && (found[from]?.left ?? 0) - (found[from - 1]?.left ?? 0) <= near) from--;
@@ -1220,7 +1222,8 @@ function byLine(beside: Neighbour[]): Map<number, Neighbour> {
 
 /**
  * Which way round to take each Line, 1 or -1, so that Lines side by side run the same way: then
- * left and right mean the same to each. Where they can't all, those side by side longest win.
+ * left and right mean the same to each. Where they can't all, those side by side longest win. And how
+ * far each pair runs side by side the same way, less the other way, in `same[lower][higher]`.
  */
 function turn(count: number, pieces: Piece[], beside: Map<number, Neighbour>[]): { turned: number[]; same: number[][] } {
   const same = square(count); // how far each pair of Lines runs side by side the same way, less the other way

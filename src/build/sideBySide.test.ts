@@ -348,10 +348,9 @@ test("draws a Line beside the one it runs with here on one Stretch, though turne
     strokes
       .filter((s) => s.line === name && s.band === undefined && !s.shape.startsWith(LINK))
       .filter((s) => {
-        const [lon] = along(byId.get(s.shape) ?? { coords: [], dist: [] }, s.from, s.to)[0] ?? [NaN];
-        const [last] = along(byId.get(s.shape) ?? { coords: [], dist: [] }, s.from, s.to).at(-1) ?? [NaN];
-        const [x, y] = [(lon - LON) * M * COS, (last - LON) * M * COS];
-        return Math.min(x, y) < -1000 && Math.max(x, y) > -1000;
+        const ends = along(byId.get(s.shape) ?? { coords: [], dist: [] }, s.from, s.to);
+        const [start, end] = [ends[0]?.[0] ?? NaN, ends.at(-1)?.[0] ?? NaN].map((lon) => (lon - LON) * M * COS);
+        return Math.min(start ?? NaN, end ?? NaN) < -1000 && Math.max(start ?? NaN, end ?? NaN) > -1000;
       });
   const [a, b] = [at('A'), at('B')];
   expect(a).toHaveLength(1);
