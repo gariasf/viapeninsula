@@ -94,13 +94,13 @@ export async function sideBySide(lines: Line[], shapes: Shape[], region = ''): P
   const walked = walk(lines, shapes);
   // The centrelines' and curves' IDs start with the region's, where it's given: regions' tracks are built
   // one by one and joined by the map, so each one's IDs are its own (ADR-0014).
-  const of = region && `${region}:`;
-  const main = await graphed(walked, lines, { near: NEAR, bands: [...BANDS.keys()].filter((b) => b >= GRAPH_BAND), prefix: of });
+  const lead = region && `${region}:`;
+  const main = await graphed(walked, lines, { near: NEAR, bands: [...BANDS.keys()].filter((b) => b >= GRAPH_BAND), prefix: lead });
   // Below GRAPH_BAND, a graph for each band, of tracks within about a line width there (ADR-0007).
   const below = [];
   for (const [band, zoom] of BANDS.entries()) {
     if (band >= GRAPH_BAND) continue;
-    below.push(await graphed(walked, lines, { near: atZoom(APART, zoom) * pixelMetres(zoom, LATITUDE), bands: [band], own: band, prefix: `${of}${zoom}-` }));
+    below.push(await graphed(walked, lines, { near: atZoom(APART, zoom) * pixelMetres(zoom, LATITUDE), bands: [band], own: band, prefix: `${lead}${zoom}-` }));
   }
   const all = [main, ...below];
   return { strokes: all.flatMap((g) => g.strokes), centrelines: all.flatMap((g) => g.centrelines), rails: main.rails, slots: all.flatMap((g) => g.slots), tracks: networkTrack(lines, shapes) };
