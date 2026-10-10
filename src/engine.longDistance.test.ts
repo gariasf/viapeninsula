@@ -305,10 +305,12 @@ function holds(received: Received[]) {
 /**
  * What a bundle draws through each of the replay's holds: how many have the Train stand still for the
  * 40 s before its position moves, standing more than 20 m from a Station its Trip calls at, and in the
- * 30 s from then how many snap it back, and how many on, more than its Line's top speed has it run in a second.
+ * 30 s from then how many snap it back, and how many on, more than its Line's top speed has it run in a
+ * second, and in the 90 s from then how many wait, standing still 20 s or more away from a Station, for
+ * live data to catch up with where the Train was drawn, which is what snapping by the minute costs.
  */
 function through(bundle: Bundle, found: ReturnType<typeof holds>) {
-  const [stood, back, on] = [new Set<string>(), new Set<string>(), new Set<string>()];
+  const [stood, back, on, waited] = [new Set<string>(), new Set<string>(), new Set<string>(), new Set<string>()];
   const drawn = (trip: string, moment: number) => trainsAt(bundle, moment, REPLAY.received.filter((r) => r.at <= moment)).find((t) => t.trip.id === trip);
   for (const { trip, to } of found) {
     const t = bundle.trips.find((x) => x.id === trip);
@@ -318,28 +320,34 @@ function through(bundle: Bundle, found: ReturnType<typeof holds>) {
     const near = Math.min(...(t?.calls ?? []).map((c) => Math.abs(c.dist - (held?.dist ?? Infinity))));
     if (before && held && Math.abs(held.dist - before.dist) < 100 && near > 20) stood.add(`${trip} ${to}`);
     const way = (t?.calls.at(-1)?.dist ?? 0) > (t?.calls[0]?.dist ?? 0) ? 1 : -1;
-    let last = held?.dist;
-    for (let s = 0; s <= 30; s++) {
+    let [last, still] = [held?.dist, 0];
+    for (let s = 0; s <= 90; s++) {
       const now = drawn(trip, to + s * 1000)?.dist;
       if (last !== undefined && now !== undefined) {
-        if ((now - last) * way < -top) back.add(`${trip} ${to}`);
-        if ((now - last) * way > top) on.add(`${trip} ${to}`);
+        if (s <= 30 && (now - last) * way < -top) back.add(`${trip} ${to}`);
+        if (s <= 30 && (now - last) * way > top) on.add(`${trip} ${to}`);
+        const away = Math.min(...(t?.calls ?? []).map((c) => Math.abs(c.dist - now))) > 20;
+        still = Math.abs(now - last) < 0.05 && away ? still + 1 : 0;
+        if (still >= 20) waited.add(`${trip} ${to}`);
       }
       last = now;
     }
   }
-  return { holds: found.length, stood: stood.size, back: back.size, on: on.size };
+  return { holds: found.length, stood: stood.size, back: back.size, on: on.size, waited: waited.size };
 }
 
-test("replaying long-distance positions that held and then moved, a Train neither stands where its position is held nor snaps back when it moves: counting a position that holds as none is what keeps it going", () => {
+test("replaying long-distance positions that held and then moved, no Train stands where its position is held and one that really lost 72 s snaps back as it moves, some waiting for live data to catch up after: counting a position that holds as none is what keeps it going", () => {
   const found = holds(REPLAY.received);
   // 25 holds of a minute or more, ending in moves of 1 to 18 km, in 23 Trains: Reg.Exp. 12601 snaps
   // back 1.8 km as its position moves, the 72 s it lost in the 297 s it was held, and two jump on, by
-  // up to 21 km, as the Train was drawn behind where its position was held.
-  expect(through(replayed(), found)).toEqual({ holds: 25, stood: 0, back: 1, on: 2 });
+  // up to 21 km, as the Train was drawn behind where its position was held. Four, drawn ahead of where
+  // the new position has them, stand 21 to 48 s, by the minute's snap, until it catches up.
+  expect(through(replayed(), found)).toEqual({ holds: 25, stood: 0, back: 1, on: 2, waited: 4 });
+  // Snapped a kilometre off, as Rodalies' are, two snap back and one waits: what the minute trades.
+  expect(through(replayed({ delay: 'gps', near: 'pinned' }), found)).toEqual({ holds: 25, stood: 0, back: 2, on: 2, waited: 1 });
   // Going by each position as it comes, as a Network does that has no GPS Delay to carry on from, 8
   // stand still where they're held for the 40 s before it moves, and 22 jump on, by up to 27 km.
-  expect(through(replayed({ delay: 'operator', near: 'pinned' }), found)).toEqual({ holds: 25, stood: 8, back: 1, on: 22 });
+  expect(through(replayed({ delay: 'operator', near: 'pinned' }), found)).toEqual({ holds: 25, stood: 8, back: 1, on: 22, waited: 6 });
 }, 60_000);
 
 test("counts each long-distance Network's jumps over 12 minutes of its live data, as the fetcher will read it: fewer snapped by the minute than by the kilometre", () => {
