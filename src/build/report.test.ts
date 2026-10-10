@@ -15,6 +15,7 @@ function report(...found: Found[]) {
 test("keys each spot by its kind, its Line or Network and its Stations, never by a Trip, a shape's way back, or a day", () => {
   const spots = report(
     { kind: 'copy', network: 'tram', text: [''] },
+    { kind: 'region', region: 'cercanias-madrid', text: [''] },
     { kind: 'kept', why: 'nopath', line: 'rodalies:R3', shape: 'rodalies:51_R3', stations: [C, B, A], text: [''] },
     { kind: 'turn', line: 'rodalies:R16', shape: 'rodalies:51_R16:back', stations: [B], text: [''] },
     { kind: 'branch', line: 'rodalies:R2N', shape: 'rodalies:51_R2N', stations: [A, B], text: [''] },
@@ -38,6 +39,7 @@ test("keys each spot by its kind, its Line or Network and its Stations, never by
     'measures',
     'node 7 40.458 -3.677',
     'notrips rodalies 2',
+    'region cercanias-madrid',
     'trip metro:L1 fast adif:1 adif:2',
     'trips fgc',
     'turn rodalies:R16 adif:2',
@@ -203,8 +205,9 @@ const RUN = 'https://github.com/gariasf/viapeninsula/actions/runs/37330911997';
 /** The keys of the spots a comment lists, in its order. */
 const listed = (body?: string) => body?.split('\n').flatMap((line) => line.match(/^- `([^`]+)`/)?.[1] ?? []);
 
-test("comments only on problem spots new since the last build: a run kept, a turn-back, a branch, Trips left out, no Trips or a Network built from its copy, never a length, a node, the measures, a Network's Trips or Closures, or buses where their Line has no track", () => {
+test("comments only on problem spots new since the last build: a run kept, a turn-back, a branch, Trips left out, no Trips, a Network built from its copy or a region kept as it was, never a length, a node, the measures, a Network's Trips or Closures, or buses where their Line has no track", () => {
   const copy: Spot = { kind: 'copy', key: 'copy tram', network: 'tram', text: ['TRAM is built from the copy of its timetables kept on 2026-10-05: https://opendata.tram.cat/GTFS/zip/TBX.zip: HTTP 499'] };
+  const region: Spot = { kind: 'region', key: 'region cercanias-madrid', region: 'cercanias-madrid', text: ['cercanias-madrid keeps the files of its last build: Cercanías Madrid has no copy of its timetables to build it from'] };
   const kept: Spot = { kind: 'kept', key: 'kept rodalies:R3 adif:78600 adif:78605 nopath', text: [] };
   const branch: Spot = { kind: 'branch', key: 'branch rodalies:R2N adif:79100 adif:79101', text: [] };
   const trip: Spot = { kind: 'trip', key: 'trip metro:L1 fast tmb:1.111 tmb:1.112', text: [], numbers: { trips: 1 } };
@@ -216,11 +219,12 @@ test("comments only on problem spots new since the last build: a run kept, a tur
   // A new node, and numbers that moved, a known problem spot's too, and a Network's Trips by half: nothing to comment.
   expect(comment(last, [{ ...LENGTH, numbers: { percent: 3 } }, { ...MEASURES, numbers: { breaks: 1 } }, NODE, { ...TRIP, numbers: { trips: 6 } }, { ...trips, numbers: { monday: 1020 } }], RUN)).toBeUndefined();
   // In order of key, as reports are.
-  expect(listed(comment(last, [branch, bus, closures, copy, kept, LENGTH, MEASURES, NODE, NO_TRIPS, { ...TRIP, numbers: { trips: 6 } }, trip, { ...trips, key: 'trips tram', network: 'tram' }, TURN], RUN))).toEqual([
+  expect(listed(comment(last, [branch, bus, closures, copy, kept, LENGTH, MEASURES, NODE, NO_TRIPS, region, { ...TRIP, numbers: { trips: 6 } }, trip, { ...trips, key: 'trips tram', network: 'tram' }, TURN], RUN))).toEqual([
     'branch rodalies:R2N adif:79100 adif:79101',
     'copy tram',
     'kept rodalies:R3 adif:78600 adif:78605 nopath',
     'notrips rodalies 0',
+    'region cercanias-madrid',
     'trip metro:L1 fast tmb:1.111 tmb:1.112',
     'turn rodalies:R16 adif:65402',
   ]);
@@ -265,4 +269,20 @@ test("gives each spot only its first line of the log and how many more it has, s
     '  - cercanias-madrid:1000L20990C2 is left out: it would run Fuente de la Mora → San Fernando de Henares at 142 km/h along its track',
     "  - …and 599 more like it, in the run's summary",
   ]);
+});
+
+test("carries a spot of the last report over as it was, so that a region whose build failed doesn't show its spots gone, and new again once it builds", () => {
+  const trips: Spot = { kind: 'trips', key: 'trips cercanias-madrid', network: 'cercanias-madrid', text: ["Cercanías Madrid's Trips on 2026-10-09: 1285"], numbers: { friday: 1285, thursday: 1280 } };
+  const turn: Spot = { ...TURN, key: 'turn cercanias-madrid:C3 adif:1 adif:2', network: 'cercanias-madrid', line: 'cercanias-madrid:C3' };
+  const failed = collect();
+  failed.carry(trips);
+  failed.carry(turn);
+  failed.add({ kind: 'region', region: 'cercanias-madrid', text: ['cercanias-madrid keeps the files of its last build'] });
+  const spots = failed.spots();
+  expect(spots).toEqual([{ kind: 'region', key: 'region cercanias-madrid', region: 'cercanias-madrid', text: ['cercanias-madrid keeps the files of its last build'] }, trips, turn].sort((a, b) => (a.key < b.key ? -1 : 1)));
+  // Nothing of Madrid's is gone: only the region's failure is new.
+  expect(diff([trips, turn], spots).split('\n').filter((l) => l.startsWith('- '))).toEqual(['- `region cercanias-madrid`']);
+  // And the same spot found again is the one carried, its text and numbers joined.
+  failed.add({ kind: 'trips', network: 'cercanias-madrid', text: ["Cercanías Madrid's Trips on 2026-10-10: 1290"], numbers: { saturday: 1290 } });
+  expect(failed.spots().find((s) => s.key === 'trips cercanias-madrid')?.text).toEqual(trips.text.concat("Cercanías Madrid's Trips on 2026-10-10: 1290"));
 });

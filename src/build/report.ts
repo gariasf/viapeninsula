@@ -12,13 +12,16 @@ export interface Spot {
    * A run of a Line's legs between Stations that keep the feed's shape, a Station a Line's trace turns
    * back at, Stations left out on a branch, Trips left out, replacement buses where their Line has no
    * track, a Network with no Trips on a day, a Network's Trips on each day of the week, a Network's
-   * Closures today, a Network built from the copy of its timetables that last built it, a traced
-   * shape's length against the feed's, one of the largest nodes at a zoom, or the line measures.
+   * Closures today, a Network built from the copy of its timetables that last built it, a region
+   * whose build failed, which keeps the files of its last one, a traced shape's length against the
+   * feed's, one of the largest nodes at a zoom, or the line measures.
    */
-  kind: 'kept' | 'turn' | 'branch' | 'trip' | 'bus' | 'notrips' | 'trips' | 'closures' | 'copy' | 'length' | 'node' | 'measures';
+  kind: 'kept' | 'turn' | 'branch' | 'trip' | 'bus' | 'notrips' | 'trips' | 'closures' | 'copy' | 'region' | 'length' | 'node' | 'measures';
   /** What the next build knows it by too (keyOf()): never a Trip's ID nor a date. */
   key: string;
   network?: string;
+  /** The region it's of, for a region whose build failed. */
+  region?: string;
   line?: string;
   /** The Stations it names, in order. */
   stations?: { id: string; name: string }[];
@@ -80,12 +83,12 @@ export function collect() {
   return {
     add(found: Found) {
       const key = keyOf(found);
-      const { kind, network, line, stations, ways, text, numbers, trip, day = 0 } = found;
+      const { kind, network, region, line, stations, ways, text, numbers, trip, day = 0 } = found;
       const point = found.point ?? halfway(stations);
       const zoom = point && (found.zoom ?? ZOOM[kind] ?? fit(found.extent ?? stations?.map((s): Point => [s.lon, s.lat]) ?? []));
       let known = spots.get(key);
       if (!known) {
-        known = { spot: { kind, key, network, line, stations: stations?.map(({ id, name }) => ({ id, name })), point: point && [round(point[0]), round(point[1])], zoom, text: [] }, trips: new Map() };
+        known = { spot: { kind, key, network, region, line, stations: stations?.map(({ id, name }) => ({ id, name })), point: point && [round(point[0]), round(point[1])], zoom, text: [] }, trips: new Map() };
         spots.set(key, known);
       }
       const { spot } = known;
@@ -96,6 +99,13 @@ export function collect() {
       for (const [name, n] of Object.entries(numbers ?? {})) {
         if (spot.numbers?.[name] === undefined || Math.abs(n) > Math.abs(spot.numbers[name])) spot.numbers = { ...spot.numbers, [name]: n };
       }
+    },
+    /**
+     * A spot of the last report as it was, which what's found again joins: for a Network whose region
+     * wasn't built, so that its spots aren't gone from this report and new in the next (ADR-0014).
+     */
+    carry(spot: Spot) {
+      spots.set(spot.key, { spot: { ...spot }, trips: new Map() });
     },
     /** Every spot, in order of key. */
     spots(): Spot[] {
@@ -113,7 +123,7 @@ export function collect() {
  * way has the length of the one it's traced from, and a node is known by its zoom and where it is,
  * to about 100 m.
  */
-function keyOf({ kind, network, line, why, shape, day, zoom, point, stations = [] }: Found): string {
+function keyOf({ kind, network, region, line, why, shape, day, zoom, point, stations = [] }: Found): string {
   const ids = stations.map((s) => s.id);
   const ends = [...new Set([ids[0], ids.at(-1)])].filter((id) => id !== undefined).sort();
   const parts = {
@@ -126,6 +136,7 @@ function keyOf({ kind, network, line, why, shape, day, zoom, point, stations = [
     trips: [network],
     closures: [network],
     copy: [network],
+    region: [region],
     length: [line, shape?.replace(/:back$/, '')],
     node: [zoom, point?.[1].toFixed(3), point?.[0].toFixed(3)],
     measures: [],
@@ -178,7 +189,7 @@ export function diff(last: Spot[] | undefined, spots: Spot[]): string {
  * they dropped (moved()), nor its Closures, nor buses where their Line has no track, which no fix
  * upstream draws (ADR-0012), nor a length, a node or the measures, which move with any change to it.
  */
-const PROBLEM: Record<Spot['kind'], boolean> = { kept: true, turn: true, branch: true, trip: true, bus: false, notrips: true, trips: false, closures: false, copy: true, length: false, node: false, measures: false };
+const PROBLEM: Record<Spot['kind'], boolean> = { kept: true, turn: true, branch: true, trip: true, bus: false, notrips: true, trips: false, closures: false, copy: true, region: true, length: false, node: false, measures: false };
 
 /** The most characters a GitHub comment holds, counted here as UTF-8's bytes, which are never fewer however GitHub counts them. */
 const COMMENT = 65536;
