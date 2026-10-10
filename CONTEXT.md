@@ -48,6 +48,10 @@ _Avoid_: Service type, train type, category, class, product
 Which track of a double track a Network's Trains run on, looking the way they go. A Network in Spain keeps right, unless all its double track keeps left, as Cercanías Bilbao's does.
 _Avoid_: Handedness, traffic side
 
+**Gauge**:
+How far apart a track's rails are: Iberian (1668 mm), standard (1435 mm, the high-speed lines') or metre (1000 mm, FEVE's lines'). A Train runs on the track of its gauge, and one that runs on two, as an Alvia does, changes from one to the other only at a gauge changer.
+_Avoid_: Track width
+
 **Stretch**:
 A length of track, or of tracks too close together to tell apart zoomed out, that one set of Lines on the same level runs along. The map draws them side by side along it, in one order, and a Line counts once on it whichever way and whichever of its tracks it runs (ADR-0006). Lines of one Network and one colour take one place on it, as C4a and C4b do up to their fork.
 _Avoid_: Bundle (that's the data the map loads), corridor, edge
