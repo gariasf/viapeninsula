@@ -9,6 +9,13 @@ import type { Credit, Kind, LineProfile, Network } from './bundle.ts';
 export interface NetworkConfig extends Omit<Network, 'credit'> {
   /** Its source's credit: the day it was last updated comes from its timetable (Timetable's `updated`). */
   credit: Omit<Credit, 'updated'>;
+  /**
+   * The region it's built and loaded in, with every other Network that names it: Networks whose Lines
+   * share Stretches, so that they're drawn side by side, as Catalonia's four (ADR-0014). Its own ID
+   * where it names none (regionOf()). Long distance's Networks, once they're on the map, are a region
+   * of their own too, which every view loads (#259).
+   */
+  region?: string;
   rails: Rails;
   /** Its operator's timetables, each a GTFS feed: TRAM has two. */
   timetables: [Timetable, ...Timetable[]];
@@ -86,6 +93,7 @@ const TMB_APP = { app_id: 'TMB_APP_ID', app_key: 'TMB_APP_KEY' };
 
 export const RODALIES: NetworkConfig = {
   id: 'rodalies',
+  region: 'catalonia',
   name: 'Rodalies de Catalunya',
   // Every stretch between Stations in Renfe's timetable of 24 September 2026 fits 1 m/s² (138 don't
   // fit 0.7), and the fastest Units on the regional lines run at 160 km/h. Small Stations get half a minute.
@@ -130,6 +138,7 @@ export const RODALIES: NetworkConfig = {
 
 export const FGC: NetworkConfig = {
   id: 'fgc',
+  region: 'catalonia',
   name: 'Ferrocarrils de la Generalitat de Catalunya',
   // FGC's timetable is in quarter minutes, so a tenth of the stretches it runs on 1 October 2026 fit
   // no train at 1 m/s², such as Baixador de Vallvidrera to Les Planes, 933 m in 30 s: those Trains
@@ -167,6 +176,7 @@ export const FGC: NetworkConfig = {
 
 export const TRAM: NetworkConfig = {
   id: 'tram',
+  region: 'catalonia',
   name: 'TRAM',
   // Every stretch TRAM runs on 1 October 2026 fits 1.2 m/s² (312 don't fit 1), and its Units, Citadis
   // trams, run at 70 km/h. It gives every Station 10 seconds.
@@ -198,6 +208,7 @@ export const TRAM: NetworkConfig = {
 
 export const METRO: NetworkConfig = {
   id: 'metro',
+  region: 'catalonia',
   name: 'Metro de Barcelona',
   // Every stretch the Metro runs on 1 October 2026 fits 1.3 m/s² (689 don't fit 1.2), but for one L1
   // Trip's 894 m from Santa Coloma to Fondo in 30 s. Its Units run at 80 km/h. TMB gives each Station
@@ -522,6 +533,18 @@ export const NETWORKS = [
   CERCANIAS_SANTANDER,
   CERCANIAS_ZARAGOZA,
 ];
+
+/** The region a Network is built and loaded in: the one its config names, or else a region of its own, its ID (ADR-0014). */
+export function regionOf({ id, region }: Pick<NetworkConfig, 'id' | 'region'>): string {
+  return region ?? id;
+}
+
+/** Networks by region, each region at the first of its Networks, so that the regions list their Networks as `networks` does where each region's are together. */
+export function regionsOf<N extends Pick<NetworkConfig, 'id' | 'region'>>(networks: N[]): { id: string; networks: N[] }[] {
+  const regions = new Map<string, N[]>();
+  for (const n of networks) regions.set(regionOf(n), [...(regions.get(regionOf(n)) ?? []), n]);
+  return [...regions].map(([id, own]) => ({ id, networks: own }));
+}
 
 /**
  * Renfe's timetable of AVE, long distance and Media Distancia, under CC BY 4.0 as its Cercanías one
