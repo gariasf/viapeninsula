@@ -213,13 +213,13 @@ Measured on the daily build's dry run of 10 October 2026 (#259's traces of Renfe
 |---|---|---|
 | Long distance's traced shapes (636 runs, 1,323,157 points, 131,790 distinct) | 2,624.1 KB | 465.0 KB |
 | Its slots (122,922) | 527.3 KB | 133.9 KB |
-| Together | 3,154.0 KB | **599.9 KB, 81.0% smaller** |
+| Together | 3,151.4 KB | **598.9 KB, 81.0% smaller** |
 | Its whole track file, without Stations | 5,334 KB | 2,771 KB, 48.1% smaller |
-| The 15 regions' track files | 1,460.1 KB | 1,046.9 KB, 28.3% smaller |
+| The 15 regions' track files | 1,460.4 KB | 1,048.6 KB, 28.2% smaller |
 
 - A piece is a run of points between junctions, shape ends and turn-backs, stored once; a shape is a list of signed piece numbers. Its distances aren't stored: the sum of its points' lengths, rounded, is the build's to the metre at 94% of long distance's points, and a list of fixes gives the rest. Slots run on from one another along a shape, so a slot is a length, a side, a centreline and where on it. ADR-0015 has the options and why.
 - What's left of long distance's file is the Stretches' drawing: centrelines 1,542 KB, curves 210, smoothed copies 95, strokes 287, rails 68. A trial on the centrelines' points as second differences, as pieces are, is 380 KB for their 1,542 (without distances).
-- Decoding is cheap: in Node, Catalonia's file parses and decodes in 32 to 42 ms from cold where parsing the whole took 31 to 34, in 26 MB of heap where it took 32; long distance's in 141 ms where it took 206, in 163 MB of heap where it took 286, as the shapes share a piece's points.
+- Decoding is cheap: in Node, Catalonia's file parses and decodes in 23 to 25 ms from cold where parsing the whole took 24 to 27, in 14.8 MB of heap where it took 17.9; long distance's in 170 to 180 ms where it took 250 to 263, in 129 MB of heap where it took 200, as the shapes share a piece's points.
 
 ## Files kept
 
