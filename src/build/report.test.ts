@@ -174,14 +174,16 @@ test('links each spot to the map at its zoom and point, with a ring there', () =
   expect(diff([], [TURN])).toContain('[map](https://viapeninsula.gariasf.com/#map=16/40.75356/0.61431&mark=40.75356,0.61431)');
 });
 
-test("rings the point of a spot of one Station or none, and no run's, whose view is fitted to show it", () => {
-  const [one, run] = report(
+test("rings the point of a spot of one Station or none or any but a branch's run, whose view is fitted to show it", () => {
+  const [one, run, kept] = report(
     { kind: 'branch', network: 'cercanias-santander', line: 'cercanias-santander:C3', stations: [A, B, C], text: [''] },
     { kind: 'branch', network: 'cercanias-santander', line: 'cercanias-santander:C3', stations: [A], text: [''] },
-  ) as [Spot, Spot];
+    { kind: 'kept', why: 'off', line: 'rodalies:R3', stations: [A, B, C], text: [''] },
+  ) as [Spot, Spot, Spot];
   // The run is 22 km from end to end, so zoom 9 fits it across a phone.
   expect(diff([], [run]).split('\n').find((l) => l.startsWith('- '))).toContain('[map](https://viapeninsula.gariasf.com/#map=9/41.1/2.1) · [OpenStreetMap]');
   expect(diff([], [one]).split('\n').find((l) => l.startsWith('- '))).toContain('[map](https://viapeninsula.gariasf.com/#map=15/41/2&mark=41,2)');
+  expect(diff([], [kept]).split('\n').find((l) => l.startsWith('- '))).toContain('[map](https://viapeninsula.gariasf.com/#map=9/41.1/2.1&mark=41.1,2.1)');
 });
 
 test('counts a Trip count, a node or any other measure as changed when it moves at all, a length only past a point', () => {

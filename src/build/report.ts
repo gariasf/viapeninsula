@@ -254,13 +254,13 @@ function item(spot: Spot, moves = ''): string {
 }
 
 /**
- * Links to a spot on the map, which rings it (#254) unless it's a run of Stations, and on OpenStreetMap, to see it and to edit it,
+ * Links to a spot on the map, which rings it (#254) unless it's a run of Stations left out on a branch, and on OpenStreetMap, to see it and to edit it,
  * and to the ways its Stations are on. A Trip left out at a Station its feed doesn't list is nowhere:
  * NaN where it's found, null once read back.
  */
-function links({ point: [lon, lat] = [NaN, NaN], zoom, ways = [], stations = [] }: Spot): string[] {
-  // A run's view is fitted to show it, and a ring halfway between its ends could mark a hillside.
-  const mark = stations.length > 1 ? '' : `&mark=${lat},${lon}`;
+function links({ kind, point: [lon, lat] = [NaN, NaN], zoom, ways = [], stations = [] }: Spot): string[] {
+  // A branch run's view is fitted to show it, and a ring halfway between its ends could mark a hillside.
+  const mark = kind === 'branch' && stations.length > 1 ? '' : `&mark=${lat},${lon}`;
   return [
     ...(Number.isFinite(lon) && Number.isFinite(lat) && zoom !== undefined
       ? [`[map](${MAP}/#map=${zoom}/${lat}/${lon}${mark})`, `[OpenStreetMap](${OSM}/#map=17/${lat}/${lon})`, `[edit](${OSM}/edit#map=18/${lat}/${lon})`]
