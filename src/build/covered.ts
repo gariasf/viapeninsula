@@ -42,8 +42,9 @@ export function markCovered(strokes: Stroke[], shapes: Shape[], kx: number, lati
         for (let x = Math.floor((Math.min(a[0], b[0]) - width) / width); x <= Math.floor((Math.max(a[0], b[0]) + width) / width); x++) {
           for (let y = Math.floor((Math.min(a[1], b[1]) - width) / width); y <= Math.floor((Math.max(a[1], b[1]) + width) / width); y++) {
             const key = `${x} ${y}`;
-            const segment = { line: stroke.line, level, a, b };
-            cells.set(key, [...(cells.get(key) ?? []), segment]);
+            const cell = cells.get(key) ?? [];
+            cell.push({ line: stroke.line, level, a, b });
+            cells.set(key, cell);
           }
         }
       }
