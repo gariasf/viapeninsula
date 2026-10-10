@@ -186,8 +186,8 @@ Split by region now: a manifest entry per region (a Network or a group of them, 
 
 - **Engine:** position only the Trains in or near the view, and the followed one. Today every Train costs every frame.
 - **Engine:** update only Trains that moved, or draw them in a custom WebGL layer, instead of `setData` with all of them.
-- **Bundle:** shapes as lists of shared track pieces, not points: long distance's 1.76M points are 161k distinct.
-- **Bundle:** fewer slots, or slots computed in the page from the Stretches a shape runs: ld has 224,742.
+- **Bundle:** shapes as lists of shared track pieces, not points: long distance's 1.76M points are 161k distinct. Done in #257, with slots as chains (ADR-0015, "Shapes as pieces" below).
+- **Bundle:** fewer slots, or slots computed in the page from the Stretches a shape runs: ld has 224,742. Slots are chains since #257, a quarter of their size.
 - **Bundle:** a binary encoding (`pbf` is already a dependency), with coordinates as integer deltas, parsed in a worker.
 - **Build:** read each GTFS file once for every núcleo and day: es reads Renfe's 245 MB 14 more times, 66 s.
 - **Build:** split the solver's model by connected component, and above about 20 Lines on a Stretch fall back to the prior order or a heuristic, as LOOM's papers do for large instances.
@@ -204,6 +204,22 @@ Split by region now: a manifest entry per region (a Network or a group of them, 
 - The page loading a split bundle: it loads one file today. The regions' sizes are measured, not their load in the page.
 - The page on a real phone, or on the ld bundle (it crashed, so no figures), or with live data.
 - A GitHub runner's times.
+
+## Shapes as pieces (#257)
+
+Measured on the daily build's dry run of 10 October 2026 (#259's traces of Renfe's long-distance file of 9 October, one region of its own, `sideBySide()` on its 13 Lines), brotli quality 11, each part on its own:
+
+| | Today | As pieces and chains |
+|---|---|---|
+| Long distance's traced shapes (636 runs, 1,323,157 points, 131,790 distinct) | 2,624.1 KB | 465.0 KB |
+| Its slots (122,922) | 527.3 KB | 133.9 KB |
+| Together | 3,154.0 KB | **599.9 KB, 81.0% smaller** |
+| Its whole track file, without Stations | 5,334 KB | 2,771 KB, 48.1% smaller |
+| The 15 regions' track files | 1,460.1 KB | 1,046.9 KB, 28.3% smaller |
+
+- A piece is a run of points between junctions, shape ends and turn-backs, stored once; a shape is a list of signed piece numbers. Its distances aren't stored: the sum of its points' lengths, rounded, is the build's to the metre at 94% of long distance's points, and a list of fixes gives the rest. Slots run on from one another along a shape, so a slot is a length, a side, a centreline and where on it. ADR-0015 has the options and why.
+- What's left of long distance's file is the Stretches' drawing: centrelines 1,542 KB, curves 210, smoothed copies 95, strokes 287, rails 68. A trial on the centrelines' points as second differences, as pieces are, is 380 KB for their 1,542 (without distances).
+- Decoding is cheap: in Node, Catalonia's file parses and decodes in 32 to 42 ms from cold where parsing the whole took 31 to 34, in 26 MB of heap where it took 32; long distance's in 141 ms where it took 206, in 163 MB of heap where it took 286, as the shapes share a piece's points.
 
 ## Files kept
 

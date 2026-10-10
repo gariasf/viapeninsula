@@ -56,6 +56,10 @@ _Avoid_: Track width
 A length of track, or of tracks too close together to tell apart zoomed out, that one set of Lines on the same level runs along. The map draws them side by side along it, in one order, and a Line counts once on it whichever way and whichever of its tracks it runs (ADR-0006). Lines of one Network and one colour take one place on it, as C4a and C4b do up to their fork.
 _Avoid_: Bundle (that's the data the map loads), corridor, edge
 
+**Piece**:
+A run of a traced shape's points between junctions, shape ends and turn-backs, which the track file stores once for every shape that runs it, either way (ADR-0015). Not a Stretch: a Stretch is track Lines share on the map, a Piece is how the file stores a shape.
+_Avoid_: Segment, edge, part
+
 **Station**:
 A place where Trains stop for passengers, as published by whoever runs it (Adif for Renfe and Ouigo, FGC, TMB, TRAM, Euskotren). One Station can serve several Networks, as Sants does Rodalies, AVE y Larga Distancia, Media Distancia y Avant and Ouigo, with one board for them all. Tram stops are Stations too; a metro station next to a railway station is a separate Station, and one served by several Lines is a Station for each, which the map shows as one place.
 _Avoid_: Stop, halt
