@@ -560,8 +560,11 @@ export const AVE_LARGA_DISTANCIA: Pick<NetworkConfig, 'id' | 'name' | 'profile' 
   // Fitted by #260's triage to the hops of Monday 5 October 2026's Trips as traced along OpenStreetMap's
   // rails: 300 km/h at 0.5 m/s² fits all 442 of AVE's, Avlo's and AVE Int's, and 250 fits all of Alvia's
   // and Euromed's and 99% of Intercity's. So the Network's Lines run at 250, but those three at 300
-  // (below). Renfe's times are whole minutes and the shortest stop it gives a time at is a minute (10
-  // October 2026), so a call it gives none at is a stop of under a minute: half of one, as Rodalies'.
+  // (below). A copy of the build's own tracing, run crudely on 10 October 2026's timetable, finds 99.6%
+  // of AVE's 507 hops fit 300 km/h at 0.5 m/s² (95.3% fit 250) and all of Avlo's 154 and AVE Int's 41,
+  // and that 250 fits all of Alvia's 410 and Euromed's 32 and 99.2% of Intercity's 122. Renfe's times
+  // are whole minutes and the shortest stop it gives a time at is a minute (10 October 2026), so a call
+  // it gives none at is a stop of under a minute: half of one, as Rodalies'.
   profile: { acceleration: 0.5, braking: 0.5, topSpeed: 250 / 3.6, dwell: 30 },
   live: RENFE_LONG_DISTANCE_LIVE,
   timetables: [
@@ -596,8 +599,11 @@ export const MEDIA_DISTANCIA_AVANT: Pick<NetworkConfig, 'id' | 'name' | 'profile
   name: 'Media Distancia y Avant',
   // Rodalies' 160 km/h at 1 m/s², which #260's triage found fits 99% of MD's hops on Monday 5 October
   // 2026, as traced, the misses being road legs. The ex-FEVE regionals, which the feed names REGIONAL
-  // too, stay on it. Avant's and Avant Exp's hops all fit 250 km/h at 0.5 m/s² (below). Its dwell is
-  // half a minute, as above.
+  // too, stay on it. Avant's and Avant Exp's hops fit 250 km/h at 0.5 m/s² (below), as run crudely on
+  // 10 October 2026's timetable by a copy of the build's own tracing: all 350 of Avant's and 14 of
+  // Avant Exp's, where 68% and 86% fit 160 at 1; and 99.8% of MD's 1,942 hops, 99.3% of Regional's
+  // 3,128, 99.8% of Reg.Exp.'s 1,950 and all of Proximidad's 298 fit 160 at 1. Its dwell is half a
+  // minute, as above.
   profile: { acceleration: 1, braking: 1, topSpeed: 160 / 3.6, dwell: 30 },
   live: RENFE_LONG_DISTANCE_LIVE,
   // The ex-FEVE regionals, whose route IDs end VRFV, are named REGIONAL too.

@@ -237,10 +237,10 @@ export interface LiveTraits {
    */
   lingers?: true;
   /**
-   * Its positions come with no age of their own, as Renfe's long-distance ones, which a header time
-   * stands for, and a kilometre is 12 seconds at 300 km/h: a Train is drawn off where they have it by
-   * up to this many seconds at its Line's top speed before it jumps there rather than eases, if
-   * that's more than a kilometre (#260).
+   * Its positions come with no time of their own, as Renfe's long-distance ones, which the feed's
+   * header time stands for, and a kilometre is 12 seconds at 300 km/h: a Train is drawn off where they
+   * have it by up to this many seconds at its Line's top speed before it jumps there rather than
+   * eases, where that's more than a kilometre (#260).
    */
   snap?: number;
 }
