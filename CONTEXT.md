@@ -14,6 +14,10 @@ _Avoid_: Vehicle, service, run, circulation
 A timetable entry: the ordered stops and times that a Train runs. Where a timetable lists one Train in parts, a Trip for each part of its run that it sells, as Renfe's long-distance timetable does, the parts make one Trip.
 _Avoid_: Service, schedule
 
+**Call**:
+A Trip's call at one Station: when its Train arrives and leaves, and how far along the Trip's shape the Station is.
+_Avoid_: Stop, visit
+
 **Train number**:
 An operator's public identifier for a Train, where one exists (Renfe's five digits). It isn't unique across Spain: two timetables describe the same Train only when the Train number matches and their stops overlap, and a live report that names a Train only by its number describes the Trip of that number, in any Network, whose timetable runs nearest when it was reported.
 _Avoid_: Train ID, service code
