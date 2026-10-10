@@ -21,6 +21,12 @@ on:
     - cron: '47 20 6 10 *'
     - cron: '47 5 7 10 *'
     - cron: '47 10 10 10 *'
+    # #344's two recordings of 45 minutes, in UTC, for TRAM's departure at a stop that the snapshots
+    # carry from its fetcher's deploy: a weekday peak, from 07:47 on Tuesday 13 October, and a weekday
+    # midday, from 12:47 the same day, both in Barcelona, the first normal weekday after TRAM's works
+    # and the 12 October holiday. Take these out once they've run, too.
+    - cron: '47 5 13 10 *'
+    - cron: '47 10 13 10 *'
 
 permissions:
   contents: read
