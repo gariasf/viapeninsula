@@ -84,6 +84,7 @@ export async function readFeed(
 
   // A Line's colour comes from the routes that carry Trips: Renfe also lists unused routes.
   const shapeOf = new Map<string, string>(); // each Trip's shape, on any day
+  const numbers = new Map<string, string>(); // each Trip's Train number, on any day
   const lines = new Map<string, { colour: string; shapes: Set<string> }>();
   const dayTrips = new Map<string, Omit<FeedTrip, 'calls'> & { calls: (FeedTrip['calls'][number] & { seq: number })[] }>();
   const dayBuses = new Map<string, Omit<FeedBus, 'calls'> & { calls: { seq: number; stop: string; arrival: number; departure: number }[] }>();
@@ -97,13 +98,15 @@ export async function readFeed(
     const line = lines.get(route.name) ?? { colour: route.colour, shapes: new Set() };
     line.shapes.add(t.shape_id);
     lines.set(route.name, line);
-    if (!services.has(t.service_id)) continue;
     const number = pattern && (t.trip_short_name || t.trip_id.slice(t.service_id.length)).match(pattern)?.[0];
+    if (number) numbers.set(t.trip_id, number);
+    if (!services.has(t.service_id)) continue;
     const trip = { id: `${prefix}:${t.trip_id}`, line: `${network.id}:${route.name}`, shape: `${prefix}:${t.shape_id}`, headsign: t.trip_headsign };
     dayTrips.set(t.trip_id, { ...trip, ...(number && { number }), calls: [] });
   }
 
   const served = new Map<string, Set<string>>(); // the Stations each shape's Trips serve
+  const everyDay = new Map<string, Set<string>>(); // the Stations each Train number calls at, on any day
   const ends = new Map<string, { first: [seq: number, station: string]; last: [seq: number, station: string] }>(); // each Trip's, on any day
   for await (const s of rows(gtfs, 'stop_times.txt', ['trip_id', 'arrival_time', 'departure_time', 'stop_id', 'stop_sequence'])) {
     dayBuses.get(s.trip_id)?.calls.push({ seq: Number(s.stop_sequence), stop: s.stop_id, arrival: seconds(s.arrival_time), departure: seconds(s.departure_time) });
@@ -111,6 +114,8 @@ export async function readFeed(
     if (shape === undefined) continue;
     const [seq, at] = [Number(s.stop_sequence), station(s.stop_id)];
     served.set(shape, (served.get(shape) ?? new Set()).add(at));
+    const number = numbers.get(s.trip_id);
+    if (number) everyDay.set(number, (everyDay.get(number) ?? new Set()).add(at));
     const end = ends.get(s.trip_id) ?? { first: [seq, at], last: [seq, at] };
     if (seq < end.first[0]) end.first = [seq, at];
     if (seq > end.last[0]) end.last = [seq, at];
@@ -167,7 +172,9 @@ export async function readFeed(
   );
   const ids = new Set(shapes.map((s) => s.id));
   // The Train numbers of its Trips that day, with the Stations each calls at, as another timetable's
-  // Trains with one of them are its (unlisted()).
+  // Trains with one of them are its (unlisted()). On a day it has none of its Trips, they're every
+  // day's: Renfe's Cercanías file of 10 Oct 2026 has none of Rodalies' from 22 October, but its
+  // long-distance file still has Rodalies' regional Trains then, which aren't long distance's (#258).
   const listed = new Map<string, Set<string>>();
   for (const { number, calls } of dayTrips.values()) if (number) listed.set(number, new Set([...(listed.get(number) ?? []), ...calls.map((c) => c.station)]));
   const trips = [...dayTrips].flatMap(([id, { shape, ...rest }]) => {
@@ -207,7 +214,7 @@ export async function readFeed(
         return { station: stations.get(id) ?? { id, name: s?.stop_name ?? stop, lon: Number(s?.stop_lon), lat: Number(s?.stop_lat) }, ...call };
       }),
     })),
-    listed,
+    listed: dayTrips.size ? listed : everyDay,
   };
 }
 

@@ -437,6 +437,18 @@ test("leaves a Train that Rodalies or a núcleo lists too to their timetable, wh
   expect(unlisted(trips, [new Map([['15210', new Set(['adif:71801'])]])])).toEqual(trips);
 });
 
+test("lists every day's Train numbers on a day it has none of its Trips, so that, as Renfe's Cercanías file of 10 Oct 2026 has none of Rodalies' from 22 October, the long-distance one's Trains on Rodalies' regional Lines still aren't long distance's", async () => {
+  const { listed } = await readFeed(rt2, '2026-10-22', RODALIES_FEED);
+  expect(listed).toEqual(
+    new Map([
+      ['15210', new Set(['adif:65411', 'adif:71500'])],
+      ['15211', new Set(['adif:71500', 'adif:65411'])],
+    ]),
+  );
+  const { trips } = await readFeed(longDistance, '2026-10-22', MD_FEED, () => {});
+  expect(unlisted(trips, [listed]).map((t) => t.number)).toEqual(['17307', '18030', '38304']);
+});
+
 /** A way with these tags, as OpenStreetMap has Catalonia's rails. */
 const way = (tags: Record<string, string>) => ({ id: 1, nodes: [], geometry: [], tags });
 const FGC_NAME = 'Ferrocarrils de la Generalitat de Catalunya';
