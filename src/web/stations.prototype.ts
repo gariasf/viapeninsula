@@ -109,8 +109,8 @@ interface Interchange {
 
 /** An expression that takes `value` at each of these zooms, and goes linearly from one to the next. */
 const byZoom = (stops: [number, number][], value: (px: number, zoom: number) => number | ExpressionSpecification): ExpressionSpecification => ['interpolate', ['linear'], ['zoom'], ...stops.flatMap(([zoom, px]) => [zoom, value(px, zoom)])];
-/** An opacity as each part has it at ZOOMS, multiplied: each part is a feature's value at a zoom, which ['zoom'] can't be inside of. */
-const opacity = (parts: ((zoom: number) => number | ExpressionSpecification)[]): ExpressionSpecification => ['interpolate', ['linear'], ['zoom'], ...ZOOMS.flatMap((zoom) => [zoom, ['*', 1, 1, ...parts.map((part) => part(zoom))] as ExpressionSpecification])];
+/** An opacity as each part has it at ZOOMS and `more`, multiplied: each part is a feature's value at a zoom, which ['zoom'] can't be inside of. */
+const opacity = (parts: ((zoom: number) => number | ExpressionSpecification)[], more: number[] = []): ExpressionSpecification => ['interpolate', ['linear'], ['zoom'], ...[...new Set([...ZOOMS, ...more])].sort((a, b) => a - b).flatMap((zoom) => [zoom, ['*', 1, 1, ...parts.map((part) => part(zoom))] as ExpressionSpecification])];
 /** A value going linearly from `a` at `from` to `b` at `to`, held either side. */
 const ramp = (zoom: number, from: number, a: number, to: number, b: number) => (zoom <= from ? a : zoom >= to ? b : a + ((b - a) * (zoom - from)) / (to - from));
 /** The places `few` leaves out zoomed out: those in neither tier whose Networks' Trains are all dots till zoom 12 (Network's `pillZoom`), the Metro's and TRAM's. */
@@ -128,6 +128,16 @@ const onBands = (zoom: number) => ramp(zoom, RAILS - 0.01, 1, RAILS, 0);
 const barBands = (zoom: number) => ramp(zoom, RAILS - 1, 1, RAILS - 0.5, 0);
 /** Under `snap`, a place's mark or an interchange's badge gives way on the rails to its Stations' on their tracks. */
 const onRailsOut = (zoom: number) => (has('snap') ? onBands(zoom) : 1);
+/**
+ * A band's dots' or bars' opacity (`snap`, `bar`). Its layer spans whole zooms, cut to the band by this: MapLibre lays a
+ * symbol layer out in the tiles of the whole zoom its minzoom or maxzoom falls in, and there doesn't place it, so icons
+ * allowed to overlap seem to come and go at each placement, and the map fades them, drawing every frame (#210 review).
+ */
+const bandOpacity = (band: number): ExpressionSpecification => {
+  const [from, to] = [bandZooms(band)[0], Math.min(bandZooms(band)[1], RAILS)];
+  const inside = (zoom: number) => (zoom >= from && zoom < to ? 1 : 0);
+  return opacity([few, has('bar') ? barBands : onBands, (zoom) => 1 - signIn(zoom), inside], [from - 0.01, from, to - 0.01, to].filter((zoom) => zoom > 0));
+};
 /** Whether each Station's dot is drawn on its own track zoomed in, rather than its place's: `snap`, and an interchange's under `capsule`. */
 const onRails = () => has('snap') || has('capsule');
 /** Whether an interchange's Stations, and a place's several, are linked on the rails: under `capsule`, and under `snap` with `badge`, as the badge goes there. */
@@ -179,8 +189,9 @@ export function setUp(on: MapLibreMap, reading: () => State, looking: Looks) {
           id: `v-bands-${band}`,
           type: 'symbol',
           source: 'v-stations',
-          minzoom,
-          maxzoom: Math.min(maxzoom, RAILS),
+          // Whole zooms, cut to the band by bandOpacity().
+          minzoom: Math.floor(minzoom),
+          maxzoom: Math.ceil(Math.min(maxzoom, RAILS)),
           filter: ['==', ['get', 'band'], band],
           layout: {
             ...symbol,
@@ -190,7 +201,7 @@ export function setUp(on: MapLibreMap, reading: () => State, looking: Looks) {
             'icon-size': sized,
             'icon-offset': ['interpolate', ['linear'], ['zoom'], ...OFFSET_ZOOMS.flatMap((zoom) => [zoom, ['array', 'number', 2, ['get', `o${zoom}`]]])] as ExpressionSpecification,
           },
-          paint: { 'icon-opacity': opacity([few, has('bar') ? barBands : onBands, (zoom) => 1 - signIn(zoom)]) },
+          paint: { 'icon-opacity': bandOpacity(band) },
         },
         'trains',
       );
@@ -204,7 +215,8 @@ export function setUp(on: MapLibreMap, reading: () => State, looking: Looks) {
         type: 'symbol',
         source: 'v-stations',
         filter: ['==', ['get', 'band'], -1],
-        minzoom: RAILS - 0.01,
+        // A whole zoom, as the bands' layers, and hidden till RAILS by its opacity.
+        minzoom: RAILS - 1,
         layout: { ...symbol, 'icon-image': ['get', 'image'], 'icon-size': sized },
         paint: { 'icon-opacity': opacity([(zoom) => 1 - onBands(zoom)]) },
       },
@@ -232,7 +244,8 @@ export function setUp(on: MapLibreMap, reading: () => State, looking: Looks) {
         id: 'v-signs',
         type: 'symbol',
         source: 'v-places',
-        minzoom: SIGN_ZOOM - 0.5,
+        // A whole zoom, as the bands' layers, and hidden till SIGN_ZOOM - 0.5 by its opacity.
+        minzoom: SIGN_ZOOM - 1,
         filter: ['!', ['get', 'inBadge']],
         layout: { ...symbol, 'icon-image': ['get', 'sign'], 'icon-size': byZoom(SIGN_SIZE, (px) => px) },
         paint: { 'icon-opacity': opacity([signIn]) },
@@ -246,6 +259,8 @@ export function setUp(on: MapLibreMap, reading: () => State, looking: Looks) {
           type: 'symbol',
           source: 'v-interchanges',
           minzoom: SIGN_ZOOM - 0.5,
+          // Under `snap`, gone on the rails, where its name, hidden, would still push the places' names aside.
+          ...(has('snap') && { maxzoom: RAILS }),
           layout: {
             ...symbol,
             'icon-image': ['get', 'badge'],
@@ -260,7 +275,9 @@ export function setUp(on: MapLibreMap, reading: () => State, looking: Looks) {
           },
           paint: { 'icon-opacity': opacity([signIn, onRailsOut]), 'text-opacity': opacity([signIn, onRailsOut]), 'text-color': nameColour, 'text-halo-color': halo, 'text-halo-width': 2.5 },
         },
-        'station-names',
+        // Over the places' names, so that MapLibre places a badge's name before theirs, as an interchange's would rank
+        // with its highest tier's (#119): under them, Plaça Catalunya's gave way to Universitat's at zoom 13 (#210 review).
+        'train-pills',
       );
       // Its places' names give way to the badge's from SIGN_ZOOM; under `snap`, the interchange's comes back beside its track on the rails.
       map.setFilter('station-names', ['all', map.getFilter('station-names') ?? true, ['any', ['<', ['zoom'], ['coalesce', ['get', 'until'], 99]], ['>=', ['zoom'], has('snap') ? RAILS : 99]]] as FilterSpecification);
@@ -285,6 +302,11 @@ export function setUp(on: MapLibreMap, reading: () => State, looking: Looks) {
     map.setLayoutProperty('station-names', 'icon-text-fit-padding', [BOARD_Y, BOARD_X, BOARD_Y, BOARD_X]);
     map.setPaintProperty('station-names', 'text-color', ['case', ['to-boolean', ['get', 'board']], '#fff', nameColour]);
     map.setPaintProperty('station-names', 'text-halo-width', ['case', ['to-boolean', ['get', 'board']], 0, 2.5]);
+  }
+  // The pointer over what the variants draw, as main.ts shows it over today's dots; over the rails' marks once they show.
+  for (const id of ['v-badges', 'v-signs', 'v-squares', 'v-rails', ...BANDS.map((_, band) => `v-bands-${band}`)].filter((id) => on.getLayer(id))) {
+    on.on('mouseenter', id, () => (id !== 'v-rails' || on.getZoom() >= RAILS - 0.01) && (on.getCanvas().style.cursor = 'pointer'));
+    on.on('mouseleave', id, () => (on.getCanvas().style.cursor = ''));
   }
   draw();
 }
@@ -342,7 +364,8 @@ export function shown(_days: Track | Bundle) {
 export function tap(near: (layer: string) => unknown): unknown {
   if (!map || !parts.size) return undefined;
   // The variants' marks first, and under `snap` and `bar`, a Station's dot or bar where they draw it, off its place's.
-  const hit = ['v-badges', 'v-signs', 'v-squares', 'v-rails', ...BANDS.map((_, band) => `v-bands-${band}`)]
+  // The rails' layer spans the zoom before RAILS, hidden by its opacity, where its marks take no tap.
+  const hit = ['v-badges', 'v-signs', 'v-squares', ...(map.getZoom() >= RAILS - 0.01 ? ['v-rails'] : []), ...BANDS.map((_, band) => `v-bands-${band}`)]
     .filter((id) => map?.getLayer(id))
     .map(near)
     .find((id) => id !== undefined) ?? near('stations');
@@ -360,7 +383,7 @@ function draw() {
   const networks = new Map(state.networks.map((n) => [n.id, n]));
   fewer = placesNow.filter((p) => p.larger === 0 && p.networks.length && p.networks.every((n) => (networks.get(n)?.pillZoom ?? 0) >= 12)).map((p) => p.id);
   if (import.meta.env.DEV) Object.assign(window, { __fewer: fewer });
-  BANDS.forEach((_, band) => map?.getLayer(`v-bands-${band}`) && map.setPaintProperty(`v-bands-${band}`, 'icon-opacity', opacity([few, has('bar') ? barBands : onBands, (zoom) => 1 - signIn(zoom)])));
+  BANDS.forEach((_, band) => map?.getLayer(`v-bands-${band}`) && map.setPaintProperty(`v-bands-${band}`, 'icon-opacity', bandOpacity(band)));
   map.getSource<GeoJSONSource>('v-places')?.setData({
     type: 'FeatureCollection',
     features: placesNow.map((p) => ({ type: 'Feature', properties: { id: p.id, larger: p.larger, inBadge: inBadge.has(p.id), sign: has('sign') ? signImage(p.networks, networks) : '' }, geometry: { type: 'Point', coordinates: [p.lon, p.lat] } })),
