@@ -3,7 +3,8 @@ import { expect, test } from 'vitest';
 import { ALERTS_START, readAlerts } from '../fetcher/alerts.ts';
 import { APART, atZoom, BANDS, beside, DEGREE, inBand, onStroke, pixelMetres, zones, type Alert, type Alerts, type Line, type Shape, type Stroke } from '../bundle.ts';
 import { sideBySide } from '../build/sideBySide.ts';
-import { closureStrokes, closuresAt, hiding, liftedSince, placeOn, stretchesIn, type Shown } from './closures.ts';
+import { inNameOrder } from './cards.ts';
+import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, stretchesIn, tappedRows, type Shown } from './closures.ts';
 
 /** Some of Rodalies' and TRAM's Stations, as the bundle names them. */
 const R1 = [
@@ -241,6 +242,34 @@ test('a lifted Closure says since when, the first time a Train was seen within i
   expect(liftedSince(timetable[0] as Shown, lifted)).toBeUndefined();
   // Not once its Alert has changed.
   expect(liftedSince({ ...(t2 as Shown), alert: { ...(t2 as Shown).alert as NonNullable<Shown['alert']>, said: 'changed' } }, lifted)).toBeUndefined();
+});
+
+/** DAY's Lines in the order the cards name them (#399), as the page has them. */
+const NAMING = inNameOrder(DAY.lines.map((l) => ({ ...l, name: l.id.split(':')[1] ?? '' }))).map((l) => l.id);
+
+test("a tap on an Alert's Closures names its Lines, and each one's Closure, in the order the cards name Lines, not as the Alert lists them (#399)", () => {
+  const shown = closuresAt(ALERTS, DAY, READ);
+  // TRAM's sc-280 lists T2, T3, T1, as its timetable does.
+  expect(shown.filter((c) => c.alert?.id === 'sc-280').map((c) => c.line)).toEqual(['tram:T2', 'tram:T3', 'tram:T1']);
+  const rows = tappedRows(shown, shown.map(closureKey), NAMING).filter((r) => r.closure.alert?.id === 'sc-280');
+  expect(rows.map((r) => r.on)).toEqual([['tram:T1', 'tram:T2', 'tram:T3']]);
+  expect(rows.map((r) => r.all.map((c) => c.line))).toEqual([['tram:T1', 'tram:T2', 'tram:T3']]);
+});
+
+test("a tap on Closures of several Alerts has each Alert's row newest first, whatever the order of their Lines (#399)", () => {
+  const shown = closuresAt(ALERTS, DAY, READ);
+  expect(tappedRows(shown, shown.map(closureKey), NAMING).map((r) => r.closure.alert?.id)).toEqual(['AVISO_518337', 'AVISO_518348', 'AVISO_518332', 'sc-280', 'sc-279']);
+  // Only the Closures tapped.
+  expect(tappedRows(shown, [closureKey(shown[3] as Shown)], NAMING).map((r) => r.on)).toEqual([['tram:T2']]);
+});
+
+test("a tap on the timetable's Closures, one row for each Line, names them after the Alerts' in the order of their Lines (#399)", () => {
+  // Made up, on Stations of R2's and Rodalies': buses for R8 and R4, which a timetable lists in that order, and none for R2's.
+  const buses = (line: string) => ({ line, stations: ['adif:79400', 'adif:77102'] as [string, string], from: 0, to: 86400, kind: 'buses' as const });
+  const shown = closuresAt(ALERTS, { ...DAY, closures: [buses('rodalies:R8'), buses('rodalies:R4')] }, READ);
+  expect(shown.map((c) => c.line).slice(-2)).toEqual(['rodalies:R8', 'rodalies:R4']);
+  const rows = tappedRows(shown, shown.map(closureKey), NAMING);
+  expect(rows.map((r) => r.on)).toEqual([['rodalies:R3'], ['rodalies:R1'], ['rodalies:R2'], ['tram:T1', 'tram:T2', 'tram:T3'], ['tram:T5', 'tram:T6'], ['rodalies:R4'], ['rodalies:R8']]);
 });
 
 /** A shape through points given in metres east and north of 0°, 0°, as a degree is DEGREE metres there both ways. */
