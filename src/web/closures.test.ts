@@ -104,6 +104,38 @@ test("finds the stretches in TRAM's Catalan and English", () => {
   expect(stretchesIn('On October 10, 11 and 12, due to track renewal works, there will be no service between Francesc Macià and Montesa.', T1)).toEqual([{ stations: ['tram:ST-172', 'tram:ST-188'], says: 'closed' }]);
 });
 
+/**
+ * alerts.json as the fetcher wrote it at 23:20 on Friday 9 October 2026, as it was: 68 of Renfe's
+ * Alerts across Spain and 3 of TRAM's (#396). And the Stations of the Networks those Alerts are of that
+ * any of their words could name, as 10 Oct's bundle names them: no other Station can be read from them.
+ */
+const NIGHT: Alerts = JSON.parse(readFileSync(new URL('../fetcher/fixtures/alerts/alerts-2026-10-09.json', import.meta.url), 'utf8'));
+const NIGHT_STATIONS: { id: string; name: string; networks: string[] }[] = JSON.parse(readFileSync(new URL('../fetcher/fixtures/alerts/stations-2026-10-09.json', import.meta.url), 'utf8'));
+/** What an Alert of that file says in the language its feed gives first, which is what the reader reads. */
+const said = (id: string) =>
+  Object.values(NIGHT)
+    .flatMap((feed) => feed.alerts)
+    .find((a) => a.id === id)?.description[0]?.text ?? '';
+const stationsOf = (network: string) => NIGHT_STATIONS.filter((s) => s.networks.includes(network));
+
+test("reads Sevilla's C3 plan, 'entre las estaciones de X y Y' under 'Plan Alternativo de Transporte por carretera', as closed, and the sentence after it, that Trains run, as nothing (#396)", () => {
+  // AVISO_512188, since 8 Sep 2026: "Se establece un Plan Alternativo de Transporte por carretera entre las
+  // estaciones de Los Rosales y Cazalla-Constantina. Entre Los Rosales y Sevilla Santa Justa el recorrido
+  // se realiza con trenes de la línea C1."
+  expect(stretchesIn(said('AVISO_512188'), stationsOf('cercanias-sevilla'))).toEqual([
+    { stations: ['adif:50700', 'adif:40113'], says: 'closed' },
+    // Its words come after its stretch, which the reader doesn't read.
+    { stations: ['adif:50700', 'adif:51003'] },
+  ]);
+});
+
+test("reads no stretch of a Line in a note about one Train, which says where that Train doesn't run, as Sevilla's C5 notes of 7 Oct do, in the same words as the C3 plan (#396)", () => {
+  // AVISO_518331 and AVISO_518327: "Tren con salida a las 09:27h de la estación de BENACAZÓN y con destino
+  // JARDINES DE HÉRCULES, no presta servicio entre las estaciones de SEVILLA SANTA JUSTA y JARDINES DE
+  // HERCULES. Los viajeros serán encaminados al siguiente tren de la línea C-5 o C-1 dirección UTRERA."
+  for (const id of ['AVISO_518331', 'AVISO_518327']) expect(stretchesIn(said(id), stationsOf('cercanias-sevilla'))).toEqual([]);
+});
+
 // alerts.json as the fetcher writes it from Renfe's alerts of 11:39 on Wednesday 7 October 2026, cut
 // down to Rodalies' 9, and TRAM's of 12:35 (#339's first comment), read at 12:35.
 const recorded = (file: string) => ({ status: 200, body: { text: readFileSync(new URL(`../fetcher/fixtures/alerts/${file}`, import.meta.url), 'utf8') } });

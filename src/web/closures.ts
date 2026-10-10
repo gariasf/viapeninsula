@@ -192,9 +192,10 @@ export function closuresAt(
 /** What the words before a stretch say of it: closed, down to a single track, or running. */
 export type Says = 'closed' | 'single' | 'running';
 
-/** The words that say what a stretch is, before it in its clause: Renfe's Spanish, and TRAM's Catalan and English (#341). */
+/** The words that say what a stretch is, before it in its clause: Renfe's Spanish, and TRAM's Catalan and English (#341, #396). */
 const SAYING: [words: string, says: Says][] = [
   ['servicio alternativo por carretera', 'closed'],
+  ['plan alternativo de transporte por carretera', 'closed'],
   ['no presta servicio', 'closed'],
   ['interrumpida', 'closed'],
   ['sense servei', 'closed'],
@@ -206,6 +207,16 @@ const SAYING: [words: string, says: Says][] = [
 
 /** How a stretch is named: the word before its first Station, and those that can come between its two, a dash too, as in "entre Ripoll - Puigcerdà". */
 const NAMING: Record<string, string[]> = { entre: ['y', 'e', 'i', '-'], de: ['a'], desde: ['hasta'], between: ['and'] };
+
+/** The words that can come between that word and the first Station, as in "entre las estaciones de Los Rosales y Cazalla-Constantina" (#396). */
+const THE_STATIONS = ['las', 'estaciones', 'de'];
+
+/**
+ * The words that name one Train, by where it leaves, as in "Tren con salida a las 09:27h de la estación
+ * de BENACAZÓN, no presta servicio entre las estaciones de X y Y". A stretch in a sentence with them is
+ * where that Train doesn't run, not its Line's Trains (#396).
+ */
+const ONE_TRAIN = ['tren', 'con', 'salida'];
 
 /** A text's words, as they're matched: in lower case, without accents or punctuation, but for a dash between spaces, a word of its own. */
 const wordsOf = (text: string): string[] =>
@@ -242,16 +253,22 @@ export function stretchesIn(text: string, stations: { id: string; name: string }
   const names = stations.map(({ id, name }) => ({ id, words: wordsOf(name) }));
   const saying = SAYING.map(([words, says]) => ({ words: wordsOf(words), says }));
   const found = new Map<string, { stations: [string, string]; says?: Says }>();
-  for (const clause of text.split(/[.,;:!?\n]/)) {
-    const words = wordsOf(clause);
-    for (const [i, word] of words.entries()) {
-      // Its own opening words only, not those every object has, as "constructor".
-      const a = Object.hasOwn(NAMING, word) && endAt(words, i + 1, names, NAMING[word]);
-      const b = a && endAt(words, i + 2 + a.length, names);
-      if (!a || !b || a.id === b.id || found.has(`${a.id} ${b.id}`)) continue;
-      const before = words.slice(0, i);
-      const said = saying.flatMap(({ words: w, says }) => before.flatMap((_, at) => (at + w.length <= i && runAt(before, w, at) === at ? [{ at, says }] : []))).sort((x, y) => y.at - x.at)[0];
-      found.set(`${a.id} ${b.id}`, { stations: [a.id, b.id], ...(said && { says: said.says }) });
+  for (const sentence of text.split(/[.!?\n]/)) {
+    const all = wordsOf(sentence);
+    if (all.some((_, at) => runAt(all, ONE_TRAIN, at) === at)) continue;
+    for (const clause of sentence.split(/[,;:]/)) {
+      const words = wordsOf(clause);
+      for (const [i, word] of words.entries()) {
+        // Its own opening words only, not those every object has, as "constructor".
+        if (!Object.hasOwn(NAMING, word)) continue;
+        const first = i + 1 + (runAt(words, THE_STATIONS, i + 1) === i + 1 ? THE_STATIONS.length : 0);
+        const a = endAt(words, first, names, NAMING[word]);
+        const b = a && endAt(words, first + a.length + 1, names);
+        if (!a || !b || a.id === b.id || found.has(`${a.id} ${b.id}`)) continue;
+        const before = words.slice(0, i);
+        const said = saying.flatMap(({ words: w, says }) => before.flatMap((_, at) => (at + w.length <= i && runAt(before, w, at) === at ? [{ at, says }] : []))).sort((x, y) => y.at - x.at)[0];
+        found.set(`${a.id} ${b.id}`, { stations: [a.id, b.id], ...(said && { says: said.says }) });
+      }
     }
   }
   return [...found.values()];
