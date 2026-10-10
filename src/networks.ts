@@ -54,9 +54,11 @@ export interface Timetable {
   routes?: { idPrefix?: string; names?: string[] };
   /**
    * A Trip's Train number, where the operator publishes one: what this pattern first matches in its
-   * trip_short_name, or where it has none, in its trip_id after the service_id.
+   * trip_id after the service_id, or in its trip_short_name where `shortNames`.
    */
   number?: string;
+  /** Its Trips' Train numbers are in their trip_short_names, as Renfe's long-distance timetable has them, not in their trip_ids. */
+  shortNames?: true;
   /** It lists a Train as several Trips, one for each part of its run it sells, which are made one (joinParts()). */
   parts?: true;
   /** Its terms ask the map to show the day it was last updated, in its credit: its feed's start date. */
@@ -542,6 +544,7 @@ export const AVE_LARGA_DISTANCIA: Pick<NetworkConfig, 'id' | 'name' | 'timetable
       routes: { names: ['AVE', 'AVLO', 'ALVIA', 'EUROMED', 'Intercity', 'AVE INT', 'TRENCELTA'] },
       // A Trip's trip_short_name is its Train number's five digits.
       number: '^\\d{5}',
+      shortNames: true,
       parts: true,
     },
   ],
@@ -565,6 +568,7 @@ export const MEDIA_DISTANCIA_AVANT: Pick<NetworkConfig, 'id' | 'name' | 'timetab
       operator: 'adif',
       routes: { names: ['AVANT', 'AVANT EXP', 'MD', 'REGIONAL', 'REG.EXP.', 'PROXIMDAD'] },
       number: '^\\d{5}',
+      shortNames: true,
       parts: true,
     },
   ],

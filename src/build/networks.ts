@@ -98,7 +98,7 @@ export async function readFeed(
     const line = lines.get(route.name) ?? { colour: route.colour, shapes: new Set() };
     line.shapes.add(t.shape_id);
     lines.set(route.name, line);
-    const number = pattern && (t.trip_short_name || t.trip_id.slice(t.service_id.length)).match(pattern)?.[0];
+    const number = pattern && (feed.shortNames ? t.trip_short_name : t.trip_id.slice(t.service_id.length)).match(pattern)?.[0];
     if (number) numbers.set(t.trip_id, number);
     if (!services.has(t.service_id)) continue;
     const trip = { id: `${prefix}:${t.trip_id}`, line: `${network.id}:${route.name}`, shape: `${prefix}:${t.shape_id}`, headsign: t.trip_headsign };

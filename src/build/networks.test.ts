@@ -428,6 +428,21 @@ test("lists the Train numbers of the day's Trips, with the Stations each calls a
   expect((await readFeed(rt2, '2026-10-17', RODALIES_FEED)).listed).toEqual(new Map([['15211', new Set(['adif:71500', 'adif:65411'])]]));
 });
 
+test("reads a Cercanías Trip's Train number from its trip_id though its feed gains trip_short_names, as Renfe's long-distance one has, with something else in them", async () => {
+  const named: Source = (file) => {
+    const lines = rt2(file);
+    if (file !== 'trips.txt' || !lines) return lines;
+    return (async function* () {
+      let header = true;
+      for await (const l of lines) {
+        yield `${l.trimEnd()},${header ? 'trip_short_name' : 'RT2'}`;
+        header = false;
+      }
+    })();
+  };
+  expect((await readFeed(named, '2026-10-13', RODALIES_FEED)).trips.map((t) => t.number)).toEqual(['15210']);
+});
+
 test("leaves a Train that Rodalies or a núcleo lists too to their timetable, which has its shapes, by its Train number and a Station they share: RT2's 15210, a Regional in Renfe's long-distance one", async () => {
   const { trips } = await readFeed(longDistance, '2026-10-13', MD_FEED, () => {});
   expect(trips.map((t) => t.number)).toEqual(['15210', '17307', '18030', '38304']);
