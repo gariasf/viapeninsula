@@ -291,7 +291,7 @@ export function copyOf({ prefix }: Timetable, cache = CACHE): string {
  * With no copy, it fails.
  */
 export async function readTimetables<T extends { lines: unknown[][] }>(
-  network: Pick<NetworkConfig, 'id' | 'name' | 'timetables' | 'lines'>,
+  network: Pick<NetworkConfig, 'id' | 'name' | 'timetables' | 'lines' | 'stations'>,
   failed: unknown,
   read: (feeds: (Feed & { gtfs: Source })[]) => Promise<T>,
   report: (found: Found) => void,

@@ -561,14 +561,14 @@ test("puts a Station its timetable has away from its platforms at their middle, 
 // from Oviedo to El Entrego, at the four Stations it ends at, and its shape's points within 4 km of
 // the middle of Ciaño and El Entrego. And, as the build kept them on 9 October, the rails there:
 // `npm run snippet -- "kept cercanias-asturias:C2 adif:16010 adif:16011 nopath" langreo 4`.
-const langreo = dirSource(fileURLToPath(new URL('fixtures/cercanias-asturias', import.meta.url)));
-const { rails: langreoRails } = JSON.parse(readFileSync(new URL('fixtures/osm/langreo.json', import.meta.url), 'utf8')) as Snippet;
+const asturias = dirSource(fileURLToPath(new URL('fixtures/cercanias-asturias', import.meta.url)));
+const { rails: langreo } = JSON.parse(readFileSync(new URL('fixtures/osm/langreo.json', import.meta.url), 'utf8')) as Snippet;
 
 /** The Trip, read from Renfe's rows for a Network as it's configured, traced along the rails and placed. */
 async function c2Trip(network: NetworkConfig) {
-  const { stations, shapes, trips } = await readFeed(langreo, '2026-10-10', { network, ...network.timetables[0] });
+  const { stations, shapes, trips } = await readFeed(asturias, '2026-10-10', { network, ...network.timetables[0] });
   const left: string[] = [];
-  const traced = traceShapes(shapes, stations, ownRails(langreoRails, network), network.runningSide, () => {});
+  const traced = traceShapes(shapes, stations, ownRails(langreo, network), network.runningSide, () => {});
   const placed = placeTrips(trips, traced, stations, network.profile.topSpeed, (l) => left.push(l));
   return { stations, placed, left };
 }
