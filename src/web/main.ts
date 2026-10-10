@@ -670,6 +670,9 @@ const typefaceLoaded = Promise.all(['400', '700'].map((weight) => document.fonts
 // None, where the map opens with no region in view or needed, as zoomed out: it loads them as they come
 // into view (#266). Its first look for them is one as refreshDays() makes, which waits for it.
 looking = true;
+// And the regions it needs as the map moves, from the start, as the map can be moved while it opens: a look
+// asked for meanwhile follows the first (#266).
+map.on('moveend', want);
 const [needed] = await Promise.all([neededDays(), map.once('load'), typefaceLoaded]);
 /**
  * The basemap's paper, its background's colour: what the Lines are cased in on positron, and on the
@@ -761,8 +764,6 @@ void Promise.resolve(needed?.days.then(async (days) => showDays(days, await need
 show((await needed?.track) ?? joinTracks([]));
 // Around midnight the days the map needs change, and each day's build names three more.
 setInterval(refreshDays, 60_000);
-// And the regions it needs, as the map moves (#266).
-map.on('moveend', want);
 
 // Track goes under the basemap's labels; Stations and names go on top of everything.
 const firstLabel = map.getStyle().layers.find((l) => l.type === 'symbol')?.id;
