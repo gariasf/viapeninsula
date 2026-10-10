@@ -63,7 +63,7 @@ A Train positioned from its Trip's timetable, shifted by its last known Delay if
 _Avoid_: Simulated, estimated, planned
 
 **Delay**:
-How late a Train is running against its Trip's timetable. While the Train is Live and moving it is measured from the Train's position; otherwise it is the operator's figure, except that a Rodalies or Cercanías Train carries on from its last GPS Delay, as Renfe's figure is often minutes off. The map shows none for a Metro Train: TMB runs the Metro by headway, and its timetable names no Blocks, so a Metro Train's Delay is only against whichever Trip its Block runs.
+How late a Train is running against its Trip's timetable. While the Train is Live and moving it is measured from the Train's position; otherwise it is the operator's figure, except that a Rodalies, Cercanías or long-distance Train carries on from its last GPS Delay, as Renfe's figure is often minutes off, and a position unchanged since its report before counts as none. The map shows none for a Metro Train: TMB runs the Metro by headway, and its timetable names no Blocks, so a Metro Train's Delay is only against whichever Trip its Block runs.
 _Avoid_: Lateness, offset
 
 **Cancelled**:
