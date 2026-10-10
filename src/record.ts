@@ -74,6 +74,24 @@ export function unmatched(bundle: Bundle, received: Received[]): { reports: numb
   return { reports: [...lost.values()].reduce((sum, times) => sum + times.size, 0), trips: lost.size };
 }
 
+/**
+ * The bundle a recording is cut over (#411): the day it started on, `first`, and where its last
+ * snapshot, `last` in ms since 1970, falls after midnight in Madrid, the next day's joined to it as
+ * the map joins them (joinDays()), from the manifest's `days` through `load`, so that the Trains
+ * Renfe names by the next day's service after midnight find their Trips. Where the manifest has no
+ * bundle for that day, or it doesn't come, the day's alone, and `why` says so for the last line.
+ * ponytail: forward only, so a recording that starts after midnight has its own day's alone and the
+ * Trains still running from the day before match no Trip; join the day before's too if that shows.
+ */
+export async function withNextDay(first: Bundle, today: string, last: number, days: DayFiles[], load: (day: DayFiles) => Promise<Bundle>): Promise<{ bundle: Bundle; why: string }> {
+  if (madridDate(new Date(last)) <= today) return { bundle: first, why: '' };
+  const tomorrow = addDays(today, 1);
+  const files = days.find((d) => d.date === tomorrow);
+  const next = files && (await load(files).catch((error) => void console.warn(error)));
+  if (next) return { bundle: joinDays([first, next]), why: '' };
+  return { bundle: first, why: ` (its snapshots go past midnight, and ${files ? `${tomorrow}'s bundle didn't come` : `the manifest has no bundle for ${tomorrow}`})` };
+}
+
 if (import.meta.main) {
   const [dir, minutes = '15'] = process.argv.slice(2);
   if (!dir) throw new Error('Usage: npm run record -- <dir> [minutes]');
@@ -144,16 +162,7 @@ if (import.meta.main) {
   await Promise.all(looks);
   if (renfe.length) await writeFile(join(dir, 'renfe.ndjson.gz'), gzipSync(`${renfe.join('\n')}\n`));
 
-  // A recording whose last snapshot is after midnight in Madrid has the next day's bundle joined to
-  // the day's, as the map has them (#411), where the manifest names it and it comes.
-  let [bundle, why] = [first, ''];
-  if (madridDate(new Date(received.at(-1)?.at ?? 0)) > today) {
-    const tomorrow = addDays(today, 1);
-    const files = days.find((d) => d.date === tomorrow);
-    const next = files && (await bundleOf(files).catch((error) => void console.warn(error)));
-    if (next) bundle = joinDays([first, next]);
-    else why = ` (its snapshots go past midnight, and ${files ? `${tomorrow}'s bundle didn't come` : `the manifest has no bundle for ${tomorrow}`})`;
-  }
+  const { bundle, why } = await withNextDay(first, today, received.at(-1)?.at ?? 0, days, bundleOf);
   await writeFile(join(dir, 'bundle.json'), JSON.stringify(bundle));
 
   const replay = cut(bundle, received);
