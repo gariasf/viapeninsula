@@ -341,7 +341,7 @@ test("splits Renfe's long-distance timetable into its two Networks, whose Lines 
   ]);
 });
 
-test("gives each Line the profile its Network's config names for it, which AVE's, Avlo's and AVE Int's is: a Line without one has none, and runs as its Network's does", async () => {
+test("gives a Line the profile its Network's config names for it, as Avlo's 300 km/h, and a Line the config names none for has none, and runs as its Network's does", async () => {
   const profiles = async (feed: Feed) => (await readFeed(longDistance, '2026-10-10', feed)).lines.map(({ id, profile }) => [id, profile]);
   expect(await profiles(AVE_FEED)).toEqual([
     ['ave-larga-distancia:Alvia', undefined],

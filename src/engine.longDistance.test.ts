@@ -104,7 +104,7 @@ const RODALIES_PROFILE = { acceleration: 1, braking: 1, topSpeed: 160 / 3.6, dwe
 const FAST: Row[] = [['A', '10:00:00', '10:00:00', 0], ['B', '11:00:00', '11:00:00', 200]];
 const SLOW: Row[] = [['A', '10:00:00', '10:00:00', 0], ['B', '11:00:00', '11:00:00', 100]];
 
-test("each Line of Renfe's long-distance Networks has the profile its Network's config gives it, with its source: AVE y Larga Distancia's 250 km/h at 0.5 m/s², AVE, Avlo and AVE Int's at 300, and Media Distancia y Avant's Rodalies' 160 km/h at 1, with Avant's and Avant Exp's at 250 and 0.5", () => {
+test("each Line of Renfe's long-distance Networks has the profile its Network's config gives it: AVE y Larga Distancia's 250 km/h at 0.5 m/s², AVE, Avlo and AVE Int's at 300, and Media Distancia y Avant's Rodalies' 160 km/h at 1, with Avant's and Avant Exp's at 250 and 0.5", () => {
   // What each Line runs at: its Network's profile with its own over it, as the engine has it, in km/h and m/s².
   const runs = (net: Network, lines: Lines) =>
     Object.fromEntries(Object.entries(lines).map(([name, own]) => [name, [Math.round({ ...net.profile, ...own }.topSpeed * 3.6), { ...net.profile, ...own }.acceleration]]));
@@ -210,8 +210,9 @@ test("a long-distance Train carries on from its last GPS Delay, whatever Renfe's
 
 test("a long-distance Train that vanishes from its feed for minutes, as in Guadarrama's 28 km tunnel, runs on its last GPS Delay, Scheduled, and is Live again where its position comes back, without a jump", () => {
   const behind = (late: number, moment: number) => gps('ave', (where(VIA_B, 'ave', moment - late * 1000) ?? NaN) / 1000, moment);
-  // GPS has the Train 30 s late at 10:40:00 and 10:40:40, then the feed has none for it for 6 minutes
-  // with its other Trains in it, and then has it 30 s late again at 10:46:40.
+  // GPS has the Train 30 s late at 10:40:00 and 10:40:40, then the feed has no report for it for 6
+  // minutes (with so few Trains on the map, none in it isn't a feed that has failed), and then has it
+  // 30 s late again at 10:46:40.
   const received = [
     heard(at('10:40:00'), [behind(30, at('10:40:00'))]),
     heard(at('10:40:40'), [behind(30, at('10:40:40'))]),
@@ -280,19 +281,19 @@ function holds(received: Received[]) {
   const found: { trip: string; from: number; to: number }[] = [];
   const reports = (trip: string) => received.map((r) => r.snapshot.reports.find((x) => x.trip === trip));
   for (const trip of new Set(received.flatMap((r) => r.snapshot.reports.map((x) => x.trip ?? '')))) {
-    const at = reports(trip);
-    for (let i = 0; i < at.length; i++) {
-      const p = at[i]?.position;
+    const ofTrip = reports(trip);
+    for (let i = 0; i < ofTrip.length; i++) {
+      const p = ofTrip[i]?.position;
       if (!p || !('lon' in p)) continue;
       let j = i;
       const same = (k: number) => {
-        const q = at[k]?.position;
+        const q = ofTrip[k]?.position;
         return !!q && 'lon' in q && q.lon === p.lon && q.lat === p.lat;
       };
-      while (j + 1 < at.length && same(j + 1)) j++;
-      const next = at[j + 1]?.position;
+      while (j + 1 < ofTrip.length && same(j + 1)) j++;
+      const next = ofTrip[j + 1]?.position;
       // Not one that held from before the third snapshot: the first two place each Train outright.
-      if (i >= 2 && j > i && next && 'lon' in next && ((at[j]?.at ?? 0) - (at[i]?.at ?? 0)) / 1000 >= 60) {
+      if (i >= 2 && j > i && next && 'lon' in next && ((ofTrip[j]?.at ?? 0) - (ofTrip[i]?.at ?? 0)) / 1000 >= 60) {
         if (Math.hypot((next.lon - p.lon) * 84_000, (next.lat - p.lat) * 111_195) >= 1000) found.push({ trip, from: received[i]?.at ?? 0, to: received[j + 1]?.at ?? 0 });
       }
       i = j;
@@ -308,18 +309,18 @@ function holds(received: Received[]) {
  */
 function through(bundle: Bundle, found: ReturnType<typeof holds>) {
   const [stood, back, on] = [new Set<string>(), new Set<string>(), new Set<string>()];
-  const at = (trip: string, moment: number) => trainsAt(bundle, moment, REPLAY.received.filter((r) => r.at <= moment)).find((t) => t.trip.id === trip);
+  const drawn = (trip: string, moment: number) => trainsAt(bundle, moment, REPLAY.received.filter((r) => r.at <= moment)).find((t) => t.trip.id === trip);
   for (const { trip, to } of found) {
     const t = bundle.trips.find((x) => x.id === trip);
     const line = bundle.lines.find((l) => l.id === t?.line);
     const top = ({ ...bundle.networks.find((n) => n.id === line?.network)?.profile, ...line?.profile }.topSpeed ?? Infinity) * 1.05;
-    const [before, held] = [at(trip, to - 40_000), at(trip, to - 1000)];
+    const [before, held] = [drawn(trip, to - 40_000), drawn(trip, to - 1000)];
     const near = Math.min(...(t?.calls ?? []).map((c) => Math.abs(c.dist - (held?.dist ?? Infinity))));
     if (before && held && Math.abs(held.dist - before.dist) < 100 && near > 20) stood.add(`${trip} ${to}`);
     const way = (t?.calls.at(-1)?.dist ?? 0) > (t?.calls[0]?.dist ?? 0) ? 1 : -1;
     let last = held?.dist;
     for (let s = 0; s <= 30; s++) {
-      const now = at(trip, to + s * 1000)?.dist;
+      const now = drawn(trip, to + s * 1000)?.dist;
       if (last !== undefined && now !== undefined) {
         if ((now - last) * way < -top) back.add(`${trip} ${to}`);
         if ((now - last) * way > top) on.add(`${trip} ${to}`);
@@ -333,10 +334,11 @@ function through(bundle: Bundle, found: ReturnType<typeof holds>) {
 test("replaying long-distance positions that held and then moved, a Train neither stands where its position is held nor snaps back when it moves: counting a position that holds as none is what keeps it going", () => {
   const found = holds(REPLAY.received);
   // 25 holds of a minute or more, ending in moves of 1 to 18 km, in 23 Trains: Reg.Exp. 12601 snaps
-  // back 1.8 km as its position moves, the 72 s it lost in the 297 s it was held, and two jump on.
+  // back 1.8 km as its position moves, the 72 s it lost in the 297 s it was held, and two jump on, by
+  // up to 21 km, as the Train was drawn behind where its position was held.
   expect(through(replayed(), found)).toEqual({ holds: 25, stood: 0, back: 1, on: 2 });
   // Going by each position as it comes, as a Network does that has no GPS Delay to carry on from, 8
-  // stand still where they're held for the 40 s before it moves, and 22 jump on, by up to 18 km.
+  // stand still where they're held for the 40 s before it moves, and 22 jump on, by up to 27 km.
   expect(through(replayed({ delay: 'operator', near: 'pinned' }), found)).toEqual({ holds: 25, stood: 8, back: 1, on: 22 });
 }, 60_000);
 
