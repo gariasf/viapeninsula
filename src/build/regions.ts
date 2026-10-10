@@ -87,8 +87,8 @@ export async function buildRegion<N>(
  * show gone from the report, and new in the next. Fails where none of the regions built has Trips on
  * its first day, today: that's a broken build, not a day without Trains.
  * ponytail: one after another, as ADR-0014 has it, though the regions share nothing: the build's
- * 281 s on a Mac, 9 minutes in Actions, are far inside its 60, but if they ever aren't, run them in
- * parallel, each reading the same downloads and rails.
+ * 281 s on a Mac, 9 minutes in Actions (run 38044181878, set-up too), are far inside its 60, but if
+ * they ever aren't, run them in parallel, each reading the same downloads and rails.
  */
 export async function buildRegions<N extends { id: string }, R extends { days: ManifestDay[] }>(
   regions: Region<N>[],

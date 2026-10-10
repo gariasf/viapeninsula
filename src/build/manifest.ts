@@ -1,4 +1,4 @@
-// Each service day's Trips, and the manifest that names each day's bundle, and when the map needs it.
+// Each service day's Trips, and the manifest that names each region's bundle for each day, and when the map needs it.
 
 import { addDays, type Bundle, type Closure, type DayTrips, type Manifest, type ManifestDay, type Network, type Trip } from '../bundle.ts';
 import { noonMinus12h, weekdayOf } from './gtfs.ts';

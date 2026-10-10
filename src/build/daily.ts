@@ -6,10 +6,12 @@
 // (ADR-0014): each region's Networks have a track file, the same for each day, so the map can draw
 // the Lines before the Trains come, and a Trips file for each day, with its Closures. A region whose
 // build fails goes without new files, and the manifest names those of its last build, so the
-// others publish as ever (buildRegions()). Beside them it writes out/report.json, each spot its log
-// names, once (report.ts), which it publishes after the manifest, and it prints what changed since
-// the last build's, in the run's job summary too. In Actions, once it has published, it writes
-// out/comment.md where a problem spot is new, which daily.yml posts on the standing "Build report" issue.
+// others publish as ever (buildRegions()), but for the first build that makes a manifest by region,
+// which has none to keep, and fails (manifestOf()). Beside them it writes out/report.json, each
+// spot its log names, once (report.ts), which it publishes after the manifest, and it prints what
+// changed since the last build's, in the run's job summary too. In Actions, once it has published,
+// it writes out/comment.md where a problem spot is new, which daily.yml posts on the standing
+// "Build report" issue.
 // `npm run daily` publishes; `npm run daily -- --dry-run` only writes the files to out/. The secrets
 // a timetable's URL needs, as TMB's TMB_APP_ID and TMB_APP_KEY, come from the environment, which
 // `npm run daily` loads from .env.local.
@@ -48,7 +50,7 @@ const { rails, border } = await osm(RAILWAYS);
 // whose last Trains can still be running, and its report is what this build's is diffed against, with
 // each Network's Trips on each day of the week.
 const [lastManifest, lastReport] = await Promise.all([
-  lastPublished<Manifest>('manifest.json', "yesterday's bundle goes unnamed, and a region that fails has no last files"),
+  lastPublished<Manifest>('manifest.json', "yesterday's bundle goes unnamed, and a region that fails fails the build, with no last files to keep"),
   lastPublished<Spot[]>('report.json', 'every spot is new'),
 ]);
 // The Train numbers each Network's timetables list on each of DAYS, with their Stations, whose Trains

@@ -240,8 +240,9 @@ export function joinTrips(days: DayTrips[]): DayTrips {
 }
 
 /**
- * What the map draws before any Train, which it loads first: the Networks, Lines, Stations and track,
- * one file that every day a build publishes shares.
+ * What the map draws before any Train, which it loads first: the Networks, Lines, Stations and track
+ * of one region, in one file that every day a build publishes shares (ADR-0014); the map joins the
+ * regions' as one (joinTracks()).
  */
 export type Track = Pick<Bundle, 'networks' | 'lines' | 'stations' | 'shapes' | 'strokes' | 'rails' | 'slots' | 'tracks'>;
 
