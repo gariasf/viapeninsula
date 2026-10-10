@@ -1,9 +1,14 @@
-// Records live data for the tests' fixtures (#31): Renfe's two feeds, fetched together, then the
-// production snapshots as the map receives them, every 20 s for a quarter of an hour, with that
+// Records live data for the tests' fixtures (#31): the production snapshots as the map receives
+// them, every 20 s for a quarter of an hour, with Renfe's two feeds fetched beside each, and that
 // day's bundle cut down to the Trips the replay needs. `npm run record -- <dir> [minutes]` writes to <dir>:
 //
 // - vehicle_positions.json and trip_updates.json, as Renfe served them at the start, where it did,
 //   which src/fetcher/fixtures/ keeps cut down to Rodalies' Trips and a few of other núcleos';
+// - renfe.ndjson.gz, those two feeds again at every step, as the fetcher reads them each run (#364):
+//   a line a step, `{ at, positions, updates }`, gzipped, in the order they came, with `at` in ms
+//   since 1970, as a snapshot's is in replay.json.gz, and each feed as its file parses, left out of
+//   the line where its fetch failed, and the line where both did. A line can lack Madrid's Trains
+//   whole, as Renfe drops them from about one fetch in five (docs/research/live-at-scale.md);
 // - bundle.json, the whole bundle the replay is of, which the tests cut their Trips from: that day's,
 //   and where the last snapshot falls after midnight in Madrid, the next day's joined with it as the
 //   map joins them (#411), the first day's Trips led by their day, `2026-10-06/<id>`, as Renfe names a
@@ -78,8 +83,8 @@ if (import.meta.main) {
     return res.text();
   };
 
-  // Renfe's feeds are for the fixtures alone, so a recording goes on without them, as one an audit
-  // leaves running in Actions does (#233).
+  // Renfe's feeds are for the fixtures and the audits alone, so a recording goes on without them, as
+  // one an audit leaves running in Actions does (#233).
   const RENFE = { positions: 'https://gtfsrt.renfe.com/vehicle_positions.json', updates: 'https://gtfsrt.renfe.com/trip_updates.json' };
   try {
     const [positions, updates] = await Promise.all([get(RENFE.positions), get(RENFE.updates)]);
@@ -101,9 +106,19 @@ if (import.meta.main) {
   };
   const first = await bundleOf(day);
 
-  // As the map does: each look for live data records the snapshot got, or where none came, the last one.
+  // As the map does: each look for live data records the snapshot got, or where none came, the last
+  // one. And with each look, Renfe's feeds as they parse, in a line (#364), fetched beside it and not
+  // waited for, so that a Renfe that's slow doesn't hold the next look up.
+  const feed = (url: string) => get(url).then((text) => JSON.parse(text) as unknown).catch((error) => void console.warn(error));
   const received: Received[] = [];
+  const renfe: string[] = [];
+  const looks: Promise<void>[] = [];
   for (const end = Date.now() + Number(minutes) * 60_000; Date.now() < end; await new Promise((done) => setTimeout(done, 20_000))) {
+    looks.push(
+      Promise.all([feed(RENFE.positions), feed(RENFE.updates)]).then(([positions, updates]) => {
+        if (positions || updates) renfe.push(JSON.stringify({ at: Date.now(), positions, updates }));
+      }),
+    );
     let snapshot: Snapshot | undefined;
     try {
       snapshot = JSON.parse(await get(`${LIVE_URL}/snapshot.json`));
@@ -112,8 +127,10 @@ if (import.meta.main) {
       snapshot = received.at(-1)?.snapshot;
     }
     if (snapshot) received.push({ snapshot, at: Date.now() });
-    console.log(`${received.length} snapshots`);
+    console.log(`${received.length} snapshots, ${renfe.length} of Renfe's feeds`);
   }
+  await Promise.all(looks);
+  if (renfe.length) await writeFile(join(dir, 'renfe.ndjson.gz'), gzipSync(`${renfe.join('\n')}\n`));
 
   // A recording whose last snapshot is after midnight in Madrid has the next day's bundle joined to
   // the day's, as the map has them (#411), where the manifest names it and it comes.
