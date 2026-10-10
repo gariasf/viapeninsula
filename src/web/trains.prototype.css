@@ -42,4 +42,8 @@
     background: Canvas;
     color: CanvasText;
   }
+
+  .trains-grey .pill.pointed.scheduled {
+    color: CanvasText;
+  }
 }
