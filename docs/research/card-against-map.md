@@ -3,7 +3,7 @@
 Research for #352, under #234 (part of #1). It builds on [ADR-0002](../adr/0002-timetable-drives-motion.md) (the timetable drives motion, a Train never runs back), #233's audit (its replay method, and its long pins, #233's first follow-up), and #335/#356 (the clock the minutes to go count by). Nothing in the map changed: the measure is `src/cardVsMap.ts` (the yardstick, with tests) and `src/cardVsMapRun.ts` (`npm run card-vs-map -- <dir>...`), as `jumps()` is one for jumps.
 
 - **Base:** origin/main `c97cf8e`, 10 October 2026.
-- **Recordings:** the Record workflow's runs 37533038357 (Tue 6 Oct 23:19), 37618244697 (Wed 7 Oct 14:03) and 37646767458 (Wed 7 Oct 17:47), and the three Saturday ones of 10 Oct: 10:38–10:52 and 11:04–11:49 (by hand, #414's two) and run 38047796026 (13:16–14:01). 14,261 s of replay in all, Rodalies, FGC, TRAM, the Metro and the Cercanías núcleos of those days, each recording with that day's whole `bundle.json`; the Networks' live traits are `src/networks.ts`'s now.
+- **Recordings:** the Record workflow's runs 37533038357 (Tue 6 Oct 23:19), 37618244697 (Wed 7 Oct 14:03) and 37646767458 (Wed 7 Oct 17:47), and the three Saturday ones of 10 Oct: 10:38–10:52 and 11:04–11:49 (by hand, #414's two) and run 38047796026 (13:16–14:01). 14,261 s of replay in all, Rodalies, FGC, TRAM, the Metro and the Cercanías núcleos of those days, each recording with that day's whole `bundle.json`; the Networks' live traits are `src/networks.ts`'s now. The six are kept privately, as zips on the maintainer's Mac (#414; [punctuality.md](punctuality.md)'s "Files kept" says where, and what their sources allow), and section 6 says how to replay one.
 - **Method:** each second from the first snapshot's arrival to the last, every Trip of the day that can be on the map, through the engine's own `onMap()` (a copy of `src/engine.ts` with it exported, made in a temporary directory at the run). For each Train drawn, the card is worked out as `trainAt()` and `strip()` work it out (`upcoming`, `standsAt`, `delay`, minutes to go by `Date.now()`) and set against the drawn position, the Stations near it, and the followed pill's reach. Every Train drawn counts as if it were the one followed, so a figure is a share of Train-seconds, and the chance a followed Train's card and pill disagree in a second. No Closure is applied, so a Scheduled Train #345 hides within one is counted as drawn.
 - **Same Delay measures as before the ticket:** jumps and stalls are counted in the same pass (the `jumps()` rule: Live in both seconds, more than line speed plus 5%; the stalls: a Live Train still, more than 20 m from every call).
 
@@ -135,8 +135,10 @@ Nothing below changes where a Train is drawn: a card's words, its countdown and 
 ## 6. How to replay one
 
 ```
-npm run card-vs-map -- <dir> [<dir>...]     # a dir with bundle.json and replay.json.gz, as `npm run record` writes
+(cd .cache/recordings-2026-10 && shasum -a 256 -c SHA256SUMS)   # the maintainer's zips, gitignored: a clone doesn't have them
+mkdir -p rec && unzip -q .cache/recordings-2026-10/recording-2026-10-10-1316.zip -d rec/recording-2026-10-10-1316
+npm run card-vs-map -- <dir> [<dir>...]     # a dir with bundle.json and replay.json.gz, as `npm run record` writes (rec/recording-2026-10-10-1316 above)
 LIMIT=300 ZOOM=14 npm run card-vs-map -- <dir>
 ```
 
-It prints one JSON of counts in Train-seconds, by recording and Network, `all` and `live`. `src/cardVsMap.test.ts` pins the definitions on a made-up Trip. A Record run's artifact is a `bundle.json` and a `replay.json.gz`; the same line is in #414's release notes.
+It prints one JSON of counts in Train-seconds, by recording and Network, `all` and `live`. `src/cardVsMap.test.ts` pins the definitions on a made-up Trip. A Record run's artifact is a `bundle.json` and a `replay.json.gz`, with the feeds' own `trip_updates.json` and `vehicle_positions.json`. The folder keeps each as the zip Actions served, and the two by hand on Saturday, which Actions never had, zipped the same way, with a `SHA256SUMS`. The six recordings above, replayed together, give section 2's Train-seconds to the unit. `jumps()` and `trainsAt()` on a recording's `replay.json.gz` are in [punctuality.md](punctuality.md)'s "Re-verify quickly".
