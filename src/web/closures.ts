@@ -99,6 +99,34 @@ export interface Shown {
 /** Which part of a Line a Closure is of: its Line and its Stations, either way round. */
 export const closureKey = ({ line, stations }: Pick<Shown, 'line' | 'stations'>) => `${line} ${stations.toSorted().join(' ')}`;
 
+/** A row of what a tap on Closures names (tappedRows()): one Alert's, or one of the timetable's. */
+export interface Tapped {
+  /** The last of its Closures in the order `shown` has them, which its Stations and its start come from; not `all`'s last, which is in Lines' order. */
+  closure: Shown;
+  /** The Lines it's on, each once, in the order the cards name Lines. */
+  on: string[];
+  /** Its Closures, by their Lines' place in that order. */
+  all: Shown[];
+}
+
+/**
+ * What a tap on the Closures `shown` with these `keys` (closureKey()) names: a row for each Alert that
+ * makes any of them, as `shown` has the Alerts, newest first, then one for each of the timetable's, which
+ * are one for each part of a Line, in the order of their Lines (a Line's parts as the day's file lists
+ * them). A row's Lines and Closures are in `order` too, the order the cards name Lines in (#399), not as
+ * its Alert lists them (#341).
+ */
+export function tappedRows(shown: Shown[], keys: string[], order: string[]): Tapped[] {
+  const place = (c: Shown) => order.indexOf(c.line);
+  const tapped = shown.filter((c) => keys.includes(closureKey(c)));
+  const rows = new Map<string, { closure: Shown; all: Shown[] }>();
+  for (const closure of [...tapped.filter((c) => c.alert), ...tapped.filter((c) => !c.alert).toSorted((a, b) => place(a) - place(b))]) {
+    const by = closure.alert ? `${closure.alert.feed} ${closure.alert.id}` : closureKey(closure);
+    rows.set(by, { closure, all: [...(rows.get(by)?.all ?? []), closure] });
+  }
+  return [...rows.values()].map(({ closure, all }) => ({ closure, on: order.filter((id) => all.some((c) => c.line === id)), all: all.toSorted((a, b) => place(a) - place(b)) }));
+}
+
 /** What names a Closure an Alert makes and what that Alert says, as `lifted` remembers them (hiding()). */
 const liftKey = (c: Shown) => `${closureKey(c)} ${c.alert?.feed} ${c.alert?.id} ${c.alert?.said}`;
 

@@ -1,5 +1,5 @@
-// What the cards work out from the days on the map and the engine's Trains: minutes to go, Nearby's rows, how far along its Trip a followed Train is, and a board's Lines (#321); and from alerts.json, the Alerts each shows (#342).
-import type { Alert, Alerts, Call, Trip, Words } from '../bundle.ts';
+// What the cards work out from the days on the map and the engine's Trains: minutes to go, Nearby's rows, how far along its Trip a followed Train is, and a board's Lines (#321), and the order the cards name Lines in (#399); and from alerts.json, the Alerts each shows (#342).
+import type { Alert, Alerts, Call, Line, Trip, Words } from '../bundle.ts';
 import type { Pass } from '../engine.ts';
 import type { Language } from './i18n.ts';
 
@@ -48,6 +48,22 @@ export function progress(calls: Call[], dist: number, toLeave: number): { done: 
   if (on < 0) return { done: 0, length };
   if (on >= legs.length) return { done: length, length };
   return { done: sum(legs.slice(0, on)) + Math.min(Math.abs(dist - (calls[on]?.dist ?? dist)), legs[on] ?? 0), length };
+}
+
+/** How Lines' names are put in order: digits as numbers, in English whatever the viewer's language, so that every device has the same order. */
+const NAMES = new Intl.Collator('en', { numeric: true });
+
+/**
+ * `lines` in the order the cards name them (#399), as a new array: each Network's together, the
+ * Networks in the order the track lists them, and a Network's Lines in the order of their names, digits
+ * as numbers (T1, T2, T3; R1, R2, R2N, R2S, R3 … R11, RL4; C1, C4, C4a, C5 … C10), not in the order
+ * its timetable lists them, which is the order the track has them in and `lines` stays in: the build's
+ * side-by-side order goes by that where nothing else decides (#162), and nothing the map draws is read
+ * from this one.
+ */
+export function inNameOrder<L extends Pick<Line, 'network' | 'name'>>(lines: L[]): L[] {
+  const rank = new Map([...new Set(lines.map((l) => l.network))].map((network, i) => [network, i]));
+  return lines.toSorted((a, b) => (rank.get(a.network) ?? 0) - (rank.get(b.network) ?? 0) || NAMES.compare(a.name, b.name));
 }
 
 /** The Lines whose Trips call at any of `stations`, a place's, as a board names them: of `lines`, in their order. */

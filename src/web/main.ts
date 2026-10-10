@@ -18,8 +18,8 @@ import { atMostEvery, drifted, letsGo } from './centre.ts';
 import { keepView, lastView, markOf, openingView, toggledPitch } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { contrast, lettering } from './colour.ts';
-import { cardAlerts, linesCallingAt, minutesTo, nearbyRows, progress, type CardAlert } from './cards.ts';
-import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, type Shown } from './closures.ts';
+import { cardAlerts, inNameOrder, linesCallingAt, minutesTo, nearbyRows, progress, type CardAlert } from './cards.ts';
+import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, tappedRows, type Shown } from './closures.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
 setWorkerUrl(workerUrl);
@@ -613,7 +613,11 @@ let drawClosures = () => {};
  * is declared.
  */
 let liftClosures = () => {};
-/** The Lines of the days on the map, by their IDs, which the cards name as pills from the start (pill()). */
+/**
+ * The Lines of the days on the map, by their IDs, which the cards name as pills from the start (pill()),
+ * in the order they name them (inNameOrder(), #399). Only naming reads that order, in servedBy() and
+ * closuresTapped(): what's drawn looks Lines up by their IDs, and `days.lines` stays as the track has it.
+ */
 let lines = new Map<string, Line>();
 /** How each Line's Trains are drawn as pills, by the Line's ID. */
 let pills = new Map<string, Pill>();
@@ -1172,7 +1176,8 @@ function show(days: Track | Bundle) {
     return drawClosures();
   }
   shownStations = days.stations;
-  lines = new Map(days.lines.map((l) => [l.id, l]));
+  // In the order the cards name them, not the track's, which `days.lines` stays in (#399).
+  lines = new Map(inNameOrder(days.lines).map((l) => [l.id, l]));
   stationNames = new Map(days.stations.map((s) => [s.id, s.name]));
   shownPlaces = new Map(places(days.stations).map((p) => [p.id, p]));
   placeOfStation = new Map([...shownPlaces.values()].flatMap((p) => p.stations.map((station): [string, Place] => [station, p])));
@@ -2293,21 +2298,15 @@ function fitPopup(at: LngLat) {
  * What a tap on Closures shows (#341), by closureKey(): for each Alert that closes them, its words
  * (cardAlerts()), or for each the timetable's buses do, that buses replace trains between its two
  * Stations, in the interface's words; each under the pills of the Closures' Lines, in the order a board
- * names them, with when it began. Over them, when the Alerts were read, where that's long ago. None,
- * where none of them is shown now.
+ * names them, with when it began (tappedRows()). Over them, when the Alerts were read, where that's
+ * long ago. None, where none of them is shown now.
  */
 function closuresTapped(keys: string[]) {
   const now = mapTime(Date.now(), received);
-  const rows = new Map<string, { closure: Shown; on: string[]; all: Shown[] }>();
-  for (const closure of shownClosures.filter((c) => keys.includes(closureKey(c)))) {
-    const by = closure.alert ? `${closure.alert.feed} ${closure.alert.id}` : closureKey(closure);
-    rows.set(by, { closure, on: [...(rows.get(by)?.on ?? []), closure.line], all: [...(rows.get(by)?.all ?? []), closure] });
-  }
-  // In the order the days on the map list the Lines, as a board's are (servedBy()), not the feed's.
-  const order = [...lines.keys()];
-  for (const row of rows.values()) row.on = order.filter((id) => row.on.includes(id));
+  // Their Lines in the order the cards name Lines, as a board's are (servedBy()), not the feed's.
+  const rows = tappedRows(shownClosures, keys, [...lines.keys()]);
   // Under an Alert's words, where Live Trains of a Line have run within its Closure since (#422).
-  const said = [...rows.values()].flatMap(({ closure: { alert, stations: [a = '', b = ''], from }, on, all }): { row: CardAlert; ran: string[] }[] => {
+  const said = rows.flatMap(({ closure: { alert, stations: [a = '', b = ''], from }, on, all }): { row: CardAlert; ran: string[] }[] => {
     if (alert) {
       const ran = all.flatMap((c) => {
         const [since, name] = [liftedSince(c, lifted), lines.get(c.line)?.name];
@@ -2317,7 +2316,7 @@ function closuresTapped(keys: string[]) {
     }
     return [{ row: { id: `${on.join()} ${a} ${b}`, lines: on, description: { language: language(), text: busesReplace(stationName(a), stationName(b)) }, ...(from !== undefined && { from }), by: '' }, ran: [] }];
   });
-  const { asOf } = cardAlerts(alerts, { lines: [...rows.values()].flatMap(({ closure, on }) => (closure.alert ? on : [])), stations: [] }, language(), now);
+  const { asOf } = cardAlerts(alerts, { lines: rows.flatMap(({ closure, on }) => (closure.alert ? on : [])), stations: [] }, language(), now);
   return said.length ? el('div', { className: 'alerts' }, readAt(asOf, now), el('ol', {}, ...said.map(({ row, ran }) => alertRow(row, true, ran)))) : undefined;
 }
 
@@ -2383,7 +2382,7 @@ function boardPanel(id: string, up: boolean): Panel | undefined {
   };
 }
 
-/** The Lines whose Trips call at a place, by their IDs, in the order the days on the map list them: for the last place asked about, until the days change. */
+/** The Lines whose Trips call at a place, by their IDs, in the order the cards name Lines: for the last place asked about, until the days change. */
 function servedBy(place: Place): string[] {
   if (served.place !== place.id || served.days !== bundle) served = { place: place.id, days: bundle, lines: linesCallingAt(bundle?.trips ?? [], place.stations, [...lines.keys()]) };
   return served.lines;
