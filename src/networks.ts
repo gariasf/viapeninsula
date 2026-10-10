@@ -53,9 +53,9 @@ export interface NetworkConfig extends Omit<Network, 'credit'> {
    * Stations beyond it, by ID, where its operator files under one of its Lines a train that runs on
    * into another Network, as Renfe files FEVE's Bilbao–León train under Cercanías Bilbao's C4 (#368). A
    * Trip that calls at one of them isn't the Network's: it's left out, with the Stations and track only
-   * such Trips have, and logged and reported, and a timetable that lists the Train too has it as its
-   * own (unlisted()). It takes one Station for a run beyond where the Network ends, as every Trip that
-   * runs on calls there.
+   * such Trips have, and logged and reported, and it's no longer one of the Trains it lists (unlisted()),
+   * though another Network may list it too, as León's C1 lists that train's last 17 calls. One Station is
+   * enough for a run beyond where the Network ends, as every Trip that runs on calls there.
    */
   beyond?: string[];
 }
@@ -537,8 +537,9 @@ export const CERCANIAS_BILBAO: NetworkConfig = {
   lines: { kind: 'commuter', gauges: { C1: IBERIAN, C2: IBERIAN, C3: IBERIAN, C4: METRE, C5: METRE } },
   // Renfe files FEVE's train a day each way between Bilbao and León under C4: 63 calls in 7 h 47 min
   // (10 October 2026), on from Balmaseda along the La Robla line to León's La Asunción, at 43 Stations no
-  // other Trip of núcleo 60 calls at, 17 of them León's own. It's no Trip of Bilbao's, so C4 ends at
-  // La Calzada, by Balmaseda: a Trip that calls at Arla Berrón, the first Station past Balmaseda, is left out (#368).
+  // other Trip of núcleo 60 calls at, 17 of them León's own, whose calls León's C1 lists as Trips under the
+  // same numbers. It's no Trip of Bilbao's, so C4 ends at La Calzada, by Balmaseda: a Trip that calls at
+  // Arla Berrón, the first Station past Balmaseda, is left out (#368).
   beyond: ['adif:05721'],
 };
 

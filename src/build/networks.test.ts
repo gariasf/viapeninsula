@@ -642,7 +642,7 @@ test("leaves out the Trips that call at a Station beyond the Network, as Renfe f
   expect(configured.lines.map((l) => [l.name, l.shapes])).toEqual(published.lines.map((l) => [l.name, l.shapes]));
 });
 
-test("lists no Train number of a Trip it leaves out as the Network's, so that a timetable that lists the Train too, as Renfe's long-distance one lists 71876 and 71891 as Regionals, has it as its own", async () => {
+test("lists no Train number of a Trip it leaves out as the Network's, so that Renfe's long-distance timetable, which lists 71876 and 71891 as Regionals, doesn't leave them to the Network", async () => {
   const { listed } = await readBilbao(CERCANIAS_BILBAO);
   expect([...listed.keys()]).toEqual(['71500', '71503']);
   const long = [{ id: 'media-distancia-avant:0545105778VRFV', line: 'media-distancia-avant:Regional', shape: '', headsign: '', number: '71876', calls: [{ station: 'adif:05451', arrival: 0, departure: 0 }, { station: 'adif:05803', arrival: 1, departure: 1 }] }];
