@@ -147,6 +147,14 @@ const STRINGS = {
     gl: 'Autobuses no canto de trens entre {a} e {b}',
     en: 'Buses replace trains between {a} and {b}',
   },
+  // A tap on a Closure an Alert makes, once a Live Train of its Line has been seen within it (#422): {line}'s Trains run there, since {time}.
+  trainsRunHere: {
+    ca: '{line}: els trens hi circulen des de {time}',
+    es: '{line}: los trenes circulan aquí desde {time}',
+    eu: '{line}: trenak hemen ibiltzen dira {time} geroztik',
+    gl: '{line}: os trens circulan aquí desde {time}',
+    en: "{line}'s Trains have run here since {time}",
+  },
   // Nearby Trains: their panel's title, and the button that opens them.
   nearby: { ca: 'Trens a prop', es: 'Trenes cercanos', eu: 'Inguruko trenak', gl: 'Trens próximos', en: 'Nearby trains' },
   nearbyButton: { ca: 'A prop', es: 'Cerca', eu: 'Inguruan', gl: 'Preto', en: 'Nearby' },
@@ -356,6 +364,9 @@ export const busesReplace = (a: string, b: string, lang = language()): string =>
   const text = STRINGS.busesReplace[lang].replace('{a}', a);
   return (lang === 'es' && /^h?[iíIÍ](?![aeoáéó])/i.test(b) ? text.replace(' y {b}', ' e {b}') : text).replace('{b}', b);
 };
+
+/** That a Line's Trains have run within a lifted Closure since `time` (#422), in `lang`, or else the language the interface speaks now. */
+export const trainsRunHere = (line: string, time: string, lang = language()): string => STRINGS.trainsRunHere[lang].replace('{line}', line).replace('{time}', time);
 
 /**
  * Why Nearby can't show the viewer's nearby Trains: the browser is finding where they are, as Nearby's

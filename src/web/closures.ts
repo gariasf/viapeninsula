@@ -99,17 +99,23 @@ export interface Shown {
 /** Which part of a Line a Closure is of: its Line and its Stations, either way round. */
 export const closureKey = ({ line, stations }: Pick<Shown, 'line' | 'stations'>) => `${line} ${stations.toSorted().join(' ')}`;
 
+/** What names a Closure an Alert makes and what that Alert says, as `lifted` remembers them (hiding()). */
+const liftKey = (c: Shown) => `${closureKey(c)} ${c.alert?.feed} ${c.alert?.id} ${c.alert?.said}`;
+
 /**
  * The Closures among those shown that hide their Lines' Trains (#345): all but those an Alert closes
  * that a Live Train of their Line has been seen within since that Alert last changed, its period,
- * effect or words, as `lifted` remembers them, which this adds those `seen` to (seenWithin()). The
- * timetable's, which no Trip of their day runs through, are never lifted.
+ * effect or words, as `lifted` remembers them, which this adds those `seen` to (seenWithin()), with
+ * the time `at` (ms since 1970) they were first seen (liftedSince(), #422). The timetable's, which no
+ * Trip of their day runs through, are never lifted.
  */
-export function hiding(shown: Shown[], seen: readonly Shown[], lifted: Set<string>): Shown[] {
-  const key = (c: Shown) => `${closureKey(c)} ${c.alert?.feed} ${c.alert?.id} ${c.alert?.said}`;
-  for (const c of seen) if (c.alert) lifted.add(key(c));
-  return shown.filter((c) => !c.alert || !lifted.has(key(c)));
+export function hiding(shown: Shown[], seen: readonly Shown[], lifted: Map<string, number>, at: number): Shown[] {
+  for (const c of seen) if (c.alert && !lifted.has(liftKey(c))) lifted.set(liftKey(c), at);
+  return shown.filter((c) => !c.alert || !lifted.has(liftKey(c)));
 }
+
+/** When a Live Train of a Closure's Line was first seen within it, as `lifted` has it (ms since 1970), where its Alert hasn't changed since; none where it isn't lifted. */
+export const liftedSince = (c: Shown, lifted: ReadonlyMap<string, number>): number | undefined => (c.alert ? lifted.get(liftKey(c)) : undefined);
 
 /**
  * The Closures the map draws at `now` (ms since 1970), one for each part of a Line (ADR-0012). From

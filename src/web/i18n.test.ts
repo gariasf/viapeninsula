@@ -1,6 +1,6 @@
 import { createExpression, latest, type ExpressionSpecification, type Feature, type StylePropertySpecification } from '@maplibre/maplibre-gl-style-spec';
 import { afterEach, expect, test, vi } from 'vitest';
-import { alertCount, basemapLabel, busesReplace, earlierStations, LANGUAGES, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, pickLanguage, t, toGo, trainCounts, unlocated } from './i18n.ts';
+import { alertCount, basemapLabel, busesReplace, earlierStations, LANGUAGES, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, pickLanguage, t, toGo, trainCounts, trainsRunHere, unlocated } from './i18n.ts';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -311,4 +311,12 @@ test('says "e" for "and" in Spanish before a name starting with an i sound, as i
   expect(busesReplace('Lezo', 'Hipódromo', 'es')).toBe('Autobuses en lugar de trenes entre Lezo e Hipódromo');
   expect(busesReplace('Lezo', 'Hierro', 'es')).toBe('Autobuses en lugar de trenes entre Lezo y Hierro');
   expect(busesReplace('Lezo', 'Íllora', 'es')).toBe('Autobuses en lugar de trenes entre Lezo e Íllora');
+});
+
+test("says a Line's Trains have run within a lifted Closure since a time, in each language (#422)", () => {
+  expect(trainsRunHere('R1', '12:13', 'en')).toBe("R1's Trains have run here since 12:13");
+  expect(trainsRunHere('R1', '12:13', 'ca')).toBe('R1: els trens hi circulen des de 12:13');
+  expect(trainsRunHere('R1', '12:13', 'es')).toBe('R1: los trenes circulan aquí desde 12:13');
+  expect(trainsRunHere('R1', '12:13', 'eu')).toBe('R1: trenak hemen ibiltzen dira 12:13 geroztik');
+  expect(trainsRunHere('R1', '12:13', 'gl')).toBe('R1: os trens circulan aquí desde 12:13');
 });

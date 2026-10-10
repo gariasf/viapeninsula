@@ -8,7 +8,7 @@ import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
 import { along, APART, atZoom, BANDS, bandZooms, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, daysOf, EARTH, LIVE_URL, madridDate, places, type Alerts, type Bundle, type Credit, type Place, type Kind, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH } from '../bundle.ts';
 import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, unavailable, type Coming, type Departure, type Followed, type Received } from '../engine.ts';
-import { alertCount, basemapLabel, busesReplace, earlierStations, language, LANGUAGES, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, setLanguage, t, toGo, trainCounts, unlocated, type Language, type Unlocated } from './i18n.ts';
+import { alertCount, basemapLabel, busesReplace, earlierStations, language, LANGUAGES, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, setLanguage, t, toGo, trainCounts, trainsRunHere, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { forgetJoined, regionLoader } from './regions.ts';
 import { linesAt, popupRoom } from './tap.ts';
@@ -19,7 +19,7 @@ import { keepView, lastView, markOf, openingView, toggledPitch } from './view.ts
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { contrast, lettering } from './colour.ts';
 import { cardAlerts, linesCallingAt, minutesTo, nearbyRows, progress, type CardAlert } from './cards.ts';
-import { closureKey, closureStrokes, closuresAt, hiding, placeOn, type Shown } from './closures.ts';
+import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, type Shown } from './closures.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
 setWorkerUrl(workerUrl);
@@ -685,13 +685,14 @@ let shownClosures: Shown[] = [];
 /** Those of them that hide Trains (hiding(), #345): within whose closed ones Scheduled Trains aren't drawn, and boards show them not stopping. */
 let hidingClosures: Shown[] = [];
 /**
- * The Closures live data has lifted (hiding(), #345), for the page's life.
+ * The Closures live data has lifted (hiding(), #345), for the page's life, with when a Live Train was
+ * first seen within each (ms since 1970, by the map's time), which a tap on it says (#422).
  * ponytail: the page's memory, so a page opened while a stale Alert's Closure has its Line's Trains
  * running hides them until one is seen within it again. The fetcher keeping where each Line's Trains
  * were last seen, and publishing it beside alerts.json, would lift it from the first. It keeps every
  * Alert it has lifted, so one changed and then changed back is lifted again without a Train seen since.
  */
-const lifted = new Set<string>();
+const lifted = new Map<string, number>();
 /** The Lines' strokes along their Stretches, which a tap on one names (linesAt()). */
 let shownStrokes: Stroke[] = [];
 /** Each Network's track, drawn once zoomed out (#190), which the banner goes by for a Network with no Trips today (bannerNetworks()). */
@@ -1255,7 +1256,7 @@ function showClosures() {
  * engine works out each list's once (6 ms on 10 Oct's bundle).
  */
 function hideClosures() {
-  const hides = hiding(shownClosures, bundle ? seenWithin(bundle, Date.now(), received, shownClosures) : [], lifted);
+  const hides = hiding(shownClosures, bundle ? seenWithin(bundle, Date.now(), received, shownClosures) : [], lifted, mapTime(Date.now(), received));
   if (hides.length !== hidingClosures.length || hides.some((c, i) => c !== hidingClosures[i])) hidingClosures = hides;
 }
 
@@ -2249,20 +2250,27 @@ function fitPopup(at: LngLat) {
  */
 function closuresTapped(keys: string[]) {
   const now = mapTime(Date.now(), received);
-  const rows = new Map<string, { closure: Shown; on: string[] }>();
+  const rows = new Map<string, { closure: Shown; on: string[]; all: Shown[] }>();
   for (const closure of shownClosures.filter((c) => keys.includes(closureKey(c)))) {
     const by = closure.alert ? `${closure.alert.feed} ${closure.alert.id}` : closureKey(closure);
-    rows.set(by, { closure, on: [...(rows.get(by)?.on ?? []), closure.line] });
+    rows.set(by, { closure, on: [...(rows.get(by)?.on ?? []), closure.line], all: [...(rows.get(by)?.all ?? []), closure] });
   }
   // In the order the days on the map list the Lines, as a board's are (servedBy()), not the feed's.
   const order = [...lines.keys()];
   for (const row of rows.values()) row.on = order.filter((id) => row.on.includes(id));
-  const said = [...rows.values()].flatMap(({ closure: { alert, stations: [a = '', b = ''], from }, on }): CardAlert[] => {
-    if (alert) return cardAlerts(alerts, { lines: on, stations: [] }, language(), now).alerts.filter((c) => c.id === alert.id);
-    return [{ id: `${on.join()} ${a} ${b}`, lines: on, description: { language: language(), text: busesReplace(stationName(a), stationName(b)) }, ...(from !== undefined && { from }), by: '' }];
+  // Under an Alert's words, where Live Trains of a Line have run within its Closure since (#422).
+  const said = [...rows.values()].flatMap(({ closure: { alert, stations: [a = '', b = ''], from }, on, all }): { row: CardAlert; ran: string[] }[] => {
+    if (alert) {
+      const ran = all.flatMap((c) => {
+        const [since, name] = [liftedSince(c, lifted), lines.get(c.line)?.name];
+        return since === undefined || !name ? [] : [trainsRunHere(name, clock().format(since))];
+      });
+      return cardAlerts(alerts, { lines: on, stations: [] }, language(), now).alerts.filter((c) => c.id === alert.id).map((row) => ({ row, ran }));
+    }
+    return [{ row: { id: `${on.join()} ${a} ${b}`, lines: on, description: { language: language(), text: busesReplace(stationName(a), stationName(b)) }, ...(from !== undefined && { from }), by: '' }, ran: [] }];
   });
   const { asOf } = cardAlerts(alerts, { lines: [...rows.values()].flatMap(({ closure, on }) => (closure.alert ? on : [])), stations: [] }, language(), now);
-  return said.length ? el('div', { className: 'alerts' }, readAt(asOf, now), el('ol', {}, ...said.map((row) => alertRow(row, true)))) : undefined;
+  return said.length ? el('div', { className: 'alerts' }, readAt(asOf, now), el('ol', {}, ...said.map(({ row, ran }) => alertRow(row, true, ran)))) : undefined;
 }
 
 /**
@@ -2270,7 +2278,7 @@ function closuresTapped(keys: string[]) {
  * has more than one, as a board can: Rodalies' words don't name theirs. Or a Closure the timetable's
  * buses make, in the interface's words, whose they are unsaid (#341).
  */
-function alertRow({ lines: named, header, description, from, by }: CardAlert, byLine: boolean) {
+function alertRow({ lines: named, header, description, from, by }: CardAlert, byLine: boolean, ran: string[] = []) {
   // In an unknown language, lang="", where its feed doesn't say, rather than the viewer's.
   const words = (tag: 'strong' | 'p', said?: Words) => (said ? [el(tag, { textContent: said.text, lang: said.language ?? '' })] : []);
   const other = description?.language && description.language !== language() ? description.language : undefined;
@@ -2286,6 +2294,7 @@ function alertRow({ lines: named, header, description, from, by }: CardAlert, by
     ...(byLine && named.length ? [el('div', { className: 'served' }, ...named.map((line) => pill(line, { small: true })))] : []),
     ...words('strong', header),
     ...words('p', description),
+    ...ran.map((textContent) => el('p', { className: 'meta', textContent })),
     el('p', { className: 'meta' }, ...about.flatMap((part, i) => (i ? [' · ', part] : [part]))),
   );
 }
