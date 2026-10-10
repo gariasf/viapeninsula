@@ -6,7 +6,7 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import nunitoSans from '@fontsource/nunito-sans/files/nunito-sans-latin-400-normal.woff2?url';
 import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-normal.woff2?url';
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
-import { along, APART, atZoom, BANDS, bandZooms, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, daysOf, EARTH, LIVE_URL, madridDate, places, type Alerts, type Bundle, type Credit, type Place, type Kind, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH } from '../bundle.ts';
+import { along, APART, atZoom, BANDS, bandZooms, coveredIn, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, daysOf, EARTH, LIVE_URL, madridDate, places, type Alerts, type Bundle, type Credit, type Place, type Kind, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH } from '../bundle.ts';
 import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, unavailable, type Coming, type Departure, type Followed, type Received } from '../engine.ts';
 import { alertCount, basemapLabel, busesReplace, earlierStations, language, LANGUAGES, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, setLanguage, t, toGo, trainCounts, trainsRunHere, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
@@ -734,6 +734,18 @@ const lineLayout: LineLayerSpecification['layout'] = { 'line-cap': 'round', 'lin
 const lineColour: ExpressionSpecification = ['case', ['to-boolean', ['get', 'shared']], SHARED, ['get', 'colour']];
 /** How far right of its track each Line's stroke is drawn, and its casing: `side` line widths, zoomed out. */
 const lineOffset = byZoom(APART, (px) => ['*', ['get', 'side'], px]);
+/**
+ * Where a Line in a tunnel has a Line above it within a line width (`covered`, #417), it's drawn at
+ * COVERED_WIDTH of its width and COVERED_OPACITY of its opacity, with its casing, so that the Line above
+ * reads as the one on the street and this as the one under it. Its opacity takes the layer's `fade`.
+ */
+const COVERED_WIDTH = 0.6;
+const COVERED_OPACITY = 0.45;
+const isCovered: ExpressionSpecification = ['has', 'covered'];
+/** A Line's width in px by zoom, and `extra` more for its casing: a covered part's is COVERED_WIDTH of it before that. */
+const lineWidth = (extra = 0) => byZoom(WIDTH, (px) => ['+', ['*', px, ['case', isCovered, COVERED_WIDTH, 1]], extra]);
+/** An opacity that goes from one value to another by zoom, and for a covered part is COVERED_OPACITY of it. */
+const fadedBy = (stops: [zoom: number, opacity: number][]) => byZoom(stops, (opacity) => ['case', isCovered, opacity * COVERED_OPACITY, opacity]);
 // The casing sets each Line off the basemap's roads and rivers, 1 px either side of it. It's one layer
 // under every Line, so none shows between Lines side by side on shared track, and where Lines cross it
 // cuts no gap, nor where a Line goes into a tunnel. The Lines in tunnels go below the rest, the deeper
@@ -746,8 +758,8 @@ const lineOffset = byZoom(APART, (px) => ['*', ['get', 'side'], px]);
 // layers: where Lines share a track, their rails lie one over another, so faded alike they'd show
 // nearly whole long before the stretches' strokes go.
 const railsZoom = APART.at(-1)?.[0] ?? 15;
-const stretchesFade = byZoom([[railsZoom - FADE, 1], [railsZoom + FADE, 0]], (opacity) => opacity);
-const railsFade = byZoom([[railsZoom - FADE, 0], [railsZoom + FADE, 1]], (opacity) => opacity);
+const stretchesFade = fadedBy([[railsZoom - FADE, 1], [railsZoom + FADE, 0]]);
+const railsFade = fadedBy([[railsZoom - FADE, 0], [railsZoom + FADE, 1]]);
 /** Along their stretches, Lines are shown through neither while they slide onto the rails nor while they fade. */
 const stretchesThrough = byZoom([[14, 1], [14.1, 0]], (opacity) => opacity);
 map.addLayer(
@@ -772,7 +784,7 @@ for (const { source, id, prefix, zooms, nameZooms, opacity, throughOpacity, belo
       source,
       ...zooms,
       layout: lineLayout,
-      paint: { 'line-color': casing, 'line-width': byZoom(WIDTH, (px) => px + 2), 'line-offset': lineOffset, 'line-opacity': opacity },
+      paint: { 'line-color': casing, 'line-width': lineWidth(2), 'line-offset': lineOffset, 'line-opacity': opacity },
     },
     below,
   );
@@ -785,7 +797,7 @@ for (const { source, id, prefix, zooms, nameZooms, opacity, throughOpacity, belo
       layout: lineLayout,
       paint: {
         'line-color': lineColour,
-        'line-width': byZoom(WIDTH, (px) => px),
+        'line-width': lineWidth(),
         'line-offset': lineOffset,
         'line-opacity': opacity,
       },
@@ -1160,13 +1172,16 @@ function show(days: Track | Bundle) {
     // it's drawn in, as it is there; a curve in its pieces.
     features: strokes.flatMap((s) => {
       const bands = s.band !== undefined ? [s.band] : BANDS.flatMap((_, band) => (band >= GRAPH_BAND ? [band] : []));
-      if (!s.cut && !bands.some((band) => shapes.has(smoothId(s.shape, band)))) return pieces(s);
-      // Not in a band where a node absorbed its Stretch (ADR-0007).
+      if (!s.cut && !s.covered && !bands.some((band) => shapes.has(smoothId(s.shape, band)))) return pieces(s);
+      // Not in a band where a node absorbed its Stretch (ADR-0007). Where a Line above one in a tunnel
+      // lies within the band's line width, its part is drawn narrower and fainter (#417).
       return bands.flatMap((band) => {
         const [start, end] = cutIn(s, band);
-        return start + end < s.to - s.from ? [{ ...s, from: s.from + start, to: s.to - end, band }] : [];
+        if (start + end >= s.to - s.from) return [];
+        const there = { ...s, from: s.from + start, to: s.to - end, band };
+        return s.covered ? coveredIn(there, band).map((part) => ({ ...part, band })) : [there];
       });
-    }).flatMap(({ line: id, shape: shapeId, from, to, side, band, shared, under, crowded }): GeoJSON.Feature[] => {
+    }).flatMap(({ line: id, shape: shapeId, from, to, side, band, shared, under, covered, crowded }): GeoJSON.Feature[] => {
       const [line, shape] = [lines.get(id), band === undefined ? shapes.get(shapeId) : inBand(shapes, shapeId, band)];
       if (!line || !shape) return [];
       const properties = {
@@ -1185,6 +1200,7 @@ function show(days: Track | Bundle) {
         ...(band !== undefined && { band }),
         ...(shared && { shared }),
         ...(under && { under }),
+        ...(covered && { covered: true }),
         ...(crowded && { crowded }),
         // Each Line's name goes on its own stroke: text-offset is in ems.
         ...Object.fromEntries(APART.map(([zoom, px]) => [`textOffset${zoom}`, [0, (side * px) / NAME_SIZE]])),

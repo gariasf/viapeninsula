@@ -1,6 +1,7 @@
 // How the map draws each Line: where Lines share track, side by side, as a transit map does.
 
 import { along, APART, atZoom, BANDS, beside, cutIn, DEGREE, GRAPH_BAND, inBand, LENGTH, LINK, pieces, pixelMetres, pointAt, smoothId, STRETCH, type Line, type Point, type Shape, type Slot, type Stroke } from '../bundle.ts';
+import { markCovered } from './covered.ts';
 import { order, type Node } from './order.ts';
 import { folded, simplify, TOLERANCE } from './offset.ts';
 import { distances, nearest } from './track.ts';
@@ -103,7 +104,10 @@ export async function sideBySide(lines: Line[], shapes: Shape[], region = ''): P
     below.push(await graphed(walked, lines, { near: atZoom(APART, zoom) * pixelMetres(zoom, LATITUDE), bands: [band], own: band, prefix: `${lead}${zoom}-` }));
   }
   const all = [main, ...below];
-  return { strokes: all.flatMap((g) => g.strokes), centrelines: all.flatMap((g) => g.centrelines), rails: main.rails, slots: all.flatMap((g) => g.slots), tracks: networkTrack(lines, shapes) };
+  const centrelines = all.flatMap((g) => g.centrelines);
+  // Last, as each band's line width judges which strokes of Lines in tunnels have a Line above them (#417).
+  const strokes = markCovered(all.flatMap((g) => g.strokes), [...shapes, ...centrelines], KX, LATITUDE);
+  return { strokes, centrelines, rails: main.rails, slots: all.flatMap((g) => g.slots), tracks: networkTrack(lines, shapes) };
 }
 
 /**

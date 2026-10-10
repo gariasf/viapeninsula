@@ -396,6 +396,13 @@ export interface Stroke {
    * Lines on the street and those less deep, and where one covers it, shows it through (#178).
    */
   under?: number;
+  /**
+   * Of an `under` stroke, in each zoom band it's drawn in, from where to where along its shape a
+   * Line above it lies within a line width of it, alongside, as the band draws them: the map draws
+   * those parts narrower and fainter (#417, picked on #309). A line width is a band's own, so a part
+   * is marked for the bands it's covered in. Metres, whole.
+   */
+  covered?: [band: number, from: number, to: number][];
   /** Along a Stretch with more than CROWD places side by side (#283), closer together than a line width, so that each covers some of the next. */
   crowded?: true;
   /**
@@ -705,6 +712,28 @@ export function pieces(stroke: Stroke): Stroke[] {
   const length = stroke.to - stroke.from;
   const cut = (k: number) => (k <= 0 ? 0 : k >= n ? length : (length * Math.acos(1 - (2 * (k - 0.5)) / (n - 1))) / Math.PI);
   return Array.from({ length: n }, (_, k) => ({ ...rest, from: stroke.from + cut(k), to: stroke.from + cut(k + 1), side: n > 1 ? start + ((stop - start) * k) / (n - 1) : start }));
+}
+
+/**
+ * A stroke as drawn in a zoom band, in its pieces, each cut where it's `covered` there (#417): the
+ * parts a Line above lies within a line width of, which the map draws narrower and fainter, keep
+ * their `covered` as that one run; the rest have none.
+ */
+export function coveredIn(stroke: Stroke, band: number): Stroke[] {
+  const { covered, ...rest } = stroke;
+  const runs = (covered ?? []).filter(([b]) => b === band).toSorted((a, b) => a[1] - b[1]);
+  return pieces(rest).flatMap((p) => {
+    const parts: Stroke[] = [];
+    let at = p.from;
+    for (const [, from, to] of runs) {
+      const [a, b] = [Math.max(from, p.from, at), Math.min(to, p.to)];
+      if (b <= a) continue;
+      if (a > at) parts.push({ ...p, from: at, to: a });
+      parts.push({ ...p, from: a, to: b, covered: [[band, a, b]] });
+      at = b;
+    }
+    return at < p.to ? [...parts, { ...p, from: at, to: p.to }] : parts;
+  });
 }
 
 /** How many metres on the ground a pixel is at a zoom, at a latitude. */
