@@ -20,7 +20,7 @@ export const FAR = 200;
 /** How far the card's time can be from the drawn Train's, in seconds, before it's more than a minute of a clock showing minutes. */
 export const OFF = 60;
 
-/** A Station near the drawn Train, by the key the card names places by (their `place`, or else name), and how far in metres. */
+/** A place's dot near the drawn Train, where the map shows Stations as one, by the key the card names places by (places()'s ID), and how far in metres. */
 export interface Near {
   key: string;
   metres: number;
@@ -42,7 +42,7 @@ export interface Moment {
   calls: (Call & { key: string })[];
   /** Whether it stands at the first Station it has still to leave. */
   standing: boolean;
-  /** Every Station within `reach` of where it's drawn, nearest first. */
+  /** Every place's dot within `reach` of where it's drawn, nearest first. */
   near: Near[];
   /** How far its followed pill reaches along its track, in metres: its box alone, which the card goes by (pillReach()), and with its arrow. */
   reach: { pill: number; arrow: number };
@@ -91,15 +91,20 @@ export function differences(m: Moment): Differences | undefined {
   const upcoming = m.calls.filter((c) => c.departure >= m.time);
   const earlier = m.calls.length - upcoming.length;
   const next = upcoming[0];
-  // What the card says: it stands at the next, or is arriving at it within the pill's reach, or leaving the one it left within as far after it, or between them.
-  const says = whereabouts(m.calls, m.dist, upcoming.length, m.standing, m.reach.pill);
+  // What the card says: it stands at the next, or is arriving at it within the pill's reach, or leaving the one it left within as far after it, or between them,
+  // by how far along its Trip each is and how far its place's dot is, as the card goes by both.
+  const dot = (call: { key: string }) => m.near.find((n) => n.key === call.key)?.metres ?? Infinity;
+  const says = whereabouts(m.calls, m.dist, upcoming.length, m.standing, m.reach.pill, dot);
   if (!next || !says) return undefined;
   // Which Station the card has it at: the one it names, as arriving at, standing at or leaving; none, between two.
   const named = says.at === 'between' ? undefined : (says.at === 'leaving' ? says.last : says.next);
   const has = named?.key;
   const kindOf = (key: string): Kind => (key === next.key ? 'next' : m.calls.some((c) => c.key === key) ? 'otherCall' : 'notCall');
-  const unnamed = (metres: number) => m.near.find((n) => n.metres <= metres && n.key !== has);
+  const unnamed = (metres: number, covers = (_: Near) => true) => m.near.find((n) => n.metres <= metres && n.key !== has && covers(n));
   const kind = (n: Near | undefined) => n && kindOf(n.key);
+  // Its arrow points ahead, so it covers no Station it has left, unless the Trip comes back to it.
+  const left = new Set(m.calls.slice(0, earlier).map((c) => c.key));
+  const ahead = (n: Near) => !left.has(n.key) || upcoming.some((c) => c.key === n.key);
 
   const due = m.standing ? next.departure : next.arrival;
   const expected = m.noon + (due + m.delay) * 1000;
@@ -110,7 +115,7 @@ export function differences(m: Moment): Differences | undefined {
   const toGo = due - m.time;
   // How far short of a Station the speed model has a Train braking at most: where `Arriving at B` would be true.
   const brake = m.profile.topSpeed ** 2 / (2 * m.profile.braking);
-  const arrow = unnamed(m.reach.arrow);
+  const arrow = unnamed(m.reach.arrow, ahead);
   return {
     says: { at: says.at, key: says.at === 'between' ? `${says.last.key} – ${says.next.key}` : (named?.key ?? '') },
     atNextBeforeArriving: !m.standing && says.at !== 'arriving' && m.near.some((n) => n.metres <= AT && n.key === next.key),

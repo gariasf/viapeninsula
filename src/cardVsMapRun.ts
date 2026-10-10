@@ -17,7 +17,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { gunzipSync } from 'node:zlib';
-import { DEGREE, pixelMetres, type Bundle, type Station, type Trip } from './bundle.ts';
+import { DEGREE, pixelMetres, places, type Bundle, type Place, type Trip } from './bundle.ts';
 import { differences, type Moment, type Near } from './cardVsMap.ts';
 import type { Received } from './engine.ts';
 import { NETWORKS } from './networks.ts';
@@ -66,15 +66,17 @@ for (const dir of process.argv.slice(2)) {
   const t0 = received[0]?.at ?? 0;
   const t1 = Math.min(received.at(-1)?.at ?? 0, t0 + Number(process.env.LIMIT || Infinity) * 1000);
   if (Number.isNaN(t1)) throw new Error(`LIMIT=${process.env.LIMIT} isn't a number of seconds`);
-  const keyOf = new Map(bundle.stations.map((s) => [s.id, s.place ?? s.name]));
+  // The Stations as the map shows them: a place at the middle of its Stations, which the card names by (places()).
+  const shown = places(bundle.stations);
+  const keyOf = new Map(shown.flatMap((p) => p.stations.map((id): [string, string] => [id, p.id])));
   const lineOf = new Map(bundle.lines.map((l) => [l.id, l]));
   // The zoom each Network's Trains are drawn as pills from: round pills from zoom 10 where a track names none (main.ts's show()).
   const pillZoomOf = new Map(bundle.networks.map((n) => [n.id, n.pillZoom]));
   const networkOf = (trip: Trip) => lineOf.get(trip.line)?.network ?? '';
-  // Stations by a grid of about 0.0045 degrees (500 m), to look for those near a Train.
+  // Places by a grid of about 0.0045 degrees (500 m), to look for those near a Train.
   const cell = (lon: number, lat: number) => `${Math.floor(lon / 0.0045)} ${Math.floor(lat / 0.0045)}`;
-  const grid = new Map<string, Station[]>();
-  for (const s of bundle.stations) grid.set(cell(s.lon, s.lat), [...(grid.get(cell(s.lon, s.lat)) ?? []), s]);
+  const grid = new Map<string, Place[]>();
+  for (const p of shown) grid.set(cell(p.lon, p.lat), [...(grid.get(cell(p.lon, p.lat)) ?? []), p]);
   const nearTo = (lon: number, lat: number, radius: number): Near[] => {
     const [cx, cy] = [Math.floor(lon / 0.0045), Math.floor(lat / 0.0045)];
     const kx = DEGREE * Math.cos((lat * Math.PI) / 180);
@@ -83,9 +85,9 @@ for (const dir of process.argv.slice(2)) {
     const near: Near[] = [];
     for (let x = cx - sx; x <= cx + sx; x++) {
       for (let y = cy - sy; y <= cy + sy; y++) {
-        for (const s of grid.get(`${x} ${y}`) ?? []) {
-          const metres = Math.hypot((s.lon - lon) * kx, (s.lat - lat) * DEGREE);
-          if (metres <= radius) near.push({ key: s.place ?? s.name, metres });
+        for (const p of grid.get(`${x} ${y}`) ?? []) {
+          const metres = Math.hypot((p.lon - lon) * kx, (p.lat - lat) * DEGREE);
+          if (metres <= radius) near.push({ key: p.id, metres });
         }
       }
     }
