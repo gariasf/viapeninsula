@@ -9,3 +9,16 @@ The ten pairs are pixel for pixel the same, but for two single pixels in two sho
 | `before-<view>-light-<spot>-z<zoom>.jpg` | Main's page and bundle (3b0317d). |
 | `after-<view>-light-<spot>-z<zoom>.jpg` | The branch's page and bundle: the track file as pieces and chains, read back by the page. |
 | `cmp-<view>-<spot>-z<zoom>.jpg` | Before, then after, side by side at half size. |
+
+## Live, after the deploy
+
+`live-*`: the deployed map, https://viapeninsula.gariasf.com, loaded as a visitor on 10 Oct 2026 between 21:29 and 21:36 UTC, once the deploy of 1770cc0 (PR #526) and one later deploy that includes it were up. Playwright's Chromium, light, device pixel ratio 2, one page at a time; the files are the JPEGs of the page after it stopped changing, at quality 84.
+
+| File | Spot and view | Legend |
+|---|---|---|
+| `live-desktop-gm-z13.jpg` | Glòries–Marina, zoom 13, 1280×800 | 160 live, 41 scheduled |
+| `live-desktop-sants-z14.jpg` | Barcelona-Sants, zoom 14, 1280×800 | 159 live, 35 scheduled |
+| `live-phone-gm-z13.jpg` | Glòries–Marina, zoom 13, 390×844 | 155 live, 39 scheduled |
+| `live-phone-sants-z14.jpg` | Barcelona-Sants, zoom 14, 390×844 | 158 live, 33 scheduled |
+
+No `pageerror`. The console held one `net::ERR_CONNECTION_REFUSED` on a resource per view (the harness did not record its URL; Cloudflare's analytics beacon host does not answer from this Mac either), the GL "GPU stall due to ReadPixels" notice, and three basemap-style warnings about `highway-shield-*` filters. Each view fetched all 15 track files (200, brotli, 1,071,620 bytes in all, 1,046.5 KB) and the manifest.
