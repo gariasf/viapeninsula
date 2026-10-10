@@ -1,0 +1,1341 @@
+/* The cards' CSS as the app has it (src/web/style.css on main, 47f0070), with its dark side reachable by a theme attribute too, so that one page shows either (#328, throwaway). */
+@import 'maplibre-gl/dist/maplibre-gl.css';
+
+/* Nunito Sans, the map's typeface, and Young Serif, the cards' headings', which has one weight (#211): fontsource's Latin files, which the site serves itself. The browser takes any character they lack from the next family. */
+@font-face {
+  font-family: 'Nunito Sans';
+  font-weight: 400;
+  font-display: swap;
+  src: url('@fontsource/nunito-sans/files/nunito-sans-latin-400-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Nunito Sans';
+  font-weight: 700;
+  font-display: swap;
+  src: url('@fontsource/nunito-sans/files/nunito-sans-latin-700-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Young Serif';
+  font-weight: 400;
+  font-display: swap;
+  src: url('@fontsource/young-serif/files/young-serif-latin-400-normal.woff2') format('woff2');
+}
+
+/* Ink: navy on white, the places' names' colours, so that the Lines and Trains carry all the colour (#211). Rules, hairlines and hovers are the ink, faded. Every card is outlined as railisland's are, in 2 px of the ink at 80% (#321): a border, which a forced-colours theme keeps (#116). */
+:root {
+  --font: 'Nunito Sans', sans-serif;
+  --serif: 'Young Serif', Georgia, serif;
+  --ink: #14305a;
+  --ink-soft: #4b5d78;
+  --card: #fff;
+  --rule: color-mix(in srgb, var(--ink) 25%, transparent);
+  --hairline: color-mix(in srgb, var(--ink) 12%, transparent);
+  --hover: color-mix(in srgb, var(--ink) 7%, transparent);
+  --edge: 2px solid color-mix(in srgb, var(--ink) 80%, transparent);
+  --warn: #fff3bf;
+  --warn-ink: #4a3500;
+  --warn-rule: #e3b341;
+  --cancelled: #c00;
+  /* A Station's nameboard, in the light theme's ink on both themes. */
+  --nameboard: #14305a;
+  /* Space, round the globe zoomed out: the light theme's ink on both themes too, which the light basemap and the dark both stand out on. */
+  --space: #14305a;
+}
+
+/* Its dark side, where the system's setting is dark, as the map follows it: light ink on a card a little lighter than the dark basemap. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --ink: #e6ecf5;
+    --ink-soft: #a3b1c6;
+    --card: #151b24;
+    --warn: #33290a;
+    --warn-ink: #ffd666;
+    --warn-rule: #7a5c00;
+    --cancelled: #ff8080;
+  }
+}
+
+:root[data-theme='dark'] {
+    color-scheme: dark;
+    --ink: #e6ecf5;
+    --ink-soft: #a3b1c6;
+    --card: #151b24;
+    --warn: #33290a;
+    --warn-ink: #ffd666;
+    --warn-rule: #7a5c00;
+    --cancelled: #ff8080;
+}
+
+/* Hidden, whatever a card's own display. */
+[hidden] {
+  display: none !important;
+}
+
+html,
+body,
+#map {
+  height: 100%;
+  margin: 0;
+}
+
+/* Round the globe, zoomed out, where the map is transparent (main.ts's showSpace()). */
+#map.globe {
+  background: var(--space);
+}
+
+/* The interface in the map's typeface, the buttons riding on the sheet too. */
+body {
+  font-family: var(--font);
+}
+
+/* MapLibre's controls in the map's typeface too, 8 px in from the screen's edges, as the dock is. */
+.maplibregl-map {
+  font-family: var(--font);
+}
+
+.maplibregl-ctrl-top-left .maplibregl-ctrl {
+  margin: 8px 0 0 8px;
+}
+
+.maplibregl-ctrl-top-right .maplibregl-ctrl {
+  margin: 8px 8px 0 0;
+}
+
+/* Every card, button and corner alike. */
+.card,
+:where(.lines-at) .maplibregl-popup-content,
+.sheet,
+.about {
+  box-sizing: border-box;
+  border: var(--edge);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: none;
+  color: var(--ink);
+}
+
+:is(.legend, .fab, .close, .handle, .more, .fold) {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* The outline again, for the buttons that are cards. */
+:is(.legend, .fab).card {
+  border: var(--edge);
+  background: var(--card);
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+}
+
+/* Every button shows where the keyboard is, in its own colour, as does Nearby's title, where the focus goes after a Try again that finds the viewer (#324). */
+:is(button, summary, a):focus-visible,
+.title:focus-visible,
+.lang:has(select:focus-visible) {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+/* The title's is a pill, as the corners' buttons' are, clear of its first letter: the room goes out to its left, so that the title doesn't move (#324). */
+.title:focus-visible {
+  margin-left: -8px;
+  padding-left: 8px;
+  border-radius: 999px;
+}
+
+/* Round the handle's bar, as the sheet's edge and header would cut one round the whole handle. */
+.handle:focus-visible {
+  outline: none;
+}
+
+.handle:focus-visible span {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
+/* And round the fold's pill, which its hover tints, rather than its whole row (#349). */
+.fold:focus-visible {
+  outline: none;
+}
+
+.fold:focus-visible > span {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.lang select:focus-visible {
+  outline: none;
+}
+
+/* A button under the pointer, where there's one, so that it never sticks on a phone. */
+@media (hover: hover) {
+  :is(.close, .handle, .more):hover,
+  .fold:hover > span {
+    background: var(--hover);
+  }
+
+  :is(button.card:not(:disabled), .lang, .credits summary):hover {
+    background: color-mix(in srgb, var(--ink) 6%, var(--card));
+  }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Capitals trimmed of the room a line keeps under them, so that they sit mid-height in a pill. */
+.caps,
+.lang .code {
+  text-box: trim-both cap alphabetic;
+}
+
+/* ---- The corners. ---- */
+
+/* The legend, top left: one pill of how many Trains are Live and how many Scheduled, beside their markers, which opens About. */
+.maplibregl-ctrl.legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 6px 0 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* As the map draws a Train's pill, with no name: Live filled, Scheduled ringed. */
+.legend .marker {
+  box-sizing: border-box;
+  width: 18px;
+  height: 10px;
+  border: 2px solid var(--ink);
+  border-radius: 5px;
+}
+
+.legend .marker.live {
+  background: var(--ink);
+}
+
+.legend .marker.scheduled {
+  margin-left: 4px;
+}
+
+.legend .icon {
+  width: 26px;
+  height: 26px;
+}
+
+/* The banner under it, while one's due: a pill of its own for each Network, yellow as a warning, edged in amber. */
+.banner {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: calc(100vw - 76px);
+}
+
+.maplibregl-ctrl-top-left .banner {
+  margin-top: 6px;
+}
+
+.banner .warning {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 4px 12px 4px 8px;
+  border-color: var(--warn-rule);
+  border-radius: 16px;
+  background: var(--warn);
+  color: var(--warn-ink);
+  font-size: 12.5px;
+  line-height: 1.3;
+}
+
+/* The language, top right: a chip as tall as the legend, its code mid-height and mid-width, with the platform's own list over it, transparent. 16 px text keeps iOS from zooming in on the list. */
+.lang {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.lang select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+/* ---- The dock: on a phone, the panel as a sheet docked to the bottom, floating 8 px in from the screen's sides and bottom, as the corners' cards do, with the buttons riding on its top edge. ---- */
+.dock {
+  position: absolute;
+  right: 8px;
+  bottom: max(8px, env(safe-area-inset-bottom));
+  left: 8px;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.riders {
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  left: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 0 4px 12px;
+  pointer-events: none;
+}
+
+.riders > *,
+.dock > .sheet {
+  pointer-events: auto;
+}
+
+/* Nearby, named, nearest the thumb, and the random follow's die over it. */
+.fabs {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.fab {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+}
+
+.fab:disabled {
+  color: var(--ink-soft);
+  cursor: default;
+}
+
+.fab.nearby {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  padding: 0 16px 0 12px;
+  border-radius: 24px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* The credits: behind a © button bottom left on a phone, over the map above it once open, and a strip bottom right on a wide window. */
+.credits {
+  position: relative;
+}
+
+.credits summary {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  list-style: none;
+  cursor: pointer;
+}
+
+.credits summary::-webkit-details-marker {
+  display: none;
+}
+
+.credits-text {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  width: max-content;
+  max-width: calc(100vw - 40px);
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.credits-strip {
+  display: none;
+  max-width: min(720px, calc(100vw - 412px));
+  padding: 2px 8px;
+  border-width: 1.5px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+:is(.credits-text, .credits-strip, .about) a {
+  color: inherit;
+  text-underline-offset: 2px;
+}
+
+/* The sheet: it peeks, or is pulled up to about 62% of the screen. Its handle and header stay put, so the close button's always in reach, and only its body scrolls, on a thin ink scrollbar with a clear track. */
+.sheet,
+.about {
+  padding: 0 16px 16px;
+  font: 14px/1.45 var(--font);
+  --time: 4.4em;
+}
+
+.sheet,
+.about[open] {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sheet {
+  max-height: 62dvh;
+  border-radius: 18px;
+}
+
+.sheet.up {
+  height: 62dvh;
+}
+
+.sliding {
+  transition: height 0.25s ease;
+}
+
+.sheet-top {
+  flex: none;
+  touch-action: none;
+}
+
+.sheet-body {
+  flex: 1;
+  min-height: 0;
+  /* Room for a focus ring round what's at its edges, where it would cut one, and the scrollbar's 4 px in from the outline. */
+  margin: -4px -12px -4px -4px;
+  padding: 4px 12px 4px 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: color-mix(in srgb, var(--ink) 35%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+/* The handle, a button too: Show more, or Show less. Its header lies over its lower part. */
+.handle {
+  display: grid;
+  place-items: start center;
+  width: calc(100% + 32px);
+  height: 40px;
+  margin: 0 -16px -14px;
+  padding-top: 10px;
+}
+
+.handle span {
+  width: 40px;
+  height: 5px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--ink) 40%, transparent);
+}
+
+.sheet-top header {
+  position: relative;
+}
+
+:is(.sheet, .about) header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: -6px -10px 6px 0;
+}
+
+.title {
+  flex: 1;
+  margin: 6px 0 0;
+  font: 400 20px/1.3 var(--serif);
+}
+
+.title .pill {
+  margin-right: 4px;
+  vertical-align: 2px;
+}
+
+.close {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+
+:where(.sheet, .about, .lines-at) :where(p, ol, ul) {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Short section labels, in bold capitals in the soft ink; a label that's a sentence, under the title, in sentence case. */
+.label {
+  margin: 12px 0 2px;
+  color: var(--ink-soft);
+  font: 700 12px/1.4 var(--font);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.subtitle {
+  margin: -2px 0 6px;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.meta {
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.soft {
+  color: var(--ink-soft);
+}
+
+/* A Line's name as its Trains' pill on the map, outlined by its kind: filled with its colour when Live, ringed in it when Scheduled. */
+.pill {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 2.9em;
+  height: 20px;
+  padding: 0 6px;
+  border: 2px solid var(--line, #555);
+  background: var(--line, #555);
+  color: var(--lettering, #fff);
+  font: 700 12px/1 var(--font);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.pill.round {
+  border-radius: 10px;
+}
+
+.pill.badge {
+  border-radius: 4px;
+}
+
+.pill.scheduled {
+  background: var(--card);
+}
+
+.pill.pointed {
+  padding: 0 9px;
+  border: 0;
+  border-radius: 0;
+  background: var(--line, #555);
+  clip-path: polygon(7px 0, calc(100% - 7px) 0, 100% 50%, calc(100% - 7px) 100%, 7px 100%, 0 50%);
+}
+
+.pill.pointed.scheduled::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  z-index: -1;
+  background: var(--card);
+  clip-path: polygon(6px 0, calc(100% - 6px) 0, 100% 50%, calc(100% - 6px) 100%, 6px 100%, 0 50%);
+}
+
+.pill.small {
+  min-width: 2.7em;
+  height: 18px;
+  font-size: 11px;
+}
+
+/* Times: tabular, with a small AM or PM, and the minutes to go under one within the hour. */
+:is(.sheet, .about) time {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+time small {
+  margin-left: 2px;
+  color: var(--ink-soft);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+time .in {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+/* A Delay as a chip, amber when late; status words only where they add something. */
+.delay {
+  padding: 0 5px;
+  border-radius: 5px;
+  font: 700 12px/18px var(--font);
+  white-space: nowrap;
+}
+
+.late {
+  border: 1px solid var(--warn-rule);
+  background: var(--warn);
+  color: var(--warn-ink);
+}
+
+.early {
+  border: 1px solid var(--rule);
+}
+
+.status {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.status:is(.cancelled, .skipped) {
+  color: var(--cancelled);
+  font-weight: 700;
+}
+
+/* Rows, on a board and in Nearby: a narrow time column, the Line, where it's headed, and its status at the end, parted by hairlines. */
+.rows {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+}
+
+.rows.groups {
+  grid-template-columns: auto 1fr auto;
+}
+
+.rows li {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  column-gap: 8px;
+  min-height: 36px;
+  padding: 3px 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.rows li:first-child {
+  border-top: 0;
+}
+
+/* A row that follows its Train (#322): the row's own grid inside a button at least 40 px high, which shows where the keyboard is. */
+.rows li > .row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  column-gap: 8px;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Back, over the title, in its own row of the header (#322). */
+.sheet header:has(> .back) {
+  flex-wrap: wrap;
+}
+
+.back {
+  display: flex;
+  flex: 0 0 100%;
+  align-items: center;
+  gap: 4px;
+  order: -1;
+  min-height: 40px;
+  margin: 0 0 -4px -6px;
+  padding: 0 10px 0 6px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: inherit;
+  font: 600 13px/1 var(--font);
+  cursor: pointer;
+  align-self: flex-start;
+  width: fit-content;
+}
+
+/* A Station the followed Train has still to come to, as a button: its name as the strip has it, not looking like one until the pointer is on it. */
+.station-link {
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .rows li > .row:hover,
+  .back:hover {
+    background: var(--hover);
+  }
+
+  .station-link:hover {
+    text-decoration: underline;
+  }
+}
+
+.rows .pill {
+  justify-self: start;
+}
+
+.rows .dest {
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.rows :is(.cancelled, .skipped) time {
+  color: var(--ink-soft);
+  text-decoration: line-through;
+}
+
+.rows :is(.cancelled, .skipped) .dest {
+  color: var(--ink-soft);
+}
+
+/* Nearby's next passes, a Live one's bold, over the next Train's Delay. */
+.groups .when {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.groups .times {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.times .live {
+  font-weight: 700;
+}
+
+/* A Station's board: its name as a nameboard, reversed out of the ink, holding the Lines that call there. Its close button's hover is reversed too, in its own lettering faded, where the ink's would vanish. */
+.sheet header.nameboard {
+  --hover: color-mix(in srgb, currentColor 15%, transparent);
+  align-items: flex-start;
+  margin: 0 -4px 6px;
+  padding: 10px 4px 12px 14px;
+  border-radius: 9px;
+  background: var(--nameboard);
+  color: #fff;
+}
+
+/* Its name and Lines take the width, so that the close button keeps to the right however short they are. */
+.nameboard > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.nameboard .title {
+  margin: 4px 0 8px;
+}
+
+.served {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* The followed Train: its live status, speed and Unit in a line under its title; its next Station, with the Delay beside its time; where it is along its Trip; then the Stations to come as a strip in its Line's colour. */
+.status-line {
+  margin-bottom: 10px;
+}
+
+.dot {
+  display: inline-block;
+  box-sizing: border-box;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  vertical-align: 1px;
+}
+
+.dot.live {
+  background: var(--ink);
+}
+
+.next-station {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 2px 0 6px;
+}
+
+.next-station .label {
+  margin: 0;
+}
+
+.next-name {
+  display: block;
+  font: 400 22px/1.2 var(--serif);
+}
+
+.next-when {
+  flex: none;
+  text-align: right;
+}
+
+.next-when .at {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.next-when time {
+  font-size: 20px;
+}
+
+.next-when .in {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.progress {
+  margin: 12px 0 4px;
+}
+
+.bar {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--hairline);
+}
+
+.bar::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--done);
+  border-radius: 3px;
+  background: var(--ink);
+}
+
+/* The Train on it, kept whole on the bar at its ends, where the body it scrolls in would cut it. */
+.bar i {
+  position: absolute;
+  top: 50%;
+  left: clamp(7px, var(--done), calc(100% - 7px));
+  box-sizing: border-box;
+  width: 14px;
+  height: 14px;
+  border: 2.5px solid var(--ink);
+  border-radius: 50%;
+  background: var(--line);
+  translate: -50% -50%;
+}
+
+.ends {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.ends span:last-child {
+  text-align: right;
+}
+
+.dash {
+  margin: 12px 0 6px;
+  border: 0;
+  border-top: 1.5px dashed var(--rule);
+}
+
+/* The strip's rows: a time, the Line with a mark on it, and a name; and the fold before the strip, its words over the Stations' names (#349). */
+.strip li,
+.fold {
+  display: grid;
+  grid-template-columns: var(--time) 18px 1fr;
+  align-items: center;
+  column-gap: 8px;
+}
+
+.strip li {
+  position: relative;
+  min-height: 28px;
+}
+
+.strip li::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--time) + 8px + 7px);
+  width: 4px;
+  background: var(--line);
+}
+
+/* It starts at the Train, drawn as on the progress bar, or at its Trip's first Station with the fold open, and ends at its last Station in a bar across the Line, as the operators' maps end one. */
+.strip :is(li.train, li.origin)::before {
+  top: 50%;
+}
+
+.strip li.terminus::before {
+  bottom: 50%;
+}
+
+.strip li.train.terminus::before {
+  display: none;
+}
+
+.strip time {
+  font-weight: 400;
+}
+
+.strip :is(li.next, li.terminus),
+.strip :is(li.next, li.terminus) time {
+  font-weight: 700;
+}
+
+.strip .mark {
+  z-index: 1;
+  justify-self: center;
+  box-sizing: border-box;
+  width: 12px;
+  height: 12px;
+  border: 3px solid var(--line);
+  border-radius: 50%;
+  background: var(--card);
+}
+
+.strip li.train .mark {
+  width: 14px;
+  height: 14px;
+  border: 2.5px solid var(--ink);
+  background: var(--line);
+}
+
+.strip li.terminus:not(.train) .mark {
+  width: 20px;
+  height: 7px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--line);
+}
+
+/* The fold before the strip, once the Train has left a Station, in the soft ink (#349): its words and arrow in a pill, as the corners' buttons are, which the pointer and the keyboard show, though the whole row is the button. */
+.fold {
+  color: var(--ink-soft);
+}
+
+.fold > span {
+  display: flex;
+  grid-column: 3;
+  justify-self: start;
+  align-items: center;
+  gap: 6px;
+  margin-left: -10px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* The Stations it has already left, which the fold shows, in the soft ink: hollow, on the Line in the rule's grey from the first, which comes into the Train grey and goes on in its Line's colour, or ends at it where it stands at its last. The Train between Stations is then a compact mark. */
+.strip li.passed::before {
+  background: var(--rule);
+}
+
+.strip li.passed .mark {
+  border-color: var(--rule);
+}
+
+.strip.past li.train::before {
+  top: 0;
+  background: linear-gradient(var(--rule) 50%, var(--line) 50%);
+}
+
+.strip.past li.train.terminus::before {
+  display: block;
+  bottom: 50%;
+  background: var(--rule);
+}
+
+.strip li.compact {
+  min-height: 22px;
+}
+
+/* The button a peeking sheet ends in: how much more there is, and up; and like it, the whole row, the fold before a followed Train's strip (#349). */
+.more,
+.fold {
+  width: 100%;
+  min-height: 44px;
+  text-align: left;
+}
+
+.more {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  border-top: 1px solid var(--hairline);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* A card's Alerts (#342): their fold, the whole row a button, as the strip's, its words and arrow in a chip from the card's edge, yellow as a warning and edged in amber, as the banner's pills are; and once it's open, each Alert, parted by hairlines, on a board after the Lines it's on, its words broken as its operator breaks them. */
+.alerts .fold {
+  color: var(--warn-ink);
+}
+
+.alerts .fold > span {
+  grid-column: 1 / -1;
+  margin-left: 0;
+  border: 1px solid var(--warn-rule);
+  background: var(--warn);
+}
+
+@media (hover: hover) {
+  .alerts .fold:hover > span {
+    background: color-mix(in srgb, var(--warn-ink) 10%, var(--warn));
+  }
+}
+
+.alerts li {
+  padding: 8px 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.alerts li .served {
+  margin-bottom: 4px;
+}
+
+.alerts li strong {
+  display: block;
+}
+
+.alerts li :is(strong, p) {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.alerts li .meta {
+  margin-top: 2px;
+}
+
+/* Nearby's Try again, under its message where the browser won't say where the viewer is: a card's outline round a pill as tall as the legend's (#324). */
+.try-again {
+  height: 40px;
+  margin-top: 12px;
+  padding: 0 16px;
+  border-radius: 20px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* ---- About: on a phone, a sheet of its own, nearly the full height, over a backdrop. ---- */
+.about {
+  top: auto;
+  right: 8px;
+  bottom: max(8px, env(safe-area-inset-bottom));
+  left: 8px;
+  width: auto;
+  max-width: none;
+  height: calc(100dvh - 64px);
+  max-height: none;
+  margin: 0;
+  border-radius: 18px;
+}
+
+.about::backdrop {
+  background: rgb(20 48 90 / 0.3);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .about::backdrop {
+    background: rgb(0 0 0 / 0.55);
+  }
+}
+
+:root[data-theme='dark'] .about::backdrop {
+    background: rgb(0 0 0 / 0.55);
+}
+
+/* Paragraphs a little apart: About's, and Nearby's message and how to allow location (#324). */
+:is(.about, .sheet) p + p {
+  margin-top: 6px;
+}
+
+.about .label {
+  margin-top: 18px;
+}
+
+/* Reading the map: a narrow pill column, and the outlines drawn above the sentence on them. */
+.keys li {
+  display: grid;
+  grid-template-columns: 3.6em 1fr;
+  align-items: center;
+  column-gap: 8px;
+  padding: 3px 0;
+}
+
+.keys li > .pill {
+  justify-self: start;
+}
+
+.about .shapes {
+  display: flex;
+  gap: 4px;
+  margin: 10px 0 4px;
+}
+
+/* ---- The tap popup (#193): a card of pills, its tip outlined too, on whichever side it points from. The card's no more specific than MapLibre's own corner rules, which square the corner its tip points from. ---- */
+:where(.lines-at) .maplibregl-popup-content {
+  padding: 8px;
+}
+
+.lines-at .maplibregl-popup-content {
+  max-width: min(232px, calc(100vw - 32px));
+}
+
+.lines-at .pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* With the Lines' Alerts under their pills, or what closes a Closure (#341): in the cards' type, a little wider, and scrolled where it's long, or where it's higher than the room above or below where it points (main.ts's fitPopup()), less the 5 px its tip takes. A Closure's first has no rule over it, but under when its Alerts were read. */
+.lines-at:has(.alerts:not([hidden])) .maplibregl-popup-content {
+  max-width: min(300px, calc(100vw - 32px));
+  max-height: min(50dvh, 360px, var(--popup-room) - 5px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: color-mix(in srgb, var(--ink) 35%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.lines-at .alerts {
+  --time: 4.4em;
+  font: 14px/1.45 var(--font);
+}
+
+.lines-at .pills + .alerts {
+  margin-top: 6px;
+}
+
+.lines-at .alerts > .meta[hidden] + ol > li:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.lines-at .maplibregl-popup-tip {
+  box-sizing: border-box;
+  width: 12px;
+  height: 12px;
+  border: var(--edge);
+  background: var(--card);
+  rotate: 45deg;
+}
+
+.lines-at:is(.maplibregl-popup-anchor-bottom, .maplibregl-popup-anchor-bottom-left, .maplibregl-popup-anchor-bottom-right) .maplibregl-popup-tip {
+  margin-top: -7px;
+  border-top-color: transparent;
+  border-left-color: transparent;
+}
+
+.lines-at:is(.maplibregl-popup-anchor-top, .maplibregl-popup-anchor-top-left, .maplibregl-popup-anchor-top-right) .maplibregl-popup-tip {
+  margin-bottom: -7px;
+  border-right-color: transparent;
+  border-bottom-color: transparent;
+}
+
+.lines-at.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+  margin-right: -7px;
+  border-top-color: transparent;
+  border-right-color: transparent;
+}
+
+.lines-at.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+  margin-left: -7px;
+  border-bottom-color: transparent;
+  border-left-color: transparent;
+}
+
+/* ---- On a wide window, the panel is a 380 px card at the bottom left, About a dialog mid-screen, and the buttons go over the credits' strip, bottom right. ---- */
+@media (min-width: 640px) {
+  .sheet,
+  .sheet.up {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 380px;
+    height: auto;
+    /* Clear of the legend and a banner's pill under it. */
+    max-height: calc(100dvh - 112px);
+    padding-top: 12px;
+    border-radius: 14px;
+  }
+
+  .handle {
+    display: none;
+  }
+
+  .riders {
+    bottom: 0;
+    left: auto;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+    padding: 0;
+  }
+
+  .credits {
+    display: none;
+  }
+
+  .credits-strip {
+    display: block;
+  }
+
+  .about {
+    inset: 0;
+    width: min(440px, calc(100vw - 16px));
+    height: fit-content;
+    max-height: calc(100dvh - 48px);
+    margin: auto;
+    padding-top: 12px;
+    border-radius: 14px;
+  }
+}
+
+/* A sheet changes state without moving, where the viewer prefers less motion. */
+@media (prefers-reduced-motion: reduce) {
+  .sliding {
+    transition: none;
+  }
+}
+
+/* In a forced-colours theme, such as Windows' contrast themes, the theme would take the pills' fills off, and with them the difference between Live and Scheduled, and the markers', the bar's, the strip's and the handle's, which would vanish. They keep their own, all in the theme's text colour: Live filled, Scheduled ringed, as #116 has the legend. */
+@media (forced-colors: active) {
+  .pill,
+  .pill::before,
+  .marker,
+  .dot,
+  .bar,
+  .bar::before,
+  .bar i,
+  .strip li::before,
+  .strip .mark,
+  .handle span {
+    forced-color-adjust: none;
+  }
+
+  .pill.live {
+    border-color: CanvasText;
+    background: CanvasText;
+    color: Canvas;
+  }
+
+  .pill.scheduled {
+    border-color: CanvasText;
+    background: Canvas;
+    color: CanvasText;
+  }
+
+  .pill.pointed.scheduled {
+    background: CanvasText;
+  }
+
+  .pill.pointed.scheduled::before {
+    background: Canvas;
+  }
+
+  .marker,
+  .dot {
+    border-color: CanvasText;
+  }
+
+  .marker.live,
+  .dot.live,
+  .bar::before,
+  .strip li::before,
+  .handle span {
+    background: CanvasText;
+  }
+
+  .bar {
+    outline: 1px solid CanvasText;
+    background: Canvas;
+  }
+
+  .bar i,
+  .strip .mark {
+    border-color: CanvasText;
+    background: Canvas;
+  }
+
+  .strip li.train .mark,
+  .strip li.terminus:not(.train) .mark {
+    border-color: CanvasText;
+    background: CanvasText;
+  }
+
+  /* The Stations a followed Train has already left, and their part of its Line, in the theme's greyed text (#349). */
+  .strip li.passed {
+    color: GrayText;
+  }
+
+  .strip li.passed::before,
+  .strip.past li.train.terminus::before {
+    background: GrayText;
+  }
+
+  .strip.past li.train::before {
+    background: linear-gradient(GrayText 50%, CanvasText 50%);
+  }
+
+  .strip li.passed .mark {
+    border-color: GrayText;
+  }
+
+  /* The credits' © as the other buttons, where the browser would give it a link's colour. */
+  .credits summary {
+    border-color: ButtonText;
+    color: ButtonText;
+  }
+}
