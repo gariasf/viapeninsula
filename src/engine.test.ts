@@ -110,8 +110,8 @@ const seconds = (time: string) => time.split(':').reduce((sum, part) => sum * 60
 /** How a Network's live data reads, as src/networks.ts has it for its ID: the bundles these tests make, and those recorded before #241, don't say. */
 const liveOf = (network: string) => NETWORKS.find((n) => n.id === network)?.live;
 
-/** A service day's bundle of these Trips, on one Network, its live data read as liveOf() has it, each on a track of its own, headed for its last Station unless it says. */
-function bundleOf(serviceDay: string, network: Omit<Network, 'runningSide' | 'colour' | 'pillZoom' | 'credit'>, trips: Record<string, { line: string; headsign?: string; calls: Row[] }>): Bundle {
+/** A service day's bundle of these Trips, on one Network, its live data read as liveOf() has it, each on a track of its own, headed for its last Station unless it says, with a Train number where it gives one. */
+function bundleOf(serviceDay: string, network: Omit<Network, 'runningSide' | 'colour' | 'pillZoom' | 'credit'>, trips: Record<string, { line: string; headsign?: string; number?: string; calls: Row[] }>): Bundle {
   return {
     serviceDay,
     // Midnight in Barcelona, which is noon less 12 hours on any day the clocks don't change.
@@ -127,11 +127,12 @@ function bundleOf(serviceDay: string, network: Omit<Network, 'runningSide' | 'co
     rails: [],
     slots: [],
     tracks: [],
-    trips: Object.entries(trips).map(([id, { line, headsign, calls }]) => ({
+    trips: Object.entries(trips).map(([id, { line, headsign, number, calls }]) => ({
       id,
       line,
       shape: id,
       headsign: headsign ?? calls.at(-1)?.[0] ?? '',
+      ...(number && { number }),
       calls: calls.map(([station, arrival, departure, dist]) => ({ station, arrival: seconds(arrival), departure: seconds(departure), dist })),
     })),
   };
@@ -1532,6 +1533,105 @@ test("Renfe's first GPS for a Train in over 2 minutes counts only once its next 
   expect(where(R2S, at('22:03:30'), received)).toBeCloseTo(where(R2S, at('22:01:00')) ?? NaN, 3);
 });
 
+// Renfe's long-distance live data names each Train by its Train number, as it names any part of its
+// run by a trip_id that picks no day (#261). Made up, as Renfe's timetables had them on 10 October
+// 2026: Cercanías Zaragoza's C1 from Zaragoza Delicias and Rodalies' R15 from Quinto, which share the
+// Train number 30550, with each track cut down to straight lines from Station to Station.
+const [C1, R15] = ['cercanias-zaragoza:7081S30550C1', 'rodalies:5181S30550R15'];
+const ZARAGOZA = bundleOf('2026-09-24', { id: 'cercanias-zaragoza', name: 'Cercanías Zaragoza', profile: PROFILE }, {
+  [C1]: {
+    line: 'C1',
+    number: '30550',
+    calls: [
+      ['Zaragoza Delicias', '11:21:00', '11:21:00', 11520, -0.9112693, 41.6586576],
+      ['Zaragoza-Portillo', '11:24:00', '11:25:00', 13042, -0.8958759, 41.6527361],
+      ['Zaragoza-Goya', '11:27:00', '11:28:00', 14134, -0.8912574, 41.6438779],
+      ['Zaragoza-Miraflores', '11:32:00', '11:32:00', 16384, -0.8681653, 41.6334311],
+    ],
+  },
+});
+const QUINTO = bundleOf('2026-09-24', { id: 'rodalies', name: 'Rodalies de Catalunya', profile: PROFILE }, {
+  [R15]: {
+    line: 'R15',
+    number: '30550',
+    calls: [
+      ['Quinto', '11:56:00', '11:56:00', 0, -0.490673, 41.419528],
+      ['La Zaida-Sástago', '12:06:00', '12:06:00', 12510, -0.427115, 41.320542],
+      ['La Puebla de Híjar', '12:18:00', '12:19:00', 28418, -0.438595, 41.2244],
+    ],
+  },
+});
+const SHARED: Bundle = {
+  ...QUINTO,
+  networks: [...QUINTO.networks, ...ZARAGOZA.networks],
+  lines: [...QUINTO.lines, ...ZARAGOZA.lines],
+  shapes: [...QUINTO.shapes, ...ZARAGOZA.shapes],
+  trips: [...QUINTO.trips, ...ZARAGOZA.trips],
+};
+
+/** A snapshot of reports, written and received at a moment, Renfe's Cercanías and long-distance feeds both read then. */
+function renfeRead(moment: number, reports: Report[]): Received {
+  const read = (every: number) => ({ lastSuccess: moment, lastAttempt: moment, status: 'ok', every });
+  const feeds = { rodalies: read(20_000), 'cercanias-zaragoza': read(20_000), 'ave-larga-distancia': read(40_000), 'media-distancia-avant': read(40_000) };
+  return { snapshot: { generated: moment, feeds, reports }, at: moment };
+}
+
+test("a report naming a Train number is about that number's Trip, in any Network, that runs nearest when it was reported", () => {
+  // Renfe says 30550 is 2 minutes late at 11:25: the C1's Train, running then, not the R15's, due out of Quinto at 11:56.
+  const early = [renfeRead(at('11:25:00'), [{ number: '30550', at: at('11:25:00'), delay: 120 }])];
+  expect(trainAt(SHARED, at('11:25:10'), early, C1)?.delay).toBe(120);
+  expect(boardAt(SHARED, at('11:25:10'), early, ['Quinto'])).toMatchObject([{ trip: { id: R15 }, delay: 0 }]);
+  // And 3 minutes late at 11:50, between the two: the R15's, which leaves Quinto 6 minutes after, where the C1's ended 18 minutes before.
+  const later = [renfeRead(at('11:50:00'), [{ number: '30550', at: at('11:50:00'), delay: 180 }])];
+  expect(boardAt(SHARED, at('11:50:10'), later, ['Quinto'])).toMatchObject([{ trip: { id: R15 }, delay: 180, departure: at('11:59:00') }]);
+  expect(where(R15, at('11:59:00'), later, SHARED)).toBe(0);
+  expect(where(R15, at('11:59:01'), later, SHARED)).toBeGreaterThan(0);
+});
+
+/** The Trips of `BUNDLE`, the R2S with its Train number, as its trip_id gives it. */
+const NUMBERED: Bundle = { ...BUNDLE, trips: BUNDLE.trips.map((t) => (t.id === R2S ? { ...t, number: '25478' } : t)) };
+
+test("a Train both its Network's own feed and Renfe's long-distance one report is drawn once, as its own feed has it", () => {
+  // As R14 15053 from 13:47 to 13:59 on 10 October 2026: Renfe's Cercanías GPS had it run 3.7 km out
+  // of Reus, while its long-distance GPS had it at Reus all along. Made up: Renfe's Cercanías GPS has
+  // the R2S 30 s late between Sitges and Castelldefels at 22:00, and its long-distance GPS 4 minutes
+  // late, whichever the snapshot lists first.
+  const spot = (delay: number) => {
+    const [lon, lat] = pointAt(BUNDLE.shapes.find((s) => s.id === R2S) as Shape, where(R2S, at('22:00:00', -delay)) ?? NaN);
+    return { lon, lat };
+  };
+  const reports: Report[] = [
+    { trip: R2S, at: at('22:00:00'), position: spot(30), delay: 60 },
+    { number: '25478', at: at('22:00:00'), position: spot(240), delay: 240 },
+  ];
+  for (const listed of [reports, [...reports].reverse()]) {
+    const received = [renfeRead(at('22:00:00'), listed)];
+    const drawn = trainsAt(NUMBERED, at('22:00:10'), received).filter((t) => t.trip.id === R2S);
+    expect(drawn).toHaveLength(1);
+    expect(drawn[0]?.dist).toBeCloseTo(where(R2S, at('21:59:40')) ?? NaN, 3);
+  }
+});
+
+test("a Train whose long-distance GPS is off its Trip's track, on another part of its run, runs as late as Renfe says, not where that GPS is nearest its track", () => {
+  // As R16 18093 at 13:48 on 10 October 2026, whose Trip had ended at L'Aldea at 12:31: its GPS near
+  // Orpesa, 70 km on, came nearest its track before L'Aldea, and drew it there 83 minutes late. Made
+  // up: Renfe's long-distance GPS has the R2S 30 km out to sea from between Sitges and Castelldefels,
+  // and Renfe says it's 2 minutes late.
+  const [lon, lat] = offTrack(MIDWAY, 30_000);
+  const received = [renfeRead(at('22:00:00'), [{ number: '25478', at: at('22:00:00'), position: { lon, lat }, delay: 120 }])];
+  expect(where(R2S, at('22:00:10'), received, NUMBERED)).toBeCloseTo(where(R2S, at('21:58:10')) ?? NaN, 3);
+  // Within a kilometre of its track, it runs as late as its GPS has it, as any of Renfe's.
+  const [onLon, onLat] = offTrack(MIDWAY, 500);
+  const near = [renfeRead(at('22:00:00'), [{ number: '25478', at: at('22:00:00'), position: { lon: onLon, lat: onLat }, delay: 120 }])];
+  expect(where(R2S, at('22:00:10'), near, NUMBERED)).toBeCloseTo(MIDWAY + (where(R2S, at('22:00:10')) ?? NaN) - (where(R2S, at('22:00:00')) ?? NaN), -1);
+});
+
+test("a Train Renfe's long-distance live data cancels by its Train number is drawn neither Live nor Scheduled, and boards show it cancelled", () => {
+  const received = [renfeRead(at('21:49:00'), [{ number: '25478', at: at('21:48:40'), cancelled: true }])];
+  expect(trainsAt(NUMBERED, at('21:49:30'), received).find((t) => t.trip.id === R2S)).toBeUndefined();
+  expect(boardAt(NUMBERED, at('21:49:30'), received, ['Sitges'])).toMatchObject([{ trip: { id: R2S }, departure: at('21:57:00'), cancelled: true, live: false }]);
+});
+
 // TRAM's live data as the fetcher made it into a snapshot at 11:44:50 on Friday 25 September 2026,
 // from where TRAM had its Units and its trip updates as recorded then, received as it was written,
 // and stretches of three of its Trips that day from their first Station, as the daily build placed them.
@@ -2410,6 +2510,15 @@ test('a report for a Trip that runs on both days is about the Train running then
   const [late] = trainsAt(FRIDAY_NIGHT, moment, received);
   expect(late).toMatchObject({ trip: { id: '2026-09-25/night' }, live: false, dist: trainsAt(FRIDAY, moment - 120_000)[0]?.dist });
   expect(trainsAt(FRIDAY_NIGHT, moment, received)).toHaveLength(2);
+});
+
+test("a report naming the Train number of a Trip that runs on both days is about the Train running then, as Renfe's long-distance trip_ids pick no day", () => {
+  // Made up: the night's Train is 25800, and Renfe says 25800 is 2 minutes late at 00:10.
+  const numbered = (day: Bundle) => ({ ...day, trips: day.trips.map((t) => (t.id === 'night' ? { ...t, number: '25800' } : t)) });
+  const days = joinDays([numbered(FRIDAY), numbered(SATURDAY)]);
+  const moment = onSaturday('00:10:00');
+  const received = [{ snapshot: { ...written(moment), reports: [{ number: '25800', at: moment, delay: 120 }] }, at: moment }];
+  expect(trainsAt(days, moment, received)).toMatchObject([{ trip: { id: '2026-09-25/night' }, dist: trainsAt(FRIDAY, moment - 120_000)[0]?.dist }, { trip: { id: 'early' } }]);
 });
 
 test('on the night the clocks go back, the previous day runs an hour longer, and both days keep their times', () => {
