@@ -977,6 +977,13 @@ map.on('click', ({ point: { x, y }, lngLat }) => {
     }
   }
 });
+// Where the map moves under the tap's popup, by a drag, a pan or the panel's padding, it's fitted again
+// once it stops (#341).
+// ponytail: not as it moves, so a drag can carry it over an edge till then. Fit it on `move` too if
+// that's missed.
+map.on('moveend', () => {
+  if (linesPopup.isOpen()) fitPopup(linesPopup.getLngLat());
+});
 // ponytail: while the Lines fade, the pointer shows over the strokes of both drawings, though a tap
 // names only one's. Check the zoom on mouseenter if that ever misleads.
 // Over a Closure too, from its Line's stroke under it: each layer here queries the map on every move
