@@ -4,7 +4,7 @@ import { expect, test } from 'vitest';
 import { beside, DEGREE, places, pointAt, type Bundle, type Network, type Point, type Report, type Shape, type Snapshot, type Trip } from './bundle.ts';
 import { noonMinus12h } from './build/gtfs.ts';
 import { stationsOf } from './build/track.ts';
-import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, trainAt, trainsAt, unavailable, type Received } from './engine.ts';
+import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, trainAt, trainsAt, unavailable, type Received, type ShownClosure } from './engine.ts';
 import { jumps } from './jumps.ts';
 import { NETWORKS } from './networks.ts';
 
@@ -1082,6 +1082,46 @@ test("a Train cut short is headed for its new last Station on boards and Nearby,
   // Live, Renfe's GPS 2 minutes late before Sants, it's still shown not stopping when its timetable has it leave.
   const live = skipping(R2S, PAST_SANTS, at('21:30:00'), [gps(R2S, where(R2S, at('22:28:00')) ?? NaN, at('22:30:00'), 120)]);
   expect(board(['Barcelona-Passeig de Gràcia'], at('22:30:10'), live)).toMatchObject([{ departure: at('22:41:00'), skipped: true, live: false }]);
+});
+
+/** The R2S closed from Calafell to Cubelles, Segur de Calafell and Cunit between them (#345). Made up, as R1 was from Blanes to Maçanet-Massanes on 7 October 2026. */
+const CLOSED: ShownClosure[] = [{ line: 'R2S', stations: ['Calafell', 'Cubelles'], kind: 'closed' }];
+
+/** How far along its track the R2S's Train is drawn at a moment, given the Closures the map shows, if it's on the map. */
+const drawnBy = (closures: ShownClosure[], moment: number, received: Received[] = []) => trainsAt(BUNDLE, moment, by(received, moment), closures).find((t) => t.trip.id === R2S);
+
+test("a Scheduled Train isn't drawn within a closed Closure, between its two Stations: it's drawn up to the one, standing there, and again from the other on", () => {
+  // It stands at Calafell from 21:34:30 to 21:35, and at Cubelles from 21:44:30 to 21:45.
+  expect(drawnBy(CLOSED, at('21:35:00'))?.dist).toBe(114402);
+  expect(drawnBy(CLOSED, at('21:35:01'))).toBeUndefined();
+  // Standing at Segur de Calafell, between them, too.
+  expect(drawnBy(CLOSED, at('21:37:45'))).toBeUndefined();
+  expect(drawnBy(CLOSED, at('21:44:29'))).toBeUndefined();
+  expect(drawnBy(CLOSED, at('21:44:30'))?.dist).toBe(123032);
+  expect(drawnBy(CLOSED, at('21:47:00'))?.dist).toBe(where(R2S, at('21:47:00')));
+  // Its Stations either way round, as an Alert can name them.
+  expect(drawnBy([{ line: 'R2S', stations: ['Cubelles', 'Calafell'], kind: 'closed' }], at('21:40:00'))).toBeUndefined();
+  // Followed, it's off the map there.
+  expect(trainAt(BUNDLE, at('21:40:00'), [], R2S, CLOSED)).toBeUndefined();
+  // Another Line's Closure there hides it nowhere.
+  expect(drawnBy([{ line: 'R1', stations: ['Calafell', 'Cubelles'], kind: 'closed' }], at('21:40:00'))?.dist).toBe(where(R2S, at('21:40:00')));
+});
+
+test('a Live Train is drawn within a closed Closure all the same, as live data wins, until it turns Scheduled', () => {
+  // Renfe's GPS has the R2S between Segur de Calafell and Cunit at 21:40:00, as its timetable does, and then Renfe's feeds leave it out.
+  const received = [gps(R2S, where(R2S, at('21:40:00')) ?? NaN, at('21:40:00')), ...leftOut(at('21:40:20'), at('21:41:00'))];
+  const live = drawnBy(CLOSED, at('21:40:10'), received);
+  expect(live?.live).toBe(true);
+  expect(live?.dist).toBeCloseTo(where(R2S, at('21:40:10')) ?? NaN, 3);
+  // At its feed's third update since, it's Scheduled, still within the Closure.
+  expect(drawnBy([], at('21:41:10'), received)).toMatchObject({ live: false });
+  expect(drawnBy(CLOSED, at('21:41:10'), received)).toBeUndefined();
+});
+
+test('a Closure down to a single track hides no Train', () => {
+  // As R2's from Sant Vicenç de Calders to Cunit was on 7 October 2026.
+  const single: ShownClosure[] = [{ line: 'R2S', stations: ['Sant Vicenç de Calders', 'Cunit'], kind: 'single' }];
+  expect(drawnBy(single, at('21:36:00'))?.dist).toBe(where(R2S, at('21:36:00')));
 });
 
 test('never runs back when its last Delay runs out, among the snapshots the map keeps', () => {

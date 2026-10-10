@@ -632,7 +632,7 @@ let placeOfStation = new Map<string, Place>();
  * shown on the track goes, along its stretches and on its rails, by closureKey(), once worked out (#341).
  */
 let placing = { shapes: new Map<string, Shape>(), slots: new Map<string, Slot[]>(), curves: new Map<string, Zone[]>(), keep: new Map<string, number>(), closures: new Map<string, [GeoJSON.Feature[], GeoJSON.Feature[]]>() };
-/** The Closures the map shows now (closuresAt()), which a tap on one names. */
+/** The Closures the map shows now (closuresAt()), which a tap on one names, and within whose closed ones Scheduled Trains aren't drawn (#345). */
 let shownClosures: Shown[] = [];
 /** The Lines' strokes along their Stretches, which a tap on one names (linesAt()). */
 let shownStrokes: Stroke[] = [];
@@ -1210,7 +1210,8 @@ function placeClosure({ line: id, stations }: Shown): [GeoJSON.Feature[], GeoJSO
 }
 
 /**
- * Every Train on the map now, in its Line's colour, Live or Scheduled. Zoomed out, until the Lines
+ * Every Train on the map now, in its Line's colour, Live or Scheduled, but for a Scheduled one within
+ * a closed Closure (trainsAt(), #345). Zoomed out, until the Lines
  * are back on the rails, each sits on its Line's stroke, half a line width to the side its Network's
  * Trains keep to, so that Trains going opposite ways show apart (onStroke()). A tapped group of
  * Trains standing together at a Station goes side by side across their track (spreading()), so that
@@ -1220,7 +1221,7 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
   const zoom = map.getZoom();
   const [followed, bearing] = [followedId(), map.getBearing()];
   if (following) following.at = undefined;
-  const placed = (bundle ? trainsAt(bundle, Date.now(), received) : []).map((train) => {
+  const placed = (bundle ? trainsAt(bundle, Date.now(), received, shownClosures) : []).map((train) => {
     const { trip, dist, lon, lat, heading, standsAt } = train;
     // ponytail: takes the Network's running side, so L2's Trains between Tetuan and Paral·lel, and
     // Cercanías Madrid's beyond Pinar de las Rozas, which keep left, sit half a line width to the wrong
@@ -1519,7 +1520,7 @@ function showCount(features: GeoJSON.Feature[]) {
 /** Follows a Train picked at random but for the one the map follows: a Live one in view, else a Live one anywhere on the map, else any. */
 function followRandom() {
   const followed = followedId();
-  const others = (bundle ? trainsAt(bundle, Date.now(), received) : []).filter((t) => t.trip.id !== followed);
+  const others = (bundle ? trainsAt(bundle, Date.now(), received, shownClosures) : []).filter((t) => t.trip.id !== followed);
   const live = others.filter((t) => t.live);
   // ponytail: in view by the map's bounds, which take in what's under the panel too, and on a rotated
   // map the corners around the view. Test where each Train is on screen above the panel, as
@@ -1890,7 +1891,7 @@ function moreButton(text: string) {
 function followedPanel(up: boolean): Panel | undefined {
   const now = Date.now();
   waiting = false;
-  const train = bundle && trainAt(bundle, now, received, followedId() ?? '');
+  const train = bundle && trainAt(bundle, now, received, followedId() ?? '', shownClosures);
   // Its Trip still to come, where its Train isn't on the map yet (#322).
   const coming = bundle && !train ? comingAt(bundle, now, received, followedId() ?? '') : undefined;
   waiting = !!coming;

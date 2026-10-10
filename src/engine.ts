@@ -1,6 +1,6 @@
 // Where each Train is. The timetable drives motion (ADR-0002); the browser and the tests share this.
 
-import { closestOnSegment, DEGREE, direction, pointAt, type Bundle, type Call, type Freshness, type Network, type Point, type Report, type Shape, type Skipped, type Snapshot, type SpeedProfile, type Trip } from './bundle.ts';
+import { closestOnSegment, DEGREE, direction, pointAt, type Bundle, type Call, type Closure, type Freshness, type Network, type Point, type Report, type Shape, type Skipped, type Snapshot, type SpeedProfile, type Trip } from './bundle.ts';
 
 /**
  * A Train on the map: its Trip, how far along the Trip's shape it is, in metres, where that is, and
@@ -73,10 +73,11 @@ export const KEEP = CARRY + 5 * 60_000;
  * Trip its Block ran in on is still on the map, and a Live one at that Station stays there until a
  * report has it gone, and once out, stays out. A Scheduled one on a Line whose live data names Blocks
  * waits there for its Block while that live data is available, for up to WAIT past when it's due to
- * leave, and then catches up with its timetable.
+ * leave, and then catches up with its timetable. A Scheduled one within a closed Closure the map
+ * shows, between its two Stations, isn't drawn, but a Live one is: live data wins (#345).
  */
-export function trainsAt(bundle: Bundle, at: number, received: Received[] = []): Train[] {
-  const { of } = onMap(bundle, at, received);
+export function trainsAt(bundle: Bundle, at: number, received: Received[] = [], closures: readonly ShownClosure[] = []): Train[] {
+  const { of } = onMap(bundle, at, received, closures);
   return bundle.trips.flatMap((trip) => of(trip)?.train ?? []);
 }
 
@@ -98,10 +99,10 @@ export interface Followed extends Train {
   unitType?: string;
 }
 
-/** One Train, as the follow panel shows it, at a moment by the device's clock (ms since 1970), given the snapshots received by then: as trainsAt() has it, if it's on the map. */
-export function trainAt(bundle: Bundle, at: number, received: Received[], id: string): Followed | undefined {
+/** One Train, as the follow panel shows it, at a moment by the device's clock (ms since 1970), given the snapshots received by then and the Closures the map shows: as trainsAt() has it, if it's on the map. */
+export function trainAt(bundle: Bundle, at: number, received: Received[], id: string, closures: readonly ShownClosure[] = []): Followed | undefined {
   const trip = bundle.trips.find((t) => t.id === id);
-  const on = trip && onMap(bundle, at, received).of(trip);
+  const on = trip && onMap(bundle, at, received, closures).of(trip);
   if (!on?.train) return undefined;
   const { train, now, time, timeAt, calls, profile, said, network, delay } = on;
   // When it's expected at a moment of its timetable, running its Delay late.
@@ -267,6 +268,8 @@ interface OnMap {
   cancelled: boolean;
   /** The calls its timetable has that it doesn't make, at Stations its operator has said it won't stop at, as cutTrip() has them. */
   skips: Call[];
+  /** The closed Closures on its Line that the map shows, which it isn't drawn within, but none while it's Live within one: live data wins (#345). */
+  closed?: Shut[];
   now: number;
   time: number;
   /** Where in its timetable it's drawn at a moment, both in seconds into the service day: `time` at `now`. */
@@ -290,7 +293,7 @@ interface OnMap {
  * Where trainsAt() has each Trip's Train at a moment by the device's clock, that moment in seconds
  * into the service day by the fetcher's clock, and the Networks whose live data is available then.
  */
-function onMap(bundle: Bundle, at: number, received: Received[]): { of: (trip: Trip) => OnMap | undefined; now: number; available: Set<string> } {
+function onMap(bundle: Bundle, at: number, received: Received[], closures: readonly ShownClosure[] = []): { of: (trip: Trip) => OnMap | undefined; now: number; available: Set<string> } {
   const clock = behind(received);
   const now = (at + clock - bundle.noonMinus12h) / 1000;
   const shapes = new Map(bundle.shapes.map((s) => [s.id, s]));
@@ -300,6 +303,8 @@ function onMap(bundle: Bundle, at: number, received: Received[]): { of: (trip: T
   const { eases, heard, reported } = replay(bundle, received, clock, lines, shapes);
   // Where the latest snapshot says Trains won't stop at some Stations, the Trips as they run them.
   const cuts = cutsIn(bundle, received.at(-1)?.snapshot);
+  // The closed Closures the map shows, by their Lines.
+  const closedOn = closedIn(bundle, closures);
   // How far into live data the device has got by now, and by when the map last looked for it. A
   // Train is Live only on recent confirmation, however long since the map looked, but live data is
   // unavailable only where the map has looked and found none.
@@ -359,7 +364,7 @@ function onMap(bundle: Bundle, at: number, received: Received[]): { of: (trip: T
     const waits = !nested && block && first && time < (dwelt[0]?.arrival ?? -Infinity) && !ranBy(block).some((t) => t !== trip && t.calls.at(-1)?.station === first.station && of(t, true)?.train);
     const calls = waits ? dwelt.map((c, i) => (i ? c : { ...c, arrival: time })) : dwelt;
     const cancelled = !!said?.report.cancelled || (!!cut && !cut.trip);
-    const off = { trip: asRun, cancelled, skips: cut?.skips ?? [], now, time, timeAt, delay, calls, network, profile, ease, said, live };
+    const off = { trip: asRun, cancelled, skips: cut?.skips ?? [], closed: closedOn.get(trip.line), now, time, timeAt, delay, calls, network, profile, ease, said, live };
     if (cancelled) return off;
     // Most Trips aren't on the map at any one moment, whatever their dwell: skip those first.
     if (!first || !last || (!waits && time < first.arrival - profile.dwell) || time > last.departure + profile.dwell) return off;
@@ -368,9 +373,15 @@ function onMap(bundle: Bundle, at: number, received: Received[]): { of: (trip: T
     const [lon, lat] = pointAt(shape, dist);
     const unreported = available.has(network.id) && !recent(said, upTo) && (!blockNetworks.has(network.id) || blockLines.has(trip.line));
     // The first Station it has still to leave, where it has come in there already.
-    const call = calls.find((c) => toLeave(c, time));
+    const next = calls.findIndex((c) => toLeave(c, time));
+    const call = calls[next];
     const standsAt = call && call.arrival <= time ? call.station : undefined;
-    return { ...off, train: { trip: asRun, dist, lon, lat, heading: headingAt(shape, calls, time, dist), live, unreported, standsAt } };
+    const train = { trip: asRun, dist, lon, lat, heading: headingAt(shape, calls, time, dist), live, unreported, standsAt };
+    // Within a closed Closure, standing at a Station between its two or running from one of its
+    // Stations to the next, a Scheduled Train isn't drawn, and a Live one is, its Closures set aside (#345).
+    const shut = off.closed && closedCalls(calls, off.closed);
+    if (!(standsAt ? shut?.at[next] : shut?.after[next - 1])) return { ...off, train };
+    return live ? { ...off, closed: undefined, train } : off;
   };
   return { of, now, available };
 }
@@ -439,6 +450,60 @@ function cutTrip(trip: Trip, { stations, since }: Skipped, noonMinus12h: number,
   if (start > 0) calls[0] = { ...from, arrival: from.departure };
   if (lastKept < end) calls[calls.length - 1] = { ...to, departure: to.arrival };
   return { trip: { ...trip, headsign: lastKept < end ? (names.get(to.station) ?? to.station) : trip.headsign, calls }, skips: trip.calls.filter((_, i) => !makes(i)) };
+}
+
+/** A Closure the map shows, as closuresAt() gives it (#341): its Line, its two Stations, either way round, and whether it's closed, or down to a single track, which hides no Train (#345). */
+export type ShownClosure = Pick<Closure, 'line' | 'stations'> & { kind: 'closed' | 'single' };
+
+/** A closed Closure's two Stations, and the Stations between them, as the Trips of its Line that call at both have them (#345). */
+interface Shut {
+  ends: string[];
+  between: Set<string>;
+}
+
+/** No Closure closed, as where the map shows none. */
+const NONE_CLOSED = new Map<string, Shut[]>();
+
+/** Each list of Closures' closed ones, for a bundle, worked out once: the map asks for them each time it moves its Trains. */
+const closedOf = new WeakMap<readonly ShownClosure[], { bundle: Bundle; closed: Map<string, Shut[]> }>();
+
+/**
+ * The closed Closures among those the map shows, by their Lines' IDs, each with the Stations between
+ * its two, as its Line's Trips that call at both have them: its Trains on the part of their Line it
+ * closes don't run there, unless live data says they do (#345).
+ * ponytail: the Stations between a Closure's two only as a Trip that calls at both has them, so on a
+ * day none does, a Trip that runs into it from one of them, as R3's from Ripoll to Ribes de Freser
+ * would, is drawn there. Place them on the Line's shapes, as placeOn() does, if that shows.
+ */
+function closedIn(bundle: Bundle, closures: readonly ShownClosure[]): Map<string, Shut[]> {
+  if (!closures.some((c) => c.kind === 'closed')) return NONE_CLOSED;
+  const known = closedOf.get(closures);
+  if (known?.bundle === bundle) return known.closed;
+  const closed = new Map<string, Shut[]>();
+  for (const { line, stations, kind } of closures) {
+    if (kind !== 'closed') continue;
+    const between = new Set<string>();
+    for (const { line: of, calls } of bundle.trips) {
+      const [a = -1, b = -1] = of === line ? stations.map((s) => calls.findIndex((c) => c.station === s)) : [];
+      if (a >= 0 && b >= 0) for (const c of calls.slice(Math.min(a, b) + 1, Math.max(a, b))) between.add(c.station);
+    }
+    closed.set(line, [...(closed.get(line) ?? []), { ends: stations, between }]);
+  }
+  closedOf.set(closures, { bundle, closed });
+  return closed;
+}
+
+/**
+ * Where a Trip's calls are within closed Closures of its Line (#345): which calls are at a Station
+ * between one's two Stations, and which legs, from each call to the next, run within one, from one of
+ * its Stations to another, or to or from one between them.
+ */
+function closedCalls(calls: Call[], closed: Shut[]): { at: boolean[]; after: boolean[] } {
+  const on = ({ ends, between }: Shut, call?: Call) => !!call && (between.has(call.station) || ends.includes(call.station));
+  return {
+    at: calls.map((c) => closed.some((s) => s.between.has(c.station))),
+    after: calls.map((c, i) => closed.some((s) => on(s, c) && on(s, calls[i + 1]))),
+  };
 }
 
 /** Whether a Train so far along its shape, in metres, is on the map: not where it's off it, before its first Station or after its last, nor beyond where its track starts or ends, as past Spain's border. */
