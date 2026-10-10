@@ -16,7 +16,8 @@ import { contrast, lettering } from './colour.ts';
  *   dots, and zoomed in on the rails each of its Stations' on its own track; one name, and one board on a tap.
  * - `bar`: on the bands, below zoom 14, each Station as FGC's bar across its own Lines' strokes; on the rails, its dot.
  * - `snap`: each Station's dot on its own Lines: on the bands in the middle of their strokes, and on the rails on its track,
- *   cross-fading as the Lines do; with `sign`, its own Network's mark there, and with `badge`, an interchange's linked.
+ *   from zoom 15, as the Trains go back on their rails; with `sign`, its own Network's mark there, and with `badge`, an
+ *   interchange's linked.
  * - `few`: the heap at zoom 10: the Metro's and TRAM's places in neither tier, those of the Networks whose Trains are dots
  *   till zoom 12, drawn from zoom 11 only, fading in by 12, as their Trains turn into pills. `small`: every place in neither
  *   tier drawn smaller there.
@@ -52,9 +53,8 @@ interface Looks {
 /** A place's dot's radius and its ring's width, in px at each zoom, as main.ts's DOT and RING. */
 const DOT: [number, number][] = [[7, 1.5], [14, 5]];
 const RING: [number, number][] = [[7, 0.5], [14, 1.5]];
-/** The zoom the Lines are back on their rails at, as main.ts's railsZoom, and how far either side of it they cross-fade, as its FADE. */
+/** The zoom the Lines are back on their rails at, as main.ts's railsZoom. */
 const RAILS = APART.at(-1)?.[0] ?? 15;
-const FADE = 0.5;
 
 /** The zoom the marks (`sign`, `badge`) show from, fading in over the half zoom before it as the dots fade out. */
 const SIGN_ZOOM = 13;
@@ -83,7 +83,7 @@ const INTERCHANGE = 350;
 /** Words that don't make two places' names one interchange's. */
 const COMMON = new Set(['barcelona', 'de', 'del', 'la', 'el', 'les', 'els', 'i', 'estacio', 'placa', 'sant', 'santa', 'av', 'avinguda']);
 /** The zooms the dots' and marks' opacities are worked out at, between which each part goes linearly. */
-const ZOOMS = [0, 10, 11, 12, 12.5, 13, 14, 14.5, 15, 15.5, 22];
+const ZOOMS = [0, 10, 11, 12, 12.5, 13, 14, 14.5, 14.99, 15, 22];
 /** The whole zooms the bands' dots' and bars' offsets are worked out at. */
 const OFFSET_ZOOMS = [7, 8, 9, 10, 11, 12, 13, 14, 15];
 /** The device pixels a px of an image is drawn at. */
@@ -119,8 +119,11 @@ let fewer: string[] = [];
 const few = (zoom: number): number | ExpressionSpecification => (has('few') ? ['case', ['in', ['get', 'id'], ['literal', fewer]], ramp(zoom, 11, 0, 12, 1), 1] : 1);
 /** The marks fading in over the half zoom before SIGN_ZOOM, as the dots fade out. */
 const signIn = (zoom: number) => (has('sign') ? ramp(zoom, SIGN_ZOOM - 0.5, 0, SIGN_ZOOM, 1) : 0);
-/** The bands' dots, out as the Lines' strokes along their Stretches fade out over their rails (main.ts's FADE), as the rails' come in. */
-const onBands = (zoom: number) => ramp(zoom, RAILS - FADE, 1, RAILS + FADE, 0);
+/**
+ * The bands' dots, out at RAILS, as the rails' come in, at once, as the Trains go back on their rails there and the
+ * Lines' names switch (main.ts's FADE): a Train standing at a Station stays on its dot or mark.
+ */
+const onBands = (zoom: number) => ramp(zoom, RAILS - 0.01, 1, RAILS, 0);
 /** The bars, out over the first half zoom the Lines slide onto the rails over, as they'd be too long for the Lines sliding together. */
 const barBands = (zoom: number) => ramp(zoom, RAILS - 1, 1, RAILS - 0.5, 0);
 /** Under `snap`, a place's mark or an interchange's badge gives way on the rails to its Stations' on their tracks. */
@@ -177,7 +180,7 @@ export function setUp(on: MapLibreMap, reading: () => State, looking: Looks) {
           type: 'symbol',
           source: 'v-stations',
           minzoom,
-          maxzoom: Math.min(maxzoom, RAILS + FADE),
+          maxzoom: Math.min(maxzoom, RAILS),
           filter: ['==', ['get', 'band'], band],
           layout: {
             ...symbol,
@@ -201,7 +204,7 @@ export function setUp(on: MapLibreMap, reading: () => State, looking: Looks) {
         type: 'symbol',
         source: 'v-stations',
         filter: ['==', ['get', 'band'], -1],
-        minzoom: RAILS - FADE,
+        minzoom: RAILS - 0.01,
         layout: { ...symbol, 'icon-image': ['get', 'image'], 'icon-size': sized },
         paint: { 'icon-opacity': opacity([(zoom) => 1 - onBands(zoom)]) },
       },
