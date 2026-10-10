@@ -111,6 +111,7 @@ export function decodeTrack(file: TrackFile): Track {
 function encodeChains(slots: Slot[], lines: Line[], traced: Shape[]): Chains | undefined {
   const [lineAt, shapeAt] = [new Map(lines.map((l, i) => [l.id, i])), new Map(traced.map((s, i) => [s.id, i]))];
   const on: string[] = [];
+  const placeOf = new Map<string, number>();
   const runs: number[][] = [];
   let [line, shape, band, to, at, here, row] = [0, 0, 0, 0, 0, 0, [] as number[]];
   for (const s of slots) {
@@ -123,8 +124,11 @@ function encodeChains(slots: Slot[], lines: Line[], traced: Shape[]): Chains | u
       [line, shape, band, to, at, here] = [l, h, b, 0, 0, 0];
     }
     if (s.from !== to) return undefined;
-    let place = on.indexOf(s.on);
-    if (place < 0) place = on.push(s.on) - 1;
+    let place = placeOf.get(s.on);
+    if (place === undefined) {
+      place = on.push(s.on) - 1;
+      placeOf.set(s.on, place);
+    }
     row.push(s.to - s.from, s.side, place - here, s.at[0] - at, s.at[1] - s.at[0]);
     [to, at, here] = [s.to, s.at[1], place];
   }
