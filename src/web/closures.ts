@@ -146,10 +146,10 @@ export function hiding(shown: Shown[], seen: readonly Shown[], lifted: Map<strin
 export const liftedSince = (c: Shown, lifted: ReadonlyMap<string, number>): number | undefined => (c.alert ? lifted.get(liftKey(c)) : undefined);
 
 /**
- * The feeds whose Alerts' active periods are when their notices show, not when their works are, so
- * that a Closure they make is in force only at the moments the timetable runs a Line's Trains short of
- * it (turnedBack(), ADR-0012, #397): TRAM's, whose `sc-280` showed from 1 Oct for works on 10–12 Oct.
- * Renfe's have no end, and a Live Train within lifts what they hide (#345).
+ * The feeds whose Alerts' periods are when they show, not when their works are, so that a Closure one
+ * makes is in force only at the moments the timetable runs a Line's Trains short of it (turnedBack(),
+ * ADR-0012, #397): TRAM's, whose `sc-280` showed from 1 Oct for works on 10–12 Oct. Renfe's have no
+ * end, and a Live Train within lifts what they hide (#345).
  * ponytail: by the feed's ID, here. Give the source a trait in src/networks.ts, and the Alerts file
  * the feed's, when another operator's Alerts make Closures and their periods mean something else.
  */
@@ -162,18 +162,24 @@ const BY_TIMETABLE = ['tram'];
  */
 const AROUND = 30 * 60;
 
+/** A Trip as the page's days give it, but for what closuresAt() reads of it: its Line, and its calls' Stations and times. */
+type TripCalls = { line: string; calls: Pick<Call, 'station' | 'arrival' | 'departure'>[] };
+
 /**
  * Whether a closed Closure of a Line, between two Stations, is in force at a moment by the timetable
  * (#397): some Trip of the Line runs at some time within AROUND of it, and none of the Trips that do
  * calls at both Stations, as a timetable that turns them back at its ends has them, as T1–T3's at
  * Montesa on 10–12 Oct. Where none runs, as at night, or one calls at both, as every one of T1–T3's did
- * from 1 Oct, when `sc-280` began to show, to 9 Oct, it isn't. `trips` are those of the days the map
- * has joined, on the last day's clock (joinDays()), and `at` is the moment in seconds into that day.
- * ponytail: goes over every Trip on the page for each Closure, once a minute: 0.3 ms more for
- * `closuresAt()` with the 12,190 Trips of Catalonia's day file of 9 Oct, and 0.6 ms with five times
- * that. Index them by Line if the page ever has many more.
+ * on 7–9 Oct, the days the build kept files of, it isn't. `trips` are those of the days the map has
+ * joined, on the last day's clock (joinDays()), and `at` is the moment in seconds into that day.
+ * ponytail: a Trip that calls at both Stations crosses the stretch, as closuresOf() has it (src/build/
+ * trips.ts), which holds where a Trip calls at every Station on its way, as TRAM's do: none of the
+ * 20 stop patterns of its two timetables of 10 Oct skips one. A feed whose Trains skip Stations needs
+ * the Trip's own track between the two. And it goes over every Trip on the page for each Closure, once
+ * a minute: 0.3 ms more for `closuresAt()` with the 12,190 Trips of Catalonia's day file of 9 Oct,
+ * and 0.6 ms with five times that. Index them by Line if the page ever has many more.
  */
-function turnedBack(trips: { line: string; calls: Pick<Call, 'station' | 'arrival' | 'departure'>[] }[], line: string, [a, b]: [string, string], at: number): boolean {
+function turnedBack(trips: TripCalls[], line: string, [a, b]: [string, string], at: number): boolean {
   let running = false;
   for (const { line: of, calls } of trips) {
     const [first, last] = [calls[0], calls.at(-1)];
@@ -192,8 +198,9 @@ function turnedBack(trips: { line: string; calls: Pick<Call, 'station' | 'arriva
  * Networks, on each of its Lines, which the Line's track then places, or leaves to words where it
  * doesn't run by both (placeOn()): not against those its Trips call at that day, which a closure can
  * cut short, and none from an Alert about some of the Trains of its Lines, not theirs (aboutSomeTrains()).
- * TRAM's closed ones are those only at the moments its Line's Trips, which the days joined have, turn
- * back at their Stations, as its period is when its notice shows, not its works (BY_TIMETABLE, #397).
+ * TRAM's closed ones only at the moments its Line's Trips in the days joined turn back short of their
+ * Stations (turnedBack()), as its Alerts' periods are when they show, not when their works are
+ * (BY_TIMETABLE, #397).
  * Then the timetable's of the service day, from its first bus to its last (#340). The Alerts' first,
  * newest first: where an Alert and the timetable, or two Alerts, close one part, it's drawn once, with
  * the first's words.
@@ -203,7 +210,7 @@ export function closuresAt(
   day: Pick<Bundle, 'noonMinus12h' | 'closures'> & {
     lines: Pick<Line, 'id' | 'network'>[];
     stations: Pick<Station, 'id' | 'name' | 'networks'>[];
-    trips: { line: string; calls: Pick<Call, 'station' | 'arrival' | 'departure'>[] }[];
+    trips: TripCalls[];
   },
   now: number,
 ): Shown[] {
