@@ -18,6 +18,7 @@ import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { contrast, lettering } from './colour.ts';
 import { cardAlerts, linesCallingAt, minutesTo, nearbyRows, progress, type CardAlert } from './cards.ts';
 import { closureKey, closureStrokes, closuresAt, hiding, placeOn, type Shown } from './closures.ts';
+import * as variants from './trains.prototype.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
 setWorkerUrl(workerUrl);
@@ -55,7 +56,7 @@ const FONT_FACES: FontFacesSpecification = {
 };
 const NAME_SIZE = 12;
 /** The size of a Line's name on its Trains' pills, in px, and on the followed Train's, which is larger. */
-const [PILL_TEXT, FOLLOWED_TEXT] = [10, 12];
+const [PILL_TEXT, FOLLOWED_TEXT] = [10, variants.has('target') ? 10 : 12];
 /** How far a pill reaches beyond its Line's name either side, and above and below the name's line, in px. */
 const [PILL_PADDING, PILL_EDGE] = [2, 1.5];
 /** How wide the edge drawn round a pill is, in px. */
@@ -146,7 +147,7 @@ const DOT: [zoom: number, px: number][] = [[7, 1.5], [14, 5]];
 /** The width of the ring round a place's dot, in px at each zoom. */
 const RING: [zoom: number, px: number][] = [[7, 0.5], [14, 1.5]];
 /** A Train's dot's radius, in px at each zoom, and the followed Train's, which is larger. */
-const TRAIN_DOT: [zoom: number, px: number, followed: number][] = [[7, 2.5, 5], [14, 6, 10]];
+const TRAIN_DOT: [zoom: number, px: number, followed: number][] = variants.trainDot([[7, 2.5, 5], [14, 6, 10]]);
 /** How long a line of a place's name can be, in ems, as MapLibre wraps names. */
 const PLACE_WRAP = 10;
 /** How a place's name is lettered: bold (BOLD) or regular, and how large, in px, by its tier (TIERS). */
@@ -950,6 +951,7 @@ for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', tr
     paint: { 'icon-color': ['get', 'lettering'], 'icon-halo-color': halo, 'icon-halo-width': 1 },
   });
 }
+variants.setUp(map, () => ({ bundle, received, hiding: hidingClosures, placing, pills, railsZoom }), { scheduledFill });
 
 // Tapping a Train follows it, and tapping a Station shows its board. Both are small, so a tap near one
 // will do, and a Train standing at a Station is the one tapped. A tap nothing else takes, on a Line's
@@ -1041,6 +1043,7 @@ requestAnimationFrame(function move(now) {
   [drawn, drawnAt] = [now, view];
   const drawing = trains();
   trainSource?.setData(drawing);
+  variants.drew(drawing.features);
   // The legend's count changes by the second, once the Trips have come, and with it whether there's a
   // Train to follow at random: one the map doesn't follow already.
   if (bundle && performance.now() - countShown > 1000) {
@@ -1271,7 +1274,7 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
   spreadState = { group: spreadState.group, moved: aside, easing: [...aside].some(([id, px]) => spreadState.moved.get(id) !== px) || aside.size !== spreadState.moved.size };
   return {
     type: 'FeatureCollection',
-    features: placed.map(({ train: { trip, heading, live }, pill, box, at }) => {
+    features: placed.map(({ train: { trip, heading, live, dist }, pill, box, at }) => {
       const [out, onScreen] = [aside.get(trip.id), spreadable.find((d) => d.id === trip.id)?.at];
       const right = rightOf(heading, bearing);
       const coordinates: Point = out && onScreen ? (map.unproject([onScreen[0] + out * right[0], onScreen[1] + out * right[1]]).toArray() as Point) : at;
@@ -1281,6 +1284,8 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
         type: 'Feature',
         properties: {
           id: trip.id,
+          line: trip.line,
+          dist,
           colour: line?.colour,
           lettering: pill?.lettering,
           // Which Network's banner it shows (bannerNetworks()).
@@ -1294,7 +1299,7 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
           pillZoom: pill?.zoom,
           reach: box && reach(box, heading - bearing),
           // Its halo's radius: HALO_DOT times its dot's, or from its Line's pill zoom, out to the corners of its pill's box and HALO_BEYOND beyond.
-          haloRadius: pill && box && zoom >= pill.zoom ? Math.hypot(...box) + HALO_BEYOND : HALO_DOT * dotAt(zoom, trip.id === followed),
+          haloRadius: variants.haloRadius(pill && box && zoom >= pill.zoom ? Math.hypot(...box) + HALO_BEYOND : HALO_DOT * dotAt(zoom, trip.id === followed), zoom),
         },
         geometry: { type: 'Point', coordinates },
       };
@@ -1410,7 +1415,7 @@ interface Pill {
 function pillOf({ name, colour, kind }: Line, zoom: number): Pill {
   const outline = OUTLINES_OF[kind] ?? 'round';
   const width = textWidth(name, `bold ${PILL_TEXT}px ${TYPEFACE}`);
-  return { name, outline, dark: darkInk(colour), lettering: darkBasemap ? lettering(colour, paper) : colour, zoom, box: boxOf(outline, width, PILL_TEXT), followedBox: boxOf(outline, width, FOLLOWED_TEXT) };
+  return { name, outline, dark: darkInk(colour), lettering: darkBasemap ? lettering(colour, paper) : variants.has('letter') ? lettering(colour, hex(scheduledFill)) : colour, zoom, box: boxOf(outline, width, PILL_TEXT), followedBox: boxOf(outline, width, FOLLOWED_TEXT) };
 }
 
 /** How far a pill reaches either side of its Train and above and below it, in px, with its outline, around a name `width` px wide at PILL_TEXT, lettered at `size` px. */

@@ -1,0 +1,45 @@
+/* #209's variants on the cards (trains.prototype.ts). Throwaway, as the variants are. */
+
+/* `dash`: a Scheduled Train's pill ringed in a dash, as the map draws it, and the legend's and the status line's markers. A pointed pill has no border, so its ring, the Line's colour round its inner fill, is cut into dashes across. */
+.trains-dash .pill.scheduled:not(.pointed),
+.trains-dash .legend .marker.scheduled,
+.trains-dash .dot.scheduled {
+  border-style: dashed;
+}
+
+.trains-dash .pill.pointed.scheduled {
+  background: repeating-linear-gradient(90deg, var(--line, #555) 0 3px, transparent 3px 5px);
+}
+
+/* `grey`: filled grey, as SBB's are, and lettered in the ink, as a Line's colour doesn't read on grey. */
+.trains-grey {
+  --scheduled: #dcdfe3;
+}
+
+@media (prefers-color-scheme: dark) {
+  .trains-grey {
+    --scheduled: #3b414b;
+  }
+}
+
+.trains-grey .pill.scheduled:not(.pointed),
+.trains-grey .pill.pointed.scheduled::before {
+  background: var(--scheduled);
+  color: var(--ink);
+}
+
+.trains-grey .pill.pointed.scheduled {
+  color: var(--ink);
+}
+
+@media (forced-colors: active) {
+  .trains-dash .pill.pointed.scheduled {
+    background: repeating-linear-gradient(90deg, CanvasText 0 3px, transparent 3px 5px);
+  }
+
+  .trains-grey .pill.scheduled:not(.pointed),
+  .trains-grey .pill.pointed.scheduled::before {
+    background: Canvas;
+    color: CanvasText;
+  }
+}
