@@ -627,9 +627,9 @@ export const AVE_LARGA_DISTANCIA: Pick<NetworkConfig, 'id' | 'name' | 'profile' 
   // it gives none at is a stop of under a minute: half of one, as Rodalies'.
   profile: { acceleration: 0.5, braking: 0.5, topSpeed: 250 / 3.6, dwell: 30 },
   live: RENFE_LONG_DISTANCE_LIVE,
-  // As the high-speed lines keep right (docs/research/high-speed.md). Its Trains on the old Norte lines,
-  // and on FEVE's, keep left, which one side for a Network can't say, but where OpenStreetMap tags which
-  // way Trains run a track, a trace follows it (ADR-0004).
+  // As the high-speed lines keep right (docs/research/high-speed.md). Its Trains on the old Norte lines
+  // keep left, which one side for a Network can't say, but where OpenStreetMap tags which way Trains run
+  // a track, a trace follows it (ADR-0004).
   runningSide: 'right',
   timetables: [
     {
@@ -673,7 +673,7 @@ export const MEDIA_DISTANCIA_AVANT: Pick<NetworkConfig, 'id' | 'name' | 'profile
   // minute, as above.
   profile: { acceleration: 1, braking: 1, topSpeed: 160 / 3.6, dwell: 30 },
   live: RENFE_LONG_DISTANCE_LIVE,
-  // As AVE y Larga Distancia's.
+  // As AVE y Larga Distancia's, though its Trains on FEVE's lines keep left too.
   runningSide: 'right',
   // The ex-FEVE regionals, whose route IDs end VRFV, are named REGIONAL too, but run on metre gauge.
   timetables: [

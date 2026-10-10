@@ -226,7 +226,9 @@ export function traceRuns(
  * where a stretch has no path there, on its others too, all the way: one can't tell where it must
  * change gauge till a later stretch, as AVE can reach Ourense on standard gauge, but must change at
  * Taboadela, short of it, to go on to Santiago. Or why it can't be: a Station off the rails, or a
- * stretch with no path. What it logs, it reports too.
+ * stretch with no path. Where it turns back on the way, or a hop is much longer than its straight
+ * line, it logs and reports; its length, and where it changes gauge or sets off from another track,
+ * it only logs.
  */
 function traceRun(graph: Graph, run: Run, log: (line: string) => void, report: (found: Found) => void): Shape | Untraced {
   const { stations } = run;
@@ -234,6 +236,9 @@ function traceRun(graph: Graph, run: Run, log: (line: string) => void, report: (
   if (off) return { why: 'off', stations: [off], reason: `${off.name} is off the network` };
   const { gauges, orElse = [] } = run.gauges;
   let reached = walk(graph, stations, gauges.length);
+  // ponytail: on every gauge all the way, with no preference for its own: on 10–12 Oct 2026 no run that
+  // needs it left standard gauge where it could have kept to it (each was traced the same with its other
+  // gauges' track at 1.5 times its length). Price that track higher if one ever does.
   if (!Array.isArray(reached) && orElse.length) reached = walk(graph, stations, Infinity);
   if (!Array.isArray(reached)) {
     const { a, b } = reached;

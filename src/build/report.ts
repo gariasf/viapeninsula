@@ -45,7 +45,8 @@ export interface Spot {
 /**
  * Why a run of legs keeps the feed's shape (a Station `off` the network, `nopath` along the rails, or
  * `fewer` than two Stations), or a Trip is left out (it calls at `fewer` than two Stations, its shape
- * has `notrack`, a Station is `off` its track, or it would run too `fast`).
+ * has `notrack`, a Station is `off` its track, or it would run too `fast`; or, where its timetable has
+ * no shapes, a Station of its run is `off` the network, or a stretch has `nopath` along the rails).
  */
 export type Cause = 'off' | 'nopath' | 'fewer' | 'notrack' | 'fast';
 
