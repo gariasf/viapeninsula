@@ -1151,6 +1151,48 @@ test('Nearby leaves out a Scheduled Train within a closed Closure, but not one r
   expect(passes(calafell, CLOSED)).toHaveLength(1);
 });
 
+test("a Scheduled Train that runs through a closed Closure without calling at both its Stations isn't drawn within it either, by where it is along its track, nor listed leaving one of them into it, nor in Nearby there", () => {
+  // Made up: two of R2 Sud's faster Trains on the R2S's track, as many run past its smaller Stations, one
+  // calling at Calafell and then at none until Vilanova i la Geltrú, the other at neither end.
+  const fast = bundleOf('2026-09-24', { id: 'rodalies', name: 'Rodalies de Catalunya', profile: PROFILE }, {
+    [R2S]: { line: 'R2S', calls: TRIPS[R2S]?.calls ?? [] },
+    'by Calafell': {
+      line: 'R2S',
+      calls: [
+        ['Sant Vicenç de Calders', '21:30:00', '21:30:00', 110172, 1.52480358, 41.1862102],
+        ['Calafell', '21:34:00', '21:35:00', 114402, 1.57500937, 41.1896703],
+        ['Vilanova i la Geltrú', '21:45:00', '21:45:00', 128092, 1.73077249, 41.2203207],
+      ],
+    },
+    'by neither': {
+      line: 'R2S',
+      calls: [
+        ['Sant Vicenç de Calders', '21:30:00', '21:30:00', 110172, 1.52480358, 41.1862102],
+        ['Vilanova i la Geltrú', '21:45:00', '21:45:00', 128092, 1.73077249, 41.2203207],
+      ],
+    },
+  });
+  // All on the R2S's track, as a route's Trips share one.
+  const bundle = { ...fast, trips: fast.trips.map((t) => ({ ...t, shape: R2S })) };
+  const drawn = (id: string, moment: number, closures: ShownClosure[]) => trainsAt(bundle, moment, [], closures).find((t) => t.trip.id === id);
+  for (const id of ['by Calafell', 'by neither']) {
+    // Between Calafell, 114402 m along, and Cubelles, 123032 m, at 21:38, and past Cubelles at 21:44.
+    expect(drawn(id, at('21:38:00'), [])?.dist).toSatisfy((d: number) => d > 114402 && d < 123032);
+    expect(drawn(id, at('21:38:00'), CLOSED)).toBeUndefined();
+    expect(drawn(id, at('21:44:00'), [])?.dist).toBeGreaterThan(123032);
+    expect(drawn(id, at('21:44:00'), CLOSED)?.dist).toBe(drawn(id, at('21:44:00'), [])?.dist);
+  }
+  // Standing at Calafell, the Closure's edge, it's drawn.
+  expect(drawn('by Calafell', at('21:34:30'), CLOSED)?.dist).toBe(114402);
+  // Calafell's board lists it no more than the R2S, as both leave it into the Closure.
+  expect(boardAt(bundle, at('21:30:00'), [], ['Calafell'], [])).toHaveLength(2);
+  expect(boardAt(bundle, at('21:30:00'), [], ['Calafell'], CLOSED)).toEqual([]);
+  // Around Cunit, within the Closure, Nearby lists none of the three.
+  const cunit: Point = [1.63194242, 41.1950415];
+  expect(nearbyAt(bundle, at('21:30:00'), [], cunit, 1500, 60 * 60_000, [])).toHaveLength(3);
+  expect(nearbyAt(bundle, at('21:30:00'), [], cunit, 1500, 60 * 60_000, CLOSED)).toEqual([]);
+});
+
 test('a Closure down to a single track hides no Train', () => {
   // As R2's from Sant Vicenç de Calders to Cunit was on 7 October 2026.
   const single: ShownClosure[] = [{ line: 'R2S', stations: ['Sant Vicenç de Calders', 'Cunit'], kind: 'single' }];

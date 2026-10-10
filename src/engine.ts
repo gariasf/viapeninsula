@@ -191,12 +191,12 @@ export function boardAt(bundle: Bundle, at: number, received: Received[], statio
       if (!on) return [];
       const { cancelled } = on;
       const [time, delay] = cancelled ? [now, 0] : [on.time, on.delay];
-      const shut = !cancelled && on.closed ? closedCalls(on.calls, on.closed) : undefined;
+      const shut = !cancelled && on.closed ? closedCalls(on.calls, on.closed, trip.shape) : undefined;
       // Where it calls there more than once, as turning back, the first time it's still to leave: within a closed Closure, by its timetable.
       const i = on.calls.findIndex((c, i) => i < on.calls.length - 1 && toLeave(c, shut?.at[i] ? now : time) && here.has(c.station));
       const call = on.calls[i];
       if (call && shut?.at[i]) return [{ trip: on.trip, station: call.station, departure: bundle.noonMinus12h + call.departure * 1000, live: false, unreported: false, cancelled: false, skipped: true }];
-      if (call && shut?.after[i]) return [];
+      if (call && (shut?.after[i] || shut?.into[i])) return [];
       if (call) {
         const departure = bundle.noonMinus12h + (call.departure + delay) * 1000;
         return [{ trip: on.trip, station: call.station, departure, delay: shown(on.network, delay), live: on.live && !cancelled, unreported: !!on.train?.unreported, cancelled, skipped: false }];
@@ -245,7 +245,8 @@ export function nearbyAt(bundle: Bundle, at: number, received: Received[], point
       const until = now + window / 1000 - delay;
       const has = ([from, to]: [number, number]) => (c: Call) => from <= c.dist && c.dist <= to;
       const passes = stretches.filter((s) => !on.skips.some(has(s)) || on.calls.some(has(s)));
-      const comes = whenWithin(on.calls, on.profile, passes, on.closed && closedCalls(on.calls, on.closed))
+      const shut = on.closed && closedCalls(on.calls, on.closed, trip.shape);
+      const comes = whenWithin(on.calls, on.profile, outside(passes, shut?.along ?? []), shut)
         .filter(([enters, leaves]) => leaves >= on.time && enters <= until)
         .map(([enters]) => Math.max(enters, on.time));
       if (!comes.length) return [];
@@ -389,9 +390,10 @@ function onMap(bundle: Bundle, at: number, received: Received[], closures: reado
     const standsAt = call && call.arrival <= time ? call.station : undefined;
     const train = { trip: asRun, dist, lon, lat, heading: headingAt(shape, calls, time, dist), live, unreported, standsAt };
     // Within a closed Closure, standing at a Station between its two or running from one of its
-    // Stations to the next, a Scheduled Train isn't drawn, and a Live one is, its Closures set aside (#345).
-    const shut = off.closed && closedCalls(calls, off.closed);
-    if (!(standsAt ? shut?.at[next] : shut?.after[next - 1])) return { ...off, train };
+    // Stations to the next, or between them along its shape, as where it runs past them, a Scheduled
+    // Train isn't drawn, and a Live one is, its Closures set aside (#345).
+    const shut = off.closed && closedCalls(calls, off.closed, trip.shape);
+    if (!(standsAt ? shut?.at[next] : shut?.after[next - 1] || inside(shut?.along ?? [], dist))) return { ...off, train };
     return live ? { ...off, closed: undefined, train } : off;
   };
   return { of, now, available };
@@ -466,10 +468,12 @@ function cutTrip(trip: Trip, { stations, since }: Skipped, noonMinus12h: number,
 /** A Closure the map shows, as closuresAt() gives it (#341): its Line, its two Stations, either way round, and whether it's closed, or down to a single track, which hides no Train (#345). */
 export type ShownClosure = Pick<Closure, 'line' | 'stations'> & { kind: 'closed' | 'single' };
 
-/** A closed Closure's two Stations, and the Stations between them, as the Trips of its Line that call at both have them (#345). */
+/** A closed Closure's two Stations, the Stations between them, and where it lies along their shapes, as the Trips of its Line that call at both have them (#345). */
 interface Shut {
   ends: string[];
   between: Set<string>;
+  /** From the one Station to the other, in metres along each shape such a Trip runs on. */
+  along: Map<string, [from: number, to: number]>;
 }
 
 /** No Closure closed, as where the map shows none. */
@@ -480,11 +484,12 @@ const closedOf = new WeakMap<readonly ShownClosure[], { bundle: Bundle; closed: 
 
 /**
  * The closed Closures among those the map shows, by their Lines' IDs, each with the Stations between
- * its two, as its Line's Trips that call at both have them: its Trains on the part of their Line it
- * closes don't run there, unless live data says they do (#345).
- * ponytail: the Stations between a Closure's two only as a Trip that calls at both has them, so on a
- * day none does, a Trip that runs into it from one of them, as R3's from Ripoll to Ribes de Freser
- * would, is drawn there. Place them on the Line's shapes, as placeOn() does, if that shows.
+ * its two, and where it lies along their shapes, as its Line's Trips that call at both have them: its
+ * Trains on the part of their Line it closes don't run there, unless live data says they do (#345).
+ * ponytail: only as a Trip that calls at both has them, so on a day none does, a Trip that runs into
+ * it from one of them, as R3's from Ripoll to Ribes de Freser would, is drawn there, as is one that
+ * runs through it without calling at both, on a shape none of those Trips runs on. Place them on the
+ * Line's shapes, as placeOn() does, if that shows.
  */
 function closedIn(bundle: Bundle, closures: readonly ShownClosure[]): Map<string, Shut[]> {
   if (!closures.some((c) => c.kind === 'closed')) return NONE_CLOSED;
@@ -493,29 +498,50 @@ function closedIn(bundle: Bundle, closures: readonly ShownClosure[]): Map<string
   const closed = new Map<string, Shut[]>();
   for (const { line, stations, kind } of closures) {
     if (kind !== 'closed') continue;
-    const between = new Set<string>();
-    for (const { line: of, calls } of bundle.trips) {
+    const [between, along] = [new Set<string>(), new Map<string, [number, number]>()];
+    for (const { line: of, shape, calls } of bundle.trips) {
       const [a = -1, b = -1] = of === line ? stations.map((s) => calls.findIndex((c) => c.station === s)) : [];
-      if (a >= 0 && b >= 0) for (const c of calls.slice(Math.min(a, b) + 1, Math.max(a, b))) between.add(c.station);
+      const [from, to] = [calls[Math.min(a, b)], calls[Math.max(a, b)]];
+      if (!from || !to) continue;
+      for (const c of calls.slice(Math.min(a, b) + 1, Math.max(a, b))) between.add(c.station);
+      along.set(shape, [Math.min(from.dist, to.dist), Math.max(from.dist, to.dist)]);
     }
-    closed.set(line, [...(closed.get(line) ?? []), { ends: stations, between }]);
+    closed.set(line, [...(closed.get(line) ?? []), { ends: stations, between, along }]);
   }
   closedOf.set(closures, { bundle, closed });
   return closed;
 }
 
 /**
- * Where a Trip's calls are within closed Closures of its Line (#345): which calls are at a Station
- * between one's two Stations, and which legs, from each call to the next, run within one, from one of
- * its Stations to another, or to or from one between them.
+ * Where a Trip on a shape is within closed Closures of its Line (#345): which of its calls are at a
+ * Station between one's two Stations, which legs, from each call to the next, run within one, from one
+ * of its Stations to another, or to or from one between them, and which run into one from one of its
+ * Stations though they call at nothing in it, as where a faster Train runs past them; and where they
+ * lie along its shape, between whose ends it's within, whatever it calls at.
  */
-function closedCalls(calls: Call[], closed: Shut[]): { at: boolean[]; after: boolean[] } {
+function closedCalls(calls: Call[], closed: Shut[], shape: string) {
   const on = ({ ends, between }: Shut, call?: Call) => !!call && (between.has(call.station) || ends.includes(call.station));
+  const along = closed.flatMap((s): [from: number, to: number][] => {
+    const part = s.along.get(shape);
+    return part ? [part] : [];
+  });
   return {
     at: calls.map((c) => closed.some((s) => s.between.has(c.station))),
     after: calls.map((c, i) => closed.some((s) => on(s, c) && on(s, calls[i + 1]))),
+    into: calls.map(({ dist }, i) => {
+      const next = calls[i + 1];
+      return !!next && along.some(([from, to]) => (dist === from && next.dist > from) || (dist === to && next.dist < to));
+    }),
+    along,
   };
 }
+
+/** Whether a point so far along a shape, in metres, is within one of these parts of it: between its ends, not at either (#345). */
+const inside = (parts: [from: number, to: number][], dist: number) => parts.some(([from, to]) => from < dist && dist < to);
+
+/** As much of these stretches of a shape, in metres along it, as lies outside these parts of it, their ends included (#345). */
+const outside = (stretches: [from: number, to: number][], parts: [from: number, to: number][]) =>
+  parts.reduce((left, [from, to]) => left.flatMap(([a, b]) => ([[a, Math.min(b, from)], [Math.max(a, to), b]] as [number, number][]).filter(([x, y]) => x <= y)), stretches);
 
 /** Whether a Train so far along its shape, in metres, is on the map: not where it's off it, before its first Station or after its last, nor beyond where its track starts or ends, as past Spain's border. */
 const onTrack = (shape: Shape, dist: number | undefined): dist is number => dist !== undefined && dist >= (shape.dist[0] ?? 0) && dist <= (shape.dist.at(-1) ?? 0);
@@ -1228,7 +1254,7 @@ function stretchesWithin({ coords, dist }: Shape, point: Point, radius: number):
  * it makes them: each time it gets onto one, and when it leaves it, standing at a Station on one or
  * running along one, but not where it doesn't run, within a closed Closure (closedCalls(), #345).
  */
-function whenWithin(calls: Call[], profile: SpeedProfile, stretches: [from: number, to: number][], shut?: { at: boolean[]; after: boolean[] }): [enters: number, leaves: number][] {
+function whenWithin(calls: Call[], profile: SpeedProfile, stretches: [from: number, to: number][], shut?: ReturnType<typeof closedCalls>): [enters: number, leaves: number][] {
   return calls.flatMap((call, i): [number, number][] => {
     const next = calls[i + 1];
     const standing: [number, number][] = !shut?.at[i] && stretches.some(([from, to]) => from <= call.dist && call.dist <= to) ? [[call.arrival, call.departure]] : [];
