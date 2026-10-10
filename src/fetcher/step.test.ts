@@ -731,6 +731,43 @@ test("says which stop a TRAM Train's trip update has it at, and when it's due ou
   ]);
 });
 
+/** Trambaix's trip updates as TRAM wrote them 6 s before the run, with one Trip, the T2's, whose stops are as given: each by its number, when it's reached and left, in s from the run, and how it stands in the timetable. */
+function tripUpdateOf(stops: { stop: number; arrival: number; departure: number; relationship?: number }[]): Uint8Array {
+  const pbf = new PbfWriter();
+  pbf.writeMessage(1, (_: null, header: PbfWriter) => header.writeVarintField(3, TRAM_NOW / 1000 - 6), null);
+  pbf.writeMessage(2, (_: null, entity: PbfWriter) => {
+    entity.writeStringField(1, 'VT4');
+    entity.writeMessage(3, (_: null, update: PbfWriter) => {
+      update.writeMessage(1, (_: null, trip: PbfWriter) => trip.writeStringField(1, '2579_0198'), null);
+      for (const s of stops) {
+        update.writeMessage(2, (_: null, stop: PbfWriter) => {
+          const time = (field: number, seconds: number) => stop.writeMessage(field, (_: null, event: PbfWriter) => event.writeVarintField(2, TRAM_NOW / 1000 + seconds), null);
+          stop.writeVarintField(1, s.stop);
+          time(2, s.arrival);
+          time(3, s.departure);
+          stop.writeStringField(4, '1019');
+          if (s.relationship) stop.writeVarintField(5, s.relationship);
+        }, null);
+      }
+      update.writeMessage(3, (_: null, vehicle: PbfWriter) => vehicle.writeStringField(1, '4'), null);
+    }, null);
+  }, null);
+  return pbf.finish();
+}
+
+test("says no stop of a TRAM Train's trip update that it skips, or has no data for, nor one it hasn't reached, nor one it has left", () => {
+  // Made up: the T2's 18th stop, reached 60 s before the run and due out 20 s after it, as the saved frame has it.
+  const standing = (relationship?: number, arrival = -60, departure = 20) => {
+    const updates = { status: 200, body: tripUpdateOf([{ stop: 17, arrival: -200, departure: -150 }, { stop: 18, arrival, departure, relationship }]) };
+    return tramRun({ token: TOKEN, ...TRAM, TBX: { ...TRAM.TBX, updates } }).snapshot.reports.find((r) => r.trip === 'tram:TBX:2579_0198')?.standing;
+  };
+  expect(standing()).toEqual({ stop: 18, leaves: TRAM_NOW + 20_000 });
+  expect(standing(1)).toBeUndefined();
+  expect(standing(2)).toBeUndefined();
+  expect(standing(0, 5)).toBeUndefined();
+  expect(standing(0, -60, -5)).toBeUndefined();
+});
+
 test('never reports a Unit out of service, which TRAM puts on line 0, even where a trip update names its Trip', () => {
   // TRAM has 7 of Trambaix's Units on line 0 and 8 of Trambesòs', none of them in its trip updates.
   // Made up: the T1 between La Sardana and Montesa taken out of service, with its trip update left.

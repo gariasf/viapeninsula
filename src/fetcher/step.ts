@@ -792,19 +792,21 @@ function tripUpdate(field: number, update: TripUpdates['trips'][number], pbf: Pb
     const stop = pbf.readMessage<Stop>(stopTimeUpdate, {});
     const time = stop.arrival ?? stop.departure;
     if (!update.expected && time) [update.platform, update.expected] = [stop.platform, time];
-    // Each stop reached by `now` replaces the one before it, so the last one gives where it stands.
-    if (now !== undefined && stop.sequence !== undefined && stop.arrival !== undefined && stop.arrival <= now) {
+    // Each stop reached by `now` replaces the one before it, so the last one gives where it stands. Not one
+    // it skips, nor one TRAM has no data for, whose Trip's call at that number it may not make.
+    if (now !== undefined && !stop.relationship && stop.sequence !== undefined && stop.arrival !== undefined && stop.arrival <= now) {
       update.standing = stop.departure !== undefined && stop.departure > now ? { stop: stop.sequence, leaves: stop.departure } : undefined;
     }
   }
 }
 
-/** A stop, by its platform and its number in the Trip, and when the Train is expected there, in seconds since 1970: its arrival and its departure. */
-type Stop = { platform?: string; sequence?: number; arrival?: number; departure?: number };
+/** A stop, by its platform and its number in the Trip, how it stands in the timetable (0 where it's as scheduled, 1 skipped), and when the Train is expected there, in seconds since 1970: its arrival and its departure. */
+type Stop = { platform?: string; sequence?: number; relationship?: number; arrival?: number; departure?: number };
 
 function stopTimeUpdate(field: number, stop: Stop, pbf: PbfReader) {
   if (field === 1) stop.sequence = pbf.readVarint();
   if (field === 4) stop.platform = pbf.readString();
+  if (field === 5) stop.relationship = pbf.readVarint();
   if (field === 2 || field === 3) {
     const { time } = pbf.readMessage((field, event: { time?: number }) => {
       if (field === 2) event.time = pbf.readVarint(true);
