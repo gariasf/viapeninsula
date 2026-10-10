@@ -26,11 +26,11 @@ import { LONG_DISTANCE, NETWORKS, regionsOf, type NetworkConfig, type Timetable 
 import { download, feedStart, type Source } from './gtfs.ts';
 import { manifestOf } from './manifest.ts';
 import { ownRails, RAILWAYS, readFeed, readTimetables, unlisted, type Feed } from './networks.ts';
-import { crop } from './border.ts';
+import { crop, toBorder } from './border.ts';
 import { measures, reported, summary } from './measures.ts';
 import { osm } from './osm.ts';
 import { buildRegion, buildRegions, sharedStretches } from './regions.ts';
-import { railsBeside, traceShapes } from './track.ts';
+import { railsBeside, traceRuns, traceShapes } from './track.ts';
 import { collect, comment, diff, type Found, type Spot } from './report.ts';
 import { closuresOf, placeTrips } from './trips.ts';
 
@@ -44,8 +44,8 @@ const report = collect();
 // long-distance timetable's too, whose Networks aren't on the map yet (#258).
 const longDistance = Promise.all(LONG_DISTANCE.map(downloaded));
 const downloads = await Promise.all(NETWORKS.map(downloaded));
-// The rails of every kind any Network runs on, and Spain's border.
-const { rails, border } = await osm(RAILWAYS);
+// The rails of every kind any Network runs on, the nodes where Trains change gauge on them, and Spain's border.
+const { rails, changers, border } = await osm(RAILWAYS);
 // The last build's manifest names the files of a region whose build fails, and yesterday's bundle,
 // whose last Trains can still be running, and its report is what this build's is diffed against, with
 // each Network's Trips on each day of the week.
@@ -88,19 +88,26 @@ console.log(logged);
 for (const found of reported(drawn, logged)) report.add(found);
 
 // Renfe's long-distance Trains, each one Trip made from the parts its timetable lists it in, less those
-// a Network on the map lists too, are only counted till #259 traces them and #262 and #263 draw them,
-// so nothing of them goes in the report. A long-distance timetable that can't be read, nor its copy,
-// as before a build has kept one, is logged, and stops nothing else.
+// a Network on the map lists too, are counted and traced, each run of them along the rails of its Line's
+// gauge to Spain's border (#259), but not drawn till #262 and #263, so nothing of them goes in the report
+// yet: what their traces find is logged, as the calls their Trains drop are (#403). A long-distance
+// timetable that can't be read, nor its copy, as before a build has kept one, is logged, and stops
+// nothing else.
 for (const { network, failed } of await longDistance) {
   try {
     const { days } = await readTimetables(network, failed, readDays, () => {});
-    for (const [i, parts] of days.entries()) {
+    const trains = days.map((parts, i) => {
       const trips = parts.flatMap((p) => p.trips);
-      const trains = unlisted(trips, listed[i] ?? []);
-      console.log(`${network.name}'s Trains on ${DAYS[i]}: ${trains.length}, and ${trips.length - trains.length} left to the Networks on the map that list them too`);
-    }
+      const kept = unlisted(trips, listed[i] ?? []);
+      console.log(`${network.name}'s Trains on ${DAYS[i]}: ${kept.length}, and ${trips.length - kept.length} left to the Networks on the map that list them too`);
+      return kept;
+    });
+    const stations = (days[0] ?? []).flatMap((p) => p.stations);
+    const traced = traceRuns(toBorder(border, stations, trains), stations, rails, changers, network.runningSide, console.log, () => {});
+    const each = traced.days.map((trips, i) => `${trips.length} of its ${trains[i]?.length} Trains on ${DAYS[i]}`);
+    console.log(`${network.name}'s runs traced: ${traced.shapes.length}, with ${each.join(', ')}`);
   } catch (error) {
-    console.warn(`${network.name}'s Trains aren't read: ${error instanceof Error ? error.message : error}`);
+    console.warn(`${network.name}'s Trains aren't read or traced: ${error instanceof Error ? error.message : error}`);
   }
 }
 
