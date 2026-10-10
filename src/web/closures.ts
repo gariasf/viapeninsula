@@ -218,7 +218,13 @@ const STATIONS_OF = ['las', 'estaciones', 'de'];
 /** The words that join a stretch to the one before it, after a comma, as in "entre A y B, y entre C y D" (#396). */
 const AND = ['y', 'e', 'i', 'and'];
 
-/** A text's words, as they're matched: in lower case, without accents or punctuation, but for a dash between spaces, a word of its own, and "St." as "Sant". */
+/**
+ * A text's words, as they're matched: in lower case, without accents or punctuation, but for a dash between
+ * spaces, a word of its own, and "St" as "Sant".
+ * ponytail: only "St", the one abbreviation a Station's name has in the bundle (TRAM's "Estació St.Adrià", FGC's
+ * "St. Llorenç de Montgai"); "Sta." or another goes in with the name that has it. A full stop ends a sentence before
+ * its words are made, so a name's "St." is read as "Sant" and an Alert's own isn't.
+ */
 const wordsOf = (text: string): string[] =>
   [...text.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').matchAll(/[\p{L}\p{N}]+|(?<!\S)[-–](?!\S)/gu)].map(([word]) => (word === '–' ? '-' : word === 'st' ? 'sant' : word));
 
@@ -230,7 +236,7 @@ const runAt = (words: string[], run: string[], at = 0) => (run.every((w, k) => w
  * some of its Lines' Trains, as in "Tren con salida a las 09:27h de la estación de BENACAZÓN, no presta
  * servicio entre las estaciones de X y Y", or "para los trenes con origen/destino Madrid: Se establece
  * un Plan Alternativo de Transporte por carretera entre las estaciones de X y Y" (#396).
- * ponytail: the two wordings 9 Oct's file has. A note worded otherwise is read as its Line's, which a
+ * ponytail: the two wordings 9 Oct's file has. An Alert worded otherwise is read as its Line's, which a
  * day's file shows, and each new wording goes here; and an Alert that closes its Line and also names
  * one of its Trains in these words makes no Closure either, as the whole Alert is read (ADR-0012).
  */
@@ -251,7 +257,7 @@ function aboutSomeTrains(text: string): boolean {
 
 /**
  * The words a Station's name can have in one spelling and not in another: "de", as TRAM's "Estació St.Adrià"
- * is "Estació de Sant Adrià" in its notices, and "la", as Adif's "València-La Font de Sant Lluís" is "Valencia
+ * is "Estació de Sant Adrià" in its Alerts, and "la", as Adif's "València-La Font de Sant Lluís" is "Valencia
  * Font de Sant Lluis" in Renfe's (#396).
  * ponytail: the two that 9 Oct's file needs, as each is one more way for two Stations to read alike: "del",
  * "el", "les", "els", "las" and "los" change no reading in any file we have. Another goes in with the file that has it.
@@ -272,7 +278,7 @@ function spanAt(words: string[], name: string[], at: number): number {
 
 /**
  * The Station a stretch's end names, from `at` among its clause's words, and how many words it
- * takes: one whose whole name starts there, as Puigcerdà does "Puigcerdà/La Tor de Querol", or else the one
+ * takes: one whose whole name starts there, but for its link words (spanAt()), as Puigcerdà does "Puigcerdà/La Tor de Querol", or else the one
  * whose name holds the words there, as Maçanet-Massanes holds "Maçanet", the most of them that one
  * Station's name holds, where no other Station's holds as many. The longest first, followed by one of
  * `next` where it's given.
@@ -297,7 +303,7 @@ function endAt(words: string[], at: number, names: { id: string; words: string[]
  * lower case, without accents or punctuation, by whole names, but for the link words one spelling has
  * and another hasn't, or names within names (endAt()); each with what the last words before it in its
  * clause that say so say of it, where they do. A clause ends at a comma too, but one whose stretch has
- * only a "y" before it goes on with what the clause before said (#396).
+ * only a joining word before it, "y", "e", "i" or "and", goes on with what the clause before said (#396).
  */
 export function stretchesIn(text: string, stations: { id: string; name: string }[]): { stations: [string, string]; says?: Says }[] {
   const names = stations.map(({ id, name }) => ({ id, words: wordsOf(name) }));

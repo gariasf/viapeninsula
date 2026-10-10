@@ -187,20 +187,20 @@ test("reads Sevilla's C3 plan, 'entre las estaciones de X y Y' under 'Plan Alter
   ]);
 });
 
-test("reads TRAM's \"Servei alternatiu entre X i Y\" as closed, its \"Estació de Sant Adrià\" as the bundle's \"Estació St.Adrià\", and its line's \"no donarà servei\" as no stretch (#396)", () => {
+test("reads TRAM's \"Servei alternatiu entre X i Y\" as closed, its \"Estació de Sant Adrià\" as the bundle's \"Estació St.Adrià\", and its Line's \"no donarà servei\" as no stretch (#396)", () => {
   // sc-286, for 14 and 15 Oct 7:30–14:30: "…la línia T6 no donarà servei per tasques de manteniment de l’arbrat
   // a la Rambla de la Mina. Es reforçarà el servei de la línia T5. Servei alternatiu entre Estació de Sant
   // Adrià i Parc del Besòs: Bus H14." It names T6 in the first sentence, and its stretch in the last.
   expect(stretchesIn(said('sc-286'), stationsOf('tram'))).toEqual([{ stations: ['tram:ST-229', 'tram:ST-213'], says: 'closed' }]);
 });
 
-test("matches a Station's name without or with link words its notice has or hasn't, as Adif's \"València-La Font de Sant Lluís\" is Renfe's \"Valencia Font de Sant Lluis\" (#396)", () => {
+test("matches a Station's name without or with link words its Alert has or hasn't, as Adif's \"València-La Font de Sant Lluís\" is Renfe's \"Valencia Font de Sant Lluis\" (#396)", () => {
   // AVISO_512648, Valencia's C3, with "por carretera" for its "por autobús", which isn't among the words read.
   const text = 'Servicio alternativo por carretera entre las estaciones de Valencia Font de Sant Lluis y Valencia Sant Isidre por obras de mejora en la infraestructura.';
   expect(stretchesIn(text, stationsOf('cercanias-valencia'))).toEqual([{ stations: ['adif:65002', 'adif:66212'], says: 'closed' }]);
 });
 
-test("reads no stretch in words that name none: Renfe's bare \"Sin servicio ferroviario\", TRAM's \"no donarà servei\", and the streets of Bilbao's notice (#396)", () => {
+test("reads no stretch in words that name none: Renfe's bare \"Sin servicio ferroviario\", TRAM's \"no donarà servei\", and the streets of Bilbao's Alert (#396)", () => {
   // AVISO_518352, R2's of 7 Oct, and sc-286's first sentence, as it came.
   expect(stretchesIn(said('AVISO_518352'), stationsOf('rodalies'))).toEqual([]);
   expect(stretchesIn(said('sc-286').split('\n')[0] ?? '', stationsOf('tram'))).toEqual([]);
@@ -307,7 +307,7 @@ test('a day file built before #340 has no Closures', () => {
   expect(closuresAt({}, { ...DAY, closures: undefined }, READ)).toEqual([]);
 });
 
-test("an Alert about one Train, or for the Trains to or from a place, makes no Closure of its Line though its words close a stretch, as Sevilla's two C5 notes of 7 Oct and its C3 plan for Madrid's do (#396)", () => {
+test("an Alert about one Train, or for the Trains to or from a place, makes no Closure of its Line though its words close a stretch, as Sevilla's two C5 Alerts of 7 Oct and its C3 plan for Madrid's do (#396)", () => {
   const sevilla = {
     noonMinus12h: Date.parse('2026-10-09T00:00:00+02:00'),
     closures: [],
@@ -340,7 +340,7 @@ test("on 9 Oct at 23:20, the file whole, Spain's 68 Renfe Alerts and TRAM's 3, g
   const name = new Map(NIGHT_STATIONS.map((s) => [s.id, s.name]));
   const shown = closuresAt(NIGHT, day, Date.parse('2026-10-09T23:20:11+02:00'));
   expect(shown.map((c) => `${c.line} ${c.kind} ${c.stations.map((id) => name.get(id)).join(' – ')} (${c.alert?.id})`)).toEqual([
-    // New: TRAM's notice for 14–15 Oct, under its period from 9 Oct (#397).
+    // New: TRAM's Alert for 14–15 Oct, under its period from 9 Oct (#397).
     'tram:T6 closed Estació St.Adrià – Parc del Besòs (sc-286)',
     // As before, from 7 Oct's rains.
     'rodalies:R3 closed Ripoll – Puigcerdà (AVISO_518337)',
