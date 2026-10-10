@@ -8,7 +8,7 @@ import { decodeTrack, type TrackFile } from '../pieces.ts';
  * How far beyond the view a region is loaded, in the view's widths and heights each way, so that a pan
  * comes onto its track drawn, more often than not: a region's files take a second or more to come.
  */
-export const AHEAD = 0.5;
+const AHEAD = 0.5;
 
 /**
  * The regions the map needs, by their IDs, in the manifest's order (#266): from zoom 7, where it draws
