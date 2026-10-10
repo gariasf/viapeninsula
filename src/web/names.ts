@@ -1,6 +1,6 @@
 // Where each place's name goes: beside its own Networks' track nearest its dot, clear of the Trains
-// running along it, on the side where that's nearest the dot (#120, #143, #147), and which of the
-// basemap's labels it says again (#121).
+// running along it, on the side where that's nearest the dot (#120, #143, #147), which of the
+// basemap's labels it says again (#121), and which of two that collide is placed first (#372).
 import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { closestOnSegment, DEGREE, direction, pointAt, slotAt, type Line, type Place, type Point, type Shape, type Slot } from '../bundle.ts';
 import { simplify } from '../build/offset.ts';
