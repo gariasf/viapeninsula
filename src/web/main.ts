@@ -13,6 +13,7 @@ import { rounded } from './curve.ts';
 import { linesAt, popupRoom } from './tap.ts';
 import { alongside, namedTwice, nameOffset, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
 import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
+import { atMostEvery, drifted, letsGo } from './centre.ts';
 import { keepView, lastView, markOf, openingView } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { contrast, lettering } from './colour.ts';
@@ -107,6 +108,7 @@ const ICONS = {
   up: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>',
   die: '<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="9" r="1.3"/><circle cx="15" cy="9" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="9" cy="15" r="1.3"/><circle cx="15" cy="15" r="1.3"/></svg>',
   nearby: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5" stroke-dasharray="2.6 3.1"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></svg>',
+  centre: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="6"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>',
   info: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.6v.1"/></svg>',
   copyright: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M14.9 9.4a4 4 0 1 0 0 5.2"/></svg>',
   back: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>',
@@ -368,9 +370,12 @@ const map = new MapLibreMap({
 });
 /** Keeps the map's view on the device, for the map to open on next time. */
 const keepShownView = () => keepView({ center: map.getCenter().toArray(), zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch() });
-// As the map opens, so that a link's view is kept too, and after each move.
+// As the map opens, so that a link's view is kept too, and after each move, at most once a second, as
+// the map pans with a Train it follows (#325).
 keepShownView();
-map.on('moveend', keepShownView);
+map.on('moveend', atMostEvery(1000, keepShownView));
+// And as the page hides, so that a move within the last second isn't lost when a phone's tab is closed.
+document.addEventListener('visibilitychange', () => document.hidden && keepShownView());
 /** The basemap's place labels, by their layers' IDs, with the filters it gives them, which show() adds to. */
 const placeLabels = new Map<string, ExpressionFilterSpecification | undefined>();
 // OpenFreeMap's positron, or its dark basemap where the system's setting is dark.
@@ -463,7 +468,9 @@ const panel = el('section', { className: 'sheet', hidden: true });
 const nearbyLabel = el('span');
 const nearbyButton = el('button', { type: 'button', className: 'card fab nearby', onclick: showNearby }, icon('nearby'), nearbyLabel);
 const followRandomButton = el('button', { type: 'button', className: 'card fab', disabled: true, onclick: followRandom }, icon('die'));
-const trainButtons = el('div', { className: 'fabs', hidden: true }, followRandomButton, nearbyButton);
+// The Centre button over them, shown while the map has let go of the Train it follows (#325).
+const centreButton = el('button', { type: 'button', className: 'card fab', hidden: true, onclick: centre }, icon('centre'));
+const trainButtons = el('div', { className: 'fabs', hidden: true }, centreButton, followRandomButton, nearbyButton);
 // The credits, which showCredits() fills: behind the © button on a phone, and a strip on a wide window.
 const creditsButton = el('summary', { className: 'card' }, icon('copyright'));
 const creditsText = el('div', { className: 'card credits-text' });
@@ -481,6 +488,10 @@ const aboutCredits = el('ul');
 const wide = matchMedia('(min-width: 640px)');
 /** Whether the viewer prefers less motion, where a sheet changes state without moving. */
 const lessMotion = matchMedia('(prefers-reduced-motion: reduce)');
+/** The Train the viewer's hand took the map off, as followKey() names it, which the map pans with no more (#325). */
+let released: string | undefined;
+/** Whether the wheel and a pinch zoom about the middle now, as the map pans with the Train (showCentring()). */
+let centring = false;
 /** Whether the sheet is pulled up on a phone, rather than peeking. Each opening starts afresh (openPanel()). */
 let pulledUp = false;
 /** Whether a finger is dragging the sheet, which shows all it has meanwhile. */
@@ -1050,8 +1061,13 @@ requestAnimationFrame(function move(now) {
   if (following) {
     // A Train that has left the map, reaching its last Station or cancelled, is followed no more.
     if (!following.at && !waiting) closePanel();
-    else if (following.at) keepInView(following.at);
+    else if (following.at) {
+      // Under reduced motion, today's steps (keepInView()); otherwise the map pans with the Train until the viewer lets go.
+      if (lessMotion.matches) keepInView(following.at);
+      else if (!letGo()) centreOn(following.at);
+    }
   }
+  showCentring();
   // The panel's times and ages change by the second.
   if ((following || boardPlace || nearMe) && performance.now() - panelShown > 1000) showPanel();
   // Which Networks the banner names changes as Trains and the view move, and the banner with it.
@@ -1507,6 +1523,8 @@ function showLanguage() {
   nearbyButton.title = t('nearby');
   followRandomButton.title = t('followRandom');
   followRandomButton.setAttribute('aria-label', t('followRandom'));
+  centreButton.title = t('centre');
+  centreButton.setAttribute('aria-label', t('centre'));
   creditsButton.title = t('showCredits');
   creditsButton.setAttribute('aria-label', t('showCredits'));
   // MapLibre reads its own strings as it builds each part, and has no way to change them after: the
@@ -1563,6 +1581,8 @@ function followRandom() {
 function follow(id: string, up = false) {
   const [, day, trip] = /^(\d{4}-\d{2}-\d{2})\/(.*)$/.exec(id) ?? [];
   following = day && trip ? { day, trip } : { day: bundle?.serviceDay ?? '', trip: id };
+  // A Train followed again, by a tap on it too, is taken back (#325).
+  released = undefined;
   [boardPlace, nearMe, back] = [undefined, undefined, undefined];
   trainSource?.setData(trains());
   openPanel(up);
@@ -1754,10 +1774,54 @@ function showMark(at: Point | undefined) {
   map.getSource<GeoJSONSource>('mark')?.setData({ type: 'FeatureCollection', features: at ? [{ type: 'Feature', geometry: { type: 'Point', coordinates: at }, properties: {} }] : [] });
 }
 
+/** The Train the map follows, by its day and Trip, to tell it from another. */
+function followKey(): string | undefined {
+  return following && `${following.day}/${following.trip}`;
+}
+
 /** The ID of the Trip the map follows in the days on the map, which lead an earlier day's Trips with that day (joinDays()). */
 function followedId(): string | undefined {
   if (!following || !bundle) return undefined;
   return following.day === bundle.serviceDay ? following.trip : `${following.day}/${following.trip}`;
+}
+
+/** Whether the map has let go of the Train it follows, which a drag or an arrow key does, so that it's no more kept in the middle (#325). */
+function letGo() {
+  return !!following && released === followKey();
+}
+for (const type of ['dragstart', 'movestart'] as const) {
+  map.on(type, (e) => {
+    if (following && !lessMotion.matches && letsGo(e)) released = followKey();
+  });
+}
+/** Shows the Centre button while the map has let go, and has the wheel and a pinch zoom about the middle while it pans with the Train, where the Train is (#325). */
+function showCentring() {
+  centreButton.hidden = lessMotion.matches || !letGo();
+  const now = !lessMotion.matches && !!following?.at && !letGo();
+  if (now === centring) return;
+  centring = now;
+  for (const handler of [map.scrollZoom, map.touchZoomRotate]) {
+    handler.disable();
+    handler.enable(now ? { around: 'center' } : undefined);
+  }
+}
+
+/** Takes the Train the map follows back, easing onto it, and the map pans with it again (#325). */
+function centre() {
+  released = undefined;
+  if (following?.at) map.easeTo({ center: following.at, padding: panelPadding() });
+  showCentring();
+}
+
+/**
+ * Jumps the map to the Train it follows, in the middle of the map beside the panel, once it's a quarter
+ * pixel off it, at the viewer's zoom and bearing (#325). Not while the map moves, as jumpTo() would stop
+ * it, so it never fights the viewer's hand or an ease.
+ */
+function centreOn(at: Point) {
+  if (map.isMoving()) return;
+  const [from, to] = [map.project(map.getCenter()), map.project(at)];
+  if (drifted(to.x - from.x, to.y - from.y)) map.jumpTo({ center: at });
 }
 
 /**
@@ -1804,6 +1868,8 @@ function showPanel(up = wide.matches || pulledUp || dragging) {
   panel.hidden = !shown;
   panel.classList.toggle('up', up);
   patch(panel, shown ? [el('div', { className: 'sheet-top' }, handle(up), shown.header), el('div', { className: 'sheet-body' }, ...shown.body)] : []);
+  // Where the Train followed has changed, so that the Centre button doesn't wait for the next draw.
+  showCentring();
 }
 
 /** Shows what the panel shows pulled up, or peeking, and gives how high it is then, in px. */

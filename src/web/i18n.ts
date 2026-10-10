@@ -192,6 +192,8 @@ const STRINGS = {
   tryAgain: { ca: 'Torna-ho a provar', es: 'Volver a intentarlo', eu: 'Saiatu berriro', gl: 'Tentar de novo', en: 'Try again' },
   // The button beside Nearby's that follows a random Train.
   followRandom: { ca: "Segueix un tren a l'atzar", es: 'Seguir un tren al azar', eu: 'Jarraitu ausazko tren bati', gl: 'Seguir un tren ao chou', en: 'Follow a random train' },
+  // The button that takes a followed Train back to the middle of the map, once the viewer has dragged the map off it.
+  centre: { ca: 'Centra el mapa en el tren', es: 'Centrar el mapa en el tren', eu: 'Zentratu mapa trenean', gl: 'Centrar o mapa no tren', en: 'Centre the map on the train' },
   // The handle at the top of the panel on a phone, which pulls it up or lets it down.
   showMore: { ca: 'Mostra més', es: 'Mostrar más', eu: 'Erakutsi gehiago', gl: 'Amosar máis', en: 'Show more' },
   showLess: { ca: 'Mostra menys', es: 'Mostrar menos', eu: 'Erakutsi gutxiago', gl: 'Amosar menos', en: 'Show less' },
