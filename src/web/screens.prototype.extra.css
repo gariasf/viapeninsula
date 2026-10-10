@@ -14,7 +14,7 @@ a {
   color: inherit;
 }
 
-:is(.tab, .result, .fav-name, .fav-row, .row, .trouble-row, .station-link, .close, .chip, .clear) {
+:is(.tab, .result, .fav-name, .fav-row, .row, .trouble-row, .stop-name, .station-link, .close, .chip, .clear) {
   text-decoration: none;
 }
 
@@ -52,7 +52,7 @@ html.full .sheet-body {
   overflow: visible;
 }
 
-html.full .riders {
+html.full :is(.riders, .tabs, .searchbar, .drop) {
   display: none;
 }
 
@@ -152,6 +152,12 @@ html.full .riders {
   appearance: none;
 }
 
+.searchbar input,
+.field input {
+  height: calc(100% + 4px);
+  margin: -2px 0;
+}
+
 .searchbar input::placeholder,
 .field input::placeholder {
   color: var(--ink-soft);
@@ -173,8 +179,9 @@ html.full .riders {
   display: grid;
   flex: none;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
+  margin: -2px;
   border-radius: 50%;
   color: inherit;
 }
@@ -573,15 +580,32 @@ html.full .riders {
   gap: 6px 8px;
 }
 
+/* The count of Trains late, as tall as the chips beside it. */
+.state-chips .chip-like {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 22px;
+  font-size: 13px;
+}
+
+.state-chips .status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 4px;
+}
+
 /* A chip that opens details: the Cancelled Trains, or the Alerts, as a fold's pill is, amber for an Alert. */
 .chip-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 36px;
+  min-height: 44px;
   padding: 0 12px;
   border: 1.5px solid var(--rule);
-  border-radius: 18px;
+  border-radius: 22px;
   background: none;
   color: inherit;
   font: 700 13px/1 var(--font);
@@ -669,17 +693,31 @@ html.full .riders {
 .stop-name {
   display: flex;
   flex-direction: column;
+  justify-content: center;
   min-width: 0;
-  padding: 4px 0;
+  min-height: 44px;
+  margin-left: -6px;
+  padding: 4px 6px;
+  border-radius: 10px;
+  color: inherit;
 }
 
 .station-link {
   display: block;
   min-height: 0;
   padding: 0;
-  border-radius: 6px;
   font-size: 15px;
   line-height: 1.3;
+}
+
+@media (hover: hover) {
+  .stop-name:hover {
+    background: var(--hover);
+  }
+
+  .station-link:hover {
+    text-decoration: none;
+  }
 }
 
 .stop-note {
@@ -786,8 +824,8 @@ html.full .riders {
 .chips {
   display: flex;
   gap: 8px;
-  margin: 8px -16px 0 0;
-  padding: 2px 16px 6px 2px;
+  margin: 8px -16px 0 -4px;
+  padding: 4px 16px 6px 4px;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -796,13 +834,15 @@ html.full .riders {
   display: flex;
   flex: none;
   flex-direction: column;
-  min-height: 44px;
-  padding: 6px 12px;
+  justify-content: center;
+  min-height: 48px;
+  padding: 4px 12px;
   border: 1.5px solid var(--rule);
   border-radius: 14px;
   color: inherit;
   font-size: 13px;
   line-height: 1.25;
+  white-space: nowrap;
 }
 
 .chip[aria-selected='true'] {
@@ -940,4 +980,51 @@ span.chip.warn {
 
 .die-row {
   min-height: 44px;
+}
+
+/* Now: a stretch's Lines' pills side by side, and what's quiet in a line of its own. */
+.lead.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 132px;
+  place-items: initial;
+}
+
+.quiet {
+  margin: 6px 0 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--hairline);
+}
+
+.net > .more {
+  margin-top: 2px;
+}
+
+.all + .more {
+  margin-top: 4px;
+}
+
+/* Favourites' departures, as tall as the star beside their Station's name. */
+.fav .rows li > .row {
+  min-height: 44px;
+}
+
+/* The Line's track, over the map fitted to it: a soft glow in its colour, so that it's the one the sheet is about. */
+.glow {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.glow polyline {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 9;
+  stroke-opacity: 0.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: blur(2.5px);
 }

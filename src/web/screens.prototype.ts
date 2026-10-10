@@ -8,7 +8,7 @@
 // app: `vite build` builds index.html only.
 import './screens.prototype.css';
 import './screens.prototype.extra.css';
-import { ALERTS, CAPTURED, COUNT, FAVOURITES, LINE, LINE_STATE, LINES, NETWORKS, NOW, PLACES, SEARCHES, type AlertRow, type Board, type CancelledTrain, type LineState, type NetworkNow, type Row, type SearchResults } from './screens.prototype.data.ts';
+import { ALERTS, CAPTURED, COUNT, FAVOURITES, LINE as R4_LINE, LINE_STATE, LINES, NETWORKS, NOW, OTHER_LINES, PLACES, SEARCHES, VIEWS, type AlertRow, type Board, type CancelledTrain, type LineState, type NetworkNow, type Row, type SearchResults } from './screens.prototype.data.ts';
 import { contrast, lettering } from './screens.prototype.colour.ts';
 
 type Nav = 'a' | 'b';
@@ -25,13 +25,15 @@ const typed = params.has('q') ? (params.get('q') ?? '') : 'terrassa';
 const emptyFavourites = params.has('empty');
 /** A Line's Cancelled Trains and Alerts open, above its strip (`?open=1`). */
 const opened = params.has('open');
-/** A Line's strip with a chip for each of its Trips' runs (`?alt=chips&v=2`), instead of one strip for them all. */
+/** A Line's strip with a chip for each of its Trips' runs (`?alt=chips`, and `&v=2` for the third run's), instead of one strip for them all. */
 const chips = params.get('alt') === 'chips';
-const variant = Number(params.get('v') ?? 2);
+const variant = params.has('v') ? Number(params.get('v')) : undefined;
 /** On a wide window, A's bar along the top instead of its rail. */
 const topBar = params.get('bar') === 'top';
 /** The whole sheet at its full length, for reading it (`?full=1`). */
 const full = params.has('full');
+/** The Line whose screen it is: R4, or with `?line=cercanias-asturias:C6` one of a Network whose live data is unavailable, for the banner. */
+const LINE = OTHER_LINES[params.get('line') ?? ''] ?? R4_LINE;
 if (theme) document.documentElement.dataset.theme = theme;
 if (full) document.documentElement.classList.add('full');
 document.body.classList.add(`nav-${nav}`, `screen-${screen}`);
@@ -53,11 +55,35 @@ const dark = theme ? theme === 'dark' : matchMedia('(prefers-color-scheme: dark)
 const wideWindow = matchMedia('(min-width: 640px)');
 function background(): string {
   const size = wideWindow.matches ? 'wide' : 'phone';
-  const kind = screen === 'line' ? (size === 'wide' ? 'line' : `line-${nav}`) : 'city';
+  const own = LINE === R4_LINE ? 'line' : 'line2';
+  const kind = screen === 'line' ? (size === 'wide' ? own : `${own}-${nav}`) : 'city';
   return BACKGROUNDS[`./screens.prototype/${kind}-${size}-${dark ? 'dark' : 'light'}.jpg`] ?? '';
 }
 
+/**
+ * A Line's track as a glow in its colour over the map, where the capture was fitted to it: the capture's
+ * zoom and centre say where each point of the track falls in its frame, as Web Mercator has it, and the
+ * frame scales as the background does, to cover.
+ */
+function glow(): string {
+  if (screen !== 'line') return '';
+  const wide = wideWindow.matches;
+  const view = VIEWS[wide ? (LINE === R4_LINE ? 'line-wide' : 'line2-wide') : `${LINE === R4_LINE ? 'line' : 'line2'}-${nav}-phone`];
+  if (!view) return '';
+  const [vw, vh] = wide ? [1280, 800] : [390, 844];
+  const world = 512 * 2 ** view.z;
+  const px = ([lon, lat]: [number, number]): [number, number] => {
+    const s = Math.sin((lat * Math.PI) / 180);
+    return [((lon + 180) / 360) * world, (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * world];
+  };
+  const [cx, cy] = px(view.centre);
+  const points = LINE.shape.map((p) => px(p)).map(([x, y]) => `${(x - cx + vw / 2).toFixed(1)},${(y - cy + vh / 2).toFixed(1)}`).join(' ');
+  return `<svg class="glow" viewBox="0 0 ${vw} ${vh}" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="--line:${LINE.colour}"><polyline points="${points}" /></svg>`;
+}
+
 // ---- Helpers.
+/** A Network's name as the interface writes it where room is short: FGC as CONTEXT.md names it, the rest as their operators do. */
+const networkName = (id: string) => (id === 'fgc' ? 'FGC' : (NETWORKS[id]?.name ?? ''));
 const esc = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -91,7 +117,8 @@ const dateTime = (ms: number) => new Intl.DateTimeFormat('en-US', { dateStyle: '
 
 const OUTLINE: Record<string, string> = { commuter: 'round', regional: 'pointed', metro: 'badge', tram: 'badge', rack: 'badge', funicular: 'badge', 'long-distance': 'round' };
 const CARD = dark ? '#151b24' : '#ffffff';
-const INK = '#111';
+/** What a Live pill letters dark Lines in: as main.ts's INK, but written in six digits, which contrast() reads: main's '#111' comes out NaN there, so its darkInk() is never true and its cards letter every Live pill white (see followups). */
+const INK = '#111111';
 
 /** A Line's name as its Trains' pill: filled when Live, ringed when Scheduled; a Line named by its badge, filled. */
 function pill(id: string, { live = true, train = false, small = false, big = false } = {}): string {
@@ -138,6 +165,9 @@ function stateOf(s: LineState): { words: string; chips: string } {
 
 // ---- The map's corners, as the app has them.
 const legend = `<button type="button" class="maplibregl-ctrl card legend"><span class="marker live"></span><span class="caps"><b>${COUNT.live}</b> live</span><span class="marker scheduled"></span><span class="caps"><b>${COUNT.scheduled}</b> scheduled</span><span class="icon">${ICON.info}</span><span class="sr-only">. About</span></button>`;
+/** The banner under the legend, as the map has it while its Network's live data is unavailable and its Trains are in view: here, on a Line's screen, fitted to the Line. */
+const bannerNetwork = screen === 'line' ? NOW.networks.find((n) => n.id === LINE.network && n.unavailable) : undefined;
+const banner = bannerNetwork ? `<div class="maplibregl-ctrl banner" role="status"><div class="card warning">${ICON.warning}<span><b>${esc(bannerNetwork.name)}</b> live data unavailable</span></div></div>` : '';
 const language = `<div class="maplibregl-ctrl card lang"><span class="code">EN</span>${ICON.chevron}<select aria-label="Language"><option>English</option></select></div>`;
 const CREDITS = 'OpenFreeMap © OpenMapTiles © OpenStreetMap contributors | Renfe, CC BY 4.0 | FGC, CC BY 4.0 | Powered by TRAM Barcelona | TMB, updated Oct 6, 2026';
 
@@ -194,7 +224,7 @@ function lineResults(r: SearchResults): string {
     .map((l) => {
       const info = LINES[l.id];
       const s = stateOf(l.state);
-      return result(l.id === LINE.id ? link({ screen: 'line' }) : '#line', pill(l.id, { big: true }), esc(NETWORKS[info?.network ?? '']?.name ?? ''), s.words, s.chips);
+      return result(l.id === R4_LINE.id ? link({ screen: 'line', line: null }) : '#line', pill(l.id, { big: true }), esc(networkName(info?.network ?? '')), s.words, s.chips);
     })
     .join('')}</ol>`;
 }
@@ -238,7 +268,7 @@ function searchBody(): string {
 
 // ---- Favourites.
 function favouriteStation(board: Board): string {
-  return `<li class="fav"><div class="fav-head"><a class="fav-name" href="${link({ screen: 'board' })}">${esc(board.name)}</a>${star(true, board.name)}</div><ol class="rows">${board.departures.slice(0, 3).map(departure).join('')}</ol></li>`;
+  return `<li class="fav"><div class="fav-head"><a class="fav-name" href="${link({ screen: 'board' })}">${esc(board.name)}</a>${star(true, board.name)}</div><ol class="rows">${board.departures.slice(0, 2).map(departure).join('')}</ol></li>`;
 }
 
 function favouriteLine(id: string): string {
@@ -247,7 +277,7 @@ function favouriteLine(id: string): string {
   if (!info || !state) return '';
   const s = stateOf(state);
   const end = s.chips || (state.trains && !state.cancelled ? '<span class="status soft">on time</span>' : '');
-  return `<li class="fav fav-line"><a class="fav-row" href="${id === LINE.id ? link({ screen: 'line' }) : '#line'}">${pill(id, { big: true })}<span class="what"><span class="what-title">${esc(NETWORKS[info.network]?.name ?? '')}</span><span class="what-under">${s.words}</span></span><span class="end">${end}</span></a>${star(true, info.name)}</li>`;
+  return `<li class="fav fav-line"><a class="fav-row" href="${id === R4_LINE.id ? link({ screen: 'line', line: null }) : '#line'}">${pill(id, { big: true })}<span class="what"><span class="what-title">${esc(networkName(info.network))}</span><span class="what-under">${s.words}</span></span><span class="end">${end}</span></a>${star(true, info.name)}</li>`;
 }
 
 function favouritesBody(): string {
@@ -260,11 +290,10 @@ function favouritesBody(): string {
 }
 
 // ---- A Line's screen.
-const stationButton = (name: string) => `<a class="station-link" href="${link({ screen: 'board' })}">${esc(name)}</a>`;
 
 /** The Line's strip: its Stations in order along its colour, its Trains on it now between them, and where Trips end. */
 function lineStrip(): string {
-  const selected = chips ? LINE.variants[variant] : undefined;
+  const selected = selectedRun;
   const calls = selected ? new Set(selected.calls) : undefined;
   const byAfter = new Map<number, typeof LINE.trains>();
   for (const t of LINE.trains) {
@@ -286,7 +315,7 @@ function lineStrip(): string {
     else if (!calls && turns >= 4 && !first && !last) note = `${turns} of ${s.calls} Trains start or end here`;
     const end = first || last || (!calls && (tail || (turns >= 4 && s.calls > turns / 2 ? true : turns >= 4)));
     items.push(
-      `<li class="stop${first ? ' origin' : ''}${last ? ' terminus' : ''}${end && !first && !last ? ' turn' : ''}${tail ? ' tail' : ''}" data-station="${i}"><span class="mark"></span><span class="stop-name">${stationButton(s.name)}${note ? `<span class="stop-note">${note}</span>` : ''}</span></li>`,
+      `<li class="stop${first ? ' origin' : ''}${last ? ' terminus' : ''}${end && !first && !last ? ' turn' : ''}${tail ? ' tail' : ''}" data-station="${i}"><span class="mark"></span><a class="stop-name" href="${link({ screen: 'board' })}"><span class="station-link">${esc(s.name)}</span>${note ? `<span class="stop-note">${note}</span>` : ''}</a></li>`,
     );
     for (const t of byAfter.get(i) ?? []) {
       const lateOrEarly = delayChip(t.delay);
@@ -299,10 +328,13 @@ function lineStrip(): string {
   return `<ol class="strip line-strip" aria-label="Stations" style="--line:${LINE.colour}">${items.join('')}</ol>`;
 }
 
+/** The runs of a Line as chips, fixed above its strip: all of them, or one at a time, which the strip then shows alone with its Trains. */
 function variantChips(): string {
-  const names = LINE.variants.slice(0, 5).map((v, i) => ({ v, i }));
-  return `<div class="chips" role="tablist" aria-label="Runs of this Line">${names
-    .map(({ v, i }) => `<a class="chip" role="tab" aria-selected="${i === variant}" href="${link({ v: String(i) })}"><b>${esc(v.fromName === LINE.stations[0]?.name ? 'All the way' : v.fromName.replace(/ Estació del Nord| Central/, ''))}</b> – ${esc(v.toName.replace(/ Estació del Nord| Central/, ''))}<span class="chip-n">${plural(v.trips, 'Trip')}</span></a>`)
+  const runs = LINE.variants.slice(0, 5);
+  const chip = (label: string, count: string, selected: boolean, href: string) =>
+    `<a class="chip" role="tab" aria-selected="${selected}" href="${href}"><b>${label}</b><span class="chip-n">${count}</span></a>`;
+  return `<div class="chips" role="tablist" aria-label="Runs of this Line">${chip('All', plural(LINE.variants.reduce((n, v) => n + v.trips, 0), 'Trip'), !selectedRun, link({ alt: null, v: null }))}${runs
+    .map((v, i) => chip(`${esc(v.fromName)} – ${esc(v.toName)}`, plural(v.trips, 'Trip'), selectedRun === v, link({ alt: 'chips', v: String(i) })))
     .join('')}</div>`;
 }
 
@@ -331,96 +363,114 @@ function cancelledRows(rows: CancelledTrain[]): string {
 /** A Line's state, in the sheet's fixed top: how many Trains, and chips for its Delays, its Cancelled Trains and its Alerts, which open their details above the strip. */
 function lineState(): string {
   const s = LINE.state;
-  const late = s.late5 ? `<span class="delay late">${s.late5} late, worst +${s.worst} min</span>` : '<span class="status soft">none 5+ min late</span>';
+  const late = s.late5 ? `<span class="delay late chip-like">${s.late5} late</span>` : s.live ? '<span class="status soft">none late</span>' : '';
   const cancelled = LINE.cancelled.length ? `<button type="button" class="chip-btn cancelled" aria-expanded="${opened}"><span>${LINE.cancelled.length} Cancelled</span>${opened ? ICON.up : ICON.chevron}</button>` : '';
   const alerts = LINE.alerts.length ? `<button type="button" class="chip-btn warn" aria-expanded="${opened}"><span>${ICON.warning}${plural(LINE.alerts.length, 'alert')}</span>${opened ? ICON.up : ICON.chevron}</button>` : '';
-  return `<p class="meta status-line"><span class="dot live"></span>${esc(NETWORKS[LINE.network]?.name ?? '')} · ${plural(s.trains, 'Train')} now, ${s.live} Live</p><div class="state-chips">${late}${cancelled}${alerts}</div>`;
+  const how = s.live ? (s.late5 ? `, worst +${s.worst} min` : '') : ', all Scheduled';
+  return `<p class="meta status-line"><span class="dot${s.live ? ' live' : ''}"></span>${esc(networkName(LINE.network))} · ${plural(s.trains, 'Train')} now${how}</p><div class="state-chips">${late}${cancelled}${alerts}</div>`;
 }
+
+/** The run the chips have selected, if one. */
+const selectedRun = chips && variant !== undefined ? LINE.variants[variant] : undefined;
 
 function lineBody(): string {
   const details = opened
     ? `<div class="line-details">${cancelledRows(LINE.cancelled)}${LINE.alerts.length ? `<h3 class="label">Alerts</h3><div class="alerts">${alertRows(LINE.alerts, false)}</div>` : ''}</div>`
     : '';
-  return `${details}${chips ? variantChips() : ''}<h3 class="label strip-label">Stations</h3>${lineStrip()}`;
+  return `${details}<h3 class="label strip-label">Stations</h3>${lineStrip()}`;
 }
 
 // ---- Now.
-function networkBlock(n: NetworkNow): string {
-  const troubled = n.lines.filter((l) => l.late5 || l.cancelled).sort((a, b) => b.late5 - a.late5 || b.worst - a.worst);
-  const quiet = n.lines.filter((l) => !(l.late5 || l.cancelled));
-  const unreported = n.lines.filter((l) => l.unreported && !(l.late5 || l.cancelled));
-  const state = n.unavailable
-    ? '<span class="chip warn">Live data unavailable</span>'
-    : n.late5 || n.cancelled
-      ? `<span class="delay late">${n.late5 ? `${n.late5} late` : ''}${n.late5 && n.cancelled ? ' · ' : ''}${n.cancelled ? `${n.cancelled} Cancelled` : ''}</span>`
-      : '<span class="status soft">on time</span>';
-  const rows = troubled
-    .map(
-      (l) =>
-        `<li><a class="trouble-row" href="${l.id === LINE.id ? link({ screen: 'line' }) : '#line'}">${pill(l.id)}<span class="what"><span class="what-title">${l.late5 ? `${l.late5} of ${l.trains} Trains late` : `${plural(l.trains, 'Train')}, none late`}</span><span class="what-under">${[l.cancelled ? `${l.cancelled} Cancelled` : '', l.unreported ? `${l.unreported} with no live data` : ''].filter(Boolean).join(' · ') || `${l.live} Live`}</span></span><span class="end">${l.late5 ? delayChip(l.worst) : ''}${ICON.right}</span></a></li>`,
-    )
-    .join('');
-  return `<li class="net"><div class="net-head"><h4 class="net-name">${esc(n.name)}</h4>${state}</div>
-    <p class="meta">${plural(n.trains, 'Train')} · ${n.live} Live${n.trains - n.live ? `, ${n.trains - n.live} Scheduled` : ''}${n.unavailable ? ' from the timetable' : n.unreported ? `, ${n.unreported} with no live data` : ''}</p>
-    ${rows ? `<ol class="trouble">${rows}</ol>` : ''}
-    ${!troubled.length && quiet.length ? `<p class="meta">${plural(quiet.length, 'Line')} running, none late</p>` : ''}${unreported.length && !troubled.length ? '' : ''}</li>`;
+
+/** How many Lines of a Network Now lists before a button for the rest. */
+const LINES_SHOWN = 5;
+
+/** A button in a list's end: how many more it holds, as the sheet's own do. */
+const moreButton = (text: string) => `<button type="button" class="more" aria-expanded="false"><span>${text}</span>${ICON.chevron}</button>`;
+
+function troubleRow(l: NetworkNow['lines'][number]): string {
+  const href = l.id === R4_LINE.id ? link({ screen: 'line', line: null }) : '#line';
+  const under = [l.cancelled ? `${l.cancelled} Cancelled` : '', l.unreported ? `${l.unreported} with no live data` : ''].filter(Boolean).join(' · ') || `${l.live} Live`;
+  return `<li><a class="trouble-row" href="${href}">${pill(l.id)}<span class="what"><span class="what-title">${l.late5 ? `${l.late5} of ${l.trains} Trains late` : `${plural(l.trains, 'Train')}, none late`}</span><span class="what-under">${under}</span></span><span class="end">${l.late5 ? delayChip(l.worst) : ''}${ICON.right}</span></a></li>`;
 }
 
+/** A Network in trouble: its Trains, and its Lines with Trains late or Cancelled, the worst first. */
+function networkBlock(n: NetworkNow): string {
+  const troubled = n.lines.filter((l) => l.late5 || l.cancelled).sort((a, b) => b.late5 - a.late5 || b.worst - a.worst);
+  const state = n.unavailable
+    ? '<span class="chip warn">Live data unavailable</span>'
+    : `<span class="delay late">${[n.late5 ? `${n.late5} late` : '', n.cancelled ? `${n.cancelled} Cancelled` : ''].filter(Boolean).join(' · ')}</span>`;
+  const meta = n.unavailable ? `${plural(n.trains, 'Train')}, all Scheduled from the timetable` : `${plural(n.trains, 'Train')} · ${n.live} Live${n.trains - n.live ? `, ${n.trains - n.live} Scheduled` : ''}${n.unreported ? `, ${n.unreported} with no live data` : ''}`;
+  const rest = troubled.length - LINES_SHOWN;
+  return `<li class="net"><div class="net-head"><h4 class="net-name">${esc(networkName(n.id))}</h4>${state}</div><p class="meta">${meta}</p>${troubled.length ? `<ol class="trouble">${troubled.slice(0, LINES_SHOWN).map(troubleRow).join('')}</ol>` : ''}${rest > 0 ? moreButton(`${plural(rest, 'more Line')} with Trains late or Cancelled`) : ''}</li>`;
+}
+
+const CATALAN = ['rodalies', 'fgc', 'tram', 'metro'];
+
 function whatsWrong(): string {
-  const order = ['rodalies', 'fgc', 'tram', 'metro'];
-  const nets = [...NOW.networks].filter((n) => n.trains || n.unavailable).sort((a, b) => {
-    const ia = order.indexOf(a.id);
-    const ib = order.indexOf(b.id);
-    if (ia >= 0 || ib >= 0) return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
-    return Number(b.unavailable) - Number(a.unavailable) || b.late5 - a.late5 || a.name.localeCompare(b.name);
-  });
-  const closures = NOW.closures;
-  const closureRows = closures
-    .map((c) => `<li><span class="trouble-row static">${pill(c.line)}<span class="what"><span class="what-title">${esc(c.stations[0] ?? '')} – ${esc(c.stations[1] ?? '')}</span><span class="what-under">${c.kind === 'single' ? 'Single track' : 'Closed, buses run instead'}</span></span></span></li>`)
+  const order = (n: NetworkNow) => (CATALAN.includes(n.id) ? CATALAN.indexOf(n.id) : 99);
+  const trouble = (n: NetworkNow) => n.unavailable || n.late5 > 0 || n.cancelled > 0;
+  const troubled = NOW.networks.filter(trouble).sort((a, b) => order(a) - order(b) || b.late5 - a.late5 || a.name.localeCompare(b.name));
+  const quiet = NOW.networks.filter((n) => !trouble(n) && n.trains > 0);
+  // A stretch's Closures once, with its Lines' pills, as T1, T2 and T3's are one.
+  const stretches = new Map<string, { lines: string[]; stations: (string | undefined)[]; kind: string }>();
+  for (const c of NOW.closures) {
+    const key = `${c.stations.join('|')}|${c.kind}`;
+    const found = stretches.get(key) ?? { lines: [], stations: c.stations, kind: c.kind };
+    found.lines.push(c.line);
+    stretches.set(key, found);
+  }
+  const closures = [...stretches.values()]
+    .map((c) => `<li><span class="trouble-row static"><span class="lead pills">${c.lines.map((l) => pill(l)).join('')}</span><span class="what"><span class="what-title">${esc(c.stations[0] ?? '')} – ${esc(c.stations[1] ?? '')}</span><span class="what-under">${c.kind === 'single' ? 'Single track' : 'Closed, buses run instead'}</span></span></span></li>`)
     .join('');
-  return `<h3 class="label">What's wrong</h3><p class="subtitle">Late is 5 minutes or more.</p><ol class="nets">${nets.map(networkBlock).join('')}</ol>${closures.length ? `<h4 class="sub-label">Closed or single track on the map</h4><ol class="trouble">${closureRows}</ol>` : ''}`;
+  return `<h3 class="label">What's wrong</h3><p class="subtitle">Late is 5 minutes or more.</p><ol class="nets">${troubled.map(networkBlock).join('')}</ol>
+    <p class="meta quiet"><b>No trouble:</b> ${quiet.map((n) => esc(networkName(n.id))).join(' · ')}.</p>
+    <h4 class="sub-label">Closed or on a single track, as the map draws them</h4><ol class="trouble">${closures}</ol>`;
 }
 
 function whatsNotable(): string {
   const specials = NOW.specials
     .map((s) => {
-      const info = LINES[s.id];
       const name = s.id === 'fgc:MM' ? 'Montserrat rack railway' : s.id === 'fgc:FV' ? 'Vallvidrera funicular' : 'Montjuïc funicular';
       const train = s.running[0];
-      return `<li><span class="trouble-row static">${pill(s.id, { live: !!train?.live, train: !!train })}<span class="what"><span class="what-title">${name}</span><span class="what-under">${train ? `Running now, ${train.live ? 'Live' : 'Scheduled'}${train.delay ? ` · ${train.delay > 0 ? '+' : '−'}${Math.abs(train.delay)} min` : ''}` : s.next ? `Between rides · next ${plain(s.next.at)} from ${esc(s.next.from)}` : 'Not running'}</span></span>${info ? '' : ''}</span></li>`;
+      const under = train ? `Running now, ${train.live ? 'Live' : 'Scheduled'}${train.delay ? ` · ${train.delay > 0 ? '+' : '−'}${Math.abs(train.delay)} min` : ''}` : s.next ? `Between rides · next ${plain(s.next.at)} from ${esc(s.next.from)}` : 'Not running';
+      return `<li><span class="trouble-row static">${pill(s.id, { live: !!train?.live, train: !!train })}<span class="what"><span class="what-title">${name}</span><span class="what-under">${under}</span></span></span></li>`;
     })
     .join('');
   const france = NOW.france
     .filter((f) => !f.ended)
     .map((f) => {
-      const where = f.line === 'rodalies:R11' ? 'Cerbère' : esc(f.into ? f.headsign : f.from);
-      const when = f.running ? `Running now${f.running.delay ? ` · +${f.running.delay} min` : ''}` : `${f.into ? 'Leaves' : 'Leaves'} ${esc(f.from)} at ${plain(f.leaves)}`;
-      return `<li><span class="trouble-row static">${pill(f.line, { live: !!f.running?.live, train: !!f.running })}<span class="what"><span class="what-title">${f.into ? 'To' : 'From'} ${where}, ${plain(f.border)}</span><span class="what-under">${when}</span></span></span></li>`;
+      const there = f.beyond ?? '';
+      const running = f.running ? `Running now${f.running.delay ? ` · +${f.running.delay} min` : ''}` : '';
+      // Into France: where it's due beyond the border, and when it leaves; out of it: where it left, and where it's headed.
+      const title = f.into ? `To ${esc(there)}, ${plain(f.border)}` : `From ${esc(there)}, ${plain(f.border)}`;
+      const under = f.into ? running || `Leaves ${esc(f.from)} at ${plain(f.leaves)}` : `to ${esc(f.headsign)}${running ? ` · ${running}` : ''}`;
+      return `<li><span class="trouble-row static">${pill(f.line, { live: !!f.running?.live, train: !!f.running })}<span class="what"><span class="what-title">${title}</span><span class="what-under">${under}</span></span></span></li>`;
     })
     .join('');
   const firstLast = NOW.networks
-    .filter((n) => ['rodalies', 'fgc', 'tram', 'metro'].includes(n.id) && n.first && n.last)
-    .map(
-      (n) =>
-        `<li><span class="trouble-row static"><span class="what"><span class="what-title">${esc(n.name)}</span><span class="what-under">First ${plain(n.first?.at ?? '')} · last ${plain(n.last?.at ?? '')}, ${pill(n.last?.line ?? '', { small: true })} to ${esc(n.last?.to ?? '')}</span></span></span></li>`,
-    )
+    .filter((n) => CATALAN.includes(n.id) && n.first && n.last)
+    .map((n) => `<li><span class="trouble-row static"><span class="what"><span class="what-title">${esc(networkName(n.id))}</span><span class="what-under">First ${plain(n.first?.at ?? '')} · last ${plain(n.last?.at ?? '')}${n.last?.nextDay ? ' (after midnight)' : ''}, ${pill(n.last?.line ?? '', { small: true })} to ${esc(n.last?.to ?? '')}</span></span></span></li>`)
     .join('');
   const l = NOW.latest;
   const latest = l
-    ? `<li><span class="trouble-row static">${pill(l.line, { live: l.live, train: true })}<span class="what"><span class="what-title">${esc(l.headsign)}</span><span class="what-under">${esc(NETWORKS[LINES[l.line]?.network ?? '']?.name ?? '')} · from ${esc(l.from)}, left ${plain(l.leaves)}</span></span><span class="end">${delayChip(l.delay)}</span></span></li>`
+    ? `<li><span class="trouble-row static">${pill(l.line, { live: l.live, train: true })}<span class="what"><span class="what-title">${esc(l.headsign)}${l.number ? ` · ${esc(l.number)}` : ''}</span><span class="what-under">${esc(networkName(LINES[l.line]?.network ?? ''))} · from ${esc(l.from)}, left ${plain(l.leaves)}</span></span><span class="end">${delayChip(l.delay)}</span></span></li>`
     : '';
   return `<h3 class="label">What's notable</h3>
+    <h4 class="sub-label">The Train furthest behind its timetable</h4><ol class="trouble">${latest}</ol>
     <h4 class="sub-label">Rack railway and funiculars</h4><ol class="trouble">${specials}</ol>
     <h4 class="sub-label">Trains crossing into France</h4><ol class="trouble">${france}</ol>
-    <h4 class="sub-label">First and last Trains today</h4><ol class="trouble">${firstLast}</ol>
-    <h4 class="sub-label">Latest running</h4><ol class="trouble">${latest}</ol>`;
+    <h4 class="sub-label">First and last Trains today</h4><ol class="trouble">${firstLast}</ol>`;
 }
+
+/** Alerts as many as the sheet lists before its button for the rest: all of them are Now's, newest first (ADR-0012). */
+const ALERTS_SHOWN = 6;
 
 function nowBody(): string {
   const die = nav === 'a' ? `<button type="button" class="die-row card"><span class="icon">${ICON.die}</span><span>Follow a random Train</span></button>` : '';
-  return `<p class="meta status-line">${esc(CAPTURED.day.replace(/ 2026$/, ''))} · ${plain(CAPTURED.clock)} · ${COUNT.live} Live, ${COUNT.scheduled} Scheduled</p>${die}${whatsWrong()}${whatsNotable()}<h3 class="label">Alerts on the map</h3><p class="subtitle">${ALERTS.length} from Renfe and TRAM, newest first, in their own words.</p><div class="alerts all">${alertRows(ALERTS, true)}</div>`;
+  const shown = ALERTS.slice(0, ALERTS_SHOWN);
+  return `<p class="meta status-line">${esc(CAPTURED.day.replace(/ 2026$/, ''))} · ${plain(CAPTURED.clock)} · ${COUNT.live} Live, ${COUNT.scheduled} Scheduled</p>${die}${whatsWrong()}${whatsNotable()}<h3 class="label">Alerts on the map</h3><p class="subtitle">${ALERTS.length} from Renfe and TRAM, newest first, in their own words.</p><div class="alerts all">${alertRows(shown, true)}</div>${moreButton(`${ALERTS.length - shown.length} more Alerts`)}`;
 }
-
 
 // ---- A Station's board, as #321 has it, with the star that keeps it in Favourites.
 function boardScreen(): string {
@@ -451,7 +501,7 @@ function content(): { sheet?: string; drop?: string } {
       if (nav === 'a') return { sheet: sheet('favourites', `<header><h2 class="title" tabindex="-1">Favourites</h2>${closeButton('Close Favourites')}</header>`, favouritesBody(), 'Favourites') };
       return { drop: `<section class="drop card" aria-label="Favourites"><div class="drop-body">${emptyFavourites ? '' : '<h3 class="label first">Favourites</h3>'}${favouritesBody().replace('<h3 class="label">Stations</h3>', '<h4 class="sub-label">Stations</h4>').replace('<h3 class="label">Lines</h3>', '<h4 class="sub-label">Lines</h4>')}</div></section>` };
     case 'line': {
-      const header = `<header><h2 class="title line-title" tabindex="-1">${pill(LINE.id, { big: true })} <span>${esc(LINE.title)}</span></h2>${star(true, LINE.name)}${closeButton('Close the Line')}</header><div class="line-state">${lineState()}</div>`;
+      const header = `<header><h2 class="title line-title" tabindex="-1">${pill(LINE.id, { big: true })} <span>${esc(LINE.title)}</span></h2>${star(true, LINE.name)}${closeButton('Close the Line')}</header><div class="line-state">${lineState()}${chips ? variantChips() : ''}</div>`;
       return { sheet: sheet('line', header, lineBody(), `${LINE.name}`) };
     }
     case 'board':
@@ -463,16 +513,52 @@ function content(): { sheet?: string; drop?: string } {
   }
 }
 
-// ---- The page.
-const { sheet: sheetHtml = '', drop = '' } = content();
-const mapNode = `<div id="map" class="maplibregl-map" style="background-image:url(${background()})"><div class="maplibregl-control-container"><div class="maplibregl-ctrl-top-left">${legend}</div><div class="maplibregl-ctrl-top-right">${language}</div></div></div>`;
-document.body.innerHTML = `${mapNode}${nav === 'a' ? tabs() : searchBar() + drop}<div class="dock">${riders()}${sheetHtml}</div>`;
+// ---- The page: a frame, or with `?index` a list of every frame.
 
-// A Line's strip opens at its Trains, a Station or two before the first, as one would open where the
-// viewer is: `?at=` names a Station by its place in the strip instead, and `?at=top` leaves it be.
-const at = params.get('at');
-const scrolled = document.querySelector<HTMLElement>('.sheet-body');
-if (scrolled && !full && screen === 'line' && at !== 'top') {
-  const target = at === null ? scrolled.querySelector<HTMLElement>('li.train') : scrolled.querySelector<HTMLElement>(`[data-station="${at}"]`);
-  if (target) scrolled.scrollTop = target.getBoundingClientRect().top - scrolled.getBoundingClientRect().top + scrolled.scrollTop - (at === null ? 100 : 8);
+/** Every frame, linked: a list for whoever opens the page without knowing its query. */
+function renderIndex() {
+  const sets: [string, string][] = [
+    ['Search', 'screen=search'],
+    ['Search, empty', 'screen=search&q='],
+    ['Search, Lines', 'screen=search&q=r1'],
+    ['Search, Train numbers', 'screen=search&q=774'],
+    ['Favourites', 'screen=favourites'],
+    ['Favourites, empty', 'screen=favourites&empty=1'],
+    ['A Line', 'screen=line'],
+    ["A Line, with its Cancelled Trains and Alerts open", 'screen=line&open=1'],
+    ['A Line, a chip for each run', 'screen=line&alt=chips&v=2'],
+    ["A Line of a Network whose live data is unavailable", 'screen=line&line=cercanias-asturias%3AC6'],
+    ['Now', 'screen=now'],
+    ['Now at its length', 'screen=now&full=1'],
+    ['A Station\'s board, with its star', 'screen=board'],
+    ['The map', 'screen=map'],
+    ["A's bar along the top, on a wide window", 'screen=now&bar=top'],
+  ];
+  document.title = 'Screens beyond the map, every frame (#328)';
+  document.body.style.cssText = 'overflow:auto;padding:24px;font:15px/1.6 system-ui,sans-serif;color:#14305a;background:#fff';
+  document.body.innerHTML = `<h1 style="font:400 24px var(--serif, Georgia)">Screens beyond the map, mocked up (#328)</h1><p>One frame to a page, in the app's cards, over the live map as it was at ${esc(CAPTURED.clock)} on ${esc(CAPTURED.day)}. Open one at 390 px wide, or on a wide window; add <code>&amp;theme=dark</code> for dark.</p><table cellpadding="6">${sets.map(([name, query]) => `<tr><td>${esc(name)}</td><td><a href="?nav=a&amp;${query}">A, the tab bar</a></td><td><a href="?nav=b&amp;${query}">B, the field</a></td></tr>`).join('')}</table>`;
 }
+
+/** One frame: the map and its corners, A's tab bar or B's field, the dock with its sheet. */
+function renderFrame() {
+  const { sheet: sheetHtml = '', drop = '' } = content();
+  const mapNode = `<div id="map" class="maplibregl-map" style="background-image:url(${background()})">${glow()}<div class="maplibregl-control-container"><div class="maplibregl-ctrl-top-left">${legend}${banner}</div><div class="maplibregl-ctrl-top-right">${language}</div></div></div>`;
+  document.body.innerHTML = `${mapNode}${nav === 'a' ? tabs() : searchBar() + drop}<div class="dock">${riders()}${sheetHtml}</div>`;
+
+  // The chip of the run selected stays in view.
+  const chosen = document.querySelector<HTMLElement>('.chips [aria-selected="true"]');
+  const row = chosen?.parentElement;
+  if (chosen && row) row.scrollLeft = chosen.offsetLeft - row.offsetLeft - 8;
+
+  // A Line's strip opens at its Trains, a Station or two before the first, as one would open where the
+  // viewer is: `?at=` names a Station by its place in the strip instead, and `?at=top` leaves it be.
+  const at = params.get('at');
+  const scrolled = document.querySelector<HTMLElement>('.sheet-body');
+  if (scrolled && !full && !opened && screen === 'line' && at !== 'top') {
+    const target = at === null ? scrolled.querySelector<HTMLElement>('li.train') : scrolled.querySelector<HTMLElement>(`[data-station="${at}"]`);
+    if (target) scrolled.scrollTop = target.getBoundingClientRect().top - scrolled.getBoundingClientRect().top + scrolled.scrollTop - (at === null ? 100 : 8);
+  }
+}
+
+if (params.has('index')) renderIndex();
+else renderFrame();
