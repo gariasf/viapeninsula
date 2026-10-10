@@ -1,5 +1,5 @@
 // The Closures the map draws (#341, ADR-0012): read from an Alert's words, or the timetable's (#340), and where.
-import { BANDS, closestOnSegment, DEGREE, drawnIn, NEXT, pieces, slotAt, type Alerts, type Bundle, type Line, type Point, type Shape, type Slot, type Station, type Stroke, type Zone } from '../bundle.ts';
+import { BANDS, closestOnSegment, DEGREE, drawnIn, NEXT, pieces, slotAt, type Alerts, type Bundle, type Call, type Line, type Point, type Shape, type Slot, type Station, type Stroke, type Zone } from '../bundle.ts';
 
 /** How far from a shape, in metres, a Station can be and lie on it, as the build has a Trip's calls (src/build/trips.ts). */
 const REACH = 300;
@@ -146,6 +146,39 @@ export function hiding(shown: Shown[], seen: readonly Shown[], lifted: Map<strin
 export const liftedSince = (c: Shown, lifted: ReadonlyMap<string, number>): number | undefined => (c.alert ? lifted.get(liftKey(c)) : undefined);
 
 /**
+ * The feeds whose Alerts' active periods are when their notices show, not when their works are, so
+ * that a Closure they make is in force only at the moments the timetable runs a Line's Trains short of
+ * it (turnedBack(), ADR-0012, #397): TRAM's, whose `sc-280` showed from 1 Oct for works on 10–12 Oct.
+ * Renfe's have no end, and a Live Train within lifts them (#345).
+ * ponytail: by feed, here; give the source a trait in src/networks.ts, and the page the Alerts file's
+ * feeds', when TMB's or FGC's Alerts make Closures and say how their periods are used.
+ */
+const BY_TIMETABLE = ['tram'];
+
+/** Half the hour around a moment, in seconds, whose Trips of a Line say whether its Closure is in force (turnedBack()). */
+const AROUND = 30 * 60;
+
+/**
+ * Whether a closed Closure of a Line, between two Stations, is in force at a moment by the timetable
+ * (#397): the Line has a Trip running at some time within AROUND of it, `at` seconds into the day
+ * `trips` are timed by, and none of those Trips calls at both Stations, as a timetable that turns them
+ * back at its ends has them. Where it has none, as at night, or one does, it isn't: nothing is hidden
+ * or drawn, as TRAM's T1–T3 Trips ran across Francesc Macià – Montesa until 10 Oct, with `sc-280`'s
+ * notice shown from 1 Oct (a Trip of one of the days the map has joined, as joinDays() has them).
+ * ponytail: every Trip of the page for each, once a minute; index them by Line if that shows.
+ */
+function turnedBack(trips: { line: string; calls: Pick<Call, 'station' | 'arrival' | 'departure'>[] }[], line: string, [a, b]: [string, string], at: number): boolean {
+  let running = false;
+  for (const { line: of, calls } of trips) {
+    const [first, last] = [calls[0], calls.at(-1)];
+    if (of !== line || !first || !last || first.departure > at + AROUND || last.arrival < at - AROUND) continue;
+    if (calls.some((c) => c.station === a) && calls.some((c) => c.station === b)) return false;
+    running = true;
+  }
+  return running;
+}
+
+/**
  * The Closures the map draws at `now` (ms since 1970), one for each part of a Line (ADR-0012). From
  * the Alerts in alerts.json within their active period, as each feed gives it, so Renfe's while
  * they're in the file, as theirs have no end: the stretches each Alert's words, in its feed's own
@@ -153,13 +186,19 @@ export const liftedSince = (c: Shown, lifted: ReadonlyMap<string, number>): numb
  * Networks, on each of its Lines, which the Line's track then places, or leaves to words where it
  * doesn't run by both (placeOn()): not against those its Trips call at that day, which a closure can
  * cut short, and none from an Alert about some of the Trains of its Lines, not theirs (aboutSomeTrains()).
+ * TRAM's closed ones are those only at the moments its Line's Trips, which the days joined have, turn
+ * back at their Stations, as its period is when its notice shows, not its works (BY_TIMETABLE, #397).
  * Then the timetable's of the service day, from its first bus to its last (#340). The Alerts' first,
  * newest first: where an Alert and the timetable, or two Alerts, close one part, it's drawn once, with
  * the first's words.
  */
 export function closuresAt(
   alerts: Alerts,
-  day: Pick<Bundle, 'noonMinus12h' | 'closures'> & { lines: Pick<Line, 'id' | 'network'>[]; stations: Pick<Station, 'id' | 'name' | 'networks'>[] },
+  day: Pick<Bundle, 'noonMinus12h' | 'closures'> & {
+    lines: Pick<Line, 'id' | 'network'>[];
+    stations: Pick<Station, 'id' | 'name' | 'networks'>[];
+    trips: { line: string; calls: Pick<Call, 'station' | 'arrival' | 'departure'>[] }[];
+  },
   now: number,
 ): Shown[] {
   const found = new Map<string, Shown>();
@@ -181,7 +220,10 @@ export function closuresAt(
       for (const line of alert.lines) {
         const ids = new Set(stationsOf(line).map((s) => s.id));
         const said = JSON.stringify([alert.from, alert.to, alert.effect, alert.header, alert.description]);
-        if (ends.every((s) => ids.has(s))) add({ line, stations: ends, kind: says, alert: { feed, id: alert.id, said }, ...(alert.from !== undefined && { from: alert.from }) });
+        if (!ends.every((s) => ids.has(s))) continue;
+        // Not a single track, which its Trains run through: the timetable can't tell.
+        if (says === 'closed' && BY_TIMETABLE.includes(feed) && !turnedBack(day.trips, line, ends, (now - day.noonMinus12h) / 1000)) continue;
+        add({ line, stations: ends, kind: says, alert: { feed, id: alert.id, said }, ...(alert.from !== undefined && { from: alert.from }) });
       }
     }
   }
