@@ -10,7 +10,7 @@ import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, s
 const R1 = [
   { id: 'adif:72305', name: "L'Hospitalet de Llobregat" },
   { id: 'adif:79606', name: 'Blanes' },
-  { id: 'adif:79600', name: 'Tordera' },
+  { id: 'adif:79607', name: 'Tordera' },
   { id: 'adif:79200', name: 'Maçanet-Massanes' },
 ];
 
@@ -71,9 +71,9 @@ test("matches a name within a Station's name, where it's within one Station's on
 });
 
 test('finds stretches "de X a Y" and "desde X hasta Y", and one whose words say nothing of it, with nothing said', () => {
-  expect(stretchesIn('No presta servicio de Blanes a Tordera.', R1)).toEqual([{ stations: ['adif:79606', 'adif:79600'], says: 'closed' }]);
-  expect(stretchesIn('Servicio alternativo por carretera desde Tordera hasta Maçanet-Massanes.', R1)).toEqual([{ stations: ['adif:79600', 'adif:79200'], says: 'closed' }]);
-  expect(stretchesIn('Obras entre Blanes y Tordera.', R1)).toEqual([{ stations: ['adif:79606', 'adif:79600'] }]);
+  expect(stretchesIn('No presta servicio de Blanes a Tordera.', R1)).toEqual([{ stations: ['adif:79606', 'adif:79607'], says: 'closed' }]);
+  expect(stretchesIn('Servicio alternativo por carretera desde Tordera hasta Maçanet-Massanes.', R1)).toEqual([{ stations: ['adif:79607', 'adif:79200'], says: 'closed' }]);
+  expect(stretchesIn('Obras entre Blanes y Tordera.', R1)).toEqual([{ stations: ['adif:79606', 'adif:79607'] }]);
 });
 
 test("reads the words that say what a stretch is from those last before it in its clause", () => {
@@ -81,17 +81,17 @@ test("reads the words that say what a stretch is from those last before it in it
   expect(stretchesIn(text, R1)).toEqual([
     { stations: ['adif:72305', 'adif:79606'], says: 'running' },
     { stations: ['adif:79606', 'adif:79200'], says: 'closed' },
-    { stations: ['adif:79600', 'adif:79606'] },
+    { stations: ['adif:79607', 'adif:79606'] },
   ]);
   // A clause with none of those words says nothing of its stretch, though one before it does.
   expect(stretchesIn('Servicio alternativo por carretera entre Blanes y Maçanet-Massanes, y con normalidad entre Tordera y Blanes.', R1)).toEqual([
     { stations: ['adif:79606', 'adif:79200'], says: 'closed' },
-    { stations: ['adif:79600', 'adif:79606'] },
+    { stations: ['adif:79607', 'adif:79606'] },
   ]);
 });
 
 test('opens a stretch only at its opening words, not at one every object has a property of, as "constructor"', () => {
-  expect(stretchesIn('Obras del constructor Blanes entre Blanes y Tordera.', R1)).toEqual([{ stations: ['adif:79606', 'adif:79600'] }]);
+  expect(stretchesIn('Obras del constructor Blanes entre Blanes y Tordera.', R1)).toEqual([{ stations: ['adif:79606', 'adif:79607'] }]);
 });
 
 test("finds the stretches in TRAM's Catalan and English", () => {
