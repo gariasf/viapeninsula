@@ -92,13 +92,23 @@ export function measures({ shapes, strokes: pieces, lines = [] }: Pick<Track, 's
   return { breaks: breaks(graph, shapes), ...faithful(graph, shapes, one), folds: folds(drawn, shapes), covered: covered(strokes, shapes, one), dangling: dangling(strokes, shapes), ...nodes(strokes, shapes, lines), wiggles: wiggles(strokes, shapes) };
 }
 
-/** Strokes joined up again where sideBySide() cut them at a tunnel's ends (#178), as they're drawn the same either side. */
+/**
+ * Strokes joined up again where sideBySide() cut them at a tunnel's ends (#178), as they're drawn the same
+ * either side. split() gave each piece the part of the stroke's cut that's in it, so that a cut longer than
+ * a piece is the whole of it and goes on in the next: in each band, the joined stroke is drawn from where
+ * the first piece that's drawn begins to where the last one's ends, and is cut whole where none is (#386).
+ */
 function joined(strokes: Stroke[]): Stroke[] {
   const same = (a: Stroke, b: Stroke) => a.line === b.line && a.shape === b.shape && a.side === b.side && a.shared === b.shared && a.to === b.from && a.band === b.band && !a.shape.startsWith(LINK);
   return strokes.reduce<Stroke[]>((all, s) => {
     const last = all.at(-1);
     if (last && same(last, s)) {
-      const cut = last.cut && s.cut && last.cut.map(([start], band): [number, number] => [start, s.cut?.[band]?.[1] ?? 0]);
+      const cut = last.cut && s.cut && last.cut.map(([start, end], band): [number, number] => {
+        const [next = 0, stop = 0] = s.cut?.[band] ?? [];
+        const from = start + end >= last.to - last.from ? s.from + next : last.from + start;
+        const to = next + stop >= s.to - s.from ? last.to - end : s.to - stop;
+        return from < to ? [from - last.from, s.to - to] : [s.to - last.from, 0];
+      });
       all[all.length - 1] = { ...last, to: s.to, ...(cut && { cut }) };
     } else all.push(s);
     return all;
