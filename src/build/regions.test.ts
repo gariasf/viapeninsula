@@ -163,6 +163,24 @@ test("carries the spots of the last report for the Networks of a region whose bu
   expect(diff(last, report.spots())).toContain('1 new');
 });
 
+test("leaves out a region whose build failed where the last report can't be read, as one of an older shape, rather than stop the build for it", async () => {
+  const regions = [{ id: 'catalonia', networks: [{ id: 'rodalies' }] }, { id: 'cercanias-madrid', networks: [{ id: 'cercanias-madrid' }] }];
+  for (const odd of [{ spots: [] }, [null]]) {
+    const report = collect();
+    const results = await buildRegions(
+      regions,
+      async ({ id }) => {
+        if (id === 'catalonia') throw new Error('sideBySide failed');
+        return { days: [] };
+      },
+      { log: () => {}, report, last: odd as unknown as Spot[] },
+    );
+    expect(results.map((r) => [r.id, r.built !== undefined])).toEqual([['catalonia', false], ['cercanias-madrid', true]]);
+    // Nothing of the last report to carry, and the region's failure is reported all the same.
+    expect(report.spots().map((s) => s.key)).toEqual(['region catalonia']);
+  }
+});
+
 test("fails the build where none of the regions has Trips today, which is a broken build rather than a day without Trains", async () => {
   const empty = (id: string) => ({ id, networks: [{ id }] });
   const { deps: d } = deps({ a: network('a', [0, 3000], 0, [[], [300], [300]]), b: network('b', [0, 3000], 100, [[], [300], [300]]) });

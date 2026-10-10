@@ -106,8 +106,9 @@ export async function buildRegions<N extends { id: string }, R extends { days: M
       log(line);
       log(`${error instanceof Error ? (error.stack ?? error.message) : error}`);
       report.add({ kind: 'region', region: region.id, text: [line] });
+      // A last report it can't read, as one of an older shape, has none to carry, and doesn't stop the build (dayTrips()).
       const own = new Set(region.networks.map((n) => n.id));
-      for (const spot of last) if (spot.network && own.has(spot.network)) report.carry(spot);
+      for (const spot of Array.isArray(last) ? last : []) if (spot?.network && own.has(spot.network)) report.carry(spot);
       results.push({ id: region.id });
     }
   }
