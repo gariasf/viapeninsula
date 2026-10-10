@@ -195,7 +195,7 @@ export function closuresAt(
 /** What the words before a stretch say of it: closed, down to a single track, or running. */
 export type Says = 'closed' | 'single' | 'running';
 
-/** The words that say what a stretch is, before it in its clause: Renfe's Spanish, and TRAM's Catalan and English (#341, #396). */
+/** The words that say what a stretch is, before it in its clause, or anywhere in one that would go on after a comma with the clause before it: Renfe's Spanish, and TRAM's Catalan and English (#341, #396). */
 const SAYING: [words: string, says: Says][] = [
   ['servicio alternativo por carretera', 'closed'],
   ['plan alternativo de transporte por carretera', 'closed'],
@@ -207,6 +207,7 @@ const SAYING: [words: string, says: Says][] = [
   ['via unica', 'single'],
   ['circulacion ferroviaria', 'running'],
   ['se mantiene', 'running'],
+  ['se realiza con trenes', 'running'],
 ];
 
 /** How a stretch is named: the word before its first Station, and those that can come between its two, a dash too, as in "entre Ripoll - Puigcerdà". */
@@ -215,7 +216,12 @@ const NAMING: Record<string, string[]> = { entre: ['y', 'e', 'i', '-'], de: ['a'
 /** The words that can come between that word and the first Station, as in "entre las estaciones de Los Rosales y Cazalla-Constantina" (#396). */
 const STATIONS_OF = ['las', 'estaciones', 'de'];
 
-/** The words that join a stretch to the one before it, after a comma, as in "entre A y B, y entre C y D" (#396). */
+/**
+ * The words that join a stretch to the one before it, after a comma, as in "entre A y B, y entre C y D" (#396).
+ * ponytail: a clause that goes on has no words of its own among SAYING's, before its stretch or after it; others,
+ * as "se circula con normalidad", aren't read, so it goes on with what the clause before said. Each goes in
+ * SAYING with the file that has it.
+ */
 const AND = ['y', 'e', 'i', 'and'];
 
 /**
@@ -303,7 +309,8 @@ function endAt(words: string[], at: number, names: { id: string; words: string[]
  * lower case, without accents or punctuation, by whole names, but for the link words one spelling has
  * and another hasn't, or names within names (endAt()); each with what the last words before it in its
  * clause that say so say of it, where they do. A clause ends at a comma too, but one whose stretch has
- * only a joining word before it, "y", "e", "i" or "and", goes on with what the clause before said (#396).
+ * only a joining word before it, "y", "e", "i" or "and", and none of those words of its own, goes on with what
+ * the clause before said (#396).
  */
 export function stretchesIn(text: string, stations: { id: string; name: string }[]): { stations: [string, string]; says?: Says }[] {
   const names = stations.map(({ id, name }) => ({ id, words: wordsOf(name) }));
@@ -318,19 +325,25 @@ export function stretchesIn(text: string, stations: { id: string; name: string }
     let comma = false;
     for (const clause of sentence.split(/(?<=[,;:])/)) {
       const words = wordsOf(clause);
-      const open = words.findIndex((word) => Object.hasOwn(NAMING, word));
-      const goesOn = comma && open > 0 && words.slice(0, open).every((word) => AND.includes(word));
+      // What it says of itself, before its stretch or after, where it does; and so whether it can go on with what the one before said.
+      const own = sayingIn(words);
+      const before = own === undefined && comma ? carried : undefined;
+      let goesOn = false;
       for (const [i, word] of words.entries()) {
         // Its own opening words only, not those every object has, as "constructor".
         if (!Object.hasOwn(NAMING, word)) continue;
         const first = i + 1 + (runAt(words, STATIONS_OF, i + 1) === i + 1 ? STATIONS_OF.length : 0);
         const a = endAt(words, first, names, NAMING[word]);
         const b = a && endAt(words, first + a.length + 1, names);
-        if (!a || !b || a.id === b.id || found.has(`${a.id} ${b.id}`)) continue;
-        const says = sayingIn(words.slice(0, i)) ?? (goesOn ? carried : undefined);
+        if (!a || !b || a.id === b.id) continue;
+        // "…, y entre C y D": only a joining word before the opening word of a stretch that follows a comma.
+        const joins = comma && i > 0 && words.slice(0, i).every((w) => AND.includes(w));
+        goesOn ||= joins;
+        if (found.has(`${a.id} ${b.id}`)) continue;
+        const says = sayingIn(words.slice(0, i)) ?? (joins ? before : undefined);
         found.set(`${a.id} ${b.id}`, { stations: [a.id, b.id], ...(says && { says }) });
       }
-      carried = sayingIn(words) ?? (goesOn ? carried : undefined);
+      carried = own ?? (goesOn ? carried : undefined);
       comma = clause.endsWith(',');
     }
   }

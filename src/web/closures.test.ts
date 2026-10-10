@@ -121,10 +121,24 @@ test('goes on with what a clause says into the next, after a comma, where that h
     { stations: ['adif:79606', 'adif:79607'], says: 'closed' },
     { stations: ['adif:79607', 'adif:79200'] },
   ]);
-  // So does a semicolon, and a clause that says nothing between, though a comma ends both.
-  expect(stretchesIn(`${buses}; y entre Tordera y Maçanet-Massanes.`, R1)).toEqual([
+  // Words of its own say their own after its stretch too, and those before an opening word that isn't its first.
+  expect(stretchesIn(`${buses}, y entre Tordera y Maçanet-Massanes se mantiene el servicio.`, R1)).toEqual([
     { stations: ['adif:79606', 'adif:79607'], says: 'closed' },
     { stations: ['adif:79607', 'adif:79200'] },
+  ]);
+  expect(stretchesIn('Entre Blanes y Tordera queda interrumpida la circulación, y entre Tordera y Maçanet-Massanes se mantiene el servicio.', R1)).toEqual([
+    { stations: ['adif:79606', 'adif:79607'] },
+    { stations: ['adif:79607', 'adif:79200'] },
+  ]);
+  expect(stretchesIn(`${buses}, y de forma normal entre Tordera y Maçanet-Massanes.`, R1)).toEqual([
+    { stations: ['adif:79606', 'adif:79607'], says: 'closed' },
+    { stations: ['adif:79607', 'adif:79200'] },
+  ]);
+  // So does a semicolon, and a clause that says nothing between, though a comma ends both.
+  expect(stretchesIn(`${buses}; y entre Tordera y Maçanet-Massanes, y entre Maçanet-Massanes y L'Hospitalet de Llobregat.`, R1)).toEqual([
+    { stations: ['adif:79606', 'adif:79607'], says: 'closed' },
+    { stations: ['adif:79607', 'adif:79200'] },
+    { stations: ['adif:79200', 'adif:72305'] },
   ]);
   expect(stretchesIn(`${buses}, con normalidad, y entre Tordera y Maçanet-Massanes.`, R1)).toEqual([
     { stations: ['adif:79606', 'adif:79607'], says: 'closed' },
@@ -183,6 +197,13 @@ test("reads Sevilla's C3 plan, 'entre las estaciones de X y Y' under 'Plan Alter
   expect(stretchesIn(said('AVISO_512188'), stationsOf('cercanias-sevilla'))).toEqual([
     { stations: ['adif:50700', 'adif:40113'], says: 'closed' },
     // Its words come after its stretch, which the reader doesn't read.
+    { stations: ['adif:50700', 'adif:51003'] },
+  ]);
+  // The same with a comma where Renfe has its full stop: the Trains that run are still not its plan's.
+  const joined = said('AVISO_512188').replace('.\r\nEntre', ', y entre');
+  expect(joined).not.toBe(said('AVISO_512188'));
+  expect(stretchesIn(joined, stationsOf('cercanias-sevilla'))).toEqual([
+    { stations: ['adif:50700', 'adif:40113'], says: 'closed' },
     { stations: ['adif:50700', 'adif:51003'] },
   ]);
 });
