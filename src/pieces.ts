@@ -77,6 +77,8 @@ const MICRO = 1e6;
 /**
  * Whether a coordinate is whole millionths of a degree, and less than `limit` degrees from 0: a point's
  * key, its longitude's millionths times 2^28 and its latitude's added, stays whole up to 33° of longitude.
+ * ponytail: a shape beyond 33° of longitude either way, which none of Spain's is, from the Canary
+ * Islands at 18° W to Menorca at 4.4° E, is kept whole; key a point by a string if a region ever runs there.
  */
 function onGrid(degrees: number, limit: number): boolean {
   return Math.round(degrees * MICRO) / MICRO === degrees && Math.abs(degrees) < limit;
