@@ -18,10 +18,10 @@ import { appendFile, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { brotliCompressSync, constants } from 'node:zlib';
 import { addDays, LIVE_URL, madridDate, type Manifest, type Network, type Track } from '../bundle.ts';
-import { NETWORKS, type NetworkConfig, type Timetable } from '../networks.ts';
+import { LONG_DISTANCE, NETWORKS, type NetworkConfig, type Timetable } from '../networks.ts';
 import { download, feedStart, type Source } from './gtfs.ts';
 import { dayTrips, manifestDay, manifestOf } from './manifest.ts';
-import { ownRails, RAILWAYS, readFeed, readTimetables, type Feed } from './networks.ts';
+import { ownRails, RAILWAYS, readFeed, readTimetables, unlisted, type Feed } from './networks.ts';
 import { crop } from './border.ts';
 import { measures, reported, summary } from './measures.ts';
 import { osm } from './osm.ts';
@@ -36,17 +36,37 @@ const today = madridDate(new Date());
 const DAYS = [0, 1, 2].map((n) => addDays(today, n));
 const report = collect();
 // Every Network's timetables, downloaded at once, and why they couldn't be, where one couldn't: that
-// doesn't stop the others, and its Network's are read from their copy (readTimetables()).
-const downloads = await Promise.all(
-  NETWORKS.map(async (network) => ({
-    network,
-    failed: await Promise.all(network.timetables.map(async (t) => download(address(t), t.prefix))).then(() => undefined, (error: unknown) => error),
-  })),
-);
+// doesn't stop the others, and its Network's are read from their copy (readTimetables()). Renfe's
+// long-distance timetable's too, whose Networks aren't on the map yet (#258).
+const longDistance = Promise.all(LONG_DISTANCE.map(downloaded));
+const downloads = await Promise.all(NETWORKS.map(downloaded));
 // The rails of every kind any Network runs on, and Spain's border.
 const { rails, border } = await osm(RAILWAYS);
 const networks = [];
-for (const { network, failed } of downloads) networks.push(build(network, await readTimetables(network, failed, readDays, report.add)));
+// The Train numbers each Network's timetables list on each of DAYS, with their Stations, whose Trains
+// Renfe's long-distance timetable lists too are theirs (unlisted()).
+const listed = DAYS.map((): Map<string, Set<string>>[] => []);
+for (const { network, failed } of downloads) {
+  const read = await readTimetables(network, failed, readDays, report.add);
+  for (const [i, parts] of read.days.entries()) listed[i]?.push(...parts.map((p) => p.listed));
+  networks.push(build(network, read));
+}
+// Renfe's long-distance Trains, each one Trip made from the parts its timetable lists it in, less those
+// a Network on the map lists too, are only counted till #259 traces them and #262 and #263 draw them,
+// so nothing of them goes in the report. A long-distance timetable that can't be read, nor its copy,
+// as before a build has kept one, is logged, and stops nothing else.
+for (const { network, failed } of await longDistance) {
+  try {
+    const { days } = await readTimetables(network, failed, readDays, () => {});
+    for (const [i, parts] of days.entries()) {
+      const trips = parts.flatMap((p) => p.trips);
+      const trains = unlisted(trips, listed[i] ?? []);
+      console.log(`${network.name}'s Trains on ${DAYS[i]}: ${trains.length}, and ${trips.length - trains.length} left to the Networks on the map that list them too`);
+    }
+  } catch (error) {
+    console.warn(`${network.name}'s Trains aren't read: ${error instanceof Error ? error.message : error}`);
+  }
+}
 // The last build's manifest names the bundle for yesterday, whose last Trains can still be running,
 // and its report is what this build's is diffed against, with each Network's Trips on each day of the week.
 const [lastManifest, lastReport] = await Promise.all([
@@ -165,6 +185,11 @@ async function lastPublished<T>(file: string, otherwise: string): Promise<T | un
       console.warn(`Couldn't read the last ${file}, so ${otherwise}:`, error);
       return undefined;
     });
+}
+
+/** A Network once its timetables are downloaded, with why one couldn't be, where one couldn't. */
+async function downloaded<N extends Pick<NetworkConfig, 'timetables'>>(network: N): Promise<{ network: N; failed: unknown }> {
+  return { network, failed: await Promise.all(network.timetables.map(async (t) => download(address(t), t.prefix))).then(() => undefined, (error: unknown) => error) };
 }
 
 /** A timetable's URL, with the secrets its query needs. */

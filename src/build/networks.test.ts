@@ -5,11 +5,11 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, expect, test, vi } from 'vitest';
 import { places } from '../bundle.ts';
-import { RODALIES, TRAM, type NetworkConfig } from '../networks.ts';
+import { AVE_LARGA_DISTANCIA, MEDIA_DISTANCIA_AVANT, RODALIES, TRAM, type NetworkConfig } from '../networks.ts';
 import { dirSource, rows, seconds, zipFile, zipSource, type Source } from './gtfs.ts';
-import { copyOf, FGC_FEED, METRO_FEED, onFgcRails, onMetroRails, onRodaliesRails, readFeed, readTimetables, RODALIES_FEED, TRAMBAIX_FEED, type Feed } from './networks.ts';
+import { copyOf, FGC_FEED, joinParts, METRO_FEED, onFgcRails, onMetroRails, onRodaliesRails, readFeed, readTimetables, RODALIES_FEED, TRAMBAIX_FEED, unlisted, type Feed } from './networks.ts';
 import type { Found } from './report.ts';
-import { closuresOf } from './trips.ts';
+import { closuresOf, type FeedTrip } from './trips.ts';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -316,6 +316,169 @@ test('draws the Stations TMB groups in one station as one place, at the middle o
     { id: 'tmb:P.6660339', name: 'Trinitat Nova', stations: ['tmb:1.1136'], networks: ['metro'], lon: 2.1832, lat: 41.4499 },
     { id: 'adif:71802', name: 'Barcelona-Passeig de Gràcia', stations: ['adif:71802'], networks: ['rodalies'], lon: 2.1652, lat: 41.3919 },
   ]);
+});
+
+// Rows cut from Renfe's long-distance feed of 2026-10-10, without the spaces it pads each line with:
+// the Trips it lists Alvia 00622 Barcelona–Vigo, Alvia 00190, Reg.Exp. 17307 and MD 18030 in on
+// Saturday 10 October, and one Trip each of Avlo 05095, Euromed 01072, Proximidad 38304 and 15210,
+// which Rodalies runs on its RT2 and this feed lists as a Regional. The feed has no shapes.
+const longDistance = dirSource(fileURLToPath(new URL('fixtures/long-distance', import.meta.url)));
+const AVE_FEED: Feed = { network: AVE_LARGA_DISTANCIA, ...AVE_LARGA_DISTANCIA.timetables[0] };
+const MD_FEED: Feed = { network: MEDIA_DISTANCIA_AVANT, ...MEDIA_DISTANCIA_AVANT.timetables[0] };
+
+test("splits Renfe's long-distance timetable into its two Networks, whose Lines are named as Renfe names them in public rather than in the feed's capitals and typo, and coloured as their config says, as the feed gives every route F2F5F5", async () => {
+  const lines = async (feed: Feed) => (await readFeed(longDistance, '2026-10-10', feed)).lines.map(({ id, colour, kind, shapes }) => ({ id, colour, kind, shapes }));
+  expect(await lines(AVE_FEED)).toEqual([
+    { id: 'ave-larga-distancia:Alvia', colour: '#81005E', kind: 'long-distance', shapes: [] },
+    { id: 'ave-larga-distancia:Euromed', colour: '#81005E', kind: 'long-distance', shapes: [] },
+    { id: 'ave-larga-distancia:Avlo', colour: '#81005E', kind: 'long-distance', shapes: [] },
+  ]);
+  expect(await lines(MD_FEED)).toEqual([
+    { id: 'media-distancia-avant:Regional', colour: '#000000', kind: 'regional', shapes: [] },
+    { id: 'media-distancia-avant:Reg.Exp.', colour: '#000000', kind: 'regional', shapes: [] },
+    { id: 'media-distancia-avant:MD', colour: '#000000', kind: 'regional', shapes: [] },
+    { id: 'media-distancia-avant:Proximidad', colour: '#000000', kind: 'regional', shapes: [] },
+  ]);
+});
+
+test("makes each Train's Trips on a day one Trip, from its Trip with the most calls: Alvia 00622's six one Barcelona–Vigo, with Ourense's arrival and departure one call, and Alvia 00190's identical twins one", async () => {
+  const { trips } = await readFeed(longDistance, '2026-10-10', AVE_FEED);
+  // By its Train number, which is its trip_short_name.
+  expect(trips.map((t) => [t.number, t.id])).toEqual([
+    ['00190', 'ave-larga-distancia:0019032026-10-10'],
+    ['00622', 'ave-larga-distancia:0062212026-10-10'],
+    ['01072', 'ave-larga-distancia:0107212026-10-09'],
+    ['05095', 'ave-larga-distancia:0509512026-10-09'],
+  ]);
+  const alvia = trips.find((t) => t.number === '00622');
+  expect(alvia).toMatchObject({ line: 'ave-larga-distancia:Alvia', headsign: 'Vigo Urzaiz' });
+  expect(alvia?.calls).toHaveLength(25);
+  expect(alvia?.calls[0]).toEqual({ station: 'adif:71801', arrival: at('09:05'), departure: at('09:05') }); // Barcelona-Sants
+  // Its Trip to Ourense arrives there at 20:59, and the one from Lleida leaves at 21:01, as its Trip to Vigo does.
+  expect(alvia?.calls.filter((c) => c.station === 'adif:22100')).toEqual([{ station: 'adif:22100', arrival: at('20:59'), departure: at('21:01') }]);
+  expect(alvia?.calls.at(-1)).toEqual({ station: 'adif:08223', arrival: at('22:57'), departure: at('22:57') }); // Vigo Urzaiz
+  expect(trips.find((t) => t.number === '00190')?.calls).toHaveLength(12);
+});
+
+test("drops a Train's calls in its other Trips that lie outside the run they share with the one with the most calls, and logs its Train number, Station and time: Reg.Exp. 17307 is one Trip Soria–Madrid, as its Trip to Baides and its Trip from there are run by road", async () => {
+  const log: string[] = [];
+  const { trips } = await readFeed(longDistance, '2026-10-10', MD_FEED, (l) => log.push(l));
+  const [regExp, ...more] = trips.filter((t) => t.number === '17307');
+  expect(more).toEqual([]);
+  expect(regExp).toMatchObject({ id: 'media-distancia-avant:1730712026-10-09', line: 'media-distancia-avant:Reg.Exp.', headsign: 'Madrid-Chamartín-Clara Campoamor' });
+  // Soria at 18:30 to Chamartín at 23:30, through Sigüenza and Matillas.
+  expect(regExp?.calls).toHaveLength(13);
+  expect(regExp?.calls.map((c) => c.station)).not.toContain('adif:70300'); // Baides
+  expect(log.filter((l) => l.includes(' 17307 '))).toEqual([
+    'media-distancia-avant:Reg.Exp. 17307 drops its call at Baides at 19:55 on 2026-10-10: it lies outside the run its Trips share',
+    'media-distancia-avant:Reg.Exp. 17307 drops its call at Baides at 20:30 on 2026-10-10: it lies outside the run its Trips share',
+  ]);
+});
+
+test("joins the Trip of a Train with the most calls in a call another of its Trips makes between two they share, in time: MD 18030's at Linares-Baeza, between Almuradiel and Jaén, all run by road, where that Trip calls at Vilches and Mengíbar", async () => {
+  const log: string[] = [];
+  const { trips } = await readFeed(longDistance, '2026-10-10', MD_FEED, (l) => log.push(l));
+  const md = trips.find((t) => t.number === '18030');
+  expect(md?.id).toBe('media-distancia-avant:1803022026-10-09');
+  expect(md?.calls.slice(-5)).toEqual([
+    { station: 'adif:50202', arrival: at('11:54'), departure: at('12:09') }, // Almuradiel-Viso del Marqués
+    { station: 'adif:50207', arrival: at('12:49'), departure: at('12:49') }, // Vilches
+    { station: 'adif:50300', arrival: at('13:04'), departure: at('13:04') }, // Linares-Baeza
+    { station: 'adif:03001', arrival: at('13:29'), departure: at('13:29') }, // Mengíbar-Artichuela
+    { station: 'adif:03100', arrival: at('13:58'), departure: at('13:58') }, // Jaén
+  ]);
+  // Its Trips from Vilches to Linares-Baeza and on to Mengíbar join it there, but for Vilches at 12:30 and Mengíbar at 13:34, 19 and 5 minutes off its own.
+  expect(log.filter((l) => l.includes(' 18030 '))).toEqual([
+    'media-distancia-avant:MD 18030 drops its call at Vilches at 12:30 on 2026-10-10: it lies outside the run its Trips share',
+    'media-distancia-avant:MD 18030 drops its call at Mengíbar-Artichuela at 13:34 on 2026-10-10: it lies outside the run its Trips share',
+  ]);
+});
+
+/** A Trip of Train 00001 calling at Stations at times, each a moment. */
+const part = (id: string, ...calls: [station: string, time: string][]): FeedTrip => ({
+  id,
+  line: 'MD',
+  shape: '',
+  headsign: '',
+  number: '00001',
+  calls: calls.map(([station, time]) => ({ station, arrival: at(time), departure: at(time) })),
+});
+const longest = part('a', ['A', '10:00'], ['B', '10:10'], ['C', '10:20']);
+
+test("takes a call of a Train's other Trip at one of its Stations up to 2 minutes from its own for that one, but not one 3 minutes off", () => {
+  const log: string[] = [];
+  const joined = joinParts([longest, part('b', ['B', '10:12'], ['C', '10:20']), part('c', ['A', '10:03'], ['B', '10:10'])], new Map(), '2026-10-10', (l) => log.push(l));
+  expect(joined).toEqual([longest]);
+  expect(log).toEqual(['MD 00001 drops its call at A at 10:03 on 2026-10-10: it lies outside the run its Trips share']);
+});
+
+test("logs a call it drops once, where one of a Train's Trips ends and another starts, as MD 35807's Trips from Sevilla and to Madrid do at Fuente del Arco, which the one with the most calls passes", () => {
+  const log: string[] = [];
+  const stations = new Map([['X', { id: 'X', name: 'Fuente del Arco', lon: -5.94, lat: 38.13 }]]);
+  joinParts([longest, part('d', ['A', '10:00'], ['X', '10:05']), part('e', ['X', '10:05'], ['C', '10:20'])], stations, '2026-10-10', (l) => log.push(l));
+  expect(log).toEqual(['MD 00001 drops its call at Fuente del Arco at 10:05 on 2026-10-10: it lies outside the run its Trips share']);
+});
+
+// Rows cut verbatim from Renfe's Cercanías feed of 2026-10-10: RT2's Train 15210 from Salou-Port
+// Aventura to Tarragona on Tuesday 13 October, and 15211 back on Saturday 17 October, with their shapes.
+const rt2 = dirSource(fileURLToPath(new URL('fixtures/rodalies-rt2', import.meta.url)));
+
+test("lists the Train numbers of the day's Trips, with the Stations each calls at", async () => {
+  expect((await readFeed(rt2, '2026-10-13', RODALIES_FEED)).listed).toEqual(new Map([['15210', new Set(['adif:65411', 'adif:71500'])]]));
+  expect((await readFeed(rt2, '2026-10-17', RODALIES_FEED)).listed).toEqual(new Map([['15211', new Set(['adif:71500', 'adif:65411'])]]));
+});
+
+test("reads a Cercanías Trip's Train number from its trip_id though its feed gains trip_short_names, as Renfe's long-distance one has, with something else in them", async () => {
+  const named: Source = (file) => {
+    const lines = rt2(file);
+    if (file !== 'trips.txt' || !lines) return lines;
+    return (async function* () {
+      let header = true;
+      for await (const l of lines) {
+        yield `${l.trimEnd()},${header ? 'trip_short_name' : 'RT2'}`;
+        header = false;
+      }
+    })();
+  };
+  expect((await readFeed(named, '2026-10-13', RODALIES_FEED)).trips.map((t) => t.number)).toEqual(['15210']);
+});
+
+test("fails to read a timetable that loses its shapes.txt, though its Trips name no shapes either, unless it says it has none, as Renfe's long-distance one does, so that the Network is built from its copy", async () => {
+  const shapeless: Source = (file) => {
+    const lines = renfe(file);
+    if (file === 'shapes.txt' || !lines) return undefined;
+    if (file !== 'trips.txt') return lines;
+    return (async function* () {
+      let header = true;
+      for await (const l of lines) {
+        // Each Trip's shape_id, its last field, blank.
+        yield header ? l : l.trimEnd().replace(/[^,]*$/, '');
+        header = false;
+      }
+    })();
+  };
+  await expect(readFeed(shapeless, '2026-09-24', RODALIES_FEED)).rejects.toThrow('The feed has no shapes.txt');
+});
+
+test("leaves a Train that Rodalies or a núcleo lists too to their timetable, which has its shapes, by its Train number and a Station they share: RT2's 15210, a Regional in Renfe's long-distance one", async () => {
+  const { trips } = await readFeed(longDistance, '2026-10-13', MD_FEED, () => {});
+  expect(trips.map((t) => t.number)).toEqual(['15210', '17307', '18030', '38304']);
+  const { listed } = await readFeed(rt2, '2026-10-13', RODALIES_FEED);
+  expect(unlisted(trips, [listed]).map((t) => t.number)).toEqual(['17307', '18030', '38304']);
+  // Another Train of that number, which calls at none of its Stations, isn't the same.
+  expect(unlisted(trips, [new Map([['15210', new Set(['adif:71801'])]])])).toEqual(trips);
+});
+
+test("lists every day's Train numbers on a day it has none of its Trips, so that, as Renfe's Cercanías file of 10 Oct 2026 has none of Rodalies' from 22 October, the long-distance one's Trains on Rodalies' regional Lines still aren't long distance's", async () => {
+  const { listed } = await readFeed(rt2, '2026-10-22', RODALIES_FEED);
+  expect(listed).toEqual(
+    new Map([
+      ['15210', new Set(['adif:65411', 'adif:71500'])],
+      ['15211', new Set(['adif:71500', 'adif:65411'])],
+    ]),
+  );
+  const { trips } = await readFeed(longDistance, '2026-10-22', MD_FEED, () => {});
+  expect(unlisted(trips, [listed]).map((t) => t.number)).toEqual(['17307', '18030', '38304']);
 });
 
 /** A way with these tags, as OpenStreetMap has Catalonia's rails. */

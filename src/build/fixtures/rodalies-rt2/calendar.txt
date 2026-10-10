@@ -1,0 +1,3 @@
+service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date                                                               
+5184M,0,1,0,0,0,0,0,20261013,20261013                                                                                                                 
+5188S,0,0,0,0,0,1,0,20261017,20261017                                                                                                                 
