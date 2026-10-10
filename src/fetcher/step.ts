@@ -678,9 +678,10 @@ interface ActiveVehicle {
  * which name the Trip each Unit runs. A Train whose Trip they don't name, as before it starts, gets
  * no report. Each report is as of the run, since TRAM's figures carry no time of their own, though
  * the trip updates say when TRAM wrote them. Where a trip update has the Train at a stop it has
- * reached by the run and is still to leave, its report says which stop, and when it's due out: TRAM's
- * Delay stays what it was as the Train arrived, and its position names the stop it's at or has just
- * left (#42), so nothing else tells a Train standing past its timetable's 10 s from one that has gone (#344).
+ * reached by the run and is still to leave, its report says which stop, and when it's due out (#344):
+ * TRAM's Delay stays what it was as the Train arrived, and its position names the stop it's at or has
+ * just left (#42), so nothing else of TRAM's says a stop reached is still to be left. For a tram that
+ * came early that's its timetable's departure, which its trams don't wait for.
  */
 function tramReports(source: LiveSource, half: Half, { positions, updates }: TramResponses[Half], now: number, said: (file: string, at: number) => void): Report[] {
   const feed = gtfsRt(`${half} gtfsrealtime`, updates, now);
