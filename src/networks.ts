@@ -61,6 +61,8 @@ export interface Timetable {
   shortNames?: true;
   /** It lists a Train as several Trips, one for each part of its run it sells, which are made one (joinParts()). */
   parts?: true;
+  /** It has no shapes, as Renfe's long-distance timetable hasn't: any other that loses its shapes.txt is read from its copy. */
+  shapeless?: true;
   /** Its terms ask the map to show the day it was last updated, in its credit: its feed's start date. */
   updated?: true;
 }
@@ -546,6 +548,7 @@ export const AVE_LARGA_DISTANCIA: Pick<NetworkConfig, 'id' | 'name' | 'timetable
       number: '^\\d{5}',
       shortNames: true,
       parts: true,
+      shapeless: true,
     },
   ],
   lines: {
@@ -570,6 +573,7 @@ export const MEDIA_DISTANCIA_AVANT: Pick<NetworkConfig, 'id' | 'name' | 'timetab
       number: '^\\d{5}',
       shortNames: true,
       parts: true,
+      shapeless: true,
     },
   ],
   lines: {

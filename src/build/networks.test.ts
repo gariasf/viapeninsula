@@ -443,6 +443,23 @@ test("reads a Cercanías Trip's Train number from its trip_id though its feed ga
   expect((await readFeed(named, '2026-10-13', RODALIES_FEED)).trips.map((t) => t.number)).toEqual(['15210']);
 });
 
+test("fails to read a timetable that loses its shapes.txt, though its Trips name no shapes either, unless it says it has none, as Renfe's long-distance one does, so that the Network is built from its copy", async () => {
+  const shapeless: Source = (file) => {
+    const lines = renfe(file);
+    if (file === 'shapes.txt' || !lines) return undefined;
+    if (file !== 'trips.txt') return lines;
+    return (async function* () {
+      let header = true;
+      for await (const l of lines) {
+        // Each Trip's shape_id, its last field, blank.
+        yield header ? l : l.trimEnd().replace(/[^,]*$/, '');
+        header = false;
+      }
+    })();
+  };
+  await expect(readFeed(shapeless, '2026-09-24', RODALIES_FEED)).rejects.toThrow('The feed has no shapes.txt');
+});
+
 test("leaves a Train that Rodalies or a núcleo lists too to their timetable, which has its shapes, by its Train number and a Station they share: RT2's 15210, a Regional in Renfe's long-distance one", async () => {
   const { trips } = await readFeed(longDistance, '2026-10-13', MD_FEED, () => {});
   expect(trips.map((t) => t.number)).toEqual(['15210', '17307', '18030', '38304']);

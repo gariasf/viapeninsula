@@ -150,7 +150,7 @@ export async function readFeed(
   // Renfe's long-distance timetable has no shapes, and its Trips name none.
   const wanted = new Set([...lines.values()].flatMap((l) => [...l.shapes]).filter((id) => id));
   const points = new Map<string, ShapePoint[]>();
-  for await (const p of rows(gtfs, 'shapes.txt', ['shape_id', 'shape_pt_sequence', 'shape_pt_lat', 'shape_pt_lon'], { optional: !wanted.size })) {
+  for await (const p of rows(gtfs, 'shapes.txt', ['shape_id', 'shape_pt_sequence', 'shape_pt_lat', 'shape_pt_lon'], { optional: feed.shapeless })) {
     if (!wanted.has(p.shape_id)) continue;
     const list = points.get(p.shape_id) ?? [];
     list.push({ seq: Number(p.shape_pt_sequence), lon: Number(p.shape_pt_lon), lat: Number(p.shape_pt_lat) });
