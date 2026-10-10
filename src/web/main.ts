@@ -6,7 +6,7 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import nunitoSans from '@fontsource/nunito-sans/files/nunito-sans-latin-400-normal.woff2?url';
 import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-normal.woff2?url';
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
-import { along, APART, atZoom, BANDS, bandZooms, coveredIn, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, daysOf, EARTH, joinTracks, LIVE_URL, madridDate, networkTracks, places, type Alerts, type Bundle, type Credit, type DayFiles, type Place, type Kind, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH, type ZoomedOut } from '../bundle.ts';
+import { along, APART, atZoom, BANDS, bandZooms, coveredIn, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, daysOf, EARTH, joinTracks, LIVE_URL, madridDate, networkTracks, places, type Alerts, type Bundle, type Credit, type DayFiles, type Place, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH, type ZoomedOut } from '../bundle.ts';
 import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, unavailable, type Coming, type Departure, type Followed, type Received, type Train } from '../engine.ts';
 import { alertCount, alertsChanged, basemapLabel, busesReplace, earlierStations, language, LANGUAGES, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, notRunning, setLanguage, t, toGo, trainCounts, trainsRunHere, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
@@ -19,6 +19,7 @@ import { keepView, lastView, markOf, openingView, toggledPitch } from './view.ts
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { contrast, lettering } from './colour.ts';
 import { boardList, cardAlerts, inNameOrder, linesOnBoard, linkedWords, minutesTo, nearbyRows, progress, tripsState, type CardAlert } from './cards.ts';
+import { ARROW_GAP, boxOf, FOLLOWED_TEXT, LINE_HEIGHT, OUTLINE_SIZES, OUTLINES_OF, PILL_EDGE, PILL_PADDING, PILL_TEXT, type Outline } from './pill.ts';
 import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, tappedRows, type Shown } from './closures.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
@@ -56,16 +57,8 @@ const FONT_FACES: FontFacesSpecification = {
   'Noto Sans Italic': [{ url: nunitoSansItalic, 'unicode-range': LATIN }],
 };
 const NAME_SIZE = 12;
-/** The size of a Line's name on its Trains' pills, in px, and on the followed Train's, which is larger. */
-const [PILL_TEXT, FOLLOWED_TEXT] = [10, 12];
-/** How far a pill reaches beyond its Line's name either side, and above and below the name's line, in px. */
-const [PILL_PADDING, PILL_EDGE] = [2, 1.5];
 /** How wide the edge drawn round a pill is, in px. */
 const PILL_HALO = 1.5;
-/** MapLibre's `text-line-height`, in ems: the height of a line of text, as of the Line's name a pill fits or of a place's name. */
-const LINE_HEIGHT = 1.2;
-/** How far outside its pill's outline the middle of a Train's arrow is, in px. */
-const ARROW_GAP = 7;
 /** The dark lettering for a Line's colour that white doesn't read on. */
 const INK = '#111';
 /**
@@ -75,29 +68,21 @@ const INK = '#111';
  */
 const [HALO_DOT, HALO_BEYOND, HALO_BLUR, HALO_OPACITY] = [2, 4, 0.6, 0.6];
 /**
- * The outlines a Train is drawn with, `w`×`h` px around their middles: how far `outside` each a point
- * is, in px (x right, y down), or inside where negative. A pill's outline stretches across its middle
- * 2 px both ways to fit its Line's name over its middle `across` px, and all but PILL_EDGE of its
- * height. The arrow points up.
+ * The outlines a Train is drawn with, as pill.ts sizes them, `w`×`h` px around their middles: how far
+ * `outside` each a point is, in px (x right, y down), or inside where negative. A pill's outline
+ * stretches across its middle 2 px both ways to fit its Line's name over its middle `across` px, and all
+ * but PILL_EDGE of its height. The arrow points up.
  */
-const OUTLINES: Record<Pill['outline'] | 'arrow', { w: number; h: number; across?: number; outside: (x: number, y: number) => number }> = {
+const OUTLINES: Record<Outline | 'arrow', { w: number; h: number; across?: number; outside: (x: number, y: number) => number }> = {
   // A square with corners so round it's nearly a circle.
-  round: { w: 15, h: 15, across: 9, outside: roundedSquare(7.5, 6.5) },
+  round: { ...OUTLINE_SIZES.round, outside: roundedSquare(7.5, 6.5) },
   // Its ends 5 px long, to a point 2 px across.
-  pointed: { w: 12, h: 15, across: 2, outside: (x, y) => Math.max(Math.abs(y) - 7.5, Math.abs(x) - 6, 0.7926 * (Math.abs(x) - 6) + 0.6097 * (Math.abs(y) - 1)) },
+  pointed: { ...OUTLINE_SIZES.pointed, outside: (x, y) => Math.max(Math.abs(y) - 7.5, Math.abs(x) - 6, 0.7926 * (Math.abs(x) - 6) + 0.6097 * (Math.abs(y) - 1)) },
   // A square with corners rounded 3 px, which a name of two letters leaves nearly square, like the Metro's and TRAM's Line badges.
-  badge: { w: 15, h: 15, across: 13, outside: roundedSquare(7.5, 3) },
+  badge: { ...OUTLINE_SIZES.badge, outside: roundedSquare(7.5, 3) },
   // Its tip 4.5 px ahead of its middle, and its base 2.25 px behind and 6 px across.
-  arrow: { w: 12, h: 12, outside: (x, y) => Math.max(y - 2.25, (6.75 * Math.abs(x) - 3 * (y + 4.5)) / Math.hypot(3, 6.75)) },
+  arrow: { ...OUTLINE_SIZES.arrow, outside: (x, y) => Math.max(y - 2.25, (6.75 * Math.abs(x) - 3 * (y + 4.5)) / Math.hypot(3, 6.75)) },
 };
-/**
- * Each kind of service's pills: rounded for commuter and suburban Lines, pointed at both ends for
- * regional ones, and badges for metros and trams, as their operators badge their Lines, and for rack
- * railways and funiculars (#90). Long-distance Lines get theirs once they're on the map (#262): till
- * then they'd be round, as the Lines of a track that names no kinds are, and tsc asks every other kind
- * for its own.
- */
-const OUTLINES_OF: Partial<Record<Kind, Pill['outline']>> = { commuter: 'round', regional: 'pointed', metro: 'badge', tram: 'badge', rack: 'badge', funicular: 'badge' } satisfies Record<Exclude<Kind, 'long-distance'>, Pill['outline']>;
 /**
  * The cards' icons, drawn in the colour of the text around them, which a forced-colours theme sets
  * too (#116): a close cross, a chevron down and up, the die that follows a random Train, Nearby's
@@ -1568,7 +1553,7 @@ function quarterPixel(): number {
  */
 interface Pill {
   name: string;
-  outline: 'round' | 'pointed' | 'badge';
+  outline: Outline;
   dark: boolean;
   /** What its Line's colour letters its name in, rings its Scheduled Trains and colours its Trains' arrows in: on the dark basemap, lettering(). */
   lettering: string;
@@ -1582,12 +1567,6 @@ function pillOf({ name, colour, kind }: Line, zoom: number): Pill {
   const outline = OUTLINES_OF[kind] ?? 'round';
   const width = textWidth(name, `bold ${PILL_TEXT}px ${TYPEFACE}`);
   return { name, outline, dark: darkInk(colour), lettering: darkBasemap ? lettering(colour, paper) : colour, zoom, box: boxOf(outline, width, PILL_TEXT), followedBox: boxOf(outline, width, FOLLOWED_TEXT) };
-}
-
-/** How far a pill reaches either side of its Train and above and below it, in px, with its outline, around a name `width` px wide at PILL_TEXT, lettered at `size` px. */
-function boxOf(outline: Pill['outline'], width: number, size: number): [number, number] {
-  const { w, across = 0 } = OUTLINES[outline];
-  return [Math.max(w, w - across + (width * size) / PILL_TEXT + 2 * PILL_PADDING) / 2, PILL_EDGE + (LINE_HEIGHT * size) / 2];
 }
 
 /** Whether INK reads better on a colour than white does, by WCAG's contrast ratio. */
