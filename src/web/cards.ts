@@ -57,8 +57,8 @@ const NAMES = new Intl.Collator('en', { numeric: true });
  * `lines` in the order the cards name them (#399), as a new array: each Network's together, the
  * Networks in the order the track lists them, and a Network's Lines in the order of their names, digits
  * as numbers (T1, T2, T3; R1, R2, R2N, R2S, R3 … R11, RL4; C1, C4, C4a, C5 … C10), not as its
- * timetable lists them. That order is the track's, which `lines` stays in: the build laid the strokes
- * out by it (ADR-0006), and nothing the map draws is read from this one.
+ * timetable lists them. That order is the track's, which `lines` stays in: the build's side-by-side
+ * order goes by it where nothing else decides (#162), and nothing the map draws is read from this one.
  */
 export function inNameOrder<L extends Pick<Line, 'network' | 'name'>>(lines: L[]): L[] {
   const rank = new Map([...new Set(lines.map((l) => l.network))].map((network, i) => [network, i]));
