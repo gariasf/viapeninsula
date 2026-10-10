@@ -2726,7 +2726,8 @@ function showAbout() {
   // On a phone, About's handle closes it, as dragging it down does: a pointer's, as its close button is the keyboard's.
   const aboutHandle = el('button', { type: 'button', className: 'handle', tabIndex: -1, onclick: () => about.close() }, el('span'));
   aboutHandle.setAttribute('aria-hidden', 'true');
-  // The dialog focuses its first focusable descendant as it opens unless one asks, and WebKit counts the handle's tabindex -1: the close button asks (#382).
+  // The dialog focuses its first focusable descendant as it opens unless one asks, and WebKit and Chromium
+  // count the handle's tabindex -1: the close button asks (#382).
   const aboutClose = closeButton(t('close'), () => about.close());
   aboutClose.autofocus = true;
   about.setAttribute('aria-label', t('about'));

@@ -10,7 +10,7 @@ import { expect, test } from 'vitest';
 const main = readFileSync(new URL('./main.ts', import.meta.url), 'utf8');
 const showAbout = /^function showAbout\(\) \{\n[\s\S]*?^\}$/m.exec(main)?.[0] ?? '';
 
-test("asks for the focus in About's close button, as the dialog opens, which would go to its handle otherwise", () => {
+test("asks for the focus in About's close button as the dialog opens, which WebKit and Chromium would give its handle otherwise", () => {
   expect(showAbout).toContain('aboutClose.autofocus = true');
   // The dialog is filled before it opens: its focusing steps look for what asks then.
   expect(main).toMatch(/showAbout\(\);\n\s*about\.showModal\(\);/);
