@@ -273,13 +273,14 @@ test("a long-distance position that holds for 26 minutes and then moves 73 km, a
   expect(jumps(VIA_B, received)).toMatchObject({ ld: { forward: 0, back: 0 } });
 });
 
-// 12 minutes of Renfe's long-distance feeds on Saturday 10 October 2026, 11:47–11:59 UTC, read every
-// other run as the fetcher will (#261): one report for each Train number, its GPS whatever its
-// `currentStatus`, its Delay from the trip updates, and its time the file's header's. The Trains are
-// the 23 whose position held for a minute or more and then moved a kilometre or more, as 177 did on 4
-// October (their positions weren't kept), each Trip cut to the legs they run along and traced along
-// OpenStreetMap's rails of 9 October as #259 will, crudely: high-speed Trips on standard gauge, the
-// rest on every rail, with a copy of the build's own tracing, and each shape simplified to 20 m.
+// 12 minutes of Renfe's long-distance feeds on Saturday 10 October 2026, 11:47–11:59 UTC, which the
+// fetcher's own step (#261) read every other run: its snapshots, with one report for each Train, by its
+// Train number, its GPS whatever its `currentStatus`, its Delay from the trip updates, and its time the
+// file's header's. The Trains are the 23 whose position held for a minute or more and then moved a
+// kilometre or more, as 177 did on 4 October (their positions weren't kept), each Trip cut to the legs
+// they run along and traced along OpenStreetMap's rails of 9 October as #259 will, crudely: high-speed
+// Trips on standard gauge, the rest on every rail, with a copy of the build's own tracing, and each
+// shape simplified to 20 m.
 const REPLAY: { bundle: Bundle; received: Received[] } = JSON.parse(gunzipSync(readFileSync(new URL('fixtures/replay-2026-10-10-long-distance.json.gz', import.meta.url))).toString());
 const CONFIGS = [AVE_LARGA_DISTANCIA, MEDIA_DISTANCIA_AVANT];
 /** The replay's bundle with each Network's profile and live traits, and each Line's profile, as src/networks.ts has them, or `live` for the Networks' traits. */
@@ -302,9 +303,11 @@ function replayed(live?: LiveTraits): Bundle {
  */
 function holds(received: Received[]) {
   const found: { trip: string; from: number; to: number }[] = [];
-  const reports = (trip: string) => received.map((r) => r.snapshot.reports.find((x) => x.trip === trip));
-  for (const trip of new Set(received.flatMap((r) => r.snapshot.reports.map((x) => x.trip ?? '')))) {
-    const ofTrip = reports(trip);
+  // A report names its Train by its number, as Renfe's long-distance live data does (#261): the Trip with that number is its.
+  const reports = (number: string) => received.map((r) => r.snapshot.reports.find((x) => x.number === number));
+  for (const number of new Set(received.flatMap((r) => r.snapshot.reports.map((x) => x.number ?? '')))) {
+    const trip = REPLAY.bundle.trips.find((t) => t.number === number)?.id ?? '';
+    const ofTrip = reports(number);
     for (let i = 0; i < ofTrip.length; i++) {
       const p = ofTrip[i]?.position;
       if (!p || !('lon' in p)) continue;
