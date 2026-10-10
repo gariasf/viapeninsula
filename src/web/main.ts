@@ -567,7 +567,11 @@ let alerts: Alerts = {};
  * what showClosures() reads is declared, and calling it then would throw.
  */
 let drawClosures = () => {};
-/** Lifts the Closures each snapshot has a Live Train of their Line within, as it comes (hideClosures(), #345). Until the map has its Trips, nothing, as for drawClosures. */
+/**
+ * Lifts the Closures each snapshot has a Live Train of their Line within, as it comes (hideClosures(),
+ * #345). Until then, nothing, as for drawClosures: poll() first runs before what hideClosures() reads
+ * is declared.
+ */
 let liftClosures = () => {};
 /** The Lines of the days on the map, by their IDs, which the cards name as pills from the start (pill()). */
 let lines = new Map<string, Line>();
@@ -642,7 +646,8 @@ let hidingClosures: Shown[] = [];
  * The Closures live data has lifted (hiding(), #345), for the page's life.
  * ponytail: the page's memory, so a page opened while a stale Alert's Closure has its Line's Trains
  * running hides them until one is seen within it again. The fetcher keeping where each Line's Trains
- * were last seen, and publishing it beside alerts.json, would lift it from the first.
+ * were last seen, and publishing it beside alerts.json, would lift it from the first. It keeps every
+ * Alert it has lifted, so one changed and then changed back is lifted again without a Train seen since.
  */
 const lifted = new Set<string>();
 /** The Lines' strokes along their Stretches, which a tap on one names (linesAt()). */

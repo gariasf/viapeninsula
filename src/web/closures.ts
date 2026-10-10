@@ -101,9 +101,9 @@ export const closureKey = ({ line, stations }: Pick<Shown, 'line' | 'stations'>)
 
 /**
  * The Closures among those shown that hide their Lines' Trains (#345): all but those an Alert closes
- * that a Live Train of their Line has been seen within since that Alert last changed, its words or
- * period, as `lifted` remembers them, which this adds those `seen` to (seenWithin()). The timetable's,
- * which no Trip of their day runs through, are never lifted.
+ * that a Live Train of their Line has been seen within since that Alert last changed, its period,
+ * effect or words, as `lifted` remembers them, which this adds those `seen` to (seenWithin()). The
+ * timetable's, which no Trip of their day runs through, are never lifted.
  */
 export function hiding(shown: Shown[], seen: readonly Shown[], lifted: Set<string>): Shown[] {
   const key = (c: Shown) => `${closureKey(c)} ${c.alert?.feed} ${c.alert?.id} ${c.alert?.said}`;

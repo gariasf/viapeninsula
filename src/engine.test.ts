@@ -1249,7 +1249,7 @@ test("a report sees a Train within a closed Closure only while it's Live: not on
   const within = gps(R2S, where(R2S, at('21:40:00')) ?? NaN, at('21:40:00'));
   expect(seen(failing(at('21:40:40'), within))).toEqual(CLOSED);
   expect(seen(failing(at('21:41:00'), within))).toEqual([]);
-  // TRAM counts how far a tram has come from its Trip's first Station, here Sant Vicenç de Calders, 110172 m along its track.
+  // Made up: TRAM's distance for the R2S, which TRAM counts from a Trip's first Station, here Sant Vicenç de Calders, 110172 m along its track.
   const along = (metres: number): Received => ({ snapshot: { ...written(at('21:41:00')), reports: [{ trip: R2S, at: at('21:41:00'), position: { along: metres } }] }, at: at('21:41:00') });
   expect(seen(along(119202 - 110172))).toEqual(CLOSED);
   expect(seen(along(123032 - 110172 - 150))).toEqual([]);

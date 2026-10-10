@@ -551,10 +551,10 @@ const outside = (stretches: [from: number, to: number][], parts: [from: number, 
  * 7 October 2026, from 13:00 to 13:45, Renfe's GPS had 3 of 467 Trains coming into a Station past it,
  * by up to 5 m, just before Renfe pinned them there (and 9 by 1–11 km, pinned after they had gone by),
  * and Rodalies' Trains leaving one within 13 m short of it. It had them within 45 m of their track in
- * 99% of 1,131 reports, and one 26 km off. TRAM's distance put its trams within 74 m of their stop's on
- * the bundle's track. So a Train standing at either Station, or coming into it, isn't seen within, and
- * one running in is this far in within a report or two. T1–T3's stops nearest Francesc Macià and
- * Montesa within their Closure, L'Illa and La Sardana, are 583 m and 432 m in.
+ * 99% of 1,131 reports, and one 26 km off. TRAM's distance put its trams within 74 m of their
+ * Station's on the bundle's track. So a Train standing at either Station, or coming into it, isn't seen
+ * within, and one running in is this far in within a report or two. T1–T3's Stations nearest Francesc
+ * Macià and Montesa within their Closure, L'Illa and La Sardana, are 583 m and 432 m in.
  */
 const MARGIN = 200;
 
@@ -566,13 +566,17 @@ const MARGIN = 200;
  * when an Alert may have changed, pins it to a Station between the Closure's two, or its GPS, no
  * further than MARGIN from its Trip's track, or TRAM's distance, puts it on that track between them,
  * more than MARGIN from either, as its Line's Trips that call at both have them (closedIn()).
+ * ponytail: by the Trip a report names, as Renfe's and TRAM's do, so never a Metro Train, which TMB
+ * names by its Block, nor one of FGC's rack Trains, named by its Line, while only Renfe's and TRAM's
+ * Alerts make Closures (ADR-0012). Match reports as the replay does (reportsByTrip()) once others do.
  */
 export function seenWithin<C extends ShownClosure>(bundle: Bundle, at: number, received: Received[], closures: readonly C[]): C[] {
   const snapshot = received.at(-1)?.snapshot;
   if (!snapshot) return [];
   const closedOn = closedIn(bundle, closures);
   const [named, shapes, networks] = [namedIn(bundle), new Map(bundle.shapes.map((s) => [s.id, s])), new Map(bundle.lines.map((l) => [l.id, l.network]))];
-  // How far into live data the device has got by now, as onMap() has it.
+  // How far into live data the device has got by now, and the Trips as their Trains run them where the
+  // snapshot says they won't stop at some Stations, as onMap() has both.
   const [upTo, cuts] = [heardTo(received, at + behind(received)), cutsIn(bundle, snapshot)];
   const seen = new Set<ShownClosure>();
   for (const { trip: id, at: reported, position, cancelled } of snapshot.reports) {
