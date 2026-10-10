@@ -264,7 +264,7 @@ test("a tap on Closures of several Alerts has each Alert's row newest first, wha
 });
 
 test("a tap on the timetable's Closures, one row for each Line, names them after the Alerts' in the order of their Lines (#399)", () => {
-  // Made up, on Stations of R2's and Rodalies': buses for R8 and R4, which a timetable lists in that order, and none for R2's.
+  // Made up, between two of Rodalies' Stations: buses for R8 and R4, which a timetable lists in that order.
   const buses = (line: string) => ({ line, stations: ['adif:79400', 'adif:77102'] as [string, string], from: 0, to: 86400, kind: 'buses' as const });
   const shown = closuresAt(ALERTS, { ...DAY, closures: [buses('rodalies:R8'), buses('rodalies:R4')] }, READ);
   expect(shown.map((c) => c.line).slice(-2)).toEqual(['rodalies:R8', 'rodalies:R4']);

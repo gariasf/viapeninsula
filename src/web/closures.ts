@@ -112,8 +112,8 @@ export interface Tapped {
 /**
  * What a tap on the Closures `shown` with these `keys` (closureKey()) names: a row for each Alert that
  * makes any of them, as `shown` has the Alerts, newest first, then one for each of the timetable's, which
- * have no date to go by, in the order of their Lines. A row's Lines and Closures are in `order` too, the
- * order the cards name Lines in (#399), not as its Alert lists them (#341).
+ * are one for each Line, in the order of their Lines, not as the day's file lists them. A row's Lines and
+ * Closures are in `order` too, the order the cards name Lines in (#399), not as its Alert lists them (#341).
  */
 export function tappedRows(shown: Shown[], keys: string[], order: string[]): Tapped[] {
   const place = (c: Shown) => order.indexOf(c.line);
