@@ -26,14 +26,22 @@ interface TripEnds {
  * Each shape once for each way its Trips run it, so that each way is traced on its own track: the
  * way the feed draws it keeps its ID, and the way back, its points reversed, is `<id>:back`. A Trip
  * runs its shape back where its last Station comes before its first in the order the shape's trace
- * takes them, beyond the shape's ends too (inOrder()). Gives those shapes, given every Trip on any
- * day, and the one each Trip runs on.
+ * takes them, beyond the shape's ends too (inOrder()), and at a Station the shape starts and ends at,
+ * a Trip's first call is at its start and its last at its end. Gives those shapes, given every Trip on
+ * any day, and the one each Trip runs on.
  */
 export function eachWay(shapes: FeedShape[], stations: Station[], trips: TripEnds[]): { shapes: FeedShape[]; shapeOf: (trip: TripEnds) => string } {
   const byId = new Map(stations.map((s) => [s.id, s]));
-  const orders = new Map(shapes.map((s) => [s.id, new Map(inOrder(s, s.stations.flatMap((id) => byId.get(id) ?? [])).map((w) => [w.station.id, w.order]))]));
+  // A Map keeps the last of a Station's orders, so its first, a circle's start, comes from the reversed list.
+  const order = (list: Waypoint[]) => new Map(list.map((w) => [w.station.id, w.order]));
+  const orders = new Map(
+    shapes.map((s) => {
+      const waypoints = inOrder(s, s.stations.flatMap((id) => byId.get(id) ?? []));
+      return [s.id, { from: order(waypoints.toReversed()), to: order(waypoints) }];
+    }),
+  );
   const back = ({ shape, from, to }: TripEnds) => {
-    const [a, b] = [orders.get(shape)?.get(from), orders.get(shape)?.get(to)];
+    const [a, b] = [orders.get(shape)?.from.get(from), orders.get(shape)?.to.get(to)];
     return a !== undefined && b !== undefined && b < a;
   };
   const ways = new Map<string, Set<boolean>>();
@@ -519,10 +527,14 @@ interface Waypoint {
  * The Stations a shape's Trips serve, in order along the feed's shape. Beyond either end of it, the
  * next is the nearest to the one before, out from that end, as the line beyond needn't head straight
  * away from it: past R15's shape's end at Riba-roja d'Ebre, La Zaida-Sástago is nearer to it than La
- * Puebla de Híjar, the Station before.
+ * Puebla de Híjar, the Station before. A shape that starts and ends at one Station, as Sevilla's C4
+ * runs round its circle from Santa Justa to Santa Justa, has that Station at both ends (#365).
  * ponytail: a line beyond that bends back past a Station it has left, as a horseshoe can, still comes
- * out of order, and eachWay() can run a Trip there the wrong way; order by the Trips' calls if one
- * ever does.
+ * out of order, and eachWay() can run a Trip there the wrong way; Trips that run a circle the other
+ * way round start and end at its Station as the others do, so eachWay() runs them the way the shape
+ * is drawn; and a shuttle's shape, out to a Station and back along its own points, starts and ends at
+ * one Station too, so it's traced out and back, which fails the length check where the rails have a
+ * shorter way back than the feed's. Order by the Trips' calls if any ever does.
  */
 function inOrder(feed: FeedShape, stations: Station[]): Waypoint[] {
   const all = stations.map((station) => {
@@ -530,6 +542,18 @@ function inOrder(feed: FeedShape, stations: Station[]): Waypoint[] {
     return { station, along: n.along, metres: n.metres, order: orderAlong(feed.coords, n) };
   });
   const pointOf = (w: Waypoint): Point => [w.station.lon, w.station.lat];
+  // A Station the shape starts and ends at is on both its ends, though nearest() finds it at only the
+  // one it's nearer to. With one Station alone, there's no circle to trace.
+  const [first, last] = [feed.coords[0], feed.coords.at(-1)];
+  if (first && last && all.length > 1) {
+    const closest = (end: Point) => all.reduce((a, b) => (metres(end, pointOf(a)) <= metres(end, pointOf(b)) ? a : b));
+    const home = closest(first);
+    const [fromFirst, fromLast] = [metres(first, pointOf(home)), metres(last, pointOf(home))];
+    if (closest(last) === home && Math.max(fromFirst, fromLast) <= ON_FEED) {
+      const length = distances(feed.coords).at(-1) ?? 0;
+      all.splice(all.indexOf(home), 1, { ...home, along: 0, metres: fromFirst, order: -fromFirst }, { ...home, along: length, metres: fromLast, order: length + fromLast });
+    }
+  }
   for (const [end, way] of [[feed.coords.at(-1), 1], [feed.coords[0], -1]] as const) {
     let [at, out] = [end, 0];
     const rest = new Set(all.filter((w) => Math.sign(w.order - w.along) === way));
