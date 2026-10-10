@@ -1993,8 +1993,9 @@ function fitPopup(at: LngLat) {
 /**
  * What a tap on Closures shows (#341), by closureKey(): for each Alert that closes them, its words
  * (cardAlerts()), or for each the timetable's buses do, that buses replace trains between its two
- * Stations, in the interface's words; each under the pills of the Closures' Lines, with when it began.
- * Over them, when the Alerts were read, where that's long ago. None, where none of them is shown now.
+ * Stations, in the interface's words; each under the pills of the Closures' Lines, in the order a board
+ * names them, with when it began. Over them, when the Alerts were read, where that's long ago. None,
+ * where none of them is shown now.
  */
 function closuresTapped(keys: string[]) {
   const now = mapTime(Date.now(), received);
@@ -2003,6 +2004,9 @@ function closuresTapped(keys: string[]) {
     const by = closure.alert ? `${closure.alert.feed} ${closure.alert.id}` : closureKey(closure);
     rows.set(by, { closure, on: [...(rows.get(by)?.on ?? []), closure.line] });
   }
+  // In the order the days on the map list the Lines, as a board's are (servedBy()), not the feed's.
+  const order = [...lines.keys()];
+  for (const row of rows.values()) row.on = order.filter((id) => row.on.includes(id));
   const said = [...rows.values()].flatMap(({ closure: { alert, stations: [a = '', b = ''], from }, on }): CardAlert[] => {
     if (alert) return cardAlerts(alerts, { lines: on, stations: [] }, language(), now).alerts.filter((c) => c.id === alert.id);
     return [{ id: `${on.join()} ${a} ${b}`, lines: on, description: { language: language(), text: busesReplace(stationName(a), stationName(b)) }, ...(from !== undefined && { from }), by: '' }];
