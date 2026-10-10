@@ -1141,6 +1141,16 @@ test("a board shows a Live Train not stopping within a closed Closure while it's
   expect(board(['Cunit'], at('21:40:10'), within, BUNDLE, CLOSED)).toMatchObject([{ skipped: false, live: true }]);
 });
 
+test('Nearby leaves out a Scheduled Train within a closed Closure, but not one running up to it', () => {
+  // Around Cunit, the R2S passes only within the Closure: around Calafell, it comes on its way there too.
+  const [cunit, calafell]: [Point, Point] = [[1.63194242, 41.1950415], [1.57500937, 41.1896703]];
+  const passes = (point: Point, closures: ShownClosure[]) => nearbyAt(BUNDLE, at('21:30:00'), [], point, 1500, 60 * 60_000, closures);
+  expect(passes(cunit, [])).toMatchObject([{ trip: { id: R2S } }]);
+  expect(passes(cunit, CLOSED)).toEqual([]);
+  expect(passes(calafell, CLOSED)).toEqual(passes(calafell, []));
+  expect(passes(calafell, CLOSED)).toHaveLength(1);
+});
+
 test('a Closure down to a single track hides no Train', () => {
   // As R2's from Sant Vicenç de Calders to Cunit was on 7 October 2026.
   const single: ShownClosure[] = [{ line: 'R2S', stations: ['Sant Vicenç de Calders', 'Cunit'], kind: 'single' }];

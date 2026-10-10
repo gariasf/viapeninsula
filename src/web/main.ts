@@ -2264,7 +2264,7 @@ function nearbyPanel(near: Point | Unlocated, up: boolean): Panel {
     return { header, body: [said, ...(tryAgain ? [el('button', { type: 'button', className: 'card try-again', onclick: askAgain }, tryAgain)] : [])] };
   }
   const now = Date.now();
-  const rows = nearbyRows(bundle ? nearbyAt(bundle, now, received, near, NEARBY, SOON) : [], now);
+  const rows = nearbyRows(bundle ? nearbyAt(bundle, now, received, near, NEARBY, SOON, shownClosures) : [], now);
   said.append(el('p', { className: 'subtitle', textContent: t('passingNearby') }));
   // Where no Train passes, saying so is what a try found too, so the status says it, for a screen reader to
   // hear; but only once the Trips have come, which can be after the viewer is found, as the map can't tell before.

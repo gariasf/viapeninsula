@@ -224,13 +224,14 @@ export interface Pass {
 
 /**
  * The Trains passing within `radius` metres of a point in the next `window` ms, soonest first, at a
- * moment by the device's clock (ms since 1970), given the snapshots received by then: each whose
- * track still ahead of it comes within the radius, or that's within it, listed once, for when it
- * next comes within it, expected within the window, as it's drawn on the map. Not one that's
- * Cancelled, nor one near only Stations its operator has said it won't stop at, which it runs past (#346).
+ * moment by the device's clock (ms since 1970), given the snapshots received by then and the Closures
+ * the map shows: each whose track still ahead of it comes within the radius, or that's within it,
+ * listed once, for when it next comes within it, expected within the window, as it's drawn on the
+ * map. Not one that's Cancelled, nor one near only Stations its operator has said it won't stop at,
+ * which it runs past (#346), nor a Scheduled one near only where it runs within a closed Closure (#345).
  */
-export function nearbyAt(bundle: Bundle, at: number, received: Received[], point: Point, radius: number, window: number): Pass[] {
-  const { of, now } = onMap(bundle, at, received);
+export function nearbyAt(bundle: Bundle, at: number, received: Received[], point: Point, radius: number, window: number, closures: readonly ShownClosure[] = []): Pass[] {
+  const { of, now } = onMap(bundle, at, received, closures);
   // Most track comes nowhere near: each shape is looked over once, for the stretches of it within the radius.
   const within = new Map(bundle.shapes.map((s) => [s.id, stretchesWithin(s, point, radius)]));
   return bundle.trips
@@ -244,7 +245,7 @@ export function nearbyAt(bundle: Bundle, at: number, received: Received[], point
       const until = now + window / 1000 - delay;
       const has = ([from, to]: [number, number]) => (c: Call) => from <= c.dist && c.dist <= to;
       const passes = stretches.filter((s) => !on.skips.some(has(s)) || on.calls.some(has(s)));
-      const comes = whenWithin(on.calls, on.profile, passes)
+      const comes = whenWithin(on.calls, on.profile, passes, on.closed && closedCalls(on.calls, on.closed))
         .filter(([enters, leaves]) => leaves >= on.time && enters <= until)
         .map(([enters]) => Math.max(enters, on.time));
       if (!comes.length) return [];
@@ -1224,13 +1225,14 @@ function stretchesWithin({ coords, dist }: Shape, point: Point, radius: number):
 
 /**
  * When a Trip's Train is on stretches of its shape, in seconds into the service day, by its calls as
- * it makes them: each time it gets onto one, and when it leaves it, standing at a Station on one or running along one.
+ * it makes them: each time it gets onto one, and when it leaves it, standing at a Station on one or
+ * running along one, but not where it doesn't run, within a closed Closure (closedCalls(), #345).
  */
-function whenWithin(calls: Call[], profile: SpeedProfile, stretches: [from: number, to: number][]): [enters: number, leaves: number][] {
+function whenWithin(calls: Call[], profile: SpeedProfile, stretches: [from: number, to: number][], shut?: { at: boolean[]; after: boolean[] }): [enters: number, leaves: number][] {
   return calls.flatMap((call, i): [number, number][] => {
     const next = calls[i + 1];
-    const standing: [number, number][] = stretches.some(([from, to]) => from <= call.dist && call.dist <= to) ? [[call.arrival, call.departure]] : [];
-    if (!next) return standing;
+    const standing: [number, number][] = !shut?.at[i] && stretches.some(([from, to]) => from <= call.dist && call.dist <= to) ? [[call.arrival, call.departure]] : [];
+    if (!next || shut?.after[i]) return standing;
     const [low, high] = [Math.min(call.dist, next.dist), Math.max(call.dist, next.dist)];
     const running = stretches.flatMap(([from, to]): [number, number][] => {
       const [lo, hi] = [Math.max(from, low), Math.min(to, high)];
