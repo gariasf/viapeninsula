@@ -720,6 +720,8 @@ let namesBearing = NaN;
  * come: those of places in no tier rank their names where they collide, the busier's first (#372).
  */
 let calls = new Map<string, number>();
+/** Where `names` were last laid out (showNames()): for the bearing the map had, each one's anchor and offset at each of NAME_ZOOMS. */
+let laidOut: { names: typeof names; bearing: number; where: Record<string, unknown>[] } | undefined;
 map.addSource('lines', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 // Simplified less than MapLibre's default 0.375 px, which would facet their curves again (#203).
 map.addSource('rails', { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, tolerance: 0.1 });
@@ -1392,9 +1394,10 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
  */
 function showNames() {
   namesBearing = map.getBearing();
-  map.getSource<GeoJSONSource>('station-names')?.setData({
-    type: 'FeatureCollection',
-    features: names.map(({ dot, sides, name, size, nameZoom, tier, stations, larger, style }): GeoJSON.Feature => {
+  // Where each name goes depends on the bearing and the names, not on its rank: the calls that come with
+  // the Trips rank them again without laying them out (#372).
+  if (laidOut?.names !== names || laidOut.bearing !== namesBearing) {
+    const where = names.map(({ dot, sides, size, nameZoom, larger, style }) => {
       const at = sides(namesBearing);
       const properties = NAME_ZOOMS.flatMap((zoom) => {
         // MapLibre lays names out at whole zooms, so a track crossing its own lies under one from this zoom to the next, at half the metres a px.
@@ -1411,9 +1414,17 @@ function showNames() {
           [`offset${zoom}`, nameOffset(spot, far, size).map((px) => px / style.size)],
         ];
       });
+      return Object.fromEntries(properties);
+    });
+    laidOut = { names, bearing: namesBearing, where };
+  }
+  const { where } = laidOut;
+  map.getSource<GeoJSONSource>('station-names')?.setData({
+    type: 'FeatureCollection',
+    features: names.map(({ dot, name, nameZoom, tier, stations, style }, i): GeoJSON.Feature => {
       // Where names collide, one in a tier is placed as it was, by its tier's zoom alone; one in none, by its calls a day after that.
       const sort = tier ? nameZoom : untieredSort(nameZoom, stations.reduce((n, station) => n + (calls.get(station) ?? 0), 0));
-      return { type: 'Feature', properties: { name, nameZoom, sort, ...style, ...Object.fromEntries(properties) }, geometry: { type: 'Point', coordinates: dot } };
+      return { type: 'Feature', properties: { name, nameZoom, sort, ...style, ...where[i] }, geometry: { type: 'Point', coordinates: dot } };
     }),
   });
 }
