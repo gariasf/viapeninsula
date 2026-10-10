@@ -9,9 +9,9 @@ import { EARTH, STRETCH, type Line, type Point, type Shape, type Slot, type Trac
 export type TrackFile = Track | StoredTrack;
 
 /**
- * A track file with its traced shapes as pieces and its slots as chains: the centrelines and curves
- * stay in `shapes`, and the slots are whole in `slots` where they aren't chains from the start of
- * their shapes (encodeTrack()), which none of the build's is.
+ * A track file with its traced shapes as pieces and its slots as chains: the centrelines, smoothed
+ * copies and curves stay in `shapes`, and the slots are whole in `slots` where one doesn't follow the
+ * one before on its shape, or names a Line or shape the track hasn't (encodeTrack()): none of the build's does.
  */
 export interface StoredTrack extends Omit<Track, 'slots'> {
   traced: Traced;
