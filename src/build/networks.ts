@@ -166,7 +166,8 @@ export async function readFeed(
     [...ends].map(([id, { first, last }]) => ({ shape: `${prefix}:${shapeOf.get(id)}`, from: first[1], to: last[1] })),
   );
   const ids = new Set(shapes.map((s) => s.id));
-  // The Train numbers of its Trips that day, with the Stations each calls at, whose Trains another timetable lists too are its (unlisted()).
+  // The Train numbers of its Trips that day, with the Stations each calls at, as another timetable's
+  // Trains with one of them are its (unlisted()).
   const listed = new Map<string, Set<string>>();
   for (const { number, calls } of dayTrips.values()) if (number) listed.set(number, new Set([...(listed.get(number) ?? []), ...calls.map((c) => c.station)]));
   const trips = [...dayTrips].flatMap(([id, { shape, ...rest }]) => {
@@ -249,10 +250,11 @@ export function joinParts(trips: FeedTrip[], stations: Map<string, Station>, day
 }
 
 /**
- * Trips less the Trains another timetable lists too, by each of its Train numbers and the Stations it
+ * Trips less the Trains other timetables list too, by each of their Train numbers and the Stations it
  * calls at (readFeed()'s `listed`): those with one of the numbers that call at one of its Stations
- * (CONTEXT.md), which are kept from that timetable, as Rodalies' and the núcleos' have shapes. Renfe's
- * long-distance timetable lists 98 of Rodalies' regional Trains on 10 Oct 2026, and 55 of the núcleos'.
+ * (CONTEXT.md), which are kept from that timetable, as Rodalies' and the núcleos' have shapes. On 10 Oct
+ * 2026 Renfe's long-distance timetable lists 98 of Rodalies' Trains, on R11, R13–R17, RL3 and RT2, and
+ * 55 of the núcleos'.
  */
 export function unlisted(trips: FeedTrip[], listed: Map<string, Set<string>>[]): FeedTrip[] {
   return trips.filter((t) => !listed.some((l) => t.calls.some((c) => l.get(t.number ?? '')?.has(c.station))));

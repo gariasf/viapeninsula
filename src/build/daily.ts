@@ -38,8 +38,8 @@ const report = collect();
 // Every Network's timetables, downloaded at once, and why they couldn't be, where one couldn't: that
 // doesn't stop the others, and its Network's are read from their copy (readTimetables()). Renfe's
 // long-distance timetable's too, whose Networks aren't on the map yet (#258).
-const longDistance = Promise.all(LONG_DISTANCE.map(async (network) => ({ network, failed: await downloaded(network) })));
-const downloads = await Promise.all(NETWORKS.map(async (network) => ({ network, failed: await downloaded(network) })));
+const longDistance = Promise.all(LONG_DISTANCE.map(downloaded));
+const downloads = await Promise.all(NETWORKS.map(downloaded));
 // The rails of every kind any Network runs on, and Spain's border.
 const { rails, border } = await osm(RAILWAYS);
 const networks = [];
@@ -52,16 +52,16 @@ for (const { network, failed } of downloads) {
   networks.push(build(network, read));
 }
 // Renfe's long-distance Trains, each one Trip made from the parts its timetable lists it in, less those
-// a Network on the map lists too, are counted, but not drawn until they're traced (#259) and drawn
-// (#262, #263). A long-distance timetable that can't be read, nor its copy, as before a build has kept
-// one, is logged, and stops nothing else.
+// a Network on the map lists too, are only counted till #259 traces them and #262 and #263 draw them,
+// so nothing of them goes in the report. A long-distance timetable that can't be read, nor its copy,
+// as before a build has kept one, is logged, and stops nothing else.
 for (const { network, failed } of await longDistance) {
   try {
     const { days } = await readTimetables(network, failed, readDays, () => {});
     for (const [i, parts] of days.entries()) {
       const trips = parts.flatMap((p) => p.trips);
       const trains = unlisted(trips, listed[i] ?? []);
-      console.log(`${network.name}'s Trains on ${DAYS[i]}: ${trains.length}, and ${trips.length - trains.length} of the Networks on the map that list them too`);
+      console.log(`${network.name}'s Trains on ${DAYS[i]}: ${trains.length}, and ${trips.length - trains.length} left to the Networks on the map that list them too`);
     }
   } catch (error) {
     console.warn(`${network.name}'s Trains aren't read: ${error instanceof Error ? error.message : error}`);
@@ -187,9 +187,9 @@ async function lastPublished<T>(file: string, otherwise: string): Promise<T | un
     });
 }
 
-/** Why a Network's timetables couldn't all be downloaded, or nothing where they could. */
-async function downloaded(network: Pick<NetworkConfig, 'timetables'>): Promise<unknown> {
-  return Promise.all(network.timetables.map(async (t) => download(address(t), t.prefix))).then(() => undefined, (error: unknown) => error);
+/** A Network once its timetables are downloaded, with why one couldn't be, where one couldn't. */
+async function downloaded<N extends Pick<NetworkConfig, 'timetables'>>(network: N): Promise<{ network: N; failed: unknown }> {
+  return { network, failed: await Promise.all(network.timetables.map(async (t) => download(address(t), t.prefix))).then(() => undefined, (error: unknown) => error) };
 }
 
 /** A timetable's URL, with the secrets its query needs. */
