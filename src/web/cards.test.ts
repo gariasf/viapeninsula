@@ -266,7 +266,7 @@ test("a Catalan viewer reads Valencia's Alert in its second entry, in Valencian,
   const second = { language: 'ca', text: "Línia C2. Tren amb eixida prevista a les 08:30h de l'estació de València Nord amb destinació l'Alcúdia, efectua la seua eixida amb 17 minuts de retard. Incidència operativa." };
   expect(cardAlerts(renfe, C2, 'ca', NOW).alerts[0]).toMatchObject({ id: 'AVISO_518349', description: second, by: 'Renfe' });
   expect(cardAlerts(renfe, C2, 'es', NOW).alerts[0]).toMatchObject({ id: 'AVISO_518349', description: first, by: 'Renfe' });
-  // An English-speaking viewer, as for Rodalies', reads Renfe's own first entry, with its language marked.
+  // An English-speaking viewer, as for Rodalies', reads Renfe's own first entry, in Spanish, which the card names as its language.
   expect(cardAlerts(renfe, C2, 'en', NOW).alerts[0]).toMatchObject({ id: 'AVISO_518349', description: first });
   // A Station's Alert, which names no Line, stays Spanish for a Catalan viewer: Carcaixent's lift gives its second entry tagged es.
   const lift = cardAlerts(renfe, { lines: [], stations: ['adif:64103'] }, 'ca', NOW).alerts.find((a) => a.id === 'AVISO_518170');

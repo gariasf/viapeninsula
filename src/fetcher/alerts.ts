@@ -53,7 +53,7 @@ const REWRITE = 300_000;
  */
 const READING = 1;
 
-/** How a source's alerts are read: by READING, with the source's config as it is now, which names its Networks. */
+/** How a source's alerts are read: by READING, with the source's config as it is now, which names its Networks and the language each gives its second entry in. */
 const readingOf = (source: LiveSource) => JSON.stringify([READING, source]);
 
 /** What the fetcher starts from: no alerts read. */
