@@ -69,16 +69,28 @@ test("measures a stroke a node hides, which a tunnel cuts, as the one stroke it'
   expect(found(strokes)).toEqual(found(joined));
 });
 
+/** R2 on 4 km of R11's track, in the pieces a tunnel cuts it into, each cut back in every band of the line graph as given: how many metres of the two are drawn over each other at zoom 10. */
+const covered = (pieces: [from: number, to: number, start: number, end: number, under?: number][]) => {
+  const strokes = pieces.map(([from, to, start, end, under]): Stroke => ({ ...stroke('R2', 'a', from, to, 0), ...(under && { under }), cut: BANDS.flatMap((_, band) => (band < GRAPH_BAND ? [] : [[start, end] as [number, number]])) }));
+  return measures({ shapes: [east('a', 4000), east('b', 4000)], strokes: [stroke('R11', 'b', 0, 4000, 0), ...strokes] }).covered[10];
+};
+
 test('measures a stroke as drawn from where its cuts leave it, where a cut runs over a piece a tunnel cuts into the next (#386)', () => {
   // R2 is drawn along 4 km of R11's track, 700 m of it cut off, at its start or at its end. The tunnel is
   // 300 m of it there, so that split() gives the 300 m piece the cut's first 300 m, and the next piece the
   // other 400 m. Where the two are drawn over each other, 3300 m, each is found from both and halved.
-  const cut = (start: number, end: number) => BANDS.flatMap((_, band) => (band < GRAPH_BAND ? [] : [[start, end] as [number, number]]));
-  const covered = (strokes: Stroke[]) => measures({ shapes: [east('a', 4000), east('b', 4000)], strokes: [stroke('R11', 'b', 0, 4000, 0), ...strokes] }).covered[10];
-  const start = [{ ...stroke('R2', 'a', 0, 300, 0), under: 1, cut: cut(300, 0) }, { ...stroke('R2', 'a', 300, 4000, 0), cut: cut(400, 0) }];
-  const end = [{ ...stroke('R2', 'a', 0, 3700, 0), cut: cut(0, 400) }, { ...stroke('R2', 'a', 3700, 4000, 0), under: 1, cut: cut(0, 300) }];
-  expect(covered(start)).toBeCloseTo(3300, -2);
-  expect(covered(end)).toBeCloseTo(3300, -2);
+  expect(covered([[0, 300, 300, 0, 1], [300, 4000, 400, 0]])).toBeCloseTo(3300, -2);
+  expect(covered([[0, 3700, 0, 400], [3700, 4000, 0, 300, 1]])).toBeCloseTo(3300, -2);
+});
+
+test('measures a stroke as drawn from where its first piece that is drawn begins to where its last one ends, whichever of its pieces its cuts leave (#386)', () => {
+  // Every piece drawn, a tunnel of 300 m in the middle of the 4 km, 100 m cut off at each end: from 100 m to 3900 m.
+  expect(covered([[0, 2000, 100, 0], [2000, 2300, 0, 0, 1], [2300, 4000, 0, 100]])).toBeCloseTo(3800, -2);
+  // Tunnels of 300 m at each end, 700 m cut off at each: only the piece between is drawn, from 700 m to 3300 m.
+  expect(covered([[0, 300, 300, 0, 1], [300, 3700, 400, 400], [3700, 4000, 0, 300, 1]])).toBeCloseTo(2600, -2);
+  // 1500 m cut off at its start and 2500 m at its end is all of it: no piece is drawn, though the first piece's
+  // start cut and the last piece's end cut alone leave 800 m of it, from 1500 m to 2300 m.
+  expect(covered([[0, 2000, 1500, 500], [2000, 2300, 0, 300, 1], [2300, 4000, 0, 1700]])).toBe(0);
 });
 
 test('counts steps, stubs, swaps and short joins', () => {
