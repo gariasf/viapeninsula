@@ -5,7 +5,7 @@
 - **Sources:** Renfe's alerts and TRAM's. TMB's, all about getting into a Station, and FGC's, notes on single Trips, can come later, each in a ticket of its own.
 - **The operators' own words, never translated.** An Alert shows in the viewer's language where its feed has it, and otherwise in the feed's own, marked with its language and whose words they are. An English-speaking viewer reads Renfe's in Spanish.
 - **All of them, as given.** Every Alert on a Line or a Station shows, newest first, with when it began. None is hidden for its age or its kind, and Live Trains don't overrule its words: they already show what runs beside an Alert gone stale. Where its Closure hides Trains, they lift that (#345, below).
-- **The map draws only the Closures it can place:** where an Alert's words, read with their verb, or the timetable's replacement buses put a Line's Trains out of two of its Stations on its track, or down to a single track between them. Every other Alert is text: on a tap on a Closure or a stroke, in a followed Train's card, on a Station's board, and in #318's Now.
+- **The map draws only the Closures it can place:** where an Alert's words, read with their verb, or the timetable's replacement buses put a Line's Trains out of two of its Stations on its track, or down to a single track between them. Not an Alert about some of a Line's Trains, as one named by where it leaves, or those to or from a place: its stretch is where those Trains don't run (#396). Every other Alert is text: on a tap on a Closure or a stroke, in a followed Train's card, on a Station's board, and in #318's Now.
 - **Alerts are a file of their own on R2,** `alerts.json`, which the fetcher writes when it changes, beside the snapshot (ADR-0003).
 
 ## Considered Options

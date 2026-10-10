@@ -152,9 +152,10 @@ export const liftedSince = (c: Shown, lifted: ReadonlyMap<string, number>): numb
  * language, say are closed or down to a single track, read against the Stations of its Lines'
  * Networks, on each of its Lines, which the Line's track then places, or leaves to words where it
  * doesn't run by both (placeOn()): not against those its Trips call at that day, which a closure can
- * cut short. Then the timetable's of the service day, from its first bus to its last (#340). The
- * Alerts' first, newest first: where an Alert and the timetable, or two Alerts, close one part, it's
- * drawn once, with the first's words.
+ * cut short, and none from an Alert about some of the Trains of its Lines, not theirs (aboutSomeTrains()).
+ * Then the timetable's of the service day, from its first bus to its last (#340). The Alerts' first,
+ * newest first: where an Alert and the timetable, or two Alerts, close one part, it's drawn once, with
+ * the first's words.
  */
 export function closuresAt(
   alerts: Alerts,
@@ -172,8 +173,10 @@ export function closuresAt(
   const live = Object.entries(alerts).flatMap(([feed, { alerts }]) => alerts.map((alert) => ({ feed, alert })));
   for (const { feed, alert } of live.sort((a, b) => (b.alert.from ?? 0) - (a.alert.from ?? 0))) {
     if ((alert.from ?? -Infinity) > now || now > (alert.to ?? Infinity)) continue;
+    const text = alert.description[0]?.text ?? '';
+    if (aboutSomeTrains(text)) continue;
     const stations = [...new Map(alert.lines.flatMap(stationsOf).map((s) => [s.id, s])).values()];
-    for (const { stations: ends, says } of stretchesIn(alert.description[0]?.text ?? '', stations)) {
+    for (const { stations: ends, says } of stretchesIn(text, stations)) {
       if (says !== 'closed' && says !== 'single') continue;
       for (const line of alert.lines) {
         const ids = new Set(stationsOf(line).map((s) => s.id));
@@ -212,13 +215,6 @@ const NAMING: Record<string, string[]> = { entre: ['y', 'e', 'i', '-'], de: ['a'
 /** The words that can come between that word and the first Station, as in "entre las estaciones de Los Rosales y Cazalla-Constantina" (#396). */
 const STATIONS_OF = ['las', 'estaciones', 'de'];
 
-/**
- * The words that name one Train, by where it leaves, as in "Tren con salida a las 09:27h de la estación
- * de BENACAZÓN, no presta servicio entre las estaciones de X y Y". A stretch in a sentence with them is
- * where that Train doesn't run, not its Line's Trains (#396).
- */
-const ONE_TRAIN = ['tren', 'con', 'salida'];
-
 /** The words that join a stretch to the one before it, after a comma, as in "entre A y B, y entre C y D" (#396). */
 const AND = ['y', 'e', 'i', 'and'];
 
@@ -228,6 +224,29 @@ const wordsOf = (text: string): string[] =>
 
 /** Where `run` comes in `words`, as a whole, from `at`, or -1. */
 const runAt = (words: string[], run: string[], at = 0) => (run.every((w, k) => words[at + k] === w) ? at : -1);
+
+/**
+ * The words that name Trains by where they leave, or come from, which an Alert has where it's about
+ * some of its Lines' Trains, as in "Tren con salida a las 09:27h de la estación de BENACAZÓN, no presta
+ * servicio entre las estaciones de X y Y", or "para los trenes con origen/destino Madrid: Se establece
+ * un Plan Alternativo de Transporte por carretera entre las estaciones de X y Y" (#396).
+ * ponytail: the two wordings 9 Oct's file has; a note worded otherwise is read as its Line's, which a
+ * day's file shows, and each new wording goes here.
+ */
+const SOME_TRAINS = [
+  ['tren', 'con', 'salida'],
+  ['trenes', 'con', 'origen'],
+];
+
+/**
+ * Whether an Alert's words are about some of its Lines' Trains, not the Lines': a stretch it names is
+ * where those Trains don't run, with the Lines' others running there, as Sevilla's C3's Trains did on
+ * 10 Oct between Los Rosales and Cazalla-Constantina, which a plan for Madrid's names (#396).
+ */
+function aboutSomeTrains(text: string): boolean {
+  const words = wordsOf(text);
+  return SOME_TRAINS.some((run) => words.some((_, at) => runAt(words, run, at) === at));
+}
 
 /** The words a Station's name can have in one spelling and not in another, as TRAM's "Estació St.Adrià" is "Estació de Sant Adrià" in its notices, and Adif's "València-La Font de Sant Lluís" is "Valencia Font de Sant Lluis" in Renfe's (#396). */
 const LINKS = ['de', 'del', 'la', 'el', 'les', 'els', 'las', 'los'];
@@ -271,8 +290,7 @@ function endAt(words: string[], at: number, names: { id: string; words: string[]
  * lower case, without accents or punctuation, by whole names, but for the link words one spelling has
  * and another hasn't, or names within names (endAt()); each with what the last words before it in its
  * clause that say so say of it, where they do. A clause ends at a comma too, but one whose stretch has
- * only a "y" before it goes on with what the clause before said. None is read in a sentence about one
- * Train, whose words say where it doesn't run, not its Line's Trains (#396).
+ * only a "y" before it goes on with what the clause before said (#396).
  */
 export function stretchesIn(text: string, stations: { id: string; name: string }[]): { stations: [string, string]; says?: Says }[] {
   const names = stations.map(({ id, name }) => ({ id, words: wordsOf(name) }));
@@ -282,8 +300,6 @@ export function stretchesIn(text: string, stations: { id: string; name: string }
     saying.flatMap(({ words: w, says }) => words.flatMap((_, at) => (runAt(words, w, at) === at ? [{ at, says }] : []))).sort((x, y) => y.at - x.at)[0]?.says;
   const found = new Map<string, { stations: [string, string]; says?: Says }>();
   for (const sentence of text.split(/[.!?\n]/)) {
-    const all = wordsOf(sentence);
-    if (all.some((_, at) => runAt(all, ONE_TRAIN, at) === at)) continue;
     // What the clause before said, for the next to go on with where a comma ended the one before and it opens with its stretch.
     let carried: Says | undefined;
     let comma = false;

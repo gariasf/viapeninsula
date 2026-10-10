@@ -162,13 +162,6 @@ test("reads Sevilla's C3 plan, 'entre las estaciones de X y Y' under 'Plan Alter
   ]);
 });
 
-test("reads no stretch of a Line in a note about one Train, which says where that Train doesn't run, as Sevilla's C5 notes of 7 Oct do, in the same words as the C3 plan (#396)", () => {
-  // AVISO_518331 and AVISO_518327: "Tren con salida a las 09:27h de la estación de BENACAZÓN y con destino
-  // JARDINES DE HÉRCULES, no presta servicio entre las estaciones de SEVILLA SANTA JUSTA y JARDINES DE
-  // HERCULES. Los viajeros serán encaminados al siguiente tren de la línea C-5 o C-1 dirección UTRERA."
-  for (const id of ['AVISO_518331', 'AVISO_518327']) expect(stretchesIn(said(id), stationsOf('cercanias-sevilla'))).toEqual([]);
-});
-
 test("reads TRAM's \"Servei alternatiu entre X i Y\" as closed, its \"Estació de Sant Adrià\" as the bundle's \"Estació St.Adrià\", and its line's \"no donarà servei\" as no stretch (#396)", () => {
   // sc-286, for 14 and 15 Oct 7:30–14:30: "…la línia T6 no donarà servei per tasques de manteniment de l’arbrat
   // a la Rambla de la Mina. Es reforçarà el servei de la línia T5. Servei alternatiu entre Estació de Sant
@@ -286,7 +279,34 @@ test('a day file built before #340 has no Closures', () => {
   expect(closuresAt({}, { ...DAY, closures: undefined }, READ)).toEqual([]);
 });
 
-test("on 9 Oct at 23:20, the file whole, Spain's 68 Renfe Alerts and TRAM's 3, gives the Closures it gave and now Sevilla's C3 and TRAM's T6, San Sebastián's C1 twice, and none in Bilbao's streets or elsewhere (#396)", () => {
+test("an Alert about one Train, or for the Trains to or from a place, makes no Closure of its Line though its words close a stretch, as Sevilla's two C5 notes of 7 Oct and its C3 plan for Madrid's do (#396)", () => {
+  const sevilla = {
+    noonMinus12h: Date.parse('2026-10-09T00:00:00+02:00'),
+    closures: [],
+    lines: ['C3', 'C5'].map((name) => ({ id: `cercanias-sevilla:${name}`, network: 'cercanias-sevilla' })),
+    stations: stationsOf('cercanias-sevilla'),
+  };
+  const only = (id: string): Alerts => ({ renfe: { status: 'ok', alerts: NIGHT.renfe?.alerts.filter((a) => a.id === id) ?? [] } });
+  // AVISO_518331 and AVISO_518327: "Tren con salida a las 09:27h de la estación de BENACAZÓN y con destino
+  // JARDINES DE HÉRCULES, no presta servicio entre las estaciones de SEVILLA SANTA JUSTA y JARDINES DE
+  // HERCULES. Los viajeros serán encaminados al siguiente tren de la línea C-5 o C-1 dirección UTRERA."
+  // AVISO_512188, since 8 Sep: "Por obras de mejora en la infraestructura y para los trenes con
+  // origen/destino Madrid: Se establece un Plan Alternativo de Transporte por carretera entre las
+  // estaciones de Los Rosales y Cazalla-Constantina." C3's own Trains ran there on 10 Oct.
+  const alerts: [string, [string, string]][] = [
+    ['AVISO_518331', ['adif:51003', 'adif:51113']],
+    ['AVISO_518327', ['adif:51113', 'adif:51003']],
+    ['AVISO_512188', ['adif:50700', 'adif:40113']],
+  ];
+  for (const [id, stretch] of alerts) {
+    // Its words close the stretch, which the reader reads as they say it...
+    expect(stretchesIn(said(id), sevilla.stations)).toContainEqual({ stations: stretch, says: 'closed' });
+    // ...for those Trains, not its Line's, so the map doesn't draw it.
+    expect(closuresAt(only(id), sevilla, Date.parse('2026-10-09T23:20:11+02:00'))).toEqual([]);
+  }
+});
+
+test("on 9 Oct at 23:20, the file whole, Spain's 68 Renfe Alerts and TRAM's 3, gives the Closures it gave and now TRAM's T6 and San Sebastián's C1 twice, and none of Sevilla's C3, C5, Bilbao's streets or elsewhere (#396)", () => {
   const lines = [...new Set(Object.values(NIGHT).flatMap((feed) => feed.alerts.flatMap((a) => a.lines)))].map((id) => ({ id, network: id.split(':')[0] ?? '' }));
   const day = { noonMinus12h: Date.parse('2026-10-09T00:00:00+02:00'), closures: [], lines, stations: NIGHT_STATIONS };
   const name = new Map(NIGHT_STATIONS.map((s) => [s.id, s.name]));
@@ -306,8 +326,7 @@ test("on 9 Oct at 23:20, the file whole, Spain's 68 Renfe Alerts and TRAM's 3, g
     'tram:T2 closed Francesc Macià – Montesa (sc-287)',
     'tram:T5 closed Glòries – Can Jaumandreu (sc-279)',
     'tram:T6 closed Glòries – Can Jaumandreu (sc-279)',
-    // New: Sevilla's C3, since 8 Sep, and San Sebastián's C1 Irun – Hernani, which the timetable has too (#340).
-    'cercanias-sevilla:C3 closed Los Rosales – Cazalla-Constantina (AVISO_512188)',
+    // New: "se encuentra interrumpida la circulación entre las estaciones de Irun y Hernani", of 14 Aug, which the timetable has too (#340).
     'cercanias-san-sebastian:C1 closed Irun – Hernani (INFO_507703)',
   ]);
 });
