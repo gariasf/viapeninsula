@@ -2181,6 +2181,49 @@ test("over 45 minutes of the rains of 7 October 2026, Trains are drawn where the
   expect(drawnWhereNotRun(RAINS.received)).toEqual({ live: 1040, scheduled: 80, stopping: 0, notStopping: 66 });
 }, 60_000);
 
+// The Trains drawn within R1's Blanes – Maçanet-Massanes and R3's Ripoll – Puigcerdà from 13:00 to
+// 13:45 on 7 October 2026, in the rains, which Renfe's Alerts of that morning closed (#345): that day's
+// bundle cut to their Trips and the Stations they call at, and the snapshots the fetcher would have
+// written over Renfe's feeds as recorded every 20 s from 13:00:09, each received as it was written.
+const CLOSED_RAINS: { bundle: Bundle; received: Received[] } = JSON.parse(gunzipSync(readFileSync(new URL('fixtures/replay-2026-10-07-closures.json.gz', import.meta.url))).toString());
+
+/** The closed Closures the map showed at 13:00 that day, as closuresAt() has them from Renfe's Alerts read at 11:39 (#341): R1's Blanes – Maçanet-Massanes and R3's Ripoll – Puigcerdà. */
+const ALERTED: ShownClosure[] = [
+  { line: 'rodalies:R1', stations: ['adif:79606', 'adif:79200'], kind: 'closed' },
+  { line: 'rodalies:R3', stations: ['adif:77200', 'adif:77309'], kind: 'closed' },
+];
+
+/**
+ * How long the rains' Trains are drawn within those Closures, more than 30 m from either end, Live and
+ * Scheduled, in seconds every 10 s, given the Closures the map shows; and at 13:00, Tordera's rows
+ * between Blanes and Maçanet-Massanes, running and not stopping, and the rows at those two.
+ */
+function drawnWithin(closures: ShownClosure[]) {
+  const { bundle, received } = CLOSED_RAINS;
+  const drawn = { live: 0, scheduled: 0 };
+  for (let moment = received[0]?.at ?? 0; moment <= (received.at(-1)?.at ?? 0); moment += 10_000) {
+    for (const { trip, dist, live } of trainsAt(bundle, moment, by(received, moment), closures)) {
+      const ends = ALERTED.find((c) => c.line === trip.line)?.stations.map((s) => trip.calls.find((c) => c.station === s)?.dist ?? NaN) ?? [];
+      if (Math.min(...ends) + 30 < dist && dist < Math.max(...ends) - 30) drawn[live ? 'live' : 'scheduled'] += 10;
+    }
+  }
+  const at = (stations: string[]) => boardAt(bundle, received[0]?.at ?? 0, by(received, received[0]?.at ?? 0), stations, closures);
+  const tordera = at(['adif:79607']);
+  return { ...drawn, running: tordera.filter((d) => !d.skipped).length, notStopping: tordera.filter((d) => d.skipped).length, atEnds: at(['adif:79606']).length + at(['adif:79200']).length };
+}
+
+test("over 45 minutes of the rains of 7 October 2026, Trains are drawn within the Closures Renfe's Alerts made only while Live, and Tordera's board shows the rest not stopping", () => {
+  // Without them, as before #345: 18.8 Train-minutes Scheduled, all R1's, of the Train Renfe stopped
+  // reporting at Blanes at 13:02, to Maçanet-Massanes, and of the one from Maçanet-Massanes at 13:09
+  // until Renfe cancelled it at 13:15. 22.7 Live: R3's to La Tor de Querol, from Ripoll on, and R1's,
+  // run on past Blanes for a minute after Renfe's last GPS at 13:02, and from 13:44 as Renfe's GPS had it.
+  expect(drawnWithin([])).toEqual({ live: 1360, scheduled: 1130, running: 3, notStopping: 0, atEnds: 4 });
+  // With them, none Scheduled. Tordera's board shows two of its three not stopping, and the third,
+  // 40 minutes late, not at all, as its timetable left at 12:28, as a Cancelled Train's row goes then.
+  // Blanes and Maçanet-Massanes list only the one leaving Blanes for L'Hospitalet de Llobregat.
+  expect(drawnWithin(ALERTED)).toEqual({ live: 1360, scheduled: 0, running: 0, notStopping: 2, atEnds: 1 });
+}, 60_000);
+
 // Made up: an R1 Trip from Badalona to El Masnou each night, from 23:50 to 00:20, on every day's
 // timetable, and on Saturday's one from 00:05 to 00:30.
 const R1_NIGHT: Row[] = [
