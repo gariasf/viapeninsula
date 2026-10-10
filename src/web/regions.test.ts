@@ -1,5 +1,7 @@
 import { expect, test } from 'vitest';
-import type { DayFiles, DayTrips, Track, Trip } from '../bundle.ts';
+import type { DayFiles, DayTrips, Point, Shape, Track, Trip } from '../bundle.ts';
+import { metres } from '../build/track.ts';
+import { encodeTrack } from '../pieces.ts';
 import { forgetJoined, regionLoader } from './regions.ts';
 
 /** A region's track of one Line and one Station, named for it. */
@@ -92,4 +94,24 @@ test("forgets the joins of tracks that aren't all among the files the days now n
   // One of its files isn't needed any more: what's joined with it is no use again.
   forgetJoined(joined, ['catalonia.track', 'cercanias-leon.track']);
   expect(joined.size).toBe(0);
+});
+
+test("reads a track file that stores its shapes as pieces back as the track it was built from, once for however many loaders read it, and one built before pieces as it is", async () => {
+  const coords: Point[] = [[2.1, 41.4], [2.2, 41.5], [2.3, 41.4], [2.1, 41.4]];
+  let along = 0;
+  const ring: Shape = { id: 'catalonia:ring', coords, dist: coords.map((p, i) => Math.round((along += i ? metres(coords[i - 1] ?? p, p) : 0))) };
+  const built = { ...track('catalonia'), shapes: [ring] };
+  const stored = encodeTrack(built);
+  // What the page's fetched files hold: the same file for as long as its key is wanted.
+  const fetched = new Map<string, unknown>([['catalonia.track', stored], ['catalonia.trips', trips('catalonia')], ['cercanias-leon.track', track('cercanias-leon')], ['cercanias-leon.trips', trips('cercanias-leon')]]);
+  const get = <T>(key: string) => Promise.resolve(fetched.get(key) as T);
+  const days: DayFiles = { ...day, regions: day.regions.filter((r) => r.id !== 'cercanias-madrid') };
+  const first = await regionLoader(get, new Map(), () => {}).bundleOf(days);
+  // The shape is the one built, between the other region's, which has none, and the Lines are both regions'.
+  expect(first.shapes.map((s) => s.id)).toEqual(['catalonia:ring']);
+  expect(first.shapes[0]).toEqual(ring);
+  expect(first.lines.map((l) => l.id)).toEqual(['catalonia:C1', 'cercanias-leon:C1']);
+  // Another loader, as the page's next look makes, finds the shape it decoded already.
+  const again = await regionLoader(get, new Map(), () => {}).bundleOf(days);
+  expect(again.shapes[0]).toBe(first.shapes[0]);
 });
