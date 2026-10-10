@@ -191,6 +191,11 @@ test("no position holds a long-distance Train at a Station: where Renfe's report
   // A Network that holds Trains at the Stations they're reported at, as FGC's, has it at C.
   const held = day(network(LD.profile, { delay: 'operator', near: 'standing' }), LD_LINES, { ave: { line: 'AVE', calls: BY_B } });
   expect(where(held, 'ave', at('10:50:30'), near)).toBe(200_000);
+  // Nor does one that carries a GPS Delay, whatever it says of `near`: its Delay is taken from a report with
+  // its position stripped unless GPS measured one, which a Station's name doesn't. So `pinned` in the config
+  // says what the feed is, and keeps a hold shut should its `delay` ever change.
+  const gpsHeld = day(network(LD.profile, { delay: 'gps', near: 'standing' }), LD_LINES, { ave: { line: 'AVE', calls: BY_B } });
+  expect(where(gpsHeld, 'ave', at('10:50:30'), near)).toBeCloseTo(due ?? NaN, 3);
 });
 
 test("a long-distance Train carries on from its last GPS Delay, whatever Renfe's own figure says, and goes by Renfe's figure only where its GPS has given none", () => {
