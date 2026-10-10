@@ -683,6 +683,13 @@ interface Heard {
   confirmed?: number;
   /** The snapshot, as received, that it was last in. */
   from: Received;
+  /**
+   * When its Network's own feed last reported it, as `got` has it: not in a report by its Train number,
+   * as Renfe's long-distance live data sends, which says nothing of its Network's feed (#124, #261).
+   * ponytail: a long-distance Network's own Trains, once on the map (#262), have only such reports,
+   * so they'd never count: count a report by number where its feed is its Trip's Network's by then.
+   */
+  own?: number;
   /** The report's own Delay, in seconds, as delayOf() has it: for Renfe's, Renfe's own figure. */
   delay: number;
   /** For Renfe's: the last Delay its GPS gave it. */
@@ -734,7 +741,7 @@ function hear(before: Heard | undefined, report: Report, got: number, from: Rece
   const frozen = carriesGpsDelay && follows(before) && sameSpot(before.report.position, report.position);
   const taken = frozen ? { ...report, position: undefined } : report;
   const { position } = taken;
-  const heard = { report, got, placed: position ? got : before?.placed, confirmed: position ? report.at : before?.confirmed, from };
+  const heard = { report, got, placed: position ? got : before?.placed, confirmed: position ? report.at : before?.confirmed, from, own: report.number ? before?.own : got };
   if (!carriesGpsDelay) return { ...heard, delay: ownDelay(taken).delay };
   const figure = ownDelay({ ...taken, position: undefined }).delay;
   const { gps, counted } = before ?? {};
@@ -787,7 +794,7 @@ let last: { bundle: Bundle; received: Received[]; clock: number; eases: Map<stri
 /**
  * How each Train live data has shifted in time is drawn, snapshot by snapshot, so that it never
  * runs back along its track (ADR-0002), what live data last said about it, and when each Network's
- * live data last had one of its Trains in it, by the fetcher's clock in ms since 1970, as it got the
+ * own feed last had one of its Trains in it, by the fetcher's clock in ms since 1970, as it got the
  * report. The first snapshot places every Train outright, and after that a Train drawn far from
  * where a snapshot has it jumps there.
  *
@@ -845,6 +852,10 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
       const was = isLive(heard.get(id), feed, upTo);
       if (report) {
         // A report the fetcher kept from a feed's last good response is as old as that response.
+        // ponytail: one by Train number, from Renfe's long-distance feed, goes by its Trip's
+        // Network's feed, not its own, so it's Live only within three of that feed's updates, and
+        // kept while its own feed fails, it never ages. Give such a report its own feed's freshness
+        // if either shows (#261).
         const got = feed?.lastSuccess ?? NaN;
         heard.set(id, hear(heard.get(id), report, got, r, network.live?.delay === 'gps', (given) => delayOf(trip, calls, shape, network, given, bundle.noonMinus12h)));
       }
@@ -881,7 +892,7 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
   const reported = new Map<string, number>();
   for (const [id, said] of heard) {
     const network = lines.get(trips.get(id)?.line ?? '');
-    if (network && said.got > (reported.get(network.id) ?? -Infinity)) reported.set(network.id, said.got);
+    if (network && said.own !== undefined && said.own > (reported.get(network.id) ?? -Infinity)) reported.set(network.id, said.own);
   }
   last = { bundle, received: [...received], clock, eases, heard, dwelt, reported };
   return last;
@@ -995,7 +1006,9 @@ const ENDED = 30 * 60;
  * isn't drawn, and the Trip waits there Scheduled (#146), as one it ran does (`refused`, #152). A report that names a Line, as FGC's for
  * its rack Trains do, runs that Line's Trip whose trip_id ends as its own does, after the `|`. A
  * report naming a Trip that runs on more than one of the days joined is about the one whose
- * timetable runs nearest when it was reported. A report that matches no Trip is dropped, and so is one
+ * timetable runs nearest when it was reported, and so is one naming a Train number, as Renfe's
+ * long-distance ones do, of the Trips with that number in any Network, but for one a report naming
+ * it has: its Network's own feed goes first (#261). A report that matches no Trip is dropped, and so is one
  * whose Trip ended more than ENDED before it, where its Network's live data lingers on Trips that
  * ended, as FGC's does (#232).
  */
@@ -1004,19 +1017,24 @@ function reportsByTrip(bundle: Bundle, snapshot: Snapshot, lines: Map<string, Ne
   if (known?.bundle === bundle) return known;
   const prior = before && matched.get(before);
   const ran = prior?.bundle === bundle ? prior.ran : new Map<string, string>();
-  const [reports, offs, headed, named, kept] = [new Map<string, Report>(), new Map<string, number>(), new Map<string, Trip[]>(), namedIn(bundle), new Set<string>()];
+  const [reports, offs, headed, named, numbered, kept] = [new Map<string, Report>(), new Map<string, number>(), new Map<string, Trip[]>(), namedIn(bundle), new Map<string, Trip[]>(), new Set<string>()];
   const refused = new Set<string>();
-  for (const trip of bundle.trips) add(headed, `${trip.line} ${trip.headsign}`, trip);
+  for (const trip of bundle.trips) {
+    add(headed, `${trip.line} ${trip.headsign}`, trip);
+    if (trip.number) add(numbered, trip.number, trip);
+  }
   // The Metro's Blocks that don't keep their Trip, each with the Trips headed its way and its next Station.
   const rest: [Report, Trip[], NonNullable<Report['expected']>][] = [];
   for (const report of snapshot.reports) {
     const { block, headsign, position } = report;
     const end = report.line && report.trip?.split('|')[1];
-    const candidates = end ? bundle.trips.filter((t) => t.line === report.line && t.id.endsWith(`|${end}`)) : report.trip ? (named.get(report.trip) ?? []) : [];
+    const candidates = end ? bundle.trips.filter((t) => t.line === report.line && t.id.endsWith(`|${end}`)) : report.trip ? (named.get(report.trip) ?? []) : (numbered.get(report.number ?? '') ?? []);
     const reported = (report.at - bundle.noonMinus12h) / 1000;
     const trip = closest(candidates, reported);
     const lingering = trip && lines.get(trip.line)?.live?.lingers && reported - (trip.calls.at(-1)?.departure ?? Infinity) > ENDED;
-    if (trip && !lingering) reports.set(trip.id, report);
+    // A Train its Network's own feed reports by its Trip goes by that report, not one naming its Train number.
+    const taken = trip && report.number && reports.get(trip.id)?.trip;
+    if (trip && !lingering && !taken) reports.set(trip.id, report);
     if (!block || !position || !('next' in position)) continue;
     const [trips, id] = [headed.get(`${block.line} ${headsign}`) ?? [], ran.get(blockOf(block))];
     // Not after a gap in TMB's data, or in what the map received, as while its tab was hidden: by
@@ -1206,8 +1224,9 @@ function delayOf(trip: Trip, calls: Call[], shape: Shape, { profile, live }: Net
     if (call && i > 0) delay = Math.min(delay, reported - call.arrival);
   }
   if (position && ('lon' in position || 'along' in position)) {
-    const [d] = placedBy(calls, shape, position);
-    const passed = passing(calls, profile, d, reported - delay);
+    const [d, off] = placedBy(calls, shape, position);
+    // A Train named by its Train number can be on a part of its run its Trip doesn't cover (#261).
+    const passed = report.number && off > OFF_TRACK ? undefined : passing(calls, profile, d, reported - delay);
     if (passed !== undefined) {
       delays.set(report, { trip, delay: reported - passed, measured: true });
       return { delay: reported - passed, measured: true };
@@ -1250,6 +1269,18 @@ function nearest({ coords, dist }: Shape, from: number, to: number, { lon, lat }
   }
   return [Math.max(from, Math.min(to, found)), closest];
 }
+
+/**
+ * How far from its Trip's track a Train's GPS can be, in metres, and still measure its Delay, where its
+ * report names its Train number: Renfe's long-distance live data has a Train on any part of its run,
+ * which its Trip may cover only some of. GPS nearest an end of the track measures none anyway, as for
+ * Zaragoza's 18073, running on up to 8.7 km past Casetas at 14:59 on 10 October 2026. That day, GPS
+ * nearest a point within the track was within 40 m of it, in 410 positions from 13:47 to 13:59 and
+ * 14:54 to 15:00, or over 20 km off, in 81, as R16 18093's near Orpesa: it came nearest its Trip's
+ * track short of L'Aldea, where the Trip had ended 77 minutes before, and drew it back there 83
+ * minutes late (#261).
+ */
+const OFF_TRACK = 1000;
 
 /**
  * Which way a Train drawn at a time in its timetable heads, `d` metres along its shape, in degrees

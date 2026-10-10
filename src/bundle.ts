@@ -44,6 +44,11 @@ export interface Report {
   /** Its Trip, as the bundle names it, or for the Metro, whose timetable names no Blocks, none: the engine matches its Block to one. */
   trip?: string;
   /**
+   * For a Train its operator names by any part of its run, as Renfe's long-distance live data does: its
+   * Train number, which the engine finds its Trip by, in any Network, on the day nearest in time (#261).
+   */
+  number?: string;
+  /**
    * For a Train its operator names by a Trip the bundle doesn't have, as Geotren does Montserrat's
    * rack Trains: its Line, as the bundle names it. The engine matches it to the Line's Trip whose
    * `trip_id` ends as its own does, after the `|`.
