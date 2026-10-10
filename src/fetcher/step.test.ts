@@ -769,6 +769,8 @@ test("says no stop of a TRAM Train's trip update that it skips, or has no data f
   expect(standing(2)).toBeUndefined();
   expect(standing(0, 5)).toBeUndefined();
   expect(standing(0, -66, -5)).toBeUndefined();
+  // One whose arrival is the very second of the run is reached: its arrival is at or before the run, as its departure is after it.
+  expect(standing(0, 0)).toEqual({ stop: 18, leaves: TRAM_NOW + 20_000 });
 });
 
 test("says the last stop of a TRAM Train's trip update that it has reached, and counts none after one it hasn't", () => {
