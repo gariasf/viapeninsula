@@ -54,8 +54,8 @@ export interface Rails {
  * The rails a Line runs on where its timetable has no shapes, as Renfe's long-distance one hasn't (#259):
  * the ways whose `railway` is one of these, and whose gauge is one of `gauges`, or that have no gauge tag,
  * as a way with three rails has two gauges, as `1435;1668`. On two gauges, its Trains change from one to
- * the other only at a railway=gauge_conversion node. Where a stretch has no path on `gauges`, it's traced
- * on `orElse` too, changing to them only there.
+ * the other only at a railway=gauge_conversion node. A run of its Trips with a stretch with no path on
+ * `gauges` is traced on `orElse`'s too, all the way, changing to them only at such a node.
  */
 export interface Gauges {
   railway: string[];
@@ -600,7 +600,7 @@ const RENFE_LONG_DISTANCE_LIVE = { delay: 'gps', near: 'pinned', snap: 60 } as c
 /** AVE's, Avlo's and AVE Int's top speed, on the high-speed lines, above the Network's 250 km/h. */
 const HIGH_SPEED = { topSpeed: 300 / 3.6 };
 
-/** AVE's rails: standard gauge, and Iberian gauge too, through a changer, where a stretch has no path on standard gauge alone. */
+/** AVE's rails: standard gauge, and Iberian gauge too, through a changer, for a run with a stretch with no path on standard gauge alone. */
 const STANDARD: Gauges = { railway: ['rail'], gauges: ['1435'], orElse: ['1668'] };
 /** The rails of the Trains that change gauge, as Alvia's: both gauges, changing at a changer. */
 const BOTH: Gauges = { railway: ['rail'], gauges: ['1435', '1668'] };
