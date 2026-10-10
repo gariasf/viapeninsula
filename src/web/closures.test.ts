@@ -121,6 +121,15 @@ test('goes on with what a clause says into the next, after a comma, where that h
     { stations: ['adif:79606', 'adif:79607'], says: 'closed' },
     { stations: ['adif:79607', 'adif:79200'] },
   ]);
+  // So does a semicolon, and a clause that says nothing between, though a comma ends both.
+  expect(stretchesIn(`${buses}; y entre Tordera y Maçanet-Massanes.`, R1)).toEqual([
+    { stations: ['adif:79606', 'adif:79607'], says: 'closed' },
+    { stations: ['adif:79607', 'adif:79200'] },
+  ]);
+  expect(stretchesIn(`${buses}, con normalidad, y entre Tordera y Maçanet-Massanes.`, R1)).toEqual([
+    { stations: ['adif:79606', 'adif:79607'], says: 'closed' },
+    { stations: ['adif:79607', 'adif:79200'] },
+  ]);
 });
 
 test('opens a stretch only at its opening words, not at one every object has a property of, as "constructor"', () => {
@@ -135,6 +144,22 @@ test("finds the stretches in TRAM's Catalan and English", () => {
   // sc-280's words, in TRAM's Catalan, and its English.
   expect(stretchesIn('Els dies 10, 11 i 12 d’octubre, per obres de renovació de via, sense servei entre Francesc Macià i Montesa.', T1)).toEqual([{ stations: ['tram:ST-172', 'tram:ST-188'], says: 'closed' }]);
   expect(stretchesIn('On October 10, 11 and 12, due to track renewal works, there will be no service between Francesc Macià and Montesa.', T1)).toEqual([{ stations: ['tram:ST-172', 'tram:ST-188'], says: 'closed' }]);
+});
+
+test('goes on after a comma with TRAM\'s own "i" and English "and" as with Renfe\'s "y" (#396)', () => {
+  const T = [
+    { id: 'tram:ST-172', name: 'Francesc Macià' },
+    { id: 'tram:ST-188', name: 'Montesa' },
+    { id: 'tram:ST-206', name: 'Glòries' },
+    { id: 'tram:ST-208', name: 'Can Jaumandreu' },
+  ];
+  // Made up, on sc-280's and sc-279's words, as none of TRAM's has a comma there.
+  const closed: { stations: [string, string]; says: 'closed' }[] = [
+    { stations: ['tram:ST-172', 'tram:ST-188'], says: 'closed' },
+    { stations: ['tram:ST-206', 'tram:ST-208'], says: 'closed' },
+  ];
+  expect(stretchesIn('Sense servei entre Francesc Macià i Montesa, i entre Glòries i Can Jaumandreu.', T)).toEqual(closed);
+  expect(stretchesIn('There will be no service between Francesc Macià and Montesa, and between Glòries and Can Jaumandreu.', T)).toEqual(closed);
 });
 
 /**
@@ -181,6 +206,9 @@ test("reads no stretch in words that name none: Renfe's bare \"Sin servicio ferr
   expect(stretchesIn(said('sc-286').split('\n')[0] ?? '', stationsOf('tram'))).toEqual([]);
   // INFO_508393: "…el acceso a la estación se realizará por la plaza situada entre Av. Agirre Lehendariak y Calle Fauste."
   expect(stretchesIn(said('INFO_508393'), stationsOf('cercanias-bilbao'))).toEqual([]);
+  // Nor do they say what a stretch after them is, which is what keeps them out of the words that do (made up, on theirs).
+  expect(stretchesIn('Sin servicio ferroviario entre Blanes y Tordera.', R1)).toEqual([{ stations: ['adif:79606', 'adif:79607'] }]);
+  expect(stretchesIn('La línia T6 no donarà servei entre Estació de Sant Adrià i Parc del Besòs.', stationsOf('tram'))).toEqual([{ stations: ['tram:ST-229', 'tram:ST-213'] }]);
 });
 
 // alerts.json as the fetcher writes it from Renfe's alerts of 11:39 on Wednesday 7 October 2026, cut
