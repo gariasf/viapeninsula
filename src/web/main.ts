@@ -641,8 +641,11 @@ let lookAgain = false;
 let shownStations: Track['stations'] | undefined;
 /**
  * The regions the map loads, by their IDs (#266): each once it comes into view from zoom 7, or once a
- * link, Nearby or a Train the map follows needs it (regionsNeeded()), and never let go of, so that a
- * followed Train's region stays loaded wherever the map goes.
+ * link or Nearby needs it (regionsNeeded()), and never let go of, so that a followed Train's region,
+ * loaded as its Train was drawn or its link named it, stays loaded wherever the map goes.
+ * ponytail: never let go of, so a viewer who pans across Spain ends with every region loaded, as the
+ * map loaded them all before #266. Let go of those out of view that no link, Nearby or followed Train
+ * needs if a long session's memory shows.
  */
 const loaded = new Set<string>();
 /** Which of them the days on the map have, once their files have come: a link waits for its own, and Nearby says no Train passes only once the viewer's have come. */
