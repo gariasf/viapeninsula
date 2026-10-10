@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { APART, atZoom, BANDS, beside, daysNeeded, daysOf, DEGREE, joinTrips, joinTracks, onStroke, pixelMetres, smoothId, type DayTrips, type Manifest, type ManifestDay, type Network, type Shape, type Slot, type Station, type Track, type Trip } from './bundle.ts';
+import { APART, atZoom, BANDS, beside, daysNeeded, daysOf, DEGREE, joinTrips, joinTracks, onStroke, pixelMetres, smoothId, zones, type DayTrips, type Manifest, type ManifestDay, type Network, type Shape, type Slot, type Station, type Stroke, type Track, type Trip } from './bundle.ts';
 
 test('finds the point a distance along a line, moved to its right, or its left where negative', () => {
   // 1 km east along the equator, where a degree is DEGREE metres both ways.
@@ -35,6 +35,30 @@ test("zoomed out, a Train goes on its Line's stroke: along the centreline it fol
   expect(metres(onStroke([...slots, own9], shapes, 400, 9, 1))).toEqual([400, Math.round((-30 - width(9) * 0.5) * 10) / 10]);
   expect(onStroke(slots, shapes, 400, 9, 1)).toBeUndefined();
   expect(metres(onStroke([own9, ...slots], shapes, 400, 11, 1))).toEqual(metres(onStroke(slots, shapes, 400, 11, 1)));
+});
+
+test("zoomed out, a Train at the very end of a curve across a node goes on the curve's side there, though its place along the curve works out a hair past it (#395)", () => {
+  // A Line leaves stretch:0 at 1500 m along it and comes onto stretch:1 at 500 m along it, on a curve 1447.8 m long
+  // that moves it from half a line width right of its centreline to two and a half (`ease`). The curve stands for
+  // 400 m of stretch:0 and 500 m of stretch:1, 1447.8 m shared out in proportion, which add up to a hair more than
+  // 1447.8 m: so a Train at the end of the 500 m is a hair past the curve's end, and past its last piece.
+  const zoom = 12;
+  const link: Stroke = { line: 'R1', shape: 'stretch:link0', from: 0, to: 1447.8, side: 0.5, ease: 2.5, band: BANDS.indexOf(zoom), across: [['stretch:0', 1500, 1900], ['stretch:1', 0, 500]] };
+  const east = (id: string, length: number): Shape => ({ id, coords: [[0, 0], [length / DEGREE, 0]], dist: [0, length] });
+  const shapes = new Map([east('stretch:0', 1900), east('stretch:1', 600), east(link.shape, link.to)].map((s) => [s.id, s]));
+  // Its Trains run 1900 m along stretch:0, then along stretch:1.
+  const slots: Slot[] = [
+    { line: 'R1', shape: 'own', from: 0, to: 1900, side: 0.5, on: 'stretch:0', at: [0, 1900] },
+    { line: 'R1', shape: 'own', from: 1900, to: 2500, side: 2.5, on: 'stretch:1', at: [0, 600] },
+  ];
+  const curves = zones([link]);
+  // As zones() shares it out, its last part ends past the curve.
+  expect(curves.get(`R1 ${link.band}`)?.at(-1)?.along[1]).toBeGreaterThan(link.to);
+  // How many line widths south of the curve, the right of a Train running east, a Train is put at a distance along its shape.
+  const width = atZoom(APART, zoom) * pixelMetres(zoom, 0);
+  const right = (dist: number) => -((onStroke(slots, shapes, dist, zoom, 1, curves)?.[1] ?? NaN) * DEGREE) / width;
+  // Each half a line width over from its stroke: the first piece's side, 0.5, at the curve's start and in its first metre, the last piece's, 2.5, in its last metre and at its end.
+  expect([1500, 1501, 2399, 2400].map(right).map((w) => Math.round(w * 100) / 100)).toEqual([1, 1, 3, 3]);
 });
 
 // Made up: Friday's first Train comes onto the map at 05:00 and its last leaves it at 00:40, Saturday's

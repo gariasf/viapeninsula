@@ -683,7 +683,8 @@ export function onStroke(slots: Slot[] | undefined, shapes: Map<string, Shape>, 
   const curve = zone && shapes.get(zone.link.shape);
   if (zone && curve) {
     const [[a0, a1], [x0, x1]] = [zone.at, zone.along];
-    const x = x0 + ((x1 - x0) * (at - a0)) / (a1 - a0);
+    // No further than the curve goes: at its very end this can work out a hair past it, in floating point, and so past its last piece (#395).
+    const x = Math.min(x0 + ((x1 - x0) * (at - a0)) / (a1 - a0), zone.link.to);
     const side = pieces(zone.link).find((p) => p.from <= x && x <= p.to)?.side ?? zone.link.side;
     // The Train goes along the curve the way it goes along the centreline, or back.
     return beside(curve, x, (side + 0.5 * keep * way * Math.sign((x1 - x0) * (a1 - a0) || 1)) * width);
