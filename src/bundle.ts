@@ -443,6 +443,11 @@ export interface Station {
    * Sants (#243). The build names them once it has every Network's Stations (stationsOf()); a track built before #243 names none.
    */
   networks?: string[];
+  /**
+   * The Lines whose timetable calls there on any day, by their IDs in order: those a board names where
+   * no Trip of them calls that day, as where works stop them (#392). A track built before #392 names none.
+   */
+  lines?: string[];
 }
 
 /** Where the map shows one or more Stations as one, known by their place, or a lone Station's ID: one Station board lists them all. */
@@ -452,6 +457,8 @@ export interface Place {
   stations: string[];
   /** The Networks whose Trains stop at its Stations, by their IDs: its own, whose track its name goes beside (#143). */
   networks: string[];
+  /** The Lines whose timetable calls at its Stations on any day, in order (Station's `lines`). */
+  lines: string[];
   lon: number;
   lat: number;
 }
@@ -465,6 +472,7 @@ export function places(stations: Station[]): Place[] {
     name: group[0]?.name ?? '',
     stations: group.map((s) => s.id),
     networks: [...new Set(group.flatMap((s) => s.networks ?? []))],
+    lines: [...new Set(group.flatMap((s) => s.lines ?? []))].sort(),
     lon: group.reduce((sum, s) => sum + s.lon, 0) / group.length,
     lat: group.reduce((sum, s) => sum + s.lat, 0) / group.length,
   }));

@@ -18,7 +18,7 @@ import { atMostEvery, drifted, letsGo } from './centre.ts';
 import { keepView, lastView, markOf, openingView, toggledPitch } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { contrast, lettering } from './colour.ts';
-import { cardAlerts, inNameOrder, linesCallingAt, minutesTo, nearbyRows, progress, type CardAlert } from './cards.ts';
+import { cardAlerts, inNameOrder, linesOnBoard, minutesTo, nearbyRows, progress, type CardAlert } from './cards.ts';
 import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, tappedRows, type Shown } from './closures.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
@@ -623,8 +623,8 @@ let lines = new Map<string, Line>();
 let pills = new Map<string, Pill>();
 /** The cards' colour, style.css's --card, which a Scheduled Train's pill letters its Line's colour against (pill()). */
 const cardColour = hex(getComputedStyle(document.documentElement).getPropertyValue('--card').trim() || '#fff');
-/** The Lines that call at the last place whose board the panel showed, for the days on the map then (servedBy()). */
-let served: { place?: string; days?: Bundle; lines: string[] } = { lines: [] };
+/** The Lines the last place whose board the panel showed names, for the days on the map and the Alerts then (servedBy()). */
+let served: { place?: string; days?: Bundle; alerts?: Alerts; lines: string[] } = { lines: [] };
 showLanguage();
 
 /** The manifest as the map last got it. */
@@ -2382,9 +2382,13 @@ function boardPanel(id: string, up: boolean): Panel | undefined {
   };
 }
 
-/** The Lines whose Trips call at a place, by their IDs, in the order the cards name Lines: for the last place asked about, until the days change. */
+/**
+ * The Lines a place's board names, by their IDs, in the order the cards name Lines: those whose Trips
+ * call there, and those whose timetable does that an Alert is on (linesOnBoard(), #392). For the last
+ * place asked about, until the days or the Alerts change.
+ */
 function servedBy(place: Place): string[] {
-  if (served.place !== place.id || served.days !== bundle) served = { place: place.id, days: bundle, lines: linesCallingAt(bundle?.trips ?? [], place.stations, [...lines.keys()]) };
+  if (served.place !== place.id || served.days !== bundle || served.alerts !== alerts) served = { place: place.id, days: bundle, alerts, lines: linesOnBoard(bundle?.trips ?? [], place, [...lines.keys()], alerts) };
   return served.lines;
 }
 

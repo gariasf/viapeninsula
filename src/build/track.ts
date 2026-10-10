@@ -425,10 +425,31 @@ export function stationsOf(networks: { network: Pick<Network, 'id'>; stations: S
     for (const s of stations) {
       const known = byId.get(s.id);
       if (!known) byId.set(s.id, { ...s, networks: [id] });
-      else if (!known.networks.includes(id)) known.networks.push(id);
+      else {
+        if (!known.networks.includes(id)) known.networks.push(id);
+        // The Lines of every Network that calls there, in order, as withLines() has them.
+        if (s.lines) known.lines = [...new Set([...(known.lines ?? []), ...s.lines])].sort();
+      }
     }
   }
   return [...byId.values()];
+}
+
+/**
+ * `stations`, each with the Lines whose timetable calls there on any day, by their IDs in order, as
+ * `shapes` have them: the Lines a board can name where none of their Trips call that day, as where
+ * works stop them, so that it shows the Alerts that say why (#392). A Station none of them calls at has none.
+ */
+export function withLines(stations: Station[], shapes: { line: string; stations: string[] }[]): Station[] {
+  const of = new Map<string, Set<string>>();
+  for (const { line, stations: calls } of shapes) {
+    if (!line) continue;
+    for (const id of calls) of.set(id, (of.get(id) ?? new Set()).add(line));
+  }
+  return stations.map((s) => {
+    const lines = [...(of.get(s.id) ?? [])].sort();
+    return lines.length ? { ...s, lines } : s;
+  });
 }
 
 /**
