@@ -1,13 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
-import type { Shape, Station } from '../bundle.ts';
-import { RODALIES, type Gauges } from '../networks.ts';
+import type { Point, Shape, Station } from '../bundle.ts';
+import { CERCANIAS_SEVILLA, RODALIES, type Gauges } from '../networks.ts';
 import { ownRails } from './networks.ts';
 import type { OsmWay } from './osm.ts';
 import { collect, type Found } from './report.ts';
 import type { Snippet } from './snippet.ts';
-import { eachWay, fine, onOwnTrack, railsBeside, traceRuns, traceShapes } from './track.ts';
-import type { FeedTrip } from './trips.ts';
+import { eachWay, fine, metres as between, nearest, onOwnTrack, railsBeside, traceRuns, traceShapes } from './track.ts';
+import { placeTrips, type FeedTrip } from './trips.ts';
 
 // A small railway, drawn in metres east (x) and north (y) of a point near Manresa.
 const M = (6_371_008.8 * Math.PI) / 180; // metres in a degree of latitude
@@ -263,6 +263,73 @@ test("turns back at L'Aldea on R16's way from Camp-redó to Ulldecona, on OpenSt
     "rodalies:51_R16: Camp-redó → Ulldecona-Alcanar-La Sénia turns back at L'Aldea-Amposta-Tortosa",
     "rodalies:51_R16_INV: Ulldecona-Alcanar-La Sénia → Camp-redó turns back at L'Aldea-Amposta-Tortosa",
   ]);
+});
+
+/**
+ * Sevilla's C4 traced: `npm run snippet -- 'trip cercanias-sevilla:C4 fast adif:51003 adif:51100' sevilla-c4 5.4`,
+ * the whole of its one shape and the rails within 5.4 km of the spot, from the rails downloaded on 9 Oct
+ * 2026 and Renfe's timetable of 10 Oct 2026. C4 runs round a circle from Santa Justa to Santa Justa
+ * again, and its shape starts and ends 1 m apart, 38 m from Santa Justa.
+ */
+function sevillaC4() {
+  const { rails, shapes, stations } = JSON.parse(readFileSync(new URL('fixtures/osm/sevilla-c4.json', import.meta.url), 'utf8')) as Snippet;
+  const [log, found]: [string[], Found[]] = [[], []];
+  const traced = traceShapes(shapes, stations, ownRails(rails, CERCANIAS_SEVILLA), CERCANIAS_SEVILLA.runningSide, (line) => log.push(line), (f) => found.push(f));
+  const [feed, track] = [shapes[0], traced[0]];
+  if (!feed || !track) throw new Error('No shape of C4');
+  const point = (id: string): Point => {
+    const s = stations.find((o) => o.id === id);
+    return [s?.lon ?? NaN, s?.lat ?? NaN];
+  };
+  return { shapes, stations, feed, track, log, found, point };
+}
+
+test("traces a circle Line round the whole circle, from its first Station to it again, as Sevilla's C4 is from Santa Justa", () => {
+  const { feed, track, log, found, point } = sevillaC4();
+  // All of the feed's 20.3 km, not the 18.6 km from Santa Justa to San Bernardo that it stopped at (#365).
+  expect(log).toEqual(['cercanias-sevilla:30_C4: 20.3 km long. Where the feed has the track: 20.3 km traced against its 20.3 km (-0.0%)']);
+  expect(found.map((f) => f.kind)).toEqual(['length']);
+  // On the feed's shape all the way round, with no chord across it.
+  const apart = (a: Point[], b: Point[]) => Math.max(...a.map((p) => nearest(b, p).metres));
+  expect(apart(feed.coords, track.coords)).toBeLessThan(100);
+  expect(apart(track.coords, feed.coords)).toBeLessThan(100);
+  // It sets off from Santa Justa and comes back to it, by the Stations between in order.
+  const [first = [NaN, NaN], last = [NaN, NaN]] = [track.coords[0], track.coords.at(-1)];
+  expect(Math.max(between(first, point('adif:51003')), between(last, point('adif:51003')))).toBeLessThan(50);
+  const along = ['adif:51009', 'adif:51010', 'adif:51110', 'adif:51100'].map((id) => nearest(track.coords, point(id)).along);
+  expect(along.map((d) => Math.round(d / 100))).toEqual([58, 96, 169, 186]);
+});
+
+test("places a circle Line's Trips on its circle, the last call at its end, and takes each one the way round it runs, as Sevilla's C4's", () => {
+  const { shapes, stations, feed, track } = sevillaC4();
+  // Renfe's 3081S23605C4 of 10 Oct 2026, from Santa Justa round to it again.
+  const calls = [
+    { station: 'adif:51003', arrival: 24720, departure: 24720 },
+    { station: 'adif:51009', arrival: 25140, departure: 25200 },
+    { station: 'adif:51010', arrival: 25440, departure: 25500 },
+    { station: 'adif:51110', arrival: 25860, departure: 25920 },
+    { station: 'adif:51100', arrival: 26040, departure: 26100 },
+    { station: 'adif:51003', arrival: 26340, departure: 26580 },
+  ];
+  const whole = { id: 'cercanias-sevilla:3081S23605C4', line: 'cercanias-sevilla:C4', shape: feed.id, headsign: 'Sevilla-Santa Justa', calls };
+  // Trips that end at San Bernardo, as 90 of the timetable's do, and one that starts there.
+  const trips = [whole, { ...whole, id: 'to San Bernardo', calls: calls.slice(0, 5) }, { ...whole, id: 'from San Bernardo', calls: calls.slice(4) }];
+  const log: string[] = [];
+  const placed = placeTrips(trips, [track], stations, CERCANIAS_SEVILLA.profile.topSpeed, (line) => log.push(line));
+  expect(log).toEqual([]);
+  const [round, ends, from] = placed.map((t) => t.calls.map((c) => c.dist));
+  const length = track.dist.at(-1) ?? 0;
+  expect(round?.map((d) => Math.round(d / 100))).toEqual([0, 58, 96, 169, 186, Math.round(length / 100)]);
+  expect(round?.at(-1)).toBeGreaterThan(length - 100);
+  expect(ends).toEqual(round?.slice(0, 5));
+  expect(from).toEqual(round?.slice(4));
+
+  // A Trip runs the shape back where it ends before it starts: those whose ends are round it either way aren't.
+  const { shapes: ways, shapeOf } = eachWay(shapes, stations, [{ shape: feed.id, from: 'adif:51003', to: 'adif:51003' }]);
+  expect(ways.map((s) => s.id)).toEqual([feed.id]);
+  const ride = (from: string, to: string) => shapeOf({ shape: feed.id, from, to }).replace(feed.id, 'shape');
+  expect([ride('adif:51003', 'adif:51003'), ride('adif:51003', 'adif:51100'), ride('adif:51009', 'adif:51003'), ride('adif:51009', 'adif:51010')]).toEqual(Array(4).fill('shape'));
+  expect(ride('adif:51100', 'adif:51110')).toBe('shape:back');
 });
 
 test("leaves out a Station on a branch off the feed's shape, rather than run out to it and back", () => {
