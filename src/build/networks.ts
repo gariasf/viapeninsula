@@ -56,9 +56,9 @@ const RAIL = new Set(['0', '1', '2', '7']);
  * in parts, they're made one Trip, and the calls that fit none are logged (joinParts()). Where its live
  * data names a stop by its number in its Trip (`stopNumbers`), a Trip whose numbers don't run 1…n is
  * logged and given in `found`, for the report (#406): it's read all the same. A Trip that calls at a
- * Station its Network's config has beyond it isn't the Network's (`beyond`, #368): it's as though the
- * feed hadn't it, its Lines' shapes and Stations, its Train number and its calls included, but for its
- * day's, which are logged and given back as `left`.
+ * Station its Network's config has beyond it isn't the Network's (`beyond`, #368): it's left out as
+ * though the feed hadn't it, with its Train number, its shape where no other Trip runs it and the
+ * Stations only it calls at, and each of the day's is logged and given back as `left`.
  */
 export async function readFeed(
   gtfs: Source,
@@ -90,7 +90,7 @@ export async function readFeed(
   };
   const station = (stop: string) => `${operator}:${stationOf(stop)?.stop_id ?? stop}`;
 
-  // The Trips that call at a Station beyond the Network, each with the first it's seen to (#368).
+  // The Trips that call at a Station beyond the Network, each with the first such Station it calls at (#368).
   // ponytail: a second pass over stop_times.txt each time a day is read, 2 s on top of the 3 s Bilbao's
   // read takes, and none for any other Network; read it once for all of a timetable's days, by its
   // source, if more Networks name some.
