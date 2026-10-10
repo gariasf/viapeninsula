@@ -61,6 +61,11 @@ const STRINGS = {
     en: 'Live data unavailable, positions from the timetable',
   },
   // The follow panel. {n} is a number of minutes, and {ago} how long ago, as ago() words it.
+  // A departure's button, naming what it follows (#322); where a Trip still to come leaves; and Back, to a place or to Nearby, or to the Train it was opened from.
+  followDeparture: { ca: 'Segueix el tren {line} cap a {headsign}, {time}', es: 'Seguir el tren {line} hacia {headsign}, {time}', eu: 'Jarraitu {line} trena, {headsign} aldera, {time}', gl: 'Seguir o tren {line} cara a {headsign}, {time}', en: 'Follow the {line} train to {headsign}, {time}' },
+  leavesAt: { ca: 'Surt de {station} a les {time}', es: 'Sale de {station} a las {time}', eu: '{station} geltokitik irtengo da, {time}', gl: 'Sae de {station} ás {time}', en: 'Leaves {station} at {time}' },
+  backTo: { ca: 'Torna a {place}', es: 'Volver a {place}', eu: 'Itzuli: {place}', gl: 'Volver a {place}', en: 'Back to {place}' },
+  backToTrain: { ca: 'Torna al tren cap a {headsign}', es: 'Volver al tren hacia {headsign}', eu: 'Itzuli {headsign} aldeko trenera', gl: 'Volver ao tren cara a {headsign}', en: 'Back to the train to {headsign}' },
   stopFollowing: { ca: 'Deixa de seguir aquest tren', es: 'Dejar de seguir este tren', eu: 'Utzi tren honi jarraitzeari', gl: 'Deixar de seguir este tren', en: 'Stop following this train' },
   onTime: { ca: 'puntual', es: 'puntual', eu: 'garaiz', gl: 'puntual', en: 'on time' },
   late: { ca: '{n} min de retard', es: '{n} min de retraso', eu: '{n} min atzeratuta', gl: '{n} min de atraso', en: '{n} min late' },

@@ -631,6 +631,71 @@ time .in {
   border-top: 0;
 }
 
+/* A row that follows its Train (#322): the row's own grid inside a button at least 40 px high, which shows where the keyboard is. */
+.rows li > .row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  column-gap: 8px;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Back, over the title, in its own row of the header (#322). */
+.sheet header:has(> .back) {
+  flex-wrap: wrap;
+}
+
+.back {
+  display: flex;
+  flex: 0 0 100%;
+  align-items: center;
+  gap: 4px;
+  order: -1;
+  min-height: 40px;
+  margin: 0 0 -4px -6px;
+  padding: 0 10px 0 6px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: inherit;
+  font: 600 13px/1 var(--font);
+  cursor: pointer;
+  align-self: flex-start;
+  width: fit-content;
+}
+
+/* A Station the followed Train has still to come to, as a button: its name as the strip has it, not looking like one until the pointer is on it. */
+.station-link {
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .rows li > .row:hover,
+  .back:hover {
+    background: var(--hover);
+  }
+
+  .station-link:hover {
+    text-decoration: underline;
+  }
+}
+
 .rows .pill {
   justify-self: start;
 }
