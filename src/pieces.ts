@@ -3,14 +3,37 @@
 // the measures read it back as the Track the build made (decodeTrack()), so the engine and the map see
 // what they always did.
 
-import { EARTH, STRETCH, type Point, type Shape, type Track } from './bundle.ts';
+import { EARTH, STRETCH, type Line, type Point, type Shape, type Slot, type Track } from './bundle.ts';
 
 /** A track as the build made it, or as its file stores it. */
 export type TrackFile = Track | StoredTrack;
 
-/** A track file with its traced shapes as pieces: the centrelines and curves stay in `shapes`. */
-export interface StoredTrack extends Track {
+/**
+ * A track file with its traced shapes as pieces and its slots as chains: the centrelines and curves
+ * stay in `shapes`, and the slots are whole in `slots` where they aren't chains from the start of
+ * their shapes (encodeTrack()), which none of the build's is.
+ */
+export interface StoredTrack extends Omit<Track, 'slots'> {
   traced: Traced;
+  chains?: Chains;
+  slots?: Slot[];
+}
+
+/**
+ * Each shape's slots in one graph, one band, run on one after another from its start, so each is
+ * its length, its side, the centreline it goes on, and where on it. The runs are in the track's order.
+ */
+export interface Chains {
+  /** The centrelines the slots go on, each once, as the first slot to go on it has it. */
+  on: string[];
+  /**
+   * For each run, its Line's and its shape's places in the track's Lines and traced shapes, as the
+   * change from the run before, and its band's number plus 1, or 0 for the main graph; then for each
+   * slot: its length, its side, its centreline's place in `on` as the change from the slot before,
+   * where it starts as the change from where the slot before ended, and how far it goes along the
+   * centreline, negative where it goes back.
+   */
+  runs: number[][];
 }
 
 /** The traced shapes of a track, in the order it has them, before its centrelines. */
@@ -67,15 +90,74 @@ function metres(a: Point, b: Point): number {
 
 /** The track as its file stores it: its traced shapes as pieces. */
 export function encodeTrack(track: Track): StoredTrack {
-  const { shapes, ...rest } = track;
-  return { ...rest, shapes: shapes.filter((s) => s.id.startsWith(STRETCH)), traced: encodeTraced(shapes.filter((s) => !s.id.startsWith(STRETCH))) };
+  const { shapes, slots, ...rest } = track;
+  const traced = shapes.filter((s) => !s.id.startsWith(STRETCH));
+  const chains = encodeChains(slots, track.lines, traced);
+  return { ...rest, shapes: shapes.filter((s) => s.id.startsWith(STRETCH)), traced: encodeTraced(traced), ...(chains ? { chains } : { slots }) };
 }
 
 /** The track a file stores, or the file itself where it's of a build before #257, with its shapes whole. */
 export function decodeTrack(file: TrackFile): Track {
   if (!('traced' in file)) return file;
-  const { traced, shapes, ...rest } = file;
-  return { ...rest, shapes: [...decodeTraced(traced), ...shapes] };
+  const { traced, chains, shapes, slots, ...rest } = file;
+  return {
+    ...rest,
+    shapes: [...decodeTraced(traced), ...shapes],
+    slots: chains ? decodeChains(chains, rest.lines, traced.shapes) : (slots ?? []),
+  };
+}
+
+/** The slots as chains, or none where they aren't: each shape's runs start at 0 and go one on from the one before, and name a Line and a shape the track has. */
+function encodeChains(slots: Slot[], lines: Line[], traced: Shape[]): Chains | undefined {
+  const [lineAt, shapeAt] = [new Map(lines.map((l, i) => [l.id, i])), new Map(traced.map((s, i) => [s.id, i]))];
+  const on: string[] = [];
+  const runs: number[][] = [];
+  let [line, shape, band, to, at, here, row] = [0, 0, 0, 0, 0, 0, [] as number[]];
+  for (const s of slots) {
+    const [l, h, b] = [lineAt.get(s.line), shapeAt.get(s.shape), (s.band ?? -1) + 1];
+    if (l === undefined || h === undefined) return undefined;
+    if (!runs.length || l !== line || h !== shape || b !== band) {
+      // A new run, in the places it's counted from: the last run's, and 0 for the first.
+      row = [l - line, h - shape, b];
+      runs.push(row);
+      [line, shape, band, to, at, here] = [l, h, b, 0, 0, 0];
+    }
+    if (s.from !== to) return undefined;
+    let place = on.indexOf(s.on);
+    if (place < 0) place = on.push(s.on) - 1;
+    row.push(s.to - s.from, s.side, place - here, s.at[0] - at, s.at[1] - s.at[0]);
+    [to, at, here] = [s.to, s.at[1], place];
+  }
+  return { on, runs };
+}
+
+function decodeChains({ on, runs }: Chains, lines: Line[], shapes: { id: string }[]): Slot[] {
+  const slots: Slot[] = [];
+  let [line, shape] = [0, 0];
+  for (const row of runs) {
+    line += row[0] ?? 0;
+    shape += row[1] ?? 0;
+    const band = (row[2] ?? 0) - 1;
+    let [to, at, here] = [0, 0, 0];
+    for (let k = 3; k < row.length; k += 5) {
+      const from = to;
+      to = from + (row[k] ?? 0);
+      here += row[k + 2] ?? 0;
+      const start = at + (row[k + 3] ?? 0);
+      at = start + (row[k + 4] ?? 0);
+      slots.push({
+        line: lines[line]?.id ?? '',
+        shape: shapes[shape]?.id ?? '',
+        from,
+        to,
+        side: row[k + 1] ?? 0,
+        on: on[here] ?? '',
+        at: [start, at],
+        ...(band >= 0 && { band }),
+      });
+    }
+  }
+  return slots;
 }
 
 function encodeTraced(shapes: Shape[]): Traced {

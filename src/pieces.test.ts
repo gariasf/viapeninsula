@@ -110,3 +110,43 @@ test('keeps the order of the traced shapes, and the centrelines and curves after
   expect(file.shapes).toEqual([stretch]);
   expect(decodeTrack(file).shapes.map((s) => s.id)).toEqual(['B', 'A', 'stretch:catalonia:0']);
 });
+
+/** A Line along the shapes given, as the build makes them. */
+const line = (id: string, shapes: string[]) => ({ id, network: 'n', name: id, colour: '#000', shapes, kind: 'commuter' as const });
+
+test("stores a shape's slots, which run one after another along it, as a chain of lengths, sides and where they go", () => {
+  const slots: Slot[] = [
+    { line: 'R1', shape: 'A', from: 0, to: 300, side: 0.5, on: 'stretch:r:0', at: [0, 302] },
+    { line: 'R1', shape: 'A', from: 300, to: 600, side: 0, on: 'stretch:r:1', at: [302, 598] },
+    // The way back along its centreline, and on its band's own graph.
+    { line: 'R1', shape: 'B', from: 0, to: 600, side: -0.5, on: 'stretch:r:1', at: [598, 0] },
+    { line: 'R1', shape: 'A', from: 0, to: 600, side: 0, on: 'A', at: [0, 600], band: 1 },
+    { line: 'R2', shape: 'A', from: 0, to: 600, side: 1.5, on: 'stretch:r:0', at: [0, 600] },
+  ];
+  const t = track([A, B], { lines: [line('R1', ['A', 'B']), line('R2', ['A'])], slots });
+  const file = encodeTrack(t);
+  expect(file).not.toHaveProperty('slots');
+  expect(decodeTrack(file)).toEqual(t);
+  // Each run: how its Line and shape's places moved on from the run before, and its band; then, for each slot, its length, its side,
+  // how its centreline's place moved on, where it starts less where the one before ended, and how far it goes: none says where it starts.
+  expect((file as StoredTrack).chains).toEqual({
+    on: ['stretch:r:0', 'stretch:r:1', 'A'],
+    runs: [
+      [0, 0, 0, 300, 0.5, 0, 0, 302, 300, 0, 1, 0, 296],
+      [0, 1, 0, 600, -0.5, 1, 598, -598],
+      [0, -1, 2, 600, 0, 2, 0, 600],
+      [1, 0, 0, 600, 1.5, 0, 0, 600],
+    ],
+  });
+});
+
+test("keeps the slots whole where they aren't chains from the start of their shape, or name a Line or shape the track hasn't", () => {
+  const gap: Slot[] = [{ line: 'R1', shape: 'A', from: 100, to: 600, side: 0, on: 'stretch:r:0', at: [100, 600] }];
+  const t = track([A], { lines: [line('R1', ['A'])], slots: gap });
+  expect(encodeTrack(t)).toHaveProperty('slots', gap);
+  expect(decodeTrack(encodeTrack(t))).toEqual(t);
+  const lost: Slot[] = [{ line: 'R9', shape: 'A', from: 0, to: 600, side: 0, on: 'stretch:r:0', at: [0, 600] }];
+  const u = track([A], { lines: [line('R1', ['A'])], slots: lost });
+  expect(encodeTrack(u)).toHaveProperty('slots', lost);
+  expect(decodeTrack(encodeTrack(u))).toEqual(u);
+});
