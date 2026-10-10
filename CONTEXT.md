@@ -32,6 +32,10 @@ _Avoid_: Run, service, working, diagram
 A set of Lines under one public brand: in Catalonia Rodalies (including its regional lines), FGC, Metro and TRAM; beyond it each Renfe Cercanías núcleo (Cercanías Madrid, Cercanías Bilbao…), Renfe's AVE y Larga Distancia and Media Distancia y Avant, Ouigo, and Euskotren (ADR-0010).
 _Avoid_: System
 
+**Region**:
+Networks that are built and loaded together: a Network on its own, or a group whose Lines share Stretches, as Catalonia's Rodalies, FGC, TRAM and Metro are one (ADR-0014). Each has a track file, and a Trips file for each day, of its own, which the build makes on its own, so that a region whose build fails keeps its last files while the others publish. Not an administrative region: Cercanías Madrid is one, though its C2 runs on to Guadalajara.
+_Avoid_: Area, zone, autonomous community
+
 **Line**:
 A line as the public knows it, such as R2 Sud, S1, L3 or T4. An operator's internal variants of a Line join the Line the public knows, as FGC's R53 and R63 join R5 and R6. AVE y Larga Distancia's and Media Distancia y Avant's Lines are the names their timetable gives its Trips, such as AVE, Alvia or MD, as it names no others.
 _Avoid_: Route
