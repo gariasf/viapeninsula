@@ -16,10 +16,13 @@
 - **A start screen before the map**, with Search and Favourites. Rejected: the moving map is what the site is, and every shared link opens on it.
 - **Screens of their own for a Station and a Train.** Rejected: #321's sheets, pulled up, are those.
 - **A share button, a switch between light and dark, and a welcome card.** Rejected: the browser shares the link, dark follows the system's setting (#316), and About's "Reading the map" (#321) explains the map.
+- **A search field across the top,** with Now and Nearby as buttons under the die (#328's B). Rejected (the maintainer, 10 Oct 2026): it takes about the room a tab bar does, but its column of three buttons, with the map's own Tilt and Centre (#326, #325), doesn't fit between the corners and an open sheet, and the Passport would have no place. Its field can still be added to the Search tab's sheet.
+- **A chip for each run of a Line, instead of one strip.** Rejected (the maintainer, 10 Oct 2026): it hides the other runs' Stations and Trains behind a choice, and R4 alone has nine. It can be added over the same strip later.
 - **Time travel and playback.** Rejected for now: it's the map's, not a screen, and stays on #1's Later list.
 
 ## Consequences
 
 - A viewer who clears their browser's data, or changes device, loses their Favourites and Passport.
-- How the screens are reached, by a tab bar or a search field, is tried in a mockup first (#328), as the cards were in #212.
+- The screens are reached by a tab bar on a phone, Search · Nearby · Now · Favourites, and a rail down the left edge on a wide window, with the Passport (#332) as a fifth tab. It was tried in a mockup first (#328), as the cards were in #212, and picked on 10 Oct 2026. Each tab opens a sheet over the map exactly as #321's do, the legend and the language stay in #321's corners, and the die moves into Now.
+- A Line's screen is one strip, marked where a day's Trips start or end and where a spur goes on, with each Train a row on it. Now shows only what's true at this moment: the first and last Trains near their time, Trains to and from France running or leaving within the hour, and funiculars while running.
 - v1's Later list (#1) no longer has passport and badges, now #318's. Stored history and punctuality statistics become #329, which has the fetcher write more files, and amends ADR-0003 when it lands.
