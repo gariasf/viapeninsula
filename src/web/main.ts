@@ -1182,7 +1182,7 @@ map.on('moveend', () => map.getBearing() !== namesBearing && showNames());
 // The link the map is opened with, and one pasted into the tab later: MapLibre moves the view, or
 // openLink() moves the map to the Station where the link names none.
 openLink();
-addEventListener('hashchange', openLink);
+addEventListener('hashchange', () => openLink());
 
 /**
  * Draws the Lines and Stations of the days on the map, and each Network's track below zoom 7, with
@@ -1853,10 +1853,11 @@ function openPanel(up: boolean) {
  * no longer running. A Station the map doesn't know goes from the link. Where the link names no
  * view, the map goes to the Station, by follow()'s rule (#292). A Station or a Train opens once its
  * regions have come, which load meanwhile (#266), and those whose Trips fail to come are logged where
- * show() gets them, and looked for again.
+ * show() gets them, and looked for again; opened then, it doesn't ring its point again, which a tap
+ * may have cleared meanwhile.
  */
-function openLink() {
-  showMark(markOf(openedLink));
+function openLink(ring = true) {
+  if (ring) showMark(markOf(openedLink));
   const link = new URLSearchParams(openedLink.slice(1));
   const [station, train] = [link.get('station'), link.get('train')];
   const place = station && [...shownPlaces.values()].find((p) => p.stations.includes(station));
@@ -2882,7 +2883,7 @@ function come(needs: { station?: string | null; train?: string | null; nearby?: 
 
 /** Opens the page's link where it waited for its regions (openLink()), as the viewer hasn't opened another Train, board or Nearby meanwhile (openPanel()). */
 function openWaitingLink() {
-  if (linkWaits) openLink();
+  if (linkWaits) openLink(false);
 }
 
 /**
