@@ -233,7 +233,7 @@ const STRINGS = {
   tryAgain: { ca: 'Torna-ho a provar', es: 'Volver a intentarlo', eu: 'Saiatu berriro', gl: 'Tentar de novo', en: 'Try again' },
   // The button that tilts the map, pressed while it's tilted (#326).
   tilt: { ca: 'Inclina el mapa', es: 'Inclinar el mapa', eu: 'Okertu mapa', gl: 'Inclinar o mapa', en: 'Tilt the map' },
-  // The button beside Nearby's that follows a random Train.
+  // The button that follows a random Train, under Tilt and Centre.
   followRandom: { ca: "Segueix un tren a l'atzar", es: 'Seguir un tren al azar', eu: 'Jarraitu ausazko tren bati', gl: 'Seguir un tren ao chou', en: 'Follow a random train' },
   // The button that takes a followed Train back to the middle of the map, once the viewer has dragged the map off it.
   centre: { ca: 'Centra el mapa en el tren', es: 'Centrar el mapa en el tren', eu: 'Zentratu mapa trenean', gl: 'Centrar o mapa no tren', en: 'Centre the map on the train' },
@@ -499,7 +499,7 @@ export const passingStation = (station: string, lang = language()): string => na
 
 /**
  * Why Nearby can't show the viewer's nearby Trains: the browser is finding where they are, as Nearby's
- * button asked it, or again, as Try again did; it couldn't say, as its error's code tells, the viewer
+ * tab asked it, or again, as Try again did; it couldn't say, as its error's code tells, the viewer
  * having refused (PERMISSION_DENIED, which a dismissed prompt gives too) or it having had no fix in time
  * (TIMEOUT, POSITION_UNAVAILABLE); or it has no geolocation at all (#324).
  */
