@@ -1105,6 +1105,9 @@ map.on('click', ({ point: { x, y }, lngLat }) => {
     if (shown) {
       fitPopup(lngLat);
       linesPopup.setLngLat(lngLat).setDOMContent(shown).addTo(map);
+      // MapLibre focuses the first link or button in a popup as it opens, which scrolls a long one to it: a
+      // Closure's Alert that ends in an address opened at its end, its Lines' pills and title out of sight. Back to the top (#391).
+      linesPopup.getElement().querySelector('.maplibregl-popup-content')?.scrollTo(0, 0);
     }
   }
 });
