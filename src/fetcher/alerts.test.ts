@@ -324,6 +324,10 @@ test("keeps when each feed's file last changed: Renfe's Last-Modified, and its h
   expect(renfeRun({ alerts: answer(recorded('renfe.json')) }).file?.renfe?.changed).toBe(CHANGED);
   // Where they differ, its Last-Modified, which the next run's conditional request names: made up, a file written again at 10:00.
   expect(renfeRun({ alerts: answer(recorded('renfe.json'), { etag: ETAG, modified: 'Wed, 07 Oct 2026 08:00:00 GMT' }) }).file?.renfe?.changed).toBe(Date.parse('2026-10-07T10:00:00+02:00'));
+  // Made up: a Last-Modified that's no time, or the epoch's, as a server dates a file it doesn't, is none: the header's timestamp.
+  for (const modified of ['Thu, 01 Jan 1970 00:00:00 GMT', 'not a date']) {
+    expect(renfeRun({ alerts: answer(recorded('renfe.json'), { etag: ETAG, modified }) }).file?.renfe?.changed).toBe(CHANGED);
+  }
   // TRAM's files are written when asked: each header's timestamp is then, 12:35:21 for Trambaix's and 12:35:22 for Trambesòs'.
   expect(readAlerts(ALERTS_START, { tram: TRAM }, NOW).file?.tram?.changed).toBe(Date.parse('2026-10-07T12:35:22+02:00'));
   // A feed that gives neither has none, which isn't a failure: a header with no timestamp, and no Last-Modified.

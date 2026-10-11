@@ -135,11 +135,12 @@ function tried(source: LiveSource, kept: Kept | undefined, answers: Record<strin
 /**
  * When a feed's file last changed, in ms since 1970, where its answers say: its Last-Modified, which
  * Renfe sends with its file, or else its header's timestamp, the later of its files', as TRAM's two
- * halves, which it writes when asked, each give theirs. None where they say none (#390).
+ * halves, which it writes when asked, each give theirs. None where they say none: a Last-Modified of
+ * 1 January 1970, as a server gives a file it doesn't date, is none (#390).
  */
 function changedOf(modified: string | undefined, files: GtfsRtAlerts[]): number | undefined {
   const lastModified = Date.parse(modified ?? '');
-  if (Number.isFinite(lastModified)) return lastModified;
+  if (lastModified > 0) return lastModified;
   const stamped = files.map(({ header }) => ms(header?.timestamp)).filter((at) => at > 0);
   return stamped.length ? Math.max(...stamped) : undefined;
 }
