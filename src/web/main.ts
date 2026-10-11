@@ -572,7 +572,7 @@ let following: { day: string; trip: string; at?: Point; zoom?: number } | undefi
  * onto the map at (startOf()).
  */
 let waiting: Coming | undefined;
-/** Whether the panel shows a Train within a closed Closure, whose Alerts open as it goes within one, on a wide window or a sheet pulled up, and close as it comes out (followedPanel(), #420). */
+/** Whether the panel shows a Train within a closed Closure, whose Alerts open as it goes within one, on a wide window or a sheet pulled up, and fold as it comes out (followedPanel(), #420). */
 let showsWithin = false;
 /**
  * Where Back goes (#322): the panel this one was opened from, by a departure or a Station, as it was,
@@ -2163,8 +2163,9 @@ function moreButton(text: string) {
  * next Station, when it's expected there, with its Delay but for a Metro Train's, and the minutes to
  * it; how far along its Trip it is; and its Line's Alerts, folded away (#342). Peeking, it ends in how
  * many Stations it has still to come; pulled up, it shows them, from the Train to its Trip's last
- * Station (#321), after a fold that shows those it has left (#349). Those within a closed Closure that
- * hides Trains it doesn't stop at, in the strip and in how many it has to come (#420).
+ * Station (#321), after a fold that shows those it has left (#349). Its Stations within a closed Closure
+ * that hides Trains are marked as not stopped at in the strip, and not counted in how many it has to
+ * come (#420). Where its Train is within one, it's the panel of a Trip still to come (comingPanel()).
  */
 function followedPanel(up: boolean): Panel | undefined {
   const now = Date.now();
@@ -2173,9 +2174,9 @@ function followedPanel(up: boolean): Panel | undefined {
   const train = bundle && trainAt(bundle, now, received, followedId() ?? '', hidingClosures);
   // Its Trip still to come, where its Train isn't on the map yet (#322), or within a closed Closure that hides Trains (#420).
   waiting = bundle && !train ? comingAt(bundle, now, received, followedId() ?? '', hidingClosures) : undefined;
-  // Its Alerts, which say why, open of themselves as it goes within a Closure, where the panel has the room, and close as it comes out.
+  // Its Alerts, which say why, open of themselves as it goes within a Closure where the panel has the room, or stay open if the viewer opened them, and fold as it comes out.
   const within = !!waiting?.within;
-  if (within !== showsWithin) [showsWithin, showAlerts] = [within, within && up];
+  if (within !== showsWithin) [showsWithin, showAlerts] = [within, within && (showAlerts || up)];
   if (waiting) return comingPanel(waiting, up, mapNow);
   if (!train) return undefined;
   const { trip, live, unreported, since, speed, unitType, upcoming } = train;
@@ -2285,10 +2286,12 @@ function tripBar({ trip, dist, upcoming }: Followed) {
 /**
  * The Stations a followed Train has still to come to, as a strip in its Line's colour: from the
  * Train, now, which has left the Station before them or stands at the first, to its Trip's last
- * Station, where the strip ends in a bar across it, as the operators' maps end a Line. The next and
- * the last are in bold. Once it has left a Station, the fold before the strip (foldButton()) shows
- * those it has already left at its top, greyed, by name only, as the map has no time it passed them
- * but its timetable's, and the Train then as a compact mark after them (#349).
+ * Station, where the strip ends in a bar across it, as the operators' maps end a Line. The next, the
+ * first it stops at, and the last are in bold; one it doesn't stop at, within a closed Closure that
+ * hides Trains, has its time struck through and says so, as a board's row does (#420). Once it has
+ * left a Station, the fold before the strip (foldButton()) shows those it has already left at its
+ * top, greyed, by name only, as the map has no time it passed them but its timetable's, and the
+ * Train then as a compact mark after them (#349).
  */
 function strip({ trip, upcoming, standsAt }: Pick<Followed, 'trip' | 'upcoming' | 'standsAt'>): Node[] {
   // How many Stations it has already left, and the last of them, before those it has still to leave.

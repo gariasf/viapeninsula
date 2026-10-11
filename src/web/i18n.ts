@@ -123,7 +123,7 @@ const STRINGS = {
   nextDepartures: { ca: 'Properes sortides', es: 'Próximas salidas', eu: 'Hurrengo irteerak', gl: 'Próximas saídas', en: 'Next departures' },
   noDepartures: { ca: 'Cap sortida propera', es: 'Ninguna salida próxima', eu: 'Ez dago hurrengo irteerarik', gl: 'Ningunha saída próxima', en: 'No upcoming departures' },
   cancelled: { ca: 'Cancel·lat', es: 'Cancelado', eu: 'Bertan behera', gl: 'Cancelado', en: 'Cancelled' },
-  // A departure at a Station its Train won't stop at, as one cut short doesn't run to (#346).
+  // A departure at a Station its Train won't stop at, as one cut short doesn't run to (#346) or within a closed Closure (#345), and that Station in the Train's strip (#420).
   notStopping: { ca: "No s'atura aquí", es: 'No para aquí', eu: 'Ez da hemen gelditzen', gl: 'Non para aquí', en: "Doesn't stop here" },
   // At the foot of a peeking board: how many departures more it lists.
   moreDepartures: { ca: '{n} sortides més', es: '{n} salidas más', eu: '{n} irteera gehiago', gl: '{n} saídas máis', en: '{n} more departures' },
