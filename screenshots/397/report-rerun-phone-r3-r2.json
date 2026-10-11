@@ -1,0 +1,62 @@
+{
+ "site": "https://viapeninsula.gariasf.com",
+ "at": "2026-10-11T07:37:49.961Z",
+ "views": {
+  "phone/r3": {
+   "what": "Rodalies R3 Ripoll - Puigcerda: as before",
+   "zoom": 9,
+   "centre": [
+    42.32648225,
+    2.05604925
+   ],
+   "tapAt": [
+    271,
+    479
+   ],
+   "tapStationM": 3595,
+   "tap": {
+    "popup": "Renfe's alerts: last changed Oct 7, 2026, 9:32 AM R3 Circulación ferroviaria entre La Garriga - Puigcerdà/La Tor de Querol con afectaciones. Servicio alternativo por carretera entre Ripoll - Puigcerdà i Fabra i Puig - Puigcerdà. R3's Trains have run here since 9:37 AM From Oct 7, 2026, 9:23 AM · Renfe · Castellano",
+    "popupHasFold": false,
+    "sheet": null
+   },
+   "opened": null
+  },
+  "phone/r2": {
+   "what": "Rodalies R2 single track Sant Vicenc de Calders - Cunit: as before",
+   "zoom": 11,
+   "centre": [
+    41.189767745498195,
+    1.5785637478991597
+   ],
+   "tapAt": [
+    109,
+    427
+   ],
+   "tapStationM": 2046,
+   "tap": {
+    "popup": null,
+    "popupHasFold": false,
+    "sheet": "R2S , Live Sant Vicenç de Calders Live · confirmed 38 s ago · Estimated speed ~44 km/h NEXT STATION Sant Vicenç de Calders 9:43AM +7 min 7 min late in 3 min Bar"
+   },
+   "opened": null
+  },
+  "phone": {
+   "files": {
+    "viapeninsula.gariasf.com/assets/index-C1VjN4Ra.js": 200,
+    "viapeninsula-live.gariasf.com/manifest.json": 200,
+    "viapeninsula-live.gariasf.com/alerts.json": 200
+   },
+   "problemsOnLoad": [
+    "requestfailed: static.cloudflareinsights.com/beacon.min.js/v4bc70e2c01a94c73b74392e423484066179121581592 net::ERR_CONNECTION_REFUSED",
+    "console.error: Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "console.warning: layers[highway-shield-non-us].filter[1]: Expected value to be of type number, but found null instead. Falling back to false.",
+    "console.warning: layers[highway-shield-us-interstate].filter[1]: Expected value to be of type number, but found null instead. Falling back to false."
+   ],
+   "problemsAfterTaps": [
+    "requestfailed: tiles.openfreemap.org/planet/20261004_113936_pt/12/2066/1532.pbf net::ERR_ABORTED",
+    "requestfailed: tiles.openfreemap.org/planet/20261004_113936_pt/12/2066/1533.pbf net::ERR_ABORTED",
+    "console.warning: layers[road_shield_us].filter[1]: Expected value to be of type number, but found null instead. Falling back to false."
+   ]
+  }
+ }
+}

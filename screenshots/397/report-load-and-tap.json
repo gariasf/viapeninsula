@@ -1,0 +1,389 @@
+{
+ "site": "https://viapeninsula.gariasf.com",
+ "at": "2026-10-11T07:19:45.999Z",
+ "views": {
+  "desktop/t1t3": {
+   "what": "TRAM T1, T2, T3 Francesc Macia - Montesa (sc-280): hatched together",
+   "zoom": 13,
+   "centre": [
+    41.37913,
+    2.112838
+   ],
+   "tapAt": [
+    508,
+    442
+   ],
+   "tapStationM": 259,
+   "tap": {
+    "popup": "T1 T2 T3 T1, T2 & T3 Francesc Macià - Montesa disruption On October 10, 11 and 12, due to track renewal works, there will be no service between Francesc Macià and Montesa. During this disruption, a replacement bus service will be provided. https://tram.cat/en/press/2297 From Oct 10, 2026, 3:05 AM · TRAM",
+    "popupHasFold": false,
+    "sheet": null
+   },
+   "opened": null
+  },
+  "desktop/t1t3-close": {
+   "what": "TRAM T1, T2, T3 Francesc Macia - Montesa, closer: three strokes hatched",
+   "zoom": 15,
+   "centre": [
+    41.37913,
+    2.112838
+   ],
+   "tapAt": [
+    640,
+    400
+   ],
+   "tapStationM": 259,
+   "tap": {
+    "popup": "T1 T2 T3 T1, T2 & T3 Francesc Macià - Montesa disruption On October 10, 11 and 12, due to track renewal works, there will be no service between Francesc Macià and Montesa. During this disruption, a replacement bus service will be provided. https://tram.cat/en/press/2297 From Oct 10, 2026, 3:05 AM · TRAM",
+    "popupHasFold": false,
+    "sheet": null
+   },
+   "opened": null
+  },
+  "desktop/t6": {
+   "what": "TRAM T6 Estacio St.Adria - Parc del Besos (sc-286): NOT drawn any more",
+   "zoom": 15,
+   "centre": [
+    41.41749236363636,
+    2.224912318181818
+   ],
+   "tapAt": [
+    800,
+    161
+   ],
+   "tapStationM": 329,
+   "tap": {
+    "popup": "T6 T4 2 alerts",
+    "popupHasFold": true,
+    "sheet": null
+   },
+   "opened": "T6 T4 2 alerts T6 T6 - Service disruption due to tree maintenance On 14 and 15 October, from 7:30 a.m. to 2:30 p.m., line T6 will not provide service due to tree maintenance works on Rambla de la Mina. Service on line T5 will be reinforced. Alternative transport between Estació de Sant Adrià and Parc del Besòs: H14 Bus. From Oct 9, 2026, 5:00 AM · TRAM T6 T5 and T6 – Track Doubling Works From 1 October until spring 2027, TRAM lines T5 and T6 will be affected by the tram track doubling works and the urban redevelopment of Gran Vía, promoted by the Autoritat del Transport Metropolità (ATM) and Barcelona City Council. During this period, the following disruptions will apply: T5 and T6 no service between Glòries and Can Jaumandreu. Alternative service: H12 and N2 BUS lines. From Oct 1, 2026, 2:05 AM · TRAM"
+  },
+  "desktop/c1-brinkola": {
+   "what": "San Sebastian C1 Brinkola - Zumarraga: drawn as before",
+   "zoom": 12,
+   "centre": [
+    43.052081550000004,
+    -2.3295585
+   ],
+   "tapAt": [
+    633,
+    258
+   ],
+   "tapStationM": 2090,
+   "tap": {
+    "popup": "Renfe's alerts: last changed Oct 7, 2026, 9:32 AM C1 #DonostiaAldiriakC1 Hornidura elektrikorik ez dagoelako, Brinkola eta Zumarragako geltokien arteko zerbitzua eten egin da. // #SanSebastianC1 Debido a falta de suministro eléctrico, queda interrumpida la circulación entre las estaciones de Brinkola y Zumarraga. C1's Trains have run here since 9:23 AM From Oct 7, 2026, 6:46 AM · Renfe · Castellano",
+    "popupHasFold": false,
+    "sheet": null
+   },
+   "opened": null
+  },
+  "desktop/c1-irun": {
+   "what": "San Sebastian C1 Irun - Hernani: drawn as before",
+   "zoom": 11,
+   "centre": [
+    43.31949939453125,
+    -1.91822259375
+   ],
+   "tapAt": [
+    808,
+    378
+   ],
+   "tapStationM": 3302,
+   "tap": {
+    "popup": "Renfe's alerts: last changed Oct 7, 2026, 9:32 AM C1 #DonostiaAldiriakC1 Azpiegituran egin beharreko lanak direla eta, zenbait ordu eta egunetan etenda dago Irun eta Hernaniko geltokien arteko zirkulazioa, bi noranzkoetan. Errepide bidezko garraio alternatiboa ezartzen da. Begiratu ordutegiak geltokietako beira-arasetan. // #SanSebastianC1 Debido a obras en la infraestructura, en determinadas franjas horarias y días se encuentra interrumpida la circulación entre las estaciones de Irun y Hernani en ambos sentidos. Se establece transporte alternativo por carretera. Consulten horarios en las vitrinas de las estaciones. From Aug 14, 2026, 4:54 AM · Renfe · Castellano",
+    "popupHasFold": false,
+    "sheet": null
+   },
+   "opened": null
+  },
+  "desktop/c3": {
+   "what": "Sevilla C3 Los Rosales - Cazalla-Constantina: still not drawn",
+   "zoom": 10,
+   "centre": [
+    37.768837226415094,
+    -5.763814924528302
+   ],
+   "tapAt": [
+    638,
+    440
+   ],
+   "tapStationM": 10021,
+   "tap": {
+    "popup": "C3 2 alerts",
+    "popupHasFold": true,
+    "sheet": null
+   },
+   "opened": "C3 2 alerts Renfe's alerts: last changed Oct 7, 2026, 9:32 AM ATENCIÓN Línea C3: Por obras de mejora en la infraestructura y para los trenes con origen/destino Madrid: Se establece un Plan Alternativo de Transporte por carretera entre las estaciones de Los Rosales y Cazalla-Constantina. Entre Los Rosales y Sevilla Santa Justa el recorrido se realiza con trenes de la línea C1. (Consulta nuevos horarios por obras en canales oficiales y App). Gracias por tu comprensión. From Sep 8, 2026, 5:22 AM · Renfe · Castellano Para los trenes de la línea C3 con origen o destino MÉRIDA, CÁCERES, PLASENCIA y MADRID son válidos los títulos de viaje de Cercanías sin reserva de plaza asignada. Desde el día 3 de febrero, el transporte de bicicletas y otros elementos de movilidad individual y el viaje con animales de compañía, se rige por las condiciones generales de Media Distancia Convencional. From Jun 9, 2025, 6:44 PM · Renfe · Castellano"
+  },
+  "desktop/r1": {
+   "what": "Rodalies R1 Blanes - Macanet-Massanes: as before",
+   "zoom": 11,
+   "centre": [
+    41.72006822941176,
+    2.710070182352941
+   ],
+   "tapAt": [
+    595,
+    324
+   ],
+   "tapStationM": 4059,
+   "tap": {
+    "popup": "Renfe's alerts: last changed Oct 7, 2026, 9:32 AM R1 Circulación ferroviaria entre L'Hospitalet de Llobregat y Blanes fuera de su horario habitual. Se establece un servicio alternativo por carretera entre Blanes y Maçanet-Massanes From Oct 7, 2026, 8:38 AM · Renfe · Castellano",
+    "popupHasFold": false,
+    "sheet": null
+   },
+   "opened": null
+  },
+  "desktop/r3": {
+   "what": "Rodalies R3 Ripoll - Puigcerda: as before",
+   "zoom": 10,
+   "centre": [
+    42.32648225,
+    2.05604925
+   ],
+   "tapAt": [
+    792,
+    515
+   ],
+   "tapStationM": 3595,
+   "tap": {
+    "popup": "Renfe's alerts: last changed Oct 7, 2026, 9:32 AM R3 Circulación ferroviaria entre La Garriga - Puigcerdà/La Tor de Querol con afectaciones. Servicio alternativo por carretera entre Ripoll - Puigcerdà i Fabra i Puig - Puigcerdà. R3's Trains have run here since 9:26 AM From Oct 7, 2026, 9:23 AM · Renfe · Castellano",
+    "popupHasFold": false,
+    "sheet": null
+   },
+   "opened": null
+  },
+  "desktop/r2": {
+   "what": "Rodalies R2 single track Sant Vicenc de Calders - Cunit: as before",
+   "zoom": 12,
+   "centre": [
+    41.189767745498195,
+    1.5785637478991597
+   ],
+   "tapAt": [
+    468,
+    409
+   ],
+   "tapStationM": 2046,
+   "tap": {
+    "popup": "R2 R13 R16 R14 R15 R2S R17 5 alerts",
+    "popupHasFold": true,
+    "sheet": null
+   },
+   "opened": null
+  },
+  "desktop": {
+   "files": {
+    "viapeninsula.gariasf.com/assets/index-C1VjN4Ra.js": 200,
+    "viapeninsula-live.gariasf.com/manifest.json": 200,
+    "viapeninsula-live.gariasf.com/alerts.json": 200
+   },
+   "problemsOnLoad": [
+    "requestfailed: static.cloudflareinsights.com/beacon.min.js/v4bc70e2c01a94c73b74392e423484066179121581592 net::ERR_CONNECTION_REFUSED",
+    "console.error: Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "console.warning: layers[highway-shield-non-us].filter[1]: Expected value to be of type number, but found null instead. Falling back to false.",
+    "console.warning: layers[highway-shield-us-interstate].filter[1]: Expected value to be of type number, but found null instead. Falling back to false.",
+    "console.warning: layers[road_shield_us].filter[1]: Expected value to be of type number, but found null instead. Falling back to false."
+   ],
+   "problemsAfterTaps": []
+  },
+  "phone/t1t3": {
+   "what": "TRAM T1, T2, T3 Francesc Macia - Montesa (sc-280): hatched together",
+   "zoom": 12,
+   "centre": [
+    41.37913,
+    2.112838
+   ],
+   "tapAt": [
+    129,
+    443
+   ],
+   "tapStationM": 259,
+   "tap": {
+    "popup": "T1 T2 T3 T1, T2 & T3 Francesc Macià - Montesa disruption On October 10, 11 and 12, due to track renewal works, there will be no service between Francesc Macià and Montesa. During this disruption, a replacement bus service will be provided. https://tram.cat/en/press/2297 From Oct 10, 2026, 3:05 AM · TRAM",
+    "popupHasFold": false,
+    "sheet": null
+   },
+   "opened": null
+  },
+  "phone/t1t3-close": {
+   "what": "TRAM T1, T2, T3 Francesc Macia - Montesa, closer: three strokes hatched",
+   "zoom": 14,
+   "centre": [
+    41.37913,
+    2.112838
+   ],
+   "tapAt": [
+    195,
+    422
+   ],
+   "tapStationM": 259,
+   "tap": {
+    "popup": "T1 T2 T3 T1, T2 & T3 Francesc Macià - Montesa disruption On October 10, 11 and 12, due to track renewal works, there will be no service between Francesc Macià and Montesa. During this disruption, a replacement bus service will be provided. https://tram.cat/en/press/2297 From Oct 10, 2026, 3:05 AM · TRAM",
+    "popupHasFold": false,
+    "sheet": null
+   },
+   "opened": null
+  },
+  "phone/t6": {
+   "what": "TRAM T6 Estacio St.Adria - Parc del Besos (sc-286): NOT drawn any more",
+   "zoom": 14,
+   "centre": [
+    41.41749236363636,
+    2.224912318181818
+   ],
+   "tapAt": [
+    275,
+    302
+   ],
+   "tapStationM": 329,
+   "tap": {
+    "popup": "R1 T6 T4 5 alerts",
+    "popupHasFold": true,
+    "sheet": null
+   },
+   "opened": "R1 T6 T4 5 alerts Renfe's alerts: last changed Oct 7, 2026, 9:32 AM T6 T6 - Service disruption due to tree maintenance On 14 and 15 October, from 7:30 a.m. to 2:30 p.m., line T6 will not provide service due to tree maintenance works on Rambla de la Mina. Service on line T5 will be reinforced. Alternative transport between Estació de Sant Adrià and Parc del Besòs: H14 Bus. From Oct 9, 2026, 5:00 AM · TRAM R1 Circulación ferroviaria entre L'Hospitalet de Llobregat y Blanes fuera de su horario habitual. Se establece un servicio alternativo por carretera entre Blanes y Maçanet-Massanes From Oct 7, 2026, 8:38 AM · Renfe · Castellano R1 Por causas ajenas a Rodalies no se puede garantizar la prestación del servicio. Pedimos disculpas a nuestros usuarios y recomendamos que busquen medios de transporte alternativos. From Oct 7, 2026, 7:42 AM · Renfe · Castellano R1 Servicio alternativo por carretera en todo su recorrido. From Oct 6, 2026, 5:13 PM · Renfe · Castellano T6 T5 and T6 – Track Doubling Works From 1 October until spring 2027, TRAM lines T5 and T6 will be affected by the tram track doubling works and the urban redevelopment of Gran Vía, promoted by the Autoritat del Transport Metropolità (ATM) and Barcelona City Council. During this period, the following disruptions will apply: T5 and T6 no service between Glòries and Can Jaumandreu. Alternative service: H12 and N2 BUS lines. F"
+  },
+  "phone/c1-brinkola": {
+   "what": "San Sebastian C1 Brinkola - Zumarraga: drawn as before",
+   "zoom": 11,
+   "centre": [
+    43.052081550000004,
+    -2.3295585
+   ],
+   "tapAt": [
+    192,
+    351
+   ],
+   "tapStationM": 2090,
+   "tap": {
+    "popup": "Renfe's alerts: last changed Oct 7, 2026, 9:32 AM C1 #DonostiaAldiriakC1 Hornidura elektrikorik ez dagoelako, Brinkola eta Zumarragako geltokien arteko zerbitzua eten egin da. // #SanSebastianC1 Debido a falta de suministro eléctrico, queda interrumpida la circulación entre las estaciones de Brinkola y Zumarraga. From Oct 7, 2026, 6:46 AM · Renfe · Castellano",
+    "popupHasFold": false,
+    "sheet": null
+   },
+   "opened": null
+  },
+  "phone/c1-irun": {
+   "what": "San Sebastian C1 Irun - Hernani: drawn as before",
+   "zoom": 10,
+   "centre": [
+    43.31949939453125,
+    -1.91822259375
+   ],
+   "tapAt": [
+    279,
+    411
+   ],
+   "tapStationM": 3302,
+   "tap": {
+    "popup": "Renfe's alerts: last changed Oct 7, 2026, 9:32 AM C1 #DonostiaAldiriakC1 Azpiegituran egin beharreko lanak direla eta, zenbait ordu eta egunetan etenda dago Irun eta Hernaniko geltokien arteko zirkulazioa, bi noranzkoetan. Errepide bidezko garraio alternatiboa ezartzen da. Begiratu ordutegiak geltokietako beira-arasetan. // #SanSebastianC1 Debido a obras en la infraestructura, en determinadas franjas horarias y días se encuentra interrumpida la circulación entre las estaciones de Irun y Hernani en ambos sentidos. Se establece transporte alternativo por carretera. Consulten horarios en las vitrinas de las estaciones. From Aug 14, 2026, 4:54 AM · Renfe · Castellano",
+    "popupHasFold": false,
+    "sheet": null
+   },
+   "opened": null
+  },
+  "phone/c3": {
+   "what": "Sevilla C3 Los Rosales - Cazalla-Constantina: still not drawn",
+   "zoom": 9.5,
+   "centre": [
+    37.768837226415094,
+    -5.763814924528302
+   ],
+   "tapAt": [
+    194,
+    450
+   ],
+   "tapStationM": 10021,
+   "tap": {
+    "popup": "C3 2 alerts",
+    "popupHasFold": true,
+    "sheet": null
+   },
+   "opened": "C3 2 alerts Renfe's alerts: last changed Oct 7, 2026, 9:32 AM ATENCIÓN Línea C3: Por obras de mejora en la infraestructura y para los trenes con origen/destino Madrid: Se establece un Plan Alternativo de Transporte por carretera entre las estaciones de Los Rosales y Cazalla-Constantina. Entre Los Rosales y Sevilla Santa Justa el recorrido se realiza con trenes de la línea C1. (Consulta nuevos horarios por obras en canales oficiales y App). Gracias por tu comprensión. From Sep 8, 2026, 5:22 AM · Renfe · Castellano Para los trenes de la línea C3 con origen o destino MÉRIDA, CÁCERES, PLASENCIA y MADRID son válidos los títulos de viaje de Cercanías sin reserva de plaza asignada. Desde el día 3 de febrero, el transporte de bicicletas y otros elementos de movilidad individual y el viaje con animales de compañía, se rige por las condiciones generales de Media Distancia Convencional. From Jun 9, 2025, 6:44 PM · Renfe · Castellano"
+  },
+  "phone/r1": {
+   "what": "Rodalies R1 Blanes - Macanet-Massanes: as before",
+   "zoom": 10,
+   "centre": [
+    41.72006822941176,
+    2.710070182352941
+   ],
+   "tapAt": [
+    173,
+    384
+   ],
+   "tapStationM": 4059,
+   "tap": {
+    "popup": "Renfe's alerts: last changed Oct 7, 2026, 9:32 AM R1 Circulación ferroviaria entre L'Hospitalet de Llobregat y Blanes fuera de su horario habitual. Se establece un servicio alternativo por carretera entre Blanes y Maçanet-Massanes R1's Trains have run here since 9:33 AM From Oct 7, 2026, 8:38 AM · Renfe · Castellano",
+    "popupHasFold": false,
+    "sheet": null
+   },
+   "opened": null
+  },
+  "phone/r3": {
+   "what": "Rodalies R3 Ripoll - Puigcerda: as before",
+   "zoom": 9,
+   "centre": [
+    42.32648225,
+    2.05604925
+   ],
+   "tapAt": [
+    271,
+    479
+   ],
+   "tapStationM": 3595,
+   "tap": {
+    "popup": null,
+    "popupHasFold": false,
+    "sheet": "R3 , Live Ribes de Freser Live · confirmed 26 s ago · Estimated speed ~51 km/h NEXT STATION Ribes de Freser 9:39AM +9 min 9 min late in 4 min La Garriga Ribes d"
+   },
+   "opened": null
+  },
+  "phone/r2": {
+   "what": "Rodalies R2 single track Sant Vicenc de Calders - Cunit: as before",
+   "zoom": 11,
+   "centre": [
+    41.189767745498195,
+    1.5785637478991597
+   ],
+   "tapAt": [
+    109,
+    427
+   ],
+   "tapStationM": 2046,
+   "tap": {
+    "popup": "R2 R13 R16 R14 R15 R2S R17 5 alerts",
+    "popupHasFold": true,
+    "sheet": null
+   },
+   "opened": null
+  },
+  "phone": {
+   "files": {
+    "viapeninsula.gariasf.com/assets/index-C1VjN4Ra.js": 200,
+    "viapeninsula-live.gariasf.com/alerts.json": 200,
+    "viapeninsula-live.gariasf.com/manifest.json": 200
+   },
+   "problemsOnLoad": [
+    "console.warning: layers[highway-shield-non-us].filter[1]: Expected value to be of type number, but found null instead. Falling back to false.",
+    "console.warning: layers[highway-shield-us-interstate].filter[1]: Expected value to be of type number, but found null instead. Falling back to false.",
+    "console.warning: layers[road_shield_us].filter[1]: Expected value to be of type number, but found null instead. Falling back to false."
+   ],
+   "problemsAfterTaps": [
+    "requestfailed: tiles.openfreemap.org/planet/20261004_113936_pt/10/518/378.pbf net::ERR_ABORTED",
+    "requestfailed: tiles.openfreemap.org/planet/20261004_113936_pt/10/517/378.pbf net::ERR_ABORTED",
+    "requestfailed: tiles.openfreemap.org/planet/20261004_113936_pt/10/518/379.pbf net::ERR_ABORTED",
+    "requestfailed: tiles.openfreemap.org/planet/20261004_113936_pt/10/517/379.pbf net::ERR_ABORTED",
+    "requestfailed: tiles.openfreemap.org/planet/20261004_113936_pt/11/1035/758.pbf net::ERR_ABORTED",
+    "requestfailed: tiles.openfreemap.org/planet/20261004_113936_pt/11/1035/757.pbf net::ERR_ABORTED",
+    "requestfailed: tiles.openfreemap.org/planet/20261004_113936_pt/11/1036/758.pbf net::ERR_ABORTED",
+    "requestfailed: tiles.openfreemap.org/planet/20261004_113936_pt/11/1036/757.pbf net::ERR_ABORTED",
+    "requestfailed: tiles.openfreemap.org/planet/20261004_113936_pt/12/2072/1517.pbf net::ERR_ABORTED",
+    "console.warning: layers[highway-shield-non-us].filter[1]: Expected value to be of type number, but found null instead. Falling back to false.",
+    "console.warning: layers[highway-shield-us-interstate].filter[1]: Expected value to be of type number, but found null instead. Falling back to false.",
+    "console.warning: layers[road_shield_us].filter[1]: Expected value to be of type number, but found null instead. Falling back to false."
+   ]
+  }
+ }
+}

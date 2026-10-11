@@ -1,0 +1,37 @@
+now 10-11 09:24:33 CEST | alerts.json read renfe 10-11 09:12:55 ok 68 | tram 10-11 09:10:16 ok 3
+
+== catalonia (days 2026-10-11): 9 Closures at 10-11 09:24:33
+   tram:T2 closed Francesc Macià - Montesa (tram sc-280)
+   tram:T3 closed Francesc Macià - Montesa (tram sc-280)
+   tram:T1 closed Francesc Macià - Montesa (tram sc-280)
+   rodalies:R3 closed Ripoll - Puigcerdà (renfe AVISO_518337)
+   rodalies:R1 closed Blanes - Maçanet-Massanes (renfe AVISO_518348)
+   rodalies:R2 single Sant Vicenç de Calders - Cunit (renfe AVISO_518332)
+   tram:T5 closed Glòries - Can Jaumandreu (tram sc-279)
+   tram:T6 closed Glòries - Can Jaumandreu (tram sc-279)
+   rodalies:R13 closed Les Borges Blanques - La Plana-Picamoixons (timetable)
+
+== cercanias-sevilla (days 2026-10-11): 0 Closures at 10-11 09:24:33
+
+== cercanias-valencia (days 2026-10-11): 0 Closures at 10-11 09:24:33
+
+== cercanias-san-sebastian (days 2026-10-11): 2 Closures at 10-11 09:24:33
+   cercanias-san-sebastian:C1 closed Brinkola - Zumarraga (renfe AVISO_518303)
+   cercanias-san-sebastian:C1 closed Irun - Hernani (renfe INFO_507703)
+
+TRAM Closures in force, 10-10 00:00:00 to 10-13 03:00:00 (CEST, as the live day files and alerts.json have them):
+   T1 sc-280: 10-10 04:25:00 - 10-11 03:07:00
+   T1 sc-280: 10-11 04:25:00 - 10-12 03:04:00
+   T1 sc-280: 10-12 04:25:00 - 10-13 01:00:05
+   T2 sc-280: 10-10 04:25:00 - 10-11 03:07:00
+   T2 sc-280: 10-11 04:25:00 - 10-12 03:04:00
+   T2 sc-280: 10-12 04:25:00 - 10-13 01:00:05
+   T3 sc-280: 10-10 04:25:00 - 10-11 03:07:00
+   T3 sc-280: 10-11 04:25:00 - 10-12 03:04:00
+   T3 sc-280: 10-12 04:25:00 - 10-13 01:00:05
+   T5 sc-279: 10-10 04:29:00 - 10-11 02:52:45
+   T5 sc-279: 10-11 04:29:00 - 10-12 02:52:45
+   T5 sc-279: 10-12 04:29:00 - 10-13 01:04:00
+   T6 sc-279: 10-10 04:29:00 - 10-11 02:52:45
+   T6 sc-279: 10-11 04:29:00 - 10-12 02:52:45
+   T6 sc-279: 10-12 04:29:00 - 10-13 01:04:00
