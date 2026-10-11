@@ -288,7 +288,7 @@ test('zoomed right in, marks where Lines share a track, and not where a Line has
   for (const at of parted) expect(Math.abs(at - 3000)).toBeLessThanOrEqual(50);
 });
 
-test("below zoom 7, draws each Network's track once, however many of its Lines run on it (#190)", async () => {
+test("below zoom 7, draws each Network's track once, however many of its Lines run on it (#190), in the order of the Networks, so that a Network's is drawn over those before it (#262)", async () => {
   // R2 and R11 share track east for 3 km; there R11 turns off on its own, 2236 m, and R2 goes on
   // alone. R2 runs back the other way too. FGC's S1 runs on that very track for 3 km.
   const { tracks } = await sideBySide(
@@ -299,6 +299,8 @@ test("below zoom 7, draws each Network's track once, however many of its Lines r
   expect(Math.abs(metres(['R2', 'R11']) - 8236)).toBeLessThanOrEqual(2);
   expect(metres(['S1'])).toBe(3000);
   expect(tracks.every((s) => s.side === 0)).toBe(true);
+  // FGC's after Rodalies', as its Lines come after Rodalies' Lines.
+  expect(tracks.findIndex((s) => s.line === 'S1')).toBeGreaterThan(tracks.findLastIndex((s) => s.line !== 'S1'));
 });
 
 test('keeps Lines on their sides along a long straight, whichever way each runs it', async () => {
