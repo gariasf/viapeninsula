@@ -524,6 +524,7 @@ test("Madrid's AVISO_517064, on C8a and C8b, adds no Closure to the timetable's:
   const day = {
     noonMinus12h: Date.parse('2026-10-11T00:00:00+02:00'),
     closures: [{ line: 'cercanias-madrid:C8b', stations: ['adif:10200', 'adif:12006'] as [string, string], from: 23700, to: 88920, kind: 'buses' as const }],
+    trips: [],
     lines: ['C8a', 'C8b'].map((name) => ({ id: `cercanias-madrid:${name}`, network: 'cercanias-madrid' })),
     stations: [
       { id: 'adif:10200', name: 'Villalba de Guadarrama', networks: ['cercanias-madrid'] },
