@@ -147,8 +147,10 @@ export function whereabouts<C extends Pick<Call, 'dist'>, P = never>(
   // bends away from the line by more than a reach or two is not all taken in. Go by the track's own way between them if
   // a `Between` shows there.
   const within = (call: C) => {
-    const [along, { away, offset }] = [Math.abs(call.dist - dist), dot(call)];
-    return along <= reach || away <= reach || along + away <= offset + 2 * reach;
+    const along = Math.abs(call.dist - dist);
+    if (along <= reach) return true;
+    const { away, offset } = dot(call);
+    return away <= reach || along + away <= offset + 2 * reach;
   };
   // Short of its first Station, which the engine draws no Train in, it can only be on its way there.
   if (!last || within(next)) return { at: 'arriving', next };
