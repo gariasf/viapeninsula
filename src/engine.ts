@@ -81,6 +81,18 @@ export function trainsAt(bundle: Bundle, at: number, received: Received[] = [], 
   return bundle.trips.flatMap((trip) => of(trip)?.train ?? []);
 }
 
+/**
+ * A Station a Train has still to leave, as the follow panel lists it: when it's expected to arrive at it
+ * and leave it, in ms since 1970, and that its Train doesn't stop there, as at a Station within a closed
+ * Closure that hides Trains, where a board shows it not stopping too (#345, #420).
+ */
+export interface Upcoming {
+  station: string;
+  arrival: number;
+  departure: number;
+  skipped?: true;
+}
+
 /** A Train as the follow panel shows it: where it's going, when it'll get there, and how far to trust where it's drawn. */
 export interface Followed extends Train {
   /** Its Delay, in seconds, as live data last gave it: early where it's negative. A Train drawn off it eases to it by the next snapshot. None to show for a Metro Train (#103). */
@@ -90,7 +102,7 @@ export interface Followed extends Train {
    * expected to arrive at and leave each, in ms since 1970, running its Delay late, or held or waiting
    * for its Block at its first Station after that has it leave, as late as it's held.
    */
-  upcoming: { station: string; arrival: number; departure: number }[];
+  upcoming: Upcoming[];
   /** How long ago live data last placed it, in ms, as of when its operator reported it there: none where the snapshots kept don't. */
   since?: number;
   /** How fast it's drawn running, in m/s, as its speed profile has it: an estimate, not a measurement. */
@@ -109,43 +121,56 @@ export function trainAt(bundle: Bundle, at: number, received: Received[], id: st
   const expected = (seconds: number) => bundle.noonMinus12h + (seconds + delay) * 1000;
   // How far along its shape it's drawn at a moment, in seconds into the service day.
   const drawn = (moment: number) => place(calls, profile, timeAt(moment)) ?? train.dist;
-  const upcoming = calls.filter((c) => toLeave(c, time));
+  // Which of its Stations lie within a closed Closure that hides Trains, which it doesn't stop at (#420).
+  const shut = on.closed && closedCalls(calls, on.closed, train.trip.shape);
   return {
     ...train,
     delay: shown(network, delay),
-    upcoming: upcoming.map((c) => ({ station: c.station, arrival: expected(c.arrival), departure: expected(c.departure) })),
+    upcoming: calls.flatMap((c, i): Upcoming[] => (toLeave(c, time) ? [{ station: c.station, arrival: expected(c.arrival), departure: expected(c.departure), ...(shut?.at[i] && { skipped: true }) }] : [])),
     since: said?.confirmed === undefined ? undefined : bundle.noonMinus12h + now * 1000 - said.confirmed,
     speed: Math.abs(drawn(now + 0.5) - drawn(now - 0.5)),
     unitType: said?.report.unitType,
   };
 }
 
-/** A Trip that's yet to start, as the follow panel shows it: when it leaves each Station, and how far to trust that. */
+/**
+ * A Trip whose Train isn't on the map, as the follow panel shows it: yet to start, or within a closed
+ * Closure that hides Trains (#420). When it leaves each Station it has still to leave, and how far to
+ * trust that.
+ */
 export interface Coming {
   trip: Trip;
-  /** Each Station of the Trip, as trainAt()'s `upcoming` has them, running its Delay late: the first, when it leaves, in both. */
-  upcoming: { station: string; arrival: number; departure: number }[];
+  /** Each Station of the Trip it has still to leave, as trainAt()'s `upcoming` has them, running its Delay late: for one yet to start, the first, when it leaves, in both. */
+  upcoming: Upcoming[];
   /** Its Delay, in seconds, as live data last gave it: none to show for a Metro Train (#103). */
   delay?: number;
   live: boolean;
+  /** The closed Closure that hides Trains which its Train is within, where it's there: it runs on and comes out at its far Station, as its timetable has it, but isn't drawn between them (#420). */
+  within?: ShownClosure;
 }
 
 /**
- * A Trip that has yet to leave its first Station and isn't on the map yet, as a Train comes onto it
- * only a few seconds before it leaves (#322): to follow it as a Trip still to come. None for one
- * that's on the map, that has ended or is Cancelled, or that isn't in the days given.
+ * A Trip whose Train isn't on the map: one that has yet to leave its first Station, as a Train comes
+ * onto it only a few seconds before it leaves (#322), or one that has left and is within a closed
+ * Closure that hides Trains, which a Scheduled Train isn't drawn within (#345), until it comes out of
+ * it or lifts it (#420): to follow it as a Trip still to come. None for one that's on the map, that has
+ * ended or is Cancelled, or that isn't in the days given.
  */
-export function comingAt(bundle: Bundle, at: number, received: Received[], id: string): Coming | undefined {
+export function comingAt(bundle: Bundle, at: number, received: Received[], id: string, closures: readonly ShownClosure[] = []): Coming | undefined {
   const trip = bundle.trips.find((t) => t.id === id);
-  const on = trip && onMap(bundle, at, received).of(trip);
+  const on = trip && onMap(bundle, at, received, closures).of(trip);
   const first = on?.calls[0];
-  if (!on || on.train || on.cancelled || !first || on.time >= first.departure) return undefined;
+  if (!on || on.train || on.cancelled || !first || (!on.within && on.time >= first.departure)) return undefined;
   const expected = (seconds: number) => bundle.noonMinus12h + (seconds + on.delay) * 1000;
+  // Which of its Stations lie within a closed Closure that hides Trains, which it doesn't stop at.
+  const shut = on.closed && closedCalls(on.calls, on.closed, on.trip.shape);
   return {
     trip: on.trip,
-    upcoming: on.calls.map((c, i) => ({ station: c.station, arrival: expected(i ? c.arrival : c.departure), departure: expected(c.departure) })),
+    // All of them for one yet to start, the first when it leaves.
+    upcoming: on.calls.flatMap((c, i): Upcoming[] => (toLeave(c, on.time) ? [{ station: c.station, arrival: expected(i ? c.arrival : c.departure), departure: expected(c.departure), ...(shut?.at[i] && { skipped: true }) }] : [])),
     delay: shown(on.network, on.delay),
     live: on.live,
+    ...(on.within && { within: on.within.closure }),
   };
 }
 
@@ -283,6 +308,8 @@ interface OnMap {
   skips: Call[];
   /** The closed Closures on its Line that hide Trains, which it isn't drawn within, but none while it's Live within one: live data wins (#345). */
   closed?: Shut[];
+  /** The one of them it's within, where it isn't drawn for it: none where it's drawn, within one Live or not (#420). */
+  within?: Shut;
   now: number;
   time: number;
   /** Where in its timetable it's drawn at a moment, both in seconds into the service day: `time` at `now`. */
@@ -395,7 +422,13 @@ function onMap(bundle: Bundle, at: number, received: Received[], closures: reado
     // Train isn't drawn, and a Live one is, its Closures set aside (#345).
     const shut = off.closed && closedCalls(calls, off.closed, trip.shape);
     if (!(standsAt ? shut?.at[next] : shut?.after[next - 1] || inside(shut?.along ?? [], dist))) return { ...off, train };
-    return live ? { ...off, closed: undefined, train } : off;
+    if (live) return { ...off, closed: undefined, train };
+    // Which of them it's within, which the follow panel names (#420).
+    const within = off.closed?.find((s) => {
+      const part = closedCalls(calls, [s], trip.shape);
+      return standsAt ? part.at[next] : part.after[next - 1] || inside(part.along, dist);
+    });
+    return { ...off, within };
   };
   return { of, now, available };
 }
