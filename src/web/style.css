@@ -292,7 +292,7 @@ body {
   cursor: pointer;
 }
 
-/* ---- The tab bar (#470): on a phone, a card floating 8 px in from the screen's sides and bottom, as the sheet over it does, its tabs side by side, each its icon over its label and 44 px or more both ways. The current one's icon is in the paper's colour on a pill of the ink. ---- */
+/* ---- The tab bar (#470): on a phone, a card floating 8 px in from the screen's sides and bottom, as the sheet over it does, its tabs side by side, each its icon over its label and 44 px or more both ways. The current one's icon is in the paper's colour on a pill of the ink. Five fit at 320 px wide, as the Passport (#332) will make them: 58 px each, with no gap between, for a label as long as "Pasaportea", Basque for Passport, at 11 px. ---- */
 .tabs {
   position: absolute;
   right: 8px;
@@ -300,7 +300,6 @@ body {
   left: 8px;
   z-index: 3;
   display: flex;
-  gap: 4px;
   height: var(--bar);
   padding: 4px;
   border-radius: 18px;
@@ -329,6 +328,18 @@ body {
 .tab[aria-current='page'] .icon {
   background: var(--ink);
   color: var(--card);
+}
+
+/* Its focus ring within the tab, clear of the bar's outline and of the tabs beside it. */
+.tab:focus-visible {
+  outline-offset: -2px;
+}
+
+/* Its label a size smaller on the narrowest phones, where five would be 58 px wide. */
+@media (max-width: 359px) {
+  .tab {
+    font-size: 11px;
+  }
 }
 
 /* ---- The dock: on a phone, the panel as a sheet docked to the bottom, floating 8 px in from the screen's sides, as the corners' cards do, and 8 px above the tab bar, with the buttons riding on its top edge. ---- */
@@ -1263,7 +1274,6 @@ time .in {
     flex-direction: column;
     width: 76px;
     height: auto;
-    padding: 6px;
   }
 
   .tab {
