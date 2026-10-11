@@ -449,6 +449,10 @@ const DETOUR = 2;
  * own and it runs on every gauge (traceRun()), so that it keeps to its own gauge as far as it can: on
  * Geofabrik's rails of 6 Oct 2026, with none, AVE's and Avlo's Madrid–Gijón runs left the high-speed line
  * after Segovia for the old Iberian-gauge line through Palencia and León, 5.5 km longer (#259).
+ * ponytail: walk()'s limit is on the price, so a stretch on another gauge alone has a path only within twice its
+ * straight line and 6.7 km, not 3 times and 10 km: on 11–13 Oct 2026 AVE's, Avlo's and AVE Int's hops would come
+ * within 77% of that all on another gauge (Ourense–Vilagarcía de Arousa). Hold the limit to the length if one
+ * ever doesn't.
  */
 const OTHER_GAUGE = 1.5;
 
