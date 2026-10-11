@@ -125,6 +125,15 @@ test('labels the button that tilts the map in each language', () => {
   expect(t('tilt', 'gl')).toBe('Inclinar o mapa');
 });
 
+test("labels the tab bar, its tabs and Search's close button in each language (#470)", () => {
+  const strings = (lang: Language) => [t('tabs', lang), t('search', lang), t('nearbyButton', lang), t('nowTab', lang), t('favourites', lang), t('closeSearch', lang)];
+  expect(strings('ca')).toEqual(['Principal', 'Cerca', 'A prop', 'Ara', 'Preferits', 'Tanca la cerca']);
+  expect(strings('es')).toEqual(['Principal', 'Buscar', 'Cerca', 'Ahora', 'Favoritos', 'Cerrar la búsqueda']);
+  expect(strings('en')).toEqual(['Main', 'Search', 'Nearby', 'Now', 'Favourites', 'Close search']);
+  expect(strings('eu')).toEqual(['Nagusia', 'Bilatu', 'Inguruan', 'Orain', 'Gogokoak', 'Itxi bilaketa']);
+  expect(strings('gl')).toEqual(['Principal', 'Buscar', 'Preto', 'Agora', 'Favoritos', 'Pechar a busca']);
+});
+
 test('labels the button that follows a random Train in each language', () => {
   expect(t('followRandom', 'ca')).toBe("Segueix un tren a l'atzar");
   expect(t('followRandom', 'es')).toBe('Seguir un tren al azar');

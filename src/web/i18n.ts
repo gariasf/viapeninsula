@@ -181,7 +181,14 @@ const STRINGS = {
     gl: '{line}: os trens circulan aquí desde {time}',
     en: "{line}'s Trains have run here since {time}",
   },
-  // Nearby Trains: their panel's title, and the button that opens them.
+  // The tab bar on a phone and the rail on a wide window (#470): its name, which a screen reader reads, and its tabs' labels, Nearby's being nearbyButton. Now's and Favourites' are for their tabs, which #474 and #472 add.
+  tabs: { ca: 'Principal', es: 'Principal', eu: 'Nagusia', gl: 'Principal', en: 'Main' },
+  search: { ca: 'Cerca', es: 'Buscar', eu: 'Bilatu', gl: 'Buscar', en: 'Search' },
+  nowTab: { ca: 'Ara', es: 'Ahora', eu: 'Orain', gl: 'Agora', en: 'Now' },
+  favourites: { ca: 'Preferits', es: 'Favoritos', eu: 'Gogokoak', gl: 'Favoritos', en: 'Favourites' },
+  // Search's sheet, which its tab opens, titled by its label, and #471 fills: the button that closes it.
+  closeSearch: { ca: 'Tanca la cerca', es: 'Cerrar la búsqueda', eu: 'Itxi bilaketa', gl: 'Pechar a busca', en: 'Close search' },
+  // Nearby Trains: their panel's title, and the tab that opens them (#470).
   nearby: { ca: 'Trens a prop', es: 'Trenes cercanos', eu: 'Inguruko trenak', gl: 'Trens próximos', en: 'Nearby trains' },
   nearbyButton: { ca: 'A prop', es: 'Cerca', eu: 'Inguruan', gl: 'Preto', en: 'Nearby' },
   closeNearby: { ca: 'Tanca els trens a prop', es: 'Cerrar los trenes cercanos', eu: 'Itxi inguruko trenak', gl: 'Pechar os trens próximos', en: 'Close nearby trains' },
