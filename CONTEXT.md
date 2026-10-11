@@ -11,7 +11,7 @@ One passenger Trip being run on one service day, in any rail mode: heavy rail, m
 _Avoid_: Vehicle, service, run, circulation
 
 **Trip**:
-A timetable entry: the ordered stops and times that a Train runs. Where a timetable lists one Train in parts, a Trip for each part of its run that it sells, as Renfe's long-distance timetable does, the parts make one Trip.
+A timetable entry: the ordered Calls and their times that a Train runs. Where a timetable lists one Train in parts, a Trip for each part of its run that it sells, as Renfe's long-distance timetable does, the parts make one Trip.
 _Avoid_: Service, schedule
 
 **Call**:
@@ -59,6 +59,10 @@ _Avoid_: Track width
 **Stretch**:
 A length of track, or of tracks too close together to tell apart zoomed out, that one set of Lines on the same level runs along. The map draws them side by side along it, in one order, and a Line counts once on it whichever way and whichever of its tracks it runs (ADR-0006). Lines of one Network and one colour take one place on it, as C4a and C4b do up to their fork.
 _Avoid_: Bundle (that's the data the map loads), corridor, edge
+
+**Shape**:
+The track a Trip's Train runs along: points in order, each with its distance along it, which is what a Call's distance is measured on. Many Trips share one. The daily build makes it from the shape its feed gives, traced along OpenStreetMap's rails (ADR-0004), or, where a Trip doesn't fit that or its timetable has none, as Renfe's long-distance one hasn't, from the Trip's own Stations, traced the same way (#280, #259). The track file stores it as Pieces (ADR-0015).
+_Avoid_: Route, path
 
 **Piece**:
 A run of a traced shape's points between junctions, shape ends and turn-backs, which the track file stores once for every shape that runs it, either way (ADR-0015). Not a Stretch: a Stretch is track Lines share on the map, a Piece is how the file stores a shape. Nor the `pieces` of `sideBySide()`, which cut the track between two of a shape's points into legs of at most 50 m, nor `pieces()` of `bundle.ts`, the parts a stroke that eases from one side to another is drawn in.
