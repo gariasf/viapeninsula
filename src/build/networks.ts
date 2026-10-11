@@ -21,7 +21,7 @@ export const RAILWAYS = [...new Set(NETWORKS.flatMap((n) => n.rails.railway))].s
 /**
  * Whether a way is one of these rails. A way with no gauge tag is of every gauge, where gauges are given,
  * as a way of two is, and as a Line's own `gauges` count it (layered()): six ways of Adif's left-hand
- * track between Villallana and Mieres have railway=rail and none (#479).
+ * track between Villallana and Mieres have railway=rail and none (seen 11 October 2026, #479).
  */
 export function onRails({ railway, gauge, operator, notOperator }: Rails): (way: OsmWay) => boolean {
   return ({ tags }) =>

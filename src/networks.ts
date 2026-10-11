@@ -161,7 +161,8 @@ export const RODALIES: NetworkConfig = {
   colour: '#F26E21',
   // Main-line Trains are pills before metros' and trams', as railisland shows them (#90).
   pillZoom: 10,
-  // Iberian-gauge rails, which keeps it off the standard-gauge high-speed line.
+  // Iberian-gauge rails, which keeps it off the standard-gauge high-speed line, but for a way of it with
+  // no gauge tag, which counts as every gauge's (#479).
   rails: { railway: ['rail'], gauge: ['1668'] },
   timetables: [
     {
@@ -380,10 +381,10 @@ export const CERCANIAS_ASTURIAS: NetworkConfig = {
   // speed under it would leave that Trip out.
   profile: { acceleration: 1, braking: 1, topSpeed: 150 / 3.6, dwell: 30 },
   // Adif's Pola de Lena–Gijón, which C1–C3 run on, and Villabona–Cancienes keep left, and so do FEVE's
-  // lines. OpenStreetMap gives six ways of the left-hand track between Villallana and Mieres no gauge,
-  // which rails count as every gauge's (onRails(), #479): left out, as they were till then, C1's trace
-  // north turned back to Pola de Lena from Villallana and came out 8.6% longer than the feed's shape,
-  // which fails the build, so it kept right (#253, #370).
+  // lines. OpenStreetMap gives six ways of the left-hand track between Villallana and Mieres no gauge
+  // (seen 11 October 2026), which rails count as every gauge's (onRails(), #479): left out, as they were
+  // till then, C1's trace north turned back to Pola de Lena from Villallana and came out 8.6% longer
+  // than the feed's shape, which fails the build, so it kept right (#253, #370).
   runningSide: 'left',
   // Adif's Iberian gauge for C1–C3, and FEVE's metre gauge for C4–C8, which OpenStreetMap tags
   // narrow_gauge or rail (ADR-0010).

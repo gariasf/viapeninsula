@@ -63,7 +63,7 @@ test('turns a shape its Trips run backwards round, so that each way can be trace
   expect(rodalies.trips.find((t) => t.line === 'rodalies:R7')?.shape).toBe('rodalies:51_R7:back');
 });
 
-test('runs on Iberian-gauge rails only, so never on the high-speed line', () => {
+test('runs on Iberian-gauge rails only, so never on the high-speed line where it has its gauge tag', () => {
   const kinds: Record<string, string>[] = [
     { gauge: '1668' },
     { gauge: '1435;1668' }, // three rails, for both gauges
@@ -86,14 +86,17 @@ test("counts a way with no gauge tag as every gauge's rails where a Network name
     { railway: 'rail', gauge: '1435' }, // the high-speed line
     { railway: 'tram' },
     {},
+    // A yard or a siding with no gauge tag counts too, as every way does: that is the pick of #479, not only the mainline's.
+    { railway: 'rail', service: 'yard' },
+    { railway: 'tram', gauge: '1435' },
   ];
   const on = (rails: NetworkConfig['rails']) => kinds.map((tags) => onRails(rails)({ id: 1, nodes: [], geometry: [], tags }));
   // Iberian and metre gauge.
-  expect(on(CERCANIAS_ASTURIAS.rails)).toEqual([true, true, true, true, true, true, false, false, false]);
+  expect(on(CERCANIAS_ASTURIAS.rails)).toEqual([true, true, true, true, true, true, false, false, false, true, false]);
   // Iberian gauge alone, and the kinds of rail its config names.
-  expect(on(RODALIES.rails)).toEqual([true, true, false, true, false, true, false, false, false]);
+  expect(on(RODALIES.rails)).toEqual([true, true, false, true, false, true, false, false, false, true, false]);
   // A Network that names no gauge takes every way of its kinds, tagged or not.
-  expect(on(TRAM.rails)).toEqual([false, false, false, false, false, false, false, true, false]);
+  expect(on(TRAM.rails)).toEqual([false, false, false, false, false, false, false, true, false, false, true]);
 });
 
 test("keeps the day's Trips that are Trains, with their Line, destination, Train number and calls", () => {

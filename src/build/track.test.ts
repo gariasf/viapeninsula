@@ -1080,13 +1080,13 @@ test("runs a C1 Trip to Platja i Grau de Gandia on a trace through its Stations,
  * Cercanías Asturias' C1 from Pola de Lena to Ablaña, traced as the build does: `npm run snippet --
  * 43.2132,-5.8184 asturias-c1 6.4`, 6.4 km round the middle of those two Stations, from the rails downloaded on
  * 9 October 2026 and Renfe's timetable of 11 October 2026. Six ways of Adif's left-hand track between Villallana
- * and Mieres have railway=rail and no gauge tag (#370, #479). `rails` is the snippet's, or the ways given.
+ * and Mieres have railway=rail and no gauge tag (#370, #479). `only` picks which of the snippet's ways the build
+ * gets, all of them if it's left out, and `side` is the config's unless given.
  */
-function asturiasC1(rails?: (all: OsmWay[]) => OsmWay[], side = CERCANIAS_ASTURIAS.runningSide) {
+function asturiasC1(only?: (all: OsmWay[]) => OsmWay[], side = CERCANIAS_ASTURIAS.runningSide) {
   const snippet = JSON.parse(readFileSync(new URL('fixtures/osm/asturias-c1.json', import.meta.url), 'utf8')) as Snippet;
-  const all = rails?.(snippet.rails) ?? snippet.rails;
-  const [log, found]: [string[], Found[]] = [[], []];
-  const traced = () => traceShapes(snippet.shapes, snippet.stations, ownRails(all, CERCANIAS_ASTURIAS), side, (line) => log.push(line), (f) => found.push(f));
+  const log: string[] = [];
+  const traced = () => traceShapes(snippet.shapes, snippet.stations, ownRails(only?.(snippet.rails) ?? snippet.rails, CERCANIAS_ASTURIAS), side, (line) => log.push(line));
   const track = (shapes: Shape[], id: string) => {
     const one = shapes.find((s) => s.id === `cercanias-asturias:20_${id}`);
     if (!one) throw new Error(`No shape ${id}`);
@@ -1094,8 +1094,12 @@ function asturiasC1(rails?: (all: OsmWay[]) => OsmWay[], side = CERCANIAS_ASTURI
   };
   /** Whether a trace runs every node of each of these ways, to within half a metre. */
   const runs = (shape: Shape, ...ways: number[]) =>
-    ways.every((id) => (snippet.rails.find((w) => w.id === id)?.geometry ?? []).every((g) => nearest(shape.coords, [g.lon, g.lat]).metres < 0.5));
-  return { snippet, traced, log, found, track, runs };
+    ways.every((id) => {
+      const way = snippet.rails.find((w) => w.id === id);
+      if (!way) throw new Error(`No way ${id}`);
+      return way.geometry.every((g) => nearest(shape.coords, [g.lon, g.lat]).metres < 0.5);
+    });
+  return { snippet, traced, log, track, runs };
 }
 
 /** The ways of Adif's left-hand track between Villallana and Mieres that have no gauge tag (#370). */
@@ -1119,8 +1123,8 @@ test("keeps Cercanías Asturias' C1 to its left-hand track from Pola de Lena to 
 });
 
 test("draws Asturias' C1 on two tracks both north and south of Ujo, where it was on one south of the Station while six ways of its left-hand track had no gauge tag", () => {
-  const apart = (rails?: (all: OsmWay[]) => OsmWay[], side?: 'left' | 'right') => {
-    const { snippet, traced, track } = asturiasC1(rails, side);
+  const apart = (only?: (all: OsmWay[]) => OsmWay[], side?: 'left' | 'right') => {
+    const { snippet, traced, track } = asturiasC1(only, side);
     const shapes = traced();
     const [c1, inv] = [track(shapes, 'C1'), track(shapes, 'C1_INV')];
     const ujo = snippet.stations.find((s) => s.id === 'adif:15200');
@@ -1137,7 +1141,10 @@ test("draws Asturias' C1 on two tracks both north and south of Ujo, where it was
 });
 
 test("traces Cercanías Asturias' C1 the same where OpenStreetMap gives the six ways a gauge, so that tagging them changes nothing (#479)", () => {
-  const untagged = asturiasC1().traced();
+  const { snippet, traced } = asturiasC1();
+  // All six are in the snippet, with no gauge tag: the tagging below changes six ways.
+  expect(NO_GAUGE.filter((id) => snippet.rails.some((w) => w.id === id && !w.tags.gauge))).toEqual(NO_GAUGE);
+  const untagged = traced();
   const tagged = asturiasC1((ways) => ways.map((w) => (NO_GAUGE.includes(w.id) ? { ...w, tags: { ...w.tags, gauge: '1668' } } : w))).traced();
   expect(untagged.length).toBe(4);
   expect(tagged.map((s) => [s.id, s.coords])).toEqual(untagged.map((s) => [s.id, s.coords]));
