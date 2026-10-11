@@ -142,7 +142,10 @@ export function whereabouts<C extends Pick<Call, 'dist'>, P = never>(
   if (!next) return undefined;
   if (standing) return { at: 'standing', next };
   // Within reach of the platform, of the dot, or of the stretch between them, where the two distances sum to the dot's
-  // offset from the platform for a Train on it, and to that and two reaches at the far ends of the reach either side.
+  // offset from the platform for a Train on the line between them, and to that and two reaches at most at its ends and beside it.
+  // ponytail: an ellipse about that line, by the Train's way along its Trip and its straight line to the dot, so a track that
+  // bends away from the line by more than a reach or two is not all taken in. Go by the track's own way between them if
+  // a `Between` shows there.
   const within = (call: C) => {
     const [along, { away, offset }] = [Math.abs(call.dist - dist), dot(call)];
     return along <= reach || away <= reach || along + away <= offset + 2 * reach;
