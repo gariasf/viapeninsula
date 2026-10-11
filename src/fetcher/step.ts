@@ -305,7 +305,7 @@ const renfe: LiveAdapter<SourceOf<'renfe'>, RenfeResponses, RenfeOwn> = {
 };
 
 /** GTFS-RT as Renfe's JSON has it, with times in seconds since 1970: the parts the step reads. */
-interface GtfsRt {
+export interface GtfsRt {
   header: { timestamp: string };
   entity?: { vehicle?: Vehicle; tripUpdate?: { trip?: { tripId?: string; scheduleRelationship?: string }; stopTimeUpdate?: { stopId?: string; scheduleRelationship?: string }[]; delay?: number } }[];
 }

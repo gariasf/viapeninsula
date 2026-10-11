@@ -31,6 +31,7 @@ import { basename, join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { daysNeeded, daysOf, joinTracks, joinTrips, LIVE_URL, madridDate, type Bundle, type DayFiles, type DayTrips, type Manifest, type Snapshot, type Trip } from './bundle.ts';
 import { joinDays, namedIn, numberedIn, trainsAt, type Received } from './engine.ts';
+import type { GtfsRt } from './fetcher/step.ts';
 import { decodeTrack, type TrackFile } from './pieces.ts';
 
 /**
@@ -66,20 +67,62 @@ export function cut(bundle: Bundle, received: Received[]): Bundle {
 }
 
 /**
+ * One of Renfe's buses, by the Trip a report names: a Cercanías Trip's ID is its service and its
+ * Train number, the five digits after the four digits and the letter of the service, as in
+ * `cercanias-madrid:1081S80030C8b`, and a bus's begins with 8 (#567). None of the 101,906 rail Trips of
+ * Renfe's file of 10 October 2026 has one, and 10,444 of its 11,224 bus Trips, `route_type` 3, do. A
+ * bus isn't a Train (CONTEXT): the build leaves it out, so no report of it can name a Trip of the bundle.
+ * ponytail: the 780 others are León's `…BUS`, whose numbers begin with 0, and count as rail Trips here:
+ * none was named in the ten recordings of 6, 7 and 10 October. Match their ending too if one is.
+ */
+const BUS = /^[a-z-]+:\d{4}[A-Z]8\d{4}/;
+
+/**
  * How many reports the snapshots make of a Trip the bundle has none of, and of how many Trips, as
  * Renfe's of a Train that starts after midnight are, named by the next day's service, in the bundle of
  * the day before alone (#411): the engine drops them. A report is counted once however many
  * snapshots repeat it, by its Trip and the time its operator made it. A report the engine finds its
  * Trip by otherwise isn't one: a Metro Block's, a rack Train's by its Line and the end of its ID,
- * and a long-distance Train's by its number.
+ * and a long-distance Train's by its number. Nor is one of a bus of Renfe's (BUS), which no bundle
+ * has: it's left out of both counts, and `buses` says how many Trips they were.
  */
-export function unmatched(bundle: Bundle, received: Received[]): { reports: number; trips: number } {
+export function unmatched(bundle: Bundle, received: Received[]): { reports: number; trips: number; buses: number } {
   const named = namedIn(bundle);
-  const lost = new Map<string, Set<number>>();
+  const [lost, buses] = [new Map<string, Set<number>>(), new Set<string>()];
   for (const { snapshot } of received) {
-    for (const { trip, line, at } of snapshot.reports) if (trip && !line && !named.has(trip)) lost.set(trip, (lost.get(trip) ?? new Set<number>()).add(at));
+    for (const { trip, line, at } of snapshot.reports) {
+      if (!trip || line || named.has(trip)) continue;
+      if (BUS.test(trip)) buses.add(trip);
+      else lost.set(trip, (lost.get(trip) ?? new Set<number>()).add(at));
+    }
   }
-  return { reports: [...lost.values()].reduce((sum, times) => sum + times.size, 0), trips: lost.size };
+  return { reports: [...lost.values()].reduce((sum, times) => sum + times.size, 0), trips: lost.size, buses: buses.size };
+}
+
+/**
+ * A line of renfe.ndjson.gz: when Renfe's feeds were fetched, in ms since 1970, and each as it parsed:
+ * its Cercanías pair and its long-distance pair (#550), left out where its fetch failed.
+ */
+export interface RenfeLine {
+  at: number;
+  positions?: GtfsRt;
+  updates?: GtfsRt;
+  positionsLD?: GtfsRt;
+  updatesLD?: GtfsRt;
+}
+
+/**
+ * How many Trips Renfe's trip updates ADD over a recording, once each however many steps list them,
+ * that no snapshot names: `scheduleRelationship` ADDED, `SPECIAL_10_91065C4A`, a `routeId` and all
+ * the stops with times, as for a Madrid C4a Train that no timetable has. The fetcher drops them, as
+ * an ID that starts with no núcleo's code goes to none of its Networks (renfeTrip()), so they're in
+ * no report, and no count of unmatched()'s (#567). Those of the Cercanías pair alone: a long-distance
+ * Train is named by its number, and its report stays.
+ */
+export function added(renfe: RenfeLine[], received: Received[]): number {
+  const named = new Set(received.flatMap(({ snapshot }) => snapshot.reports.flatMap(({ trip }) => (trip ? [trip.slice(trip.indexOf(':') + 1)] : []))));
+  const ids = renfe.flatMap(({ updates }) => (updates?.entity ?? []).flatMap(({ tripUpdate }) => (tripUpdate?.trip?.scheduleRelationship === 'ADDED' && tripUpdate.trip.tripId ? [tripUpdate.trip.tripId.trim()] : [])));
+  return new Set(ids.filter((id) => !named.has(id))).size;
 }
 
 /**
@@ -172,14 +215,14 @@ if (import.meta.main) {
   // As the map does: each look for live data records the snapshot got, or where none came, the last
   // one. And with each look, Renfe's four feeds as they parse, in a line (#364, #550), fetched beside
   // it and not waited for, so that a Renfe that's slow doesn't hold the next look up.
-  const feed = (url: string) => get(url).then((text) => JSON.parse(text) as unknown).catch((error) => void console.warn(error));
+  const feed = (url: string) => get(url).then((text) => JSON.parse(text) as GtfsRt).catch((error) => void console.warn(error));
   const received: Received[] = [];
-  const renfe: string[] = [];
+  const renfe: RenfeLine[] = [];
   const looks: Promise<void>[] = [];
   for (const end = Date.now() + Number(minutes) * 60_000; Date.now() < end; await new Promise((done) => setTimeout(done, 20_000))) {
     looks.push(
       Promise.all([feed(RENFE.positions), feed(RENFE.updates), feed(RENFE.positionsLD), feed(RENFE.updatesLD)]).then(([positions, updates, positionsLD, updatesLD]) => {
-        if (positions || updates || positionsLD || updatesLD) renfe.push(JSON.stringify({ at: Date.now(), positions, updates, positionsLD, updatesLD }));
+        if (positions || updates || positionsLD || updatesLD) renfe.push({ at: Date.now(), positions, updates, positionsLD, updatesLD });
       }),
     );
     let snapshot: Snapshot | undefined;
@@ -193,7 +236,7 @@ if (import.meta.main) {
     console.log(`${received.length} snapshots, ${renfe.length} of Renfe's feeds`);
   }
   await Promise.all(looks);
-  if (renfe.length) await writeFile(join(dir, 'renfe.ndjson.gz'), gzipSync(`${renfe.join('\n')}\n`));
+  if (renfe.length) await writeFile(join(dir, 'renfe.ndjson.gz'), gzipSync(`${renfe.map((line) => JSON.stringify(line)).join('\n')}\n`));
 
   const { bundle, why } = await withDays(first, today, received, days, bundleOf);
   await writeFile(join(dir, 'bundle.json'), JSON.stringify(bundle));
@@ -201,5 +244,6 @@ if (import.meta.main) {
   const replay = cut(bundle, received);
   await writeFile(join(dir, 'replay.json.gz'), gzipSync(JSON.stringify({ bundle: replay, received })));
   const lost = unmatched(bundle, received);
-  console.log(`replay.json.gz: ${received.length} snapshots, ${replay.trips.length} of ${bundle.trips.length} Trips; ${lost.reports} reports of ${lost.trips} Trips name no Trip of the bundle${why}`);
+  const specials = renfe.length ? `; ${added(renfe, received)} Trips Renfe ADDED are named by no snapshot` : '';
+  console.log(`replay.json.gz: ${received.length} snapshots, ${replay.trips.length} of ${bundle.trips.length} Trips; ${lost.reports} reports of ${lost.trips} Trips name no Trip of the bundle, leaving out ${lost.buses} of Renfe's buses (Train numbers that begin with 8)${specials}${why}`);
 }

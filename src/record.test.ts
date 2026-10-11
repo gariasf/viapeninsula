@@ -2,7 +2,7 @@ import { expect, test, vi } from 'vitest';
 import type { Bundle, DayFiles, Network, Report } from './bundle.ts';
 import { joinDays, trainsAt, type Received } from './engine.ts';
 import { NETWORKS } from './networks.ts';
-import { cut, unmatched, withDays } from './record.ts';
+import { added, cut, unmatched, withDays, type RenfeLine } from './record.ts';
 
 // Made up: R1's Trips from Badalona to El Masnou, on two days' timetables as Rodalies' are around
 // midnight. The night's runs from 23:50 to 00:20 on both days, and on the second day's an early one
@@ -66,25 +66,67 @@ test('counts the reports that name a Trip the bundle has none of, once each howe
   // Renfe names a Train that starts after midnight by the next day's service: Friday's bundle has no `early`.
   const [a, b] = [reporting('early', 'night')[0] as Received, reporting('early')[0] as Received];
   const again = { ...b, at: AT + 20_000 };
-  expect(unmatched(FRIDAY, [a, again])).toEqual({ reports: 1, trips: 1 });
+  expect(unmatched(FRIDAY, [a, again])).toEqual({ reports: 1, trips: 1, buses: 0 });
   // A report an operator makes again, later, is another.
   const later = { ...again, snapshot: { ...again.snapshot, reports: [{ trip: 'early', at: AT + 20_000 }] } };
-  expect(unmatched(FRIDAY, [a, later])).toEqual({ reports: 2, trips: 1 });
+  expect(unmatched(FRIDAY, [a, later])).toEqual({ reports: 2, trips: 1, buses: 0 });
 });
 
 test("a report after midnight finds the Trip it names in the next day's bundle, joined with the day's as the map joins them", () => {
   const received = reporting('early', 'night');
-  expect(unmatched(FRIDAY, received)).toEqual({ reports: 1, trips: 1 });
-  expect(unmatched(joinDays([FRIDAY, SATURDAY]), received)).toEqual({ reports: 0, trips: 0 });
+  expect(unmatched(FRIDAY, received)).toEqual({ reports: 1, trips: 1, buses: 0 });
+  expect(unmatched(joinDays([FRIDAY, SATURDAY]), received)).toEqual({ reports: 0, trips: 0, buses: 0 });
   // And one naming a Trip of the first day alone is matched by its operator's name, though joinDays() leads its ID with its day.
-  expect(unmatched(SATURDAY, reporting('late'))).toEqual({ reports: 1, trips: 1 });
-  expect(unmatched(joinDays([FRIDAY, SATURDAY]), reporting('late'))).toEqual({ reports: 0, trips: 0 });
+  expect(unmatched(SATURDAY, reporting('late'))).toEqual({ reports: 1, trips: 1, buses: 0 });
+  expect(unmatched(joinDays([FRIDAY, SATURDAY]), reporting('late'))).toEqual({ reports: 0, trips: 0, buses: 0 });
 });
 
 test("counts no report that names no Trip: a Metro Block's, a rack Train's by its Line, or a long-distance Train's by its number", () => {
   const received = reporting();
   received[0]?.snapshot.reports.push({ block: { line: 'R1', number: '1' }, at: AT }, { line: 'R1', trip: 'x|y', at: AT }, { number: '15001', at: AT });
-  expect(unmatched(FRIDAY, received)).toEqual({ reports: 0, trips: 0 });
+  expect(unmatched(FRIDAY, received)).toEqual({ reports: 0, trips: 0, buses: 0 });
+});
+
+// Reports as the fetcher made them from Renfe's Cercanías feed on Saturday 10 October 2026 at 13:16, cut from the
+// snapshots of the recording of that time: Madrid's C8b and C9 and Murcia/Alicante's C2 are Renfe's buses, Trips of
+// route_type 3 in its timetable whose Train numbers begin with 8, which the build leaves out as they aren't Trains
+// (CONTEXT); and Sevilla's C4 23631 is a rail Trip it leaves out for its track (#365). The same four, 20 s later.
+const REPORTED: Report[] = [
+  { trip: 'cercanias-madrid:1081S80030C8b', at: 1791630947000, delay: 0, position: { near: 'adif:12006' } },
+  { trip: 'cercanias-murcia-alicante:4181S84914C2', at: 1791630944000, delay: 300, position: { near: 'adif:06006' } },
+  { trip: 'cercanias-madrid:1081S80684C9', at: 1791630947000, delay: 1920, position: { near: 'adif:12023' } },
+  { trip: 'cercanias-sevilla:3081S23631C4', at: 1791631023000, delay: 0, position: { near: 'adif:51003' } },
+];
+const REPORTED_AGAIN: Report[] = [
+  { trip: 'cercanias-madrid:1081S80030C8b', at: 1791630965000, delay: 0, position: { near: 'adif:12006' } },
+  { trip: 'cercanias-murcia-alicante:4181S84914C2', at: 1791630964000, delay: 360, position: { near: 'adif:06006' } },
+  { trip: 'cercanias-madrid:1081S80684C9', at: 1791630965000, delay: 1980, position: { near: 'adif:12023' } },
+  { trip: 'cercanias-sevilla:3081S23631C4', at: 1791631043000, delay: 0, position: { near: 'adif:51003' } },
+];
+
+test("leaves Renfe's buses out of the reports that name no Trip of the bundle, the Trips whose Train numbers begin with 8, and says how many Trips they were (#567)", () => {
+  const snapshot = (at: number, reports: Report[]): Received => ({ at, snapshot: { generated: at, feeds: {}, reports } });
+  const received = [snapshot(AT, REPORTED), snapshot(AT + 20_000, REPORTED_AGAIN)];
+  // Sevilla's rail Trip is the one left, with a report for each time its operator made one.
+  expect(unmatched(FRIDAY, received)).toEqual({ reports: 2, trips: 1, buses: 3 });
+});
+
+// Rows of Renfe's trip updates of Tuesday 6 October 2026 at 17:13, from that day's first recording: a Sevilla Trip
+// of its timetable, and two it ADDED, Madrid's C4a from Atocha to Chamartín, and to Alcobendas, with the stops it lists.
+const UPDATES = JSON.parse(`{"header":{"gtfsRealtimeVersion":"2.0","timestamp":"1791299575"},"entity":[
+  {"id":"TUUPDATE_3077M23553C1","tripUpdate":{"trip":{"tripId":"3077M23553C1","scheduleRelationship":"SCHEDULED"},"stopTimeUpdate":[{"arrival":{"delay":600,"time":"1791299816"},"stopId":"50701"}],"vehicle":{"wheelchairAccessible":"WHEELCHAIR_INACCESSIBLE"},"delay":600}},
+  {"id":"TUADDED_SPECIAL_10_91065C4A","tripUpdate":{"trip":{"tripId":"SPECIAL_10_91065C4A","scheduleRelationship":"ADDED","routeId":"10T0014C4a"},"stopTimeUpdate":[{"stopSequence":1,"arrival":{"time":"1791299520"},"departure":{"time":"1791299520"},"stopId":"18000"},{"stopSequence":2,"arrival":{"time":"1791299640"},"departure":{"time":"1791299640"},"stopId":"18001"},{"stopSequence":3,"arrival":{"time":"1791299880"},"departure":{"time":"1791299880"},"stopId":"18002"},{"stopSequence":4,"arrival":{"time":"1791300240"},"departure":{"time":"1791300240"},"stopId":"17000"}],"vehicle":{"wheelchairAccessible":"WHEELCHAIR_INACCESSIBLE"}}},
+  {"id":"TUADDED_SPECIAL_10_91063C4A","tripUpdate":{"trip":{"tripId":"SPECIAL_10_91063C4A","scheduleRelationship":"ADDED","routeId":"10T0014C4a"},"stopTimeUpdate":[{"stopSequence":1,"arrival":{"time":"1791297840"},"departure":{"time":"1791297840"},"stopId":"18000"},{"stopSequence":2,"arrival":{"time":"1791299820"},"departure":{"time":"1791299820"},"stopId":"19003"}],"vehicle":{"wheelchairAccessible":"WHEELCHAIR_INACCESSIBLE"}}}
+]}`) as NonNullable<RenfeLine['updates']>;
+
+test("counts the Trips Renfe ADDs, once each however many steps list them, that no snapshot names, which the fetcher drops as their IDs start with no núcleo's code (#567)", () => {
+  const steps: RenfeLine[] = [{ at: AT, updates: UPDATES }, { at: AT + 20_000, updates: UPDATES }, { at: AT + 40_000 }];
+  const received = reporting('night');
+  expect(added(steps, received)).toBe(2);
+  // One a snapshot names, as the fetcher would if it kept them under a Network, isn't left to count.
+  received[0]?.snapshot.reports.push({ trip: 'cercanias-madrid:SPECIAL_10_91065C4A', at: AT });
+  expect(added(steps, received)).toBe(1);
+  expect(added([], received)).toBe(0);
 });
 
 test("cuts a recording that crossed midnight to the Trips its snapshots name, whichever of the days joined runs them, and those its Trains run", () => {
@@ -118,7 +160,7 @@ test("keeps the Trips a report names by their Train number as it keeps those it 
   expect(whole.map((t) => [t.trip.id, t.live])).toEqual([['2026-09-25/night', false]]);
   expect(kept.map((t) => [t.trip.id, t.dist, t.live])).toEqual(whole.map((t) => [t.trip.id, t.dist, t.live]));
   // And its reports are matched by their number, so unmatched() has none of them to count.
-  expect(unmatched(joined, received)).toEqual({ reports: 0, trips: 0 });
+  expect(unmatched(joined, received)).toEqual({ reports: 0, trips: 0, buses: 0 });
 });
 
 test("cuts a recording of one day to the Trips its snapshots name, by their operators' names as it did before the days were joined", () => {
@@ -225,7 +267,7 @@ test('joins the next day across the night the clocks go back, 25 hours long, so 
   // Its report at 00:10 on Sunday, 22:10 UTC on Saturday, of Saturday's Trip that runs until 00:20.
   const [first, at] = [Date.parse('2026-10-24T21:58:00Z'), Date.parse('2026-10-24T22:10:00Z')];
   const received = [...reportingAt(first, 'late'), ...reportingAt(at, 'late')];
-  expect(unmatched(saturday, received)).toEqual({ reports: 0, trips: 0 });
+  expect(unmatched(saturday, received)).toEqual({ reports: 0, trips: 0, buses: 0 });
   const load = async ({ date }: DayFiles) => [saturday, sunday].find((b) => b.serviceDay === date) as Bundle;
   const { bundle, why } = await withDays(saturday, '2026-10-24', received, [entry(saturday), entry(sunday)], load);
   expect(why).toBe('');
