@@ -574,12 +574,14 @@ test("makes a Train of its Trip that starts at a Station none of its Trips calls
   expect(log).toEqual(['MD 00001 drops its call at E at 10:25 on 2026-10-10: it lies outside the run its Trips share']);
 });
 
-test("makes a Train of its Trip with the most calls where none of its Trips runs its whole way, as where one ends at the Station another starts at, and of the one whose ID sorts first where they tie, whatever order they come in", () => {
+test("makes a Train of its Trip with the most calls where none of its Trips runs its whole way, as where one ends at the Station another starts at, and of the one whose ID sorts first where they tie, whatever order they come in, and never of a part with a single call, whose Station no other calls at", () => {
   const [x, y] = [part('x', ['A', '10:00'], ['B', '10:10'], ['C', '10:20']), part('y', ['C', '10:20'], ['D', '10:30'], ['E', '10:40'])];
   expect(joinParts([x, y], new Map(), '2026-10-10', () => {}).map((t) => t.id)).toEqual(['x']);
   expect(joinParts([y, x], new Map(), '2026-10-10', () => {}).map((t) => t.id)).toEqual(['x']);
   const longer = part('z', ['C', '10:20'], ['D', '10:30'], ['F', '10:35'], ['E', '10:40']);
   expect(joinParts([x, longer], new Map(), '2026-10-10', () => {}).map((t) => t.id)).toEqual(['z']);
+  // A part of one call at a Station none of the others calls at starts and ends where none of them does, and runs nowhere.
+  expect(joinParts([x, y, part('o', ['Q', '10:15'])], new Map(), '2026-10-10', () => {}).map((t) => t.id)).toEqual(['x']);
 });
 
 // Rows cut verbatim from Renfe's Cercanías feed of 2026-10-10: RT2's Train 15210 from Salou-Port
