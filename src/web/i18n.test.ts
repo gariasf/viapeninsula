@@ -201,7 +201,7 @@ test("counts down to a followed Train's next Station in seconds in its last minu
   }
 });
 
-test("a followed Train's countdown in seconds is no wider than its minutes' form in any language, so that it fits where that did (#456)", () => {
+test("a followed Train's countdown in seconds is its minutes' form with s for min in each language, so no wider, and it fits where that did (#456)", () => {
   for (const lang of Object.keys(LANGUAGES) as Language[]) {
     expect(toGo(59, 'inSeconds', lang).length).toBeLessThanOrEqual(toGo(59, 'inMinutes', lang).length);
     // And is the minutes' form with s for min, as the language writes that.

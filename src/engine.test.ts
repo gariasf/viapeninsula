@@ -778,7 +778,7 @@ test("a followed Train's modelled speed is its speed profile's: none standing at
   expect(followed(R2S, at('22:05:00'))?.speed).toBeCloseTo(17.69, 2);
 });
 
-test("a followed Train's countdown in seconds is the same on a device whose clock is hours off as on a right one, as it counts by the map's time (#456)", () => {
+test("a followed Train's countdown in seconds counts by the map's time to its next Station's time, or its departure while it stands there, to the second rounded up, and is the same on a device whose clock is hours off as on a right one (#456)", () => {
   // The R2S is due at Sitges at 21:56:00, which it stands at until 21:57:00.
   const countdown = (moment: number, received: Received[], clock = (m: number) => mapTime(m, by(received, m))) => {
     const f = followed(R2S, moment, received);
@@ -792,7 +792,8 @@ test("a followed Train's countdown in seconds is the same on a device whose cloc
   expect(countdown(at('21:56:30'), [])).toEqual({ n: 30, unit: 'seconds' });
   for (const hours of [-13, 3, 14]) {
     const off = hours * 3600;
-    // Two snapshots, 20 s apart, as the fetcher writes them: enough to show a clock that's ahead.
+    // Two snapshots, 20 s apart, as the fetcher writes them, each arriving as it's written: enough to show a clock that's ahead, and the map's time exactly the
+    // right one. One that took L s to arrive leaves the map's time L s behind a right clock's, the countdown with it, as the Train is (#335).
     const received = [
       { snapshot: written(at('21:54:40')), at: at('21:54:40', off) },
       { snapshot: written(at('21:55:00')), at: at('21:55:00', off) },

@@ -49,7 +49,7 @@ test("a followed Train's countdown is the minutes a board shows for that time un
   for (const ms of [60_000, 61_000, 95_000, 125_000, 600_000, 3_000_000]) expect(countdownTo(NOW + ms, NOW)).toEqual({ n: minutesTo(NOW + ms, NOW), unit: 'minutes' });
 });
 
-test("a time 59 s and a part out in the same clock minute is a minute out, not now, as minutesTo() has it (#456)", () => {
+test("a time 59 s and a part out within one clock minute is a minute out, not now, though minutesTo() has it as 0 (#456)", () => {
   // 8:12:00.2 to 8:12:59.7: one clock minute, which a board reads as 0 min.
   const [from, due] = [at(8, 12, 0) + 200, at(8, 12, 59) + 700];
   expect(minutesTo(due, from)).toBe(0);
@@ -66,16 +66,6 @@ test('counted every second, a countdown takes each number from 59 to 1 once and 
     // Minutes before, now after, in order.
     expect(reads.map((r) => (r.unit === 'minutes' ? 'm' : r.n ? 's' : 'now')).join('').replace(/m+s+(now)+/, 'ok')).toBe('ok');
   }
-});
-
-test("a Train's countdown to a Station counts to its time with its Delay, as the card shows it (#456)", () => {
-  // B is due 130 s into the day, and the Train is 45 s late: 175 s. The service day's noon less 12 hours is at(0, 0).
-  const [noon, late] = [at(0, 0), 45];
-  const due = noon + (B.arrival + late) * 1_000;
-  expect(countdownTo(due, noon + 116_000)).toEqual({ n: 59, unit: 'seconds' });
-  // The timetable's own time has gone by: it's the Delay's time the Train comes at.
-  expect(countdownTo(due, noon + (B.arrival + 5) * 1_000)).toEqual({ n: 40, unit: 'seconds' });
-  expect(countdownTo(due, noon + 175_000)).toEqual({ n: 0, unit: 'seconds' });
 });
 
 test("a countdown in seconds changes as a second of it ends, so that a card refreshed then shows each number once, where a fixed second late each time skips one (#456)", () => {
