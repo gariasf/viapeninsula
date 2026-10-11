@@ -664,6 +664,29 @@ test("keeps a Line's way across a node from the end whose strokes' numbers come 
   }
 });
 
+test("draws the curves of Lines just as they are when other Lines' strokes are numbered before theirs, each from the same end (#448)", async () => {
+  // Madrid-Atocha's Lines (fixtures/atocha.json) alone, and again after Tarragona's by the Francolí
+  // (fixtures/francoli.json), whose strokes then come first: theirs are numbered from 100 or so, not from 0, so
+  // that numbered as strings some come in another order than as numbers, where 9 has one digit and 12 two.
+  const read = (name: string) => JSON.parse(readFileSync(new URL(`fixtures/${name}.json`, import.meta.url), 'utf8')) as Pick<Track, 'lines' | 'shapes'>;
+  const [atocha, francoli] = [read('atocha'), read('francoli')];
+  const mine = new Set(atocha.lines.map((l) => l.id));
+  // Each stroke of those Lines as drawn, a centreline named by its points: its number depends on what comes before.
+  const drawn = async (lines: Line[], shapes: Shape[]) => {
+    const { strokes, centrelines } = await sideBySide(lines, shapes);
+    const byId = new Map(centrelines.map((c) => [c.id, c]));
+    const named = (id: string) => (id.startsWith(STRETCH) ? JSON.stringify(byId.get(id)?.coords) : id);
+    return strokes
+      .filter((s) => mine.has(s.line))
+      .map((s) => JSON.stringify({ ...s, shape: named(s.shape), ...(s.across && { across: s.across.map(([id, from, to]) => [named(id), from, to]) }) }))
+      .sort();
+  };
+  const alone = await drawn(atocha.lines, atocha.shapes);
+  const after = await drawn([...francoli.lines, ...atocha.lines], [...francoli.shapes, ...atocha.shapes]);
+  expect(alone.some((s) => (JSON.parse(s) as Stroke).shape.startsWith('[') && (JSON.parse(s) as Stroke).across)).toBe(true);
+  expect(after).toEqual(alone);
+});
+
 test("draws the bands below zoom 10 on graphs of their own with every visit of each shape, as SHORT's metres are no measure of a line width there (#353)", async () => {
   // C10's 49 m touch of the Stretch beyond, left out of its shape's visits there too, would take six strokes
   // of the 79 away in each of zoom 7 to 9, and move other Lines' with them.
