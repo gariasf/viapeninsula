@@ -50,6 +50,18 @@ export function pointersDown() {
 }
 
 /**
+ * Whether an `easeTo()`, by its options and its event data, is MapLibre's zoom for a double-click or a
+ * double-tap, or a two-finger tap's zoom out: about the point clicked or tapped, which it gives as
+ * `around`, and which the handler has no option to make the middle, as the wheel's and a pinch's have
+ * (#432). It starts from the event itself, a `dblclick` or the `touchend` of the second tap. The ease
+ * that goes on from a pinch ends in a `touchend` too, but it's marked `noMoveStart`.
+ */
+export function tapZooms(options: { around?: unknown; zoom?: number; noMoveStart?: boolean }, eventData?: { originalEvent?: { type: string } }): boolean {
+  const type = eventData?.originalEvent?.type;
+  return (type === 'dblclick' || type === 'touchend') && options.around !== undefined && options.zoom !== undefined && !options.noMoveStart;
+}
+
+/**
  * Runs `run` at once, and then no more often than every `ms`: calls in between make it run once more
  * when the time's up, so that the last one is never lost.
  */

@@ -15,7 +15,7 @@ import { firstLook, forgetJoined, regionLoader, regionsNeeded } from './regions.
 import { linesAt, popupRoom } from './tap.ts';
 import { alongside, callsIn, namedTwice, nameOffset, nameSort, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
 import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
-import { atMostEvery, drifted, letsGo, pointersDown } from './centre.ts';
+import { atMostEvery, drifted, letsGo, pointersDown, tapZooms } from './centre.ts';
 import { keepView, lastView, markOf, openingView, toggledPitch } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { darkInk, INK, lettering } from './colour.ts';
@@ -2036,6 +2036,14 @@ function showCentring() {
     handler.enable(now ? { around: 'center' } : undefined);
   }
 }
+
+// MapLibre zooms a double-click and a double-tap about the point they're at, and has no `around:
+// 'center'` for them, as it has for the wheel and a pinch (showCentring()). While the map pans with the
+// Train, the ease its handlers start for them is about the middle instead, so that the Train stays there (#432).
+// ponytail: MapLibre's easeTo(), told by its options (tapZooms()). Have its handlers take `around` instead
+// if they grow the option.
+const easeTo = map.easeTo.bind(map);
+map.easeTo = (options, eventData) => easeTo(centring && tapZooms(options, eventData) ? { ...options, around: undefined } : options, eventData);
 
 /** Takes the Train the map follows back, easing onto it, and the map pans with it again (#325). */
 function centre() {

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { atMostEvery, drifted, letsGo, pointersDown } from './centre.ts';
+import { atMostEvery, drifted, letsGo, pointersDown, tapZooms } from './centre.ts';
 
 test('a Train a quarter pixel or more off the middle has the map jump to it, and one nearer holds it still', () => {
   expect(drifted(0, 0)).toBe(false);
@@ -23,6 +23,20 @@ test('the arrow keys let go, and the keys that zoom, turn and tilt, and a turn b
   expect(key('+')).toBe(false);
   expect(letsGo({ type: 'movestart', originalEvent: {} })).toBe(false);
   expect(letsGo({ type: 'movestart' })).toBe(false);
+});
+
+test("MapLibre's zoom for a double-click or a double-tap is told from the ease that carries a gesture on, and from the app's own", () => {
+  const zoom = { zoom: 15, around: { lng: 2.17, lat: 41.38 } };
+  // A double-click, shift's zoom out too, from the click's own event.
+  expect(tapZooms(zoom, { originalEvent: { type: 'dblclick' } })).toBe(true);
+  // A double-tap and a two-finger tap, from the touch that ends the second tap.
+  expect(tapZooms(zoom, { originalEvent: { type: 'touchend' } })).toBe(true);
+  // The ease that goes on from a pinch ends in its touchend too, and as the wheel's does, keeps its gesture's around.
+  expect(tapZooms({ ...zoom, noMoveStart: true }, { originalEvent: { type: 'touchend' } })).toBe(false);
+  expect(tapZooms(zoom, { originalEvent: { type: 'wheel' } })).toBe(false);
+  // The app's own eases give no event, and a zoom with no `around` is about the middle already.
+  expect(tapZooms({ zoom: 13 })).toBe(false);
+  expect(tapZooms({ zoom: 15 }, { originalEvent: { type: 'dblclick' } })).toBe(false);
 });
 
 test('a pointer down on the map holds it from its press to its lift or its cancel, and two fingers hold it till both are up', () => {
