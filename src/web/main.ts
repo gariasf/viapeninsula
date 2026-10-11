@@ -22,6 +22,7 @@ import { darkInk, INK, lettering } from './colour.ts';
 import { boardAsks, boardList, cardAlerts, countdownTo, inNameOrder, linesOnBoard, linkedWords, minutesTo, nearbyRows, nextOnItsWay, passedPlace, progress, tripsState, untilTick, whereabouts, type CardAlert, type Whereabouts } from './cards.ts';
 import { ARROW_GAP, boxOf, FOLLOWED_TEXT, LINE_HEIGHT, OUTLINE_SIZES, outlineOf, PILL_EDGE, PILL_PADDING, PILL_TEXT, pillReach, type Outline } from './pill.ts';
 import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, tappedRows, type Shown } from './closures.ts';
+import { currentTab, type Tab } from './tabs.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
 setWorkerUrl(workerUrl);
@@ -87,7 +88,8 @@ const OUTLINES: Record<Outline | 'arrow', { w: number; h: number; across?: numbe
 /**
  * The cards' icons, drawn in the colour of the text around them, which a forced-colours theme sets
  * too (#116): a close cross, a chevron down and up, the die that follows a random Train, Nearby's
- * radius round a dot, the tilted plane of the tilt button, About's ⓘ, the credits' © and a warning.
+ * radius round a dot and Search's lens, the tilted plane of the tilt button, About's ⓘ, the credits' ©
+ * and a warning.
  */
 const ICONS = {
   close: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
@@ -96,6 +98,7 @@ const ICONS = {
   die: '<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="9" r="1.3"/><circle cx="15" cy="9" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="9" cy="15" r="1.3"/><circle cx="15" cy="15" r="1.3"/></svg>',
   tilt: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M8 6h8l5 12H3L8 6z"/><path d="M5.5 12h13"/></svg>',
   nearby: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5" stroke-dasharray="2.6 3.1"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></svg>',
+  search: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>',
   centre: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="6"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>',
   info: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.6v.1"/></svg>',
   copyright: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M14.9 9.4a4 4 0 1 0 0 5.2"/></svg>',
@@ -450,19 +453,19 @@ let counts: [live: number, scheduled: number] | undefined;
 const banner = el('div', { className: 'maplibregl-ctrl banner' });
 banner.setAttribute('role', 'status');
 map.addControl({ onAdd: () => banner, onRemove: () => banner.remove() }, 'top-left');
-// The panel, which showPanel() fills while the map follows a Train, or shows a Station's board or the
-// viewer's nearby Trains: on a phone a sheet docked to the bottom, which peeks or is pulled up, and on
-// a wide window a card at the bottom left (#321).
+// On a wide window the rail goes under it while it's up, however far down it reaches (style.css's --banner, #470).
+new ResizeObserver(() => document.documentElement.style.setProperty('--banner', `${banner.getBoundingClientRect().bottom}px`)).observe(banner);
+// The panel, which showPanel() fills while the map follows a Train, or shows a Station's board, the
+// viewer's nearby Trains or Search: on a phone a sheet docked to the bottom, over the tab bar, which
+// peeks or is pulled up, and on a wide window a card at the bottom left, beside the rail (#321, #470).
 const panel = el('section', { className: 'sheet', hidden: true });
 // The buttons that ride on its top edge on a phone, where a thumb reaches them and the sheet never
-// covers them, labelled by showLanguage(): the credits bottom left, and bottom right the one that shows
-// the viewer's nearby Trains, with the one that follows a random Train over it, both once the map can
-// move Trains. The random follow is disabled while there's no Train on the map but the one the map
-// follows. On a wide window they go bottom right, over the credits' strip.
-const nearbyLabel = el('span');
-const nearbyButton = el('button', { type: 'button', className: 'card fab nearby', onclick: showNearby }, icon('nearby'), nearbyLabel);
+// covers them, labelled by showLanguage(): the credits bottom left, and bottom right the one that
+// follows a random Train, once the map can move Trains, till Now has it (#474). The random follow is
+// disabled while there's no Train on the map but the one the map follows. On a wide window they go
+// bottom right, over the credits' strip.
 const followRandomButton = el('button', { type: 'button', className: 'card fab', disabled: true, onclick: followRandom }, icon('die'));
-// The Centre button over them, shown while the map has let go of the Train it follows (#325).
+// The Centre button over it, shown while the map has let go of the Train it follows (#325).
 const centreButton = el('button', { type: 'button', className: 'card fab', hidden: true, onclick: centre }, icon('centre'));
 // The tilt button over them: it eases the map's pitch between flat and tilted, pressed while it's tilted
 // (#326). Another easing that starts meanwhile, a panel's padding, stops it short, so it's started again
@@ -491,13 +494,22 @@ map.on('moveend', () => {
   else setTimeout(() => tiltTo !== undefined && map.easeTo({ pitch: tiltTo, padding: panelPadding() }));
 });
 showTilt();
-const trainButtons = el('div', { className: 'fabs', hidden: true }, tiltButton, centreButton, followRandomButton, nearbyButton);
+const trainButtons = el('div', { className: 'fabs', hidden: true }, tiltButton, centreButton, followRandomButton);
 // The credits, which showCredits() fills: behind the © button on a phone, and a strip on a wide window.
 const creditsButton = el('summary', { className: 'card' }, icon('copyright'));
 const creditsText = el('div', { className: 'card credits-text' });
 const creditsStrip = el('div', { className: 'card credits-strip' });
 const riders = el('div', { className: 'riders' }, el('details', { className: 'credits' }, creditsButton, creditsText), trainButtons, creditsStrip);
-document.body.append(el('div', { className: 'dock' }, riders, panel));
+// The tab bar, under the sheet on a phone, and a rail down the left edge on a wide window (#470), labelled
+// by showLanguage(): each tab opens its screen's sheet, as #321's are, and is current while it shows
+// (showPanel()). After the corners and before the credits, as the keyboard goes. Its tabs open nothing
+// till the map can move Trains, as Nearby's button didn't show till then.
+const tabs: Record<Tab, HTMLButtonElement> = {
+  search: el('button', { type: 'button', className: 'tab', disabled: true, onclick: showSearch }),
+  nearby: el('button', { type: 'button', className: 'tab', disabled: true, onclick: showNearby }),
+};
+const nav = el('nav', { className: 'card tabs' }, ...Object.values(tabs));
+document.body.append(nav, el('div', { className: 'dock' }, riders, panel));
 // The About dialog, opened from the legend, which showAbout() fills: on a phone, a sheet of its own,
 // nearly the full height. Tapping outside it closes it too, in browsers that can.
 const about = el('dialog', { className: 'about' });
@@ -580,6 +592,8 @@ let emptyBoard: string | undefined;
  * still finding out, or why it couldn't (unlocated()). It's never sent anywhere, nor put in the page's link.
  */
 let nearMe: Point | Unlocated | undefined;
+/** Whether the panel shows Search, its tab's sheet (#470), which #471 fills. */
+let searching = false;
 /** How many times Nearby has asked the browser where the viewer is, so that only the last ask's answer shows (locate()). */
 let asks = 0;
 /** When the panel was last filled, by performance.now(), and how long after that it is next due, in ms: a second, or as a followed Train's countdown next changes (Panel's `changes`). */
@@ -1152,13 +1166,14 @@ map.on('moveend', () => {
 const pointed = ['trains', 'train-pills', 'train-pills-followed', 'stations', 'station-names', ...strokeLayers];
 map.on('mousemove', ({ point }) => (map.getCanvas().style.cursor = map.queryRenderedFeatures(point, { layers: pointed }).length ? 'pointer' : ''));
 // Escape closes the About dialog on its own, if it's open.
-document.addEventListener('keydown', (e) => e.key === 'Escape' && !about.open && (following || boardPlace || nearMe) && closePanel());
+document.addEventListener('keydown', (e) => e.key === 'Escape' && !about.open && (following || boardPlace || nearMe || searching) && closePanel());
 
 // Moves the Trains as often as MOVED says, and once a second works out which Networks the banner
 // names. The browser stops asking while the tab is hidden.
 const trainSource = map.getSource<GeoJSONSource>('trains');
-// The map can move Trains now, so Nearby and the random follow can show them.
+// The map can move Trains now, so the tabs, Nearby's among them, and the random follow can show them.
 trainButtons.hidden = false;
+for (const tab of Object.values(tabs)) tab.disabled = false;
 /** When the map last moved, as a drag, a zoom or an easing, or followed a Train, and when its Trains were last drawn, by performance.now(), and at which zoom and bearing. */
 let [moved, drawn, drawnAt] = [-Infinity, -Infinity, ''];
 requestAnimationFrame(function move(now) {
@@ -1704,8 +1719,10 @@ function showLanguage() {
   languageSwitch.title = t('language');
   languageSwitch.setAttribute('aria-label', t('language'));
   legend.title = t('about');
-  nearbyLabel.textContent = t('nearbyButton');
-  nearbyButton.title = t('nearby');
+  // Each tab's label is its name, under its icon.
+  nav.setAttribute('aria-label', t('tabs'));
+  tabs.search.replaceChildren(icon('search'), t('search'));
+  tabs.nearby.replaceChildren(icon('nearby'), t('nearbyButton'));
   tiltButton.title = t('tilt');
   tiltButton.setAttribute('aria-label', t('tilt'));
   followRandomButton.title = t('followRandom');
@@ -1770,7 +1787,7 @@ function follow(id: string, up = false) {
   following = day && trip ? { day, trip } : { day: bundle?.serviceDay ?? '', trip: id };
   // A Train followed again, by a tap on it too, is taken back (#325).
   released = undefined;
-  [boardPlace, nearMe, back] = [undefined, undefined, undefined];
+  [boardPlace, nearMe, searching, back] = [undefined, undefined, false, undefined];
   trainSource?.setData(trains());
   openPanel(up);
   writeLink();
@@ -1849,7 +1866,7 @@ function goBack() {
   if (!to) return;
   if (to.to === 'train') follow(`${to.day}/${to.trip}`, to.up);
   else {
-    [following, boardPlace, nearMe, back] = [undefined, to.to === 'board' ? to.place : undefined, to.to === 'nearby' ? to.near : undefined, undefined];
+    [following, boardPlace, nearMe, searching, back] = [undefined, to.to === 'board' ? to.place : undefined, to.to === 'nearby' ? to.near : undefined, false, undefined];
     trainSource?.setData(trains());
     openPanel(to.up);
     writeLink();
@@ -1866,9 +1883,18 @@ function easeOnto(at: Point) {
 
 /** Shows a place's board, by its ID in places(), following no Train. */
 function showBoard(place: string) {
-  [following, boardPlace, nearMe, back] = [undefined, place, undefined, undefined];
+  [following, boardPlace, nearMe, searching, back] = [undefined, place, undefined, false, undefined];
   trainSource?.setData(trains());
   openPanel(false);
+  writeLink();
+  map.easeTo({ padding: panelPadding() });
+}
+
+/** Shows Search, its tab's sheet (#470), pulled up, following no Train. */
+function showSearch() {
+  [following, boardPlace, nearMe, searching, back] = [undefined, undefined, undefined, true, undefined];
+  trainSource?.setData(trains());
+  openPanel(true);
   writeLink();
   map.easeTo({ padding: panelPadding() });
 }
@@ -1879,7 +1905,7 @@ function showBoard(place: string) {
  * stays where it is: the basemap's tiles for where they are would tell OpenFreeMap.
  */
 function showNearby() {
-  [following, boardPlace, nearMe, back] = [undefined, undefined, 'locating', undefined];
+  [following, boardPlace, nearMe, searching, back] = [undefined, undefined, 'locating', false, undefined];
   trainSource?.setData(trains());
   openPanel(true);
   writeLink();
@@ -1924,9 +1950,9 @@ function locate() {
   );
 }
 
-/** Stops following a Train, or closes a Station's board or the nearby Trains. */
+/** Stops following a Train, or closes a Station's board, the nearby Trains or Search. */
 function closePanel() {
-  [following, boardPlace, nearMe, back] = [undefined, undefined, undefined, undefined];
+  [following, boardPlace, nearMe, searching, back] = [undefined, undefined, undefined, false, undefined];
   showPanel();
   writeLink();
   map.easeTo({ padding: panelPadding() });
@@ -2145,17 +2171,22 @@ interface Panel {
 
 /**
  * Fills the panel, in the viewer's language, with the Train the map follows, the Station board it
- * shows, or the viewer's nearby Trains: on a phone pulled up, as `up` says, or peeking. Hides it while
- * there's none. It changes in place, so that its refresh every second never takes the keyboard's
- * focus or a screen reader's place (patch()).
+ * shows, the viewer's nearby Trains or Search: on a phone pulled up, as `up` says, or peeking. Hides it
+ * while there's none. It changes in place, so that its refresh every second never takes the keyboard's
+ * focus or a screen reader's place (patch()). And marks the tab whose sheet it is current (#470).
  */
 function showPanel(up = wide.matches || pulledUp || dragging) {
   panelShown = performance.now();
-  const shown = following ? followedPanel(up) : boardPlace ? boardPanel(boardPlace, up) : nearMe ? nearbyPanel(nearMe, up) : undefined;
+  const shown = following ? followedPanel(up) : boardPlace ? boardPanel(boardPlace, up) : nearMe ? nearbyPanel(nearMe, up) : searching ? searchPanel() : undefined;
   panelDue = shown?.changes ?? 1000;
   panel.hidden = !shown;
   panel.classList.toggle('up', up);
   patch(panel, shown ? [el('div', { className: 'sheet-top' }, handle(up), shown.header), el('div', { className: 'sheet-body' }, ...shown.body)] : []);
+  const current = currentTab({ following, boardPlace, nearMe, searching });
+  for (const [tab, button] of Object.entries(tabs)) {
+    if (tab === current) button.setAttribute('aria-current', 'page');
+    else button.removeAttribute('aria-current');
+  }
   // Where the Train followed has changed, so that the Centre button doesn't wait for the next draw.
   showCentring();
 }
@@ -2573,16 +2604,17 @@ function showTapped() {
  * Fits the tap's popup to the room round the point it points from, `at`, and places it there again
  * where it's open (#341): GUTTER in from the map's sides, and as far from the corners' cards over the
  * map's top, the buttons riding on the sheet over its bottom, and on a wide window the panel's card at
- * its left, as the map's own padding is (panelPadding()). MapLibre puts it above the point, or below or
- * beside it where it doesn't fit, by those insets (`padding`), and popupRoom() keeps it small enough
- * for one of those to fit: no wider than its most width, nor higher than `--popup-room` in the CSS.
+ * its left, as the map's own padding is (panelPadding()), or the rail where the card's closed (#470).
+ * MapLibre puts it above the point, or below or beside it where it doesn't fit, by those insets
+ * (`padding`), and popupRoom() keeps it small enough for one of those to fit: no wider than its most
+ * width, nor higher than `--popup-room` in the CSS.
  */
 function fitPopup(at: LngLat) {
   const box = map.getContainer().getBoundingClientRect();
   const inset = {
     top: Math.max(box.top, ...[legend, banner, languageChip].map((card) => card.getBoundingClientRect().bottom)) - box.top + GUTTER,
     bottom: box.bottom - Math.min(box.bottom, riders.getBoundingClientRect().top) + GUTTER,
-    left: GUTTER + panelPadding().left,
+    left: GUTTER + Math.max(panelPadding().left, wide.matches ? nav.getBoundingClientRect().right - box.left : 0),
     right: GUTTER,
   };
   const room = popupRoom(map.project(at), box, inset);
@@ -2765,6 +2797,11 @@ function countdown(at: number, now: number): Node[] {
 function followedCountdown(at: number, now: number): Node[] {
   const { n, unit } = countdownTo(at, now);
   return n < 60 ? [el('span', { className: 'in', textContent: toGo(n, unit === 'seconds' ? 'inSeconds' : 'inMinutes') })] : [];
+}
+
+/** Search's sheet (#470): its heading alone, where #471 puts its field, and its results under it. */
+function searchPanel(): Panel {
+  return { header: el('header', {}, el('h2', { className: 'title', textContent: t('search'), tabIndex: -1 }), closeButton(t('closeSearch'))), body: [] };
 }
 
 /**

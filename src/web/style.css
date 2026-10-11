@@ -39,6 +39,8 @@
   --nameboard: #14305a;
   /* Space, round the globe zoomed out: the light theme's ink on both themes too, which the light basemap and the dark both stand out on. */
   --space: #14305a;
+  /* How tall the tab bar is on a phone (#470). */
+  --bar: 64px;
 }
 
 /* Its dark side, where the system's setting is dark, as the map follows it: light ink on a card a little lighter than the dark basemap. */
@@ -103,7 +105,7 @@ body {
   color: var(--ink);
 }
 
-:is(.legend, .fab, .close, .handle, .more, .fold) {
+:is(.legend, .fab, .tab, .close, .handle, .more, .fold) {
   padding: 0;
   border: 0;
   background: none;
@@ -174,7 +176,7 @@ body {
 
 /* A button under the pointer, where there's one, so that it never sticks on a phone. */
 @media (hover: hover) {
-  :is(.close, .handle, .more):hover,
+  :is(.close, .handle, .more, .tab:not(:disabled)):hover,
   .fold:hover > span {
     background: var(--hover);
   }
@@ -290,11 +292,50 @@ body {
   cursor: pointer;
 }
 
-/* ---- The dock: on a phone, the panel as a sheet docked to the bottom, floating 8 px in from the screen's sides and bottom, as the corners' cards do, with the buttons riding on its top edge. ---- */
-.dock {
+/* ---- The tab bar (#470): on a phone, a card floating 8 px in from the screen's sides and bottom, as the sheet over it does, its tabs side by side, each its icon over its label and 44 px or more both ways. The current one's icon is in the paper's colour on a pill of the ink. ---- */
+.tabs {
   position: absolute;
   right: 8px;
   bottom: max(8px, env(safe-area-inset-bottom));
+  left: 8px;
+  z-index: 3;
+  display: flex;
+  gap: 4px;
+  height: var(--bar);
+  padding: 4px;
+  border-radius: 18px;
+}
+
+.tab {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 14px;
+  font: 700 12px/1.2 var(--font);
+  white-space: nowrap;
+}
+
+.tab .icon {
+  width: 48px;
+  height: 28px;
+  border-radius: 14px;
+}
+
+.tab[aria-current='page'] .icon {
+  background: var(--ink);
+  color: var(--card);
+}
+
+/* ---- The dock: on a phone, the panel as a sheet docked to the bottom, floating 8 px in from the screen's sides, as the corners' cards do, and 8 px above the tab bar, with the buttons riding on its top edge. ---- */
+.dock {
+  position: absolute;
+  right: 8px;
+  bottom: calc(max(8px, env(safe-area-inset-bottom)) + var(--bar) + 8px);
   left: 8px;
   z-index: 3;
   pointer-events: none;
@@ -317,7 +358,7 @@ body {
   pointer-events: auto;
 }
 
-/* Nearby, named, nearest the thumb, and the random follow's die over it. */
+/* The random follow's die, nearest the thumb, with Tilt and Centre over it. */
 .fabs {
   display: flex;
   flex-direction: column;
@@ -333,20 +374,9 @@ body {
   border-radius: 50%;
 }
 
-.fab:disabled {
+:is(.fab, .tab):disabled {
   color: var(--ink-soft);
   cursor: default;
-}
-
-.fab.nearby {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: auto;
-  padding: 0 16px 0 12px;
-  border-radius: 24px;
-  font-size: 14px;
-  font-weight: 700;
 }
 
 /* The credits: behind a © button bottom left on a phone, over the map above it once open, and a strip bottom right on a wide window. */
@@ -381,7 +411,8 @@ body {
 
 .credits-strip {
   display: none;
-  max-width: min(720px, calc(100vw - 412px));
+  /* Beside the card, which sits beside the rail. */
+  max-width: min(720px, calc(100vw - 496px));
   padding: 2px 8px;
   border-width: 1.5px;
   border-radius: 8px;
@@ -1222,8 +1253,28 @@ time .in {
   border-left-color: transparent;
 }
 
-/* ---- On a wide window, the panel is a 380 px card at the bottom left, About a dialog mid-screen, and the buttons go over the credits' strip, bottom right. ---- */
+/* ---- On a wide window, the tab bar is a rail down the left edge, the panel a 380 px card at the bottom left beside it, About a dialog mid-screen, and the buttons go over the credits' strip, bottom right. ---- */
 @media (min-width: 640px) {
+  /* 64 px under the top, under the legend, or 8 px under the banner while it's up, as far down as main.ts says it reaches (--banner). */
+  .tabs {
+    top: max(64px, calc(var(--banner, 0px) + 8px));
+    right: auto;
+    bottom: auto;
+    flex-direction: column;
+    width: 76px;
+    height: auto;
+    padding: 6px;
+  }
+
+  .tab {
+    min-height: 64px;
+  }
+
+  .dock {
+    bottom: max(8px, env(safe-area-inset-bottom));
+    left: 92px;
+  }
+
   .sheet,
   .sheet.up {
     position: absolute;
@@ -1365,5 +1416,12 @@ time .in {
   .credits summary {
     border-color: ButtonText;
     color: ButtonText;
+  }
+
+  /* The current tab's pill, which the theme would take off, in the theme's text colour, as the legend's Live marker is (#470). */
+  .tab[aria-current='page'] .icon {
+    forced-color-adjust: none;
+    background: CanvasText;
+    color: Canvas;
   }
 }
