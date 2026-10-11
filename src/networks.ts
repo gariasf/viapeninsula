@@ -789,8 +789,9 @@ export type LiveSource = {
   networks: Record<string, string>;
   /**
    * Its operator's Alerts, where the fetcher reads them, as GTFS-RT in JSON (ADR-0012): where they are,
-   * how often they're fetched, in ms, and by Network the language of an Alert's second entry, where its
-   * feed tags it as the first, though it's in another (`secondEntry`).
+   * how often they're fetched, in ms, by Network the language of an Alert's second entry, where its
+   * feed tags it as the first, though it's in another (`secondEntry`), and which Lines an Alert that
+   * names one the bundle has none of is shown on (`lines`).
    */
   alerts?: {
     url: string;
@@ -809,8 +810,9 @@ export type LiveSource = {
      * Where an Alert that names a Line the bundle has none of is shown, by the ID of the Network the
      * Line is of, then the Line's name as the feed gives it, then the names of the Lines it's shown on
      * instead, as Renfe names Madrid's C8, whose Trips its timetable runs as C8a and C8b (#359). A
-     * Line it names that's in none of these has no Line to be shown on, and the Alert stays as it
-     * names it, as Madrid's C9, which only buses run, does; so the Alerts on it show nowhere.
+     * name that isn't listed stays as the feed gives it: the bundle's Line of that name shows the
+     * Alert, and where it has none, as for Madrid's C9, Valencia's C5 and Murcia–Alicante's C2, which
+     * only buses run, the Alert is shown nowhere.
      * ponytail: it replaces the name, so a Line that gets Trips under it needs it in its own list.
      */
     lines?: Record<string, Record<string, string[]>>;
@@ -870,8 +872,9 @@ export const LIVE_SOURCES: LiveSource[] = [
     // Bilbao's and San Sebastián's give Basque and Spanish in one entry, which no tag can split.
     // It names Lines that have no Trips of their own (docs/research/alerts.md). `lines` says where an
     // Alert on Madrid's C8, whose Trips its timetable runs as C8a and C8b, and on Rodalies' R3a, as R3,
-    // is shown. Not Madrid's C9, which only buses run, nor Bilbao's C4A, whose run to Karrantza has no
-    // Trips on 10 Oct 2026 and which no Alert names without C4: they stay as named, on no Line of theirs.
+    // is shown. Not Madrid's C9, Valencia's C5 and Murcia–Alicante's C2, which only buses run, nor
+    // Bilbao's C4A, whose run to Karrantza has no Trips in its timetable of 10 Oct 2026 and which no
+    // Alert names without C4: they stay as named, on no Line of theirs.
     alerts: {
       url: 'https://gtfsrt.renfe.com/alerts.json',
       every: 20_000,
