@@ -8,7 +8,7 @@ import { afterAll, afterEach, expect, test, vi } from 'vitest';
 import { places } from '../bundle.ts';
 import { AVE_LARGA_DISTANCIA, CERCANIAS_ASTURIAS, CERCANIAS_BILBAO, MEDIA_DISTANCIA_AVANT, NETWORKS, RODALIES, TRAM, type NetworkConfig } from '../networks.ts';
 import { dirSource, rows, seconds, zipFile, zipSource, type Source } from './gtfs.ts';
-import { copyOf, FGC_FEED, joinParts, METRO_FEED, onFgcRails, onMetroRails, onRodaliesRails, ownRails, readFeed, readTimetables, RODALIES_FEED, TRAMBAIX_FEED, unlisted, type Feed } from './networks.ts';
+import { copyOf, FGC_FEED, joinParts, METRO_FEED, onFgcRails, onMetroRails, onRodaliesRails, ownRails, readFeed, readTimetables, RODALIES_FEED, TRAMBAIX_FEED, unlisted, untaken, type Feed } from './networks.ts';
 import type { Found } from './report.ts';
 import type { Snippet } from './snippet.ts';
 import { traceShapes } from './track.ts';
@@ -551,6 +551,55 @@ test('gives every long-distance Line the rails it runs on, so that none of its T
   for (const { timetables, lines } of [AVE_LARGA_DISTANCIA, MEDIA_DISTANCIA_AVANT]) {
     for (const route of timetables[0].routes?.names ?? []) expect(lines.gauges?.[lines.names?.[route] ?? route], route).toBeDefined();
   }
+});
+
+// Rows cut verbatim from Renfe's long-distance feed of 2026-10-10, without the spaces it pads each line
+// with: the first route of each of the 13 names its 660 routes are under.
+const ROUTES = [
+  '1700037606GL023,1071,ALVIA,,,2,,F2F5F5,',
+  '1120013200GL026,1071,Intercity,,,2,,F2F5F5,',
+  '2230894346GL026,1071,TRENCELTA,,,2,,F2F5F5,',
+  '7180160911GL012,1071,EUROMED,,,2,,F2F5F5,',
+  '5100360000AV006,1071,AVE,,,2,,F2F5F5,',
+  '6000051003LC112,1071,AVLO,,,2,,F2F5F5,',
+  '1060017000AV008,1071,AVANT,,,2,,F2F5F5,',
+  '0822331412VRX,1071,MD,,,2,,F2F5F5,',
+  '6000087089AV016,1071,AVE INT,,,2,,F2F5F5,',
+  '1541010600VRR,1071,REGIONAL,,,2,,F2F5F5,',
+  '2020015100VRE,1071,REG.EXP.,,,2,,F2F5F5,',
+  '5050650413VRN,1071,PROXIMDAD,,,2,,F2F5F5,',
+  '6540071801AV008,1071,AVANT EXP,,,2,,F2F5F5,',
+];
+
+/** A feed that has only these routes, under the header Renfe's long-distance one has. */
+const routesOf = (...rows: string[]): Source => (file) =>
+  file === 'routes.txt'
+    ? (async function* () {
+        yield 'route_id,agency_id,route_short_name,route_long_name,route_desc,route_type,route_url,route_color,route_text_color';
+        yield* rows;
+      })()
+    : undefined;
+
+test("reports no route of Renfe's long-distance feed of 10 Oct 2026, whose 660 routes are under 13 names that AVE y Larga Distancia and Media Distancia y Avant take between them", async () => {
+  expect(await untaken(routesOf(...ROUTES), () => {})).toEqual([]);
+});
+
+test('reports each route name neither Network takes once, with how many routes have it, compared as written: a new name, Intercity in capitals, and AVANT EXP with a full stop', async () => {
+  const unknown = [
+    '1700037606GL999,1071,IRYO,,,2,,F2F5F5,',
+    '1120013200GL998,1071,INTERCITY,,,2,,F2F5F5,',
+    '1700037606GL998,1071,IRYO,,,2,,F2F5F5,',
+    '6540071801AV998,1071,AVANT EXP.,,,2,,F2F5F5,',
+  ];
+  const log: string[] = [];
+  const found = await untaken(routesOf(...ROUTES, ...unknown), (l) => log.push(l));
+  const ends = 'that neither AVE y Larga Distancia nor Media Distancia y Avant takes, so no Network has the Trips under that name';
+  expect(found).toEqual([
+    { kind: 'route', route: 'IRYO', text: [`"IRYO" names 2 routes of Renfe's long-distance timetable ${ends}`] },
+    { kind: 'route', route: 'INTERCITY', text: [`"INTERCITY" names 1 route of Renfe's long-distance timetable ${ends}`] },
+    { kind: 'route', route: 'AVANT EXP.', text: [`"AVANT EXP." names 1 route of Renfe's long-distance timetable ${ends}`] },
+  ]);
+  expect(log).toEqual(found.flatMap((f) => f.text));
 });
 
 test("puts a Station its timetable has away from its platforms at their middle, as Renfe has Antequera AV 430 m from them, beyond the 200 m a Station's rails may be, so that its Trips can be traced", async () => {

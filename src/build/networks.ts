@@ -3,7 +3,7 @@
 import { copyFile, mkdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { madridDate, type Line, type Station } from '../bundle.ts';
-import { FGC, METRO, NETWORKS, RODALIES, TRAM, type Gauges, type NetworkConfig, type Rails, type Timetable } from '../networks.ts';
+import { FGC, LONG_DISTANCE, METRO, NETWORKS, RODALIES, TRAM, type Gauges, type NetworkConfig, type Rails, type Timetable } from '../networks.ts';
 import { rows, seconds, serviceIdsOn, zipFile, zipSource, type Source } from './gtfs.ts';
 import type { OsmWay } from './osm.ts';
 import type { Found } from './report.ts';
@@ -49,6 +49,36 @@ export const onMetroRails = onRails(METRO.rails);
 const RAIL = new Set(['0', '1', '2', '7']);
 
 /**
+ * Whether a timetable takes a route as its Network's: its route_id starts as `routes.idPrefix` says, and
+ * its route_short_name is one of `routes.names`, compared as written, where it names any. readFeed()
+ * reads the Lines and Trips of the routes it takes, and untaken() finds those no timetable does.
+ */
+function takes({ routes }: Pick<Timetable, 'routes'>, r: Record<'route_id' | 'route_short_name', string>): boolean {
+  return r.route_id.startsWith(routes?.idPrefix ?? '') && (routes?.names?.includes(r.route_short_name) ?? true);
+}
+
+/**
+ * A spot for each route name in Renfe's long-distance timetable that neither of its Networks takes
+ * (takes()), as written, with how many routes have it, which it logs too. The timetable names a route
+ * by its product, AVE, Alvia, MD and the rest, which its two Networks share by name, so that a route
+ * under a name that's new, or written otherwise than before, has its Trips in neither, and readFeed()
+ * leaves them out without a word (#401).
+ */
+export async function untaken(gtfs: Source, log = console.log): Promise<Found[]> {
+  const takers = LONG_DISTANCE.flatMap((n) => n.timetables);
+  const count = new Map<string, number>();
+  for await (const r of rows(gtfs, 'routes.txt', ['route_id', 'route_short_name'])) {
+    if (!takers.some((t) => takes(t, r))) count.set(r.route_short_name, (count.get(r.route_short_name) ?? 0) + 1);
+  }
+  const networks = LONG_DISTANCE.map((n) => n.name).join(' nor ');
+  return [...count].map(([route, n]): Found => {
+    const text = `"${route}" names ${n} route${n === 1 ? '' : 's'} of Renfe's long-distance timetable that neither ${networks} takes, so no Network has the Trips under that name`;
+    log(text);
+    return { kind: 'route', route, text: [text] };
+  });
+}
+
+/**
  * A Network's Lines, Stations and shapes from one operator's GTFS feed, as those of every day in the
  * feed, and its Trips and replacement buses on one service day (YYYY-MM-DD). Renfe lists the buses
  * it runs in its Trains' place as Trips of bus routes named as their Line's routes are, as R3's: a
@@ -72,7 +102,7 @@ export async function readFeed(
   const routes = new Map<string, { name: string; colour: string; gauges?: Gauges }>();
   const busRoutes = new Map<string, string>(); // each bus route's name
   for await (const r of rows(gtfs, 'routes.txt', ['route_id', 'route_short_name', 'route_type', 'route_color'])) {
-    if (!r.route_id.startsWith(feed.routes?.idPrefix ?? '') || !(feed.routes?.names?.includes(r.route_short_name) ?? true)) continue;
+    if (!takes(feed, r)) continue;
     const name = network.lines.names?.[r.route_short_name] ?? r.route_short_name;
     const gauges = Object.entries(feed.routes?.gauges ?? {}).find(([end]) => r.route_id.endsWith(end))?.[1] ?? network.lines.gauges?.[name];
     if (RAIL.has(r.route_type)) routes.set(r.route_id, { name, colour: r.route_color, ...(gauges && { gauges }) });
