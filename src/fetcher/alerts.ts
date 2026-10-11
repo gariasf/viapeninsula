@@ -183,7 +183,7 @@ function alertsOf(source: LiveSource, entities: NonNullable<GtfsRtAlerts['entity
   const alerts = new Map<string, Alert>();
   for (const { id, alert } of entities) {
     const named = alert?.informedEntity ?? [];
-    const lines = named.flatMap(({ routeId }) => (routeId ? (lineOf(source, routeId.trim()) ?? []) : []));
+    const lines = named.flatMap(({ routeId }) => (routeId ? linesOf(source, routeId.trim()) : []));
     // Renfe's stop_ids are Adif's, as its Stations are in the bundle.
     const stations = named.flatMap(({ stopId }) => (stopId && source.format === 'renfe' ? [`adif:${stopId.trim()}`] : []));
     if (!alert || !(lines.length || stations.length)) continue;
@@ -210,11 +210,21 @@ function secondEntryOf({ alerts }: LiveSource, lines: string[]): string | undefi
   return languages.size === 1 ? [...languages][0] : undefined;
 }
 
-/** A route's Line, as the bundle names it, where its Network is one the source's config names: TRAM's routes 1–6 are T1–T6, and a route_id of Renfe's ends with its Line's name, after the núcleo, a T and four digits, as 51T0146R1 is R1's. */
-function lineOf(source: LiveSource, route: string): string | undefined {
+/**
+ * The Lines a route's Alerts are shown on, as the bundle names them, where its Network is one the
+ * source's config names: TRAM's routes 1–6 are T1–T6, and a route_id of Renfe's ends with its Line's
+ * name, after the núcleo, a T and four digits, as 51T0146R1 is R1's. Where the config says that Line's
+ * Trips run as others, as Madrid's C8's run as C8a and C8b, those (#359); the mapping is applied here,
+ * once, so that alerts.json names Lines the bundle has, and the page needs none.
+ */
+function linesOf(source: LiveSource, route: string): string[] {
   const network = networkOf(source, route);
   const name = source.format === 'tram' ? `T${route}` : route.match(/^\d+T\d{4}(.+)$/)?.[1];
-  return network && name ? `${network}:${name}` : undefined;
+  if (!network || !name) return [];
+  const named = source.alerts?.lines?.[network];
+  // Its own names only, not those every object has, as "constructor": a route_id's end is Renfe's text.
+  const instead = named && Object.hasOwn(named, name) ? named[name] : undefined;
+  return (instead ?? [name]).map((line) => `${network}:${line}`);
 }
 
 /** An Alert's words, each in a language, without the spaces and line breaks the operator leaves after them. */

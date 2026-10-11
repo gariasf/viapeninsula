@@ -805,6 +805,15 @@ export type LiveSource = {
      * need a check that the second has words of its own.
      */
     secondEntry?: Record<string, string>;
+    /**
+     * Where an Alert that names a Line the bundle has none of is shown, by the ID of the Network the
+     * Line is of, then the Line's name as the feed gives it, then the names of the Lines it's shown on
+     * instead, as Renfe names Madrid's C8, whose Trips its timetable runs as C8a and C8b (#359). A
+     * Line it names that's in none of these has no Line to be shown on, and the Alert stays as it
+     * names it, as Madrid's C9, which only buses run, does; so the Alerts on it show nowhere.
+     * ponytail: it replaces the name, so a Line that gets Trips under it needs it in its own list.
+     */
+    lines?: Record<string, Record<string, string[]>>;
   };
 } & (
   | {
@@ -859,10 +868,15 @@ export const LIVE_SOURCES: LiveSource[] = [
     // es, but Rodalies' Alerts give their second in Catalan and Valencia's in Valencian, both ca: the
     // page picks an entry by the viewer's language as it's tagged, and the interface has no Valencian.
     // Bilbao's and San Sebastián's give Basque and Spanish in one entry, which no tag can split.
+    // It names Lines that have no Trips of their own (docs/research/alerts.md). `lines` says where an
+    // Alert on Madrid's C8, whose Trips its timetable runs as C8a and C8b, and on Rodalies' R3a, as R3,
+    // is shown. Not Madrid's C9, which only buses run, nor Bilbao's C4A, whose run to Karrantza has no
+    // Trips on 10 Oct 2026 and which no Alert names without C4: they stay as named, on no Line of theirs.
     alerts: {
       url: 'https://gtfsrt.renfe.com/alerts.json',
       every: 20_000,
       secondEntry: { [RODALIES.id]: 'ca', [CERCANIAS_VALENCIA.id]: 'ca' },
+      lines: { [CERCANIAS_MADRID.id]: { C8: ['C8a', 'C8b'] }, [RODALIES.id]: { R3a: ['R3'] } },
     },
   },
   {
