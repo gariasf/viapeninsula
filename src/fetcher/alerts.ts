@@ -50,8 +50,10 @@ const REWRITE = 300_000;
 /**
  * How alertsOf() reads Alerts, as a number to make one more whenever it reads them otherwise: then the
  * next run reads Renfe's file afresh, though Renfe hasn't changed it, rather than keep what it read.
+ * 2 began to keep when a file last changed (#390): what was kept before has none, and Renfe's 304s
+ * would keep it so for as long as its file stands.
  */
-const READING = 1;
+const READING = 2;
 
 /** How a source's alerts are read: by READING, with the source's config as it is now, which names its Networks and the language each gives its second entry in. */
 const readingOf = (source: LiveSource) => JSON.stringify([READING, source]);
@@ -90,8 +92,9 @@ export async function fetchAlerts({ feeds }: AlertsState, live: State, get: Get,
 
 /**
  * One run: the stored state, this run's answers and the time now (ms since 1970) go in; the next state
- * comes out, and alerts.json where it's to be written: where a feed's Alerts, or what its last try
- * says, have changed since the last run, or it has gone unwritten for REWRITE.
+ * comes out, and alerts.json where it's to be written: where a feed's Alerts, when its file last
+ * changed, or what its last try says, have changed since the last run, or it has gone unwritten for
+ * REWRITE.
  */
 export function readAlerts(state: AlertsState, responses: AlertResponses, now: number, sources = LIVE_SOURCES): { state: AlertsState; file?: Alerts } {
   const feeds: Record<string, Kept> = {};
@@ -102,9 +105,9 @@ export function readAlerts(state: AlertsState, responses: AlertResponses, now: n
     else if (kept) feeds[source.id] = { ...kept, waited: kept.waited + 1 };
   }
   // What the file holds of each feed, but for when it was read.
-  const holds = (of: Record<string, Kept>) => JSON.stringify(Object.entries(of).map(([id, { status, alerts }]) => [id, status, alerts]));
+  const holds = (of: Record<string, Kept>) => JSON.stringify(Object.entries(of).map(([id, { status, changed, alerts }]) => [id, status, changed, alerts]));
   if (state.written !== undefined && now < state.written + REWRITE && holds(feeds) === holds(state.feeds)) return { state: { feeds, written: state.written } };
-  const file = Object.fromEntries(Object.entries(feeds).map(([id, { read, status, alerts }]) => [id, { read, status, alerts }]));
+  const file = Object.fromEntries(Object.entries(feeds).map(([id, { read, changed, status, alerts }]) => [id, { read, changed, status, alerts }]));
   return { state: { feeds, written: now }, file };
 }
 
@@ -117,15 +120,28 @@ function tried(source: LiveSource, kept: Kept | undefined, answers: Record<strin
   const fetched = Object.values(answers);
   try {
     if (kept && fetched.every((f) => 'status' in f && f.status === 304)) return { ...kept, read: now, status: 'ok' };
+    const files = Object.entries(answers).map(([file, f]) => gtfsRt(file, f));
     // All its files' Alerts in one list, as TRAM's halves can both give one.
-    const alerts = alertsOf(source, Object.entries(answers).flatMap(([file, f]) => gtfsRt(file, f).entity ?? []));
+    const alerts = alertsOf(source, files.flatMap((file) => file.entity ?? []));
     // Renfe's one file gives the validators for the next run's conditional request.
     const { alerts: renfe } = answers;
     const { etag, modified } = renfe && 'body' in renfe ? renfe.body : {};
-    return { read: now, status: 'ok', alerts, etag, modified, readWith: readingOf(source) };
+    return { read: now, status: 'ok', alerts, changed: changedOf(modified, files), etag, modified, readWith: readingOf(source) };
   } catch (error) {
     return { ...kept, alerts: kept?.alerts ?? [], status: (error as Error).message };
   }
+}
+
+/**
+ * When a feed's file last changed, in ms since 1970, where its answers say: its Last-Modified, which
+ * Renfe sends with its file, or else its header's timestamp, the later of its files', as TRAM's two
+ * halves, which it writes when asked, each give theirs. None where they say none (#390).
+ */
+function changedOf(modified: string | undefined, files: GtfsRtAlerts[]): number | undefined {
+  const lastModified = Date.parse(modified ?? '');
+  if (Number.isFinite(lastModified)) return lastModified;
+  const stamped = files.map(({ header }) => ms(header?.timestamp)).filter((at) => at > 0);
+  return stamped.length ? Math.max(...stamped) : undefined;
 }
 
 /** An answer's text, as the step reads its files. */
@@ -140,7 +156,7 @@ function gtfsRt(file: string, fetched: Fetched<Answer>): GtfsRtAlerts {
 
 /** GTFS-RT alerts, as Renfe's and TRAM's JSON have them: the parts the fetcher reads, with times in seconds since 1970. */
 interface GtfsRtAlerts {
-  header?: object;
+  header?: { timestamp?: string | number };
   entity?: { id: string; alert?: GtfsRtAlert }[];
 }
 
