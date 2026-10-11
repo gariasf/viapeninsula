@@ -92,9 +92,9 @@ export interface Differences {
    */
   reads: Countdown;
   countdownNowFar: boolean;
-  /** The card's time for the Station it counts down to, with its Delay, in ms since 1970, and which Station and which of its times: to see its steps. */
+  /** The card's time for the Station it counts down to, with its Delay, in ms since 1970, and which Station and which of its times it counts to (`B arrives`, `B leaves`): to see its steps. */
   expected: number;
-  due: string;
+  countsTo: string;
   /** The Train is drawn within AT of its next Station, and doesn't stand there: the last of its way in. */
   atNext: boolean;
   /** Cause 5: the card's time for its next Station against when the drawn Train gets there, in seconds: positive where the Train is drawn ahead of its Delay. */
@@ -152,7 +152,7 @@ export function differences(m: Moment): Differences | undefined {
     reads,
     countdownNowFar: reads.n === 0 && far,
     expected,
-    due: `${next.key} ${m.standing ? 'leaves' : 'arrives'}`,
+    countsTo: `${next.key} ${m.standing ? 'leaves' : 'arrives'}`,
     atNext,
     // The card's time is `due + delay`; the drawn Train is `now - time` behind its timetable, and gets there at `due + (now - time)`.
     timeOff: m.delay - (m.now - m.time),

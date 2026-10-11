@@ -99,9 +99,11 @@ describe('differences', () => {
     expect(differences(moment(128, 500))).toMatchObject({ reads: { n: 2, unit: 'seconds' }, nowFar: true, countdownNowFar: false });
     // The clock past B's time by the Delay (+30 s: B at 2:40) and the drawn Train still far short: now, by the Delay.
     expect(differences(moment(100, 500, { at: 170_000, delay: 30 }))).toMatchObject({ reads: { n: 0, unit: 'seconds' }, nowFar: true, nowByDelay: true, countdownNowFar: true });
+    // B at 2:59.7 by the Delay (+49.7 s) and the clock at 2:00.2: the minute alone reads 0, but it's 59.5 s out, which is a minute and not 59 s.
+    expect(differences(moment(100, 500, { at: 120_200, delay: 49.7 }))).toMatchObject({ readsNow: true, nowFar: true, nowByMinute: true, reads: { n: 1, unit: 'minutes' }, countdownNowFar: false });
   });
 
-  it('has it read the minutes a board shows before its last minute, and count to when the Train leaves while it stands', () => {
+  it('has the countdown read the minutes a board shows before its last minute, and count to when the Train leaves while it stands (#456)', () => {
     // At 0:40, B due at 2:10 (90 s out): two minutes by the clock, which is what its board row reads.
     expect(differences(moment(40, 500))?.reads).toEqual({ n: 2, unit: 'minutes' });
     // Standing at B from 130 s to 160 s: its seconds to go are to its departure at 160 s, not its arrival at 130 s.
@@ -111,8 +113,8 @@ describe('differences', () => {
 
   it('counts the card’s time with its Delay, by the map’s time `at`, and says which Station and which of its times', () => {
     const d = differences(moment(100, 1000, { at: 100_000, delay: 20 }));
-    expect(d).toMatchObject({ expected: 150_000, due: 'B arrives', reads: { n: 50, unit: 'seconds' } });
-    expect(differences(moment(140, 2000, { standing: true }))).toMatchObject({ due: 'B leaves' });
+    expect(d).toMatchObject({ expected: 150_000, countsTo: 'B arrives', reads: { n: 50, unit: 'seconds' } });
+    expect(differences(moment(140, 2000, { standing: true }))).toMatchObject({ countsTo: 'B leaves' });
   });
 
   it('says whether the drawn Train is at its next Station without standing there, the last of its way in', () => {
