@@ -1,6 +1,6 @@
 import { createExpression, latest, type ExpressionSpecification, type Feature, type StylePropertySpecification } from '@maplibre/maplibre-gl-style-spec';
 import { afterEach, expect, test, vi } from 'vitest';
-import { alertCount, basemapLabel, busesReplace, earlierStations, LANGUAGES, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, pickLanguage, t, toGo, trainCounts, trainsRunHere, unlocated } from './i18n.ts';
+import { alertCount, alertsChanged, basemapLabel, busesReplace, earlierStations, LANGUAGES, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, pickLanguage, t, toGo, trainCounts, trainsRunHere, unlocated } from './i18n.ts';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -319,4 +319,13 @@ test("says a Line's Trains have run within a lifted Closure since a time, in eac
   expect(trainsRunHere('R1', '12:13', 'es')).toBe('R1: los trenes circulan aquí desde 12:13');
   expect(trainsRunHere('R1', '12:13', 'eu')).toBe('R1: trenak hemen ibiltzen dira 12:13 geroztik');
   expect(trainsRunHere('R1', '12:13', 'gl')).toBe('R1: os trens circulan aquí desde 12:13');
+});
+
+test("says whose Alerts last changed when, as a card does where that was over a day ago, in each language (#390)", () => {
+  expect(alertsChanged('Renfe', 'Oct 7, 2026, 9:32 AM', 'en')).toBe("Renfe's alerts: last changed Oct 7, 2026, 9:32 AM");
+  expect(alertsChanged('Renfe', '7 d’oct. 2026, 9:32', 'ca')).toBe('Avisos de Renfe: darrer canvi el 7 d’oct. 2026, 9:32');
+  expect(alertsChanged('Renfe', '7 oct 2026, 9:32', 'es')).toBe('Avisos de Renfe: último cambio el 7 oct 2026, 9:32');
+  expect(alertsChanged('TRAM', '7 oct 2026, 9:32', 'es')).toBe('Avisos de TRAM: último cambio el 7 oct 2026, 9:32');
+  expect(alertsChanged('Renfe', '2026(e)ko urr. 7(a) (09:32)', 'eu')).toBe('Abisuak (Renfe): azken aldaketa 2026(e)ko urr. 7(a) (09:32)');
+  expect(alertsChanged('Renfe', '7 de out. de 2026, 09:32', 'gl')).toBe('Avisos de Renfe: último cambio o 7 de out. de 2026, 09:32');
 });

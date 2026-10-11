@@ -8,7 +8,7 @@ import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
 import { along, APART, atZoom, BANDS, bandZooms, coveredIn, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, daysOf, EARTH, LIVE_URL, madridDate, places, type Alerts, type Bundle, type Credit, type Place, type Kind, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH } from '../bundle.ts';
 import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, unavailable, type Coming, type Departure, type Followed, type Received } from '../engine.ts';
-import { alertCount, basemapLabel, busesReplace, earlierStations, language, LANGUAGES, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, setLanguage, t, toGo, trainCounts, trainsRunHere, unlocated, type Language, type Unlocated } from './i18n.ts';
+import { alertCount, alertsChanged, basemapLabel, busesReplace, earlierStations, language, LANGUAGES, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, setLanguage, t, toGo, trainCounts, trainsRunHere, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { forgetJoined, regionLoader } from './regions.ts';
 import { linesAt, popupRoom } from './tap.ts';
@@ -2236,23 +2236,33 @@ function foldButton(says: (Node | string)[], open: boolean, toggle: () => void, 
  * in its operator's words: its title, where it has one, and its words, in the viewer's language where its
  * feed has it, else in the feed's own, marked with theirs; then when it began, whose words they are, and
  * their language, where it isn't the viewer's (ADR-0012). Over them, when they were read, where that's
- * long ago. It's there from the start, hidden while there's none, and its list is there while it's
- * folded away, so that a new Alert never takes the keyboard's focus or a screen reader's place.
+ * long ago, and when each feed's file last changed, where that's over a day ago (readAt()). It's there
+ * from the start, hidden while there's none, and its list is there while it's folded away, so that a
+ * new Alert never takes the keyboard's focus or a screen reader's place.
  */
 function alertsOn(on: { lines: string[]; stations: string[] }, open = showAlerts, toggle = () => (showAlerts = !showAlerts), after?: () => void) {
   const now = mapTime(Date.now(), received);
-  const { alerts: shown, asOf } = cardAlerts(alerts, on, language(), now);
+  const { alerts: shown, asOf, changed } = cardAlerts(alerts, on, language(), now);
   return el(
     'div',
     { className: 'alerts', hidden: !shown.length },
     foldButton([icon('warning'), alertCount(shown.length)], open, toggle, after),
-    el('div', { hidden: !open }, readAt(asOf, now), el('ol', {}, ...shown.map((alert) => alertRow(alert, on.lines.length > 1)))),
+    el('div', { hidden: !open }, readAt(asOf, changed, now), el('ol', {}, ...shown.map((alert) => alertRow(alert, on.lines.length > 1)))),
   );
 }
 
-/** When the Alerts a card or a tap shows were read, where that's long ago (cardAlerts()'s `asOf`), with their day, where they were read on another than the map's: hidden where it isn't. */
-function readAt(asOf: number | undefined, now: number) {
-  return el('p', { className: 'meta', hidden: asOf === undefined, textContent: asOf === undefined ? '' : t('alertsAsOf').replace('{time}', clock(madridDate(new Date(asOf)) !== madridDate(new Date(now))).format(asOf)) });
+/**
+ * What a card or a tap says over the Alerts it shows, in one paragraph, a line each, hidden where it
+ * says nothing (cardAlerts()): when they were read, where that's long ago (`asOf`), with their day,
+ * where they were read on another than the map's; and, beside it, when each feed's file last changed
+ * (`changed`, #390), always with its day, as that's over a day ago.
+ */
+function readAt(asOf: number | undefined, changed: { by: string; at: number }[], now: number) {
+  const says = [
+    ...(asOf === undefined ? [] : [t('alertsAsOf').replace('{time}', clock(madridDate(new Date(asOf)) !== madridDate(new Date(now))).format(asOf))]),
+    ...changed.map(({ by, at }) => alertsChanged(by, clock(true).format(at))),
+  ];
+  return el('p', { className: 'meta', hidden: !says.length }, ...says.flatMap((line, i) => (i ? [el('br'), line] : [line])));
 }
 
 /** What a tap on Lines' strokes shows (#193): the Lines drawn there, by their pills, and their Alerts under them, folded away (alertsOn(), #341); or none, where it names no Line on the map. */
@@ -2316,8 +2326,8 @@ function closuresTapped(keys: string[]) {
     }
     return [{ row: { id: `${on.join()} ${a} ${b}`, lines: on, description: { language: language(), text: busesReplace(stationName(a), stationName(b)) }, ...(from !== undefined && { from }), by: '' }, ran: [] }];
   });
-  const { asOf } = cardAlerts(alerts, { lines: rows.flatMap(({ closure, on }) => (closure.alert ? on : [])), stations: [] }, language(), now);
-  return said.length ? el('div', { className: 'alerts' }, readAt(asOf, now), el('ol', {}, ...said.map(({ row, ran }) => alertRow(row, true, ran)))) : undefined;
+  const { asOf, changed } = cardAlerts(alerts, { lines: rows.flatMap(({ closure, on }) => (closure.alert ? on : [])), stations: [] }, language(), now);
+  return said.length ? el('div', { className: 'alerts' }, readAt(asOf, changed, now), el('ol', {}, ...said.map(({ row, ran }) => alertRow(row, true, ran)))) : undefined;
 }
 
 /**
