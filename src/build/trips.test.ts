@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import type { Shape, Station } from '../bundle.ts';
 import { collect, type Found } from './report.ts';
-import { placeDays, placeTrips, type FeedTrip } from './trips.ts';
+import { placeDays, placeRuns, placeTrips, type FeedTrip } from './trips.ts';
 
 // Track drawn in metres east (x) and north (y) of a point near L'Aldea.
 const M = (6_371_008.8 * Math.PI) / 180; // metres in a degree of latitude
@@ -283,6 +283,29 @@ test("leaves a Trip out without a word where retrace() has left it out and said 
     ['a on own', 'b on own', 'c on own', 'd on R2N'],
   ]);
   expect([log, found]).toEqual([[], []]);
+});
+
+// The Trips of a timetable with no shapes, as Renfe's long-distance one, each on the trace of its run, made
+// through its Stations (traceRuns(), #259).
+
+test("places a Trip of a timetable with no shapes on its run's trace from the trace's start to its end, as a Trip on a trace of its own is (#280), so that one back at its first Station ends at the trace's end", () => {
+  // As 'places the last call of a Trip that turns back at the far end of its trace…': its run is out to França and back to Sants.
+  const run = shape('AVE:1', [0, 0], [3000, 1800], [3000, 1810], [0, 10]);
+  const { days, shapes } = placeRuns({ shapes: [run], days: [[trip('there and back', 'AVE', 'AVE:1', 'Sants França Sants')]] }, R2N[1], TOP_SPEED);
+  expect(days[0]?.map((t) => [t.id, t.shape, t.calls.map((c) => c.dist)])).toEqual([['there and back', 'AVE:1', [0, 3499, 7007]]]);
+  expect(shapes.map((s) => s.id)).toEqual(['AVE:1']);
+});
+
+test("leaves out and reports on its day a Trip of a timetable with no shapes that doesn't fit its run's trace, and drops a trace no Trip is placed on", () => {
+  // A minute from Sants to Gràcia, 2.5 km, is faster than the Line's top speed.
+  const usual = trip('usual', 'AVE', 'AVE:1', 'Sants Gràcia');
+  const quick = { ...trip('quick', 'AVE', 'AVE:2', 'Sants Gràcia França'), calls: usual.calls.map((c, i) => ({ ...c, arrival: i * 60, departure: i * 60 + 10 })) };
+  const [log, found]: [string[], Found[]] = [[], []];
+  const { days, shapes } = placeRuns({ shapes: [shape('AVE:1', [0, 0], [2500, 40]), { ...OWN, id: 'AVE:2' }], days: [[usual], [quick]] }, R2N[1], TOP_SPEED, (l) => log.push(l), (f) => found.push(f));
+  expect(days.map((day) => day.map((t) => t.id))).toEqual([['usual'], []]);
+  expect(shapes.map((s) => s.id)).toEqual(['AVE:1']);
+  expect(log).toEqual(['quick is left out: it would run Sants → Gràcia at 180 km/h along its track']);
+  expect(found).toMatchObject([{ kind: 'trip', why: 'fast', trip: 'quick', line: 'AVE', stations: [{ id: 'Sants' }, { id: 'Gràcia' }], text: log, day: 1 }]);
 });
 
 test("doesn't trace a Trip that calls at fewer than two Stations, or whose shape has no track, nor ask for anything where each fits its own", () => {

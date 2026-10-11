@@ -119,6 +119,30 @@ export function placeDays(
 }
 
 /**
+ * Each day's Trips of a timetable with no shapes, as Renfe's long-distance one, placed on the traces of
+ * their runs (traceRuns(), #259), which, made through their own Stations, they run from start to end, as
+ * placeDays() places a Trip on a trace of its own (#280): one that doesn't fit its trace is left out and
+ * reported on its day. Gives each day's Trips, and the traces, those that have a Trip placed on them.
+ */
+export function placeRuns(
+  runs: { shapes: Shape[]; days: FeedTrip[][] },
+  stations: Station[],
+  topSpeed: (line: string) => number,
+  log = console.log,
+  report: (found: Found) => void = () => {},
+): { days: Trip[][]; shapes: Shape[] } {
+  const days = runs.days.map((trips, day) =>
+    place(trips, runs.shapes, stations, topSpeed, true).flatMap((p) => {
+      if (!('why' in p)) return [p];
+      leave(p, log, (found) => report({ ...found, day }));
+      return [];
+    }),
+  );
+  const used = new Set(days.flat().map((t) => t.shape));
+  return { days, shapes: runs.shapes.filter((s) => used.has(s.id)) };
+}
+
+/**
  * Each Trip placed on its shape's track, or why it can't be, in the order they came. `onward` is for a
  * trace made through the Trips' own Stations (placeDays()), which they run from its start to its end.
  */
