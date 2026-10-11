@@ -118,7 +118,7 @@ const ICONS = {
 };
 /** How many departures a board shows peeking on a phone, and Nearby rows (#321). */
 const PEEK = 3;
-/** The zoom the map eases to to bring a Train it follows or a Station into view, where it's further out (easeOnto()). */
+/** The zoom the map eases to, to bring a Train it follows or a Station into view, where it's further out (easeOnto()). */
 const FOLLOW_ZOOM = 13;
 /** How far a finger moves the top of a sheet, in px, before it drags it rather than taps. */
 const SLOP = 6;
@@ -563,9 +563,9 @@ wide.addEventListener('change', () => {
 });
 /**
  * The Train the map follows, by its service day and its Trip as its operator names it, so that it
- * stays followed as the days joined change around midnight, and where it's drawn.
+ * stays followed as the days joined change around midnight, and where it's drawn, at which zoom.
  */
-let following: { day: string; trip: string; at?: Point } | undefined;
+let following: { day: string; trip: string; at?: Point; zoom?: number } | undefined;
 /** Whether the panel shows a Trip still to come, as its Train isn't on the map yet (#322): so that the map doesn't stop following it. */
 let waiting = false;
 /**
@@ -1379,8 +1379,8 @@ function whereDrawn({ trip, dist, lon, lat }: Pick<Train, 'trip' | 'dist' | 'lon
 }
 
 /**
- * Every Train on the map now, in its Line's colour, Live or Scheduled, but for a Scheduled one within
- * a closed Closure that hides Trains (trainsAt(), hiding(), #345), where whereDrawn() has it. A tapped
+ * Every Train on the map now, in its Line's colour, Live or Scheduled, where whereDrawn() has it, but
+ * for a Scheduled one within a closed Closure that hides Trains (trainsAt(), hiding(), #345). A tapped
  * group of Trains standing together at a Station goes side by side across their track (spreading()),
  * so that each can be seen and tapped (#129).
  */
@@ -1410,7 +1410,7 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
       const [out, onScreen] = [aside.get(trip.id), spreadable.find((d) => d.id === trip.id)?.at];
       const right = rightOf(heading, bearing);
       const coordinates: Point = out && onScreen ? (map.unproject([onScreen[0] + out * right[0], onScreen[1] + out * right[1]]).toArray() as Point) : at;
-      if (following && trip.id === followed) following.at = coordinates;
+      if (following && trip.id === followed) [following.at, following.zoom] = [coordinates, zoom];
       const line = lines.get(trip.line);
       return {
         type: 'Feature',
@@ -1729,19 +1729,24 @@ function follow(id: string, up = false) {
 
 /**
  * Where the Train the map follows is drawn at the zoom easeOnto() takes the map to, so that the ease
- * ends with it in the middle and no second move brings it there (#378): not where it's drawn now,
- * which, zoomed out, is on a stroke kilometres from where that zoom has it. Where the map is at that
- * zoom already, as it's drawn now, spread aside with its group as it may be (#129).
- * ponytail: a Train spread aside at a zoom short of FOLLOW_ZOOM is eased onto its place in its row,
- * not its place aside, so the map jumps its distance aside once the ease ends, as #325's tracking
- * does. Work its place aside out at the zoom eased to if that shows.
+ * ends with it in the middle and no second move brings it there (#378). Not where it was last drawn,
+ * which, zoomed out, is on its stroke there, kilometres from where it's drawn at the zoom eased to,
+ * and under reduced motion, where the first ease has jumped the map to that zoom already, is from the
+ * one before. Where it was drawn at that zoom already, as it was drawn, spread aside with its group
+ * as it may be (#129); otherwise where it's drawn at that zoom, as far aside as its group put it, in px.
+ * ponytail: that distance aside taken as if the map were flat, so on a tilted map the Train ends a
+ * little off the middle of the map, and centreOn() jumps the rest. Unproject it at the zoom eased to
+ * if that shows.
  */
 function followedAt(): Point | undefined {
-  const at = following?.at;
+  const [at, drawn] = [following?.at, following?.zoom];
   const zoom = Math.max(map.getZoom(), FOLLOW_ZOOM);
-  if (!at || zoom === map.getZoom()) return at;
+  if (!at || drawn === undefined || zoom === drawn) return at;
   const train = bundle && trainAt(bundle, Date.now(), received, followedId() ?? '', hidingClosures);
-  return train ? whereDrawn(train, zoom) : at;
+  if (!train) return at;
+  // A px is 2 ** (drawn - zoom) of the distance it was at the zoom it was drawn at.
+  const [was, now, scale] = [whereDrawn(train, drawn), whereDrawn(train, zoom), 2 ** (drawn - zoom)];
+  return [now[0] + (at[0] - was[0]) * scale, now[1] + (at[1] - was[1]) * scale];
 }
 
 /** The Station a Trip still to come leaves from, where the map eases onto (#322). */
