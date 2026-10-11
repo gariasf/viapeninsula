@@ -654,13 +654,28 @@ test("keeps a Line's way across a node from the end whose strokes' numbers come 
   const t: Stroke = { line: 'C3', shape: 'c1', from: 0, to: 500, side: 0 };
   const fromS: [Stroke, [Leg[], Leg[]]] = [s, [[], [{ stroke: t, end: 0 }]]];
   const fromT: [Stroke, [Leg[], Leg[]]] = [t, [[{ stroke: s, end: 1 }], []]];
-  for (const [a, b] of [[1, 2], [9, 12], [90, 100], [12, 9], [100, 90]] as const) {
+  for (const [a, b] of [[1, 2], [4, 5], [9, 12], [90, 100], [12, 9], [5, 4], [100, 90]] as const) {
     for (const at of [new Map([fromS, fromT]), new Map([fromT, fromS])]) {
       const found = across(at, () => false, new Map([[s, a], [t, b]]));
       expect(found).toHaveLength(1);
       // It leaves the stroke numbered first, whichever it was found from.
       expect(found[0]?.[0]?.stroke).toBe(a < b ? s : t);
     }
+  }
+});
+
+test("keeps each of a node's ways where one stroke's end joins both ends of another, numbered either way round (#448)", () => {
+  // S's end joins T's start and T's end: two ways, which differ only in the end they come onto T at.
+  const s: Stroke = { line: 'C3', shape: 'c0', from: 0, to: 500, side: 0 };
+  const t: Stroke = { line: 'C3', shape: 'c1', from: 0, to: 500, side: 0 };
+  const at = new Map<Stroke, [Leg[], Leg[]]>([
+    [s, [[], [{ stroke: t, end: 0 }, { stroke: t, end: 1 }]]],
+    [t, [[{ stroke: s, end: 1 }], [{ stroke: s, end: 1 }]]],
+  ]);
+  for (const [a, b] of [[9, 12], [12, 9]] as const) {
+    const found = across(at, () => false, new Map([[s, a], [t, b]]));
+    const ways = found.map((legs) => legs.map((l) => `${l.stroke === s ? 'S' : 'T'}.${l.end}`).join(' ')).sort();
+    expect(ways).toEqual(a < b ? ['S.1 T.0', 'S.1 T.1'] : ['T.0 S.1', 'T.1 S.1']);
   }
 });
 
