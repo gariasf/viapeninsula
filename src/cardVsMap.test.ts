@@ -1,11 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { gunzipSync } from 'node:zlib';
+import { gunzipSync, gzipSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import type { Bundle } from './bundle.ts';
+import { DEGREE, type Bundle } from './bundle.ts';
 import { differences, type Moment } from './cardVsMap.ts';
 import type { Received } from './engine.ts';
 import { jumps } from './jumps.ts';
@@ -196,12 +196,12 @@ describe('the runner', () => {
   // The runner takes each Network's live traits from src/networks.ts, as an older bundle's can differ.
   for (const network of bundle.networks) network.live = NETWORKS.find((n) => n.id === network.id)?.live ?? network.live;
 
-  /** The runner's counts of every Train-second drawn, by Network, with the followed pill's zoom `zoom`. */
-  function counted(zoom: number): Record<string, Record<string, number>> {
+  /** The runner's counts of every Train-second drawn, by Network, with the followed pill's zoom `zoom`, over the rains' replay or another. */
+  function counted(zoom: number, replay: { bundle: Bundle; received: Received[] } = { bundle, received }): Record<string, Record<string, number>> {
     const dir = mkdtempSync(join(tmpdir(), 'card-vs-map-test-'));
     try {
-      writeFileSync(join(dir, 'bundle.json'), JSON.stringify(bundle));
-      copyFileSync(file, join(dir, 'replay.json.gz'));
+      writeFileSync(join(dir, 'bundle.json'), JSON.stringify(replay.bundle));
+      writeFileSync(join(dir, 'replay.json.gz'), gzipSync(JSON.stringify({ received: replay.received })));
       const script = fileURLToPath(new URL('./cardVsMapRun.ts', import.meta.url));
       const run = execFileSync(process.execPath, [script, dir], { encoding: 'utf8', env: { ...process.env, ZOOM: String(zoom) }, stdio: ['ignore', 'pipe', 'ignore'] });
       const results = JSON.parse(run).results[dir] as Record<string, { all: Record<string, number> }>;
@@ -223,5 +223,34 @@ describe('the runner', () => {
     // Trains drawn at all, so that the 0 is a count and not an absence.
     for (const all of Object.values(at15)) expect(all.seconds).toBeGreaterThan(5000);
     expect(Object.fromEntries(Object.entries(at15).map(([network, all]) => [network, all['1.atNextBeforeArriving'] ?? 0]))).toEqual({ rodalies: 0, 'cercanias-madrid': 0 });
+  }, 60_000);
+
+  it("has the card say arriving across the stretch between a Station's platform and the dot its place is shown by, as the runner reads the Stations' own coordinates, where Passeig de Gràcia's L3 Station is 204 m from its dot (#609)", () => {
+    // A – B – C a kilometre apart along a line of latitude, and D of B's place 408 m before B: the place's dot, the middle of B and D, is 204 m before B's platform, over
+    // twice the 73 m a two-letter badge's followed pill reaches at zoom 13. Without the stretch the card says arriving at the dot, between, and arriving at the platform.
+    const [lat, day] = [41.4, '2026-10-07'];
+    const lon = (metres: number) => 2.15 + metres / (DEGREE * Math.cos((lat * Math.PI) / 180));
+    const noon = Date.parse(`${day}T00:00:00+02:00`);
+    const where: [id: string, metres: number, place?: string][] = [['a', 0], ['b', 1000, 'bd'], ['c', 2000], ['d', 592, 'bd']];
+    const interchange: Bundle = {
+      serviceDay: day,
+      noonMinus12h: noon,
+      networks: [{ id: 'test', name: 'Test', profile: { acceleration: 1.3, braking: 1.3, topSpeed: 80 / 3.6, dwell: 20 }, runningSide: 'right', colour: '#000', pillZoom: 12, credit: { text: '', url: '' } }],
+      lines: [{ id: 'L3', network: 'test', name: 'L3', colour: '#000', shapes: ['s'], kind: 'metro' }],
+      stations: where.map(([id, metres, place]) => ({ id, name: id, lon: lon(metres), lat, ...(place && { place }) })),
+      shapes: [{ id: 's', coords: [[lon(0), lat], [lon(2000), lat]], dist: [0, 2000] }],
+      strokes: [],
+      rails: [],
+      slots: [],
+      tracks: [],
+      trips: [{ id: 't', line: 'L3', shape: 's', headsign: 'C', calls: [{ station: 'a', arrival: 36000, departure: 36000, dist: 0 }, { station: 'b', arrival: 36090, departure: 36120, dist: 1000 }, { station: 'c', arrival: 36210, departure: 36210, dist: 2000 }] }],
+    };
+    // From 10 s after its Train leaves A to 10 s after it comes to B, with no report: a Scheduled Train, drawn by its timetable.
+    const read = (at: number): Received => ({ at, snapshot: { generated: at, feeds: {}, reports: [] } });
+    const all = counted(13, { bundle: interchange, received: [read(noon + 36_010_000), read(noon + 36_100_000)] }).test ?? {};
+    // The Train drawn, and arriving for some of it, so that no flap is a count and not an absence.
+    expect(all.seconds).toBeGreaterThan(80);
+    expect(all['w.arriving']).toBeGreaterThan(20);
+    expect(all['w.flaps.other'] ?? 0).toBe(0);
   }, 60_000);
 });
