@@ -742,11 +742,11 @@ let spreadState: { group?: Group; moved: Map<string, number>; easing: boolean } 
 /** The Trains last drawn as pills standing at a Station, where they're drawn before any moves aside, which a tap on one spreads (groupOf()). */
 let standingPills: { id: string; at: Point; heading: number; box: [number, number]; standsAt: string }[] = [];
 /**
- * Each place's name: its dot, the sides of its track it can go, once the map's bearing is known, broken
+ * Each place's name: its place's ID, whose board a tap on it opens (#618), its dot, the sides of its track it can go, once the map's bearing is known, broken
  * into its lines, how wide and high those are, in px, the zoom it shows from, whether it's in a tier,
  * its Stations, how much larger its dot is, and how it's lettered.
  */
-let names: { dot: Point; sides: (bearing: number) => Side[]; name: string; size: [width: number, height: number]; nameZoom: number; tier: boolean; stations: string[]; larger: number; style: NameStyle }[] = [];
+let names: { id: string; dot: Point; sides: (bearing: number) => Side[]; name: string; size: [width: number, height: number]; nameZoom: number; tier: boolean; stations: string[]; larger: number; style: NameStyle }[] = [];
 /** The map's bearing when the names were last put beside their tracks. */
 let namesBearing = NaN;
 /**
@@ -1059,11 +1059,13 @@ for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', tr
 }
 
 // Tapping a Train follows it, and tapping a Station shows its board. Both are small, so a tap near one
-// will do, and a Train standing at a Station is the one tapped. A tap nothing else takes, on a Line's
-// stroke or within STROKE_TAP of one, names the Lines drawn there, by their pills (#193), the strokes
-// nearest the tap first, and their Alerts, folded away; or on a Closure drawn over them, shows what
-// closes it (#341): but not on a place's name, which takes no tap. Any tap clears the ring a link
-// drew (#254).
+// will do, and a Train standing at a Station is the one tapped. A place's name shows its board too,
+// where it's drawn under the tap, after a Train or a dot near it (#618). A tap nothing else takes, on a
+// Line's stroke or within STROKE_TAP of one, names the Lines drawn there, by their pills (#193), the
+// strokes nearest the tap first, and their Alerts, folded away; or on a Closure drawn over them, shows
+// what closes it (#341). Any tap clears the ring a link drew (#254).
+// ponytail: a name takes only a tap on its own box, where a dot takes one within 10 px, so a tap just
+// beside a name is a stroke's. Give names a few px more if taps on them miss.
 // ponytail: so a double-click or double-tap that zooms clears it too, its first tap being a tap,
 // though a wheel, a pinch or a drag keeps it. Clear it only once no second tap follows if the ring's
 // missed after one.
@@ -1087,7 +1089,8 @@ map.on('click', ({ point: { x, y }, lngLat }) => {
   const near = (layer: string): unknown => within(10, [layer])[0]?.properties.id;
   // Where pills overlap, the one under the tap, the topmost, before one near it.
   const under: unknown = within(0, ['train-pills-followed', 'train-pills'])[0]?.properties.id;
-  const [train, place] = [under ?? near('train-pills-followed') ?? near('train-pills') ?? near('trains'), near('stations')];
+  // A place's dot near the tap, or failing that its name under it.
+  const [train, place] = [under ?? near('train-pills-followed') ?? near('train-pills') ?? near('trains'), near('stations') ?? within(0, ['station-names'])[0]?.properties.id];
   // A tap on a pill standing over others spreads them, and while they're spread, any tap but on one of them folds them (#129).
   const { group } = spreadState;
   const inGroup = typeof train === 'string' && group?.ids.has(train);
@@ -1099,7 +1102,7 @@ map.on('click', ({ point: { x, y }, lngLat }) => {
   if (spreads) return;
   if (typeof train === 'string') follow(train);
   else if (typeof place === 'string') showBoard(place);
-  else if (!within(0, ['station-names']).length) {
+  else {
     // As the Lines' names switch, though both show while they fade: the Closures' over the strokes they're on.
     const drawing = [...strokeLayers, ...closureLayers].filter((layer) => layer.startsWith('rails') === map.getZoom() >= railsZoom);
     const tapped = [STROKE_NEAREST, STROKE_TAP].map((r) => within(r, drawing)).find((hits) => hits.length) ?? [];
@@ -1124,13 +1127,13 @@ map.on('moveend', () => {
   if (linesPopup.isOpen()) fitPopup(linesPopup.getLngLat());
 });
 // ponytail: while the Lines fade, the pointer shows over the strokes of both drawings, though a tap
-// names only one's. Check the zoom on mouseenter if that ever misleads.
-// Over a Closure too, from its Line's stroke under it: each layer here queries the map on every move
-// of the mouse, a drag's too, and the Closures have 27.
-for (const layer of ['trains', 'train-pills', 'train-pills-followed', 'stations', ...strokeLayers]) {
-  map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'));
-  map.on('mouseleave', layer, () => (map.getCanvas().style.cursor = ''));
-}
+// names only one's. Check the zoom on each move if that ever misleads.
+// Over a Closure too, from its Line's stroke under it. One query of them all on every move of the
+// mouse, a drag's too, not a `mouseenter` and a `mouseleave` for each layer: those ran in the order
+// the layers were added, so a pointer moving onto a layer added before the one it left, as onto a
+// name from a stroke, had its pointer taken off again by the `mouseleave` that came after (#618).
+const pointed = ['trains', 'train-pills', 'train-pills-followed', 'stations', 'station-names', ...strokeLayers];
+map.on('mousemove', ({ point }) => (map.getCanvas().style.cursor = map.queryRenderedFeatures(point, { layers: pointed }).length ? 'pointer' : ''));
 // Escape closes the About dialog on its own, if it's open.
 document.addEventListener('keydown', (e) => e.key === 'Escape' && !about.open && (following || boardPlace || nearMe) && closePanel());
 
@@ -1295,9 +1298,9 @@ function show(days: Track | Bundle) {
   const [track, centrelines] = [days.shapes.filter((s) => !s.id.startsWith(STRETCH)), days.shapes.filter((s) => s.id.startsWith(STRETCH))];
   const spots = alongside(track, (days.slots ?? []).filter((s) => s.band === undefined), (line) => placing.keep.get(line) ?? 1, days.lines, new Map(centrelines.map((c) => [c.id, c])));
   // A track built before #243 names no Station's Networks: its names go beside the nearest track of any.
-  names = tiered.map(({ name, networks, nameZoom, tier, stations, larger, style, lon, lat }) => {
+  names = tiered.map(({ id, name, networks, nameZoom, tier, stations, larger, style, lon, lat }) => {
     const rows = nameLines(name, style);
-    return { dot: [lon, lat], sides: spots([lon, lat], networks), name: rows.join('\n'), size: [Math.max(...rows.map((row) => placeWidth(row, style))), rows.length * LINE_HEIGHT * style.size], nameZoom, tier, stations, larger, style };
+    return { id, dot: [lon, lat], sides: spots([lon, lat], networks), name: rows.join('\n'), size: [Math.max(...rows.map((row) => placeWidth(row, style))), rows.length * LINE_HEIGHT * style.size], nameZoom, tier, stations, larger, style };
   });
   showNames();
   drawClosures();
@@ -1486,9 +1489,9 @@ function showNames() {
   const { where } = laidOut;
   map.getSource<GeoJSONSource>('station-names')?.setData({
     type: 'FeatureCollection',
-    features: names.map(({ dot, name, nameZoom, tier, stations, style }, i): GeoJSON.Feature => {
+    features: names.map(({ id, dot, name, nameZoom, tier, stations, style }, i): GeoJSON.Feature => {
       const sort = nameSort({ nameZoom, tier, stations }, calls);
-      return { type: 'Feature', properties: { name, nameZoom, sort, ...style, ...where[i] }, geometry: { type: 'Point', coordinates: dot } };
+      return { type: 'Feature', properties: { id, name, nameZoom, sort, ...style, ...where[i] }, geometry: { type: 'Point', coordinates: dot } };
     }),
   });
 }
