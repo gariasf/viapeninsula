@@ -8,7 +8,7 @@ import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
 import { along, APART, atZoom, BANDS, bandZooms, coveredIn, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, daysOf, DEGREE, EARTH, joinTracks, LIVE_URL, madridDate, networkTracks, places, type Alerts, type Bundle, type Credit, type Call, type DayFiles, type Place, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH, type ZoomedOut } from '../bundle.ts';
 import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, unavailable, type Coming, type Departure, type Followed, type Received, type Train } from '../engine.ts';
-import { alertCount, alertsChanged, arrivingAt, basemapLabel, betweenStations, busesReplace, earlierStations, language, LANGUAGES, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, notRunning, setLanguage, t, toGo, trainCounts, trainsRunHere, unlocated, type Language, type Unlocated } from './i18n.ts';
+import { alertCount, alertsChanged, arrivingAt, basemapLabel, betweenStations, busesReplace, earlierStations, language, LANGUAGES, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, notRunning, passingStation, setLanguage, t, toGo, trainCounts, trainsRunHere, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { forgetJoined, regionLoader, regionsNeeded } from './regions.ts';
 import { linesAt, popupRoom } from './tap.ts';
@@ -18,7 +18,7 @@ import { atMostEvery, drifted, letsGo } from './centre.ts';
 import { keepView, lastView, markOf, openingView, toggledPitch } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { contrast, lettering } from './colour.ts';
-import { boardList, cardAlerts, countdownTo, inNameOrder, linesOnBoard, linkedWords, minutesTo, nearbyRows, progress, tripsState, untilTick, whereabouts, type CardAlert, type Whereabouts } from './cards.ts';
+import { boardList, cardAlerts, countdownTo, inNameOrder, linesOnBoard, linkedWords, minutesTo, nearbyRows, passedPlace, progress, tripsState, untilTick, whereabouts, type CardAlert, type Whereabouts } from './cards.ts';
 import { ARROW_GAP, boxOf, FOLLOWED_TEXT, LINE_HEIGHT, OUTLINE_SIZES, outlineOf, PILL_EDGE, PILL_PADDING, PILL_TEXT, pillReach, type Outline } from './pill.ts';
 import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, tappedRows, type Shown } from './closures.ts';
 
@@ -2158,7 +2158,8 @@ function moreButton(text: string) {
  * live data last placed it, its modelled speed, and its Unit type where its operator reports one; its
  * next Station, as it's arriving at it or stands at it by how it's drawn (#455), when it's expected
  * there, with its Delay but for a Metro Train's, and the time to it, in seconds in its last minute
- * (#456); how far along its Trip it is; and its Line's Alerts, folded away (#342). Peeking, it ends
+ * (#456), which it stays while the Train passes a Station it doesn't call at (#457); how far along its
+ * Trip it is; and its Line's Alerts, folded away (#342). Peeking, it ends
  * in how many Stations it has still to come; pulled up, it shows them, from the Train to its Trip's
  * last Station (#321), after a fold that shows those it has left (#349). Its Stations within a closed
  * Closure that hides Trains are marked as not stopped at in the strip, and not counted in how many it
@@ -2182,8 +2183,9 @@ function followedPanel(up: boolean): Panel | undefined {
   // The Stations it stops at, which it has still to come, the next of them first.
   const running = upcoming.filter((c) => !c.skipped);
   const last = running.at(-1);
-  // Where it is by how it's drawn: how near its pill reaches its Stations (#455).
-  const where = whereabouts(trip.calls, train.dist, upcoming.length, !!train.standsAt, followedReach(train), dotAway(train));
+  // Where it is by how it's drawn: how near its pill reaches its Stations (#455), and the place it passes without stopping, if one (#457).
+  const reach = followedReach(train);
+  const where = whereabouts(trip.calls, train.dist, upcoming.length, !!train.standsAt, reach, dotAway(train), passedBy(train, reach));
   const status: (Node | string)[] = [t(live ? 'live' : 'scheduled')];
   if (unreported) status.push(t('noLiveTrain'));
   else if (since !== undefined) status.push(t(live ? 'confirmed' : 'lastConfirmed').replace('{ago}', ago(since)));
@@ -2255,7 +2257,7 @@ function due(call: Followed['upcoming'][number], standing: boolean): number {
  * that time is when it leaves, which it says unless that's its Trip's last Station, where the Train
  * doesn't leave. The first it stops at, not one within a closed Closure that hides Trains (#420).
  */
-function nextStation({ upcoming, standsAt, delay, live }: Pick<Followed, 'upcoming' | 'standsAt' | 'delay' | 'live'>, now: number, where?: Whereabouts<Call>): Node[] {
+function nextStation({ upcoming, standsAt, delay, live }: Pick<Followed, 'upcoming' | 'standsAt' | 'delay' | 'live'>, now: number, where?: Whereabouts<Call, Place>): Node[] {
   const next = upcoming.find((c) => !c.skipped);
   if (!next) return [];
   const at = due(next, !!standsAt && next === upcoming[0]);
@@ -2292,14 +2294,26 @@ function dotAway({ lon, lat }: Followed): (call: Call) => number {
 }
 
 /**
- * What a followed Train's strip says of where it is by how it's drawn (whereabouts(), #455), by the
- * Stations' names: that it's arriving at its next Station, leaving the one it left, or between the two.
- * Standing, it says nothing there: its Train's mark is on its Station's row.
+ * The place on the map a followed Train passes without stopping, where its pill, which reaches `reach`
+ * metres, is on its dot (passedPlace(), #457): of the Stations the page has that its own Network's Trains
+ * stop at, one its Trip has no call at, by Station or by the name it's shown with. None where its Line,
+ * and so its Network, isn't known.
  */
-function whereIs(where: Whereabouts<Call>): string {
+function passedBy({ trip, lon, lat }: Followed, reach: number): { place: Place; away: number } | undefined {
+  return passedPlace(shownPlaces.values(), { lon, lat }, trip.calls.map(({ station }) => ({ station, name: stationName(station) })), reach, lines.get(trip.line)?.network ?? '');
+}
+
+/**
+ * What a followed Train's strip says of where it is by how it's drawn (whereabouts(), #455), by the
+ * Stations' names: that it's arriving at its next Station, leaving the one it left, passing a place it
+ * doesn't call at (#457), a place of its own Network's by the name the map shows it with, or between the two Stations. Standing, it
+ * says nothing there: its Train's mark is on its Station's row.
+ */
+function whereIs(where: Whereabouts<Call, Place>): string {
   const name = ({ station }: Call) => stationName(station);
   if (where.at === 'arriving') return arrivingAt(name(where.next));
   if (where.at === 'leaving') return leavingStation(name(where.last));
+  if (where.at === 'passing') return passingStation(where.place.name);
   return where.at === 'between' ? betweenStations(name(where.last), name(where.next)) : '';
 }
 
@@ -2324,16 +2338,16 @@ function tripBar({ trip, dist, upcoming }: Followed) {
 
 /**
  * The Stations a followed Train has still to come to, as a strip in its Line's colour: from the
- * Train, now, which is arriving at the first, leaving the Station before them or between the two, as
- * it's drawn (`where`, #455), or stands at the first, to its Trip's last Station, where the strip
- * ends in a bar across it, as the operators' maps end a Line. The next, the first it stops at, and the
- * last are in bold; one it doesn't stop at, within a closed Closure that hides Trains, has its time
- * struck through and says so, as a board's row does (#420). Once it has left a Station, the fold
- * before the strip (foldButton()) shows those it has already left at its top, greyed, by name only,
- * as the map has no time it passed them but its timetable's, and the
+ * Train, now, which is arriving at the first, leaving the Station before them, passing a place its Trip
+ * has no call at (#457) or between the two, as it's drawn (`where`, #455), or stands at the first, to
+ * its Trip's last Station, where the strip ends in a bar across it, as the operators' maps end a Line.
+ * The next, the first it stops at, and the last are in bold; one it doesn't stop at, within a closed
+ * Closure that hides Trains, has its time struck through and says so, as a board's row does (#420).
+ * Once it has left a Station, the fold before the strip (foldButton()) shows those it has already left
+ * at its top, greyed, by name only, as the map has no time it passed them but its timetable's, and the
  * Train then as a compact mark after them (#349).
  */
-function strip({ trip, upcoming, standsAt }: Pick<Followed, 'trip' | 'upcoming' | 'standsAt'>, where?: Whereabouts<Call>): Node[] {
+function strip({ trip, upcoming, standsAt }: Pick<Followed, 'trip' | 'upcoming' | 'standsAt'>, where?: Whereabouts<Call, Place>): Node[] {
   // How many Stations it has already left, and the last of them, before those it has still to leave.
   const earlier = trip.calls.length - upcoming.length;
   const lastLeft = trip.calls[earlier - 1];

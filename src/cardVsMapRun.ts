@@ -16,7 +16,23 @@
 // Whose `now` is whose: `b.nowFar`, `b.readsNow`, `3.nowByMinute` and `5.nowByDelay` are the minute-reading card's, as a
 // board's rows say it and the followed Train's card did until #456, kept as #352 counted them; the followed Train's
 // countdown in seconds is under `s.` (`s.nowFar`, `s.nowByMinute`, `s.reads.*`, `s.steps.*`), and what it reads where
-// the other said now with the Train far under `b.nowFar.reads.*` (#456).
+// the other said now with the Train far under `b.nowFar.reads.*` (#456). And `4.atNotCall` and `2.pill.notCall` are what the card
+// leaves unnamed of the places it has no call at, by the card's rule since #457 (`w.passing`: where neither Station of its calls is
+// within the pill's reach it names the nearest place of its own Network's within it that isn't a call, or named as one): `.own` those
+// the Train's own Network's Trains stop at, which it names, so that they're 0 where it says `Between` or `Passing`, as the ticket's
+// "at 0 where the card says it" reads (the maintainer's, 11 Oct 2026), and `.other` those only another Network's stop at, which it never
+// names, a dot under the pill that is another railway's; and `.<what the card says>` of them by what it says; of `4.atNotCall` also
+// `.own.<what the card says>` and `.other.<…>`, and `.namedAsCall.<…>` those named as one of the Trip's calls (the TRAM's Glòries beside
+// the Metro's), which the card names no more than any other Network's. Of both, `.before` is the same counted with the card as #455 and
+// #456 left it, before it named the place it passes, `.before.<what it said>` of them by what it said, and `.before.own` and
+// `.before.own.<…>` of those the Train's own Network's places: the column of the measure since #455, by the dots the map draws
+// (#352's own, which counted each Station by its own coordinates under the card before #455, is the note's section 2, and with
+// STATIONS=1 its yardstick).
+// `w.passing.nearCall` (within 150 m of the dot of one of its Trip's calls, as FGC's Sant Gervasi is of Pl. Molina), `w.passing.still` how
+// many of those seconds a Live Train is drawn still in, `w.passing.episodes` how many times it begins to, `w.nearer.arriving` and
+// `.leaving` the seconds the card names its Station with a place it could pass nearer, and `w.flaps.passingReturns`, `.afterPassing` and
+// `.other` which words come back within 10 s: a place it passes coming back, the words before it after it, and any other, as #455
+// counted them.
 
 import { rmSync } from 'node:fs';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
@@ -26,6 +42,7 @@ import { pathToFileURL } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 import { DEGREE, pixelMetres, places, type Bundle, type Place, type Trip } from './bundle.ts';
 import { differences, type Moment, type Near } from './cardVsMap.ts';
+import { passedPlace } from './web/cards.ts';
 import type { Received } from './engine.ts';
 import { NETWORKS } from './networks.ts';
 import { ARROW_GAP, boxOf, FOLLOWED_TEXT, outlineOf, pillReach } from './web/pill.ts';
@@ -81,6 +98,15 @@ for (const dir of process.argv.slice(2)) {
   const keyOf = byStation ? new Map(bundle.stations.map((s) => [s.id, s.place ?? s.name])) : new Map(shown.flatMap((p) => p.stations.map((id): [string, string] => [id, p.id])));
   // The dot the map draws each Station's place at, which the card goes by whichever of those it counts.
   const placeOf = new Map(shown.flatMap((p) => p.stations.map((id): [string, Place] => [id, p])));
+  const nameOf = new Map(bundle.stations.map((s) => [s.id, s.name]));
+  // The name the map shows each of those keys' place with, which the card compares with its Trip's calls' (#457).
+  const shownAs = new Map(bundle.stations.map((s) => [keyOf.get(s.id) ?? s.id, placeOf.get(s.id)?.name ?? s.name]));
+  // Whose Trains stop at each of those keys' Stations, to say whose a place the card leaves unnamed is (#457).
+  const servedBy = new Map<string, Set<string>>();
+  for (const s of bundle.stations) {
+    const key = keyOf.get(s.id) ?? s.id;
+    servedBy.set(key, new Set([...(servedBy.get(key) ?? []), ...(s.networks ?? [])]));
+  }
   const lineOf = new Map(bundle.lines.map((l) => [l.id, l]));
   // The zoom each Network's Trains are drawn as pills from: round pills from zoom 10 where a track names none (main.ts's show()).
   const pillZoomOf = new Map(bundle.networks.map((n) => [n.id, n.pillZoom]));
@@ -89,19 +115,25 @@ for (const dir of process.argv.slice(2)) {
   const cell = (lon: number, lat: number) => `${Math.floor(lon / 0.0045)} ${Math.floor(lat / 0.0045)}`;
   const grid = new Map<string, typeof dots>();
   for (const p of dots) grid.set(cell(p.lon, p.lat), [...(grid.get(cell(p.lon, p.lat)) ?? []), p]);
-  const nearTo = (lon: number, lat: number, radius: number): Near[] => {
+  // The same for the places themselves, which the card's passedPlace() looks at, as the page does at all of them.
+  const placeGrid = new Map<string, Place[]>();
+  for (const p of shown) placeGrid.set(cell(p.lon, p.lat), [...(placeGrid.get(cell(p.lon, p.lat)) ?? []), p]);
+  /** What `of` has in the cells a circle of `radius` metres about a point reaches, which are more than it holds. */
+  const around = <T>(of: Map<string, T[]>, lon: number, lat: number, radius: number): T[] => {
     const [cx, cy] = [Math.floor(lon / 0.0045), Math.floor(lat / 0.0045)];
     const kx = DEGREE * Math.cos((lat * Math.PI) / 180);
     // As many cells either way as the radius reaches, which at low zooms is more than the next one.
     const [sx, sy] = [Math.ceil(radius / (0.0045 * kx)), Math.ceil(radius / (0.0045 * DEGREE))];
+    const found: T[] = [];
+    for (let x = cx - sx; x <= cx + sx; x++) for (let y = cy - sy; y <= cy + sy; y++) found.push(...(of.get(`${x} ${y}`) ?? []));
+    return found;
+  };
+  const nearTo = (lon: number, lat: number, radius: number): Near[] => {
+    const kx = DEGREE * Math.cos((lat * Math.PI) / 180);
     const near: Near[] = [];
-    for (let x = cx - sx; x <= cx + sx; x++) {
-      for (let y = cy - sy; y <= cy + sy; y++) {
-        for (const p of grid.get(`${x} ${y}`) ?? []) {
-          const metres = Math.hypot((p.lon - lon) * kx, (p.lat - lat) * DEGREE);
-          if (metres <= radius) near.push({ key: p.key, metres });
-        }
-      }
+    for (const p of around(grid, lon, lat, radius)) {
+      const metres = Math.hypot((p.lon - lon) * kx, (p.lat - lat) * DEGREE);
+      if (metres <= radius) near.push({ key: p.key, metres });
     }
     return near.sort((a, b) => a.metres - b.metres);
   };
@@ -137,10 +169,14 @@ for (const dir of process.argv.slice(2)) {
       // As the operator runs it: its calls as `o.calls` has them, one for one (cutTrip(), #346).
       const made = o.trip;
       const kx = DEGREE * Math.cos((train.lat * Math.PI) / 180);
+      // Whose Station a place is: its Network's Trains stop there, or only another's, to say whose a place the card leaves unnamed is (#457).
+      const ownPlace = (key: string | undefined) => servedBy.get(key ?? '')?.has(line?.network ?? '') ?? false;
       const calls = o.calls.map((c) => {
         const place = placeOf.get(c.station);
         return { ...c, key: keyOf.get(c.station) ?? c.station, away: place ? Math.hypot((place.lon - train.lon) * kx, (place.lat - train.lat) * DEGREE) : Infinity };
       });
+      // The place it passes, as the card has it: of its own Network's, the places' dots whichever Stations `near` counts by, none the Stations it calls at, or named as one.
+      const hit = passedPlace(around(placeGrid, train.lon, train.lat, half), train, o.calls.map((c) => ({ station: c.station, name: nameOf.get(c.station) ?? c.station })), half, line?.network ?? '');
       const position = o.said?.report.position as { near?: string } | undefined;
       const fresh = o.said?.confirmed !== undefined && bundle.noonMinus12h + o.now * 1000 - o.said.confirmed <= CONFIRMED;
       const pinned = train.live && fresh && typeof position?.near === 'string' ? made.calls.find((c) => c.station === position.near) : undefined;
@@ -156,6 +192,7 @@ for (const dir of process.argv.slice(2)) {
         standing: !!train.standsAt,
         near: nearTo(train.lon, train.lat, arrowReach),
         reach: { pill: half, arrow: arrowReach },
+        ...(hit && { passed: { key: keyOf.get(hit.place.stations[0] ?? '') ?? hit.place.id, metres: hit.away } }),
         profile: o.profile,
         ...(pinned && { pin: { dist: pinned.dist, call: made.calls.indexOf(pinned) } }),
       };
@@ -171,18 +208,63 @@ for (const dir of process.argv.slice(2)) {
       if (d.standingHeaderNext) add('1.standingHeaderNext');
       // What the card says (#455): how long each of its words lasts, and how often they change and come straight back.
       add(`w.${d.says.at}`);
+      if (d.says.at === 'passing') {
+        // A place it names is its own Network's (#457). Whether it's within 150 m of the dot of one of its Trip's calls, as FGC's Sant Gervasi is of Pl. Molina;
+        // and whether a Live Train is held, drawn still in this second.
+        if (hit && o.calls.some((c) => { const there = placeOf.get(c.station); return !!there && Math.hypot((there.lon - hit.place.lon) * kx, (there.lat - hit.place.lat) * DEGREE) <= 150; })) add('w.passing.nearCall');
+        const prior = was.get(trip.id);
+        if (train.live && prior !== undefined && Math.abs(train.dist - prior) < 0.1) add('w.passing.still');
+      }
+      // Where the card names the Station it comes to or left, and the place it would pass is nearer the Train than that Station: where the nearer would say `passing`.
+      if (hit && (d.says.at === 'arriving' || d.says.at === 'leaving')) {
+        const upcoming = calls.filter((c) => c.departure >= o.time);
+        const named = d.says.at === 'arriving' ? upcoming[0] : calls[calls.length - upcoming.length - 1];
+        if (named && hit.away < Math.min(Math.abs(named.dist - train.dist), named.away)) add(`w.nearer.${d.says.at}`);
+      }
       const [words, lately] = [`${d.says.at} ${d.says.key}`, saying.get(trip.id)];
       said.set(trip.id, [...(lately ?? []), words].slice(-FLAP));
       if (lately && lately.at(-1) !== words) {
         add('w.changes');
-        if (lately.slice(0, -1).includes(words)) add('w.flaps');
+        if (d.says.at === 'passing') add('w.passing.episodes');
+        if (lately.slice(0, -1).includes(words)) {
+          add('w.flaps');
+          // Of those, which are a place it passes coming back (#457), which are the words before it coming back after it (a passage of under FLAP seconds, which
+          // is no flap of the card's), and the rest, as #455 counted them.
+          const between = lately.slice(lately.lastIndexOf(words) + 1);
+          add(d.says.at === 'passing' ? 'w.flaps.passingReturns' : between.every((w) => w.startsWith('passing ')) ? 'w.flaps.afterPassing' : 'w.flaps.other');
+        }
       }
       if (d.atNextBeforeArriving) add('1.atNextBeforeArriving');
       if (d.at) add(`a.at.${d.at}`);
       if (d.pill) add(`2.pill.${d.pill}`);
       if (d.arrow) add(`2.arrow.${d.arrow}`);
       if (d.arrow && d.graced) add('2.arrow.graced');
-      if (d.at === 'notCall') add('4.atNotCall');
+      if (d.at === 'notCall') {
+        add('4.atNotCall');
+        const whose = ownPlace(d.atKey) ? 'own' : 'other';
+        add(`4.atNotCall.${whose}`);
+        add(`4.atNotCall.${whose}.${d.says.at}`);
+        // A place named as one of its calls, which the card doesn't have it pass, though it's not a call by its key.
+        if (o.calls.some((c) => (nameOf.get(c.station) ?? c.station) === shownAs.get(d.atKey ?? ''))) add(`4.atNotCall.namedAsCall.${d.says.at}`);
+      }
+      if (d.pill === 'notCall') {
+        add(ownPlace(d.pillKey) ? '2.pill.notCall.own' : '2.pill.notCall.other');
+        add(`2.pill.notCall.${d.says.at}`);
+      }
+      // As the card was before it named the place it passes, by what it said, and of those the Train's own Network's places, `.own`.
+      const unnamedBefore = m.passed ? differences({ ...m, passed: undefined }) : d;
+      if (unnamedBefore?.at === 'notCall') {
+        add('4.atNotCall.before');
+        add(`4.atNotCall.before.${unnamedBefore.says.at}`);
+        if (ownPlace(unnamedBefore.atKey)) {
+          add('4.atNotCall.before.own');
+          add(`4.atNotCall.before.own.${unnamedBefore.says.at}`);
+        }
+      }
+      if (unnamedBefore?.pill === 'notCall') {
+        add('2.pill.notCall.before');
+        if (ownPlace(unnamedBefore.pillKey)) add('2.pill.notCall.before.own');
+      }
       if (d.nowFar) add('b.nowFar');
       // The followed Train's countdown (#456), beside the minute-reading card's `b.nowFar` above and its `3.nowByMinute` and `5.nowByDelay` below:
       // what it reads (`s.reads`), that it reads now with the Train far only by the Delay (`s.nowFar`, `s.nowByMinute`), what it reads where the
