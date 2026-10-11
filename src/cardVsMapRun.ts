@@ -1,7 +1,7 @@
 // Replays recordings second by second and counts, by Network, where a followed Train's card and the Train
 // drawn on the map disagree (#352): the yardstick is cardVsMap.ts's. `npm run card-vs-map -- <dir>...`
-// reads each <dir>'s bundle.json (a whole day's, or that and the next day's joined, where the recording
-// went past midnight, as `npm run record` or a Record run's artifact has it) and replay.json.gz, and prints
+// reads each <dir>'s bundle.json (a whole day's, or that joined with the day before's and the next day's
+// as the map would have had them, as `npm run record` or a Record run's artifact has it) and replay.json.gz, and prints
 // one JSON object of counts, in Train-seconds, to stdout. Nothing in the map changes: the engine's own
 // onMap() is what it samples, from a copy of src/engine.ts with it exported.
 //
