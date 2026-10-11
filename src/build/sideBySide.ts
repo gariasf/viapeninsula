@@ -1450,8 +1450,8 @@ function split(strokes: Stroke[]): Stroke[] {
   return strokes.flatMap((s) => {
     const runs = depths.get(s);
     if (!runs) return [s];
-    return runs.map(([run, below], i): Stroke => {
-      const [from, to] = [i ? run : s.from, runs[i + 1]?.[0] ?? s.to];
+    return runs.map(([began, below], i): Stroke => {
+      const [from, to] = [i ? began : s.from, runs[i + 1]?.[0] ?? s.to];
       const length = to - from;
       const cut = s.cut?.map(([start, end]): [number, number] => {
         const a = Math.min(length, Math.max(0, s.from + start - from));
