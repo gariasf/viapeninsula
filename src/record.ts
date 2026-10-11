@@ -1,14 +1,18 @@
 // Records live data for the tests' fixtures (#31): the production snapshots as the map receives
-// them, every 20 s for a quarter of an hour, with Renfe's two feeds fetched beside each, and that
+// them, every 20 s for a quarter of an hour, with Renfe's four feeds fetched beside each, and that
 // day's bundle cut down to the Trips the replay needs. `npm run record -- <dir> [minutes]` writes to <dir>:
 //
 // - vehicle_positions.json and trip_updates.json, as Renfe served them at the start, where it did,
-//   which src/fetcher/fixtures/ keeps cut down to Rodalies' Trips and a few of other núcleos';
-// - renfe.ndjson.gz, those two feeds again at every step, as the fetcher reads them each run (#364):
-//   a line a step, `{ at, positions, updates }`, gzipped, in the order they came, with `at` in ms
-//   since 1970, as a snapshot's is in replay.json.gz, and each feed as its file parses, left out of
-//   the line where its fetch failed, and the line where both did. A line can lack Madrid's Trains
-//   whole, as Renfe drops them from about one fetch in five (docs/research/live-at-scale.md);
+//   which src/fetcher/fixtures/ keeps cut down to Rodalies' Trips and a few of other núcleos', and
+//   vehicle_positions_LD.json and trip_updates_LD.json, its long-distance pair, whose Trains it names
+//   by Train number (#261, #550). A file that didn't come is left out, the others kept;
+// - renfe.ndjson.gz, those four feeds again at every step, as the fetcher reads them (#364, #550): a
+//   line a step, `{ at, positions, updates, positionsLD, updatesLD }`, gzipped, in the order they
+//   came, with `at` in ms since 1970, as a snapshot's is in replay.json.gz, and each feed as its file
+//   parses, left out of the line where its fetch failed, and the line where all did. The fetcher
+//   fetches the long-distance pair every other run, so every other line is what it read of it. A line
+//   can lack Madrid's Trains whole, as Renfe drops them from about one fetch in five
+//   (docs/research/live-at-scale.md);
 // - alerts.json, the operators' Alerts as the map reads them, once at the start, where they came,
 //   which the Closures are made from (closuresAt()), as #345's count of the Trains inside one needs;
 // - bundle.json, the whole bundle the replay is of, which the tests cut their Trips from: that day's,
@@ -23,7 +27,7 @@
 // It needs no key: Renfe's feeds, the bundles, the Alerts and the snapshot are all public.
 
 import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { daysNeeded, daysOf, joinTracks, joinTrips, LIVE_URL, madridDate, type Bundle, type DayFiles, type DayTrips, type Manifest, type Snapshot, type Trip } from './bundle.ts';
 import { joinDays, namedIn, numberedIn, trainsAt, type Received } from './engine.ts';
@@ -125,16 +129,25 @@ if (import.meta.main) {
   };
 
   // Renfe's feeds are for the fixtures and the audits alone, so a recording goes on without them, as
-  // one an audit leaves running in Actions does (#233).
-  const RENFE = { positions: 'https://gtfsrt.renfe.com/vehicle_positions.json', updates: 'https://gtfsrt.renfe.com/trip_updates.json' };
-  try {
-    const [positions, updates] = await Promise.all([get(RENFE.positions), get(RENFE.updates)]);
-    await writeFile(join(dir, 'vehicle_positions.json'), positions);
-    await writeFile(join(dir, 'trip_updates.json'), updates);
-    console.log(`Renfe's feeds recorded at ${new Date().toISOString()}`);
-  } catch (error) {
-    console.warn(`Renfe's feeds not recorded: ${error}`);
-  }
+  // one an audit leaves running in Actions does (#233), and without any that doesn't come, each file
+  // by itself: its Cercanías pair, and the long-distance pair of the Trains it names by number (#550).
+  const RENFE = {
+    positions: 'https://gtfsrt.renfe.com/vehicle_positions.json',
+    updates: 'https://gtfsrt.renfe.com/trip_updates.json',
+    positionsLD: 'https://gtfsrt.renfe.com/vehicle_positions_LD.json',
+    updatesLD: 'https://gtfsrt.renfe.com/trip_updates_LD.json',
+  };
+  await Promise.all(
+    Object.values(RENFE).map(async (url) => {
+      const file = basename(url);
+      try {
+        await writeFile(join(dir, file), await get(url));
+        console.log(`${file} recorded at ${new Date().toISOString()}`);
+      } catch (error) {
+        console.warn(`${file} not recorded: ${error}`);
+      }
+    }),
+  );
 
   // The Alerts the map reads, at the start, which a recording's Closures are made from (#364).
   // ponytail: once, so an Alert that comes or goes while it records is missed; keep each change in a
@@ -157,16 +170,16 @@ if (import.meta.main) {
   const first = await bundleOf(day);
 
   // As the map does: each look for live data records the snapshot got, or where none came, the last
-  // one. And with each look, Renfe's feeds as they parse, in a line (#364), fetched beside it and not
-  // waited for, so that a Renfe that's slow doesn't hold the next look up.
+  // one. And with each look, Renfe's four feeds as they parse, in a line (#364, #550), fetched beside
+  // it and not waited for, so that a Renfe that's slow doesn't hold the next look up.
   const feed = (url: string) => get(url).then((text) => JSON.parse(text) as unknown).catch((error) => void console.warn(error));
   const received: Received[] = [];
   const renfe: string[] = [];
   const looks: Promise<void>[] = [];
   for (const end = Date.now() + Number(minutes) * 60_000; Date.now() < end; await new Promise((done) => setTimeout(done, 20_000))) {
     looks.push(
-      Promise.all([feed(RENFE.positions), feed(RENFE.updates)]).then(([positions, updates]) => {
-        if (positions || updates) renfe.push(JSON.stringify({ at: Date.now(), positions, updates }));
+      Promise.all([feed(RENFE.positions), feed(RENFE.updates), feed(RENFE.positionsLD), feed(RENFE.updatesLD)]).then(([positions, updates, positionsLD, updatesLD]) => {
+        if (positions || updates || positionsLD || updatesLD) renfe.push(JSON.stringify({ at: Date.now(), positions, updates, positionsLD, updatesLD }));
       }),
     );
     let snapshot: Snapshot | undefined;
