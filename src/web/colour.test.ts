@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { contrast, lettering } from './colour.ts';
+import { contrast, darkInk, INK, lettering } from './colour.ts';
 
 /** The dark basemap's paper, OpenFreeMap's dark style's background. */
 const PAPER = '#0c0c0c';
@@ -50,4 +50,39 @@ test('on a light card, a Line whose colour reads at 4.5:1 is lettered in it, and
   const [r = 0, g = 0, b = 0] = [1, 3, 5].map((i) => parseInt(lettering('#F7A30D', CARD).slice(i, i + 2), 16));
   expect(r).toBeGreaterThan(g);
   expect(g).toBeGreaterThan(b);
+});
+
+test('a colour written in three digits is the six it stands for, as INK is, #111', () => {
+  // R2N's yellow-green against it: 12.8:1, which was NaN.
+  expect(contrast('#D0DF00', '#111')).toBeCloseTo(12.8, 1);
+  expect(contrast('#D0DF00', '#111')).toBe(contrast('#D0DF00', '#111111'));
+  expect(contrast('#fff', '#000')).toBeCloseTo(21);
+});
+
+test('each digit of a colour written in three is doubled, not the three repeated: #f80 is #ff8800, not #f80f80', () => {
+  // The three-digit colours of the other tests, #111, #fff and #000, read the same either way.
+  expect(contrast('#f80', '#ff8800')).toBe(1);
+  expect(contrast('#2A9', '#22aa99')).toBe(1);
+});
+
+test('a paper written #fff letters a Line as #ffffff does', () => {
+  // R2N's, mixed with black no further than it takes to read at 4.5:1; and the Metro's L1, which reads already, as it is.
+  expect(lettering('#D0DF00', '#fff')).toBe('#727b00');
+  expect(lettering('#CE1126', '#fff')).toBe('#CE1126');
+});
+
+test('a Live Train is lettered in dark ink on the Lines white reads worst on, which it reads on at 4.5:1', () => {
+  // TRAM's T2, Rodalies' R2N, RT1, R17, R1, R4, R13 and R2, Metro's L4 and L3, and FGC's R6, S8, S2 and S1, as their feeds and the config give them: 1.3:1 to 4.1:1 with white.
+  const lines = ['#80FF80', '#D0DF00', '#39D4CC', '#F3B12E', '#7DBCEC', '#F7A30D', '#E52E87', '#26A741', '#F7A30E', '#1EB53A', '#b3b3b3', '#49C0DE', '#88BB0B', '#EF7900'];
+  for (const colour of lines) {
+    expect(darkInk(colour)).toBe(true);
+    expect(contrast(colour, INK)).toBeGreaterThanOrEqual(4.5);
+  }
+});
+
+test("white stays on the Lines it reads on better than ink does, as on Bilbao's C2, where neither reaches 4.5:1", () => {
+  // The Metro's L1, TRAM's T3 at 4.50:1, Madrid's C4 and FGC's MM, black.
+  for (const colour of ['#CE1126', '#0074E8', '#2C2A86', '#000000']) expect(darkInk(colour)).toBe(false);
+  // Bilbao's C2 is 4.37:1 with white and 4.32 with ink.
+  expect(darkInk('#0F8C2D')).toBe(false);
 });
