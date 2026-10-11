@@ -198,7 +198,7 @@ test("no position holds a long-distance Train at a Station: where Renfe's report
   expect(where(gpsHeld, 'ave', at('10:50:30'), near)).toBeCloseTo(due ?? NaN, 3);
 });
 
-test("a long-distance Train carries on from its last GPS Delay, whatever Renfe's own figure says, and goes by Renfe's figure only where its GPS has given none", () => {
+test("a long-distance Train carries on from its last GPS Delay, whatever Renfe's own figure says within 10 minutes, and goes by Renfe's figure only where its GPS has given none", () => {
   const behind = (late: number, moment: number) => gps('ave', (where(VIA_B, 'ave', moment - late * 1000) ?? NaN) / 1000, moment);
   // GPS has the Train 30 s late between B and C at 10:50:00 and 10:50:40, where Renfe's figure says 5
   // minutes. Then Renfe gives it no position, still 5 minutes late. It runs on 30 s late.
