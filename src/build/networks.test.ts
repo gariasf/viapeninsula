@@ -8,7 +8,7 @@ import { afterAll, afterEach, expect, test, vi } from 'vitest';
 import { places, type Point } from '../bundle.ts';
 import { AVE_LARGA_DISTANCIA, CERCANIAS_ASTURIAS, CERCANIAS_BILBAO, CERCANIAS_SANTANDER, CERCANIAS_ZARAGOZA, MEDIA_DISTANCIA_AVANT, NETWORKS, RODALIES, TRAM, type NetworkConfig } from '../networks.ts';
 import { dirSource, rows, seconds, zipFile, zipSource, type Source } from './gtfs.ts';
-import { copyOf, FGC_FEED, joinParts, meeting, METRO_FEED, onFgcRails, onMetroRails, onRails, onRodaliesRails, ownRails, readFeed, readTimetables, RODALIES_FEED, TRAMBAIX_FEED, unlisted, untaken, type Feed } from './networks.ts';
+import { copyOf, FGC_FEED, joinParts, meeting, METRO_FEED, onFgcRails, onMetroRails, onRails, onRodaliesRails, ownRails, readFeed, readTimetables, RODALIES_FEED, TRAMBAIX_FEED, unlisted, untaken, updatedOn, type Feed } from './networks.ts';
 import type { Found } from './report.ts';
 import type { Snippet } from './snippet.ts';
 import { nearest, traceShapes } from './track.ts';
@@ -363,6 +363,30 @@ test("gives each Line its kind of service: its Network's, but for the Lines it n
   expect(await kinds(fgc, FGC_FEED)).toEqual({ L12: 'commuter', MM: 'rack', FV: 'funicular', R5: 'regional' });
   expect(await kinds(tram, TRAMBAIX_FEED)).toEqual({ T2: 'tram' });
   expect(await kinds(tmb, METRO_FEED)).toEqual({ L11: 'metro', FM: 'funicular' });
+});
+
+test("asks for the day a timetable was last updated of TMB's and TRAM's two, whose terms ask the map to show it, TRAM's from the day they were read, as neither feed has a feed_info.txt (#537)", () => {
+  expect(NETWORKS.flatMap((n) => n.timetables.filter((t) => t.updated).map((t) => [t.prefix, t.updated]))).toEqual([
+    ['tram:TBX', 'read'],
+    ['tram:TBS', 'read'],
+    ['metro', true],
+  ]);
+});
+
+test("gives the day a timetable was last updated: its feed's start date where its terms ask for it, as TMB's do, or the day it was read where its feed has no feed_info.txt, as TRAM's hasn't (#537)", async () => {
+  const readOn = '2026-10-11';
+  // TMB's feed of 2026-09-21 starts that day, whenever it's read.
+  expect(await updatedOn([{ ...METRO_FEED, gtfs: tmb, readOn }])).toBe('2026-09-21');
+  // TRAM's has no feed_info.txt: the day the build read it.
+  expect(await updatedOn([{ ...TRAMBAIX_FEED, gtfs: tram, readOn }])).toBe('2026-10-11');
+  // Of a Network's timetables, the first that asks for it.
+  expect(await updatedOn([{ ...TRAMBAIX_FEED, gtfs: tram, readOn }, { ...TRAMBAIX_FEED, gtfs: tram, readOn: '2026-10-12' }])).toBe('2026-10-11');
+  // One whose terms don't ask for it has none.
+  expect(await updatedOn([{ ...RODALIES_FEED, gtfs: renfe, readOn }])).toBeUndefined();
+});
+
+test("fails a timetable whose terms ask for its feed's start date where its feed has none, rather than date it the day it was read, as TMB's would be without its feed_info.txt (#537)", async () => {
+  await expect(updatedOn([{ ...METRO_FEED, gtfs: tram, readOn: '2026-10-11' }])).rejects.toThrow('The feed has no feed_info.txt');
 });
 
 test('runs the Montjuïc funicular every 10 minutes, from 07:30 on weekdays and 09:00 at weekends, as frequencies.txt has it', async () => {
@@ -1271,6 +1295,23 @@ test("builds a Network from its copy where one of its timetables gives it no Lin
   expect(await readTimetables(PAIR, undefined, read, (f) => found.push(f), cache)).toEqual({ lines: [['T1'], ['T4']] });
   expect(found).toEqual([{ kind: 'copy', network: 'tram', text: ['TRAM is built from the copy of its timetables kept on 2026-10-05: https://opendata.tram.cat/GTFS/zip/TBS.zip gives it no Lines'] }]);
   expect(await readTimetables(PAIR, RENFE_499, read, () => {}, cache)).toEqual({ lines: [['T1'], ['T4']] });
+});
+
+test("gives each timetable the day it was read: the day it's downloaded, or where the Network is built from its copy, the day the copy was kept (#537)", async () => {
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-10-11T08:00:00Z'));
+  try {
+    const readOn = async (feeds: (Feed & { gtfs: Source; readOn: string })[]) => ({ ...(await read(feeds)), readOn: feeds.map((f) => f.readOn) });
+    // The copy was kept on 5 Oct 2026, when nothing was new to read.
+    const cache = await copied(PAIR, ['T1'], ['T4']);
+    expect((await readTimetables(PAIR, RENFE_499, readOn, () => {}, cache)).readOn).toEqual(['2026-10-05', '2026-10-05']);
+    await downloaded(`${PREFIX}-a`, 'T1');
+    await downloaded(`${PREFIX}-b`, 'T4');
+    expect((await readTimetables(PAIR, undefined, readOn, () => {}, cache)).readOn).toEqual(['2026-10-11', '2026-10-11']);
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 test('fails with no copy to build the Network from, as the build did before it kept one, as with a copy kept before it had one of its timetables', async () => {
