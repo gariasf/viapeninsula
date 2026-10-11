@@ -2805,14 +2805,14 @@ test("a report naming the Train number of a Trip that runs on both days is about
 });
 
 // Made up: an R1 from Badalona at 23:55 to El Masnou at 00:07, Train 25601, on each day's timetable
-// under a trip_id of that day's own, as Renfe's are: Friday's 5166V25601R1 and Saturday's 5167X25601R1.
+// under a trip_id of that day's own, as Renfe's are: Friday's 5166V25601R1 and Saturday's 5167S25601R1.
 const R1_THROUGH: Row[] = [
   ['Badalona', '23:55:00', '23:55:00', 18429, 2.24892096, 41.4458838],
   ['Montgat', '23:59:00', '23:59:00', 21147, 2.2721551, 41.4630211],
   ['Montgat-Nord', '24:03:00', '24:03:00', 22525, 2.28669661, 41.468786],
   ['El Masnou', '24:07:00', '24:07:00', 24701, 2.3103772, 41.4770363],
 ];
-const [FRIDAY_25601, SATURDAY_25601] = ['rodalies:5166V25601R1', 'rodalies:5167X25601R1'];
+const [FRIDAY_25601, SATURDAY_25601] = ['rodalies:5166V25601R1', 'rodalies:5167S25601R1'];
 const THROUGH_FRIDAY = bundleOf('2026-09-25', RODALIES, { [FRIDAY_25601]: { line: 'R1', number: '25601', calls: R1_THROUGH } });
 const THROUGH = joinDays([THROUGH_FRIDAY, bundleOf('2026-09-26', RODALIES, { [SATURDAY_25601]: { line: 'R1', number: '25601', calls: R1_THROUGH } })]);
 
@@ -2827,6 +2827,8 @@ test("a report with a Delay more than 12 hours off, as Renfe's of a Train runnin
     expect(trainAt(bundle, moment + 10_000, received, id)).toMatchObject({ live: true, dist: 18429, delay: 300 });
     expect(boardAt(bundle, moment + 10_000, received, ['Badalona'])[0]).toMatchObject({ trip: { id }, departure: onSaturday('00:00:00'), delay: 300, live: true });
   }
+  // And a figure a day late is the other way: 86,100 s late is 5 minutes early.
+  expect(trainAt(THROUGH_FRIDAY, moment + 10_000, [near(FRIDAY_25601, 'Badalona', 86_100, moment)], FRIDAY_25601)?.delay).toBe(-300);
 });
 
 /** A snapshot, received as it's written, in which Renfe names 25601 by a Trip, its GPS has it where Friday's timetable has it so many seconds before, and Renfe's own figure says a Delay. */
@@ -2851,6 +2853,11 @@ test("a report 2 minutes after midnight naming the next day's Trip of a Train nu
   expect(row).toMatchObject({ trip: { id: friday }, live: true });
   expect(row?.delay).toBeCloseTo(300, 3);
   expect(row?.departure).toBeCloseTo(onSaturday('00:08:00'), -1);
+  // Pinned to a Station, with no GPS, as C4b 20524 was by Wednesday's Trip at 00:00:09, Renfe's figure
+  // is all there is to go by, a day back: 5 minutes late, where Friday's timetable has it at 23:57.
+  const pinned = [near(SATURDAY_25601, 'Montgat', -86_100, moment)];
+  expect(trainsAt(THROUGH, moment + 10_000, pinned)).toMatchObject([{ trip: { id: friday }, live: true, dist: trainsAt(THROUGH, moment + 10_000 - 300_000)[0]?.dist }]);
+  expect(trainAt(THROUGH, moment + 10_000, pinned, friday)?.delay).toBe(300);
 });
 
 test("a report naming the next day's Trip of a Train number with a Delay of its own, as Renfe's first after midnight can be, is about the day before's Trip of that number all the same (#566)", () => {
@@ -2860,6 +2867,34 @@ test("a report naming the next day's Trip of a Train number with a Delay of its 
   const moment = onSaturday('00:02:40');
   const received = [{ snapshot: { ...written(moment), reports: [{ trip: SATURDAY_25601, at: moment, position: { near: 'Montgat-Nord' }, delay: 0 }] }, at: moment }];
   expect(trainsAt(THROUGH, moment + 10_000, received)).toMatchObject([{ trip: { id: `2026-09-25/${FRIDAY_25601}` }, live: true, dist: 22525, standsAt: 'Montgat-Nord' }]);
+});
+
+test("a report naming the next day's Trip of a Train number is about its own Line's Trip of that number a day before, not another Line's of that number running then (#566)", () => {
+  // A Train number can be another Line's too: Rodalies' R4 and RL4 share 33521 to 33529 on 6 October
+  // 2026, and its R15 and Cercanías Zaragoza's C1 share 30501, 30503, 30550 and 30556 on 10 October. Made up:
+  // on Saturday an R11 of Train 25601 runs from 00:15 to 00:45, and at 00:20 Renfe's GPS has the R1
+  // where Friday's timetable has it at 00:05, 15 minutes late, and names it by Saturday's Trip.
+  const R11_25601 = 'rodalies:5167S25601R11';
+  const r11: Row[] = [
+    ['Badalona', '00:15:00', '00:15:00', 18429, 2.24892096, 41.4458838],
+    ['El Masnou', '00:45:00', '00:45:00', 24701, 2.3103772, 41.4770363],
+  ];
+  const days = joinDays([THROUGH_FRIDAY, bundleOf('2026-09-26', RODALIES, { [SATURDAY_25601]: { line: 'R1', number: '25601', calls: R1_THROUGH }, [R11_25601]: { line: 'R11', number: '25601', calls: r11 } })]);
+  const moment = onSaturday('00:20:00');
+  const received = [through(SATURDAY_25601, moment, 900, -85_500)];
+  expect(trainsAt(days, moment + 10_000, received)).toMatchObject([{ trip: { id: `2026-09-25/${FRIDAY_25601}` }, live: true }, { trip: { id: R11_25601 }, live: false }]);
+});
+
+test("a report naming the next day's Trip of a Train number for a Train running hours late is about the day before's Trip of that number all the same, though the next day's runs less than a day on (#566)", () => {
+  // The later a Train runs, or the earlier its Trip left, the nearer the next day's Trip Renfe names it
+  // by after midnight: on 7 October 2026, C7 21875's ran from 22:05, 22.07 hours on. Made up: 25601 is
+  // 2 hours late, as an R2S was 2 h 28 min late at midnight on 6 October, and at 02:00 Renfe's GPS has it
+  // where Friday's timetable has it at 00:00 and names it by Saturday's Trip, 21.9 hours on.
+  const moment = onSaturday('02:00:00');
+  const received = [through(SATURDAY_25601, moment, 7_200, -79_200)];
+  const friday = `2026-09-25/${FRIDAY_25601}`;
+  expect(trainsAt(THROUGH, moment + 10_000, received)).toMatchObject([{ trip: { id: friday }, live: true }]);
+  expect(trainAt(THROUGH, moment + 10_000, received, friday)?.delay).toBeCloseTo(7_200, 3);
 });
 
 test('on the night the clocks go back, the previous day runs an hour longer, and both days keep their times', () => {
