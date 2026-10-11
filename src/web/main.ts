@@ -637,8 +637,8 @@ let lookAgain = false;
  * that stalls fails as one that errs does, once no bytes have come for STALL (getJson(), #595).
  * ponytail: one flag and one wait for every region loaded, so a board with none left, of a region that came,
  * has its label alone while another region's Trips are on their way, and a region new to the map, asked for
- * after a look that failed, says that none can be had while its Trips come. Keep both by the board's own
- * regions (come()) if that shows.
+ * after a look that failed, says that none can be had while its Trips come, as Nearby does where its
+ * viewer's regions are new (#592). Keep both by the board's own regions (come()) if that shows.
  */
 let tripsFailed = false;
 /**
@@ -2685,10 +2685,12 @@ function nearbyPanel(near: Point | Unlocated, up: boolean): Panel {
   // Where no Train passes, saying so is what a try found too, so the status says it, for a screen reader to
   // hear; but only once the Trips of the regions round the viewer have come (#266), which can be after the
   // viewer is found, as the map can't tell before: at once where no region is, though the map has loaded none.
+  // Or the last look had a file fail, which the map looks for again each minute, as a board says that none can
+  // be had then (#592), not its heading alone for as long as they fail.
   // ponytail: a screen reader hears the status again whenever a refresh empties the list, and maybe its
   // heading alone as the list fills; keep the status to what the try found if that's too chatty.
   if (!rows.length) {
-    if (come({ nearby: { at: near, metres: NEARBY } })) said.append(el('p', { textContent: t('noneNearby') }));
+    if (come({ nearby: { at: near, metres: NEARBY } }) || tripsFailed) said.append(el('p', { textContent: t('noneNearby') }));
     return { header, body: [said] };
   }
   return {
