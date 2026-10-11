@@ -24,8 +24,10 @@
 // names, a dot under the pill that is another railway's; and `.<what the card says>` of them by what it says; of `4.atNotCall` also
 // `.own.<what the card says>` and `.other.<…>`, and `.namedAsCall.<…>` those named as one of the Trip's calls (the TRAM's Glòries beside
 // the Metro's), which the card names no more than any other Network's. Of both, `.before` is the same counted with the card as #455 and
-// #456 left it, before it named the place it passes: the column of the measure since #455, by the dots the map draws (#352's own, which
-// counted each Station by its own coordinates under the card before #455, is the note's section 2, and with STATIONS=1 its yardstick).
+// #456 left it, before it named the place it passes, `.before.<what it said>` of them by what it said, and `.before.own` and
+// `.before.own.<…>` of those the Train's own Network's places: the column of the measure since #455, by the dots the map draws
+// (#352's own, which counted each Station by its own coordinates under the card before #455, is the note's section 2, and with
+// STATIONS=1 its yardstick).
 // `w.passing.nearCall` (within 150 m of the dot of one of its Trip's calls, as FGC's Sant Gervasi is of Pl. Molina), `w.passing.still` how
 // many of those seconds a Live Train is drawn still in, `w.passing.episodes` how many times it begins to, `w.nearer.arriving` and
 // `.leaving` the seconds the card names its Station with a place it could pass nearer, and `w.flaps.passingReturns`, `.afterPassing` and
@@ -249,10 +251,20 @@ for (const dir of process.argv.slice(2)) {
         add(ownPlace(d.pillKey) ? '2.pill.notCall.own' : '2.pill.notCall.other');
         add(`2.pill.notCall.${d.says.at}`);
       }
-      // As the card was before it named the place it passes.
+      // As the card was before it named the place it passes, by what it said, and of those the Train's own Network's places, `.own`.
       const unnamedBefore = m.passed ? differences({ ...m, passed: undefined }) : d;
-      if (unnamedBefore?.at === 'notCall') add('4.atNotCall.before');
-      if (unnamedBefore?.pill === 'notCall') add('2.pill.notCall.before');
+      if (unnamedBefore?.at === 'notCall') {
+        add('4.atNotCall.before');
+        add(`4.atNotCall.before.${unnamedBefore.says.at}`);
+        if (ownPlace(unnamedBefore.atKey)) {
+          add('4.atNotCall.before.own');
+          add(`4.atNotCall.before.own.${unnamedBefore.says.at}`);
+        }
+      }
+      if (unnamedBefore?.pill === 'notCall') {
+        add('2.pill.notCall.before');
+        if (ownPlace(unnamedBefore.pillKey)) add('2.pill.notCall.before.own');
+      }
       if (d.nowFar) add('b.nowFar');
       // The followed Train's countdown (#456), beside the minute-reading card's `b.nowFar` above and its `3.nowByMinute` and `5.nowByDelay` below:
       // what it reads (`s.reads`), that it reads now with the Train far only by the Delay (`s.nowFar`, `s.nowByMinute`), what it reads where the
