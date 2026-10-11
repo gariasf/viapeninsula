@@ -1756,6 +1756,28 @@ test("a Train's first GPS in over 2 minutes is a position, however far it is fro
   expect(where(R2S, at('22:07:50'), received)).toBeGreaterThan((where(R2S, at('22:07:50')) ?? NaN) + 4000);
 });
 
+test("a GPS Delay no report of the Train before it supported is gone by only where it was within 10 minutes of Renfe's own figure, in the report that gave it, which Renfe's figure goes by where it wasn't", () => {
+  // Made up: Renfe's GPS has the R2S, with no GPS report before, 12 minutes late between Vilanova i la
+  // Geltrú and Sitges at 22:05:00, where Renfe's own figure says 2 minutes late. A second under 10
+  // minutes between them is within: the Train runs 12 minutes late. A second over, it runs 2. (The
+  // Delay is worked out from a position, so it's only to the millisecond that it's 10 minutes.)
+  const first = (seconds: number, figure?: number) => [gps(R2S, where(R2S, at('22:05:00', -seconds)) ?? NaN, at('22:05:00'), figure)];
+  const runsLate = (seconds: number) => where(R2S, at('22:05:30', -seconds)) ?? NaN;
+  expect(where(R2S, at('22:05:30'), first(719, 120))).toBeCloseTo(runsLate(719), 3);
+  expect(where(R2S, at('22:05:30'), first(721, 120))).toBeCloseTo(runsLate(120), 3);
+  // A GPS Delay that's early, as the 65 of #410 were, is as far from it: 15 minutes early where Renfe says 2 late.
+  expect(where(R2S, at('22:05:30'), first(-900, 120))).toBeCloseTo(runsLate(120), 3);
+  // Where Renfe gives no figure there's none to be far from: its GPS is all there is to go by.
+  expect(where(R2S, at('22:05:30'), first(840))).toBeCloseTo(runsLate(840), 3);
+  // One that the next GPS agrees with is a Delay that counts, wherever Renfe's figure is: 13 minutes late.
+  const counted = [gps(R2S, where(R2S, at('22:04:40', -780)) ?? NaN, at('22:04:40'), 120), ...first(780, 120)];
+  expect(where(R2S, at('22:05:30'), counted)).toBeCloseTo(runsLate(780), 3);
+  // And Renfe's figure going on later, as 15 minutes late where it was 30 s with the GPS, doesn't put it
+  // at a Station's place: it's the figure of the report that gave the Delay that it's judged by (ADR-0002).
+  const moved = [gps(R2S, where(R2S, at('22:04:30')) ?? NaN, at('22:05:00'), 30), near(R2S, 'Castelldefels', 900, at('22:05:20'))];
+  expect(where(R2S, at('22:05:30'), moved)).toBeCloseTo(runsLate(30), 3);
+});
+
 // Renfe's long-distance live data names each Train by its Train number, as it names any part of its
 // run by a trip_id that picks no day (#261). Made up, as Renfe's timetables had them on 10 October
 // 2026: Cercanías Zaragoza's C1 from Zaragoza Delicias and Rodalies' R15 from Quinto, which share the
@@ -2504,7 +2526,7 @@ test('folding each snapshot into the last replay draws the Trains as replaying e
 }, 60_000);
 
 test("counts each Network's jumps over 45 minutes of live data as the map received it", () => {
-  // Per Train-minute, (forward + back) / (liveSeconds / 60): Rodalies 0.075, FGC 0.030, TRAM 0.0023,
+  // Per Train-minute, (forward + back) / (liveSeconds / 60): Rodalies 0.074, FGC 0.030, TRAM 0.0023,
   // the Metro 0.0028. They're the baseline the tickets that make Trains jump less, such as #39 and
   // #46, measure against: one that changes how often they jump changes these. The Metro's rose by 11
   // with #105: each is where a Train used to vanish or appear off its Trip's first Station, and now
@@ -2526,16 +2548,23 @@ test("counts each Network's jumps over 45 minutes of live data as the map receiv
   // de Segur at 15:14:30, for a Unit whose GPS runs from Lleida at 15:58 to past Balaguer by 16:38, at
   // its timetable's pace. Drawn Live all 45 minutes, from 16:00 about 2 h 15 min late, it jumped back
   // 18.7 km at 16:00:14, as its GPS went back to Lleida, and forward 815 m at 16:22:13. It may have been
-  // that Trip really running late (#233). It rose by one forward and fell by 242 Live seconds with #565,
-  // which takes a GPS fix no report of the Train in the 2 minutes before could have run to as no
-  // position, at its Line's top speed and 5% over, and 300 m: 53 fixes of 42 Trains here, 1.3 to 117 km
-  // from the Train's last, in 19 to 100 s. Eight Trains lose 20 to 61 s of Live, as the fix that last
-  // placed them, before Renfe pinned them to a Station, was one of those, and no longer keeps them Live
-  // through the three updates after it. And R7 77843 jumps forward at 16:15:29, 518 m, where it didn't:
-  // its fix at 16:11:06, 1,254 m in 20 s, no longer confirms the one after it, so the Delay it carries
-  // through the pins that follow isn't one that counted, and the next fix, 76 s less late, moves it at once.
+  // that Trip really running late (#233). It fell by two forward and 204 Live seconds with #565, which
+  // takes a GPS fix no report of the Train in the 2 minutes before could have run to as no position, at
+  // its Line's top speed and 5% over, and 300 m, and a GPS Delay that was over 10 minutes from Renfe's
+  // figure in its report as none until a report agrees with it: 53 fixes of 42 Trains here, 1.3 to 117
+  // km from the Train's last, in 19 to 100 s. Eight Trains lose 20 to 61 s of Live, 242 in all, as the
+  // fix that last placed them, before Renfe pinned them to a Station, was one of those and no longer
+  // keeps them Live through the three updates after it, and R4 77550 gains 18. Of the jumps, seven are
+  // gone, forward R2N 25438's at 16:00:34, R4 77988's at 16:26:16, R4 77638's at 16:27:37, R4 77640's
+  // at 16:28:58 and R4 77742's at 16:32:22, and back R16 18131's at 16:17:50 and R2S 25543's at
+  // 16:21:33: each a Train that went by a GPS Delay Renfe's figure was over 10 minutes from, and goes by
+  // the figure now. R7 77843 jumps forward at 16:15:29 where it didn't, as its fix at 16:11:06, 1,254 m
+  // in 20 s, no longer confirms the one after it, so that what it carries through its pins isn't a
+  // Delay that counted and the next fix moves it at once. And two of the seven come again as back
+  // jumps, R4 77638's at 16:30:20 and R4 77742's at 16:33:02, a minute or more after a fix like those,
+  // where the Train that goes by Renfe's figure is put where its GPS has it.
   expect(jumps(RECORDED.bundle, RECORDED.received)).toEqual({
-    rodalies: { forward: 67, back: 123, liveSeconds: 151897 },
+    rodalies: { forward: 64, back: 123, liveSeconds: 151935 },
     fgc: { forward: 24, back: 50, liveSeconds: 145935 },
     tram: { forward: 3, back: 0, liveSeconds: 77809 },
     metro: { forward: 0, back: 14, liveSeconds: 304017 },

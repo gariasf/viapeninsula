@@ -737,6 +737,8 @@ interface Heard {
 interface GpsDelay {
   delay: number;
   got: number;
+  /** Where it was over GATE from Renfe's own figure in the report that gave it, as the figure of that report was (delayBy()). */
+  far?: true;
 }
 
 /** A GPS fix Renfe reported for a Train, as reported: where, when its operator says (`at`), and when the fetcher got it, as Heard's `got` has it. */
@@ -750,15 +752,25 @@ interface Fix {
 /**
  * A Train's Delay, in seconds, by what live data last said about it, as far into live data as a
  * device has got. For Renfe's, it's the last Delay its GPS gave it that counts, or where none does,
- * the last its GPS gave it, until each is CARRY old, and failing both, Renfe's own figure. Going by
- * the figure where none counts, not the last its GPS gave it, was tried and rejected: it took out
- * the Delays of GPS fixes no Train could have run to, and drew more Trains ahead of their GPS and
- * then standing (ADR-0002, #410).
+ * the last its GPS gave it, until each is CARRY old, and failing both, Renfe's own figure. That one,
+ * no report before it supported, goes only where it was within GATE of Renfe's own figure in the
+ * report that gave it, or where Renfe gave none: it's GPS of another Train's, or of a Train far off,
+ * that puts one a quarter of an hour or an hour early, and only the first GPS reports of a Train go
+ * by one (#410, #565). By the figure of the report that gave it, not the latest, as the figure moves
+ * on while a position holds, and a Train would be drawn by it where its GPS had it, as ADR-0002 has
+ * it. Going by the figure wherever none counts, not by the last its GPS gave it, was tried and
+ * rejected: it drew more Trains ahead of their GPS and then standing (ADR-0002, #410).
  */
-const delayBy = (said: Heard, upTo: number) => (recent(said.counted, upTo) ?? recent(said.gps, upTo) ?? said).delay;
+const delayBy = (said: Heard, upTo: number) => {
+  const gps = recent(said.gps, upTo);
+  return (recent(said.counted, upTo) ?? (gps?.far ? undefined : gps) ?? said).delay;
+};
 
 /** How far a Renfe Train's GPS can put its Delay from where its GPS report before put it and still count, in seconds. */
 const CONFIRM = 120;
+
+/** How far a GPS Delay no report before it supported can be from Renfe's own figure, in the report that gave it, and still be gone by, in seconds (delayBy()). */
+const GATE = 10 * 60;
 
 /** How much further a GPS fix can be from the Train's last two than it could have run in the time between them, in metres: GPS error, and a Train that runs a little over its Line's speed (hear()). */
 const SLACK = 300;
@@ -815,7 +827,8 @@ function hear(before: Heard | undefined, report: Report, got: number, from: Rece
   const { delay, measured } = ownDelay(taken);
   if (!measured) return { ...heard, delay: figure, gps, counted };
   const agrees = follows(gps) && Math.abs(delay - gps.delay) <= CONFIRM;
-  return { ...heard, delay: figure, gps: { delay, got }, counted: agrees ? { delay, got } : counted };
+  const far = report.delay !== undefined && Math.abs(delay - report.delay) > GATE;
+  return { ...heard, delay: figure, gps: { delay, got, ...(far && { far }) }, counted: agrees ? { delay, got } : counted };
 }
 
 /** Whether two positions are the same coordinates. */
