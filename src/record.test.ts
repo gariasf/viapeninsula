@@ -204,14 +204,16 @@ const BOTH = ['2026-09-25/late', '2026-09-25/night', '2026-09-25/noon', 'night',
 
 /**
  * The bundle `npm run record` cuts a recording over, which started at `from` on the day of `first`,
- * and whose last snapshot came at `to`, given the manifest's `days`; and the days its bundles were
- * fetched for, which `first` isn't, as the recording has it already.
+ * and whose last snapshot came at `to`, given the manifest's `days`, whose bundles are Friday's and
+ * Saturday's unless `fails`; and the days its bundles were fetched for, which `first` isn't, as the
+ * recording has it already.
  */
-async function over(first: Bundle, [from, to]: [string, string], days: DayFiles[], bundles: Bundle[] = [FRIDAY, SATURDAY]) {
+async function over(first: Bundle, [from, to]: [string, string], days: DayFiles[], fails = false) {
   const asked: string[] = [];
   const load = async ({ date }: DayFiles) => {
     asked.push(date);
-    return bundles.find((b) => b.serviceDay === date) as Bundle;
+    if (fails) throw new Error('HTTP 503');
+    return [FRIDAY, SATURDAY].find((b) => b.serviceDay === date) as Bundle;
   };
   const received = [...reportingAt(Date.parse(from)), ...reportingAt(Date.parse(to))];
   return { ...(await withDays(first, first.serviceDay, received, days, load)), asked };
@@ -249,15 +251,14 @@ test("joins the next day an hour before its first Train comes onto the map, as t
 
 test("says why a recording has fewer days than the map would: the manifest has no bundle for the day a snapshot falls on, or a day's bundle didn't come", async () => {
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-  const gone = async () => Promise.reject(new Error('HTTP 503'));
   const [from, last] = ['2026-09-25T23:50:00+02:00', '2026-09-26T00:05:00+02:00'];
   const none = await over(FRIDAY, [from, last], [entry(FRIDAY)]);
   expect([none.bundle, none.why]).toEqual([FRIDAY, ' (the manifest has no bundle for 2026-09-26)']);
-  const next = await withDays(FRIDAY, '2026-09-25', [...reportingAt(Date.parse(from)), ...reportingAt(Date.parse(last))], [entry(FRIDAY), entry(SATURDAY)], gone);
-  expect(next).toEqual({ bundle: FRIDAY, why: " (2026-09-26's bundle didn't come)" });
+  const next = await over(FRIDAY, [from, last], [entry(FRIDAY), entry(SATURDAY)], true);
+  expect([next.bundle, next.why]).toEqual([FRIDAY, " (2026-09-26's bundle didn't come)"]);
   // The day before's, for a recording that starts after midnight.
-  const before = await withDays(SATURDAY, '2026-09-26', reportingAt(Date.parse(last)), [entry(FRIDAY), entry(SATURDAY)], gone);
-  expect(before).toEqual({ bundle: SATURDAY, why: " (2026-09-25's bundle didn't come)" });
+  const before = await over(SATURDAY, [last, last], [entry(FRIDAY), entry(SATURDAY)], true);
+  expect([before.bundle, before.why]).toEqual([SATURDAY, " (2026-09-25's bundle didn't come)"]);
   warn.mockRestore();
 });
 
