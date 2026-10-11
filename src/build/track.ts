@@ -114,6 +114,34 @@ const REVERSE = 2000;
 const SLACK = 1000;
 
 /**
+ * The graphs a Network's shapes are traced on, one for each set of rails a Line runs on (`gauges`, as
+ * layered() has them, or the Network's own rails where its Line names none).
+ */
+export type RailGraphs = (gauges?: Gauges) => Graph;
+
+/**
+ * The graphs a Network's shapes are traced on, each made when it's first asked for, with a vertex beside
+ * each Station its shapes serve. A trace marks the track it takes on its graph (Graph.shared), so what is
+ * traced on it after takes the same track where it shares it.
+ * ponytail: no changers join a Line's layers, as every Line of the map's Networks runs on one gauge;
+ * pass osm()'s, as traceRuns() does, if one ever runs on two.
+ */
+export function railGraphs(shapes: FeedShape[], stations: Station[], rails: OsmWay[], side: Network['runningSide']): RailGraphs {
+  const byId = new Map(stations.map((s) => [s.id, s]));
+  const graphs = new Map<string, Graph>();
+  return (gauges) => {
+    const key = JSON.stringify(gauges ?? null);
+    let graph = graphs.get(key);
+    if (!graph) {
+      const served = shapes.filter((s) => JSON.stringify(s.gauges ?? null) === key).flatMap((s) => s.stations);
+      graph = railGraph(gauges ? layered(rails, gauges, new Set()) : rails, [...new Set(served)].flatMap((id) => byId.get(id) ?? []), side);
+      graphs.set(key, graph);
+    }
+    return graph;
+  };
+}
+
+/**
  * Traces each shape along the rails, through the Stations its Trips serve in order along the shape,
  * the way its Trips run it. Between Stations it takes the shortest path a train can, except that a
  * trace keeps to its track rather than change tracks for a few metres, to the track of a double
@@ -122,7 +150,8 @@ const SLACK = 1000;
  * so that its Stations are on the ways of its gauge nearest them, though another gauge's track runs
  * nearer, as Renfe's Maliaño is 6 m from FEVE's and 65 m from Adif's, where Cercanías Santander's C1
  * stops (#366).
- * What it logs, it reports too.
+ * What it logs, it reports too. `graphs` are the graphs it traces on, which traceOwn() goes on to trace
+ * the Trips that don't fit these shapes on (#280).
  */
 export function traceShapes(
   shapes: FeedShape[],
@@ -131,26 +160,12 @@ export function traceShapes(
   side: Network['runningSide'],
   log = console.log,
   report: (found: Found) => void = () => {},
+  graphs = railGraphs(shapes, stations, rails, side),
 ): Shape[] {
   const byId = new Map(stations.map((s) => [s.id, s]));
-  // One graph for each set of rails, traced on by the shapes on it in turn, as traceRuns() has it.
-  // ponytail: no changers join a Line's layers, as every Line of the map's Networks runs on one gauge;
-  // pass osm()'s, as traceRuns() does, if one ever runs on two.
-  const graphs = new Map<string, Graph>();
-  const railsOf = ({ gauges }: FeedShape) => JSON.stringify(gauges ?? null);
-  const graphOf = (feed: FeedShape) => {
-    const key = railsOf(feed);
-    let graph = graphs.get(key);
-    if (!graph) {
-      const served = shapes.filter((s) => railsOf(s) === key).flatMap((s) => s.stations);
-      graph = railGraph(feed.gauges ? layered(rails, feed.gauges, new Set()) : rails, [...new Set(served)].flatMap((id) => byId.get(id) ?? []), side);
-      graphs.set(key, graph);
-    }
-    return graph;
-  };
   const wrong: string[] = [];
   const traced = shapes.map((feed) => {
-    const { shape, length } = traceShape(graphOf(feed), feed, feed.stations.flatMap((id) => byId.get(id) ?? []), log, report);
+    const { shape, length } = traceShape(graphs(feed.gauges), feed, feed.stations.flatMap((id) => byId.get(id) ?? []), log, report);
     if (length.feed) {
       const [total, km, feedKm] = [shape.dist.at(-1) ?? 0, length.traced, length.feed].map((m) => (m / 1000).toFixed(1));
       const percent = (length.traced / length.feed - 1) * 100;
@@ -171,11 +186,11 @@ export function traceShapes(
   return traced;
 }
 
-/** A long-distance run: the Stations a Line's Trips call at, in order, and the rails they run on. */
-interface Run {
+/** A run: the Stations a Line's Trips call at, in order, and the rails they run on, where their Line names them (G). */
+interface Run<G extends Gauges | undefined = Gauges | undefined> {
   id: string;
   line: string;
-  gauges: Gauges;
+  gauges: G;
   stations: Station[];
 }
 
@@ -204,24 +219,14 @@ export function traceRuns(
   log = console.log,
   report: (found: Found) => void = () => {},
 ): { shapes: Shape[]; days: FeedTrip[][] } {
-  const byId = new Map(stations.map((s) => [s.id, s]));
-  // Each run once, by its Line, its rails and its Stations, in the order its first Trip comes in.
-  const runs = new Map<string, Run>();
-  const runOf = (trip: FeedTrip & { gauges: Gauges }) => {
-    const key = JSON.stringify([trip.line, trip.gauges, trip.calls.map((c) => c.station)]);
-    const run = runs.get(key) ?? {
-      id: `${trip.line}:${runs.size + 1}`,
-      line: trip.line,
-      gauges: trip.gauges,
-      stations: trip.calls.map((c) => byId.get(c.station) ?? { id: c.station, name: c.station, lon: NaN, lat: NaN }),
-    };
-    runs.set(key, run);
-    return run;
-  };
-  const ran = days.map((trips) => trips.flatMap(({ gauges, ...trip }) => (gauges ? [{ trip, run: runOf({ ...trip, gauges }) }] : [])));
+  const { runs, ran } = runsOf(
+    days.map((trips) => trips.filter((t): t is FeedTrip & { gauges: Gauges } => !!t.gauges)),
+    stations,
+    (trip) => trip.gauges,
+  );
   // One graph for each set of rails, traced on by the runs on it in turn.
   const traced = new Map<Run, Shape | Untraced>();
-  const onRails = new Map<string, Run[]>();
+  const onRails = new Map<string, Run<Gauges>[]>();
   for (const run of runs.values()) {
     const { railway, gauges, orElse = [] } = run.gauges;
     const key = JSON.stringify([railway, [...gauges, ...orElse]]);
@@ -233,20 +238,77 @@ export function traceRuns(
     const graph = railGraph(fine(layered(rails, first.gauges, changers)), [...new Set(all.flatMap((r) => r.stations))], side);
     for (const run of all) traced.set(run, traceRun(graph, run, log, report));
   }
-  const shapes = [...traced.values()].flatMap((t) => ('coords' in t ? [t] : []));
-  return {
-    shapes,
-    days: ran.map((trips, day) =>
-      trips.flatMap(({ trip, run }) => {
-        const t = traced.get(run);
-        if (!t || 'coords' in t) return [{ ...trip, shape: run.id }];
-        const text = `${trip.id} is left out: ${t.reason}`;
-        log(text);
-        report({ kind: 'trip', why: t.why, trip: trip.id, line: trip.line, stations: t.stations, text: [text], day });
-        return [];
-      }),
-    ),
-  };
+  return { shapes: shapesOf(traced), days: ridden(ran, traced, log, report) };
+}
+
+/**
+ * Traces the Trips that don't fit their feed's shape through their own Stations (#280), as traceRuns()
+ * traces long distance's: each run of them, the Stations a Line's Trips call at in order, once, on the
+ * rails of the shape each Trip had (`feeds`), which are those that shape was traced on (`graphs`, as
+ * traceShapes() was given them), and so along the track the shapes took where they share it. A run with a
+ * Station off those rails, or a stretch with no path along them, isn't drawn straight across the country:
+ * its Trips are left out, logged and reported. Gives the traced runs, and each day's other Trips, each
+ * with its run as its shape.
+ */
+export function traceOwn(
+  days: FeedTrip[][],
+  feeds: FeedShape[],
+  stations: Station[],
+  graphs: RailGraphs,
+  log = console.log,
+  report: (found: Found) => void = () => {},
+): { shapes: Shape[]; days: FeedTrip[][] } {
+  const gauges = new Map(feeds.map((s) => [s.id, s.gauges]));
+  const { runs, ran } = runsOf(days, stations, (trip) => gauges.get(trip.shape));
+  const traced = new Map<Run, Shape | Untraced>();
+  for (const run of runs.values()) traced.set(run, traceRun(graphs(run.gauges), run, log, report));
+  return { shapes: shapesOf(traced), days: ridden(ran, traced, log, report) };
+}
+
+/**
+ * Each run of these Trips once, by its Line, its rails (`gaugesOf`) and its Stations, in the order its
+ * first Trip comes in, and each day's Trips with theirs.
+ */
+function runsOf<T extends FeedTrip, G extends Gauges | undefined>(days: T[][], stations: Station[], gaugesOf: (trip: T) => G) {
+  const byId = new Map(stations.map((s) => [s.id, s]));
+  const runs = new Map<string, Run<G>>();
+  const ran = days.map((trips) =>
+    trips.map((trip) => {
+      const gauges = gaugesOf(trip);
+      const key = JSON.stringify([trip.line, gauges ?? null, trip.calls.map((c) => c.station)]);
+      const run = runs.get(key) ?? {
+        id: `${trip.line}:${runs.size + 1}`,
+        line: trip.line,
+        gauges,
+        stations: trip.calls.map((c) => byId.get(c.station) ?? { id: c.station, name: c.station, lon: NaN, lat: NaN }),
+      };
+      runs.set(key, run);
+      return { trip, run };
+    }),
+  );
+  return { runs, ran };
+}
+
+/** The runs that were traced, as shapes. */
+function shapesOf(traced: Map<Run, Shape | Untraced>): Shape[] {
+  return [...traced.values()].flatMap((t) => ('coords' in t ? [t] : []));
+}
+
+/**
+ * Each day's Trips of these runs with their run as their shape, and no longer their rails; those whose
+ * run couldn't be traced are left out, logged and reported with why.
+ */
+function ridden(ran: { trip: FeedTrip; run: Run }[][], traced: Map<Run, Shape | Untraced>, log: (line: string) => void, report: (found: Found) => void): FeedTrip[][] {
+  return ran.map((trips, day) =>
+    trips.flatMap(({ trip: { gauges: _, ...trip }, run }) => {
+      const t = traced.get(run);
+      if (!t || 'coords' in t) return [{ ...trip, shape: run.id }];
+      const text = `${trip.id} is left out: ${t.reason}`;
+      log(text);
+      report({ kind: 'trip', why: t.why, trip: trip.id, line: trip.line, stations: t.stations, text: [text], day });
+      return [];
+    }),
+  );
 }
 
 /**
@@ -262,8 +324,8 @@ function traceRun(graph: Graph, run: Run, log: (line: string) => void, report: (
   const { stations } = run;
   const off = stations.find((s) => !graph.near.has(s.id));
   if (off) return { why: 'off', stations: [off], reason: `${off.name} is off the network` };
-  const { gauges, orElse = [] } = run.gauges;
-  let reached = walk(graph, stations, gauges.length);
+  const { gauges, orElse = [] } = run.gauges ?? {};
+  let reached = walk(graph, stations, gauges?.length);
   // ponytail: on every gauge all the way, with no preference for its own: on 10–12 Oct 2026 no run that
   // needs it left standard gauge where it could have kept to it (each was traced the same with its other
   // gauges' track at 1.5 times its length). Price that track higher if one ever does.
@@ -328,7 +390,7 @@ function traceRun(graph: Graph, run: Run, log: (line: string) => void, report: (
  * switch between them: at Alcázar de San Juan none of the tracks MD's Trains from Manzanares come in on
  * leads on to Campo de Criptana.
  */
-function walk(graph: Graph, stations: Station[], layers: number): Arrival[] | { a: Station; b: Station } {
+function walk(graph: Graph, stations: Station[], layers?: number): Arrival[] | { a: Station; b: Station } {
   const turnBacks = new Set(stations.flatMap((s) => graph.near.get(s.id) ?? []));
   const layerOf = (v: number) => graph.layer[graph.out[v]?.[0] ?? -1] ?? 0;
   let reached: Arrival[] = (graph.near.get(stations[0]?.id ?? '') ?? []).map((vertex) => ({ vertex, edge: -1, cost: 0, waypoint: 0, edges: [] }));

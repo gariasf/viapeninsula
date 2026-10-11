@@ -33,9 +33,9 @@ import { crop, toBorder } from './border.ts';
 import { measures, reported, summary } from './measures.ts';
 import { osm } from './osm.ts';
 import { buildRegion, buildRegions, sharedStretches, zoomedOut } from './regions.ts';
-import { railsBeside, traceRuns, traceShapes, withLines } from './track.ts';
+import { railGraphs, railsBeside, traceOwn, traceRuns, traceShapes, withLines } from './track.ts';
 import { collect, comment, diff, type Found, type Spot } from './report.ts';
-import { closuresOf, placeTrips } from './trips.ts';
+import { closuresOf, placeDays } from './trips.ts';
 
 const BUCKET = 'viapeninsula-live';
 
@@ -209,11 +209,24 @@ function build(config: NetworkConfig, { published, days }: Awaited<ReturnType<ty
   const found = (f: Found) => report.add({ ...f, network: id, ways: [...new Set(f.stations?.flatMap((s) => near.get(s.id)?.map((c) => c.way.id) ?? []))] });
   // What its timetables' own Trips give away, as each day's were read (readFeed()).
   for (const [i, day] of days.entries()) for (const part of day) for (const f of part.found) found({ ...f, day: i });
-  const shapes = traceShapes(parts.flatMap((p) => p.shapes), stations, own, network.runningSide, console.log, found);
+  const feeds = parts.flatMap((p) => p.shapes);
+  const graphs = railGraphs(feeds, stations, own, network.runningSide);
+  const shapes = traceShapes(feeds, stations, own, network.runningSide, console.log, found, graphs);
   const cropped = crop(border, stations, shapes, days.map((day) => day.flatMap((p) => p.trips)));
-  const trips = cropped.days.map((trips, day) => placeTrips(trips, shapes, stations, network.profile.topSpeed, console.log, (f) => found({ ...f, day })));
-  const closures = days.map((day, i) => closuresOf(day.flatMap((p) => p.buses), day.flatMap((p) => p.trips), parts.flatMap((p) => p.shapes), cropped.stations, console.log, (f) => found({ ...f, day: i })));
-  return { network, lines, stations: withLines(cropped.stations, parts.flatMap((p) => p.shapes)), shapes: cropped.shapes, trips, closures, left: parts.flatMap((p) => p.left) };
+  // A Trip that doesn't fit its feed's shape runs on a trace through its own Stations, which its Line has too (#280).
+  const placed = placeDays(cropped.days, shapes, stations, network.profile.topSpeed, (unfit) => traceOwn(unfit, feeds, stations, graphs, console.log, found), console.log, found);
+  const traces = crop(border, stations, placed.shapes, []).shapes;
+  const lineOf = new Map(placed.days.flat().map((t) => [t.shape, t.line]));
+  const closures = days.map((day, i) => closuresOf(day.flatMap((p) => p.buses), day.flatMap((p) => p.trips), feeds, cropped.stations, console.log, (f) => found({ ...f, day: i })));
+  return {
+    network,
+    lines: lines.map((l) => ({ ...l, shapes: [...l.shapes, ...traces.filter((s) => lineOf.get(s.id) === l.id).map((s) => s.id)] })),
+    stations: withLines(cropped.stations, feeds),
+    shapes: [...cropped.shapes, ...traces],
+    trips: placed.days,
+    closures,
+    left: parts.flatMap((p) => p.left),
+  };
 }
 
 /** A file the last build published, or none where there's none, or where it can't be read, which is logged. */
