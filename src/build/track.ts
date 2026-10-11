@@ -327,9 +327,9 @@ function ridden(ran: { trip: FeedTrip; run: Run }[][], traced: Map<Run, Shape | 
  * length, so that it keeps to its own as far as it can: one can't tell where it must change gauge till
  * a later stretch, as AVE can reach Ourense on standard gauge, but must change at Taboadela, short of
  * it, to go on to Santiago. Or why it can't be: a Station off the rails, or a
- * stretch with no path. Where it turns back on the way, or a hop is much longer than its straight
- * line, it logs and reports; its length, and where it changes gauge or sets off from another track,
- * it only logs.
+ * stretch with no path. Where it turns back on the way, a hop is much longer than its straight line,
+ * or it sets off from another of a Station's tracks than it came in on (ACROSS), it logs and reports;
+ * its length, and where it changes gauge, it only logs.
  */
 function traceRun(graph: Graph, run: Run, log: (line: string) => void, report: (found: Found) => void): Shape | Untraced {
   const { stations } = run;
@@ -344,13 +344,14 @@ function traceRun(graph: Graph, run: Run, log: (line: string) => void, report: (
   }
   const stretches = cheapest(reached);
   // Its vertices, each with the level of the track up to it, where it changes gauge, from one layer of track
-  // to another, which only a changer joins, and where it sets off from another track than it came in on.
-  const [vertices, levels, changes, across]: [number[], string[], string[], string[]] = [[], [], [], []];
+  // to another, which only a changer joins, and where it sets off from another track than it came in on, by
+  // the stretch it sets off on, with how far across it jumps.
+  const [vertices, levels, changes, across]: [number[], string[], string[], Map<Arrival, number>] = [[], [], [], new Map()];
   let last: number | undefined;
   for (const a of stretches) {
     for (const e of a.edges) {
       const [from, level] = [source(graph, e), graph.level[e] ?? ''];
-      if (last !== undefined && target(graph, last) !== from) across.push(stations[a.waypoint - 1]?.name ?? '');
+      if (last !== undefined && target(graph, last) !== from) across.set(a, metres(point(graph, target(graph, last)), point(graph, from)));
       if (last !== undefined && graph.layer[e] !== graph.layer[last]) changes.push(`${stations[a.waypoint - 1]?.name} and ${stations[a.waypoint]?.name}`);
       if (last === undefined || target(graph, last) !== from) {
         vertices.push(from);
@@ -368,12 +369,18 @@ function traceRun(graph: Graph, run: Run, log: (line: string) => void, report: (
   const [start, end] = [stations[0]?.name, stations.at(-1)?.name];
   log(
     `${run.id}: ${start} → ${end}, ${km.toFixed(1)} km long, ${((km * 1000) / straight).toFixed(2)}× the straight line through its ${stations.length} Stations` +
-      changes.map((c) => `, changing gauge between ${c}`).join('') +
-      across.map((name) => `, leaving ${name} from another track than it came in on`).join(''),
+      changes.map((c) => `, changing gauge between ${c}`).join(''),
   );
   for (const a of stretches) {
     const [from, to] = [stations[a.waypoint - 1], stations[a.waypoint]];
     if (!from || !to) continue;
+    // Where it sets off from another of a Station's tracks, as OpenStreetMap has none there that leads on from the one it came in on: it jumps across.
+    const jump = across.get(a);
+    if (jump !== undefined) {
+      const text = `${run.id}: ${from.name} → ${to.name} sets off from another track than it came in on, ${Math.round(jump)} m across`;
+      log(text);
+      report({ kind: 'across', line: run.line, shape: run.id, stations: [from], text: [text], numbers: { metres: Math.round(jump) } });
+    }
     // Where it turns back on the way, as traceShape() reports it.
     for (const v of turnsBack(graph, a.edges)) {
       const at = stations.find((s) => graph.near.get(s.id)?.includes(v));

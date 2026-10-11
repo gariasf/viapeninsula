@@ -11,7 +11,7 @@ export interface Spot {
   /**
    * A run of a Line's legs between Stations that keep the feed's shape, a Station a Line's trace turns
    * back at, Stations left out on a branch, a hop between two Stations traced much longer than its
-   * straight line, Trips left out, a Line's Trips whose stop numbers don't run 1…n, a route name in
+   * straight line, a Station a Line's trace sets off from on another track than it came in on, Trips left out, a Line's Trips whose stop numbers don't run 1…n, a route name in
    * Renfe's long-distance timetable that neither of its Networks takes, replacement buses where their
    * Line has no track, a Network with no Trips on a day, a Network's Trips on each day of the week,
    * which names those its config leaves out too, a Network's Closures today, a Network built from the
@@ -19,7 +19,7 @@ export interface Spot {
    * its last one, a traced shape's length against the feed's, one of the largest nodes at a zoom, or
    * the line measures.
    */
-  kind: 'kept' | 'turn' | 'branch' | 'detour' | 'trip' | 'sequence' | 'route' | 'bus' | 'notrips' | 'trips' | 'closures' | 'copy' | 'region' | 'length' | 'node' | 'measures';
+  kind: 'kept' | 'turn' | 'branch' | 'detour' | 'across' | 'trip' | 'sequence' | 'route' | 'bus' | 'notrips' | 'trips' | 'closures' | 'copy' | 'region' | 'length' | 'node' | 'measures';
   /** What the next build knows it by too (keyOf()): never a Trip's ID nor a date. */
   key: string;
   network?: string;
@@ -37,7 +37,7 @@ export interface Spot {
   /** Each line the log prints for it, once: for a node, its zoom's. */
   text: string[];
   /**
-   * A length's percentage off the feed's, the most Trips left out, or whose stop numbers don't run
+   * A length's percentage off the feed's, how many metres a trace jumps across a Station, the most Trips left out, or whose stop numbers don't run
    * 1…n, or buses, on any one day, a Network's Trips on each day of the week and how many of today's
    * its config leaves out, its Closures today, a node's size in line widths, or each of the measures.
    */
@@ -70,8 +70,8 @@ export interface Found extends Omit<Spot, 'key' | 'stations'> {
   stations?: Station[];
 }
 
-/** The zoom the map shows a turn-back at. A branch's Station alone is at 15, as fit() has it, a run's at what fits it. */
-const ZOOM: Partial<Record<Spot['kind'], number>> = { turn: 16 };
+/** The zoom the map shows a turn-back and a jump across a Station's tracks at. A branch's Station alone is at 15, as fit() has it, a run's at what fits it. */
+const ZOOM: Partial<Record<Spot['kind'], number>> = { turn: 16, across: 16 };
 
 /** How many pixels across the map fits a run of legs kept, a shape's length or a Trip's Stations in: a phone's, less a margin. */
 const FIT = 300;
@@ -138,6 +138,7 @@ function keyOf({ kind, network, region, line, why, shape, route, day, zoom, poin
     turn: [line, ...ends],
     branch: [line, ...ends],
     detour: [line, ...ends],
+    across: [line, ...ends],
     trip: [line, why, ...ends],
     sequence: [line],
     route: [route],
@@ -199,7 +200,7 @@ export function diff(last: Spot[] | undefined, spots: Spot[]): string {
  * they dropped (moved()), nor its Closures, nor buses where their Line has no track, which no fix
  * upstream draws (ADR-0012), nor a length, a node or the measures, which move with any change to it.
  */
-const PROBLEM: Record<Spot['kind'], boolean> = { kept: true, turn: true, branch: true, detour: true, trip: true, sequence: true, route: true, bus: false, notrips: true, trips: false, closures: false, copy: true, region: true, length: false, node: false, measures: false };
+const PROBLEM: Record<Spot['kind'], boolean> = { kept: true, turn: true, branch: true, detour: true, across: true, trip: true, sequence: true, route: true, bus: false, notrips: true, trips: false, closures: false, copy: true, region: true, length: false, node: false, measures: false };
 
 /** The most characters a GitHub comment holds, counted here as UTF-8's bytes, which are never fewer however GitHub counts them. */
 const COMMENT = 65536;

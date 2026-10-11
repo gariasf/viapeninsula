@@ -841,12 +841,14 @@ test("keeps AVE to standard gauge as far as it can where a later stretch has no 
   expect(log).toEqual(['AVE:1: A → C, 15.2 km long, 1.01× the straight line through its 3 Stations, changing gauge between B and C']);
 });
 
-test("sets off from another of a Station's tracks of its gauge where OpenStreetMap has none that leads on from the one it comes in on, as at Alcázar de San Juan, and says so", () => {
+test("sets off from another of a Station's tracks of its gauge where OpenStreetMap has none that leads on from the one it comes in on, as at Alcázar de San Juan, and says so and reports it, with how far it jumps across", () => {
   // A's line comes into S on its north track, which ends there, and C's leaves from its south track, 10 m off.
   const ways = rails({ a: [0, 0], n: [3000, 0], w: [2000, -10], s: [5000, -10], c: [8000, -10] }, 'a n', 'w s c');
-  const { track, log } = runs(ways, [station('A', -10, 0), station('S', 3000, -5), station('C', 8010, -10)], [[call('md', 'A S C', IBERIAN, 'MD')]]);
+  const { track, log, found } = runs(ways, [station('A', -10, 0), station('S', 3000, -5), station('C', 8010, -10)], [[call('md', 'A S C', IBERIAN, 'MD')]]);
   expect(points(track('md'))).toEqual([[0, 0], [3000, 0], [3000, -10], [8000, -10]]);
-  expect(log).toEqual(["MD:1: A → C, 8.0 km long, 1.00× the straight line through its 3 Stations, leaving S from another track than it came in on"]);
+  const text = 'MD:1: S → C sets off from another track than it came in on, 10 m across';
+  expect(log).toEqual(['MD:1: A → C, 8.0 km long, 1.00× the straight line through its 3 Stations', text]);
+  expect(found).toMatchObject([{ kind: 'across', line: 'MD', shape: 'MD:1', stations: [{ id: 'S' }], text: [text], numbers: { metres: 10 } }]);
 });
 
 test("comes into a Station on each gauge it can, as an Alvia must come into Sevilla on Iberian gauge, through Majarabique's changer, to go on to Jerez, though standard gauge is the shorter way in", () => {
