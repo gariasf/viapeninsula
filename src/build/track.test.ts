@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
-import type { Point, Shape, Station } from '../bundle.ts';
-import { CERCANIAS_MADRID, CERCANIAS_SANTANDER, CERCANIAS_SEVILLA, CERCANIAS_VALENCIA, RODALIES, type Gauges, type NetworkConfig } from '../networks.ts';
+import { pointAt, type Point, type Shape, type Station } from '../bundle.ts';
+import { CERCANIAS_ASTURIAS, CERCANIAS_MADRID, CERCANIAS_SANTANDER, CERCANIAS_SEVILLA, CERCANIAS_VALENCIA, RODALIES, type Gauges, type NetworkConfig } from '../networks.ts';
 import { ownRails } from './networks.ts';
 import type { OsmWay } from './osm.ts';
 import { collect, type Found } from './report.ts';
@@ -1074,4 +1074,71 @@ test("runs a C1 Trip to Platja i Grau de Gandia on a trace through its Stations,
   expect(placed?.calls.map((c) => Math.round(c.dist / 100))).toEqual([0, 84]);
   expect(speeds).toEqual([36]);
   expect(log).toEqual(["cercanias-valencia:C1:1: Xeraco → Platja i Grau de Gandia, 8.4 km long, 1.39× the straight line through its 2 Stations"]);
+});
+
+/**
+ * Cercanías Asturias' C1 from Pola de Lena to Ablaña, traced as the build does: `npm run snippet --
+ * 43.2132,-5.8184 asturias-c1 6.4`, 6.4 km round the middle of those two Stations, from the rails downloaded on
+ * 9 October 2026 and Renfe's timetable of 11 October 2026. Six ways of Adif's left-hand track between Villallana
+ * and Mieres have railway=rail and no gauge tag (#370, #479). `rails` is the snippet's, or the ways given.
+ */
+function asturiasC1(rails?: (all: OsmWay[]) => OsmWay[], side = CERCANIAS_ASTURIAS.runningSide) {
+  const snippet = JSON.parse(readFileSync(new URL('fixtures/osm/asturias-c1.json', import.meta.url), 'utf8')) as Snippet;
+  const all = rails?.(snippet.rails) ?? snippet.rails;
+  const [log, found]: [string[], Found[]] = [[], []];
+  const traced = () => traceShapes(snippet.shapes, snippet.stations, ownRails(all, CERCANIAS_ASTURIAS), side, (line) => log.push(line), (f) => found.push(f));
+  const track = (shapes: Shape[], id: string) => {
+    const one = shapes.find((s) => s.id === `cercanias-asturias:20_${id}`);
+    if (!one) throw new Error(`No shape ${id}`);
+    return one;
+  };
+  /** Whether a trace runs every node of each of these ways, to within half a metre. */
+  const runs = (shape: Shape, ...ways: number[]) =>
+    ways.every((id) => (snippet.rails.find((w) => w.id === id)?.geometry ?? []).every((g) => nearest(shape.coords, [g.lon, g.lat]).metres < 0.5));
+  return { snippet, traced, log, found, track, runs };
+}
+
+/** The ways of Adif's left-hand track between Villallana and Mieres that have no gauge tag (#370). */
+const NO_GAUGE = [12528311, 12528312, 428597896, 428597897, 1075571037, 1471639294];
+
+test("keeps Cercanías Asturias' C1 to its left-hand track from Pola de Lena to Ablaña, along the ways of it that have no gauge tag, where without them it turns back at Pola de Lena and fails the build's length check", () => {
+  expect(CERCANIAS_ASTURIAS.runningSide).toBe('left');
+  const { traced, track, runs, log } = asturiasC1();
+  const shapes = traced();
+  expect(log.filter((line) => line.includes('turns back'))).toEqual([]);
+  // From Pola de Lena it runs the left-hand track by 12528311, 12528312 and 428597896, the other way by 428597897.
+  expect(runs(track(shapes, 'C1_INV'), 12528311, 12528312, 428597896)).toBe(true);
+  expect(runs(track(shapes, 'C1'), 428597897)).toBe(true);
+  expect(Math.round((track(shapes, 'C1').dist.at(-1) ?? 0) / 100)).toBe(151);
+  expect(Math.round((track(shapes, 'C1_INV').dist.at(-1) ?? 0) / 100)).toBe(146);
+
+  // What onRails() took before #479, the ways with a gauge: the trace has no way on from Villallana to Ujo on the left.
+  const tagged = asturiasC1((ways) => ways.filter((w) => w.tags.gauge));
+  expect(() => tagged.traced()).toThrow("cercanias-asturias:20_C1_INV's traced track is 21.6 km against the feed's 15.1 km (+42.7%)");
+  expect(tagged.log).toContain('cercanias-asturias:20_C1_INV: Villallana → Ujo turns back at Pola de Lena');
+});
+
+test("draws Asturias' C1 on two tracks both north and south of Ujo, where it was on one south of the Station while six ways of its left-hand track had no gauge tag", () => {
+  const apart = (rails?: (all: OsmWay[]) => OsmWay[], side?: 'left' | 'right') => {
+    const { snippet, traced, track } = asturiasC1(rails, side);
+    const shapes = traced();
+    const [c1, inv] = [track(shapes, 'C1'), track(shapes, 'C1_INV')];
+    const ujo = snippet.stations.find((s) => s.id === 'adif:15200');
+    const from = nearest(c1.coords, [ujo?.lon ?? NaN, ujo?.lat ?? NaN]).along;
+    // How far each trace is from the other, 500 m north of Ujo (towards Mieres) and 500 m south of it (towards Villallana).
+    return [-500, 500].map((d) => nearest(inv.coords, pointAt(c1, from + d)).metres);
+  };
+  const [north, south] = apart();
+  // Two tracks: 2 to 8 m apart side by side, as a double track is, or on alignments of their own.
+  expect(north).toBeGreaterThan(2);
+  expect(south).toBeGreaterThan(2);
+  // On the right, with the six ways left out as before, it was one track south of Ujo: 0 m.
+  expect(apart((ways) => ways.filter((w) => w.tags.gauge), 'right')[1]).toBeLessThan(0.01);
+});
+
+test("traces Cercanías Asturias' C1 the same where OpenStreetMap gives the six ways a gauge, so that tagging them changes nothing (#479)", () => {
+  const untagged = asturiasC1().traced();
+  const tagged = asturiasC1((ways) => ways.map((w) => (NO_GAUGE.includes(w.id) ? { ...w, tags: { ...w.tags, gauge: '1668' } } : w))).traced();
+  expect(untagged.length).toBe(4);
+  expect(tagged.map((s) => [s.id, s.coords])).toEqual(untagged.map((s) => [s.id, s.coords]));
 });

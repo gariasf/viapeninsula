@@ -77,9 +77,9 @@ export interface Rails {
  * The rails a Line runs on where its timetable has no shapes, as Renfe's long-distance one hasn't (#259),
  * or where its Network runs on two gauges, as Cercanías Santander does (#366): the ways whose `railway` is
  * one of these, and whose gauge is one of `gauges`, or that have no gauge tag, as a way with three rails
- * has two gauges, as `1435;1668`. A map Network's Lines take them from its `rails`, which keep out a way
- * with no gauge tag where they name gauges (#479). A Line on two gauges, as Alvia's, changes from one to
- * the other only at a railway=gauge_conversion node. A run of its Trips with a stretch with no path on
+ * has two gauges, as `1435;1668`. A Network's `rails` count a way with no gauge tag as every gauge's too
+ * (onRails(), #479). A Line on two gauges, as Alvia's, changes from one to the other only at a
+ * railway=gauge_conversion node. A run of its Trips with a stretch with no path on
  * `gauges` is traced on `orElse`'s too, all the way, changing to them only at such a node.
  */
 export interface Gauges {
@@ -380,10 +380,11 @@ export const CERCANIAS_ASTURIAS: NetworkConfig = {
   // speed under it would leave that Trip out.
   profile: { acceleration: 1, braking: 1, topSpeed: 150 / 3.6, dwell: 30 },
   // Adif's Pola de Lena–Gijón, which C1–C3 run on, and Villabona–Cancienes keep left, and so do FEVE's
-  // lines. But OpenStreetMap gives six ways of the left-hand track between Villallana and Mieres no
-  // gauge, so kept to the left, C1's trace north turns back to Pola de Lena from Villallana and comes
-  // out 8.6% longer than the feed's shape, which fails the build: it keeps right until they have one (#253).
-  runningSide: 'right',
+  // lines. OpenStreetMap gives six ways of the left-hand track between Villallana and Mieres no gauge,
+  // which rails count as every gauge's (onRails(), #479): left out, as they were till then, C1's trace
+  // north turned back to Pola de Lena from Villallana and came out 8.6% longer than the feed's shape,
+  // which fails the build, so it kept right (#253, #370).
+  runningSide: 'left',
   // Adif's Iberian gauge for C1–C3, and FEVE's metre gauge for C4–C8, which OpenStreetMap tags
   // narrow_gauge or rail (ADR-0010).
   rails: { railway: ['rail', 'narrow_gauge'], gauge: ['1668', '1000'] },
