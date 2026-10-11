@@ -90,9 +90,10 @@ const STRINGS = {
   // The followed Train's strip's name with its fold open, as it lists the Stations the Train has already left too; and what a screen reader hears after each of those, whose subject is the Train, so that it needn't agree with a Station's name.
   stations: { ca: 'Estacions', es: 'Estaciones', eu: 'Geltokiak', gl: 'Estacións', en: 'Stations' },
   passed: { ca: 'ja hi ha passat', es: 'ya ha pasado', eu: 'dagoeneko igaro da', gl: 'xa pasou', en: 'passed' },
-  // Where the followed Train's next Stations start: where it is by how it's drawn (#455), arriving at the Station it comes to, leaving the one it left, or between the two, {a} and {b}.
+  // Where the followed Train's next Stations start: where it is by how it's drawn (#455), arriving at the Station it comes to, leaving the one it left, passing one it doesn't call at (#457), or between the two, {a} and {b}.
   arriving: { ca: 'Arribant a {station}', es: 'Llegando a {station}', eu: '{station} geltokira iristen', gl: 'Chegando a {station}', en: 'Arriving at {station}' },
   leaving: { ca: 'Sortint de {station}', es: 'Saliendo de {station}', eu: '{station} geltokitik irteten', gl: 'Saíndo de {station}', en: 'Leaving {station}' },
+  passing: { ca: 'Passant per {station}', es: 'Pasando por {station}', eu: '{station} geltokitik igarotzen', gl: 'Pasando por {station}', en: 'Passing {station}' },
   between: { ca: 'Entre {a} i {b}', es: 'Entre {a} y {b}', eu: '{a} eta {b} artean', gl: 'Entre {a} e {b}', en: 'Between {a} and {b}' },
   // How long until a Train comes: under a time on a board or in Nearby, and under the followed Train's next Station's, which counts in seconds in its last minute (#456). Their units are symbols, min and s, which have no plural.
   minutes: { ca: '{n} min', es: '{n} min', eu: '{n} min', gl: '{n} min', en: '{n} min' },
@@ -411,6 +412,9 @@ export const leavingStation = (station: string, lang = language()): string => ST
 
 /** That a followed Train is between two Stations, by how it's drawn (#455), in `lang`, or else the language the interface speaks now. */
 export const betweenStations = (a: string, b: string, lang = language()): string => twoStations('between', a, b, lang);
+
+/** That a followed Train is passing a Station without stopping, by how it's drawn (#457), in `lang`, or else the language the interface speaks now. */
+export const passingStation = (station: string, lang = language()): string => STRINGS.passing[lang].replace('{station}', station);
 
 /**
  * Why Nearby can't show the viewer's nearby Trains: the browser is finding where they are, as Nearby's

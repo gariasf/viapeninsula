@@ -1,6 +1,6 @@
 import { createExpression, latest, type ExpressionSpecification, type Feature, type StylePropertySpecification } from '@maplibre/maplibre-gl-style-spec';
 import { afterEach, expect, test, vi } from 'vitest';
-import { alertCount, alertsChanged, arrivingAt, basemapLabel, betweenStations, busesReplace, earlierStations, LANGUAGES, leavingStation, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, notRunning, pickLanguage, t, toGo, trainCounts, trainsRunHere, unlocated } from './i18n.ts';
+import { alertCount, alertsChanged, arrivingAt, basemapLabel, betweenStations, busesReplace, earlierStations, LANGUAGES, leavingStation, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, notRunning, passingStation, pickLanguage, t, toGo, trainCounts, trainsRunHere, unlocated } from './i18n.ts';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -379,6 +379,16 @@ test("says where a followed Train is by how it's drawn, in each language: arrivi
   expect(betweenStations('Sants', 'Plaça de Catalunya', 'es')).toBe('Entre Sants y Plaça de Catalunya');
   expect(betweenStations('Sants', 'Plaça de Catalunya', 'eu')).toBe('Sants eta Plaça de Catalunya artean');
   expect(betweenStations('Sants', 'Plaça de Catalunya', 'gl')).toBe('Entre Sants e Plaça de Catalunya');
+});
+
+test("says where a followed Train is passing a Station without stopping, in each language, Basque with the Station's name in front, as it says arriving and leaving (#457)", () => {
+  expect(passingStation('Sants', 'en')).toBe('Passing Sants');
+  expect(passingStation('Sants', 'ca')).toBe('Passant per Sants');
+  expect(passingStation('Sants', 'es')).toBe('Pasando por Sants');
+  expect(passingStation('Sants', 'eu')).toBe('Sants geltokitik igarotzen');
+  expect(passingStation('Sants', 'gl')).toBe('Pasando por Sants');
+  // A name goes in as it's published, as the other words have it.
+  expect(passingStation("L'Hospitalet de Llobregat", 'ca')).toBe("Passant per L'Hospitalet de Llobregat");
 });
 
 test('says "e" for "y" in Spanish between two Stations before a name starting with an i sound, as busesReplace() does for "and"', () => {
