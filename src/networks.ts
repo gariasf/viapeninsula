@@ -719,6 +719,13 @@ export const AVE_LARGA_DISTANCIA: NetworkConfig = {
     // AVE Int, AVE's trains to France, as AVE. The rest change gauge.
     gauges: { AVE: STANDARD, Avlo: STANDARD, 'AVE Int': STANDARD, Alvia: BOTH, Euromed: BOTH, Intercity: BOTH, Trencelta: BOTH },
   },
+  // Renfe's long-distance timetable of 10 October 2026 has Medina del Campo AV at the old Medina del Campo
+  // station, 2 m from its Iberian-gauge tracks and 1.5 km from any standard-gauge one, where it's 3.1 km
+  // south-west, on the high-speed line to Zamora: Avlo's and Alvia's Trips from Zamora had no path to it, 5
+  // to 7 a day left out, and Alvia's to Salamanca were traced through the old station (#476).
+  stations: {
+    'adif:08240': { lon: -4.9229291, lat: 41.2912358, source: 'https://www.openstreetmap.org/node/6329564866' },
+  },
 };
 
 /** Avant's and Avant Exp's: high speed on the same track as AVE's, at 250 km/h and 0.5 m/s². */
