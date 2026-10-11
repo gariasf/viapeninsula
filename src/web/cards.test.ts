@@ -140,6 +140,22 @@ test("a board's list is its label alone while the day's Trips are on their way, 
   expect(boardList('failed', 0)).toBe('none');
 });
 
+test("a board with none left today is its label alone while the next day's Trips, which it asked for, are on their way, then their rows, or that none can be had where they fail (#596)", () => {
+  // Asked for tomorrow's Trips at 23:50, with the map looking for them: the bundle has only today's, which has none left.
+  expect(boardList('came', 0, true)).toBe('label');
+  // Their rows once they have come, which the look for them is no more of.
+  expect(boardList('came', 3, false)).toBe('rows');
+  // Where they failed to come, the look had a file fail, and none can be had; the map's look again each minute doesn't take the board back to its label.
+  expect(boardList('failed', 0, true)).toBe('none');
+  expect(boardList('failed', 0, false)).toBe('none');
+  // With the next day not on its way, none.
+  expect(boardList('came', 0, false)).toBe('none');
+  // A board whose Trips are still on their way is its label alone, with the next day asked for or not.
+  expect(boardList('coming', 0, true)).toBe('label');
+  // A board with some left lists them while the next day's come, as it did.
+  expect(boardList('came', 1, true)).toBe('rows');
+});
+
 test("a board's Trips are on their way while a region the map has loaded hasn't come, though another's have, and failed where the last look had a file fail (#379)", () => {
   // The page's first look: none has come.
   expect(tripsState(['catalonia'], new Set(), false)).toBe('coming');

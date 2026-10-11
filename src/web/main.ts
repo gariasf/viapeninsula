@@ -2546,7 +2546,8 @@ function alertRow({ lines: named, header, description, from, by }: CardAlert, by
  * those Lines, folded away (#342); then its next departures from each of its Stations, each with when
  * it's expected to leave, its Train's pill, where it's headed and its status. Peeking, the next PEEK
  * of them, and how many more. Until the Trips of the regions the map has loaded have come, only its
- * label, as Nearby's heading stands alone (boardList(), #379).
+ * label, as Nearby's heading stands alone (boardList(), #379), and with none left today, until the next
+ * day's, which it asks for once its own regions' have come, have (#597, #596).
  */
 function boardPanel(id: string, up: boolean): Panel | undefined {
   const place = shownPlaces.get(id);
@@ -2572,8 +2573,14 @@ function boardPanel(id: string, up: boolean): Panel | undefined {
   }
   const shown = up ? departures : departures.slice(0, PEEK);
   // Neither rows nor "none" while the Trips of a region the map has loaded are on their way, as the bundle has the others' already
-  // (#266): it can't tell that none are to come, and says that only once they've come or a file has failed to.
-  const list = boardList(trips, departures.length);
+  // (#266): it can't tell that none are to come, and says that only once they've come or a file has failed to. Nor while the
+  // next day's, which a board with none left asks for, are on their way (#596): the map is looking and they're not on it yet,
+  // as the last day of its bundle is the day after today once they are.
+  // ponytail: a next day the manifest doesn't name, where a build has left the map without one, is looked for by
+  // no look, so a board that asked has its label alone for the second or so each minute's look takes. Go by the
+  // manifest's days if that shows.
+  const next = looking && emptyBoard === date && (bundle?.serviceDay ?? date) <= date;
+  const list = boardList(trips, departures.length, next);
   return {
     header: el(
       'header',
