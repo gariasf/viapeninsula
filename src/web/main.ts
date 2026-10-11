@@ -2551,9 +2551,11 @@ function boardPanel(id: string, up: boolean): Panel | undefined {
   const departures = bundle ? boardAt(bundle, now, received, place.stations, hidingClosures) : [];
   const trips = tripsState(loaded, shownRegions, tripsFailed);
   // With none left today, the next day's first are to come; refreshDays() runs again within a minute if it's busy now.
-  // Not while its Trips are on their way, as it has none because they haven't come.
+  // Only once the Trips of its own regions have come (#597): before that it has none because they haven't, and
+  // where they failed, the next day's would be fetched with their retry, which waits for every file, and the
+  // rows would come only once they had, where the retry alone is a file or two.
   const date = madridDate(new Date(mapNow));
-  if (bundle && trips !== 'coming' && !departures.length && emptyBoard !== date) {
+  if (bundle && !departures.length && emptyBoard !== date && place.stations.every((station) => come({ station }))) {
     emptyBoard = date;
     refreshDays();
   }
