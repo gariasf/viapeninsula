@@ -246,7 +246,7 @@ test('a Station no place on the map shows has no dot to go by, only where its pl
 /** A place the map shows `metres` due north of where a Train is drawn, at 2° E and 41° N, named by its ID, with its Stations' IDs, which are its own where none is given. */
 const north = (id: string, metres: number, ...stations: string[]) => ({ id, name: id, stations: stations.length ? stations : [id], lon: 2, lat: 41 + metres / DEGREE });
 const HERE = { lon: 2, lat: 41 };
-/** The Stations a Trip calls at, as passedPlace() has them: by ID, and by the name they're shown with, which is their ID's here unless it says. */
+/** The Stations a Trip calls at, as passedPlace() has them: by ID, and by the name they're shown with, which is their ID's here. */
 const calledAt = (...stations: string[]) => stations.map((station) => ({ station, name: station }));
 
 test("a Train between its Stations is passing the place it's drawn nearest, within its pill's reach of its dot, where it has no call, and arriving at a Station or leaving one says that first (#457)", () => {
@@ -262,7 +262,7 @@ test("a Train between its Stations is passing the place it's drawn nearest, with
   expect(passing(2000, 20, 2, true)).toEqual({ at: 'standing', next: B });
 });
 
-test("a Train with no place it passes says what it said before, whichever of its words, and one with no Station left to leave says nothing (#457)", () => {
+test("a Train with no place it passes says what it said before, and one with no Station left to leave says nothing (#457)", () => {
   expect(whereabouts(ABC, 1000, 2, false, 100, undefined, undefined)).toEqual({ at: 'between', last: A, next: B });
   expect(whereabouts(ABC, 4000, 0, false, 100, undefined, { place: north('x', 10), away: 10 })).toBeUndefined();
   // On its way to its first Station, which it has none before, it's arriving at it, whatever it's passing.
@@ -274,12 +274,14 @@ test("of the places a Train is drawn near, it passes the nearest that its Trip h
   const hit = passedPlace(places, HERE, [], 100);
   expect(hit?.place.id).toBe('x');
   expect(hit?.away).toBeCloseTo(60, 3);
-  // The reach is how far its dot is from the Train, on any side.
+  // The reach is how far its dot is from the Train, on any side: due west as due north, in metres, not in degrees of longitude.
+  const west = (metres: number) => ({ ...north('west', 0), lon: 2 - metres / (DEGREE * Math.cos((41 * Math.PI) / 180)) });
   expect(passedPlace(places, HERE, [], 59)).toBeUndefined();
-  expect(passedPlace([{ ...north('west', 0), lon: 2 - 50 / (DEGREE * Math.cos((41 * Math.PI) / 180)) }], HERE, [], 60)?.away).toBeCloseTo(50, 3);
+  expect(passedPlace([west(50)], HERE, [], 60)?.away).toBeCloseTo(50, 3);
+  expect(passedPlace([west(70)], HERE, [], 60)).toBeUndefined();
 });
 
-test("a place one of whose Stations its Trip calls at is not passed, as a Line's own interchange isn't, and one it calls at none of is (#457)", () => {
+test("a place one of whose Stations its Trip calls at is not passed, as a metro place of several Lines isn't where it calls at one of them, and one it calls at none of is (#457)", () => {
   // Passeig de Gràcia's three Stations, one for each Line (ADR-0005), as the Metro's one place.
   const place = north('tmb:P.6660327', 40, 'tmb:1.325', 'tmb:1.327', 'tmb:1.328');
   expect(passedPlace([place], HERE, calledAt('tmb:1.327', 'tmb:1.300'), 100)).toBeUndefined();
@@ -296,8 +298,8 @@ test("a place named as one of the Trip's calls is not passed, as the Metro's Gl�
   expect(passedPlace([metro], HERE, [{ station: 'tram:ST-207', name: 'Ca l’Aranyó' }], 100)?.place.id).toBe('tmb:P.6660130');
 });
 
-test("a Station of another railway is passed too where the pill is on its dot, as a metro station next to a railway station is a Station of its own, and the nearest of them is named (#457)", () => {
-  // Nothing of a place says whose it is: a Train under Cornellà's railway Station passes it, if its Trip has no call there.
+test("of two places the pill is on, a metro station and the railway station beside it, the nearer is named, and the only one is, whichever Network's it is (#457)", () => {
+  // passedPlace() asks no Network: which places it is given is its callers' (main.ts's passedBy(), the measure's runner), which give them all.
   const places = [north('adif:72303', 30), north('tmb:P.6660117', 20)];
   expect(passedPlace(places, HERE, calledAt('tmb:1.100'), 100)?.place.id).toBe('tmb:P.6660117');
   expect(passedPlace([places[0] as (typeof places)[number]], HERE, calledAt('tmb:1.100'), 100)?.place.id).toBe('adif:72303');

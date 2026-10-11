@@ -1127,7 +1127,7 @@ test('a Train runs on through Stations its Trip skips between others, stopping a
   expect(nearby(cunit, at('21:30:00'), received)).toEqual([]);
 });
 
-test("a followed Train passes a Station its operator has said it won't stop at, which is not among the calls it makes, and names the one it calls at as it did (#457)", () => {
+test("a followed Train passes a Skipped Station, which is none of the calls it makes, and names the one it calls at as it did (#457)", () => {
   // Made up, as in the test before: the R2S skips Segur de Calafell and Cunit, as Renfe said at 21:20. Cunit's place is where the map shows its dot.
   const cunit = { name: 'Cunit', stations: ['Cunit'], lon: 1.63194242, lat: 41.1950415 };
   const reach = 130;
