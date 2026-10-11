@@ -807,15 +807,16 @@ const FOLLOWS = 2 * 60_000;
  * by the one before alone. Not a report by Train number, as Renfe's long-distance files make: it has
  * no time of its own, its feed's header stands for it, and its position holds for minutes and then
  * moves kilometres, so the time between two says nothing of how far a Train could have run: of the 7
- * fixes it would take as none in 10 October 2026's long-distance replay, 6 lay on the way the Train
- * then went, and one of those would leave its Train drawn 7 to 8 km behind for 5 minutes.
+ * fixes it would take as none in 10 October 2026's long-distance replay, each was its Train's real
+ * position, and one would leave its Train drawn 7 to 8 km behind for 5 minutes.
  */
 function hear(before: Heard | undefined, report: Report, got: number, from: Received, carriesGpsDelay: boolean, ownDelay: (report: Report) => OwnDelay, topSpeed: number): Heard {
   const follows = <T extends { got: number }>(earlier: T | undefined): earlier is T => earlier !== undefined && got - earlier.got < FOLLOWS;
   // The same report again, as in a snapshot the map records twice or a feed's last good response the fetcher keeps, is unchanged too.
   const frozen = carriesGpsDelay && follows(before) && sameSpot(before.report.position, report.position);
-  // ponytail: not a report by Train number, so a long-distance glitch passes as before (1 of the 7 fixes
-  // in 10 October's replay): judge it by its Trip's track (OFF_TRACK, #486) or by the next fix if that matters.
+  // ponytail: not a report by Train number, so a long-distance glitch passes as before, as the stale first
+  // position of 12694 did, back twice in 10 October's replay: judge it by its Trip's track (OFF_TRACK, #486)
+  // or by Renfe's figure if that matters.
   const fix: Fix | undefined = carriesGpsDelay && !report.number && report.position && 'lon' in report.position ? { ...report.position, at: report.at, got } : undefined;
   // ponytail: two fixes back, as the ticket has it: a glitch that is a Train's only fix within FOLLOWS, as its
   // first GPS after a pin often is, takes the real fix after it with it, and the one after that counts.
