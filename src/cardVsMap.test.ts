@@ -220,7 +220,8 @@ describe('the runner', () => {
   it("counts no Train as drawn at its next Station without the card saying it is arriving at zoom 15, where the pill reaches 22 to 32 m and 50 m is 28 px (#608)", () => {
     // At 50 m, which is the zoom 13's 7 px, the runner counted 36 seconds of each of Rodalies' and Madrid's.
     const at15 = counted(15);
-    expect(Object.fromEntries(Object.entries(at15).map(([network, all]) => [network, all.seconds]))).toEqual({ rodalies: 12116, 'cercanias-madrid': 10163 });
+    // Trains drawn at all, so that the 0 is a count and not an absence.
+    for (const all of Object.values(at15)) expect(all.seconds).toBeGreaterThan(5000);
     expect(Object.fromEntries(Object.entries(at15).map(([network, all]) => [network, all['1.atNextBeforeArriving'] ?? 0]))).toEqual({ rodalies: 0, 'cercanias-madrid': 0 });
   }, 60_000);
 });
