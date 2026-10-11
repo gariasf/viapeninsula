@@ -215,15 +215,15 @@ function secondEntryOf({ alerts }: LiveSource, lines: string[]): string | undefi
  * source's config names: TRAM's routes 1–6 are T1–T6, and a route_id of Renfe's ends with its Line's
  * name, after the núcleo, a T and four digits, as 51T0146R1 is R1's. Where the config says that Line's
  * Trips run as others, as Madrid's C8's run as C8a and C8b, those (#359); the mapping is applied here,
- * once, so that alerts.json names Lines the bundle has, and the page needs none.
+ * once, so that alerts.json has the Alert on the Lines the bundle has, and the page needs none.
  */
 function linesOf(source: LiveSource, route: string): string[] {
   const network = networkOf(source, route);
   const name = source.format === 'tram' ? `T${route}` : route.match(/^\d+T\d{4}(.+)$/)?.[1];
   if (!network || !name) return [];
-  const named = source.alerts?.lines?.[network];
+  const listed = source.alerts?.lines?.[network];
   // Its own names only, not those every object has, as "constructor": a route_id's end is Renfe's text.
-  const instead = named && Object.hasOwn(named, name) ? named[name] : undefined;
+  const instead = listed && Object.hasOwn(listed, name) ? listed[name] : undefined;
   return (instead ?? [name]).map((line) => `${network}:${line}`);
 }
 

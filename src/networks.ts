@@ -814,6 +814,9 @@ export type LiveSource = {
      * Alert, and where it has none, as for Madrid's C9, Valencia's C5 and Murcia–Alicante's C2, which
      * only buses run, the Alert is shown nowhere.
      * ponytail: it replaces the name, so a Line that gets Trips under it needs it in its own list.
+     * ponytail: an Alert that names a listed Line is shown on all it's listed as, though Madrid's
+     * AVISO_517064 is tagged "#MadC8b" and C8a doesn't run to Cercedilla: telling a branch's Alerts
+     * apart takes reading their words.
      */
     lines?: Record<string, Record<string, string[]>>;
   };
@@ -874,7 +877,7 @@ export const LIVE_SOURCES: LiveSource[] = [
     // Alert on Madrid's C8, whose Trips its timetable runs as C8a and C8b, and on Rodalies' R3a, as R3,
     // is shown. Not Madrid's C9, Valencia's C5 and Murcia–Alicante's C2, which only buses run, nor
     // Bilbao's C4A, whose run to Karrantza has no Trips in its timetable of 10 Oct 2026 and which no
-    // Alert names without C4: they stay as named, on no Line of theirs.
+    // Alert of its file of 7 Oct names without C4: they stay as named, on no Line of theirs.
     alerts: {
       url: 'https://gtfsrt.renfe.com/alerts.json',
       every: 20_000,
