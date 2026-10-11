@@ -1,0 +1,242 @@
+{
+ "summary": {
+  "name": "rev-live-regions-15kbs-phone",
+  "tree": "live",
+  "kbps": 15,
+  "phase1": [
+   "days/zoomed-out:track@1017",
+   "catalonia:track@1278",
+   "catalonia:trips@1485"
+  ],
+  "moveAt": 4016,
+  "madridTrackAskedAt": 4494,
+  "madridTrackInAt": 12429,
+  "madridTripsAskedAt": 13430,
+  "madridTrips503At": null,
+  "madridTripsInAt": [
+   17388
+  ],
+  "taps": [
+   {
+    "t": 13516,
+    "kind": "tap",
+    "n": 1,
+    "tripsIn": false
+   },
+   {
+    "t": 15361,
+    "kind": "tap",
+    "n": 2,
+    "tripsIn": false
+   }
+  ],
+  "sheet": [
+   {
+    "t": 15360,
+    "state": "none",
+    "title": "Madrid-Atocha Cercanías",
+    "rows": 0,
+    "says": [
+     "No upcoming departures"
+    ],
+    "pills": 5
+   },
+   {
+    "t": 18558,
+    "state": "rows",
+    "title": "Madrid-Atocha Cercanías",
+    "rows": 3,
+    "says": [],
+    "pills": 9
+   }
+  ],
+  "noneBeforeRows": 1,
+  "labelEntries": 0,
+  "pageerrors": [],
+  "consoleProblems": [
+   "534 Failed to load resource: net::ERR_CONNECTION_REFUSED"
+  ]
+ },
+ "events": [
+  {
+   "t": 714,
+   "path": "manifest.json",
+   "kind": "manifest",
+   "phase": "fast"
+  },
+  {
+   "t": 1017,
+   "path": "days/zoomed-out-ab182ce8d21f.json",
+   "region": "days/zoomed-out",
+   "kind": "track-asked",
+   "phase": "fast"
+  },
+  {
+   "t": 1017,
+   "region": "days/zoomed-out",
+   "kind": "track",
+   "phase": "fast"
+  },
+  {
+   "t": 1278,
+   "path": "days/track-catalonia-1d3b19a447a6.json",
+   "region": "catalonia",
+   "kind": "track-asked",
+   "phase": "fast"
+  },
+  {
+   "t": 1278,
+   "region": "catalonia",
+   "kind": "track",
+   "phase": "fast"
+  },
+  {
+   "t": 1485,
+   "path": "days/2026-10-11-catalonia-40dd47831bae.json",
+   "region": "catalonia",
+   "kind": "trips-asked",
+   "phase": "fast"
+  },
+  {
+   "t": 1485,
+   "region": "catalonia",
+   "kind": "trips",
+   "phase": "fast"
+  },
+  {
+   "t": 4187,
+   "kind": "move",
+   "to": "Atocha"
+  },
+  {
+   "t": 4236,
+   "path": "manifest.json",
+   "kind": "manifest",
+   "phase": "slow"
+  },
+  {
+   "t": 4494,
+   "path": "days/track-cercanias-madrid-88df721d4108.json",
+   "region": "cercanias-madrid",
+   "kind": "track-asked",
+   "phase": "slow"
+  },
+  {
+   "t": 12429,
+   "region": "cercanias-madrid",
+   "kind": "track",
+   "phase": "slow"
+  },
+  {
+   "t": 13430,
+   "path": "days/2026-10-11-cercanias-madrid-dec5112f6e45.json",
+   "region": "cercanias-madrid",
+   "kind": "trips-asked",
+   "phase": "slow"
+  },
+  {
+   "t": 13516,
+   "kind": "tap",
+   "n": 1,
+   "tripsIn": false
+  },
+  {
+   "t": 15361,
+   "kind": "tap",
+   "n": 2,
+   "tripsIn": false
+  },
+  {
+   "t": 17388,
+   "region": "cercanias-madrid",
+   "kind": "trips",
+   "phase": "slow"
+  },
+  {
+   "t": 17812,
+   "path": "manifest.json",
+   "kind": "manifest",
+   "phase": "slow"
+  },
+  {
+   "t": 18037,
+   "path": "days/2026-10-12-cercanias-madrid-301a5b8cec17.json",
+   "region": "cercanias-madrid",
+   "kind": "trips-asked",
+   "phase": "slow"
+  },
+  {
+   "t": 18132,
+   "path": "days/2026-10-12-catalonia-75d4ffa55dce.json",
+   "region": "catalonia",
+   "kind": "trips-asked",
+   "phase": "slow"
+  }
+ ],
+ "timeline": [
+  {
+   "t": 979,
+   "state": "closed"
+  },
+  {
+   "t": 15360,
+   "state": "none",
+   "title": "Madrid-Atocha Cercanías",
+   "rows": 0,
+   "says": [
+    "No upcoming departures"
+   ],
+   "pills": 5
+  },
+  {
+   "t": 18558,
+   "state": "rows",
+   "title": "Madrid-Atocha Cercanías",
+   "rows": 3,
+   "says": [],
+   "pills": 9
+  }
+ ],
+ "consoleLog": [
+  {
+   "t": 534,
+   "type": "error",
+   "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED"
+  },
+  {
+   "t": 726,
+   "type": "warning",
+   "text": "[.WebGL-0x114004b3000]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+  },
+  {
+   "t": 726,
+   "type": "warning",
+   "text": "[.WebGL-0x114004b3000]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+  },
+  {
+   "t": 955,
+   "type": "warning",
+   "text": "[.WebGL-0x114004b3000]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+  },
+  {
+   "t": 967,
+   "type": "warning",
+   "text": "[.WebGL-0x114004b3000]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)"
+  },
+  {
+   "t": 1203,
+   "type": "warning",
+   "text": "layers[highway-shield-non-us].filter[1]: Expected value to be of type number, but found null instead. Falling back to false."
+  },
+  {
+   "t": 1203,
+   "type": "warning",
+   "text": "layers[highway-shield-us-interstate].filter[1]: Expected value to be of type number, but found null instead. Falling back to false."
+  },
+  {
+   "t": 1204,
+   "type": "warning",
+   "text": "layers[road_shield_us].filter[1]: Expected value to be of type number, but found null instead. Falling back to false."
+  }
+ ]
+}

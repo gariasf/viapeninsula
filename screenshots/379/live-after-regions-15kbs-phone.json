@@ -1,0 +1,218 @@
+{
+ "summary": {
+  "name": "rev-live-regions-15kbs-phone",
+  "tree": "live",
+  "kbps": 15,
+  "phase1": [
+   "days/zoomed-out:track@1430",
+   "catalonia:track@1581",
+   "catalonia:trips@1717"
+  ],
+  "moveAt": 4395,
+  "madridTrackAskedAt": 4933,
+  "madridTrackInAt": 12869,
+  "madridTripsAskedAt": 13748,
+  "madridTrips503At": null,
+  "madridTripsInAt": [
+   17706
+  ],
+  "taps": [
+   {
+    "t": 13977,
+    "kind": "tap",
+    "n": 1,
+    "tripsIn": false
+   },
+   {
+    "t": 15552,
+    "kind": "tap",
+    "n": 2,
+    "tripsIn": false
+   }
+  ],
+  "sheet": [
+   {
+    "t": 15551,
+    "state": "label",
+    "title": "Madrid-Atocha Cercanías",
+    "rows": 0,
+    "says": [],
+    "pills": 5
+   },
+   {
+    "t": 18583,
+    "state": "rows",
+    "title": "Madrid-Atocha Cercanías",
+    "rows": 3,
+    "says": [],
+    "pills": 9
+   }
+  ],
+  "noneBeforeRows": 0,
+  "labelEntries": 1,
+  "pageerrors": [],
+  "consoleProblems": [
+   "405 Failed to load resource: net::ERR_CONNECTION_REFUSED"
+  ]
+ },
+ "events": [
+  {
+   "t": 1159,
+   "path": "manifest.json",
+   "kind": "manifest",
+   "phase": "fast"
+  },
+  {
+   "t": 1430,
+   "path": "days/zoomed-out-ab182ce8d21f.json",
+   "region": "days/zoomed-out",
+   "kind": "track-asked",
+   "phase": "fast"
+  },
+  {
+   "t": 1430,
+   "region": "days/zoomed-out",
+   "kind": "track",
+   "phase": "fast"
+  },
+  {
+   "t": 1581,
+   "path": "days/track-catalonia-1d3b19a447a6.json",
+   "region": "catalonia",
+   "kind": "track-asked",
+   "phase": "fast"
+  },
+  {
+   "t": 1581,
+   "region": "catalonia",
+   "kind": "track",
+   "phase": "fast"
+  },
+  {
+   "t": 1717,
+   "path": "days/2026-10-11-catalonia-40dd47831bae.json",
+   "region": "catalonia",
+   "kind": "trips-asked",
+   "phase": "fast"
+  },
+  {
+   "t": 1717,
+   "region": "catalonia",
+   "kind": "trips",
+   "phase": "fast"
+  },
+  {
+   "t": 4640,
+   "kind": "move",
+   "to": "Atocha"
+  },
+  {
+   "t": 4693,
+   "path": "manifest.json",
+   "kind": "manifest",
+   "phase": "slow"
+  },
+  {
+   "t": 4933,
+   "path": "days/track-cercanias-madrid-88df721d4108.json",
+   "region": "cercanias-madrid",
+   "kind": "track-asked",
+   "phase": "slow"
+  },
+  {
+   "t": 12869,
+   "region": "cercanias-madrid",
+   "kind": "track",
+   "phase": "slow"
+  },
+  {
+   "t": 13748,
+   "path": "days/2026-10-11-cercanias-madrid-dec5112f6e45.json",
+   "region": "cercanias-madrid",
+   "kind": "trips-asked",
+   "phase": "slow"
+  },
+  {
+   "t": 13977,
+   "kind": "tap",
+   "n": 1,
+   "tripsIn": false
+  },
+  {
+   "t": 15552,
+   "kind": "tap",
+   "n": 2,
+   "tripsIn": false
+  },
+  {
+   "t": 17706,
+   "region": "cercanias-madrid",
+   "kind": "trips",
+   "phase": "slow"
+  }
+ ],
+ "timeline": [
+  {
+   "t": 1399,
+   "state": "closed"
+  },
+  {
+   "t": 15551,
+   "state": "label",
+   "title": "Madrid-Atocha Cercanías",
+   "rows": 0,
+   "says": [],
+   "pills": 5
+  },
+  {
+   "t": 18583,
+   "state": "rows",
+   "title": "Madrid-Atocha Cercanías",
+   "rows": 3,
+   "says": [],
+   "pills": 9
+  }
+ ],
+ "consoleLog": [
+  {
+   "t": 405,
+   "type": "error",
+   "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED"
+  },
+  {
+   "t": 1166,
+   "type": "warning",
+   "text": "[.WebGL-0x104004a3000]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+  },
+  {
+   "t": 1167,
+   "type": "warning",
+   "text": "[.WebGL-0x104004a3000]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+  },
+  {
+   "t": 1380,
+   "type": "warning",
+   "text": "[.WebGL-0x104004a3000]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+  },
+  {
+   "t": 1391,
+   "type": "warning",
+   "text": "[.WebGL-0x104004a3000]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)"
+  },
+  {
+   "t": 1693,
+   "type": "warning",
+   "text": "layers[highway-shield-non-us].filter[1]: Expected value to be of type number, but found null instead. Falling back to false."
+  },
+  {
+   "t": 1694,
+   "type": "warning",
+   "text": "layers[highway-shield-us-interstate].filter[1]: Expected value to be of type number, but found null instead. Falling back to false."
+  },
+  {
+   "t": 1694,
+   "type": "warning",
+   "text": "layers[road_shield_us].filter[1]: Expected value to be of type number, but found null instead. Falling back to false."
+  }
+ ]
+}

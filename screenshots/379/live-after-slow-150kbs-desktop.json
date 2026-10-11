@@ -1,0 +1,450 @@
+{
+ "summary": {
+  "name": "rev-live-slow-150kbs-desktop",
+  "tree": "live",
+  "mode": "slow",
+  "size": "desktop",
+  "kbps": 150,
+  "station": "tmb:1.932",
+  "firstSeen": {
+   "open": 9603,
+   "label": 9603,
+   "none": null,
+   "rows": 15062
+  },
+  "mutationObserver": {
+   "changes": [
+    {
+     "t": 565,
+     "state": "closed"
+    },
+    {
+     "t": 9603,
+     "state": "label",
+     "rows": 0,
+     "says": [],
+     "pills": 0
+    },
+    {
+     "t": 15062,
+     "state": "rows",
+     "rows": 10,
+     "says": [],
+     "pills": 2
+    }
+   ],
+   "noneEntriesBeforeFirstRows": 0
+  },
+  "polled": {
+   "samples": 55,
+   "noneSamples": 0,
+   "noneSamplesBeforeRows": 0,
+   "labelSamples": 15
+  },
+  "tripsRequests": {
+   "asked": 15,
+   "firstAskedAt": 9603,
+   "secondTryAskedAt": [],
+   "failed503At": [],
+   "okAt": [
+    12560,
+    13968
+   ],
+   "retry": null
+  },
+  "tripsByDay": {
+   "2026-10-11": {
+    "okFiles": 15,
+    "okFirst": 12560,
+    "okLast": 13968,
+    "failedFiles": 0
+   }
+  },
+  "pageerrors": [],
+  "consoleProblems": [
+   "221 error Failed to load resource: net::ERR_CONNECTION_REFUSED",
+   "348 warning [.WebGL-0x10c00506600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+   "348 warning [.WebGL-0x10c00506600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+   "554 warning [.WebGL-0x10c00506600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+   "564 warning [.WebGL-0x10c00506600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no lon",
+   "618 warning layers[highway-shield-non-us].filter[1]: Expected value to be of type number, but found null instead. Falling back to false.",
+   "618 warning layers[highway-shield-us-interstate].filter[1]: Expected value to be of type number, but found null instead. Falling back to false.",
+   "10533 warning layers[road_shield_us].filter[1]: Expected value to be of type number, but found null instead. Falling back to false."
+  ],
+  "tappedAt": null,
+  "nEvents": 46
+ },
+ "events": [
+  {
+   "t": 755,
+   "path": "manifest.json",
+   "status": 200,
+   "kind": "manifest",
+   "tries": 1
+  },
+  {
+   "t": 4558,
+   "path": "days/track-catalonia-d8ac7a2b6c8e.json",
+   "status": 200,
+   "kind": "track",
+   "tries": 1
+  },
+  {
+   "t": 5310,
+   "path": "days/track-cercanias-madrid-b0322c053280.json",
+   "status": 200,
+   "kind": "track",
+   "tries": 1
+  },
+  {
+   "t": 6059,
+   "path": "days/track-cercanias-asturias-75ccda8c1623.json",
+   "status": 200,
+   "kind": "track",
+   "tries": 1
+  },
+  {
+   "t": 6367,
+   "path": "days/track-cercanias-sevilla-058c139738e4.json",
+   "status": 200,
+   "kind": "track",
+   "tries": 1
+  },
+  {
+   "t": 6493,
+   "path": "days/track-cercanias-cadiz-051c14150671.json",
+   "status": 200,
+   "kind": "track",
+   "tries": 1
+  },
+  {
+   "t": 6590,
+   "path": "days/track-cercanias-malaga-c9b789e184dd.json",
+   "status": 200,
+   "kind": "track",
+   "tries": 1
+  },
+  {
+   "t": 6952,
+   "path": "days/track-cercanias-valencia-7e8f3b04d1e6.json",
+   "status": 200,
+   "kind": "track",
+   "tries": 1
+  },
+  {
+   "t": 7062,
+   "path": "days/track-cercanias-murcia-alicante-aecf4eb804b1.json",
+   "status": 200,
+   "kind": "track",
+   "tries": 1
+  },
+  {
+   "t": 7091,
+   "path": "days/track-cercanias-cartagena-537f7421695b.json",
+   "status": 200,
+   "kind": "track",
+   "tries": 1
+  },
+  {
+   "t": 7185,
+   "path": "days/track-cercanias-ferrol-facbe09466b6.json",
+   "status": 200,
+   "kind": "track",
+   "tries": 1
+  },
+  {
+   "t": 7352,
+   "path": "days/track-cercanias-leon-d5ff8a121094.json",
+   "status": 200,
+   "kind": "track",
+   "tries": 1
+  },
+  {
+   "t": 8094,
+   "path": "days/track-cercanias-bilbao-e257e1a30994.json",
+   "status": 200,
+   "kind": "track",
+   "tries": 1
+  },
+  {
+   "t": 8252,
+   "path": "days/track-cercanias-san-sebastian-4e9aa566bf17.json",
+   "status": 200,
+   "kind": "track",
+   "tries": 1
+  },
+  {
+   "t": 8584,
+   "path": "days/track-cercanias-santander-9de14146f1c9.json",
+   "status": 200,
+   "kind": "track",
+   "tries": 1
+  },
+  {
+   "t": 8609,
+   "path": "days/track-cercanias-zaragoza-fc5fecb98084.json",
+   "status": 200,
+   "kind": "track",
+   "tries": 1
+  },
+  {
+   "t": 9603,
+   "path": "days/2026-10-11-catalonia-3308192ed9fd.json",
+   "asked": 1
+  },
+  {
+   "t": 9603,
+   "path": "days/2026-10-11-cercanias-madrid-dec5112f6e45.json",
+   "asked": 1
+  },
+  {
+   "t": 9604,
+   "path": "days/2026-10-11-cercanias-asturias-8cf016faf8a0.json",
+   "asked": 1
+  },
+  {
+   "t": 9604,
+   "path": "days/2026-10-11-cercanias-sevilla-9bfef0471c64.json",
+   "asked": 1
+  },
+  {
+   "t": 9604,
+   "path": "days/2026-10-11-cercanias-cadiz-7becfa1f5924.json",
+   "asked": 1
+  },
+  {
+   "t": 9604,
+   "path": "days/2026-10-11-cercanias-malaga-409951aa5d44.json",
+   "asked": 1
+  },
+  {
+   "t": 9604,
+   "path": "days/2026-10-11-cercanias-valencia-4aaf02c4b78c.json",
+   "asked": 1
+  },
+  {
+   "t": 9604,
+   "path": "days/2026-10-11-cercanias-murcia-alicante-7f488cbe1269.json",
+   "asked": 1
+  },
+  {
+   "t": 9604,
+   "path": "days/2026-10-11-cercanias-cartagena-fa5a93dafc82.json",
+   "asked": 1
+  },
+  {
+   "t": 9604,
+   "path": "days/2026-10-11-cercanias-ferrol-63e81625b847.json",
+   "asked": 1
+  },
+  {
+   "t": 9604,
+   "path": "days/2026-10-11-cercanias-leon-6d7f95d24723.json",
+   "asked": 1
+  },
+  {
+   "t": 9604,
+   "path": "days/2026-10-11-cercanias-bilbao-76799c75ddb8.json",
+   "asked": 1
+  },
+  {
+   "t": 9604,
+   "path": "days/2026-10-11-cercanias-san-sebastian-d6945664492a.json",
+   "asked": 1
+  },
+  {
+   "t": 9604,
+   "path": "days/2026-10-11-cercanias-santander-c239c67b6835.json",
+   "asked": 1
+  },
+  {
+   "t": 9604,
+   "path": "days/2026-10-11-cercanias-zaragoza-1ab331385a92.json",
+   "asked": 1
+  },
+  {
+   "t": 12560,
+   "path": "days/2026-10-11-catalonia-3308192ed9fd.json",
+   "status": 200,
+   "kind": "trips",
+   "tries": 1,
+   "day": "2026-10-11"
+  },
+  {
+   "t": 12916,
+   "path": "days/2026-10-11-cercanias-madrid-dec5112f6e45.json",
+   "status": 200,
+   "kind": "trips",
+   "tries": 1,
+   "day": "2026-10-11"
+  },
+  {
+   "t": 13229,
+   "path": "days/2026-10-11-cercanias-asturias-8cf016faf8a0.json",
+   "status": 200,
+   "kind": "trips",
+   "tries": 1,
+   "day": "2026-10-11"
+  },
+  {
+   "t": 13306,
+   "path": "days/2026-10-11-cercanias-sevilla-9bfef0471c64.json",
+   "status": 200,
+   "kind": "trips",
+   "tries": 1,
+   "day": "2026-10-11"
+  },
+  {
+   "t": 13341,
+   "path": "days/2026-10-11-cercanias-cadiz-7becfa1f5924.json",
+   "status": 200,
+   "kind": "trips",
+   "tries": 1,
+   "day": "2026-10-11"
+  },
+  {
+   "t": 13382,
+   "path": "days/2026-10-11-cercanias-malaga-409951aa5d44.json",
+   "status": 200,
+   "kind": "trips",
+   "tries": 1,
+   "day": "2026-10-11"
+  },
+  {
+   "t": 13450,
+   "path": "days/2026-10-11-cercanias-valencia-4aaf02c4b78c.json",
+   "status": 200,
+   "kind": "trips",
+   "tries": 1,
+   "day": "2026-10-11"
+  },
+  {
+   "t": 13462,
+   "path": "days/2026-10-11-cercanias-murcia-alicante-7f488cbe1269.json",
+   "status": 200,
+   "kind": "trips",
+   "tries": 1,
+   "day": "2026-10-11"
+  },
+  {
+   "t": 13474,
+   "path": "days/2026-10-11-cercanias-cartagena-fa5a93dafc82.json",
+   "status": 200,
+   "kind": "trips",
+   "tries": 1,
+   "day": "2026-10-11"
+  },
+  {
+   "t": 13484,
+   "path": "days/2026-10-11-cercanias-ferrol-63e81625b847.json",
+   "status": 200,
+   "kind": "trips",
+   "tries": 1,
+   "day": "2026-10-11"
+  },
+  {
+   "t": 13500,
+   "path": "days/2026-10-11-cercanias-leon-6d7f95d24723.json",
+   "status": 200,
+   "kind": "trips",
+   "tries": 1,
+   "day": "2026-10-11"
+  },
+  {
+   "t": 13813,
+   "path": "days/2026-10-11-cercanias-bilbao-76799c75ddb8.json",
+   "status": 200,
+   "kind": "trips",
+   "tries": 1,
+   "day": "2026-10-11"
+  },
+  {
+   "t": 13843,
+   "path": "days/2026-10-11-cercanias-san-sebastian-d6945664492a.json",
+   "status": 200,
+   "kind": "trips",
+   "tries": 1,
+   "day": "2026-10-11"
+  },
+  {
+   "t": 13954,
+   "path": "days/2026-10-11-cercanias-santander-c239c67b6835.json",
+   "status": 200,
+   "kind": "trips",
+   "tries": 1,
+   "day": "2026-10-11"
+  },
+  {
+   "t": 13968,
+   "path": "days/2026-10-11-cercanias-zaragoza-1ab331385a92.json",
+   "status": 200,
+   "kind": "trips",
+   "tries": 1,
+   "day": "2026-10-11"
+  }
+ ],
+ "timeline": [
+  {
+   "t": 565,
+   "state": "closed"
+  },
+  {
+   "t": 9603,
+   "state": "label",
+   "label": "Next departures",
+   "rows": 0,
+   "says": [],
+   "pills": 0
+  },
+  {
+   "t": 15062,
+   "state": "rows",
+   "label": "Next departures",
+   "rows": 10,
+   "says": [],
+   "pills": 2
+  }
+ ],
+ "consoleLog": [
+  {
+   "t": 221,
+   "type": "error",
+   "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED"
+  },
+  {
+   "t": 348,
+   "type": "warning",
+   "text": "[.WebGL-0x10c00506600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+  },
+  {
+   "t": 348,
+   "type": "warning",
+   "text": "[.WebGL-0x10c00506600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+  },
+  {
+   "t": 554,
+   "type": "warning",
+   "text": "[.WebGL-0x10c00506600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+  },
+  {
+   "t": 564,
+   "type": "warning",
+   "text": "[.WebGL-0x10c00506600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)"
+  },
+  {
+   "t": 618,
+   "type": "warning",
+   "text": "layers[highway-shield-non-us].filter[1]: Expected value to be of type number, but found null instead. Falling back to false."
+  },
+  {
+   "t": 618,
+   "type": "warning",
+   "text": "layers[highway-shield-us-interstate].filter[1]: Expected value to be of type number, but found null instead. Falling back to false."
+  },
+  {
+   "t": 10533,
+   "type": "warning",
+   "text": "layers[road_shield_us].filter[1]: Expected value to be of type number, but found null instead. Falling back to false."
+  }
+ ]
+}
