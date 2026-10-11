@@ -617,7 +617,7 @@ test("closes a loop Line across the node it began at, where its last piece touch
 const stretch = (shape: string, from: number, to: number) => ({ steps: [{ line: -1, piece: 0, shape, way: 1, from, to }], lines: [] });
 const visit = (edge: number, first: number, last: number, length: number) => ({ edge, first, last, length, steps: [0, 1] as [number, number] });
 
-test('leaves out a shape\'s track round a node only where it follows the Stretch it left along one centreline, and left it beyond REACH from its end (#353)', () => {
+test('leaves out a shape\'s track round a node only where it follows the Stretch it left along one centreline, left it beyond REACH from its end and doesn\'t come back onto it (#353)', () => {
   // Two Stretches of one centreline, 0 to 1,000 and 1,000 to 2,000 m, and a bridge of its own, 145 m.
   const found = [stretch('c0', 0, 1000), stretch('c0', 1000, 2000), stretch('c1', 0, 145)];
   const [out, over, back] = [visit(1, 1900, 1250, 650), visit(2, 10, 135, 145), visit(0, 990, 20, 970)];
@@ -630,6 +630,9 @@ test('leaves out a shape\'s track round a node only where it follows the Stretch
   const spur = [stretch('c0', 0, 1000), stretch('c1', 0, 49)];
   const [along, onto] = [visit(0, 900, 990, 90), visit(1, 24.5, 24.5, 49)];
   expect(crossing([along, onto, along], spur)).toEqual([along, onto, along]);
+  // A run that comes back onto the Stretch it left, before it goes on to the next, is a spur out and back, not a way round: it stays.
+  const again = visit(1, 1060, 1010, 95);
+  expect(crossing([out, over, again, back], found)).toEqual([out, over, again, back]);
 });
 
 test('leaves out the one piece a shape touches of the Stretch it goes on along, but not at its first or last visit, where its Line ends (#353)', () => {

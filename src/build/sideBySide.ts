@@ -413,7 +413,9 @@ function visits(shape: Step[], pieces: Piece[], drawer: number[], edgeOf: Map<nu
  * the westbound track of a double track has on a bridge. A join to either runs back onto the Stretch the
  * shape doesn't go along, which hooks, or leaves the track round the node with an end in the air. Not the
  * first or last, where the shape's Line ends: a loop Line, as Sevilla's C4, ends on the Stretch it began
- * on, and without its join there it would close at the node with a step from one side to the other.
+ * on, and without its join there it would close at the node with a step from one side to the other. And
+ * not a run that comes back onto the Stretch it left, which is a spur the shape goes out and back on, not
+ * a track round the node, as R1's is across Auditori/Teatre Nacional's 36 m Stretch (Metro's L1 is on it).
  */
 export function crossing(all: Visit[], found: Stretch[]): Visit[] {
   /** Whether b is on the Stretch past the end of a's that its shape goes out at, along the same centreline. */
@@ -427,7 +429,7 @@ export function crossing(all: Visit[], found: Stretch[]): Visit[] {
     let j = i;
     while (j < kept.length - 1 && (kept[j]?.length ?? Infinity) < SHORT) j++;
     const [before, after] = [kept[i - 1], kept[j]];
-    if (!before || j === i || !follows(before, after)) continue;
+    if (!before || j === i || !follows(before, after) || kept.slice(i, j).some((v) => v.edge === before.edge)) continue;
     const steps = found[before.edge]?.steps ?? [];
     if (Math.abs(before.last - (end(before, found, false) ? (steps.at(-1)?.to ?? 0) : (steps[0]?.from ?? 0))) > REACH) kept.splice(i, j - i);
   }
