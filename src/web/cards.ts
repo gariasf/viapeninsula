@@ -113,8 +113,8 @@ const STALE = 15 * 60_000;
 
 /**
  * How long ago a feed's file can have last changed before a card says when, in ms: a day. Renfe's
- * stood from 7 October 2026 to past the 11th, as alerts rarely change, so its 304s, which count as
- * reads, can't say it (#390).
+ * stood unchanged from 7 October 2026, 09:32 CEST, for days, as alerts rarely change, so its 304s,
+ * which count as reads, can't say it (#390).
  */
 const UNCHANGED = 24 * 3_600_000;
 

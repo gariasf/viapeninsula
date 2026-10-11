@@ -2309,7 +2309,8 @@ function fitPopup(at: LngLat) {
  * (cardAlerts()), or for each the timetable's buses do, that buses replace trains between its two
  * Stations, in the interface's words; each under the pills of the Closures' Lines, in the order a board
  * names them, with when it began (tappedRows()). Over them, when the Alerts were read, where that's
- * long ago. None, where none of them is shown now.
+ * long ago, and when each feed's file last changed, where that's over a day ago (readAt()). None,
+ * where none of them is shown now.
  */
 function closuresTapped(keys: string[]) {
   const now = mapTime(Date.now(), received);

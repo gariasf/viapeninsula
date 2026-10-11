@@ -344,7 +344,7 @@ test("keeps when Renfe's file last changed through the 304s it answers while it 
   expect(readAlerts(same.state, { renfe: UNCHANGED }, NOW + 300_000).file?.renfe).toMatchObject({ changed: CHANGED });
   const failed = readAlerts(same.state, { renfe: { alerts: { status: 503, body: { text: '' } } } }, NOW + 40_000);
   expect(failed.state.feeds.renfe).toMatchObject({ status: 'alerts: HTTP 503', changed: CHANGED });
-  // Sent again, as it was on 9 October 2026 once Renfe had a new file: at 13:00 on the 10th.
+  // Made up: sent again at 13:00 on the 10th, with the validators of a file Renfe wrote then.
   const sent = answer(recorded('renfe.json'), { etag: '"6ac61234-17000"', modified: 'Sat, 10 Oct 2026 11:00:00 GMT' });
   expect(readAlerts(failed.state, { renfe: { alerts: sent } }, NOW + 60_000).state.feeds.renfe?.changed).toBe(Date.parse('2026-10-10T13:00:00+02:00'));
 });
