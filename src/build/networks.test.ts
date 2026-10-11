@@ -5,13 +5,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, expect, test, vi } from 'vitest';
-import { places } from '../bundle.ts';
-import { AVE_LARGA_DISTANCIA, CERCANIAS_ASTURIAS, CERCANIAS_BILBAO, MEDIA_DISTANCIA_AVANT, NETWORKS, RODALIES, TRAM, type NetworkConfig } from '../networks.ts';
+import { places, type Point } from '../bundle.ts';
+import { AVE_LARGA_DISTANCIA, CERCANIAS_ASTURIAS, CERCANIAS_BILBAO, CERCANIAS_SANTANDER, MEDIA_DISTANCIA_AVANT, NETWORKS, RODALIES, TRAM, type NetworkConfig } from '../networks.ts';
 import { dirSource, rows, seconds, zipFile, zipSource, type Source } from './gtfs.ts';
 import { copyOf, FGC_FEED, joinParts, METRO_FEED, onFgcRails, onMetroRails, onRails, onRodaliesRails, ownRails, readFeed, readTimetables, RODALIES_FEED, TRAMBAIX_FEED, unlisted, untaken, type Feed } from './networks.ts';
 import type { Found } from './report.ts';
 import type { Snippet } from './snippet.ts';
-import { traceShapes } from './track.ts';
+import { nearest, traceShapes } from './track.ts';
 import { closuresOf, placeTrips, type FeedTrip } from './trips.ts';
 
 afterEach(() => {
@@ -807,6 +807,47 @@ test("places C2's Trip to El Entrego where Cercanías Asturias's config has Sama
   // It moves those two Stations, of the four the Trip calls at, and no other.
   const moved = configured.stations.filter((s, i) => s.lon !== published.stations[i]?.lon || s.lat !== published.stations[i]?.lat);
   expect(moved.map((s) => s.id)).toEqual(['adif:16009', 'adif:16011']);
+});
+
+// Rows cut verbatim from Renfe's Cercanías feed of 2026-10-10: C1's Trip 6281S26906C1 of Saturday 10 October
+// from Santander to Renedo, at its Stations from Muriedas-Bahía to Boo, and its shape's points within 2 km of
+// Maliaño. And, as the build had them on 9 October, the rails there:
+// `npm run snippet -- 43.4161415,-3.8410762 maliano 2`.
+const santander = dirSource(fileURLToPath(new URL('fixtures/cercanias-santander', import.meta.url)));
+const { rails: maliano } = JSON.parse(readFileSync(new URL('fixtures/osm/maliano.json', import.meta.url), 'utf8')) as Snippet;
+
+/** The Trip, read from Renfe's rows for a Network as it's configured, traced along the rails and placed, and how far from its trace Maliaño is, in metres. */
+async function c1Trip(network: NetworkConfig) {
+  const { stations, shapes, trips } = await readFeed(santander, '2026-10-10', { network, ...network.timetables[0] });
+  const left: string[] = [];
+  const traced = traceShapes(shapes, stations, ownRails(maliano, network), network.runningSide, () => {});
+  const placed = placeTrips(trips, traced, stations, network.profile.topSpeed, (l) => left.push(l));
+  const maliaño = stations.find((s) => s.id === 'adif:14220');
+  const trace = traced.find((s) => s.id === placed[0]?.shape);
+  const off = maliaño && trace ? nearest(trace.coords, [maliaño.lon, maliaño.lat]).metres : NaN;
+  return { stations, traced, placed, left, off };
+}
+
+test("puts Maliaño on Adif's track, where C1 runs, with Cercanías Santander's config having it at OpenStreetMap's stop for it, 0.16 km from where Renfe's timetable has it, on FEVE's line 65 m from Adif's (#494)", async () => {
+  const published = await c1Trip({ ...CERCANIAS_SANTANDER, stations: undefined });
+  expect(published.placed.map((t) => t.id)).toEqual(['cercanias-santander:6281S26906C1']);
+  expect(published.left).toEqual([]);
+  expect(Math.round(published.off)).toBe(65);
+
+  const configured = await c1Trip(CERCANIAS_SANTANDER);
+  expect(configured.placed.map((t) => t.id)).toEqual(['cercanias-santander:6281S26906C1']);
+  expect(configured.left).toEqual([]);
+  expect(configured.off).toBeLessThan(1);
+  // It moves Maliaño, of the three Stations the Trip calls at, and no other, and C1's trace is the line it was: its
+  // vertices are each on the other's, but for the one Renfe's point made on it, 18 mm from the line.
+  const moved = configured.stations.filter((s, i) => s.lon !== published.stations[i]?.lon || s.lat !== published.stations[i]?.lat);
+  expect(moved.map((s) => s.id)).toEqual(['adif:14220']);
+  const apart = (a: Point[], b: Point[]) => Math.max(...a.map((p) => nearest(b, p).metres));
+  expect(published.traced.map((s) => s.id)).toEqual(['cercanias-santander:62_C1:back']);
+  for (const [i, shape] of published.traced.entries()) {
+    const other = configured.traced[i]?.coords ?? [];
+    expect([apart(shape.coords, other), apart(other, shape.coords)].every((m) => m < 0.1)).toBe(true);
+  }
 });
 
 test("gives each shape of a Network of two gauges the rails its Line runs on, as Cercanías Asturias' C2 runs on Adif's Iberian gauge, to be traced on those alone, and its Trips none, as they're placed on their shapes (#366)", async () => {

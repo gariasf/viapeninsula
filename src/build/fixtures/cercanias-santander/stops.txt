@@ -1,0 +1,4 @@
+stop_id,stop_name,stop_lat,stop_lon,wheelchair_boarding                                                                                               
+14219,Boo,43.4104796,-3.8415883,2                                                                                                                     
+14220,Maliaño,43.4161415,-3.8410762,2                                                                                                                 
+14237,Muriedas-Bahía,43.4216858,-3.8441175,2                                                                                                          

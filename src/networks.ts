@@ -580,6 +580,12 @@ export const CERCANIAS_SANTANDER: NetworkConfig = {
   // C1–C3 are commuter Lines. Each is traced on its own gauge's rails, as Renfe's Santander and Maliaño,
   // where C1 stops, are nearer FEVE's track than Adif's: Maliaño 6 m from FEVE's and 65 m from Adif's (#366).
   lines: { kind: 'commuter', gauges: { C1: IBERIAN, C2: METRE, C3: METRE } },
+  // Renfe's timetable of 10 October 2026 puts Maliaño, where C1 stops, 14 m from FEVE's Maliaño Vidriera
+  // (05655) on FEVE's line, and 65 m from Adif's, which C1 runs on, so its dot is 19 px from its Line at
+  // zoom 14: OpenStreetMap's stop for it is on Adif's track, 0.16 km along it (#494).
+  stations: {
+    'adif:14220': { lon: -3.8420976, lat: 43.4173678, source: 'https://www.openstreetmap.org/node/2337169285' },
+  },
 };
 
 export const CERCANIAS_ZARAGOZA: NetworkConfig = {
