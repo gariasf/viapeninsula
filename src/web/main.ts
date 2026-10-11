@@ -7,7 +7,7 @@ import nunitoSans from '@fontsource/nunito-sans/files/nunito-sans-latin-400-norm
 import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-normal.woff2?url';
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
 import { along, APART, atZoom, BANDS, bandZooms, coveredIn, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, daysOf, EARTH, joinTracks, LIVE_URL, madridDate, networkTracks, places, type Alerts, type Bundle, type Credit, type DayFiles, type Place, type Kind, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH, type ZoomedOut } from '../bundle.ts';
-import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, unavailable, type Coming, type Departure, type Followed, type Received } from '../engine.ts';
+import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, unavailable, type Coming, type Departure, type Followed, type Received, type Train } from '../engine.ts';
 import { alertCount, alertsChanged, basemapLabel, busesReplace, earlierStations, language, LANGUAGES, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, setLanguage, t, toGo, trainCounts, trainsRunHere, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { forgetJoined, regionLoader, regionsNeeded } from './regions.ts';
@@ -118,6 +118,8 @@ const ICONS = {
 };
 /** How many departures a board shows peeking on a phone, and Nearby rows (#321). */
 const PEEK = 3;
+/** The zoom the map eases to to bring a Train it follows or a Station into view, where it's further out (easeOnto()). */
+const FOLLOW_ZOOM = 13;
 /** How far a finger moves the top of a sheet, in px, before it drags it rather than taps. */
 const SLOP = 6;
 /** What measures names for textWidth(), and reads colours for hex(). */
@@ -1362,28 +1364,37 @@ function placeClosure({ line: id, stations }: Shown): [GeoJSON.Feature[], GeoJSO
 }
 
 /**
+ * Where a Train is drawn at a zoom: zoomed out, until the Lines are back on the rails, on its Line's
+ * stroke, half a line width to the side its Network's Trains keep to, so that Trains going opposite
+ * ways show apart (onStroke()); from there, on its rails. Far out a stroke lies kilometres from the
+ * rails, and differently in each zoom band, so where it's drawn at one zoom is not where it is at
+ * another (#378).
+ * ponytail: takes the Network's running side, so L2's Trains between Tetuan and Paral·lel, and
+ * Cercanías Madrid's beyond Pinar de las Rozas, which keep left, sit half a line width to the wrong
+ * side zoomed out. Publish each shape's side of its double track from the trace if that ever shows.
+ */
+function whereDrawn({ trip, dist, lon, lat }: Pick<Train, 'trip' | 'dist' | 'lon' | 'lat'>, zoom: number): Point {
+  const on = zoom < railsZoom ? onStroke(placing.slots.get(`${trip.line} ${trip.shape}`), placing.shapes, dist, zoom, placing.keep.get(trip.line) ?? 1, placing.curves) : undefined;
+  return on ?? [lon, lat];
+}
+
+/**
  * Every Train on the map now, in its Line's colour, Live or Scheduled, but for a Scheduled one within
- * a closed Closure that hides Trains (trainsAt(), hiding(), #345). Zoomed out, until the Lines
- * are back on the rails, each sits on its Line's stroke, half a line width to the side its Network's
- * Trains keep to, so that Trains going opposite ways show apart (onStroke()). A tapped group of
- * Trains standing together at a Station goes side by side across their track (spreading()), so that
- * each can be seen and tapped (#129).
+ * a closed Closure that hides Trains (trainsAt(), hiding(), #345), where whereDrawn() has it. A tapped
+ * group of Trains standing together at a Station goes side by side across their track (spreading()),
+ * so that each can be seen and tapped (#129).
  */
 function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
   const zoom = map.getZoom();
   const [followed, bearing] = [followedId(), map.getBearing()];
   if (following) following.at = undefined;
   const placed = (bundle ? trainsAt(bundle, Date.now(), received, hidingClosures) : []).map((train) => {
-    const { trip, dist, lon, lat, heading, standsAt } = train;
-    // ponytail: takes the Network's running side, so L2's Trains between Tetuan and Paral·lel, and
-    // Cercanías Madrid's beyond Pinar de las Rozas, which keep left, sit half a line width to the wrong
-    // side zoomed out. Publish each shape's side of its double track from the trace if that ever shows.
-    const on = zoom < railsZoom ? onStroke(placing.slots.get(`${trip.line} ${trip.shape}`), placing.shapes, dist, zoom, placing.keep.get(trip.line) ?? 1, placing.curves) : undefined;
+    const { trip, heading, standsAt } = train;
     const pill = pills.get(trip.line);
     const box = pill && (trip.id === followed ? pill.followedBox : pill.box);
     // As a pill, with its edge, on screen.
     const asPill = pill && box && zoom >= pill.zoom ? { id: trip.id, heading: heading - bearing, box: [box[0] + PILL_HALO, box[1] + PILL_HALO] as [number, number], standsAt } : undefined;
-    return { train, pill, box, asPill, at: on ?? ([lon, lat] as Point) };
+    return { train, pill, box, asPill, at: whereDrawn(train, zoom) };
   });
   standingPills = placed.flatMap(({ asPill, at }) => (asPill?.standsAt ? [{ ...asPill, standsAt: asPill.standsAt, at }] : []));
   // A spread group folds once fewer than two of its Trains stand at its Station drawn as pills, as zoomed out.
@@ -1707,12 +1718,30 @@ function follow(id: string, up = false) {
   trainSource?.setData(trains());
   openPanel(up);
   writeLink();
-  if (following.at) easeOnto(following.at);
+  const at = followedAt();
+  if (at) easeOnto(at);
   // A Trip still to come, its Train not on the map yet: to its first Station, which it leaves from (#322).
   else if (waiting) {
-    const at = startOf();
-    if (at) easeOnto(at);
+    const first = startOf();
+    if (first) easeOnto(first);
   }
+}
+
+/**
+ * Where the Train the map follows is drawn at the zoom easeOnto() takes the map to, so that the ease
+ * ends with it in the middle and no second move brings it there (#378): not where it's drawn now,
+ * which, zoomed out, is on a stroke kilometres from where that zoom has it. Where the map is at that
+ * zoom already, as it's drawn now, spread aside with its group as it may be (#129).
+ * ponytail: a Train spread aside at a zoom short of FOLLOW_ZOOM is eased onto its place in its row,
+ * not its place aside, so the map jumps its distance aside once the ease ends, as #325's tracking
+ * does. Work its place aside out at the zoom eased to if that shows.
+ */
+function followedAt(): Point | undefined {
+  const at = following?.at;
+  const zoom = Math.max(map.getZoom(), FOLLOW_ZOOM);
+  if (!at || zoom === map.getZoom()) return at;
+  const train = bundle && trainAt(bundle, Date.now(), received, followedId() ?? '', hidingClosures);
+  return train ? whereDrawn(train, zoom) : at;
 }
 
 /** The Station a Trip still to come leaves from, where the map eases onto (#322). */
@@ -1737,7 +1766,7 @@ function openFrom(open: () => void, at?: Point) {
   back = was;
   showPanel();
   // The Back row makes the header taller, so the map's padding and where it eases to are worked out again.
-  const to = at ?? following?.at ?? (waiting ? startOf() : undefined);
+  const to = at ?? followedAt() ?? (waiting ? startOf() : undefined);
   if (to) easeOnto(to);
   else map.easeTo({ padding: panelPadding() });
   if (keyboard) focusTitle();
@@ -1764,9 +1793,9 @@ function goBack() {
   if (keyboard) focusTitle();
 }
 
-/** Brings `at` into the middle of the map beside the panel, at zoom 13, or closer if the map already is: a Train the map follows, or a Station whose link names no view (#292). */
+/** Brings `at` into the middle of the map beside the panel, at FOLLOW_ZOOM, or closer if the map already is: a Train the map follows (followedAt()), or a Station whose link names no view (#292). */
 function easeOnto(at: Point) {
-  map.easeTo({ center: at, zoom: Math.max(map.getZoom(), 13), padding: panelPadding() });
+  map.easeTo({ center: at, zoom: Math.max(map.getZoom(), FOLLOW_ZOOM), padding: panelPadding() });
 }
 
 /** Shows a place's board, by its ID in places(), following no Train. */
