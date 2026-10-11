@@ -2,7 +2,7 @@
 
 Each daily build, and each deploy whose build changed, diffs its report against the last one published and writes the diff to the run's job summary (#250): the spots new since the last build, those gone, and those whose numbers moved. Each spot comes with its key, its lines of the log, and links to the map there, which rings it until the next tap (but not a run of Stations left out on a branch, whose view is fitted to show it), to OpenStreetMap there, to edit OpenStreetMap there, and to the ways its Stations are on. On most days it's one line: nothing changed. Why it's built this way is in `docs/research/build-report.md`.
 
-Where a problem spot is new (a run of legs that keeps the feed's shape, a turn-back, a branch, a hop traced more than twice its straight line and 10 km more, Trips left out, a TRAM Trip whose stop numbers don't run 1…n, a route name of Renfe's long-distance timetable no Network takes, a Network with no Trips on a day, one built from its copy, or a region whose build failed), the build also comments on the standing [Build report](https://github.com/gariasf/viapeninsula/issues/290) issue, which notifies the maintainer: the new problem spots, with their links, and the run's link (#255). It never comments for a length, a node or the measures, which move with any change to the map, nor for a Network's Trips or Closures, nor for buses where their Line has no track, which no fix upstream can draw (ADR-0012), so those are only in the summary.
+Where a problem spot is new (a run of legs that keeps the feed's shape, a turn-back, a branch, a hop traced more than twice its straight line and 10 km more, a trace that jumps across a Station's tracks, Trips left out, a TRAM Trip whose stop numbers don't run 1…n, a route name of Renfe's long-distance timetable no Network takes, a Network with no Trips on a day, one built from its copy, or a region whose build failed), the build also comments on the standing [Build report](https://github.com/gariasf/viapeninsula/issues/290) issue, which notifies the maintainer: the new problem spots, with their links, and the run's link (#255). It never comments for a length, a node or the measures, which move with any change to the map, nor for a Network's Trips or Closures, nor for buses where their Line has no track, which no fix upstream can draw (ADR-0012), so those are only in the summary.
 
 ## A new spot
 
@@ -15,6 +15,15 @@ Where a problem spot is new (a run of legs that keeps the feed's shape, a turn-b
 7. If the operator files under one of a Network's Lines a train that runs on into another Network, as Renfe files FEVE's Bilbao–León train under Cercanías Bilbao's C4, so that the Line's trace runs on to the other (its `length` spot's line says the shape is hundreds of km long where the feed has the track for tens, as C4's did, 332.7 km against 33.4 km, and the log may say two regions share a Stretch), name in the Network's `beyond` in `src/networks.ts` (#368) a Station on the way beyond where the Line's own Trips end that every Trip that runs on calls at, on every day the timetable has: Arla Berrón, the first the train calls at past La Calzada, for C4's. The build then leaves out each Trip that calls there, with the Stations and track only they have, logs it, and names it in the Network's `trips` spot, whose `leftOut` counts them. The Train is no longer one the Network lists, so Renfe's long-distance timetable's twin of it is left to another Network only if that one lists it too (#258).
 
 A fix in OpenStreetMap reaches the map when the build next downloads Geofabrik's extracts, which it keeps for a week. The spot then shows as gone: that's the check that the fix worked.
+
+## A long hop, or a jump across a Station's tracks
+
+Renfe's long-distance timetable has no shapes, so the build traces each run of a Line's Trips through its Stations (#259), with no feed's shape to hold the trace against. Two kinds of spot say where a trace may have gone wrong, though its Trains are drawn on it all the same (#262):
+
+- A `detour <line> <stations>` spot is a hop between two Stations traced more than twice its straight line and 10 km more, which a gap in the rails can cause. Open its map link: where the trace goes round a gap the Trains don't, fix OpenStreetMap there (2 above); where the line itself winds so, do nothing (4 above).
+- An `across <line> <station>` spot is a trace that leaves a Station on another of its tracks than it came in on, as OpenStreetMap has no switch there that leads on from that one, so its track jumps across the Station, by the spot's `metres`: on 11 Oct 2026, Alvia's 24 and 32 m at Alcázar de San Juan and AVE Int's 50 m at Figueres-Vilafant. Look at the Station's tracks and switches in OpenStreetMap, and map the switch that's missing (2 above).
+
+Either shows as gone once the build's rails have the fix.
 
 ## A Network with fewer Trips
 
