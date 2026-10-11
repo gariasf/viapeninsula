@@ -63,8 +63,8 @@ export interface NetworkConfig extends Omit<Network, 'credit'> {
 
 /**
  * The ways a Network runs on in OpenStreetMap: those whose `railway` is one of these and, where they're
- * given, whose gauge is one of these (a way with three rails has two, as `1435;1668`), whose operator is
- * one of these, and whose operator is none of these.
+ * given, whose gauge is one of these (a way with three rails has two, as `1435;1668`) or that has none
+ * (#479), whose operator is one of these, and whose operator is none of these.
  */
 export interface Rails {
   railway: string[];
@@ -79,8 +79,8 @@ export interface Rails {
  * one of these, and whose gauge is one of `gauges`, or that have no gauge tag, as a way with three rails
  * has two gauges, as `1435;1668`. A Network's `rails` count a way with no gauge tag as every gauge's too
  * (onRails(), #479). A Line on two gauges, as Alvia's, changes from one to the other only at a
- * railway=gauge_conversion node. A run of its Trips with a stretch with no path on
- * `gauges` is traced on `orElse`'s too, all the way, changing to them only at such a node.
+ * railway=gauge_conversion node. A run of its Trips with a stretch with no path on `gauges` is traced on
+ * `orElse`'s too, all the way, changing to them only at such a node.
  */
 export interface Gauges {
   railway: string[];
