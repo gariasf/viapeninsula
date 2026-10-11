@@ -251,7 +251,11 @@ async function graphed(
     };
     return [...new Set(onIt.toSorted((a, b) => usual(a) - usual(b) || a - b).map((l) => lane[l] ?? l))];
   });
-  const walked = every.map((shape) => ({ line: shape[0]?.line ?? -1, visits: visits(shape, pieces, drawer, edgeOf) }));
+  // Less where a shape only crosses a node along its centreline (#353), on the graph every band from zoom 10 up
+  // shares. ponytail: not on a band's own below it, where it fixes no hairpin and moves other Lines' strokes,
+  // SHORT being in metres and a line width there 250 m to 690 m: scale it with the band if a hook shows there.
+  const seen = every.map((shape) => visits(shape, pieces, drawer, edgeOf));
+  const walked = every.map((shape, k) => ({ line: shape[0]?.line ?? -1, visits: own === undefined ? crossing(seen[k] ?? [], found) : (seen[k] ?? []) }));
   const byId = new Map(centrelines.map((c) => [c.id, c]));
   const orders = await order(prior, graph(found, walked.map((w) => ({ ...w, line: lane[w.line] ?? w.line })), byId));
   // Each Line on each Stretch it goes along, a run for each time it's there, all at one side: its
@@ -297,9 +301,9 @@ async function graphed(
   // On a band's own graph, as far off as the map simplifies a line there, out of sight.
   const px = pixelMetres(BANDS[own ?? -1] ?? 0, LATITUDE);
   const off = own === undefined ? ALONG : Math.max(ALONG, TOLERANCE * px);
-  const slots = every.flatMap((shape) => {
+  const slots = every.flatMap((shape, k) => {
     const line = lines[shape[0]?.line ?? -1]?.id ?? '';
-    return slotted(off, shape.map((s) => {
+    const placed = shape.map((s): Omit<Slot, 'line' | 'shape'> => {
       const drawnOn = drawer[s.piece] ?? s.piece;
       const [edge, middle] = edgeOf.get(drawnOn) ?? [];
       const [side, on] = [sideOn.get(`${edge} ${s.line}`), found[edge ?? -1]?.steps[0]?.shape];
@@ -309,7 +313,26 @@ async function graphed(
       const way = Math.sign(s.way * (wayOn.get(drawnOn) ?? 1) * ((p?.ux ?? 0) * (q?.ux ?? 0) + (p?.uy ?? 0) * (q?.uy ?? 0))) || 1;
       const half = (way * (s.to - s.from)) / 2;
       return { on, side, from: s.from, to: s.to, at: [middle - half, middle + half] };
-    })).map((slot) => ({ line, shape: shape[0]?.shape ?? '', ...slot, ...(own !== undefined && { band: own }) }));
+    });
+    // The steps on a track the shape went round a node on, which has no stroke of its Line's, go along the
+    // centreline between the steps either side of them, where that's the same one: on the stroke the
+    // Line's Trains are on all along (#353), rather than on their track, which nothing is drawn on.
+    const gone = new Set((seen[k] ?? []).filter((v) => !walked[k]?.visits.includes(v)).flatMap(({ steps: [a, b] }) => Array.from({ length: b - a }, (_, i) => a + i)));
+    for (let i = 0; i < placed.length; i++) {
+      if (!gone.has(i)) continue;
+      let j = i;
+      while (gone.has(j)) j++;
+      const [a, b] = [placed[i - 1], placed[j]];
+      if (a && b && a.on === b.on && byId.has(a.on)) {
+        for (let n = i; n < j; n++) {
+          const [from, to] = [shape[n]?.from ?? 0, shape[n]?.to ?? 0];
+          const at = (d: number) => a.at[1] + ((b.at[0] - a.at[1]) * (d - a.to)) / (b.from - a.to || 1);
+          placed[n] = { on: a.on, side: a.side, from, to, at: [at(from), at(to)] };
+        }
+      }
+      i = j;
+    }
+    return slotted(off, placed).map((slot) => ({ line, shape: shape[0]?.shape ?? '', ...slot, ...(own !== undefined && { band: own }) }));
   });
   // On a band's own graph, each centreline only with the points the map keeps of it there, as far along each as they were.
   const written = own === undefined ? centrelines : centrelines.map((c) => {
@@ -360,25 +383,57 @@ function slotted(off: number, steps: Omit<Slot, 'line' | 'shape'>[]): Omit<Slot,
   return found;
 }
 
-/** A shape's time on a Stretch it goes along: how far along the Stretch's centreline it comes in and goes out, and how far it goes. */
+/** A shape's time on a Stretch it goes along: how far along the Stretch's centreline it comes in and goes out, and how far it goes, over which of its steps. */
 interface Visit {
   edge: number;
   first: number;
   last: number;
   length: number;
+  steps: [from: number, to: number];
 }
 
 /** The Stretches a shape goes along, in order, each where its pieces are drawn. */
 function visits(shape: Step[], pieces: Piece[], drawer: number[], edgeOf: Map<number, [edge: number, at: number]>): Visit[] {
   const found: Visit[] = [];
-  for (const s of shape) {
+  for (const [i, s] of shape.entries()) {
     const [edge, middle] = edgeOf.get(drawer[s.piece] ?? s.piece) ?? [];
     if (edge === undefined || middle === undefined) continue;
     const v = found.at(-1);
-    if (v?.edge === edge) [v.last, v.length] = [middle, v.length + (pieces[s.piece]?.length ?? 0)];
-    else found.push({ edge, first: middle, last: middle, length: pieces[s.piece]?.length ?? 0 });
+    if (v?.edge === edge) [v.last, v.length, v.steps[1]] = [middle, v.length + (pieces[s.piece]?.length ?? 0), i + 1];
+    else found.push({ edge, first: middle, last: middle, length: pieces[s.piece]?.length ?? 0, steps: [i, i + 1] });
   }
   return found;
+}
+
+/**
+ * A shape's visits less those where it only crosses a node along its centreline (#353): one piece of the
+ * Stretch next to the one it comes from or goes on to, on one centreline, which its track only brushes as
+ * it comes onto the centreline's; and those under SHORT between two on Stretches that follow one another,
+ * where it left the first further than REACH from its end, which are a track of its own round the node, as
+ * the westbound track of a double track has on a bridge. A join to either runs back onto the Stretch the
+ * shape doesn't go along, which hooks, or leaves the track round the node with an end in the air. Not the
+ * first or last, where the shape's Line ends: a loop Line, as Sevilla's C4, ends on the Stretch it began
+ * on, and without its join there it would close at the node with a step from one side to the other. And
+ * not a run that comes back onto the Stretch it left, which is a spur the shape goes out and back on, not
+ * a track round the node, as R1's is across Auditori/Teatre Nacional's 36 m Stretch (Metro's L1 is on it).
+ */
+export function crossing(all: Visit[], found: Stretch[]): Visit[] {
+  /** Whether b is on the Stretch past the end of a's that its shape goes out at, along the same centreline. */
+  const follows = (a: Visit, b?: Visit): boolean => {
+    const next = a.edge + (end(a, found, false) ? 1 : -1);
+    return b?.edge === next && found[next]?.steps[0]?.shape === found[a.edge]?.steps[0]?.shape;
+  };
+  const touch = (v: Visit, i: number) => i > 0 && i < all.length - 1 && v.first === v.last && v.length < SHORT && (follows(v, all[i + 1]) || follows(v, all[i - 1]));
+  const kept = all.filter((v, i) => !touch(v, i));
+  for (let i = 1; i < kept.length - 1; i++) {
+    let j = i;
+    while (j < kept.length - 1 && (kept[j]?.length ?? Infinity) < SHORT) j++;
+    const [before, after] = [kept[i - 1], kept[j]];
+    if (!before || j === i || !follows(before, after) || kept.slice(i, j).some((v) => v.edge === before.edge)) continue;
+    const steps = found[before.edge]?.steps ?? [];
+    if (Math.abs(before.last - (end(before, found, false) ? (steps.at(-1)?.to ?? 0) : (steps[0]?.from ?? 0))) > REACH) kept.splice(i, j - i);
+  }
+  return kept;
 }
 
 /** Where a Line goes from its stroke on one Stretch to its stroke on the next: each stroke, and its end there, 1 its `to` and 0 its `from`. */
