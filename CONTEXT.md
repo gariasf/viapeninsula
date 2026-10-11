@@ -68,6 +68,10 @@ _Avoid_: Segment, edge, part
 A place where Trains stop for passengers, as published by whoever runs it (Adif for Renfe and Ouigo, FGC, TMB, TRAM, Euskotren). One Station can serve several Networks, as Sants does Rodalies, AVE y Larga Distancia, Media Distancia y Avant and Ouigo, with one board for them all. Tram stops are Stations too; a metro station next to a railway station is a separate Station, and one served by several Lines is a Station for each, which the map shows as one place.
 _Avoid_: Stop, halt
 
+**Interchange**:
+Places of other Networks that people change between on foot, as Passeig de Gràcia's Rodalies Station and its Metro place. The map draws an interchange as one badge of its Networks' marks, named once, and its places share one board (ADR-0005).
+_Avoid_: Transfer, connection, hub, station complex
+
 ### Live data
 
 **Live**:
