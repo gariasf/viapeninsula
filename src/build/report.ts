@@ -123,11 +123,12 @@ export function collect() {
 }
 
 /**
- * A spot's key, as docs/research/build-report.md's section 3 sets it out: its kind, its Line or
- * Network, and its Stations, those at either end in order of ID, so that the same spot traced the
- * other way, or on the feed's own shape the other way, is keyed the same. A shape traced the other
- * way has the length of the one it's traced from, a node is known by its zoom and where it is, to
- * about 100 m, and a route name no Network takes by the name, as written.
+ * A spot's key: its kind, its Line or Network, and its Stations, those at either end in order of ID,
+ * so that the same spot traced the other way, or on the feed's own shape the other way, is keyed the
+ * same. A shape traced the other way has the length of the one it's traced from, a node is known by
+ * its zoom and where it is, to about 100 m, and a route name no Network takes by the name, as written.
+ * This is the list of the keys: docs/research/build-report.md's section 3 has the eight kinds of
+ * #219's design, and the kinds since are keyed here alone.
  */
 function keyOf({ kind, network, region, line, why, shape, route, day, zoom, point, stations = [] }: Found): string {
   const ids = stations.map((s) => s.id);
