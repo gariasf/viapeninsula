@@ -142,6 +142,7 @@ Nothing below changes where a Train is drawn: a card's words, its countdown and 
 mkdir -p rec && unzip -q .cache/recordings-2026-10/recording-2026-10-10-1316.zip -d rec/recording-2026-10-10-1316
 npm run card-vs-map -- <dir> [<dir>...]     # a dir with bundle.json and replay.json.gz, as `npm run record` writes (rec/recording-2026-10-10-1316 above)
 LIMIT=300 ZOOM=14 npm run card-vs-map -- <dir>
+STATIONS=1 npm run card-vs-map -- <dir> [<dir>...]   # each Station by its own coordinates, as sections 1 and 2 had them (#455)
 ```
 
 It prints one JSON of counts in Train-seconds, by recording and Network, `all` and `live`. `src/cardVsMap.test.ts` pins the definitions on a made-up Trip. A Record run's artifact is a `bundle.json` and a `replay.json.gz`, with the feeds' own `trip_updates.json` and `vehicle_positions.json`. The folder keeps each as the zip Actions served, and the two by hand on Saturday, which Actions never had, zipped the same way, with a `SHA256SUMS`. The six recordings above, replayed together, give section 2's Train-seconds to the unit. `jumps()` and `trainsAt()` on a recording's `replay.json.gz` are in [punctuality.md](punctuality.md)'s "Re-verify quickly".
@@ -152,13 +153,13 @@ It prints one JSON of counts in Train-seconds, by recording and Network, `all` a
 
 The measure took two changes, so that it counts what the map draws. A Station is the place the map shows it as, at the middle of its Stations (`places()`; the map draws one dot a place, in its `stations` source), not each Station by its own coordinates; and the arrow, which points ahead, covers no Station the Train has left. Its box and metres per pixel are the card's now, which moves the counts by 0.02 points at most (long-distance Lines' pills are round on the map, and were badges in the measure's own copy of `boxOf()`). Sections 2 to 4's numbers stand as they were (origin/main `833d09a` and `62f065c` reproduce them to the Train-second, jumps and stalls too).
 
-Each change on its own, for causes 1 and 2's next call under the pill, and the pill and arrow (share of Train-seconds, zoom 13, Rodalies / FGC / TRAM / Metro / Madrid / other núcleos). Stations by their own coordinates are sections 1 and 2's; the dots are the map's. The arrow's filter moves no next-call count:
+Each change on its own, for causes 1 and 2's next call under the pill, and the pill and arrow (share of Train-seconds, zoom 13, Rodalies / FGC / TRAM / Metro / Madrid / other núcleos). Stations by their own coordinates are sections 1 and 2's, and what `STATIONS=1 npm run card-vs-map` counts (the old card's columns are those sections', from the measure as #352 built it); the dots are the map's. The arrow's filter moves no next-call count:
 
 | | Stations, old card | dots, old card | Stations, new card | dots, new card |
 |---|---|---|---|---|
 | **1** drawn at B, the card not arriving there | 2.56 / 5.97 / 8.25 / 8.94 / 3.43 / 4.03 | 2.56 / 5.94 / 8.25 / 7.36 / 3.43 / 4.03 | 0.00 / 0.01 / 0.00 / 0.19 / 0.00 / 0.00 | 0 |
-| **2** the pill covers the next call, the card doesn't have it | 3.86 / 8.48 / 11.29 / 11.55 / 5.24 / 5.67 | 3.91 / 8.44 / 11.28 / 9.91 / 5.24 / 5.67 | 0.00 / 0.02 / 0.01 / 0.38 / 0.00 / 0.00 | 0 |
-| pill and arrow cover the next call | 4.83 / 11.22 / 17.60 / 16.50 / 6.72 / 7.58 | 4.94 / 11.18 / 17.58 / 14.94 / 6.72 / 7.57 | 0.88 / 2.57 / 6.28 / 5.00 / 1.38 / 1.77 | 0.94 / 2.53 / 6.26 / 4.01 / 1.38 / 1.77 |
+| **2** the pill covers the next call, the card doesn't have it | 3.86 / 8.48 / 11.29 / 11.55 / 5.24 / 5.67 | 3.91 / 8.44 / 11.28 / 9.91 / 5.24 / 5.67 | 0.00 / 0.02 / 0.00 / 0.38 / 0.00 / 0.00 | 0 |
+| pill and arrow cover the next call | 4.83 / 11.22 / 17.60 / 16.50 / 6.72 / 7.58 | 4.94 / 11.18 / 17.58 / 14.94 / 6.72 / 7.57 | 0.88 / 2.56 / 6.26 / 4.99 / 1.38 / 1.77 | 0.94 / 2.53 / 6.26 / 4.01 / 1.38 / 1.77 |
 
 Under the dots the two 0s are not a finding: the card says arriving where a place's dot is within the pill's reach, and the count asks whether one is. What that column checks is that the code does it, on every Train of every Network. The Stations column is the finding. Its Metro residue is a Train within the pill's reach of another Line's Station of the place it comes to (La Sagrera, Verdaguer, Passeig de Gràcia, Espanya, Diagonal, Maragall), 23 to 58 m from it, with its own platform 100 to 340 m on and the dot 100 to 200 m off, where the map draws no mark; FGC's is the same at Sabadell Nord, where Renfe's Station and FGC's share a place, and the few seconds elsewhere are the 0.1% between the old metres per pixel and the card's. Four recordings the rule was not tried on (6 Oct 17:13, 7 Oct 02:09, 10 Oct 16:34 and 17:57, 999,000 Train-seconds) give 0.19% and 0.36% for the Metro, 0.01% and 0.02% for FGC and 0.00% for the rest.
 
