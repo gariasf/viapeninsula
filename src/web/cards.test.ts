@@ -273,6 +273,26 @@ test("a Catalan viewer reads Valencia's Alert in its second entry, in Valencian,
   expect(lift?.description).toEqual({ language: 'es', text: 'Ascensor de la estación de Carcaixent, sentido Xàtiva de vía 2, se encuentra fuera de servicio. Disculpen las molestias.' });
 });
 
+test("a C8a or a C8b Train's card shows Madrid's AVISO_517064, which Renfe names for C8, as the fetcher writes it, and a board where both call shows it once (#359)", () => {
+  // Renfe's six of Madrid's Alerts that name Lines, of 7 October, whole and as Renfe gave them.
+  const text = readFileSync(new URL('../fetcher/fixtures/alerts/renfe-madrid.json', import.meta.url), 'utf8');
+  const renfe = readAlerts(ALERTS_START, { renfe: { alerts: { status: 200, body: { text } } } }, NOW).file ?? {};
+  const [C8a, C8b, C4] = ['cercanias-madrid:C8a', 'cercanias-madrid:C8b', 'cercanias-madrid:C4'];
+  // Newest first: 517064 from 1 Oct, and 467462, Cercedilla's toilets, which names C8 and C9, from 12 Dec 2025.
+  for (const line of [C8a, C8b]) {
+    expect(cardAlerts(renfe, { lines: [line], stations: [] }, 'es', NOW).alerts.map(({ id, lines }) => [id, lines])).toEqual([
+      ['AVISO_517064', [line]],
+      ['AVISO_467462', [line]],
+    ]);
+  }
+  expect(cardAlerts(renfe, { lines: [C8a, C8b], stations: [] }, 'es', NOW).alerts.map(({ id, lines }) => [id, lines])).toEqual([
+    ['AVISO_517064', [C8a, C8b]],
+    ['AVISO_467462', [C8a, C8b]],
+  ]);
+  // None of C4's, whose own Alerts are on it as before.
+  expect(cardAlerts(renfe, { lines: [C4], stations: [] }, 'es', NOW).alerts.map((a) => a.id)).toEqual(['AVISO_518335', 'AVISO_518347']);
+});
+
 test("a card says when its Alerts were read where that's over 15 minutes ago, by the feed read longest ago of those whose Alerts it shows", () => {
   const on = (...lines: string[]) => ({ lines, stations: [] });
   const [R2, T1, both] = [on('rodalies:R2'), on('tram:T1'), on('rodalies:R2', 'tram:T1')];
