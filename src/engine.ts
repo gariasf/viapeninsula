@@ -737,7 +737,7 @@ interface Heard {
 interface GpsDelay {
   delay: number;
   got: number;
-  /** Where it was over GATE from Renfe's own figure in the report that gave it, as the figure of that report was (delayBy()). */
+  /** Where it was over GATE from the figure Renfe gave in the report that gave it, not the latest (delayBy()). */
   far?: true;
 }
 

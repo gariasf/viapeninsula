@@ -2552,17 +2552,17 @@ test("counts each Network's jumps over 45 minutes of live data as the map receiv
   // takes a GPS fix no report of the Train in the 2 minutes before could have run to as no position, at
   // its Line's top speed and 5% over, and 300 m, and a GPS Delay that was over 10 minutes from Renfe's
   // figure in its report as none until a report agrees with it: 53 fixes of 42 Trains here, 1.3 to 117
-  // km from the Train's last, in 19 to 100 s. Eight Trains lose 20 to 61 s of Live, 242 in all, as the
-  // fix that last placed them, before Renfe pinned them to a Station, was one of those and no longer
-  // keeps them Live through the three updates after it, and R4 77550 gains 18. Of the jumps, seven are
-  // gone, forward R2N 25438's at 16:00:34, R4 77988's at 16:26:16, R4 77638's at 16:27:37, R4 77640's
-  // at 16:28:58 and R4 77742's at 16:32:22, and back R16 18131's at 16:17:50 and R2S 25543's at
-  // 16:21:33: each a Train that went by a GPS Delay Renfe's figure was over 10 minutes from, and goes by
-  // the figure now. R7 77843 jumps forward at 16:15:29 where it didn't, as its fix at 16:11:06, 1,254 m
-  // in 20 s, no longer confirms the one after it, so that what it carries through its pins isn't a
-  // Delay that counted and the next fix moves it at once. And two of the seven come again as back
-  // jumps, R4 77638's at 16:30:20 and R4 77742's at 16:33:02, a minute or more after a fix like those,
-  // where the Train that goes by Renfe's figure is put where its GPS has it.
+  // km from the Train's last, in 19 to 100 s. Seven Trains lose 20 to 61 s of Live, 222 in all, where
+  // such a fix, as R1 25752's at 16:00:26, 3.9 km on in 20 s and held for four reports before Renfe
+  // pinned it, was what last placed them and no longer keeps them Live through the three updates after
+  // it, and R4 77550 gains 18. Five jumps are gone, forward R2N 25438's at 16:00:34, R4 77988's at
+  // 16:26:16 and R4 77640's at 16:28:58, and back R16 18131's at 16:17:50 and R2S 25543's at 16:21:33,
+  // each of a Train that went by a GPS Delay Renfe's figure was over 10 minutes from, and goes by the
+  // figure now. Three come: R7 77843 jumps forward at 16:15:29, as its fix at 16:11:06, 1,254 m in 20 s,
+  // no longer confirms the one after it, so that what it carries through its pins isn't a Delay that
+  // counted and the next fix moves it at once; and R4 77638 and R4 77742 jump back at 16:30:20 and
+  // 16:33:02, a minute or more after a fix like those, where the Train that goes by Renfe's figure is
+  // put where its GPS has it. Four more, R2N 25442's, R7 77843's, R4 77638's and R4 77742's, come 20 s later.
   expect(jumps(RECORDED.bundle, RECORDED.received)).toEqual({
     rodalies: { forward: 64, back: 123, liveSeconds: 151935 },
     fgc: { forward: 24, back: 50, liveSeconds: 145935 },
