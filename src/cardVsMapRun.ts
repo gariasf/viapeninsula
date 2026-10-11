@@ -106,6 +106,8 @@ for (const dir of process.argv.slice(2)) {
   const was = new Map<string, number>();
   // What each Train's card said in each of the last FLAP seconds, to count the words that come back.
   let saying = new Map<string, string[]>();
+  // The time and Station each Train's countdown counted to in the last second, to count the steps its Delay gives it (#456).
+  let counting = new Map<string, { due: string; expected: number }>();
   let stalled = new Map<string, number>();
   let heard = 0;
   for (let at = t0; at <= t1; at += 1000) {
@@ -114,6 +116,7 @@ for (const dir of process.argv.slice(2)) {
     const now = new Map<string, number>();
     const stalling = new Map<string, number>();
     const said = new Map<string, string[]>();
+    const counted = new Map<string, { due: string; expected: number }>();
     for (const trip of candidates) {
       const o = of(trip);
       const { train } = o ?? {};
@@ -137,7 +140,8 @@ for (const dir of process.argv.slice(2)) {
       const fresh = o.said?.confirmed !== undefined && bundle.noonMinus12h + o.now * 1000 - o.said.confirmed <= CONFIRMED;
       const pinned = train.live && fresh && typeof position?.near === 'string' ? made.calls.find((c) => c.station === position.near) : undefined;
       const m: Moment = {
-        at,
+        // The map's time, mapTime(): the device's second and behind(), which the engine's `now` has in.
+        at: bundle.noonMinus12h + o.now * 1000,
         noon: bundle.noonMinus12h,
         now: o.now,
         time: o.time,
@@ -175,6 +179,31 @@ for (const dir of process.argv.slice(2)) {
       if (d.arrow && d.graced) add('2.arrow.graced');
       if (d.at === 'notCall') add('4.atNotCall');
       if (d.nowFar) add('b.nowFar');
+      // The followed Train's countdown (#456), beside the minute-reading card's `b.` and `3.` and `5.` above: what it reads (`s.reads`),
+      // that it reads now with the Train far only by the Delay (`s.nowFar`, `s.nowByMinute`), what it reads where the minute-reading card said now with
+      // the Train far (`b.nowFar.reads`, and the seconds it read: `b.nowFar.n`), and what it reads with the Train drawn at its Station (`s.atNext`).
+      const inSeconds = d.reads.unit === 'seconds';
+      add(!inSeconds ? 's.reads.minutes' : d.reads.n ? 's.reads.seconds' : 's.reads.now');
+      if (d.countdownNowFar) add('s.nowFar');
+      if (d.countdownNowFar && d.expected > m.at) add('s.nowByMinute');
+      if (d.nowFar) add(d.reads.n ? 'b.nowFar.reads.seconds' : 'b.nowFar.reads.now');
+      if (d.nowFar && d.reads.n) add(d.reads.n <= 10 ? 'b.nowFar.n.le10' : d.reads.n <= 20 ? 'b.nowFar.n.le20' : d.reads.n <= 40 ? 'b.nowFar.n.le40' : 'b.nowFar.n.le59');
+      if (d.atNext) {
+        add('s.atNext');
+        if (d.readsNow) add('s.atNext.minuteReadsNow');
+        if (inSeconds && d.reads.n === 0) add('s.atNext.now');
+        if (inSeconds && d.reads.n > 10) add('s.atNext.over10');
+        if (inSeconds && d.reads.n > 20) add('s.atNext.over20');
+      }
+      // How steady its seconds are: the card's time for the same Station moved by a new Delay, by more than 2 s or 10 s, later or earlier.
+      const prior = counting.get(trip.id);
+      counted.set(trip.id, { due: d.due, expected: d.expected });
+      if (inSeconds && prior?.due === d.due) {
+        add('s.steps.of');
+        const step = d.expected - prior.expected;
+        if (Math.abs(step) > 2_000) add(step > 0 ? 's.steps.later2' : 's.steps.earlier2');
+        if (Math.abs(step) > 10_000) add(step > 0 ? 's.steps.later10' : 's.steps.earlier10');
+      }
       if (d.nowByMinute) add('3.nowByMinute');
       if (d.nowByDelay) add('5.nowByDelay');
       if (d.timeOff > 60) add('5.drawnAhead60');
@@ -208,6 +237,7 @@ for (const dir of process.argv.slice(2)) {
     was.clear();
     for (const [id, dist] of now) was.set(id, dist);
     saying = said;
+    counting = counted;
     stalled = stalling;
   }
   console.error(`${dir}: ${Math.round((t1 - t0) / 1000)} s`);
