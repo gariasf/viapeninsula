@@ -85,11 +85,42 @@ describe('differences', () => {
     expect(d).toMatchObject({ says: { at: 'standing', key: 'B' }, standingHeaderNext: false, at: undefined, pill: undefined, atNextBeforeArriving: false });
   });
 
-  it('reads now by the minute while the clock has not come to the card’s time, and by the Delay once it has', () => {
+  it('has the minute-reading card, as a board reads, say now by the minute while the clock has not come to the card’s time, and by the Delay once it has', () => {
     // 1,500 m short of B at 2:05 (125 s), B due at 2:10 (130 s) in the same minute: the minute alone reads 0.
     expect(differences(moment(125, 500))).toMatchObject({ nowFar: true, nowByMinute: true, nowByDelay: false, toGo: 5 });
     // The clock past B's time by the Delay (+30 s) and the drawn Train still far short.
     expect(differences(moment(100, 500, { at: 170_000, delay: 30 }))).toMatchObject({ nowFar: true, nowByMinute: false, nowByDelay: true });
+  });
+
+  it('has the followed Train’s countdown read the seconds to go where the minute-reading card said now by the minute, and now only by the Delay (#456)', () => {
+    // The same Train at 2:05, B due at 2:10: 5 s, where the minute alone read now.
+    expect(differences(moment(125, 500))).toMatchObject({ reads: { n: 5, unit: 'seconds' }, nowFar: true, nowByMinute: true, countdownNowFar: false });
+    // At 2:08, 2 s out.
+    expect(differences(moment(128, 500))).toMatchObject({ reads: { n: 2, unit: 'seconds' }, nowFar: true, countdownNowFar: false });
+    // The clock past B's time by the Delay (+30 s: B at 2:40) and the drawn Train still far short: now, by the Delay.
+    expect(differences(moment(100, 500, { at: 170_000, delay: 30 }))).toMatchObject({ reads: { n: 0, unit: 'seconds' }, nowFar: true, nowByDelay: true, countdownNowFar: true });
+    // B at 2:59.7 by the Delay (+49.7 s) and the clock at 2:00.2: the minute alone reads 0, but it's 59.5 s out, which is a minute and not 59 s.
+    expect(differences(moment(100, 500, { at: 120_200, delay: 49.7 }))).toMatchObject({ readsNow: true, nowFar: true, nowByMinute: true, reads: { n: 1, unit: 'minutes' }, countdownNowFar: false });
+  });
+
+  it('has the countdown read the minutes a board shows before its last minute, and count to when the Train leaves while it stands (#456)', () => {
+    // At 0:40, B due at 2:10 (90 s out): two minutes by the clock, which is what its board row reads.
+    expect(differences(moment(40, 500))?.reads).toEqual({ n: 2, unit: 'minutes' });
+    // Standing at B from 130 s to 160 s: its seconds to go are to its departure at 160 s, not its arrival at 130 s.
+    expect(differences(moment(120, 2000, { standing: true, near: [{ key: 'B', metres: 0 }] }))?.reads).toEqual({ n: 40, unit: 'seconds' });
+    expect(differences(moment(140, 2000, { standing: true, near: [{ key: 'B', metres: 0 }] }))?.reads).toEqual({ n: 20, unit: 'seconds' });
+  });
+
+  it('counts the card’s time with its Delay, by the map’s time `at`, and says which Station and which of its times', () => {
+    const d = differences(moment(100, 1000, { at: 100_000, delay: 20 }));
+    expect(d).toMatchObject({ expected: 150_000, countsTo: 'B arrives', reads: { n: 50, unit: 'seconds' } });
+    expect(differences(moment(140, 2000, { standing: true }))).toMatchObject({ countsTo: 'B leaves' });
+  });
+
+  it('says whether the drawn Train is at its next Station without standing there, the last of its way in', () => {
+    expect(differences(moment(125, 1980, { near: [{ key: 'B', metres: 20 }] }))).toMatchObject({ atNext: true, reads: { n: 5, unit: 'seconds' } });
+    expect(differences(moment(140, 2000, { standing: true, near: [{ key: 'B', metres: 0 }] }))).toMatchObject({ atNext: false });
+    expect(differences(moment(80, 1000))).toMatchObject({ atNext: false });
   });
 
   it('gives how far the card’s time is from the drawn Train’s, positive where the Train is drawn ahead of its Delay', () => {

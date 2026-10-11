@@ -18,7 +18,7 @@ import { atMostEvery, drifted, letsGo } from './centre.ts';
 import { keepView, lastView, markOf, openingView, toggledPitch } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { contrast, lettering } from './colour.ts';
-import { boardList, cardAlerts, inNameOrder, linesOnBoard, linkedWords, minutesTo, nearbyRows, progress, tripsState, whereabouts, type CardAlert, type Whereabouts } from './cards.ts';
+import { boardList, cardAlerts, countdownTo, inNameOrder, linesOnBoard, linkedWords, minutesTo, nearbyRows, progress, tripsState, untilTick, whereabouts, type CardAlert, type Whereabouts } from './cards.ts';
 import { ARROW_GAP, boxOf, FOLLOWED_TEXT, LINE_HEIGHT, OUTLINE_SIZES, outlineOf, PILL_EDGE, PILL_PADDING, PILL_TEXT, pillReach, type Outline } from './pill.ts';
 import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, tappedRows, type Shown } from './closures.ts';
 
@@ -575,8 +575,8 @@ let emptyBoard: string | undefined;
 let nearMe: Point | Unlocated | undefined;
 /** How many times Nearby has asked the browser where the viewer is, so that only the last ask's answer shows (locate()). */
 let asks = 0;
-/** When the panel was last filled, by performance.now(). */
-let panelShown = 0;
+/** When the panel was last filled, by performance.now(), and how long after that it is next due, in ms: a second, or as a followed Train's countdown next changes (Panel's `changes`). */
+let [panelShown, panelDue] = [0, 1000];
 /** When the legend's count was last filled, by performance.now(). */
 let countShown = -Infinity;
 /** When the Networks the banner names were last worked out, by performance.now(). */
@@ -1170,8 +1170,8 @@ requestAnimationFrame(function move(now) {
     }
   }
   showCentring();
-  // The panel's times and ages change by the second.
-  if ((following || boardPlace || nearMe) && performance.now() - panelShown > 1000) showPanel();
+  // The panel's times and ages change by the second, a followed Train's countdown as each second of it ends.
+  if ((following || boardPlace || nearMe) && performance.now() - panelShown > panelDue) showPanel();
   // Which Networks the banner names changes as Trains and the view move, and the banner with it.
   // Zoomed out, where no Trains are drawn, none of them is in view.
   // ponytail: in view by the map's bounds, which on a turned or tilted map take in some of the map
@@ -2030,6 +2030,8 @@ function panelPadding(height?: number) {
 interface Panel {
   header: HTMLElement;
   body: Node[];
+  /** How long until what it shows next changes of itself, in ms, where that's within a second: a followed Train's countdown (untilTick(), #456). */
+  changes?: number;
 }
 
 /**
@@ -2041,6 +2043,7 @@ interface Panel {
 function showPanel(up = wide.matches || pulledUp || dragging) {
   panelShown = performance.now();
   const shown = following ? followedPanel(up) : boardPlace ? boardPanel(boardPlace, up) : nearMe ? nearbyPanel(nearMe, up) : undefined;
+  panelDue = shown?.changes ?? 1000;
   panel.hidden = !shown;
   panel.classList.toggle('up', up);
   patch(panel, shown ? [el('div', { className: 'sheet-top' }, handle(up), shown.header), el('div', { className: 'sheet-body' }, ...shown.body)] : []);
@@ -2154,16 +2157,18 @@ function moreButton(text: string) {
  * The followed Train's panel: its Line's pill and where it's headed; Live or Scheduled, how long ago
  * live data last placed it, its modelled speed, and its Unit type where its operator reports one; its
  * next Station, as it's arriving at it or stands at it by how it's drawn (#455), when it's expected
- * there, with its Delay but for a Metro Train's, and the minutes to it; how far along its Trip it is;
- * and its Line's Alerts, folded away (#342). Peeking, it ends in how many Stations it has still to
- * come; pulled up, it shows them, from the Train to its Trip's last Station (#321), after a fold that
- * shows those it has left (#349). Its Stations within a closed Closure that hides Trains are marked as
- * not stopped at in the strip, and not counted in how many it has to come (#420). Where its Train is
- * within one, it's the panel of a Trip still to come (comingPanel()).
+ * there, with its Delay but for a Metro Train's, and the time to it, in seconds in its last minute
+ * (#456); how far along its Trip it is; and its Line's Alerts, folded away (#342). Peeking, it ends
+ * in how many Stations it has still to come; pulled up, it shows them, from the Train to its Trip's
+ * last Station (#321), after a fold that shows those it has left (#349). Its Stations within a closed
+ * Closure that hides Trains are marked as not stopped at in the strip, and not counted in how many it
+ * has to come (#420). Where its Train is within one, it's the panel of a Trip still to come
+ * (comingPanel()). Where its time to go is in seconds, `changes` says when it next does, so that it's
+ * refreshed then.
  */
 function followedPanel(up: boolean): Panel | undefined {
   const now = Date.now();
-  // The minutes to go count by the map's time, as the times they count to are the fetcher's (#356).
+  // The time to go counts by the map's time, as the times it counts to are the fetcher's (#356).
   const mapNow = mapTime(now, received);
   const train = bundle && trainAt(bundle, now, received, followedId() ?? '', hidingClosures);
   // Its Trip still to come, where its Train isn't on the map yet (#322), or within a closed Closure that hides Trains (#420).
@@ -2185,6 +2190,7 @@ function followedPanel(up: boolean): Panel | undefined {
   status.push(el('span', {}, el('span', { className: 'sr-only', textContent: `${t('speed')} ` }), `~${Math.round(speed * 3.6)} km/h`));
   if (unitType) status.push(`${t('unit')} ${unitType}`);
   return {
+    changes: upcoming[0] && untilTick(due(upcoming[0], !!train.standsAt), mapNow),
     header: el('header', {}, ...backButton(), el('h2', { className: 'title', tabIndex: -1 }, pill(trip.line, { live, train: true }), ` ${trip.headsign}`), closeButton(t('stopFollowing'))),
     body: [
       el('p', { className: 'meta status-line' }, el('span', { className: `dot ${live ? 'live' : 'scheduled'}` }), ...status.flatMap((part, i) => (i ? [' · ', part] : [part]))),
@@ -2214,8 +2220,9 @@ function comingPanel({ trip, live, delay, upcoming, within }: Coming, up: boolea
   // The Closure's Stations in the order its Trip meets them, as they are where it calls at neither.
   const order = (station: string) => trip.calls.findIndex((c) => c.station === station);
   const [a = '', b = ''] = within?.stations.toSorted((x, y) => order(x) - order(y)).map(stationName) ?? [];
-  const says = within ? [notRunning(a, b)] : [leaves ?? '', ...(first ? countdown(first.departure, now, 'inMinutes').flatMap((n) => [' · ', n]) : [])];
+  const says = within ? [notRunning(a, b)] : [leaves ?? '', ...(first ? followedCountdown(first.departure, now).flatMap((n) => [' · ', n]) : [])];
   return {
+    changes: running[0] && untilTick(running[0].arrival, now),
     header: el('header', {}, ...backButton(), el('h2', { className: 'title', tabIndex: -1 }, pill(trip.line, { live, train: true }), ` ${trip.headsign}`), closeButton(t('stopFollowing'))),
     body: [
       el('p', { className: 'meta status-line' }, el('span', { className: `dot ${live ? 'live' : 'scheduled'}` }), ...says),
@@ -2244,9 +2251,9 @@ function due(call: Followed['upcoming'][number], standing: boolean): number {
 /**
  * A followed Train's next Station: its name, labelled as the Train is arriving at it or stands at it,
  * where `where` says so (#455); when the Train's expected there, with its status beside it, and the
- * minutes to it within the hour. Standing, that time is when it leaves, which it says unless that's
- * its Trip's last Station, where the Train doesn't leave. The first it stops at, not one within a
- * closed Closure that hides Trains (#420).
+ * time to it within the hour, in seconds in its last minute (followedCountdown(), #456). Standing,
+ * that time is when it leaves, which it says unless that's its Trip's last Station, where the Train
+ * doesn't leave. The first it stops at, not one within a closed Closure that hides Trains (#420).
  */
 function nextStation({ upcoming, standsAt, delay, live }: Pick<Followed, 'upcoming' | 'standsAt' | 'delay' | 'live'>, now: number, where?: Whereabouts<Call>): Node[] {
   const next = upcoming.find((c) => !c.skipped);
@@ -2259,7 +2266,7 @@ function nextStation({ upcoming, standsAt, delay, live }: Pick<Followed, 'upcomi
       'div',
       { className: 'next-station' },
       el('div', {}, el('p', { className: 'label', textContent: t(label) }), stationLink(next.station, el('strong', { className: 'next-name', textContent: stationName(next.station) }))),
-      el('div', { className: 'next-when' }, el('span', { className: 'at' }, ...leaves, el('time', {}, ...timeOfDay(at)), status({ delay, live })), ...countdown(at, now, 'inMinutes')),
+      el('div', { className: 'next-when' }, el('span', { className: 'at' }, ...leaves, el('time', {}, ...timeOfDay(at)), status({ delay, live })), ...followedCountdown(at, now)),
     ),
   ];
 }
@@ -2579,7 +2586,7 @@ function servedBy(place: Place): string[] {
 function departureRow({ trip, departure, delay, live, unreported, cancelled, skipped }: Departure, now: number) {
   const off = cancelled ? 'cancelled' : skipped ? 'skipped' : '';
   const cells = [
-    el('time', {}, ...timeOfDay(departure), ...(off ? [] : countdown(departure, now, 'minutes'))),
+    el('time', {}, ...timeOfDay(departure), ...(off ? [] : countdown(departure, now))),
     pill(trip.line, { live, train: true }),
     el('span', { className: 'dest', textContent: trip.headsign }),
     off ? el('span', { className: `status ${off}`, textContent: t(cancelled ? 'cancelled' : 'notStopping') }) : status({ delay, live, unreported }),
@@ -2607,10 +2614,20 @@ function status({ delay, live, unreported = false }: { delay?: number; live: boo
   return delayChip(delay) ?? el('span', { className: 'status soft', textContent: unreported ? t('noLiveTrain') : live && delay !== undefined ? t('onTime') : '' });
 }
 
-/** The minutes to go until `at`, under a time within the hour, as `phrase` words them, or now. */
-function countdown(at: number, now: number, phrase: 'minutes' | 'inMinutes'): Node[] {
+/** The minutes to go until `at`, under a time within the hour, as a board's row words them, or now. */
+function countdown(at: number, now: number): Node[] {
   const minutes = minutesTo(at, now);
-  return minutes < 60 ? [el('span', { className: 'in', textContent: toGo(minutes, phrase) })] : [];
+  return minutes < 60 ? [el('span', { className: 'in', textContent: toGo(minutes, 'minutes') })] : [];
+}
+
+/**
+ * The followed Train's time to go until `at`, its next Station's time: in seconds in its last minute, and before
+ * that the minutes a board shows for it, within the hour, or now (countdownTo(), #456). One for its next Station's
+ * row and for the status line of a Trip still to come.
+ */
+function followedCountdown(at: number, now: number): Node[] {
+  const { n, unit } = countdownTo(at, now);
+  return n < 60 ? [el('span', { className: 'in', textContent: toGo(n, unit === 'seconds' ? 'inSeconds' : 'inMinutes') })] : [];
 }
 
 /**

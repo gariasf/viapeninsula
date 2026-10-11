@@ -1,5 +1,5 @@
-// What the cards work out from the days on the map and the engine's Trains: minutes to go, Nearby's rows, what a board's list is before the day's Trips have come (#379), how far along its Trip a followed Train is and where it is by how it's drawn (#455), and a board's Lines (#321), and the order the cards name Lines in (#399); and from alerts.json, the Alerts each shows (#342).
-// Pure, with only types from the page's modules, as the measure of the card against the map (src/cardVsMap.ts) runs whereabouts() under Node.
+// What the cards work out from the days on the map and the engine's Trains: minutes to go, and a followed Train's countdown in seconds in its last minute (#456), Nearby's rows, what a board's list is before the day's Trips have come (#379), how far along its Trip a followed Train is and where it is by how it's drawn (#455), and a board's Lines (#321), and the order the cards name Lines in (#399); and from alerts.json, the Alerts each shows (#342).
+// Pure, with only types from the page's modules, as the measure of the card against the map (src/cardVsMap.ts) runs whereabouts() and countdownTo() under Node.
 import type { Alert, Alerts, Call, Line, Trip, Words } from '../bundle.ts';
 import type { Pass } from '../engine.ts';
 import type { Language } from './i18n.ts';
@@ -7,6 +7,40 @@ import type { Language } from './i18n.ts';
 /** The whole minutes from `now` to `at`, both in ms since 1970, as a clock showing minutes reads them, as a board shows times: none for a time this minute, or past. */
 export function minutesTo(at: number, now: number): number {
   return Math.max(0, Math.floor(at / 60_000) - Math.floor(now / 60_000));
+}
+
+/** What a followed Train's card counts down by: `n` whole seconds, in its last minute, or whole minutes before it. 0 seconds is now. */
+export interface Countdown {
+  n: number;
+  unit: 'seconds' | 'minutes';
+}
+
+/**
+ * The countdown a followed Train's card gives to `at`, its next Station's time as the card shows it, with its
+ * Delay in, by `now`, the map's time (mapTime()), both in ms since 1970 (#456): in whole seconds from 59 s out,
+ * rounded up, so that 0, which the card says as now, is only once `at` has come or is past; and before that in
+ * the whole minutes a board gives for that time (minutesTo()), as the time beside it shows it, so that the card
+ * and a board agree to the minute, but for a time 59 s and a part out within one clock minute, which a board
+ * reads as now and this as a minute, as it hasn't come. A board's rows and Nearby's keep the minutes, which read
+ * now for a time from the start of its minute, as a clock does.
+ */
+export function countdownTo(at: number, now: number): Countdown {
+  // To the ms, as the clocks count: a Train held at its Station is expected exactly now, a part of a ms off by two clocks' rounding.
+  const seconds = Math.ceil(Math.round(at - now) / 1000);
+  // From 60 s on it's a minute, which minutesTo() reads as 0 only within one clock minute, just under it.
+  return seconds < 60 ? { n: Math.max(0, seconds), unit: 'seconds' } : { n: Math.max(1, minutesTo(at, now)), unit: 'minutes' };
+}
+
+/**
+ * How long until a second less of the time to `at` is left, in ms, which is when countdownTo(`at`, `now`) next
+ * changes in its last minute (before that its minutes change with the clock's, and this only keeps a refresh
+ * on the time's seconds), or a second where it reads now, which doesn't change. So that a card refreshed then
+ * shows each number once: refreshed a second after its last refresh, which a frame makes a little more each
+ * time, it skipped one about every two minutes (#456).
+ */
+export function untilTick(at: number, now: number): number {
+  const left = Math.round(at - now);
+  return left > 0 ? left % 1_000 || 1_000 : 1_000;
 }
 
 /** How many passes Nearby counts down to in a row. */

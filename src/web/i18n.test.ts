@@ -185,6 +185,30 @@ test("counts down to a followed Train's next Station, or says it's now, in each 
   expect(toGo(1, 'inMinutes', 'gl')).toBe('en 1 min');
 });
 
+test("counts down to a followed Train's next Station in seconds in its last minute, or says it's now, in each language (#456)", () => {
+  expect(toGo(40, 'inSeconds', 'ca')).toBe("d'aquí a 40 s");
+  expect(toGo(40, 'inSeconds', 'es')).toBe('en 40 s');
+  expect(toGo(40, 'inSeconds', 'en')).toBe('in 40 s');
+  expect(toGo(40, 'inSeconds', 'eu')).toBe('40 s barru');
+  expect(toGo(40, 'inSeconds', 'gl')).toBe('en 40 s');
+  // The unit is a symbol, which a count of one doesn't change.
+  expect(toGo(1, 'inSeconds', 'en')).toBe('in 1 s');
+  expect(toGo(1, 'inSeconds', 'ca')).toBe("d'aquí a 1 s");
+  // Never "0 s": it's now, as the minutes' form says it.
+  for (const lang of Object.keys(LANGUAGES) as Language[]) {
+    expect(toGo(0, 'inSeconds', lang)).toBe(t('now', lang));
+    expect(toGo(0, 'inSeconds', lang)).toBe(toGo(0, 'inMinutes', lang));
+  }
+});
+
+test("a followed Train's countdown in seconds is its minutes' form with s for min in each language, so no wider, and it fits where that did (#456)", () => {
+  for (const lang of Object.keys(LANGUAGES) as Language[]) {
+    expect(toGo(59, 'inSeconds', lang).length).toBeLessThanOrEqual(toGo(59, 'inMinutes', lang).length);
+    // And is the minutes' form with s for min, as the language writes that.
+    expect(toGo(59, 'inSeconds', lang)).toBe(toGo(59, 'inMinutes', lang).replace(' min', ' s'));
+  }
+});
+
 test("says at the foot of a peeking followed Train how many Stations it has still to come, and where it ends when, in each language", () => {
   expect(moreStations(22, 'Igualada', '9:33', 'ca')).toBe('22 estacions més, fins a Igualada (9:33)');
   expect(moreStations(22, 'Igualada', '9:33', 'es')).toBe('22 estaciones más, hasta Igualada (9:33)');

@@ -7,7 +7,7 @@ import { stationsOf } from './build/track.ts';
 import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, unavailable, type Received, type ShownClosure } from './engine.ts';
 import { jumps } from './jumps.ts';
 import { NETWORKS } from './networks.ts';
-import { minutesTo, whereabouts } from './web/cards.ts';
+import { countdownTo, minutesTo, whereabouts } from './web/cards.ts';
 
 /** A speed profile like Rodalies', in metres and seconds, which the times below are worked out from. */
 const PROFILE = { acceleration: 1, braking: 1, topSpeed: 160 / 3.6, dwell: 30 };
@@ -776,6 +776,32 @@ test("a followed Train's modelled speed is its speed profile's: none standing at
   expect(followed(R2S, at('21:49:30'))?.speed).toBe(0);
   // Sitges to Castelldefels is 15,611 m in 15 minutes: at 1 m/s² each way, it cruises at 17.69 m/s.
   expect(followed(R2S, at('22:05:00'))?.speed).toBeCloseTo(17.69, 2);
+});
+
+test("a followed Train's countdown in seconds counts by the map's time to its next Station's time, or its departure while it stands there, to the second rounded up, and is the same on a device whose clock is hours off as on a right one (#456)", () => {
+  // The R2S is due at Sitges at 21:56:00, which it stands at until 21:57:00.
+  const countdown = (moment: number, received: Received[], clock = (m: number) => mapTime(m, by(received, m))) => {
+    const f = followed(R2S, moment, received);
+    const next = f?.upcoming[0];
+    return f && next && countdownTo(f.standsAt ? next.departure : next.arrival, clock(moment));
+  };
+  const right = countdown(at('21:55:20'), []);
+  expect(right).toEqual({ n: 40, unit: 'seconds' });
+  // Half a second out, it's a second, not 0 s.
+  expect(countdown(at('21:55:59', 0.5), [])).toEqual({ n: 1, unit: 'seconds' });
+  expect(countdown(at('21:56:30'), [])).toEqual({ n: 30, unit: 'seconds' });
+  for (const hours of [-13, 3, 14]) {
+    const off = hours * 3600;
+    // Two snapshots, 20 s apart, as the fetcher writes them, each arriving as it's written: enough to show a clock that's ahead, and the map's time exactly the
+    // right one. One that took L s to arrive leaves the map's time L s behind a right clock's, the countdown with it, as the Train is (#335).
+    const received = [
+      { snapshot: written(at('21:54:40')), at: at('21:54:40', off) },
+      { snapshot: written(at('21:55:00')), at: at('21:55:00', off) },
+    ];
+    expect(countdown(at('21:55:20', off), received)).toEqual(right);
+    // By the device's own clock it's hours out: now, or no minutes within the hour.
+    expect(countdown(at('21:55:20', off), received, (m) => m)).not.toEqual(right);
+  }
 });
 
 test("a followed Train easing towards where live data has it runs as late as live data says, and is expected at its Stations that late", () => {
@@ -2141,6 +2167,8 @@ test("a Live Metro Train at its Trip's first Station stays there until a report 
   const panel = followed(NEXT_OUT_OF_FONDO, moment, received, METRO);
   expect(panel).toMatchObject({ standsAt: 'tmb:1.140', speed: 0 });
   expect(panel?.upcoming[0]).toMatchObject({ station: 'tmb:1.140', departure: moment });
+  // Its countdown reads now, not in 1 s, though what it counts to is the moment itself, however the clocks round it (#456).
+  expect(countdownTo(panel?.upcoming[0]?.departure ?? NaN, mapTime(moment, by(received, moment)))).toEqual({ n: 0, unit: 'seconds' });
   expect(board(['tmb:1.140'], moment, received, METRO)).toMatchObject([{ trip: { id: NEXT_OUT_OF_FONDO }, departure: moment, live: true }]);
   expect(nearbyAt(METRO, moment, by(received, moment), [2.218435, 41.451583], 300, 60 * 60_000).find((p) => p.trip.id === NEXT_OUT_OF_FONDO)).toMatchObject({ at: moment }); // Fondo
   // Leaving 17 s behind the report that has it gone, it catches up, never faster than line speed.
@@ -2220,6 +2248,7 @@ test("a Scheduled Metro Train waits at its Trip's first Station for its Block, l
   for (const time of ['13:17:12', '13:17:40', '13:18:19']) expect(metro(NEXT_OUT_OF_FONDO, time, received)).toMatchObject({ live: false, dist: 0 });
   const moment = Date.parse('2026-09-25T13:17:40+02:00');
   expect(followed(NEXT_OUT_OF_FONDO, moment, received, METRO)).toMatchObject({ standsAt: 'tmb:1.140', speed: 0, upcoming: [{ station: 'tmb:1.140', departure: moment }, {}, {}] });
+  expect(countdownTo(followed(NEXT_OUT_OF_FONDO, moment, received, METRO)?.upcoming[0]?.departure ?? NaN, mapTime(moment, by(received, moment)))).toEqual({ n: 0, unit: 'seconds' });
   expect(board(['tmb:1.140'], moment, received, METRO).find((d) => d.trip.id === NEXT_OUT_OF_FONDO)).toMatchObject({ departure: moment, live: false });
   expect(nearbyAt(METRO, moment, by(received, moment), [2.218435, 41.451583], 300, 60 * 60_000).find((p) => p.trip.id === NEXT_OUT_OF_FONDO)).toMatchObject({ at: moment }); // Fondo
   // Its Block's first report has it there, and it stays there until the next has it gone, when it eases out.
