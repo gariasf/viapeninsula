@@ -152,14 +152,14 @@ test("keeps the Trips a report names by their Train number as it keeps those it 
   ];
   const joined = joinDays([friday, saturday]);
   const received = reporting();
-  received[0]?.snapshot.reports.push({ number: '15007', at: AT, cancelled: true }, { number: '15001', at: AT, delay: 120 });
+  received[0]?.snapshot.reports.push({ number: '15007', at: AT, cancelled: true }, { number: '15001', at: AT, delay: 120 }, { number: '99999', at: AT });
   // The night's Trip of 15001 runs on both days, and the report names both alike, as one of an ID does. Nothing names the noon one, or the morning's.
   expect(cut(joined, received).trips.map((t) => t.id)).toEqual(['2026-09-25/late', '2026-09-25/night', 'night']);
   // None of them is Live, so the Live rule keeps none: Friday's night Trip is drawn Scheduled, and the Cancelled one isn't drawn.
   const [whole, kept] = [trainsAt(joined, AT, received), trainsAt(cut(joined, received), AT, received)];
   expect(whole.map((t) => [t.trip.id, t.live])).toEqual([['2026-09-25/night', false]]);
   expect(kept.map((t) => [t.trip.id, t.dist, t.live])).toEqual(whole.map((t) => [t.trip.id, t.dist, t.live]));
-  // And its reports are matched by their number, so unmatched() has none of them to count.
+  // And unmatched() counts none of them, those of a Trip the bundle has or of none (99999): it counts the Trips reports name by their IDs.
   expect(unmatched(joined, received)).toEqual({ reports: 0, trips: 0, buses: 0 });
 });
 

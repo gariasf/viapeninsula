@@ -44,7 +44,8 @@ import { decodeTrack, type TrackFile } from './pieces.ts';
  */
 export function cut(bundle: Bundle, received: Received[]): Bundle {
   const [named, numbered] = [namedIn(bundle), numberedIn(bundle)];
-  // A report can be about any Trip of its ID, or of its Train number where it names no ID, and the engine picks the one whose timetable runs nearest when it was reported (reportsByTrip()): keep each.
+  // A report can be about any Trip of its ID, or of its Train number where it names no ID, and the
+  // engine picks the one whose timetable runs nearest when it was reported (reportsByTrip()): keep each.
   const kept = new Set(received.flatMap((r) => r.snapshot.reports.flatMap((report) => (report.trip ? (named.get(report.trip) ?? []) : (numbered.get(report.number ?? '') ?? [])).map((t) => t.id))));
   for (let at = received[0]?.at ?? 0; at <= (received.at(-1)?.at ?? 0); at += 1000) {
     for (const train of trainsAt(bundle, at, received.filter((r) => r.at <= at))) if (train.live) kept.add(train.trip.id);
