@@ -388,7 +388,8 @@ body {
   font-size: 12px;
 }
 
-:is(.credits-text, .credits-strip, .about) a {
+/* The links in the credits and About, and in an Alert's words (#391): in the colour of the words round them, so that their underline tells them apart, and with the focus ring every link has above. */
+:is(.credits-text, .credits-strip, .about, .alerts) a {
   color: inherit;
   text-underline-offset: 2px;
 }
@@ -1017,7 +1018,7 @@ time .in {
   font-weight: 700;
 }
 
-/* A card's Alerts (#342): their fold, the whole row a button, as the strip's, its words and arrow in a chip from the card's edge, yellow as a warning and edged in amber, as the banner's pills are; and once it's open, each Alert, parted by hairlines, on a board after the Lines it's on, its words broken as its operator breaks them. */
+/* A card's Alerts (#342): their fold, the whole row a button, as the strip's, its words and arrow in a chip from the card's edge, yellow as a warning and edged in amber, as the banner's pills are; and once it's open, each Alert, parted by hairlines, on a board after the Lines it's on, its words broken as its operator breaks them, and an address in them a link, which a long one breaks anywhere to stay in the card (#391). */
 .alerts .fold {
   color: var(--warn-ink);
 }

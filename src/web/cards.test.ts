@@ -1,10 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { expect, test } from 'vitest';
-import type { AlertFeed, Alerts, Bundle, Call, Line, Trip } from '../bundle.ts';
+import type { Alert, AlertFeed, Alerts, Bundle, Call, Line, Trip } from '../bundle.ts';
 import type { Pass } from '../engine.ts';
 import { ALERTS_START, readAlerts } from '../fetcher/alerts.ts';
-import { cardAlerts, inNameOrder, linesCallingAt, linesOnBoard, minutesTo, nearbyRows, progress } from './cards.ts';
+import { cardAlerts, inNameOrder, linesCallingAt, linesOnBoard, linkedWords, minutesTo, nearbyRows, progress, type Part } from './cards.ts';
 
 /** A time of day in Barcelona on Wednesday 7 Oct 2026, in summer time, in ms since 1970. */
 const at = (hours: number, minutes: number, seconds = 0) => Date.UTC(2026, 9, 7, hours - 2, minutes, seconds);
@@ -351,4 +351,102 @@ test("a card says the same of a feed's file beside when its Alerts were read, an
   const card = cardAlerts({ renfe: { ...renfe, changed: stood } }, { lines: ['rodalies:R2'], stations: [] }, 'en', at(8, 27));
   expect(card.asOf).toBe(at(8, 11, 40));
   expect(card.changed).toEqual([{ by: 'Renfe', at: stood }]);
+});
+
+/**
+ * alerts.json as the fetcher wrote it at 23:20 on Friday 9 October 2026, as it was: 68 of Renfe's
+ * Alerts across Spain and 3 of TRAM's (#396). 4 of Renfe's and 1 of TRAM's have an address in their
+ * words (#391).
+ */
+const NIGHT: Alerts = JSON.parse(readFileSync(new URL('../fetcher/fixtures/alerts/alerts-2026-10-09.json', import.meta.url), 'utf8'));
+/** An Alert of that file, by its ID. */
+const night = (id: string): Alert => {
+  const found = Object.values(NIGHT).flatMap((feed) => feed.alerts).find((a) => a.id === id);
+  if (!found) throw new Error(`No Alert ${id} in 9 Oct's file`);
+  return found;
+};
+
+test("an address in an Alert's words is picked out as written, and the words before it stay as they were (#391)", () => {
+  // AVISO_512648, Valencia's C3, in each of its two entries: "… Consulte los horarios en: https://renfe.com/…/horarios#/buscar"
+  const address = 'https://renfe.com/es/es/cercanias/cercanias-valencia/horarios#/buscar';
+  const { description } = night('AVISO_512648');
+  expect(description).toHaveLength(2);
+  for (const { text } of description) {
+    expect(text.endsWith(`en: ${address}`)).toBe(true);
+    expect(linkedWords(text)).toEqual([text.slice(0, -address.length), { address }]);
+  }
+});
+
+test("TRAM's press page, on a line of its own after two line breaks, is an address in each language, and the line breaks stay in the words before it (#391)", () => {
+  // sc-287, T1–T3's works of 10–12 Oct: "… Metro L3, L5 i L9Sud. \n\nhttps://tram.cat/ca/premsa/2295", and its press page in Spanish and English.
+  const { description } = night('sc-287');
+  expect(description.map(({ language, text }) => [language, linkedWords(text).at(-1)])).toEqual([
+    ['ca', { address: 'https://tram.cat/ca/premsa/2295' }],
+    ['es', { address: 'https://tram.cat/es/prensa/2296' }],
+    ['en', { address: 'https://tram.cat/en/press/2297' }],
+  ]);
+  for (const { text } of description) {
+    const parts = linkedWords(text);
+    expect(parts).toHaveLength(2);
+    // The card keeps its line breaks as the operator gave them (white-space: pre-line), which stay in the text, not in the link.
+    expect(parts[0]).toMatch(/\n\n$/);
+    expect(parts[0]).toBe(text.slice(0, text.lastIndexOf('https://')));
+  }
+});
+
+test("a . , ; : or ) after an address is left outside it, and what's inside it, a fragment, a query, a port, parentheses, stays, and no other mark ends one (#391)", () => {
+  // Made up, on Valencia's address (AVISO_512648): the words given other ends, as a sentence or a bracket would.
+  const address = 'https://renfe.com/es/es/cercanias/cercanias-valencia/horarios#/buscar';
+  for (const mark of ['.', ',', ';', ':', ')', ').', '),', '.)', '...']) {
+    expect(linkedWords(`Consulte los horarios en ${address}${mark} Gracias.`)).toEqual(['Consulte los horarios en ', { address }, `${mark} Gracias.`]);
+    expect(linkedWords(`Consulte los horarios en ${address}${mark}`)).toEqual(['Consulte los horarios en ', { address }, mark]);
+  }
+  expect(linkedWords(`(Consulte los horarios en: ${address})`)).toEqual(['(Consulte los horarios en: ', { address }, ')']);
+  // Inside it, they're the address's own.
+  const inside = 'https://renfe.com:8443/es/es/cercanias/horarios;linea=C3,C5?dia=sab&hora=9:30#/buscar(1)/plan.html';
+  expect(linkedWords(`Más en ${inside}.`)).toEqual(['Más en ', { address: inside }, '.']);
+  // And no other ends it: a closing quote, `!`, `?` or `]` is the address's own, as written, the ticket's set being those five.
+  for (const end of ['!', '?', ']', '"', '»']) expect(linkedWords(`Más en ${address}${end}`)).toEqual(['Más en ', { address: `${address}${end}` }]);
+});
+
+test("only http: and https: addresses are picked out, in any case and as written, and every other kind, javascript: and data: among them, stays text (#391)", () => {
+  // Made up, on TRAM's press page (sc-287): its words with an address of another kind.
+  const page = 'tram.cat/ca/premsa/2295';
+  for (const other of ['javascript:alert(document.cookie)', 'data:text/html,<script>alert(1)</script>', `ftp://${page}`, 'mailto:premsa@tram.cat', `www.${page}`, page, `https:${page}`]) {
+    const words = `Més informació: ${other}`;
+    expect(linkedWords(words)).toEqual([words]);
+  }
+  expect(linkedWords(`Més informació: http://${page}`)).toEqual(['Més informació: ', { address: `http://${page}` }]);
+  expect(linkedWords(`Més informació: HTTPS://${page.toUpperCase()}`)).toEqual(['Més informació: ', { address: `HTTPS://${page.toUpperCase()}` }]);
+});
+
+test("addresses one after the other, or one to a line, are each picked out, and one that begins or ends the words has no text before or after it (#391)", () => {
+  // Made up, on TRAM's press pages in Catalan and Spanish (sc-287).
+  const [ca, es] = ['https://tram.cat/ca/premsa/2295', 'https://tram.cat/es/prensa/2296'];
+  expect(linkedWords(`${ca} ${es}`)).toEqual([{ address: ca }, ' ', { address: es }]);
+  expect(linkedWords(`${ca}\n\n${es}`)).toEqual([{ address: ca }, '\n\n', { address: es }]);
+  expect(linkedWords(`${ca},\n${es}.`)).toEqual([{ address: ca }, ',\n', { address: es }, '.']);
+  expect(linkedWords(ca)).toEqual([{ address: ca }]);
+  expect(linkedWords(`${ca} i ${es}`)).toEqual([{ address: ca }, ' i ', { address: es }]);
+});
+
+test("of the 71 Alerts of 9 Oct, 5 have an address in their words, and the words of every one come out exactly as they were (#391)", () => {
+  /** What the parts, put back together, say: the address as it was. */
+  const said = (parts: Part[]) => parts.map((part) => (typeof part === 'string' ? part : part.address)).join('');
+  const withAddress: string[] = [];
+  let entries = 0;
+  for (const alert of Object.values(NIGHT).flatMap((feed) => feed.alerts)) {
+    for (const { text } of [...(alert.header ?? []), ...alert.description]) {
+      const parts = linkedWords(text);
+      entries++;
+      expect(said(parts)).toBe(text);
+      if (parts.some((part) => typeof part !== 'string')) withAddress.push(alert.id);
+      // Words with no address are the text as it is, one part, or none where an entry is empty.
+      else expect(parts).toEqual(text ? [text] : []);
+    }
+  }
+  expect(entries).toBe(128);
+  // Each of Renfe's 4 in both its entries, and TRAM's in each language: 8 and 3.
+  expect(withAddress).toHaveLength(11);
+  expect([...new Set(withAddress)]).toEqual(['AVISO_512648', 'AVISO_470390', 'AVISO_446239', 'AVISO_442947', 'sc-287']);
 });

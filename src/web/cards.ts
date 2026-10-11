@@ -151,3 +151,20 @@ export function cardAlerts(
   const changed = Object.entries(alerts).flatMap(([feed, f]) => (f.changed !== undefined && now - f.changed > UNCHANGED && f.alerts.some(on) ? [{ by: OPERATORS[feed] ?? feed, at: f.changed }] : []));
   return { alerts: shown.sort((a, b) => (b.from ?? 0) - (a.from ?? 0)), ...(now - read > STALE && { asOf: read }), changed };
 }
+
+/** A part of an Alert's words: text as its operator wrote it, or an address in it, as written, to link to (#391). */
+export type Part = string | { address: string };
+
+/**
+ * An Alert's words in the parts a card shows them in (#391): the text between as it was, and each
+ * `http://` or `https://` address in it, in any case, up to the next white space, as a part of its own,
+ * but for a `.`, `,`, `;`, `:` or `)` that ends it, which is the sentence's and stays text. No other
+ * kind of address is one, so a link never runs `javascript:` or `data:`; and none is made or changed:
+ * put back together, the parts are the words as they were, line breaks too.
+ * ponytail: an address whose own last character is a `)` that closes a `(` in it, as Wikipedia's do,
+ * is cut short there, and one that runs on into another with no white space between is one. Count the
+ * brackets, and stop at a scheme, if an operator sends such a one.
+ */
+export function linkedWords(text: string): Part[] {
+  return text.split(/(https?:\/\/\S*[^\s.,;:)])/i).flatMap((part, i): Part[] => (i % 2 ? [{ address: part }] : part ? [part] : []));
+}
