@@ -394,7 +394,7 @@ test("TRAM's press page, on a line of its own after two line breaks, is an addre
   }
 });
 
-test("a . , ; : or ) after an address is left outside it, and what's inside it, a fragment, a query, a port, parentheses, stays (#391)", () => {
+test("a . , ; : or ) after an address is left outside it, and what's inside it, a fragment, a query, a port, parentheses, stays, and no other mark ends one (#391)", () => {
   // Made up, on Valencia's address (AVISO_512648): the words given other ends, as a sentence or a bracket would.
   const address = 'https://renfe.com/es/es/cercanias/cercanias-valencia/horarios#/buscar';
   for (const mark of ['.', ',', ';', ':', ')', ').', '),', '.)', '...']) {
@@ -405,6 +405,8 @@ test("a . , ; : or ) after an address is left outside it, and what's inside it, 
   // Inside it, they're the address's own.
   const inside = 'https://renfe.com:8443/es/es/cercanias/horarios;linea=C3,C5?dia=sab&hora=9:30#/buscar(1)/plan.html';
   expect(linkedWords(`Más en ${inside}.`)).toEqual(['Más en ', { address: inside }, '.']);
+  // And no other ends it: a closing quote, `!`, `?` or `]` is the address's own, as written, the ticket's set being those five.
+  for (const end of ['!', '?', ']', '"', '»']) expect(linkedWords(`Más en ${address}${end}`)).toEqual(['Más en ', { address: `${address}${end}` }]);
 });
 
 test("only http: and https: addresses are picked out, in any case and as written, and every other kind, javascript: and data: among them, stays text (#391)", () => {
