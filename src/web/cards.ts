@@ -1,4 +1,5 @@
 // What the cards work out from the days on the map and the engine's Trains: minutes to go, Nearby's rows, what a board's list is before the day's Trips have come (#379), how far along its Trip a followed Train is and where it is by how it's drawn (#455), and a board's Lines (#321), and the order the cards name Lines in (#399); and from alerts.json, the Alerts each shows (#342).
+// Pure, with only types from the page's modules, as the measure of the card against the map (src/cardVsMap.ts) runs whereabouts() under Node.
 import type { Alert, Alerts, Call, Line, Trip, Words } from '../bundle.ts';
 import type { Pass } from '../engine.ts';
 import type { Language } from './i18n.ts';

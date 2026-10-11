@@ -9,6 +9,8 @@
 // - `ZOOM=<n>` is the zoom the followed pill's reach is worked out at (13, the follow zoom's floor),
 //   as the card works it out at the map's (pillReach(), which holds at the zoom its Line's Trains are
 //   pills from, below it);
+// - `STATIONS=1` counts each Station by its own coordinates, keyed by its place or else its name, as #352's note did
+//   (its sections 1 and 2), not as the places the map shows; the card goes by the place's dot either way (#455);
 // - the Networks' live traits are src/networks.ts's, as an older bundle's can differ or be missing.
 
 import { rmSync } from 'node:fs';
@@ -21,7 +23,7 @@ import { DEGREE, pixelMetres, places, type Bundle, type Place, type Trip } from 
 import { differences, type Moment, type Near } from './cardVsMap.ts';
 import type { Received } from './engine.ts';
 import { NETWORKS } from './networks.ts';
-import { ARROW_GAP, boxOf, FOLLOWED_TEXT, OUTLINES_OF, pillReach } from './web/pill.ts';
+import { ARROW_GAP, boxOf, FOLLOWED_TEXT, outlineOf, pillReach } from './web/pill.ts';
 
 // The engine with its onMap() exported: the replay's own answer for each Trip, and what it knows about it.
 const engineSource = await readFile(new URL('./engine.ts', import.meta.url), 'utf8');
@@ -66,17 +68,22 @@ for (const dir of process.argv.slice(2)) {
   const t0 = received[0]?.at ?? 0;
   const t1 = Math.min(received.at(-1)?.at ?? 0, t0 + Number(process.env.LIMIT || Infinity) * 1000);
   if (Number.isNaN(t1)) throw new Error(`LIMIT=${process.env.LIMIT} isn't a number of seconds`);
-  // The Stations as the map shows them: a place at the middle of its Stations, which the card names by (places()).
+  // The Stations as the map shows them: a place at the middle of its Stations, which the card names by (places()),
+  // or with STATIONS=1 each Station by its own coordinates, as #352's note had them.
   const shown = places(bundle.stations);
-  const keyOf = new Map(shown.flatMap((p) => p.stations.map((id): [string, string] => [id, p.id])));
+  const byStation = !!process.env.STATIONS;
+  const dots = byStation ? bundle.stations.map((s) => ({ key: s.place ?? s.name, lon: s.lon, lat: s.lat })) : shown.map((p) => ({ key: p.id, lon: p.lon, lat: p.lat }));
+  const keyOf = byStation ? new Map(bundle.stations.map((s) => [s.id, s.place ?? s.name])) : new Map(shown.flatMap((p) => p.stations.map((id): [string, string] => [id, p.id])));
+  // The dot the map draws each Station's place at, which the card goes by whichever of those it counts.
+  const placeOf = new Map(shown.flatMap((p) => p.stations.map((id): [string, Place] => [id, p])));
   const lineOf = new Map(bundle.lines.map((l) => [l.id, l]));
   // The zoom each Network's Trains are drawn as pills from: round pills from zoom 10 where a track names none (main.ts's show()).
   const pillZoomOf = new Map(bundle.networks.map((n) => [n.id, n.pillZoom]));
   const networkOf = (trip: Trip) => lineOf.get(trip.line)?.network ?? '';
   // Places by a grid of about 0.0045 degrees (500 m), to look for those near a Train.
   const cell = (lon: number, lat: number) => `${Math.floor(lon / 0.0045)} ${Math.floor(lat / 0.0045)}`;
-  const grid = new Map<string, Place[]>();
-  for (const p of shown) grid.set(cell(p.lon, p.lat), [...(grid.get(cell(p.lon, p.lat)) ?? []), p]);
+  const grid = new Map<string, typeof dots>();
+  for (const p of dots) grid.set(cell(p.lon, p.lat), [...(grid.get(cell(p.lon, p.lat)) ?? []), p]);
   const nearTo = (lon: number, lat: number, radius: number): Near[] => {
     const [cx, cy] = [Math.floor(lon / 0.0045), Math.floor(lat / 0.0045)];
     const kx = DEGREE * Math.cos((lat * Math.PI) / 180);
@@ -87,7 +94,7 @@ for (const dir of process.argv.slice(2)) {
       for (let y = cy - sy; y <= cy + sy; y++) {
         for (const p of grid.get(`${x} ${y}`) ?? []) {
           const metres = Math.hypot((p.lon - lon) * kx, (p.lat - lat) * DEGREE);
-          if (metres <= radius) near.push({ key: p.id, metres });
+          if (metres <= radius) near.push({ key: p.key, metres });
         }
       }
     }
@@ -115,13 +122,17 @@ for (const dir of process.argv.slice(2)) {
       const row = (found[network] ??= { all: {}, live: {} });
       const line = lineOf.get(trip.line);
       // The followed pill's reach as the card has it: boxOf() with the name as wide as textWidth() has it with no canvas, 6 px a letter at PILL_TEXT.
-      const box = boxOf((line && OUTLINES_OF[line.kind]) ?? 'round', (line?.name.length ?? 0) * 6, FOLLOWED_TEXT);
+      const box = boxOf(outlineOf(line?.kind ?? 'commuter'), (line?.name.length ?? 0) * 6, FOLLOWED_TEXT);
       const pillZoom = pillZoomOf.get(line?.network ?? '') ?? 10;
       const half = pillReach(box, zoom, pillZoom, train.lat);
       const arrowReach = half + ARROW_GAP * pixelMetres(Math.max(zoom, pillZoom), train.lat);
       // As the operator runs it: its calls as `o.calls` has them, one for one (cutTrip(), #346).
       const made = o.trip;
-      const calls = o.calls.map((c) => ({ ...c, key: keyOf.get(c.station) ?? c.station }));
+      const kx = DEGREE * Math.cos((train.lat * Math.PI) / 180);
+      const calls = o.calls.map((c) => {
+        const place = placeOf.get(c.station);
+        return { ...c, key: keyOf.get(c.station) ?? c.station, away: place ? Math.hypot((place.lon - train.lon) * kx, (place.lat - train.lat) * DEGREE) : Infinity };
+      });
       const position = o.said?.report.position as { near?: string } | undefined;
       const fresh = o.said?.confirmed !== undefined && bundle.noonMinus12h + o.now * 1000 - o.said.confirmed <= CONFIRMED;
       const pinned = train.live && fresh && typeof position?.near === 'string' ? made.calls.find((c) => c.station === position.near) : undefined;

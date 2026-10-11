@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest';
-import { boxOf, FOLLOWED_TEXT, OUTLINES_OF, pillReach } from './pill.ts';
+import type { Kind } from '../bundle.ts';
+import { boxOf, FOLLOWED_TEXT, outlineOf, OUTLINES_OF, pillReach } from './pill.ts';
 
 /** A Line's name as wide as textWidth() has it where there's no canvas to measure it on: 6 px a letter, at PILL_TEXT. */
 const width = (name: string) => name.length * 6;
@@ -24,6 +25,7 @@ test('a pill reaches above and below its Train as far as its Line\'s name is hig
 test('Lines are outlined by their kinds of service, and a kind the map has none for is round', () => {
   expect(OUTLINES_OF).toMatchObject({ commuter: 'round', regional: 'pointed', metro: 'badge', tram: 'badge' });
   expect(OUTLINES_OF['long-distance']).toBeUndefined();
+  expect(['commuter', 'regional', 'metro', 'tram', 'long-distance'].map((kind) => outlineOf(kind as Kind))).toEqual(['round', 'pointed', 'badge', 'badge', 'round']);
 });
 
 test("the followed pill's reach along its track is 130 m at zoom 13 for a regional Line's name of three letters, and follows the zoom", () => {

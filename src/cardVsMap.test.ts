@@ -55,6 +55,13 @@ describe('differences', () => {
     expect(d).toMatchObject({ says: { at: 'arriving', key: 'B' }, atNextBeforeArriving: false, at: undefined, pill: undefined, arrow: undefined });
   });
 
+  it("goes by a call's own distance to its place's dot where it has one, and by `near` where it hasn't, so that near can be each Station by its coordinates", () => {
+    // 350 m short of B's platform, the pill reaching 100 m, and the dot 80 m from the Train: `near` has only another Station of the place, 300 m away.
+    const dotted = calls.map((c) => (c.key === 'B' ? { ...c, away: 80 } : c));
+    expect(differences(moment(110, 1650, { near: [{ key: 'B', metres: 300 }], calls: dotted }))).toMatchObject({ says: { at: 'arriving', key: 'B' } });
+    expect(differences(moment(110, 1650, { near: [{ key: 'B', metres: 300 }] }))).toMatchObject({ says: { at: 'between', key: 'A – B' } });
+  });
+
   it('has its arrow, which points ahead, cover no Station it has left, and the next one as it comes into reach', () => {
     // 130 m past A, the pill reaching 100 m and its arrow 150: A is behind it.
     expect(differences(moment(40, 130, { near: [{ key: 'A', metres: 130 }] }))).toMatchObject({ says: { at: 'between' }, pill: undefined, arrow: undefined });

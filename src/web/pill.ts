@@ -1,4 +1,5 @@
 // How big a Train's pill is on the map: what the map draws it by, and what a followed Train's card goes by in saying where the Train is (#455).
+// Pure, with nothing from the page, as the measure of the card against the map (src/cardVsMap.ts) runs it under Node.
 
 import { pixelMetres, type Kind } from '../bundle.ts';
 
@@ -33,6 +34,11 @@ export const OUTLINE_SIZES = {
  * for its own.
  */
 export const OUTLINES_OF: Partial<Record<Kind, Outline>> = { commuter: 'round', regional: 'pointed', metro: 'badge', tram: 'badge', rack: 'badge', funicular: 'badge' } satisfies Record<Exclude<Kind, 'long-distance'>, Outline>;
+
+/** How a Line's Trains are outlined: by its kind of service, and round where the map has none for it, as a long-distance Line's are till #262 gives them theirs. */
+export function outlineOf(kind: Kind): Outline {
+  return OUTLINES_OF[kind] ?? 'round';
+}
 
 /** How far a pill reaches either side of its Train and above and below it, in px, with its outline, around a name `width` px wide at PILL_TEXT, lettered at `size` px. */
 export function boxOf(outline: Outline, width: number, size: number): [number, number] {
