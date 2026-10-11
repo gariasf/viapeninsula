@@ -59,6 +59,12 @@ test('a colour written in three digits is the six it stands for, as INK is, #111
   expect(contrast('#fff', '#000')).toBeCloseTo(21);
 });
 
+test('each digit of a colour written in three is doubled, not the three repeated: #f80 is #ff8800, not #f80f80', () => {
+  // The three-digit colours of the other tests, #111, #fff and #000, read the same either way.
+  expect(contrast('#f80', '#ff8800')).toBe(1);
+  expect(contrast('#2A9', '#22aa99')).toBe(1);
+});
+
 test('a paper written #fff letters a Line as #ffffff does', () => {
   // R2N's, mixed with black no further than it takes to read at 4.5:1; and the Metro's L1, which reads already, as it is.
   expect(lettering('#D0DF00', '#fff')).toBe('#727b00');
