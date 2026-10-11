@@ -1913,7 +1913,7 @@ function showNearby() {
   locate();
 }
 
-/** Nearby's Try again: asks the browser again where the viewer is, as Nearby's button does, saying meanwhile that it's finding out, under which the button stays, and the keyboard's focus on it (#324). */
+/** Nearby's Try again: asks the browser again where the viewer is, as Nearby's tab does, saying meanwhile that it's finding out, under which the button stays, and the keyboard's focus on it (#324). */
 function askAgain() {
   nearMe = 'retrying';
   showPanel();
