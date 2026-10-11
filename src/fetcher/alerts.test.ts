@@ -345,13 +345,16 @@ test("keeps when Renfe's file last changed through the 304s it answers while it 
   expect(readAlerts(failed.state, { renfe: { alerts: sent } }, NOW + 60_000).state.feeds.renfe?.changed).toBe(Date.parse('2026-10-10T13:00:00+02:00'));
 });
 
-test("writes alerts.json at once where a feed's file has changed, though its Alerts haven't", () => {
+test("keeps a file's new time, where its Alerts are the same, for the write that's due, and doesn't write alerts.json for it alone", () => {
   const first = renfeRun();
-  // Renfe writes its file again, with what it had in it.
+  // Made up: Renfe writes its file again at 09:40, with what it had in it, so that only its time moves.
   const again = answer(recorded('renfe.json'), { etag: '"6ac61234-17000"', modified: 'Wed, 07 Oct 2026 07:40:00 GMT' });
-  const run = readAlerts(first.state, { renfe: { alerts: again } }, NOW + 20_000);
-  expect(run.file?.renfe?.changed).toBe(Date.parse('2026-10-07T09:40:00+02:00'));
-  expect(run.file?.renfe?.alerts).toEqual(first.file?.renfe?.alerts);
+  const soon = readAlerts(first.state, { renfe: { alerts: again } }, NOW + 20_000);
+  const at0940 = Date.parse('2026-10-07T09:40:00+02:00');
+  expect(soon.file).toBeUndefined();
+  expect(soon.state.feeds.renfe?.changed).toBe(at0940);
+  // The write 5 minutes on has it.
+  expect(readAlerts(soon.state, { renfe: UNCHANGED }, NOW + 300_000).file?.renfe).toMatchObject({ changed: at0940 });
 });
 
 test("asks Renfe for its whole file once, though it hasn't changed it, where the fetcher kept it from before it kept when it changed, so that the time comes through its 304s", async () => {
@@ -366,7 +369,7 @@ test("asks Renfe for its whole file once, though it hasn't changed it, where the
   await fetchAlerts(first.state, START.state, get);
   const url = 'https://gtfsrt.renfe.com/alerts.json';
   expect(asked).toEqual([url, `${url} ${ETAG} ${MODIFIED}`]);
-  expect(first.file?.renfe?.changed).toBe(CHANGED);
+  expect(first.state.feeds.renfe?.changed).toBe(CHANGED);
 });
 
 test("keeps a feed's last Alerts through tries that fail, saying why, and when it last read them", () => {

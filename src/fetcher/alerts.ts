@@ -42,8 +42,9 @@ export interface AlertsState {
 }
 
 /**
- * How long alerts.json goes unwritten at most, in ms: about 5 minutes, so that the time it says a feed
- * was last read is never more than that behind, though what else it holds stays the same for hours.
+ * How long alerts.json goes unwritten at most, in ms: about 5 minutes, so that the times it says a feed
+ * was last read, and its file last changed, are never more than that behind, though what else it holds
+ * stays the same for hours.
  */
 const REWRITE = 300_000;
 
@@ -92,9 +93,8 @@ export async function fetchAlerts({ feeds }: AlertsState, live: State, get: Get,
 
 /**
  * One run: the stored state, this run's answers and the time now (ms since 1970) go in; the next state
- * comes out, and alerts.json where it's to be written: where a feed's Alerts, when its file last
- * changed, or what its last try says, have changed since the last run, or it has gone unwritten for
- * REWRITE.
+ * comes out, and alerts.json where it's to be written: where a feed's Alerts, or what its last try
+ * says, have changed since the last run, or it has gone unwritten for REWRITE.
  */
 export function readAlerts(state: AlertsState, responses: AlertResponses, now: number, sources = LIVE_SOURCES): { state: AlertsState; file?: Alerts } {
   const feeds: Record<string, Kept> = {};
@@ -104,8 +104,8 @@ export function readAlerts(state: AlertsState, responses: AlertResponses, now: n
     if (answers) feeds[source.id] = { ...tried(source, kept, answers, now), waited: 0 };
     else if (kept) feeds[source.id] = { ...kept, waited: kept.waited + 1 };
   }
-  // What the file holds of each feed, but for when it was read.
-  const holds = (of: Record<string, Kept>) => JSON.stringify(Object.entries(of).map(([id, { status, changed, alerts }]) => [id, status, changed, alerts]));
+  // What the file holds of each feed, but for when it was read and when its file last changed: Renfe's moves when it writes the same Alerts again, and TRAM's at each try.
+  const holds = (of: Record<string, Kept>) => JSON.stringify(Object.entries(of).map(([id, { status, alerts }]) => [id, status, alerts]));
   if (state.written !== undefined && now < state.written + REWRITE && holds(feeds) === holds(state.feeds)) return { state: { feeds, written: state.written } };
   const file = Object.fromEntries(Object.entries(feeds).map(([id, { read, changed, status, alerts }]) => [id, { read, changed, status, alerts }]));
   return { state: { feeds, written: now }, file };
