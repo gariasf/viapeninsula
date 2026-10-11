@@ -51,18 +51,23 @@ const SPAIN =
 const LANGUEDOC = (portbou = xmlWay(12, [3, 4], { railway: 'rail', tunnel: 'yes' })) =>
   xmlNode(3, 42.43, 3.16) + xmlNode(4, 42.44, 3.15) + xmlNode(6, 42.46, 3.14) + portbou + xmlWay(13, [4, 6], { railway: 'rail' });
 
+// The line from Tui over the Minho on to Valença do Minho, Trencelta's first call in Portugal, which only Portugal's extract has beyond the bridge.
+const PORTUGAL = xmlNode(20, 42.05, -8.64) + xmlNode(21, 42.03, -8.64) + xmlWay(14, [20, 21], { railway: 'rail', name: 'Linha do Minho' });
+
 const RAILS = [
   { id: 10, nodes: [1, 2], geometry: [{ lat: 41.38, lon: 2.14 }, { lat: 41.381, lon: 2.141 }], tags: { railway: 'rail', name: 'Línia R2 Sud, via Vilanova i la Geltrú' } },
   { id: 12, nodes: [3, 4], geometry: [{ lat: 42.43, lon: 3.16 }, { lat: 42.44, lon: 3.15 }], tags: { railway: 'rail', tunnel: 'yes' } },
   { id: 13, nodes: [4, 6], geometry: [{ lat: 42.44, lon: 3.15 }, { lat: 42.46, lon: 3.14 }], tags: { railway: 'rail' } },
+  { id: 14, nodes: [20, 21], geometry: [{ lat: 42.05, lon: -8.64 }, { lat: 42.03, lon: -8.64 }], tags: { railway: 'rail', name: 'Linha do Minho' } },
 ];
 
-/** Geofabrik, serving Spain's extract and Languedoc-Roussillon's, and Midi-Pyrénées' with no rails, each with Spain's border. */
+/** Geofabrik, serving Spain's extract, Languedoc-Roussillon's and Portugal's, and Midi-Pyrénées' with no rails, each with Spain's border. */
 async function geofabrik(spain = SPAIN, languedoc = LANGUEDOC(), border = BORDER()) {
   const files: Record<string, Uint8Array<ArrayBuffer>> = {
     'europe/spain': await extract(spain + border),
     'europe/france/languedoc-roussillon': await extract(languedoc + border),
     'europe/france/midi-pyrenees': await extract(border),
+    'europe/portugal': await extract(PORTUGAL + border),
   };
   const asked: { url: string; agent: string | null }[] = [];
   vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
@@ -73,7 +78,7 @@ async function geofabrik(spain = SPAIN, languedoc = LANGUEDOC(), border = BORDER
   return asked;
 }
 
-test("downloads the rails in Spain's extract and those of France's regions beyond Spain's border from Geofabrik, and keeps them for the next run", async () => {
+test("downloads the rails in Spain's extract and those of France's regions and Portugal beyond Spain's border from Geofabrik, and keeps them for the next run", async () => {
   const cache = await temp();
   const asked = await geofabrik();
 
@@ -82,6 +87,7 @@ test("downloads the rails in Spain's extract and those of France's regions beyon
     'https://download.geofabrik.de/europe/spain-latest.osm.pbf',
     'https://download.geofabrik.de/europe/france/languedoc-roussillon-latest.osm.pbf',
     'https://download.geofabrik.de/europe/france/midi-pyrenees-latest.osm.pbf',
+    'https://download.geofabrik.de/europe/portugal-latest.osm.pbf',
   ]);
   expect(asked.every((a) => a.agent?.includes('viapeninsula'))).toBe(true);
 
@@ -122,7 +128,7 @@ test('uses its copy, with a warning, when Geofabrik fails once the copy is a wee
 
   const asked = await geofabrik();
   expect((await osm(RAILWAYS, cache)).rails).toEqual(RAILS);
-  expect(asked).toHaveLength(3);
+  expect(asked).toHaveLength(4);
 });
 
 test('keeps the newer of two versions of a way, from extracts published a day apart', async () => {
@@ -155,5 +161,5 @@ test("leaves out rails that haven't opened yet", async () => {
   // Like the new tunnel to El Prat airport, mapped as rail with the year it opens.
   const opening = (id: number, date: string) => xmlWay(id, [1, 2], { railway: 'rail', opening_date: date });
   await geofabrik(xmlNode(1, 41.3, 2.07) + xmlNode(2, 41.29, 2.07) + opening(20, '2999') + opening(21, '2009-02-12'));
-  expect((await osm(RAILWAYS, await temp())).rails.map((way) => way.id)).toEqual([12, 13, 21]);
+  expect((await osm(RAILWAYS, await temp())).rails.map((way) => way.id)).toEqual([12, 13, 14, 21]);
 });
