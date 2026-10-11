@@ -1,4 +1,4 @@
-// What the cards work out from the days on the map and the engine's Trains: minutes to go, Nearby's rows, how far along its Trip a followed Train is, and a board's Lines (#321), and the order the cards name Lines in (#399); and from alerts.json, the Alerts each shows (#342).
+// What the cards work out from the days on the map and the engine's Trains: minutes to go, Nearby's rows, what a board's list is before the day's Trips have come (#379), how far along its Trip a followed Train is, and a board's Lines (#321), and the order the cards name Lines in (#399); and from alerts.json, the Alerts each shows (#342).
 import type { Alert, Alerts, Call, Line, Trip, Words } from '../bundle.ts';
 import type { Pass } from '../engine.ts';
 import type { Language } from './i18n.ts';
@@ -32,6 +32,29 @@ export function nearbyRows(passes: Pass[], now: number): NearbyRow[] {
     if (row.passes.length < PASSES && !row.passes.some((p) => p.minutes === minutes)) row.passes.push({ minutes, live: pass.live });
   }
   return [...rows.values()];
+}
+
+/** Where the Trips a board needs are: on their way, on the map, or failed to come (regionLoader()). */
+export type TripsState = 'coming' | 'came' | 'failed';
+
+/**
+ * Where the Trips a board needs are, given the regions the map has loaded, those of them whose files have
+ * come at the end of a look, and whether that look had a file fail: by the regions, not by the bundle, which
+ * has the first regions' Trips before another's, as the map loads a region when it comes into view (#266).
+ */
+export function tripsState(loaded: Iterable<string>, came: ReadonlySet<string>, failed: boolean): TripsState {
+  return [...loaded].every((id) => came.has(id)) ? 'came' : failed ? 'failed' : 'coming';
+}
+
+/**
+ * What a board's list of next departures is, where it has `departures` of them: their rows; or where it
+ * has none, that none can be had, once the day's Trips have come, or have failed to, as the map tries
+ * them again each minute; or, while they're on their way, nothing under its label, as under Nearby's
+ * heading (#324): that none are to come is what it would say of Trips it hasn't got, and then fill in (#379).
+ */
+export function boardList(trips: TripsState, departures: number): 'rows' | 'none' | 'label' {
+  if (departures) return 'rows';
+  return trips === 'coming' ? 'label' : 'none';
 }
 
 /**
