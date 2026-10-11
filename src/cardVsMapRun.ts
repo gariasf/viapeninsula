@@ -17,15 +17,16 @@
 // board's rows say it and the followed Train's card did until #456, kept as #352 counted them; the followed Train's
 // countdown in seconds is under `s.` (`s.nowFar`, `s.nowByMinute`, `s.reads.*`, `s.steps.*`), and what it reads where
 // the other said now with the Train far under `b.nowFar.reads.*` (#456). And `4.atNotCall` and `2.pill.notCall` are what the card
-// leaves unnamed of the places it has no call at, by the card's rule since #457 (`w.passing`: it names the nearest within the pill's
-// reach where neither Station of its calls is): `.own` those the Train's own Network's Trains stop at and `.other` those only
-// another Network's do, `.own.<what the card says>` and `.other.<…>` of them by what it says, and `.before` the same counted
-// with the card as it was before it named the place it passes, which is #352's column; `4.atNotCall.namedAsCall.<…>` those of
-// them named as one of the Trip's calls, which the card doesn't have it pass. `w.passing.own`, `.other` and `.nearCall`
-// (within 150 m of the dot of one of its Trip's calls, as at an interchange) say whose place the card names, and
-// `w.passing.still` how many of them a Live Train is drawn still in, `w.nearer.arriving` and `.leaving` the seconds the card names its Station
-// with a place it could pass nearer, `w.passing.episodes` how many times it begins to, and `w.flaps.passingReturns`, `.afterPassing` and `.other` which words come back
-// within 10 s: a place it passes coming back, the words before it after it, and any other, as #455 counted them.
+// leaves unnamed of the places it has no call at, by the card's rule since #457 (`w.passing`: where neither Station of its calls is
+// within the pill's reach it names the nearest place within it that isn't a call, or named as one): `.own` those the Train's own
+// Network's Trains stop at and `.other` those only another Network's do, `.own.<what the card says>` and `.other.<…>` of them by what
+// it says, `.namedAsCall.<…>` those named as one of the Trip's calls, which the card has it pass none of though they're not a call by
+// their key, and `.before` the same counted with the card as it was before it named the place it passes, which is #352's column.
+// `w.passing.own`, `.other` and `.nearCall` (within 150 m of the dot of one of its Trip's calls, as at an interchange) say whose place the
+// card names, `w.passing.still` how many of those seconds a Live Train is drawn still in, `w.passing.episodes` how many times it begins
+// to, `w.nearer.arriving` and `.leaving` the seconds the card names its Station with a place it could pass nearer, and
+// `w.flaps.passingReturns`, `.afterPassing` and `.other` which words come back within 10 s: a place it passes coming back, the words
+// before it after it, and any other, as #455 counted them.
 
 import { rmSync } from 'node:fs';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
@@ -222,8 +223,8 @@ for (const dir of process.argv.slice(2)) {
         if (d.says.at === 'passing') add('w.passing.episodes');
         if (lately.slice(0, -1).includes(words)) {
           add('w.flaps');
-          // Of those, which are the place it passes coming back (#457), which the words it passed it between returning (a place passed in under FLAP seconds is no flap
-          // of the card's), and the rest, as #455 counted them.
+          // Of those, which are a place it passes coming back (#457), which are the words before it coming back after it (a passage of under FLAP seconds, which
+          // is no flap of the card's), and the rest, as #455 counted them.
           const between = lately.slice(lately.lastIndexOf(words) + 1);
           add(d.says.at === 'passing' ? 'w.flaps.passingReturns' : between.every((w) => w.startsWith('passing ')) ? 'w.flaps.afterPassing' : 'w.flaps.other');
         }
