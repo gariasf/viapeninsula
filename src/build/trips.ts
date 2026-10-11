@@ -32,6 +32,14 @@ export interface FeedBus {
  */
 export const REACH = 300;
 
+/** A Trip that can't be placed on its track: why, in words, and the Stations the reason names, or else its first. */
+interface Unplaced {
+  trip: FeedTrip;
+  why: Cause;
+  reason: string;
+  at: Station[];
+}
+
 /**
  * Places each Trip's Stations along its track. Where the track passes a Station more than once, a
  * Station goes where the Trip travels least to reach it and carry on: a Trip can turn back at a
@@ -47,6 +55,73 @@ export function placeTrips(
   log = console.log,
   report: (found: Found) => void = () => {},
 ): Trip[] {
+  return place(trips, shapes, stations, topSpeed).flatMap((p) => {
+    if (!('why' in p)) return [p];
+    leave(p, log, report);
+    return [];
+  });
+}
+
+/** What a Trip that's left out logs and reports. */
+function leave({ trip, why, reason, at }: Unplaced, log: (line: string) => void, report: (found: Found) => void) {
+  const text = `${trip.id} is left out: ${reason}`;
+  log(text);
+  report({ kind: 'trip', why, trip: trip.id, line: trip.line, stations: at, text: [text] });
+}
+
+/**
+ * Why a Trip doesn't fit its shape, to be traced through its own Stations instead (placeDays()): a Station
+ * off its track, or a stretch faster than its Network's top speed along it. Not one that calls at fewer
+ * than two Stations, nor whose shape has no track, which no trace of its own would mend.
+ * ponytail: a stretch its timetable gives no time, as Asturias' C4 Trips from Candás to Candás-Apeadero
+ * (6–7 a day on 11–13 Oct 2026), is traced and left out all the same: each run takes milliseconds, so skip
+ * a Trip whose stretch no distance fits if that ever adds up.
+ */
+const UNFIT: Cause[] = ['off', 'fast'];
+
+/**
+ * Each day's Trips placed on their tracks, as placeTrips() places them, but where a Trip doesn't fit its
+ * shape (UNFIT), `retrace` traces it through its own Stations, once for every Trip that calls at the
+ * same ones, and it's placed on that trace, where its times fit it (#280). One that doesn't fit that
+ * either, or has no trace, is left out and reported, as placeTrips() does. Gives each day's Trips in the
+ * order they came, and the traces, those that have a Trip placed on them.
+ */
+export function placeDays(
+  days: FeedTrip[][],
+  shapes: Shape[],
+  stations: Station[],
+  topSpeed: number,
+  retrace: (unfit: FeedTrip[][]) => { shapes: Shape[]; days: FeedTrip[][] },
+  log = console.log,
+  report: (found: Found) => void = () => {},
+): { days: Trip[][]; shapes: Shape[] } {
+  const first = days.map((trips) => place(trips, shapes, stations, topSpeed));
+  const unfit = first.map((day) => day.flatMap((p) => ('why' in p && UNFIT.includes(p.why) ? [p.trip] : [])));
+  const own = unfit.some((day) => day.length) ? retrace(unfit) : { shapes: [], days: unfit.map((): FeedTrip[] => []) };
+  const second = own.days.map((trips) => new Map(place(trips, own.shapes, stations, topSpeed, true).map((p) => ['why' in p ? p.trip.id : p.id, p])));
+  const used = new Set<string>(); // the traces a Trip is placed on
+  const placed = first.map((day, i) =>
+    day.flatMap((p): Trip[] => {
+      if (!('why' in p)) return [p];
+      // Where it doesn't fit its shape, what its trace made of it is its fate: nothing where retrace() left it out and said so.
+      const last = UNFIT.includes(p.why) ? second[i]?.get(p.trip.id) : p;
+      if (!last) return [];
+      if ('why' in last) {
+        leave(last, log, (found) => report({ ...found, day: i }));
+        return [];
+      }
+      used.add(last.shape);
+      return [last];
+    }),
+  );
+  return { days: placed, shapes: own.shapes.filter((s) => used.has(s.id)) };
+}
+
+/**
+ * Each Trip placed on its shape's track, or why it can't be, in the order they came. `onward` is for a
+ * trace made through the Trips' own Stations (placeDays()), which they run from its start to its end.
+ */
+function place(trips: FeedTrip[], shapes: Shape[], stations: Station[], topSpeed: number, onward = false): (Trip | Unplaced)[] {
   const byId = new Map(stations.map((s) => [s.id, s]));
   const byShape = new Map(shapes.map((s) => [s.id, s]));
   const cached = new Map<string, Pass[]>();
@@ -57,26 +132,22 @@ export function placeTrips(
     return found;
   };
 
-  return trips.flatMap(({ calls, ...trip }): Trip[] => {
+  return trips.map((feed): Trip | Unplaced => {
+    const { calls, ...trip } = feed;
     const shape = byShape.get(trip.shape);
     const calledAt = calls.map((c) => byId.get(c.station) ?? { id: c.station, name: c.station, lon: NaN, lat: NaN });
-    const leave = (why: Cause, reason: string, at = calledAt.slice(0, 1)): Trip[] => {
-      const text = `${trip.id} is left out: ${reason}`;
-      log(text);
-      report({ kind: 'trip', why, trip: trip.id, line: trip.line, stations: at, text: [text] });
-      return [];
-    };
+    const leave = (why: Cause, reason: string, at = calledAt.slice(0, 1)): Unplaced => ({ trip: feed, why, reason, at });
     if (!shape) return leave('notrack', `its shape ${trip.shape} has no track`);
     if (calls.length < 2) return leave('fewer', 'it calls at fewer than two Stations');
     const options = calledAt.map((s) => passesOf(shape, s));
     const off = calledAt.find((_, i) => !options[i]?.length);
     if (off) return leave('off', `${off.name} is ${(nearest(shape.coords, [off.lon, off.lat]).metres / 1000).toFixed(1)} km off its track`, [off]);
-    const dist = leastTravel(options);
+    const dist = leastTravel(options, onward);
     // A stretch faster than the Network's top speed is placed on the wrong track, say one that runs back past a Station.
     const speed = (i: number) => Math.abs((dist[i] ?? 0) - (dist[i - 1] ?? 0)) / ((calls[i]?.arrival ?? 0) - (calls[i - 1]?.departure ?? 0));
     const fast = calls.findIndex((_, i) => i > 0 && speed(i) > topSpeed);
     if (fast > 0) return leave('fast', `it would run ${calledAt[fast - 1]?.name} → ${calledAt[fast]?.name} at ${Math.round(speed(fast) * 3.6)} km/h along its track`, calledAt.slice(fast - 1, fast + 1));
-    return [{ ...trip, calls: calls.map((c, i) => ({ ...c, dist: Math.round(dist[i] ?? 0) })) }];
+    return { ...trip, calls: calls.map((c, i) => ({ ...c, dist: Math.round(dist[i] ?? 0) })) };
   });
 }
 
@@ -176,16 +247,30 @@ function passes({ coords, dist }: Shape, p: Point): Pass[] {
 /**
  * Where along the track to place each of a Trip's Stations, given the passes of each: the ones
  * that make the distance it travels from first to last shortest, and of those, the ones closest to
- * its Stations.
+ * its Stations. Along a trace made through the Trip's own Stations it's `onward`: the Trip runs it
+ * from its start to its end, so a Station is at the pass it can be reached by going on, as R15's from
+ * Ulldecona by Tortosa back to L'Aldea is at the trace's end, not at the way out's, which the least
+ * travel would take by a few metres of track (#280).
+ * ponytail: a Station that's a little behind the one before it, as two at one place can be, and has a
+ * later pass too, goes to that one, and a Trip it doesn't fit is left out as too fast. Allow it some
+ * slack, a hundred metres or so, if a Trip is ever left out so.
  */
-function leastTravel(options: Pass[][]): number[] {
+function leastTravel(options: Pass[][], onward = false): number[] {
   const better = <T extends { travel: number; off: number }>(a: T, b: T) => (b.travel < a.travel || (b.travel === a.travel && b.off < a.off) ? b : a);
   let ways = (options[0] ?? []).map((p) => ({ travel: 0, off: p.metres, dist: [p.along] }));
+  const go = (p: Pass, from: typeof ways) => {
+    const best = from.map((way) => ({ ...way, travel: way.travel + Math.abs(p.along - (way.dist.at(-1) ?? 0)) })).reduce(better);
+    return { travel: best.travel, off: best.off + p.metres, dist: [...best.dist, p.along] };
+  };
   for (const passes of options.slice(1)) {
-    ways = passes.map((p) => {
-      const best = ways.map((way) => ({ ...way, travel: way.travel + Math.abs(p.along - (way.dist.at(-1) ?? 0)) })).reduce(better);
-      return { travel: best.travel, off: best.off + p.metres, dist: [...best.dist, p.along] };
-    });
+    // Only the passes it can go on to, where it can go on to any.
+    const onwards = onward
+      ? passes.flatMap((p) => {
+          const from = ways.filter((way) => p.along >= (way.dist.at(-1) ?? 0));
+          return from.length ? [go(p, from)] : [];
+        })
+      : [];
+    ways = onwards.length ? onwards : passes.map((p) => go(p, ways));
   }
   return ways.reduce(better).dist;
 }

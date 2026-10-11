@@ -1,13 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import type { Point, Shape, Station } from '../bundle.ts';
-import { CERCANIAS_SEVILLA, RODALIES, type Gauges } from '../networks.ts';
+import { CERCANIAS_MADRID, CERCANIAS_SANTANDER, CERCANIAS_SEVILLA, CERCANIAS_VALENCIA, RODALIES, type Gauges, type NetworkConfig } from '../networks.ts';
 import { ownRails } from './networks.ts';
 import type { OsmWay } from './osm.ts';
 import { collect, type Found } from './report.ts';
 import type { Snippet } from './snippet.ts';
-import { eachWay, fine, metres as between, nearest, onOwnTrack, railsBeside, stationsOf, traceRuns, traceShapes, withLines } from './track.ts';
-import { placeTrips, type FeedTrip } from './trips.ts';
+import { eachWay, fine, metres as between, nearest, onOwnTrack, railGraphs, railsBeside, stationsOf, traceOwn, traceRuns, traceShapes, withLines } from './track.ts';
+import { placeDays, placeTrips, type FeedTrip } from './trips.ts';
 
 // A small railway, drawn in metres east (x) and north (y) of a point near Manresa.
 const M = (6_371_008.8 * Math.PI) / 180; // metres in a degree of latitude
@@ -880,4 +880,198 @@ test("traces each Line of a Network of two gauges on its own gauge's rails only,
   expect(points(shape('C1'))).toEqual([[0, 0], [2000, 0], [4000, 0], [6000, 0]]);
   expect(points(shape('C8'))).toEqual([[0, 70], [3000, 70], [6000, 70]]);
   expect(log.filter((line) => !line.includes('km long'))).toEqual([]);
+});
+
+// The Trips that don't fit their feed's shape, traced through their own Stations on the rails their
+// shapes were (#280): shapes first, as the build traces them, and then the runs, on the same graphs.
+type OwnIn = { id: string; line?: string; feed: [number, number][]; stations: string; gauges?: Gauges };
+
+/** Traces shapes and then each day's Trips through their own Stations (traceOwn()), keeping right, and gives each Trip's trace. */
+function own(rails: OsmWay[], stations: Station[], shapes: OwnIn[], days: FeedTrip[][]) {
+  const [log, found]: [string[], Found[]] = [[], []];
+  const feeds = shapes.map((s) => ({ id: s.id, line: s.line ?? 'line', coords: s.feed.map(([x, y]) => at(x, y)), stations: s.stations.split(' '), ...(s.gauges && { gauges: s.gauges }) }));
+  const graphs = railGraphs(feeds, stations, rails, 'right');
+  const traced = traceShapes(feeds, stations, rails, 'right', () => {}, () => {}, graphs);
+  const runs = traceOwn(days, feeds, stations, graphs, (line) => log.push(line), (f) => found.push(f));
+  const track = (trip: string) => {
+    const shape = runs.shapes.find((s) => s.id === runs.days.flat().find((t) => t.id === trip)?.shape);
+    if (!shape) throw new Error(`No track for ${trip}`);
+    return shape;
+  };
+  return { traced, ...runs, log, found, track };
+}
+
+test("traces the Trips that call at a Station off their feed's shape through their own Stations, once for all those that call at the same, as Estació de França's are off R2N's", () => {
+  // As the one Station left out on a branch, T, which Trips to it reach from either side by the triangle's legs.
+  const { shapes, days, track, log } = own(
+    branch(),
+    [station('A', 500, 10), station('T', 2010, 1490), station('C', 3500, 10)],
+    [{ id: 'line', feed: [[0, 1], [4000, 1]], stations: 'A T C' }],
+    [[call('first', 'A T C', IBERIAN, 'line'), call('second', 'A T C', IBERIAN, 'line'), call('short', 'T C', IBERIAN, 'line')]],
+  );
+  // One trace for the two, whose Stations are the same, and one for the third, each of the Line's.
+  expect(shapes.map((s) => s.id)).toEqual(['line:1', 'line:2']);
+  expect(days[0]?.map((t) => [t.id, t.shape])).toEqual([['first', 'line:1'], ['second', 'line:1'], ['short', 'line:2']]);
+  // Through T where it's closest to the rails, short of the buffer stop, and on to C.
+  expect(passes(track('first'), 2000, 1490)).toBe(true);
+  expect(passes(track('first'), 3500, 0)).toBe(true);
+  expect(log).toEqual([
+    'line:1: A → C, 5.7 km long, 1.35× the straight line through its 3 Stations',
+    'line:2: T → C, 2.9 km long, 1.36× the straight line through its 2 Stations',
+  ]);
+});
+
+test("takes the track its Line's shape took where it shares it, though the other of two ways between the same Stations is shorter", () => {
+  // Two ways from J1 to J2: through S, 1,044 m, and by Q, 1,090 m, which leaves straight ahead, and so is the
+  // shorter once a trace pays for turning off it (DIVERGE), 1,144 m, though not once it takes the other's
+  // track for 90% (SHARED), 1,040 m. The feed's shape calls at S; a trace of a Trip that doesn't would take Q.
+  const { traced, track } = own(
+    rails(
+      { a: [0, 0], j1: [1000, 0], j2: [2000, 0], c: [3000, 0], p: [1500, 150], m1: [1100, 0], q: [1500, -195], m2: [1900, 0] },
+      'a j1',
+      'j1 p j2',
+      'j1 m1 q m2 j2',
+      'j2 c',
+    ),
+    [station('A', 10, 5), station('S', 1500, 150), station('C', 2990, 5)],
+    [{ id: 'X', feed: [[0, 1], [3000, 1]], stations: 'A S C' }],
+    [[call('y', 'A C', IBERIAN, 'line')]],
+  );
+  expect(passes(traced.find((s) => s.id === 'X') as Shape, 1500, 150)).toBe(true);
+  expect(passes(track('y'), 1500, 150)).toBe(true);
+  expect(passes(track('y'), 1500, -195)).toBe(false);
+});
+
+test("leaves out and reports the Trips of a run with a Station off the rails, or a stretch with no path, on their days, as long distance's are", () => {
+  // No rails between B and C, and none near E.
+  const { shapes, days, log, found } = own(
+    rails({ a: [0, 0], b: [2000, 0], c: [4000, 0], d: [6000, 0] }, 'a b', 'c d'),
+    [station('A', -10, 0), station('B', 2000, 10), station('C', 4000, 10), station('D', 6010, 0), station('E', 3000, 2000)],
+    [{ id: 'line', feed: [[0, 1], [6000, 1]], stations: 'A B C D E' }],
+    [
+      [call('ab', 'A B', IBERIAN, 'line'), call('abc', 'A B C', IBERIAN, 'line')],
+      [call('ae', 'A E', IBERIAN, 'line'), call('ab again', 'A B', IBERIAN, 'line')],
+    ],
+  );
+  expect(shapes.map((s) => s.id)).toEqual(['line:1']);
+  expect(days.map((day) => day.map((t) => [t.id, t.shape]))).toEqual([[['ab', 'line:1']], [['ab again', 'line:1']]]);
+  const text = ['abc is left out: B → C has no path along the rails', 'ae is left out: E is off the network'];
+  expect(log.filter((line) => line.includes('left out'))).toEqual(text);
+  expect(found).toMatchObject([
+    { kind: 'trip', why: 'nopath', trip: 'abc', line: 'line', stations: [{ id: 'B' }, { id: 'C' }], text: [text[0]], day: 0 },
+    { kind: 'trip', why: 'off', trip: 'ae', line: 'line', stations: [{ id: 'E' }], text: [text[1]], day: 1 },
+  ]);
+});
+
+test("runs a Trip on the rails of its Line's gauge alone, as its shape was traced, so that a Station nearer the other gauge's track is on its own gauge's", () => {
+  // As 'traces each Line of a Network of two gauges on its own gauge's rails only': S and U are 6 m from the
+  // metre-gauge track and 64 m from the Iberian-gauge one, and T the other way round.
+  const ways = rails({ a: [0, 0], b: [6000, 0], m: [0, 70], n: [6000, 70] }, 'a b', ['m n', { railway: 'narrow_gauge', gauge: '1000' }]);
+  const stations = [station('A', -10, 0), station('B', 6010, 0), station('M', -10, 70), station('N', 6010, 70), station('S', 2000, 64), station('U', 4000, 64), station('T', 3000, 6)];
+  const { track } = own(
+    ways,
+    stations,
+    [
+      { id: 'C1', feed: [[0, -2], [6000, -2]], stations: 'A S U B', gauges: IBERIAN },
+      { id: 'C8', feed: [[0, 72], [6000, 72]], stations: 'M T N', gauges: METRE },
+    ],
+    // Each takes its rails from the shape it had.
+    [[{ ...call('c1', 'A S U B', IBERIAN, 'line'), shape: 'C1' }, { ...call('c8', 'M T N', METRE, 'line'), shape: 'C8' }]],
+  );
+  expect(points(track('c1'))).toEqual([[0, 0], [2000, 0], [4000, 0], [6000, 0]]);
+  expect(points(track('c8'))).toEqual([[0, 70], [3000, 70], [6000, 70]]);
+});
+
+/**
+ * A Network's Trips placed on a snippet's rails as the daily build places them (build()): its shapes traced,
+ * each Trip on its shape, and one that doesn't fit it on a trace through its own Stations. What placeTrips()
+ * would have left out of them, with its reasons, and the traces they run on, with the shapes.
+ */
+function placedFrom(file: string, network: NetworkConfig, trips: FeedTrip[]) {
+  const { rails, shapes, stations } = JSON.parse(readFileSync(new URL(`fixtures/osm/${file}.json`, import.meta.url), 'utf8')) as Snippet;
+  const [log, found]: [string[], Found[]] = [[], []];
+  const owned = ownRails(rails, network);
+  const graphs = railGraphs(shapes, stations, owned, network.runningSide);
+  const traced = traceShapes(shapes, stations, owned, network.runningSide, () => {}, () => {}, graphs);
+  const topSpeed = network.profile.topSpeed;
+  const alone: string[] = [];
+  placeTrips(trips, traced, stations, topSpeed, (line) => alone.push(line));
+  const placed = placeDays([trips], traced, stations, topSpeed, (unfit) => traceOwn(unfit, shapes, stations, graphs, (line) => log.push(line), (f) => found.push(f)), (line) => log.push(line), (f) => found.push(f));
+  const [trip] = placed.days[0] ?? [];
+  const speeds = (trip?.calls ?? []).slice(1).map((c, i) => Math.round(((c.dist - (trip?.calls[i]?.dist ?? 0)) / (c.arrival - (trip?.calls[i]?.departure ?? 0))) * 3.6));
+  return { alone, log, found, traced, trip, speeds, runs: placed.shapes, stations };
+}
+
+/** A Trip's calls as Renfe's timetable of 10 October 2026 gives them, "station arrival departure" in seconds into the day. */
+const renfe = (id: string, line: string, headsign: string, shape: string, ...calls: [station: string, arrival: number, departure: number][]): FeedTrip => ({
+  id,
+  line,
+  headsign,
+  shape,
+  calls: calls.map(([station, arrival, departure]) => ({ station, arrival, departure })),
+});
+
+test("runs C2's CIVIS Trips from Chamartín by Fuente de la Mora to San Fernando de Henares, 13 km, on a trace of their own through their Stations, not round by Atocha, as Renfe's shape does, at 142 km/h", () => {
+  // Train 35980 of Tuesday 13 October 2026, as far as Torrejón de Ardoz. The snippet is C2's two shapes, whole, and
+  // the rails within 15 m of the way the Train runs, cut as `npm run snippet` does but along that line, not round a
+  // spot (a circle that holds the way round by Atocha is 900 KB), from the rails downloaded on 9 October. Where it has
+  // none, as round by Atocha, a shape keeps the feed's own points.
+  const trip = renfe('cercanias-madrid:1084M35980C2', 'cercanias-madrid:C2', 'CIVIS', 'cercanias-madrid:10_C2_INV:back', ['adif:17000', 23880, 23880], ['adif:98003', 24180, 24180], ['adif:70101', 24900, 24900], ['adif:70102', 25260, 25260]);
+  const { alone, trip: placed, runs, speeds, traced, stations, log } = placedFrom('civis', CERCANIAS_MADRID, [trip]);
+  expect(alone).toEqual(['cercanias-madrid:1084M35980C2 is left out: it would run Fuente de la Mora → San Fernando de Henares at 142 km/h along its track']);
+  expect(runs.map((s) => s.id)).toEqual(['cercanias-madrid:C2:1']);
+  expect(placed?.shape).toBe('cercanias-madrid:C2:1');
+  // From Fuente de la Mora to San Fernando de Henares 13.3 km, not the 28 km round by Atocha, and each hop under the top speed, 140 km/h.
+  const [run] = runs;
+  const [, fuente, fernando] = (placed?.calls ?? []).map((c) => c.dist);
+  expect(Math.round(((fernando ?? 0) - (fuente ?? 0)) / 100)).toBe(133);
+  expect(speeds.every((km) => km < 140)).toBe(true);
+  expect(log).toEqual(['cercanias-madrid:C2:1: Madrid-Chamartín-Clara Campoamor → Torrejón de Ardoz, 20.9 km long, 1.11× the straight line through its 4 Stations']);
+  // It runs on C2's track from San Fernando de Henares on, exactly where the shape's, and not before it.
+  const shape = traced.find((s) => s.id === 'cercanias-madrid:10_C2_INV:back');
+  const point = (id: string): Point => {
+    const s = stations.find((o) => o.id === id);
+    return [s?.lon ?? NaN, s?.lat ?? NaN];
+  };
+  const from = nearest(run?.coords ?? [], point('adif:70101')).along;
+  const apart = (coords: Point[]) => coords.map((p) => nearest(shape?.coords ?? [], p).metres);
+  const [after, before] = [run?.coords.filter((_, i) => (run.dist[i] ?? 0) > from + 100) ?? [], run?.coords.filter((_, i) => (run.dist[i] ?? 0) > 5000 && (run.dist[i] ?? 0) < from - 100) ?? []];
+  expect(Math.max(...apart(after))).toBeLessThan(1);
+  expect(Math.max(...apart(before))).toBeGreaterThan(1000);
+});
+
+test("runs a C3 Trip through Puente Agüero, Villaverde de Pontones and Hoz de Anero, which Renfe's shape, Santander–Liérganes, lacks, on a trace of its own through its Stations, on FEVE's metre gauge", () => {
+  // Train 71851 of Tuesday 13 October 2026 from Heras to Hoz de Anero, on its way to Gibaja: `npm run snippet --
+  // "trip cercanias-santander:C3 off adif:05672" santander-c3 4.5`, from the rails downloaded on 9 October.
+  const trip = renfe(
+    'cercanias-santander:6284M71851C3',
+    'cercanias-santander:C3',
+    'Gibaja',
+    'cercanias-santander:62_C3:back',
+    ['adif:05661', 30420, 30420],
+    ['adif:05663', 30780, 30780],
+    ['adif:05672', 30900, 30900],
+    ['adif:05673', 31020, 31020],
+    ['adif:05675', 31380, 31440],
+  );
+  const { alone, trip: placed, runs, speeds, log, found } = placedFrom('santander-c3', CERCANIAS_SANTANDER, [trip]);
+  expect(alone).toEqual(['cercanias-santander:6284M71851C3 is left out: Puente Agüero is 1.6 km off its track']);
+  expect(runs.map((s) => [s.id, Math.round((s.dist.at(-1) ?? 0) / 100)])).toEqual([['cercanias-santander:C3:1', 91]]);
+  expect(placed?.shape).toBe('cercanias-santander:C3:1');
+  expect(placed?.calls.map((c) => Math.round(c.dist / 100))).toEqual([0, 25, 44, 59, 91]);
+  expect(speeds).toEqual([25, 58, 43, 32]);
+  expect(log).toEqual(['cercanias-santander:C3:1: Heras → Hoz de Anero, 9.1 km long, 1.08× the straight line through its 5 Stations']);
+  expect(found).toEqual([]);
+});
+
+test("runs a C1 Trip to Platja i Grau de Gandia on a trace through its Stations, where its shape ends at Gandia and the Station is 1.7 km off it", () => {
+  // Train 24291 of Tuesday 13 October 2026 from Xeraco, which doesn't call at Gandia, where C1's shape ends:
+  // `npm run snippet -- "trip cercanias-valencia:C1 off adif:69111" valencia-c1 6.5`, from the rails downloaded on 9 October.
+  const trip = renfe('cercanias-valencia:4084M24291C1', 'cercanias-valencia:C1', 'Platja i Grau de Gandia', 'cercanias-valencia:40_C1:back', ['adif:69107', 28080, 28080], ['adif:69111', 28920, 28920]);
+  const { alone, trip: placed, runs, speeds, log } = placedFrom('valencia-c1', CERCANIAS_VALENCIA, [trip]);
+  expect(alone).toEqual(['cercanias-valencia:4084M24291C1 is left out: Platja i Grau de Gandia is 1.7 km off its track']);
+  expect(runs.map((s) => [s.id, Math.round((s.dist.at(-1) ?? 0) / 100)])).toEqual([['cercanias-valencia:C1:1', 84]]);
+  expect(placed?.calls.map((c) => Math.round(c.dist / 100))).toEqual([0, 84]);
+  expect(speeds).toEqual([36]);
+  expect(log).toEqual(["cercanias-valencia:C1:1: Xeraco → Platja i Grau de Gandia, 8.4 km long, 1.39× the straight line through its 2 Stations"]);
 });
