@@ -1249,7 +1249,9 @@ function show(days: Track | Bundle) {
   const pillZoom = new Map(days.networks.map((n) => [n.id, n.pillZoom]));
   pills = new Map(days.lines.map((l) => [l.id, pillOf(l, pillZoom.get(l.network) ?? 10)]));
   const networks = new Map(days.networks.map((n) => [n.id, n]));
-  fastest = Math.max(...days.lines.map((l) => profiled(networks.get(l.network), l)?.profile.topSpeed ?? 0));
+  // None where the days have no Lines, as where the map opens zoomed out before long distance's region has come:
+  // then quarterPixel() is endless, and Trains move as seldom as IDLE_MOST lets them.
+  fastest = Math.max(0, ...days.lines.map((l) => profiled(networks.get(l.network), l)?.profile.topSpeed ?? 0));
   shownStrokes = days.strokes;
   // Zoomed in, on its own rails, a Line's bends are rounded (#203).
   const drawn = (strokes: Stroke[], round = false): GeoJSON.FeatureCollection => ({
