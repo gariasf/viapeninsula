@@ -707,7 +707,10 @@ interface GpsDelay {
 /**
  * A Train's Delay, in seconds, by what live data last said about it, as far into live data as a
  * device has got. For Renfe's, it's the last Delay its GPS gave it that counts, or where none does,
- * the last its GPS gave it, until each is CARRY old, and failing both, Renfe's own figure.
+ * the last its GPS gave it, until each is CARRY old, and failing both, Renfe's own figure. Going by
+ * the figure where none counts, not the last its GPS gave it, was tried and rejected: it took out
+ * the Delays of GPS fixes no Train could have run to, and drew more Trains ahead of their GPS and
+ * then standing (ADR-0002, #410).
  */
 const delayBy = (said: Heard, upTo: number) => (recent(said.counted, upTo) ?? recent(said.gps, upTo) ?? said).delay;
 
