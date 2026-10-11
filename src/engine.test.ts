@@ -1652,10 +1652,13 @@ test("Renfe's GPS more than 2 minutes off its GPS report before counts only once
   // 22:05:00, 5 minutes late at 22:05:20, and 30 s late again at 22:05:40. It runs on 30 s late.
   const once = [behind(30, at('22:04:40')), behind(30, at('22:05:00')), behind(300, at('22:05:20')), behind(30, at('22:05:40'))];
   for (const s of [30, 50]) expect(where(R2S, at('22:05:00', s), once)).toBeCloseTo(where(R2S, at('22:04:30', s)) ?? NaN, 3);
-  // Where its GPS has it 4 minutes late at 22:05:20 and again at 22:05:40, it runs on 30 s late until 22:05:40, and then 4 minutes late.
-  const twice = [behind(30, at('22:04:40')), behind(30, at('22:05:00')), behind(240, at('22:05:20')), behind(240, at('22:05:40'))];
-  expect(where(R2S, at('22:05:30'), twice)).toBeCloseTo(where(R2S, at('22:05:00')) ?? NaN, 3);
-  expect(where(R2S, at('22:05:50'), twice)).toBeCloseTo(where(R2S, at('22:01:50')) ?? NaN, 3);
+  // Where its GPS has it 4 minutes late at 22:05:20, 3½ minutes of its timetable in 20 s, which no Train
+  // could have run to, and again at 22:05:40 and 22:06:00, it runs on 30 s late until 22:06:00, and then
+  // 4 minutes late: the first is no position, the second one the report before it could have run to but
+  // doesn't agree with the Delay of the last that counted, and the third agrees with the second.
+  const thrice = [behind(30, at('22:04:40')), behind(30, at('22:05:00')), behind(240, at('22:05:20')), behind(240, at('22:05:40')), behind(240, at('22:06:00'))];
+  for (const s of [30, 50]) expect(where(R2S, at('22:05:00', s), thrice)).toBeCloseTo(where(R2S, at('22:04:30', s)) ?? NaN, 3);
+  expect(where(R2S, at('22:06:10'), thrice)).toBeCloseTo(where(R2S, at('22:02:10')) ?? NaN, 3);
 });
 
 test("Renfe's GPS heard again, as the map records its last snapshot again or the fetcher keeps Renfe's last good response, doesn't agree with itself", () => {
@@ -1683,6 +1686,74 @@ test("Renfe's first GPS for a Train in over 2 minutes counts only once its next 
   const received = [behind(30, at('21:59:40')), behind(30, at('22:00:00')), ...pinned, behind(150, at('22:03:00')), behind(150, at('22:03:20'))];
   expect(where(R2S, at('22:03:10'), received)).toBeCloseTo(where(R2S, at('22:02:40')) ?? NaN, 3);
   expect(where(R2S, at('22:03:30'), received)).toBeCloseTo(where(R2S, at('22:01:00')) ?? NaN, 3);
+});
+
+/** A snapshot, received as it's written, in which Renfe's GPS has the R2S so many metres further along its track than its timetable has it at a moment. */
+const ahead = (metres: number, moment: number) => gps(R2S, (where(R2S, moment) ?? NaN) + metres, moment);
+
+/** A snapshot, received as it's written, that has the reports of an earlier one again, as when Renfe's file hasn't changed since the fetcher read it before. */
+const again = (received: Received, moment: number): Received => ({ snapshot: { ...written(moment), reports: received.snapshot.reports }, at: moment });
+
+test("Renfe's GPS that no report of the Train within 2 minutes could have run to is no position, as for a Train's first GPS reports: it runs on as late as the one before had it", () => {
+  // Made up: Renfe's GPS has the R2S between Sitges and Castelldefels 30 s late at 22:05:00, and
+  // at 22:05:20 5 km further along its track than its timetable has it: 5.9 km in 20 s, where a Train
+  // on a line of 160 km/h can run 1.2 km at the most, with the 5% jumps() allows and 300 m of slack.
+  const received = [behind(30, at('22:05:00')), ahead(5000, at('22:05:20'))];
+  for (const s of [30, 50]) expect(where(R2S, at('22:05:00', s), received)).toBeCloseTo(where(R2S, at('22:04:30', s)) ?? NaN, 3);
+  // The same 15 s late at 22:05:20, 0.6 km on, is a position.
+  const ran = [behind(30, at('22:05:00')), behind(15, at('22:05:20'))];
+  expect(where(R2S, at('22:05:50'), ran)).toBeCloseTo(where(R2S, at('22:05:35')) ?? NaN, 3);
+});
+
+test("a GPS no report of the Train within 2 minutes could have run to doesn't take the GPS after it with it: it's judged against the two before it, and one of them could have run to it", () => {
+  // Made up: Renfe's GPS has the R2S 30 s late at 22:04:40 and 22:05:00, 5 km ahead of its timetable
+  // at 22:05:20, which no Train could have run to, and 10 s late at 22:05:40, 1 km on from where it
+  // was at 22:05:00 in 40 s. The last isn't one the report before it could have run to, but the one
+  // before that could, and it agrees with its Delay: it's a position, and the Train runs on 10 s late.
+  const received = [behind(30, at('22:04:40')), behind(30, at('22:05:00')), ahead(5000, at('22:05:20')), behind(10, at('22:05:40'))];
+  expect(where(R2S, at('22:06:10'), received)).toBeCloseTo(where(R2S, at('22:06:00')) ?? NaN, 3);
+});
+
+test("Renfe's GPS is judged against the Train's last two GPS fixes, not its last two reports: a fix reported again, or a pin to a Station between, doesn't stand in for one", () => {
+  // Made up: Renfe's GPS has the R2S 30 s late at 22:04:40 and 22:05:00, and Renfe pins it to
+  // Castelldefels at 22:05:20. Then its GPS has it 5 km ahead of its timetable at 22:05:40, which it
+  // has again at 22:06:00, and 10 s late at 22:06:20, as it was within the 80 s before at 22:05:00:
+  // a position, which the two reports before it, both the fix 5 km ahead, couldn't have run to.
+  const glitch = ahead(5000, at('22:05:40'));
+  const received = [behind(30, at('22:04:40')), behind(30, at('22:05:00')), near(R2S, 'Castelldefels', 30, at('22:05:20')), glitch, again(glitch, at('22:06:00')), behind(10, at('22:06:20'))];
+  expect(where(R2S, at('22:06:50'), received)).toBeCloseTo(where(R2S, at('22:06:40')) ?? NaN, 3);
+});
+
+test("Renfe's GPS no report of the Train could have run to is a fix the next is judged against, taken or not: a position that has moved and stays is one from its second report", () => {
+  // Made up: Renfe's GPS has the R2S 30 s late at 22:05:00, and at 22:05:20 and 22:05:40 5 km ahead of
+  // its timetable, as where a Train is whose GPS comes back from elsewhere. The first of those isn't a
+  // position, as above. The second is one that the first, as reported, could have run to, though no fix
+  // the Train was taken by could have, and the Train is drawn there, early, from the second.
+  const received = [behind(30, at('22:05:00')), ahead(5000, at('22:05:20')), ahead(5000, at('22:05:40'))];
+  expect(where(R2S, at('22:05:30'), received)).toBeCloseTo(where(R2S, at('22:05:00')) ?? NaN, 3);
+  expect(where(R2S, at('22:06:10'), received)).toBeGreaterThan((where(R2S, at('22:06:10')) ?? NaN) + 4000);
+});
+
+test("Renfe's GPS no report of the Train could have run to is judged by the time between them, which is a second at the least", () => {
+  // Made up: two reports of the R2S, in snapshots 20 s apart, that both have 22:05:00 for their time.
+  // The second is 320 m on from the first: over the 300 m of slack, but within it and the 47 m a second
+  // that 160 km/h and 5% over allow for the second counted: a position, which has the Train 320 m ahead
+  // of where the first had it. One 400 m on isn't.
+  const [shape, there] = [BUNDLE.shapes.find((s) => s.id === R2S) as Shape, where(R2S, at('22:04:30')) ?? NaN];
+  const fix = (metres: number, moment: number): Received => {
+    const [lon, lat] = pointAt(shape, there + metres);
+    return { snapshot: { ...written(moment), reports: [{ trip: R2S, at: at('22:05:00'), position: { lon, lat } }] }, at: moment };
+  };
+  const first = where(R2S, at('22:05:50'), [fix(0, at('22:05:00'))]) ?? NaN;
+  expect(where(R2S, at('22:05:50'), [fix(0, at('22:05:00')), fix(320, at('22:05:20'))])).toBeCloseTo(first + 320, -1);
+  expect(where(R2S, at('22:05:50'), [fix(0, at('22:05:00')), fix(400, at('22:05:20'))])).toBeCloseTo(first, 3);
+});
+
+test("a Train's first GPS in over 2 minutes is a position, however far it is from its last: there's no report within 2 minutes to judge it by", () => {
+  // Made up: Renfe's GPS has the R2S 30 s late at 22:05:00, and then, 140 s later, 5 km ahead of its
+  // timetable. It's the Train's first in 2 minutes, so it's a position, and the Train is drawn there, early.
+  const received = [behind(30, at('22:05:00')), ahead(5000, at('22:07:20'))];
+  expect(where(R2S, at('22:07:50'), received)).toBeGreaterThan((where(R2S, at('22:07:50')) ?? NaN) + 4000);
 });
 
 // Renfe's long-distance live data names each Train by its Train number, as it names any part of its
@@ -2455,9 +2526,16 @@ test("counts each Network's jumps over 45 minutes of live data as the map receiv
   // de Segur at 15:14:30, for a Unit whose GPS runs from Lleida at 15:58 to past Balaguer by 16:38, at
   // its timetable's pace. Drawn Live all 45 minutes, from 16:00 about 2 h 15 min late, it jumped back
   // 18.7 km at 16:00:14, as its GPS went back to Lleida, and forward 815 m at 16:22:13. It may have been
-  // that Trip really running late (#233).
+  // that Trip really running late (#233). It rose by one forward and fell by 242 Live seconds with #565,
+  // which takes a GPS fix no report of the Train in the 2 minutes before could have run to as no
+  // position, at its Line's top speed and 5% over, and 300 m: 53 fixes of 42 Trains here, 1.3 to 117 km
+  // from the Train's last, in 19 to 100 s. Eight Trains lose 20 to 61 s of Live, as the fix that last
+  // placed them, before Renfe pinned them to a Station, was one of those, and no longer keeps them Live
+  // through the three updates after it. And R7 77843 jumps forward at 16:15:29, 518 m, where it didn't:
+  // its fix at 16:11:06, 1,254 m in 20 s, no longer confirms the one after it, so the Delay it carries
+  // through the pins that follow isn't one that counted, and the next fix, 76 s less late, moves it at once.
   expect(jumps(RECORDED.bundle, RECORDED.received)).toEqual({
-    rodalies: { forward: 66, back: 123, liveSeconds: 152139 },
+    rodalies: { forward: 67, back: 123, liveSeconds: 151897 },
     fgc: { forward: 24, back: 50, liveSeconds: 145935 },
     tram: { forward: 3, back: 0, liveSeconds: 77809 },
     metro: { forward: 0, back: 14, liveSeconds: 304017 },
