@@ -2,7 +2,7 @@ import { expect, test, vi } from 'vitest';
 import type { Bundle, DayFiles, Network, Report } from './bundle.ts';
 import { joinDays, trainsAt, type Received } from './engine.ts';
 import { NETWORKS } from './networks.ts';
-import { cut, unmatched, withNextDay } from './record.ts';
+import { cut, unmatched, withDays } from './record.ts';
 
 // Made up: R1's Trips from Badalona to El Masnou, on two days' timetables as Rodalies' are around
 // midnight. The night's runs from 23:50 to 00:20 on both days, and on the second day's an early one
@@ -145,36 +145,89 @@ test("keeps the Trips of a Line a Metro Block reported could run within an hour 
   expect(cut(joinDays([FRIDAY, SATURDAY]), received).trips.map((t) => t.id)).toEqual(['2026-09-25/night', 'early']);
 });
 
-/** The manifest's entry for a service day, whose files `load` stands in for. */
-const entry = (date: string): DayFiles => ({ date, from: 0, to: 0, regions: [] });
-
-test("joins the next day to a recording whose last snapshot falls after midnight in Madrid, by that clock and not UTC's", async () => {
-  const load = async ({ date }: DayFiles) => [FRIDAY, SATURDAY].find((b) => b.serviceDay === date) as Bundle;
-  const ids = async (last: string) => (await withNextDay(FRIDAY, '2026-09-25', Date.parse(last), [entry('2026-09-25'), entry('2026-09-26')], load)).bundle.trips.map((t) => t.id);
-  // 23:59:59 in Madrid on Friday is 21:59:59 UTC, in summer time; midnight is 22:00:00.
-  expect(await ids('2026-09-25T21:59:59Z')).toEqual(['late', 'night', 'noon']);
-  expect(await ids('2026-09-25T22:00:00Z')).toEqual(['2026-09-25/late', '2026-09-25/night', '2026-09-25/noon', 'night', 'early']);
+/**
+ * The manifest's entry for a service day, as the build gives it from its Trips: when its first Train
+ * comes onto the map and its last leaves it, in ms since 1970. Friday's is from noon to 00:20 on
+ * Saturday, and Saturday's from 00:05 to 00:20 on Sunday.
+ */
+const entry = ({ serviceDay, noonMinus12h, trips }: Bundle): DayFiles => ({
+  date: serviceDay,
+  from: noonMinus12h + 1000 * Math.min(...trips.map((t) => t.calls[0]?.arrival ?? Infinity)),
+  to: noonMinus12h + 1000 * Math.max(...trips.map((t) => t.calls.at(-1)?.departure ?? -Infinity)),
+  regions: [],
 });
 
-test("says why a recording that went past midnight has its day's bundle alone: the manifest has no next day, or its bundle didn't come", async () => {
+const idsOf = (bundle: Bundle) => bundle.trips.map((t) => t.id);
+const BOTH = ['2026-09-25/late', '2026-09-25/night', '2026-09-25/noon', 'night', 'early'];
+
+/**
+ * The bundle `npm run record` cuts a recording over, which started at `from` on the day of `first`,
+ * and whose last snapshot came at `to`, given the manifest's `days`; and the days its bundles were
+ * fetched for, which `first` isn't, as the recording has it already.
+ */
+async function over(first: Bundle, [from, to]: [string, string], days: DayFiles[], bundles: Bundle[] = [FRIDAY, SATURDAY]) {
+  const asked: string[] = [];
+  const load = async ({ date }: DayFiles) => {
+    asked.push(date);
+    return bundles.find((b) => b.serviceDay === date) as Bundle;
+  };
+  const received = [...reportingAt(Date.parse(from)), ...reportingAt(Date.parse(to))];
+  return { ...(await withDays(first, first.serviceDay, received, days, load)), asked };
+}
+
+test("joins the day before's bundle to a recording that starts after midnight, until an hour after the day's last Train is due off the map, as the map keeps it (#549)", async () => {
+  const days = [entry(FRIDAY), entry(SATURDAY)];
+  // Friday's last Train, the night's, is due off the map at 00:20, so the map keeps its bundle until 01:20.
+  const early = await over(SATURDAY, ['2026-09-26T00:02:00+02:00', '2026-09-26T00:06:00+02:00'], days);
+  expect([idsOf(early.bundle), early.why, early.asked]).toEqual([BOTH, '', ['2026-09-25']]);
+  expect(idsOf((await over(SATURDAY, ['2026-09-26T01:19:00+02:00', '2026-09-26T01:23:00+02:00'], days)).bundle)).toEqual(BOTH);
+  // More than an hour after, there are no Trains of the day before still running to match, and its bundle isn't fetched.
+  const late = await over(SATURDAY, ['2026-09-26T01:21:00+02:00', '2026-09-26T01:25:00+02:00'], days);
+  expect([idsOf(late.bundle), late.asked]).toEqual([['night', 'early'], []]);
+  // And a recording with no snapshot has its day's.
+  expect(await withDays(SATURDAY, '2026-09-26', [], days, async () => FRIDAY)).toEqual({ bundle: SATURDAY, why: '' });
+});
+
+test("joins the next day to a recording whose last snapshot falls after midnight in Madrid, by that clock and not UTC's (#411)", async () => {
+  // Saturday's first Train comes at 05:00 here, further than an hour from midnight.
+  const days = [entry(FRIDAY), { ...entry(SATURDAY), from: Date.parse('2026-09-26T05:00:00+02:00') }];
+  const ids = async (last: string) => idsOf((await over(FRIDAY, ['2026-09-25T23:30:00+02:00', last], days)).bundle);
+  // 23:59:59 in Madrid on Friday is 21:59:59 UTC, in summer time; midnight is 22:00:00.
+  expect(await ids('2026-09-25T21:59:59Z')).toEqual(['late', 'night', 'noon']);
+  // Friday's bundle stays, joined, as its last Train is due off the map at 00:20: Trains still running from it keep its service in their names.
+  expect(await ids('2026-09-25T22:00:00Z')).toEqual(BOTH);
+});
+
+test("joins the next day an hour before its first Train comes onto the map, as the map does, to a recording that ends before midnight", async () => {
+  const days = [entry(FRIDAY), entry(SATURDAY)];
+  // Saturday's first Train, the early one, is due at 00:05.
+  expect(idsOf((await over(FRIDAY, ['2026-09-25T23:00:00+02:00', '2026-09-25T23:04:00+02:00'], days)).bundle)).toEqual(['late', 'night', 'noon']);
+  expect(idsOf((await over(FRIDAY, ['2026-09-25T23:06:00+02:00', '2026-09-25T23:10:00+02:00'], days)).bundle)).toEqual(BOTH);
+});
+
+test("says why a recording has fewer days than the map would: the manifest has no bundle for the day a snapshot falls on, or a day's bundle didn't come", async () => {
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-  const last = Date.parse('2026-09-26T00:05:00+02:00');
-  const none = await withNextDay(FRIDAY, '2026-09-25', last, [entry('2026-09-25')], async () => SATURDAY);
-  expect(none).toEqual({ bundle: FRIDAY, why: ' (its snapshots go past midnight, and the manifest has no bundle for 2026-09-26)' });
-  const lost = await withNextDay(FRIDAY, '2026-09-25', last, [entry('2026-09-25'), entry('2026-09-26')], async () => Promise.reject(new Error('HTTP 503')));
-  expect(lost).toEqual({ bundle: FRIDAY, why: " (its snapshots go past midnight, and 2026-09-26's bundle didn't come)" });
+  const gone = async () => Promise.reject(new Error('HTTP 503'));
+  const [from, last] = ['2026-09-25T23:50:00+02:00', '2026-09-26T00:05:00+02:00'];
+  const none = await over(FRIDAY, [from, last], [entry(FRIDAY)]);
+  expect([none.bundle, none.why]).toEqual([FRIDAY, ' (the manifest has no bundle for 2026-09-26)']);
+  const next = await withDays(FRIDAY, '2026-09-25', [...reportingAt(Date.parse(from)), ...reportingAt(Date.parse(last))], [entry(FRIDAY), entry(SATURDAY)], gone);
+  expect(next).toEqual({ bundle: FRIDAY, why: " (2026-09-26's bundle didn't come)" });
+  // The day before's, for a recording that starts after midnight.
+  const before = await withDays(SATURDAY, '2026-09-26', reportingAt(Date.parse(last)), [entry(FRIDAY), entry(SATURDAY)], gone);
+  expect(before).toEqual({ bundle: SATURDAY, why: " (2026-09-25's bundle didn't come)" });
   warn.mockRestore();
 });
 
 test('joins the next day across the night the clocks go back, 25 hours long, so that a Train still running from the day before is where its report says', async () => {
   // Sunday 25 October 2026's timetable reads 00:00:00 at noon less 12 hours: 01:00, still summer time, an hour after midnight.
   const [saturday, sunday] = [day('2026-10-24', { late: NIGHT }), { ...day('2026-10-25', { early: [5 * 60, 30 * 60] }), noonMinus12h: Date.parse('2026-10-24T23:00:00Z') }];
-  const load = async ({ date }: DayFiles) => [saturday, sunday].find((b) => b.serviceDay === date) as Bundle;
   // Its report at 00:10 on Sunday, 22:10 UTC on Saturday, of Saturday's Trip that runs until 00:20.
-  const at = Date.parse('2026-10-24T22:10:00Z');
-  const received = reportingAt(at, 'late');
+  const [first, at] = [Date.parse('2026-10-24T21:58:00Z'), Date.parse('2026-10-24T22:10:00Z')];
+  const received = [...reportingAt(first, 'late'), ...reportingAt(at, 'late')];
   expect(unmatched(saturday, received)).toEqual({ reports: 0, trips: 0 });
-  const { bundle, why } = await withNextDay(saturday, '2026-10-24', at, [entry('2026-10-24'), entry('2026-10-25')], load);
+  const load = async ({ date }: DayFiles) => [saturday, sunday].find((b) => b.serviceDay === date) as Bundle;
+  const { bundle, why } = await withDays(saturday, '2026-10-24', received, [entry(saturday), entry(sunday)], load);
   expect(why).toBe('');
   // Saturday's Trip is 25 hours behind Sunday's clock, not 24: its 23:50 leaves 70 minutes before Sunday's 00:00.
   expect(bundle.trips.map((t) => [t.id, t.calls[0]?.departure])).toEqual([['2026-10-24/late', NIGHT[0] - 90_000], ['early', 5 * 60]]);

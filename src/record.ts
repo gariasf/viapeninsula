@@ -12,9 +12,11 @@
 // - alerts.json, the operators' Alerts as the map reads them, once at the start, where they came,
 //   which the Closures are made from (closuresAt()), as #345's count of the Trains inside one needs;
 // - bundle.json, the whole bundle the replay is of, which the tests cut their Trips from: that day's,
-//   and where the last snapshot falls after midnight in Madrid, the next day's joined with it as the
-//   map joins them (#411), so that the Trains Renfe names by the next day's service after midnight
-//   find their Trips, the first day's Trips led by their day, `2026-10-06/<id>`, as joinDays() has them;
+//   joined with the other days the map would have had at the first snapshot and at the last
+//   (daysNeeded(), #411, #549): the day before's, until an hour after its last Train is due off the
+//   map, where the recording starts after midnight, and the next day's from an hour before its first
+//   comes onto it, so that the Trains Renfe names by another day's service find their Trips, the
+//   earlier days' Trips led by their day, `2026-10-06/<id>`, as joinDays() has them;
 // - replay.json.gz, `{ bundle, received }` gzipped, what `jumps()` and `trainsAt()` take: the shapes
 //   alone are megabytes. The engine tests keep those they pin in src/fixtures/, each named for its day.
 //
@@ -23,7 +25,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
-import { addDays, daysOf, joinTracks, joinTrips, LIVE_URL, madridDate, type Bundle, type DayFiles, type DayTrips, type Manifest, type Snapshot, type Trip } from './bundle.ts';
+import { daysNeeded, daysOf, joinTracks, joinTrips, LIVE_URL, madridDate, type Bundle, type DayFiles, type DayTrips, type Manifest, type Snapshot, type Trip } from './bundle.ts';
 import { joinDays, namedIn, numberedIn, trainsAt, type Received } from './engine.ts';
 import { decodeTrack, type TrackFile } from './pieces.ts';
 
@@ -77,21 +79,37 @@ export function unmatched(bundle: Bundle, received: Received[]): { reports: numb
 }
 
 /**
- * The bundle a recording is cut over (#411): the day it started on, `first`, and where its last
- * snapshot, `last` in ms since 1970, falls after midnight in Madrid, the next day's joined to it as
- * the map joins them (joinDays()), from the manifest's `days` through `load`, so that the Trains
- * Renfe names by the next day's service after midnight find their Trips. Where the manifest has no
- * bundle for that day, or it doesn't come, the day's alone, and `why` says so for the last line.
- * ponytail: forward only, so a recording that starts after midnight has its own day's alone and the
- * Trains still running from the day before match no Trip; join the day before's too if that shows.
+ * How long before a service day's first Train comes onto the map, and after its last leaves it, the
+ * map keeps the day's bundle, in ms: src/web/main.ts's SOON and LATE, which it hands daysNeeded().
  */
-export async function withNextDay(first: Bundle, today: string, last: number, days: DayFiles[], load: (day: DayFiles) => Promise<Bundle>): Promise<{ bundle: Bundle; why: string }> {
-  if (madridDate(new Date(last)) <= today) return { bundle: first, why: '' };
-  const tomorrow = addDays(today, 1);
-  const files = days.find((d) => d.date === tomorrow);
-  const next = files && (await load(files).catch((error) => void console.warn(error)));
-  if (next) return { bundle: joinDays([first, next]), why: '' };
-  return { bundle: first, why: ` (its snapshots go past midnight, and ${files ? `${tomorrow}'s bundle didn't come` : `the manifest has no bundle for ${tomorrow}`})` };
+const [SOON, LATE] = [60 * 60_000, 60 * 60_000];
+
+/**
+ * The bundle a recording is cut over (#411, #549): the days the map would have had at the recording's
+ * first snapshot and at its last (daysNeeded()), joined as the map joins them (joinDays()), so that
+ * the Trains Renfe names by the next day's service after midnight find their Trips, and so do those
+ * still running from the day before, which keep its service in their names until they're off the
+ * map. The recording has `first`, the bundle of `today`, the date it started on, and the manifest's
+ * `days` give the others, through `load`. A day the manifest has none of for the date of a snapshot,
+ * or whose bundle doesn't come, is left out, and `why` says so for the last line.
+ * ponytail: the days at the first and last snapshot alone, as #549 has it, so a day that comes onto
+ * the map and leaves it between them is missed, which none does within a recording of 100 minutes:
+ * ask daysNeeded() at each snapshot if one shows.
+ */
+export async function withDays(first: Bundle, today: string, received: Received[], days: DayFiles[], load: (day: DayFiles) => Promise<Bundle>): Promise<{ bundle: Bundle; why: string }> {
+  const moments = [received[0], received.at(-1)].flatMap((r) => (r ? [r.at] : []));
+  const dates = [...new Set([today, ...moments.flatMap((at) => daysNeeded(days, at, { early: SOON, late: LATE })?.days.map((d) => d.date) ?? [])])].sort();
+  const bundles = await Promise.all(
+    dates.map(async (date) => {
+      const files = days.find((d) => d.date === date);
+      return date === today ? first : files && (await load(files).catch((error) => void console.warn(error)));
+    }),
+  );
+  const why = [
+    ...[...new Set(moments.map((at) => madridDate(new Date(at))))].filter((date) => !days.some((d) => d.date === date)).map((date) => `the manifest has no bundle for ${date}`),
+    ...dates.filter((_, i) => !bundles[i]).map((date) => `${date}'s bundle didn't come`),
+  ];
+  return { bundle: joinDays(bundles.filter((bundle) => bundle !== undefined)), why: why.length ? ` (${why.join(', and ')})` : '' };
 }
 
 if (import.meta.main) {
@@ -164,7 +182,7 @@ if (import.meta.main) {
   await Promise.all(looks);
   if (renfe.length) await writeFile(join(dir, 'renfe.ndjson.gz'), gzipSync(`${renfe.join('\n')}\n`));
 
-  const { bundle, why } = await withNextDay(first, today, received.at(-1)?.at ?? 0, days, bundleOf);
+  const { bundle, why } = await withDays(first, today, received, days, bundleOf);
   await writeFile(join(dir, 'bundle.json'), JSON.stringify(bundle));
 
   const replay = cut(bundle, received);
