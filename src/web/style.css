@@ -451,13 +451,14 @@ body {
   overflow: hidden;
 }
 
+/* 62% of the screen, but on a phone shorter than 821 px no more than leaves room over it for the column riding on it, so that Tilt never reaches the language chip: the bar and the 8 px under and over it, and 232 px for Tilt, Centre and the die (164 px), the 12 px under them, and 8 px under the corners' row (48 px) (#470). The die's 58 px go when Now has it (#474). */
 .sheet {
-  max-height: 62dvh;
+  max-height: min(62dvh, 100dvh - var(--bar) - 248px);
   border-radius: 18px;
 }
 
 .sheet.up {
-  height: 62dvh;
+  height: min(62dvh, 100dvh - var(--bar) - 248px);
 }
 
 .sliding {
