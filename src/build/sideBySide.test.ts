@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
-import { along, APART, atZoom, BANDS, beside, cutIn, DEGREE, drawnIn, inBand, LINK, onStroke, pieces, zones, pixelMetres, pointAt, SMOOTH, STRETCH, type Line, type Shape, type Stroke, type Track } from '../bundle.ts';
+import { along, APART, atZoom, BANDS, beside, cutIn, DEGREE, drawnIn, GRAPH_BAND, inBand, LINK, onStroke, pieces, zones, pixelMetres, pointAt, SMOOTH, STRETCH, type Line, type Shape, type Stroke, type Track } from '../bundle.ts';
 import { measures } from './measures.ts';
 import { offset } from './offset.ts';
 import { KX, sharedTrack, sideBySide } from './sideBySide.ts';
@@ -552,8 +552,8 @@ test("takes C3, C4 and C5 across the node by Madrid-Atocha without hooking back,
   const { strokes, centrelines } = await sideBySide(lines, shapes);
   const byId = new Map([...shapes, ...centrelines].map((s) => [s.id, s]));
   // The curves whose middle is within 200 m of the Station (adif:18000), with the strokes they join.
-  // Further out some still wiggle, as on main: C10's, from 270 m (#353), and 780 m south-east, C3's,
-  // C4's and C5's at zoom 13, where they step aside onto the next Stretch.
+  // Further out some still wiggle, as on main: C10's, from 270 m, which no longer hook back (#353), and
+  // 780 m south-east, C3's, C4's and C5's at zoom 13, where they step aside onto the next Stretch.
   const near = (c: Stroke) => {
     const [lon, lat] = pointAt(byId.get(c.shape) ?? { coords: [], dist: [] }, c.to / 2);
     return Math.hypot((lon + 3.68944) * KX, (lat - 40.40662) * DEGREE) < 200;
@@ -562,6 +562,36 @@ test("takes C3, C4 and C5 across the node by Madrid-Atocha without hooking back,
   expect(curves.length).toBeGreaterThan(0);
   const drawn = strokes.filter((s) => !s.shape.startsWith(LINK));
   expect(measures({ shapes: [...shapes, ...centrelines], strokes: [...drawn, ...curves] }).wiggles).toEqual(Object.fromEntries(BANDS.map((zoom) => [zoom, 0])));
+});
+
+test("takes R2S, R14, R15, R16 and RT1 across the node west of the Francolí without hooking back, where their westbound track goes round it on a bridge of its own and touches the Stretch beyond for one piece (#353)", async () => {
+  // The Lines by the Francolí in Tarragona on 11 Oct 2026 (fixtures/francoli.json). Their westbound track
+  // runs over the river 53 m north of the eastbound, further apart than NEAR, on a Stretch of its own of
+  // 145 m; it leaves the Stretch they share 218 m from where that ends, and comes back to it for 47 m
+  // before it goes on west. ports() joined the bridge's Stretch to that Stretch's end, which they go along
+  // the other way, so that at zoom 11 to 14 each curve ran west along the bridge, turned back and ran 110
+  // to 360 m east along the next Stretch, and the bridge's other end hung in the air.
+  const { lines, shapes } = JSON.parse(readFileSync(new URL('fixtures/francoli.json', import.meta.url), 'utf8')) as Pick<Track, 'lines' | 'shapes'>;
+  const { strokes, centrelines } = await sideBySide(lines, shapes);
+  const found = measures({ shapes: [...shapes, ...centrelines], strokes, lines });
+  // Their Trains on the westbound track are on their Lines' strokes, as on the eastbound, give or take
+  // a metre for rounding. R17's and RT2's aren't, one each at the node, 5 m short of their curves' zones,
+  // as on main.
+  const runs = lines.filter((l) => !['rodalies:R17', 'rodalies:RT2'].includes(l.id)).flatMap((l): [string, string][] => l.shapes.map((id) => [l.id, id]));
+  const off = await offStroke(lines, shapes, runs);
+  expect(found.hairpins).toEqual(Object.fromEntries(BANDS.map((zoom) => [zoom, 0])));
+  expect(found.dangling).toBe(0);
+  expect(Math.max(...off)).toBeLessThan(1);
+});
+
+test("takes C10 across the node south-east of Madrid-Atocha without hooking back, where its track touches the Stretch beyond for 49 m (#353)", async () => {
+  // C10 on 9 Oct 2026 (fixtures/atocha.json), 270 m south-east of the Station, at 40.402, -3.682: its
+  // track runs on past the node onto the next Stretch's first piece and then off along another, and the
+  // join to that piece hooked it back past its end and on, at zoom 12 to 14.
+  const { lines, shapes } = JSON.parse(readFileSync(new URL('fixtures/atocha.json', import.meta.url), 'utf8')) as Pick<Track, 'lines' | 'shapes'>;
+  const { strokes, centrelines } = await sideBySide(lines, shapes);
+  const found = measures({ shapes: [...shapes, ...centrelines], strokes, lines });
+  expect(BANDS.map((zoom, band) => (band >= GRAPH_BAND ? found.hairpins[zoom] : 0))).toEqual(BANDS.map(() => 0));
 });
 
 test('ends Lines that end together at one point across their Stretch', async () => {
