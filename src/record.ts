@@ -118,7 +118,8 @@ export interface RenfeLine {
  * the stops with times, as for a Madrid C4a Train that no timetable has. The fetcher drops them, as
  * an ID that starts with no núcleo's code goes to none of its Networks (renfeTrip()), so they're in
  * no report, and no count of unmatched()'s (#567). Those of the Cercanías pair alone: a long-distance
- * Train is named by its number, and its report stays.
+ * Train is named by its number, which no report's `trip` is, so an ADDED one has no ID to set against
+ * the snapshots'. None has been seen in its files.
  */
 export function added(renfe: RenfeLine[], received: Received[]): number {
   const named = new Set(received.flatMap(({ snapshot }) => snapshot.reports.flatMap(({ trip }) => (trip ? [trip.slice(trip.indexOf(':') + 1)] : []))));

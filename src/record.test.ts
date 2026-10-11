@@ -127,6 +127,11 @@ test("counts the Trips Renfe ADDs, once each however many steps list them, that 
   received[0]?.snapshot.reports.push({ trip: 'cercanias-madrid:SPECIAL_10_91065C4A', at: AT });
   expect(added(steps, received)).toBe(1);
   expect(added([], received)).toBe(0);
+  // The fetcher trims a trip_id to name a Trip by (renfeTrip()), so an ADDED one with spaces after it is the one a snapshot names.
+  const padded = JSON.parse(JSON.stringify(UPDATES).replace('"SPECIAL_10_91065C4A"', '"SPECIAL_10_91065C4A  "')) as typeof UPDATES;
+  expect(added([{ at: AT, updates: padded }], received)).toBe(1);
+  // And a long-distance Train is named by its number, which no report's `trip` is, so its trip updates aren't read.
+  expect(added([{ at: AT, updatesLD: UPDATES }], [])).toBe(0);
 });
 
 test("cuts a recording that crossed midnight to the Trips its snapshots name, whichever of the days joined runs them, and those its Trains run", () => {
