@@ -17,7 +17,7 @@ import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts'
 import { atMostEvery, drifted, letsGo } from './centre.ts';
 import { keepView, lastView, markOf, openingView, toggledPitch } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
-import { contrast, lettering } from './colour.ts';
+import { darkInk, INK, lettering } from './colour.ts';
 import { boardList, cardAlerts, countdownTo, inNameOrder, linesOnBoard, linkedWords, minutesTo, nearbyRows, passedPlace, progress, tripsState, untilTick, whereabouts, type CardAlert, type Whereabouts } from './cards.ts';
 import { ARROW_GAP, boxOf, FOLLOWED_TEXT, LINE_HEIGHT, OUTLINE_SIZES, outlineOf, PILL_EDGE, PILL_PADDING, PILL_TEXT, pillReach, type Outline } from './pill.ts';
 import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, tappedRows, type Shown } from './closures.ts';
@@ -59,8 +59,6 @@ const FONT_FACES: FontFacesSpecification = {
 const NAME_SIZE = 12;
 /** How wide the edge drawn round a pill is, in px. */
 const PILL_HALO = 1.5;
-/** The dark lettering for a Line's colour that white doesn't read on. */
-const INK = '#111';
 /**
  * A Live Train's halo (#91): how many times its dot's radius it reaches, how far beyond the corners of
  * its pill's box, in px, how softly it fades out, from blurred through to its middle (1), and how
@@ -1570,11 +1568,6 @@ function pillOf({ name, colour, kind }: Line, zoom: number): Pill {
   const outline = outlineOf(kind);
   const width = textWidth(name, `bold ${PILL_TEXT}px ${TYPEFACE}`);
   return { name, outline, dark: darkInk(colour), lettering: darkBasemap ? lettering(colour, paper) : colour, zoom, box: boxOf(outline, width, PILL_TEXT), followedBox: boxOf(outline, width, FOLLOWED_TEXT) };
-}
-
-/** Whether INK reads better on a colour than white does, by WCAG's contrast ratio. */
-function darkInk(colour: string): boolean {
-  return contrast(colour, INK) > contrast(colour, '#ffffff');
 }
 
 /** How wide a place's name, or a line of it, is, in px, in its style. */

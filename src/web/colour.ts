@@ -33,3 +33,11 @@ export function lettering(colour: string, paper: string): string {
   }
   return towards ? '#ffffff' : '#000000';
 }
+
+/** The dark lettering for a Line's colour that white doesn't read on. */
+export const INK = '#111';
+
+/** Whether INK reads better on a colour than white does, by WCAG's contrast ratio. */
+export function darkInk(colour: string): boolean {
+  return contrast(colour, INK) > contrast(colour, '#ffffff');
+}
