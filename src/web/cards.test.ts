@@ -58,8 +58,9 @@ test("a row's next three passes count down in minutes, Live or Scheduled, and pa
 test("a board's list is its label alone while the day's Trips are on their way, and that none can be had once they've come with none left or have failed to come (#379)", () => {
   // A page opened on a Station's link shows its board before the Trips come, which can be seconds: none to come isn't known yet.
   expect(boardList('coming', 0)).toBe('label');
-  // Once they've come, a Station with none left says so, and one with some lists them.
+  // Once they've come, a Station with none left says so, and one with some lists them, down to its last.
   expect(boardList('came', 0)).toBe('none');
+  expect(boardList('came', 1)).toBe('rows');
   expect(boardList('came', 4)).toBe('rows');
   // Where they fail to come, as the map looks again each minute, a board ends in what it says where none can be had, not in its label for good.
   expect(boardList('failed', 0)).toBe('none');
