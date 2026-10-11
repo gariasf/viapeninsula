@@ -157,8 +157,9 @@ const BY_TIMETABLE = ['tram'];
 
 /**
  * Half the hour around a moment, in seconds, whose Trips of an Alert's Lines say whether its Closure is
- * in force (turnedBack()). On 7–12 Oct 2026 no TRAM Line but T1 went more than 17 minutes of its service
- * day with none of its Trips running, so by day the hour never lets a Closure go out between two.
+ * in force (turnedBack()). On 7–12 Oct 2026 no TRAM Alert's Lines together went more than 15 minutes of
+ * their service day with none of their Trips running (T6's, `sc-286`'s, on 7 Oct, 05:58–06:14), so by
+ * day the hour never lets a Closure go out between two.
  */
 const AROUND = 30 * 60;
 
