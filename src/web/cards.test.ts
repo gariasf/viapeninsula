@@ -4,7 +4,7 @@ import { expect, test } from 'vitest';
 import type { Alert, AlertFeed, Alerts, Bundle, Call, Line, Trip } from '../bundle.ts';
 import type { Pass } from '../engine.ts';
 import { ALERTS_START, readAlerts } from '../fetcher/alerts.ts';
-import { boardList, cardAlerts, inNameOrder, linesCallingAt, linesOnBoard, linkedWords, minutesTo, nearbyRows, progress, type Part } from './cards.ts';
+import { boardList, cardAlerts, inNameOrder, linesCallingAt, linesOnBoard, linkedWords, minutesTo, nearbyRows, progress, tripsState, type Part } from './cards.ts';
 
 /** A time of day in Barcelona on Wednesday 7 Oct 2026, in summer time, in ms since 1970. */
 const at = (hours: number, minutes: number, seconds = 0) => Date.UTC(2026, 9, 7, hours - 2, minutes, seconds);
@@ -64,6 +64,16 @@ test("a board's list is its label alone while the day's Trips are on their way, 
   expect(boardList('came', 4)).toBe('rows');
   // Where they fail to come, as the map looks again each minute, a board ends in what it says where none can be had, not in its label for good.
   expect(boardList('failed', 0)).toBe('none');
+});
+
+test("a board's Trips are on their way while a region the map has loaded hasn't come, though another's have, and failed where the last look had a file fail (#379)", () => {
+  // The page's first look: none has come.
+  expect(tripsState(['catalonia'], new Set(), false)).toBe('coming');
+  // Catalonia's have come, and the map has since loaded Madrid's, whose track is drawn and whose Trips aren't in: the bundle has only Catalonia's.
+  expect(tripsState(['catalonia', 'cercanias-madrid'], new Set(['catalonia']), false)).toBe('coming');
+  expect(tripsState(['catalonia', 'cercanias-madrid'], new Set(['catalonia', 'cercanias-madrid']), false)).toBe('came');
+  // A look that had a file fail leaves it to the next, a minute on: a board says that none can be had meanwhile.
+  expect(tripsState(['catalonia', 'cercanias-madrid'], new Set(['catalonia']), true)).toBe('failed');
 });
 
 /** A Trip's calls, at Stations these many metres along its shape. */

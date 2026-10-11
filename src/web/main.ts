@@ -18,7 +18,7 @@ import { atMostEvery, drifted, letsGo } from './centre.ts';
 import { keepView, lastView, markOf, openingView, toggledPitch } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { contrast, lettering } from './colour.ts';
-import { boardList, cardAlerts, inNameOrder, linesOnBoard, linkedWords, minutesTo, nearbyRows, progress, type CardAlert } from './cards.ts';
+import { boardList, cardAlerts, inNameOrder, linesOnBoard, linkedWords, minutesTo, nearbyRows, progress, tripsState, type CardAlert } from './cards.ts';
 import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, tappedRows, type Shown } from './closures.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
@@ -646,13 +646,17 @@ let [shown, looking] = ['', false];
 /** Whether the map is to look for the days it needs again once it has, as a look was asked for meanwhile, as when the map comes onto a region. */
 let lookAgain = false;
 /**
- * Whether the last try for today's bundle failed, as when none of its regions' Trips come, which the map
- * tries again each minute (refreshDays()): a board then says that none can be had, rather than showing its
- * label alone for good, as it does while the Trips are on their way (#379). Up here, as neededDays() sets
- * it, and first runs before the module is past its top-level await.
+ * Whether the last look for the days the map needs had a region's file fail to come, which the map looks
+ * for again each minute (refreshDays()): a board whose regions' Trips haven't come then says that none can
+ * be had, rather than showing its label alone for good, as it does while they're on their way (#379). Up
+ * here, as neededDays() sets it, and first runs before the module is past its top-level await.
  * ponytail: a request that stalls has failed no more than one that's slow, so its board keeps its label
  * alone until the browser gives the request up. Time the days' files out by their progress, not their
  * length, if that shows: a track takes seconds on a slow link.
+ * ponytail: one flag and one wait for every region loaded, so a board with none left, of a region that came,
+ * has its label alone while another region's Trips are on their way, and a region new to the map, asked for
+ * after a look that failed, says that none can be had while its Trips come. Keep both by the board's own
+ * regions (come()) if that shows.
  */
 let tripsFailed = false;
 /** The Stations of the track on the map, which come with its Lines. */
@@ -2499,8 +2503,8 @@ function alertRow({ lines: named, header, description, from, by }: CardAlert, by
  * A place's board: its nameboard, with the Lines that call there; the Alerts on its Stations and on
  * those Lines, folded away (#342); then its next departures from each of its Stations, each with when
  * it's expected to leave, its Train's pill, where it's headed and its status. Peeking, the next PEEK
- * of them, and how many more. Until the day's Trips have come, only its label, as Nearby's heading
- * stands alone (boardList(), #379).
+ * of them, and how many more. Until the Trips of the regions the map has loaded have come, only its
+ * label, as Nearby's heading stands alone (boardList(), #379).
  */
 function boardPanel(id: string, up: boolean): Panel | undefined {
   const place = shownPlaces.get(id);
@@ -2515,8 +2519,9 @@ function boardPanel(id: string, up: boolean): Panel | undefined {
     refreshDays();
   }
   const shown = up ? departures : departures.slice(0, PEEK);
-  // Neither rows nor "none" while the Trips are on their way: it can't tell that none are to come, and says that only once they've come or failed to.
-  const list = boardList(bundle ? 'came' : tripsFailed ? 'failed' : 'coming', departures.length);
+  // Neither rows nor "none" while the Trips of a region the map has loaded are on their way, as the bundle has the others' already
+  // (#266): it can't tell that none are to come, and says that only once they've come or a file has failed to.
+  const list = boardList(tripsState(loaded, shownRegions, tripsFailed), departures.length);
   return {
     header: el(
       'header',
@@ -2907,7 +2912,7 @@ async function neededDays(): Promise<{ track: Promise<Track | undefined>; days: 
     const got = await Promise.allSettled(days.map(load.bundleOf));
     // Without today's bundle there's nothing to draw; without another day's, the map does without it until next time.
     const lost = got.flatMap((g, i) => (g.status === 'rejected' ? [[days[i], g.reason] as const] : []));
-    tripsFailed = lost.some(([day]) => day === today);
+    tripsFailed = load.failed();
     for (const [day, reason] of lost) if (day === today) throw reason;
     if (lost.length) console.warn(...lost.map(([, reason]) => reason));
     shown = load.failed() || lost.length ? '' : keys.join();

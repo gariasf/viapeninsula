@@ -34,8 +34,17 @@ export function nearbyRows(passes: Pass[], now: number): NearbyRow[] {
   return [...rows.values()];
 }
 
-/** Where the day's Trips are: on their way, on the map, or failed to come (regionLoader()). */
+/** Where the Trips a board needs are: on their way, on the map, or failed to come (regionLoader()). */
 export type TripsState = 'coming' | 'came' | 'failed';
+
+/**
+ * Where the Trips a board needs are, given the regions the map has loaded, those of them whose files have
+ * come at the end of a look, and whether that look had a file fail: by the regions, not by the bundle, which
+ * has the first regions' Trips before another's, as the map loads a region when it comes into view (#266).
+ */
+export function tripsState(loaded: Iterable<string>, came: ReadonlySet<string>, failed: boolean): TripsState {
+  return [...loaded].every((id) => came.has(id)) ? 'came' : failed ? 'failed' : 'coming';
+}
 
 /**
  * What a board's list of next departures is, where it has `departures` of them: their rows; or where it
