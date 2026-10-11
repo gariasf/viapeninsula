@@ -49,10 +49,9 @@ export interface Moment {
   /** How far its followed pill reaches along its track, in metres: its box alone, which the card goes by (pillReach()), and with its arrow. */
   reach: { pill: number; arrow: number };
   /**
-   * The place the card has it pass without stopping, nearest of those it has no call at that its Network's Trains stop at
-   * (passedPlace(), with the places' dots, which the card goes by whichever Stations `near` counts by), by the key the card
-   * names places by, and how far it's drawn from its dot, in metres, whether or not that's within its pill's reach; none
-   * where it's near none.
+   * The place the card has it pass without stopping, the nearest of those it has no call at (passedPlace(), over the places'
+   * dots, which the card goes by whichever Stations `near` counts by), by the key the card names places by, and how far it's
+   * drawn from its dot, in metres, within its pill's reach or not (whereabouts() says); none where it has none near.
    */
   passed?: Near;
   profile: SpeedProfile;
@@ -74,13 +73,13 @@ export interface Differences {
    */
   atNextBeforeArriving: boolean;
   standingHeaderNext: boolean;
-  /** The card's Station isn't the one the Train is drawn at: at a Station the card doesn't have it at, just left or pass, by kind, and which. */
+  /** The card's Station isn't the one the Train is drawn at: at a Station the card doesn't name (the one it has it at, just left, or the place it passes), by kind, and by which key. */
   at: Kind | undefined;
   atKey: string | undefined;
-  /** Cause 2 and 4: the followed pill, and with its arrow, covers a Station the card doesn't have the Train at, just left or pass, by kind. */
+  /** Cause 2 and 4: the followed pill, and with its arrow, covers a Station the card doesn't name, by kind; and which, for the pill. */
   pill: Kind | undefined;
-  pillKey: string | undefined;
   arrow: Kind | undefined;
+  pillKey: string | undefined;
   /** Of what its arrow covers, whether it's the next Station and within the speed model's braking distance of it: where `Arriving at B` would be true by braking, which the card doesn't go by (the pill's reach, #352's pick). */
   graced: boolean;
   /**
