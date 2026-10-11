@@ -133,7 +133,7 @@ test("doesn't count Lines stepping side by side the same way as a swap", () => {
 test('measures nothing amiss for Lines side by side on one track, each drawn once', () => {
   const found = measures({ shapes: [east('a', 2000), east('b', 2000)], strokes: [stroke('R2', 'a', 0, 2000, -0.5), stroke('R11', 'b', 0, 2000, 0.5)] });
   const zero = Object.fromEntries(BANDS.map((zoom) => [zoom, 0]));
-  expect(found).toEqual({ breaks: { steps: 0, stubs: 0, swaps: 0, joins: 0 }, twice: 0, alone: 0, over: 0, folds: zero, covered: zero, dangling: 0, kinks: zero, weaves: zero, wiggles: zero, inside: zero, largest: Object.fromEntries(BANDS.map((zoom) => [zoom, []])) });
+  expect(found).toEqual({ breaks: { steps: 0, stubs: 0, swaps: 0, joins: 0 }, twice: 0, alone: 0, over: 0, folds: zero, covered: zero, dangling: 0, kinks: zero, weaves: zero, wiggles: zero, hairpins: zero, inside: zero, largest: Object.fromEntries(BANDS.map((zoom) => [zoom, []])) });
 });
 
 test('measures a Line drawn twice, where its two directions have tracks of their own and different sides', () => {
@@ -230,6 +230,17 @@ test("counts a Line's stroke ends left loose, away from its other strokes and it
   expect(found(true).breaks).toEqual(found(false).breaks);
 });
 
+test("counts the far end of a stub as loose where the curve it goes on along is nearer than LOOSE, as the Francolí's was (#353)", () => {
+  // R2's stroke along its track is cut to 14 m, 1 km in, and goes on across a curve from there, 14 m east
+  // of the stub's start: it's 14 m from the curve, but nothing else of the Line is near it.
+  const link = shape(`${LINK}0`, [[1014, 0], [1150, 0], [1300, 0]]);
+  const found = measures({
+    shapes: [east('a', 4000), link],
+    strokes: [stroke('R2', 'a', 1000, 1014, 0), { ...stroke('R2', link.id, 0, link.dist.at(-1) ?? 0, 0), band: BANDS.indexOf(14) }, stroke('R2', 'a', 1300, 4000, 0)],
+  });
+  expect(found.dangling).toBe(1);
+});
+
 /** A bundle leaving a node at a point, in metres east and north, so many degrees north of east, for 2 km, as wide as so many Lines side by side. */
 function front(at: [number, number], north: number, lines: number, change = 0): Front {
   const [cos, sin] = [Math.cos((north * Math.PI) / 180), Math.sin((north * Math.PI) / 180)];
@@ -301,7 +312,7 @@ test("counts a Line's stroke shorter than the room the nodes at its ends need, w
  * R2 drawn along 'a' up to 1000 m east, across a node on a curve through points, in each band from
  * GRAPH_BAND on, and on along 'b', which runs east so many metres north, from where the curve ends.
  */
-function wiggles(points: [number, number][], north = 0, ease = 0): Record<number, number> {
+function crossing(points: [number, number][], north = 0, ease = 0): Measures {
   const link = shape(`${LINK}0`, points);
   const [x = 0] = points.at(-1) ?? [];
   const across: Stroke['across'] = [['a', 1000, 1000 + x / 2], ['b', x / 2, x]];
@@ -312,8 +323,10 @@ function wiggles(points: [number, number][], north = 0, ease = 0): Record<number
       ...BANDS.flatMap((_, band) => (band < GRAPH_BAND ? [] : [{ ...stroke('R2', link.id, 0, link.dist.at(-1) ?? 0, 0), ease, band, across }])),
       stroke('R2', 'b', x, 4000, ease),
     ],
-  }).wiggles;
+  });
 }
+
+const wiggles = (points: [number, number][], north = 0, ease = 0) => crossing(points, north, ease).wiggles;
 
 /** Points every 10 m along a line through corners, in metres east and north. */
 function through(...corners: [number, number][]): [number, number][] {
@@ -343,6 +356,21 @@ test('counts a curve that turns back on itself as a wiggle (#206)', () => {
   // R2's curve loops round a circle 40 m across, and goes on east.
   const loop = Array.from({ length: 13 }, (_, i): [number, number] => [1000 + 20 * Math.sin((i * Math.PI) / 6), 20 - 20 * Math.cos((i * Math.PI) / 6)]);
   expect(wiggles([...loop, ...through([1000, 0], [1100, 0]).slice(1)])[14]).toBe(1);
+});
+
+test('counts a curve whose ends head opposite ways as a hairpin, in each band it is drawn in, but not a curve that turns less (#353)', () => {
+  // R2's curve runs east, turns back and runs west 20 m north, as the Francolí's did at Tarragona.
+  const hairpins = (...corners: [number, number][]) => crossing(through(...corners)).hairpins;
+  expect(hairpins([1000, 0], [1060, 0], [1060, 20], [1000, 20])).toEqual(every(1));
+  // Turning three quarters of the way back, 135°, is one too; a right angle, or a branch at 45°, is not.
+  expect(hairpins([1000, 0], [1060, 0], [1020, 40])).toEqual(every(1));
+  expect(hairpins([1000, 0], [1060, 0], [1060, 60])).toEqual(none);
+  expect(hairpins([1000, 0], [1060, 0], [1100, 40])).toEqual(none);
+});
+
+test("doesn't count the rounding of a curve's ends as turning it back (#353)", () => {
+  // The curve starts with a metre stepped back west, as the track's points round to a metre, and goes on east.
+  expect(crossing([[1000, 0], [999, 0], [1040, 0], [1100, 0]]).hairpins).toEqual(none);
 });
 
 test('measures metres of curve drawn further off its own track than at its ends, only for the Lines given', () => {
@@ -378,6 +406,7 @@ test('reports the measures as one spot with each of their numbers, in metres, an
     kinks: { 7: 0, 8: 1 },
     weaves: { 7: 2, 8: 0 },
     wiggles: { 7: 0, 8: 1 },
+    hairpins: { 7: 2, 8: 0 },
     inside: { 7: 9395, 8: 14055.5 },
     largest: { 7: [{ size: 15.1, at: [-3.67716, 40.45778] }], 8: [{ size: 24.5, at: [-3.6773, 40.45782] }, { size: 19.1, at: [2.15024, 41.38278] }] },
   };
@@ -413,6 +442,8 @@ test('reports the measures as one spot with each of their numbers, in metres, an
         'weaves 8': 0,
         'wiggles 7': 0,
         'wiggles 8': 1,
+        'hairpins 7': 2,
+        'hairpins 8': 0,
         'inside 7': 9395,
         'inside 8': 14056,
       },
