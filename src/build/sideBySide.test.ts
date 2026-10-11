@@ -676,6 +676,15 @@ test("draws a stroke that Lines ending together moved to its Stretch's ends from
   expect(pieces(rails, 'B')).toEqual([[100, 2000], [2000, 3500], [3500, 4900]]);
 });
 
+test("draws a stroke that Lines ending together moved to its Stretch's start from there, where it lies wholly in a tunnel (#541)", async () => {
+  // A and B share track in a tunnel from end to end, B's starting 100 m on: one piece each, under 1.
+  const tunnel: [number, string][] = [[0, 'tunnel -1']];
+  const shapes = [{ ...shape('A', [0, 0], [5000, 0]), levels: tunnel }, { ...shape('B', [100, 0], [5000, 0]), levels: tunnel }];
+  const { strokes } = await sideBySide([line('A', 'A'), line('B', 'B')], shapes);
+  const drawn = strokes.filter((s) => s.band === undefined && !s.shape.startsWith(LINK));
+  expect(drawn.map((s) => [s.line, s.from, s.under])).toEqual([['A', 0, 1], ['B', 0, 1]]);
+});
+
 test('smooths each centreline for each zoom band where Lines drawn off it would fold, moving it at most a line width', async () => {
   // Four Lines share track round a quarter circle 150 m across: 1.5 line widths off it is about 220 m at zoom 10.
   const turn = Array.from({ length: 25 }, (_, i): [number, number] => [1000 + 150 * Math.sin((i * Math.PI) / 48), 150 - 150 * Math.cos((i * Math.PI) / 48)]);
