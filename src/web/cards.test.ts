@@ -287,3 +287,40 @@ test("a card says when its Alerts were read where that's over 15 minutes ago, by
   // A card with no Alerts says nothing.
   expect(cardAlerts(ALERTS, { lines: ['rodalies:R8'], stations: [] }, 'en', at(9, 0)).asOf).toBeUndefined();
 });
+
+test("a card says when a feed's file last changed where that's over 24 hours before the map's time, for each feed whose Alerts it shows, and nothing where it's no longer ago or the feed says none (#390)", () => {
+  const on = (...lines: string[]) => ({ lines, stations: [] });
+  const [renfe, tram] = [ALERTS.renfe as AlertFeed, ALERTS.tram as AlertFeed];
+  // Made up: Renfe's file as it stood on the 4th at 9:32, nearly 3 days before the map's time, and TRAM's, as TRAM writes its files when asked, 2 hours before it.
+  const stood = Date.UTC(2026, 9, 4, 7, 32, 52);
+  const feeds: Alerts = { renfe: { ...renfe, changed: stood }, tram: { ...tram, changed: at(6, 12) } };
+  expect(cardAlerts(feeds, on('rodalies:R2'), 'en', NOW).changed).toEqual([{ by: 'Renfe', at: stood }]);
+  // TRAM's is within the day, as is where it's alone on a card; and a card with none of Renfe's Alerts says nothing of its file.
+  expect(cardAlerts(feeds, on('tram:T1'), 'en', NOW).changed).toEqual([]);
+  expect(cardAlerts(feeds, on('rodalies:R8'), 'en', NOW).changed).toEqual([]);
+  // A board where both call says it of Renfe's, once, though Renfe has two Alerts on its Lines.
+  expect(cardAlerts(feeds, on('rodalies:R1', 'rodalies:R2', 'rodalies:R4', 'tram:T1'), 'en', NOW).changed).toEqual([{ by: 'Renfe', at: stood }]);
+  // Both, where both are old, Renfe's first as the feeds are.
+  const both: Alerts = { ...feeds, tram: { ...tram, changed: at(8, 0) - 2 * 24 * 3_600_000 } };
+  expect(cardAlerts(both, on('rodalies:R2', 'tram:T1'), 'en', NOW).changed).toEqual([
+    { by: 'Renfe', at: stood },
+    { by: 'TRAM', at: at(8, 0) - 2 * 24 * 3_600_000 },
+  ]);
+  // Over 24 hours: a file changed exactly that long before is no older than a day, and one second more is.
+  const changedAt = (changed: number) => cardAlerts({ renfe: { ...renfe, changed } }, on('rodalies:R2'), 'en', NOW).changed;
+  expect(changedAt(NOW - 24 * 3_600_000)).toEqual([]);
+  expect(changedAt(NOW - 24 * 3_600_000 - 1000)).toHaveLength(1);
+  // None, from a feed whose file says none, or from one that changed after the map's time, as a device's clock can be behind.
+  expect(cardAlerts(ALERTS, on('rodalies:R2'), 'en', at(8, 12) + 5 * 24 * 3_600_000).changed).toEqual([]);
+  expect(changedAt(NOW + 60_000)).toEqual([]);
+});
+
+test("a card says the same of a feed's file beside when its Alerts were read, and not instead of it (#390)", () => {
+  const renfe = ALERTS.renfe as AlertFeed;
+  // Made up: Renfe's file as it stood on the 4th at 9:32.
+  const stood = Date.UTC(2026, 9, 4, 7, 32, 52);
+  // 8:27 is over 15 minutes after Renfe's were read, at 8:11:40.
+  const card = cardAlerts({ renfe: { ...renfe, changed: stood } }, { lines: ['rodalies:R2'], stations: [] }, 'en', at(8, 27));
+  expect(card.asOf).toBe(at(8, 11, 40));
+  expect(card.changed).toEqual([{ by: 'Renfe', at: stood }]);
+});

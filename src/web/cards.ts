@@ -112,16 +112,29 @@ export interface CardAlert {
 const STALE = 15 * 60_000;
 
 /**
+ * How long ago a feed's file can have last changed before a card says when, in ms: a day. Renfe's
+ * stood unchanged from 7 October 2026, 09:32 CEST, for days, as alerts rarely change, so its 304s,
+ * which count as reads, can't say it (#390).
+ */
+const UNCHANGED = 24 * 3_600_000;
+
+/**
  * The Alerts a card shows, from alerts.json: a followed Train's, those on its Line; a board's, those
  * on its place's Stations and on the Lines that call there. Newest first, whichever operator's they
  * are, and last those that don't say when they began, as each feed has them. Each in `lang`, the
  * viewer's language, where its feed has it, or else in the feed's own, its first (ADR-0012). And
  * where it's over STALE before `now`, when the feed read longest ago of those whose Alerts it shows
- * was read, all times in ms since 1970.
- * ponytail: a card with no Alerts says nothing of a feed that has gone unread. Say when its feed was read
- * there too if that's missed, once the page knows which feed has a Line's Alerts.
+ * was read; and, beside it, each feed whose Alerts it shows and whose file last changed over a day
+ * before `now`, by whose Alerts they are, and when its file did (#390); all times in ms since 1970.
+ * ponytail: a card with no Alerts says nothing of a feed that has gone unread, or whose file has stood.
+ * Say it there too if that's missed, once the page knows which feed has a Line's Alerts.
  */
-export function cardAlerts(alerts: Alerts, { lines, stations }: { lines: string[]; stations: string[] }, lang: Language, now: number): { alerts: CardAlert[]; asOf?: number } {
+export function cardAlerts(
+  alerts: Alerts,
+  { lines, stations }: { lines: string[]; stations: string[] },
+  lang: Language,
+  now: number,
+): { alerts: CardAlert[]; asOf?: number; changed: { by: string; at: number }[] } {
   const on = (alert: Alert) => alert.lines.some((line) => lines.includes(line)) || alert.stations.some((station) => stations.includes(station));
   const inLang = (words: Words[]) => words.find((w) => w.language === lang) ?? words[0];
   const shown = Object.entries(alerts).flatMap(([feed, { alerts }]) =>
@@ -135,5 +148,6 @@ export function cardAlerts(alerts: Alerts, { lines, stations }: { lines: string[
     })),
   );
   const read = Math.min(...Object.values(alerts).flatMap(({ read, alerts }) => (read !== undefined && alerts.some(on) ? [read] : [])));
-  return { alerts: shown.sort((a, b) => (b.from ?? 0) - (a.from ?? 0)), ...(now - read > STALE && { asOf: read }) };
+  const changed = Object.entries(alerts).flatMap(([feed, f]) => (f.changed !== undefined && now - f.changed > UNCHANGED && f.alerts.some(on) ? [{ by: OPERATORS[feed] ?? feed, at: f.changed }] : []));
+  return { alerts: shown.sort((a, b) => (b.from ?? 0) - (a.from ?? 0)), ...(now - read > STALE && { asOf: read }), changed };
 }

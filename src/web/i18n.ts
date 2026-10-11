@@ -139,6 +139,14 @@ const STRINGS = {
     gl: 'Última actualización dos avisos: {time}',
     en: 'Alerts as of {time}',
   },
+  // Over a card's Alerts, where an operator's file of them last changed over a day ago, {time} (alertsChanged(), #390). {by} is the operator's name, Renfe or TRAM, so Catalan's "de" needs no elision.
+  alertsChanged: {
+    ca: 'Avisos de {by}: darrer canvi el {time}',
+    es: 'Avisos de {by}: último cambio el {time}',
+    eu: 'Abisuak ({by}): azken aldaketa {time}',
+    gl: 'Avisos de {by}: último cambio o {time}',
+    en: "{by}'s alerts: last changed {time}",
+  },
   // A tap on a Closure from the timetable (#341): its Line's buses in place of its Trains between two Stations, {a} and {b} (busesReplace()).
   busesReplace: {
     ca: 'Autobusos en lloc de trens entre {a} i {b}',
@@ -354,6 +362,9 @@ export const moreDepartures = (n: number, lang = language()): string => counting
 
 /** How many Alerts a card has, `n`, in the line they're folded into, in `lang`, or else the language the interface speaks now. */
 export const alertCount = (n: number, lang = language()): string => counting(n, 'oneAlert', 'alerts', lang);
+
+/** Whose Alerts' file last changed, `by`, as Renfe or TRAM, and when, as a time and day already written, in `lang`, or else the language the interface speaks now (#390). */
+export const alertsChanged = (by: string, time: string, lang = language()): string => STRINGS.alertsChanged[lang].replace('{by}', by).replace('{time}', time);
 
 /**
  * That buses run in a Line's Trains' place between two Stations, as the timetable's Closures say (#341),

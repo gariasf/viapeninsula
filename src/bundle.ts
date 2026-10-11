@@ -99,7 +99,7 @@ export interface Report {
  */
 export type Alerts = Record<string, AlertFeed>;
 
-/** One operator's Alerts: when the fetcher last read them, how its last try went, and the Alerts as it last read them, newest first. */
+/** One operator's Alerts: when the fetcher last read them, when their file last changed, how its last try went, and the Alerts as it last read them, newest first. */
 export interface AlertFeed {
   /**
    * When it last read them, in ms since 1970, where it has. It reads Renfe's every 20 s and TRAM's
@@ -107,6 +107,13 @@ export interface AlertFeed {
    * was never more than about 10 minutes ago.
    */
   read?: number;
+  /**
+   * When the feed's file last changed, in ms since 1970, where its feed says: its Last-Modified, which
+   * Renfe sends with its file, or else its header's timestamp, the later of those of a feed's files. Renfe's
+   * file stood from 7 October 2026, 09:32 CEST, for days, which `read` can't say, as its 304s are tries
+   * that worked (#390).
+   */
+  changed?: number;
   /** `ok`, or what went wrong. */
   status: string;
   alerts: Alert[];

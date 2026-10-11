@@ -315,6 +315,67 @@ test("never counts Renfe's file unchanged for hours as a failure, whether Renfe 
   expect(state.feeds.renfe).toMatchObject({ read: end + 20_000, status: 'ok', alerts: renfeRun().state.feeds.renfe?.alerts });
 });
 
+/** When Renfe's file as recorded last changed, 09:32:52 on 7 October by its Last-Modified, in ms since 1970. */
+const CHANGED = Date.parse('2026-10-07T09:32:52+02:00');
+
+test("keeps when each feed's file last changed: Renfe's Last-Modified, and its header's timestamp where the file comes with none, the later of TRAM's two halves'", () => {
+  expect(renfeRun().file?.renfe?.changed).toBe(CHANGED);
+  // Renfe's header says the same moment, 1791358372 s, as it did on 7 October 2026.
+  expect(renfeRun({ alerts: answer(recorded('renfe.json')) }).file?.renfe?.changed).toBe(CHANGED);
+  // Where they differ, its Last-Modified, which the next run's conditional request names: made up, a file written again at 10:00.
+  expect(renfeRun({ alerts: answer(recorded('renfe.json'), { etag: ETAG, modified: 'Wed, 07 Oct 2026 08:00:00 GMT' }) }).file?.renfe?.changed).toBe(Date.parse('2026-10-07T10:00:00+02:00'));
+  // Made up: a Last-Modified that's no time, or the epoch's, as a server dates a file it doesn't, is none: the header's timestamp.
+  for (const modified of ['Thu, 01 Jan 1970 00:00:00 GMT', 'not a date']) {
+    expect(renfeRun({ alerts: answer(recorded('renfe.json'), { etag: ETAG, modified }) }).file?.renfe?.changed).toBe(CHANGED);
+  }
+  // TRAM's files are written when asked: each header's timestamp is then, 12:35:21 for Trambaix's and 12:35:22 for Trambesòs'.
+  expect(readAlerts(ALERTS_START, { tram: TRAM }, NOW).file?.tram?.changed).toBe(Date.parse('2026-10-07T12:35:22+02:00'));
+  // A feed that gives neither has none, which isn't a failure: a header with no timestamp, and no Last-Modified.
+  const headless = answer(JSON.stringify({ header: { gtfsRealtimeVersion: '2.0' }, entity: [] }));
+  expect(readAlerts(ALERTS_START, { renfe: { alerts: headless } }, NOW).file?.renfe).toEqual({ read: NOW, status: 'ok', alerts: [] });
+  expect(readAlerts(ALERTS_START, { renfe: { alerts: headless } }, NOW).file?.renfe?.changed).toBeUndefined();
+});
+
+test("keeps when Renfe's file last changed through the 304s it answers while it stands, and tries that fail, and takes the new time once it's sent again", () => {
+  const first = renfeRun();
+  const same = readAlerts(first.state, { renfe: UNCHANGED }, NOW + 20_000);
+  expect(same.state.feeds.renfe?.changed).toBe(CHANGED);
+  // Written with the rest, at the least every 5 minutes, though it hasn't moved.
+  expect(readAlerts(same.state, { renfe: UNCHANGED }, NOW + 300_000).file?.renfe).toMatchObject({ changed: CHANGED });
+  const failed = readAlerts(same.state, { renfe: { alerts: { status: 503, body: { text: '' } } } }, NOW + 40_000);
+  expect(failed.state.feeds.renfe).toMatchObject({ status: 'alerts: HTTP 503', changed: CHANGED });
+  // Made up: sent again at 13:00 on the 10th, with the validators of a file Renfe wrote then.
+  const sent = answer(recorded('renfe.json'), { etag: '"6ac61234-17000"', modified: 'Sat, 10 Oct 2026 11:00:00 GMT' });
+  expect(readAlerts(failed.state, { renfe: { alerts: sent } }, NOW + 60_000).state.feeds.renfe?.changed).toBe(Date.parse('2026-10-10T13:00:00+02:00'));
+});
+
+test("keeps a file's new time, where its Alerts are the same, for the write that's due, and doesn't write alerts.json for it alone", () => {
+  const first = renfeRun();
+  // Made up: Renfe writes its file again at 09:40, with what it had in it, so that only its time moves.
+  const again = answer(recorded('renfe.json'), { etag: '"6ac61234-17000"', modified: 'Wed, 07 Oct 2026 07:40:00 GMT' });
+  const soon = readAlerts(first.state, { renfe: { alerts: again } }, NOW + 20_000);
+  const at0940 = Date.parse('2026-10-07T09:40:00+02:00');
+  expect(soon.file).toBeUndefined();
+  expect(soon.state.feeds.renfe?.changed).toBe(at0940);
+  // The write 5 minutes on has it.
+  expect(readAlerts(soon.state, { renfe: UNCHANGED }, NOW + 300_000).file?.renfe).toMatchObject({ changed: at0940 });
+});
+
+test("asks Renfe for its whole file once, though it hasn't changed it, where the fetcher kept it from before it kept when it changed, so that the time comes through its 304s", async () => {
+  // What the Durable Object held before #390: the first run's, but with no `changed`, read as the fetcher's first reading read it.
+  const kept = renfeRun().state.feeds.renfe;
+  if (!kept) throw new Error('Renfe was not read');
+  const renfe = LIVE_SOURCES.find((s) => s.id === 'renfe');
+  const before = { feeds: { renfe: { ...kept, changed: undefined, readWith: JSON.stringify([1, renfe]) } }, written: NOW };
+  const asked: string[] = [];
+  const get = answering(asked);
+  const first = readAlerts(before, await fetchAlerts(before, START.state, get), NOW + 20_000);
+  await fetchAlerts(first.state, START.state, get);
+  const url = 'https://gtfsrt.renfe.com/alerts.json';
+  expect(asked).toEqual([url, `${url} ${ETAG} ${MODIFIED}`]);
+  expect(first.state.feeds.renfe?.changed).toBe(CHANGED);
+});
+
 test("keeps a feed's last Alerts through tries that fail, saying why, and when it last read them", () => {
   const good = renfeRun();
   // Each run after, 20 s apart, finds Renfe's file down, garbled, empty, or not alerts.
@@ -328,13 +389,13 @@ test("keeps a feed's last Alerts through tries that fail, saying why, and when i
   let state = good.state;
   for (const [i, [alerts, status]] of failures.entries()) {
     const failed = readAlerts(state, { renfe: { alerts } }, NOW + (i + 1) * 20_000);
-    expect(failed.file?.renfe).toEqual({ read: NOW, status, alerts: good.file?.renfe?.alerts });
+    expect(failed.file?.renfe).toEqual({ read: NOW, status, alerts: good.file?.renfe?.alerts, changed: CHANGED });
     state = failed.state;
   }
   // TRAM's fail where either half does, keeping both halves'.
   const tram = readAlerts(ALERTS_START, { tram: TRAM }, NOW);
   const refused = readAlerts(tram.state, { tram: { ...TRAM, 'TBX GtfsRealtimeAlerts': { status: 401, body: { text: '' } } } }, NOW + 300_000);
-  expect(refused.file?.tram).toEqual({ read: NOW, status: 'TBX GtfsRealtimeAlerts: HTTP 401', alerts: tram.file?.tram?.alerts });
+  expect(refused.file?.tram).toEqual({ read: NOW, status: 'TBX GtfsRealtimeAlerts: HTTP 401', alerts: tram.file?.tram?.alerts, changed: tram.file?.tram?.changed });
   // One that has never worked has none.
   expect(readAlerts(ALERTS_START, { renfe: { alerts: { status: 503, body: { text: '' } } } }, NOW).file?.renfe).toEqual({ status: 'alerts: HTTP 503', alerts: [] });
 });
