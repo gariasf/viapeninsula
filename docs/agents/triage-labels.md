@@ -12,4 +12,6 @@ The skills speak in terms of five canonical triage roles. This file maps those r
 
 When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the corresponding label string from this table.
 
+`blocked` isn't a role: it goes beside `ready-for-agent` on a ticket that waits on a date or an event rather than on another ticket, named in the body's first line (`issue-tracker.md`, Blocking).
+
 Edit the right-hand column to match whatever vocabulary you actually use.
