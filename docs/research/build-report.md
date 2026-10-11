@@ -25,7 +25,7 @@ All of it is `console.log` or `console.warn` in the daily run's log. Nothing is 
 | A trace that turns back on the way between two Stations | `traceShape()` | no |
 | A Station left out, off the feed's shape on a branch | `traceShape()` | no |
 | A shape whose Trips serve fewer than two Stations | `traceShape()` | no |
-| A Trip left out: fewer than two Stations, no track, a Station too far off its track, too fast | `placeTrips()`, `trips.ts` | no |
+| A Trip left out: fewer than two Stations, no track, a Station too far off its track or too fast along it, and where it fits no trace through its own Stations either (#280) | `placeDays()`, `trips.ts`, `traceOwn()`, `track.ts` | no |
 | A feed shape with no points | `readFeed()`, `networks.ts` | no |
 | A Network with no Trips on a day | `build()`, `daily.ts` | yes for today, a warning for later days |
 | Overpass mirrors failing, or an old copy used | `osm.ts` | only with no copy at all |
