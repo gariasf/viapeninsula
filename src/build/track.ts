@@ -323,9 +323,10 @@ function ridden(ran: { trip: FeedTrip; run: Run }[][], traced: Map<Run, Shape | 
 
 /**
  * One run traced along the rails, through its Stations in order, on its own gauges where it can, and
- * where a stretch has no path there, on its others too, all the way: one can't tell where it must
- * change gauge till a later stretch, as AVE can reach Ourense on standard gauge, but must change at
- * Taboadela, short of it, to go on to Santiago. Or why it can't be: a Station off the rails, or a
+ * where a stretch has no path there, on its others too, all the way, though at OTHER_GAUGE times their
+ * length, so that it keeps to its own as far as it can: one can't tell where it must change gauge till
+ * a later stretch, as AVE can reach Ourense on standard gauge, but must change at Taboadela, short of
+ * it, to go on to Santiago. Or why it can't be: a Station off the rails, or a
  * stretch with no path. Where it turns back on the way, or a hop is much longer than its straight
  * line, it logs and reports; its length, and where it changes gauge or sets off from another track,
  * it only logs.
@@ -336,10 +337,7 @@ function traceRun(graph: Graph, run: Run, log: (line: string) => void, report: (
   if (off) return { why: 'off', stations: [off], reason: `${off.name} is off the network` };
   const { gauges, orElse = [] } = run.gauges ?? {};
   let reached = walk(graph, stations, gauges?.length);
-  // ponytail: on every gauge all the way, with no preference for its own: on 10–12 Oct 2026 no run that
-  // needs it left standard gauge where it could have kept to it (each was traced the same with its other
-  // gauges' track at 1.5 times its length). Price that track higher if one ever does.
-  if (!Array.isArray(reached) && orElse.length) reached = walk(graph, stations, Infinity);
+  if (!Array.isArray(reached) && orElse.length) reached = walk(graph, stations, Infinity, gauges?.length);
   if (!Array.isArray(reached)) {
     const { a, b } = reached;
     return { why: 'nopath', stations: [a, b], reason: `${a.name} → ${b.name} has no path along the rails` };
@@ -395,12 +393,12 @@ function traceRun(graph: Graph, run: Run, log: (line: string) => void, report: (
 
 /**
  * The ways a trace can reach the last of these Stations, through each in turn, on the first `layers`
- * layers of track, or the first stretch with no path there. At each Station it can set off again from
- * another of its tracks of the gauge it came in on, at a cost (ACROSS), as where OpenStreetMap has no
- * switch between them: at Alcázar de San Juan none of the tracks MD's Trains from Manzanares come in on
- * leads on to Campo de Criptana.
+ * layers of track, those beyond its `own` first at OTHER_GAUGE times their length, or the first stretch
+ * with no path there. At each Station it can set off again from another of its tracks of the gauge it
+ * came in on, at a cost (ACROSS), as where OpenStreetMap has no switch between them: at Alcázar de San
+ * Juan none of the tracks MD's Trains from Manzanares come in on leads on to Campo de Criptana.
  */
-function walk(graph: Graph, stations: Station[], layers?: number): Arrival[] | { a: Station; b: Station } {
+function walk(graph: Graph, stations: Station[], layers?: number, own = layers): Arrival[] | { a: Station; b: Station } {
   const turnBacks = new Set(stations.flatMap((s) => graph.near.get(s.id) ?? []));
   const layerOf = (v: number) => graph.layer[graph.out[v]?.[0] ?? -1] ?? 0;
   let reached: Arrival[] = (graph.near.get(stations[0]?.id ?? '') ?? []).map((vertex) => ({ vertex, edge: -1, cost: 0, waypoint: 0, edges: [] }));
@@ -419,7 +417,7 @@ function walk(graph: Graph, stations: Station[], layers?: number): Arrival[] | {
     // Ourense Turístico at Ourense's, is reached where that one was.
     const to = graph.near.get(b.id) ?? [];
     const here = reached.filter((r) => to.includes(r.vertex)).map((r) => ({ ...r, from: r, edges: [] }));
-    const next = here.length ? here : [...new Set(to.map(layerOf))].flatMap((layer) => paths(graph, [...reached, ...across], new Set(to.filter((v) => layerOf(v) === layer)), limit, turnBacks, layers));
+    const next = here.length ? here : [...new Set(to.map(layerOf))].flatMap((layer) => paths(graph, [...reached, ...across], new Set(to.filter((v) => layerOf(v) === layer)), limit, turnBacks, layers, own));
     if (!next.length) return { a, b };
     reached = next.map((arrival) => ({ ...arrival, waypoint: i }));
   }
@@ -438,6 +436,14 @@ const ACROSS = 5000;
  * among them, but none this far.
  */
 const DETOUR = 2;
+
+/**
+ * What a run's track of a gauge not its own costs a trace, per metre, where a stretch has no path on its
+ * own and it runs on every gauge (traceRun()), so that it keeps to its own gauge as far as it can: on
+ * Geofabrik's rails of 6 Oct 2026, with none, AVE's and Avlo's Madrid–Gijón runs left the high-speed line
+ * after Segovia for the old Iberian-gauge line through Palencia and León, 5.5 km longer (#259).
+ */
+const OTHER_GAUGE = 1.5;
 
 /**
  * A Station within 20 m of another Network's is published at its point, or both at one building's,
@@ -943,9 +949,10 @@ function wrongTracks(graph: Graph): boolean[] {
  * within SLACK of it, which may suit the next stretch better. None if every one costs over `limit`.
  * On the way, a path can turn back at the vertices `turnBacks`, beside the shape's Stations, as it
  * can where it starts: R16's Trains from Tortosa turn back at L'Aldea to go on to Ulldecona. It keeps
- * to the first `layers` layers of track (layered()).
+ * to the first `layers` layers of track (layered()), and runs those beyond its `own` first at OTHER_GAUGE
+ * times their length.
  */
-function paths(graph: Graph, from: Arrival[], to: Set<number>, limit: number, turnBacks: Set<number>, layers = Infinity): Omit<Arrival, 'waypoint'>[] {
+function paths(graph: Graph, from: Arrival[], to: Set<number>, limit: number, turnBacks: Set<number>, layers = Infinity, own = layers): Omit<Arrival, 'waypoint'>[] {
   const cost = new Map<number, number>();
   const pred = new Map<number, number>(); // the edge before each edge, or -1 for the first of a stretch
   const seed = new Map<number, Arrival>();
@@ -962,7 +969,7 @@ function paths(graph: Graph, from: Arrival[], to: Set<number>, limit: number, tu
     const { next, ahead } = start.edge < 0 ? { next: [], ahead: -1 } : onward(graph, start.edge);
     for (const f of graph.out[start.vertex] ?? []) {
       const extra = start.edge < 0 ? 0 : !next.includes(f) ? REVERSE : f === ahead ? 0 : DIVERGE;
-      relax(f, start.cost + price(graph, f) + extra, -1, start);
+      relax(f, start.cost + price(graph, f, own) + extra, -1, start);
     }
   }
   const found: Omit<Arrival, 'waypoint'>[] = [];
@@ -982,7 +989,7 @@ function paths(graph: Graph, from: Arrival[], to: Set<number>, limit: number, tu
     }
     const { next, ahead } = onward(graph, e);
     for (const f of turnBacks.has(v) ? (graph.out[v] ?? []) : next) {
-      relax(f, c + price(graph, f) + (!next.includes(f) ? REVERSE : f === ahead ? 0 : DIVERGE), e, start);
+      relax(f, c + price(graph, f, own) + (!next.includes(f) ? REVERSE : f === ahead ? 0 : DIVERGE), e, start);
     }
   }
   return found;
@@ -1005,10 +1012,11 @@ function onward(graph: Graph, e: number): { next: number[]; ahead: number } {
 
 /**
  * What running along an edge costs: its length, less where another Line already runs it that way,
- * and more on the wrong track of a double track.
+ * and more on the wrong track of a double track, and on a layer of track beyond the first `own`, a
+ * gauge not the run's own (OTHER_GAUGE).
  */
-function price(graph: Graph, e: number): number {
-  return (graph.metres[e] ?? 0) * (graph.shared.has(e) ? SHARED : 1) * (graph.wrong[e] ? WRONG_SIDE : 1);
+function price(graph: Graph, e: number, own = Infinity): number {
+  return (graph.metres[e] ?? 0) * (graph.shared.has(e) ? SHARED : 1) * (graph.wrong[e] ? WRONG_SIDE : 1) * ((graph.layer[e] ?? 0) >= own ? OTHER_GAUGE : 1);
 }
 
 /**

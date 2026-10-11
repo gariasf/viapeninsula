@@ -830,6 +830,17 @@ test("runs AVE on both gauges all the way where a stretch has no path on standar
   expect(points(track('to B'))).toEqual([[0, 0], [2000, 0], [4000, 0]]);
 });
 
+test("keeps AVE to standard gauge as far as it can where a later stretch has no path on it, rather than change at the first changer for an Iberian-gauge line a little shorter, as Madrid–Gijón's ran through Palencia rather than on to León", () => {
+  // From A, standard-gauge track runs to B by m, and Iberian-gauge track, 0.2 km shorter, leaves it at a changer,
+  // k, for B too. Only Iberian-gauge track runs on from B to C, through a changer, l, beyond B.
+  const layout: Record<string, [number, number]> = { a: [0, 0], k: [500, 0], m: [5000, 1000], b: [10000, 0], j: [5000, -200], i: [10000, -20], l: [11000, -10], c: [15000, -10] };
+  const ways = rails(layout, ['a k', { gauge: '1435' }], ['k m b l', { gauge: '1435' }], 'k j i l', 'l c');
+  const changers = new Set(['k', 'l'].map((v) => Object.keys(layout).indexOf(v) + 1));
+  const { track, log } = runs(ways, [station('A', -10, 0), station('B', 10000, -10), station('C', 15010, -10)], [[call('ave', 'A B C', STANDARD)]], changers);
+  expect(points(track('ave'))).toEqual([[0, 0], [500, 0], [5000, 1000], [10000, 0], [11000, -10], [15000, -10]]);
+  expect(log).toEqual(['AVE:1: A → C, 15.2 km long, 1.01× the straight line through its 3 Stations, changing gauge between B and C']);
+});
+
 test("sets off from another of a Station's tracks of its gauge where OpenStreetMap has none that leads on from the one it comes in on, as at Alcázar de San Juan, and says so", () => {
   // A's line comes into S on its north track, which ends there, and C's leaves from its south track, 10 m off.
   const ways = rails({ a: [0, 0], n: [3000, 0], w: [2000, -10], s: [5000, -10], c: [8000, -10] }, 'a n', 'w s c');
