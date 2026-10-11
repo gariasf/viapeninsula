@@ -440,7 +440,7 @@ test("Renfe's long-distance live data, which names each Train by its number, is 
   expect(changes(replayed(), REPLAY.received)).toEqual([]);
   // With none of AVE y Larga Distancia's Trains in the feed from 13:53:08, as Renfe's Cercanías feeds once
   // had a header and no Trains (#124), it's unavailable from the third of its updates without them, its
-  // last having reported them at 13:52:24.
+  // last with them at 13:52:25 by the fetcher's clock.
   const ave = new Set(REPLAY.bundle.trips.filter((t) => t.line.startsWith('ave-larga-distancia:')).map((t) => t.number));
   const quiet = REPLAY.received.map((r, i) => (i < 16 ? r : { ...r, snapshot: { ...r.snapshot, reports: r.snapshot.reports.filter((x) => !ave.has(x.number)) } }));
   expect(changes(replayed(), quiet)).toEqual([['13:54:31', ['ave-larga-distancia']]]);

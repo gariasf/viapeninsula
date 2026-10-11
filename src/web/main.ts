@@ -121,7 +121,7 @@ const [NEARBY, SOON] = [1500, 60 * 60_000];
 const LATE = 60 * 60_000;
 /**
  * How often Trains move, in ms. As often as the fastest of them moves a quarter of a pixel, which
- * nobody sees in between (quarterPixel()): about 12 times a second at zoom 12, and every frame zoomed
+ * nobody sees in between (quarterPixel()): about 23 times a second at zoom 12, as AVE's 300 km/h asks, and every frame zoomed
  * right in. Every frame while the map zooms or turns, which moves them beside their Lines and turns
  * their arrows, or follows a Train. Once the map has stood for MOVED, while the viewer is likely still
  * looking closely, no more often than every IDLE_EVERY, about 30 times a second, which leaves a phone
