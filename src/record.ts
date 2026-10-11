@@ -9,10 +9,10 @@
 // - renfe.ndjson.gz, those four feeds again at every step, as the fetcher reads them (#364, #550): a
 //   line a step, `{ at, positions, updates, positionsLD, updatesLD }`, gzipped, in the order they
 //   came, with `at` in ms since 1970, as a snapshot's is in replay.json.gz, and each feed as its file
-//   parses, left out of the line where its fetch failed, and the line where all did. The fetcher
-//   fetches the long-distance pair every other run, so every other line is what it read of it. A line
-//   can lack Madrid's Trains whole, as Renfe drops them from about one fetch in five
-//   (docs/research/live-at-scale.md);
+//   parses, left out of the line where its fetch failed, and the line where all did. Each line has
+//   the long-distance pair as Renfe served it then, where the fetcher reads it every other run: a
+//   replay that wants its cadence takes every other line. A line can lack Madrid's Trains whole, as
+//   Renfe drops them from about one fetch in five (docs/research/live-at-scale.md);
 // - alerts.json, the operators' Alerts as the map reads them, once at the start, where they came,
 //   which the Closures are made from (closuresAt()), as #345's count of the Trains inside one needs;
 // - bundle.json, the whole bundle the replay is of, which the tests cut their Trips from: that day's,
@@ -101,8 +101,8 @@ export function unmatched(bundle: Bundle, received: Received[]): { reports: numb
 }
 
 /**
- * A line of renfe.ndjson.gz: when Renfe's feeds were fetched, in ms since 1970, and each as it parsed:
- * its Cercanías pair and its long-distance pair (#550), left out where its fetch failed.
+ * A line of renfe.ndjson.gz: when Renfe's feeds had all come or failed, in ms since 1970, and each as
+ * it parsed: its Cercanías pair and its long-distance pair (#550), left out where its fetch failed.
  */
 export interface RenfeLine {
   at: number;
