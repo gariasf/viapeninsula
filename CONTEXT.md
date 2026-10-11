@@ -37,7 +37,7 @@ A set of Lines under one public brand: in Catalonia Rodalies (including its regi
 _Avoid_: System
 
 **Region**:
-Networks that are built and loaded together: a Network on its own, or a group whose Lines share Stretches, as Catalonia's Rodalies, FGC, TRAM and Metro are one (ADR-0014). Each has a track file, and a Trips file for each day, of its own, which the build makes on its own, so that a region whose build fails keeps its last files while the others publish. Not an administrative region: Cercanías Madrid is one, though its C2 runs on to Guadalajara.
+Networks that are built and loaded together: a Network on its own, or a group whose Lines share Stretches, as Catalonia's Rodalies, FGC, TRAM and Metro are one (ADR-0014). Each has a track file, and a Trips file for each day, of its own, which the build makes on its own, so that a region whose build fails keeps its last files while the others publish, and which the map loads once the region is in view from zoom 7, or a link or Nearby needs it, but for long distance's, which it loads at every view (#266). Not an administrative region: Cercanías Madrid is one, though its C2 runs on to Guadalajara.
 _Avoid_: Area, zone, autonomous community
 
 **Line**:

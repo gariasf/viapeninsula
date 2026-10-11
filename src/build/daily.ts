@@ -7,11 +7,13 @@
 // the Lines before the Trains come, and a Trips file for each day, with its Closures. A region whose
 // build fails goes without new files, and the manifest names those of its last build, so the
 // others publish as ever (buildRegions()), but for the first build that makes a manifest by region,
-// which has none to keep, and fails (manifestOf()). Beside them it writes out/report.json, each
-// spot its log names, once (report.ts), which it publishes after the manifest, and it prints what
-// changed since the last build's, in the run's job summary too. In Actions, once it has published,
-// it writes out/comment.md where a problem spot is new, which daily.yml posts on the standing
-// "Build report" issue.
+// which has none to keep, and fails (manifestOf()). The manifest names each region's Networks and
+// where it lies too, and the file below zoom 7, so that the map loads only the regions it needs
+// (zoomedOut(), #266). Beside them it writes out/report.json, each spot its log names, once
+// (report.ts), which it publishes after the manifest, and it prints what changed since the last
+// build's, in the run's job summary too. In Actions, once it has published, it writes
+// out/comment.md where a problem spot is new, which daily.yml posts on the standing "Build report"
+// issue.
 // `npm run daily` publishes; `npm run daily -- --dry-run` only writes the files to out/. The secrets
 // a timetable's URL needs, as TMB's TMB_APP_ID and TMB_APP_KEY, come from the environment, which
 // `npm run daily` loads from .env.local.
@@ -23,13 +25,14 @@ import { join } from 'node:path';
 import { brotliCompressSync, constants } from 'node:zlib';
 import { addDays, LIVE_URL, madridDate, type Manifest, type Network } from '../bundle.ts';
 import { LONG_DISTANCE, NETWORKS, regionsOf, type NetworkConfig, type Timetable } from '../networks.ts';
+import { decodeTrack, type TrackFile } from '../pieces.ts';
 import { download, feedStart, type Source } from './gtfs.ts';
 import { manifestOf } from './manifest.ts';
 import { ownRails, RAILWAYS, readFeed, readTimetables, unlisted, untaken, type Feed } from './networks.ts';
 import { crop, toBorder } from './border.ts';
 import { measures, reported, summary } from './measures.ts';
 import { osm } from './osm.ts';
-import { buildRegion, buildRegions, sharedStretches } from './regions.ts';
+import { buildRegion, buildRegions, sharedStretches, zoomedOut } from './regions.ts';
 import { railsBeside, traceRuns, traceShapes, withLines } from './track.ts';
 import { collect, comment, diff, type Found, type Spot } from './report.ts';
 import { closuresOf, placeTrips } from './trips.ts';
@@ -121,7 +124,19 @@ for (const { network, failed } of await longDistance) {
 }
 
 const spots = report.spots();
-const manifest = manifestOf(results.map(({ id, built: region }) => ({ id, days: region?.days })), lastManifest);
+// Each region's days, then its Networks and where it lies, and the file below zoom 7, which the map
+// needs to load only the regions in view (#266): a failed region's from its last track file.
+const { regions, file } = await zoomedOut(
+  manifestOf(results.map(({ id, built: region }) => ({ id, days: region?.days })), lastManifest),
+  new Map(built.map((r) => [r.id, r.track])),
+  async (key) => {
+    const last = await lastPublished<TrackFile>(key, "the build fails, as the map would lose its region's track below zoom 7");
+    if (!last) throw new Error(`No ${key} to draw a region whose build failed below zoom 7 from`);
+    return decodeTrack(last);
+  },
+);
+const below = await write('days/zoomed-out', file, `${file.networks.length} Networks, ${file.tracks.length} Network tracks`);
+const manifest: Manifest = { regions, zoomedOut: below };
 await writeFile('out/manifest.json', JSON.stringify(manifest));
 await writeFile('out/report.json', JSON.stringify(spots));
 // The diff and the comment only report, so a last report they can't read, as one of an older shape,
@@ -145,7 +160,7 @@ if (!process.argv.includes('--dry-run')) {
   // The bundles go up first, so the manifest never names a file that isn't there yet. The CDN
   // passes a file stored with brotli as it is to browsers that take it, which squeezes it about
   // twice as small as the CDN would on the fly.
-  for (const key of new Set(built.flatMap((r) => r.days.flatMap((d) => [d.track, d.trips])))) publish(key, 'public, max-age=31536000, immutable', 'br');
+  for (const key of new Set([...built.flatMap((r) => r.days.flatMap((d) => [d.track, d.trips])), below])) publish(key, 'public, max-age=31536000, immutable', 'br');
   publish('manifest.json', 'public, max-age=60');
   publish('report.json', 'public, max-age=60');
   // Only once the report is up, as the next build diffs against it, so that it doesn't tell of the same spots again.
