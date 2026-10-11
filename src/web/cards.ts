@@ -117,14 +117,17 @@ export function progress(calls: Call[], dist: number, toLeave: number): { done: 
  * far along its shape it's drawn, how many Stations it has still to leave, whether it stands at the
  * first of them, how far its followed pill reaches either side of it, in metres (pillReach()), so that
  * a card says arriving where the pill sits on the Station's dot, how far each call is drawn from the
- * dot of its place (`dotAway`), and the place it passes, if there is one, with how far it's drawn from
- * its dot. A Station is as far from it as the nearer of how far along its Trip it is and `dotAway`: the
- * dot the map shows its place as is the middle of the place's Stations, so at an interchange not where
- * a Line's own Trains stop, and the pill can be on it a hundred metres or more short of their
- * platform. None where it has none left to leave. Where both are within reach, as on a leg shorter than
- * twice it, it's arriving: the Station it runs on to is the one its card's time and countdown are for.
- * It passes a place only where neither of its Stations is within reach, so that a card says no less of
- * its calls than it did.
+ * dot of its place and how far that dot is from the Station (`dot`), and the place it passes, if there
+ * is one, with how far it's drawn from its dot. The dot the map shows its place as is the middle of
+ * the place's Stations, so at an interchange not where a Line's own Trains stop, and the pill can be
+ * on it a hundred metres or more short of their platform, or past it. A Station is within reach where
+ * its platform is along the Trip, or its dot is, or the Train is on the stretch between the two (#609):
+ * where they're more than two reaches apart the Train doesn't leave the one before it comes to the
+ * other, which a card going by each alone said as `between` for the stretch in the middle. None where
+ * it has none left to leave. Where both Stations are within reach, as on a leg shorter than twice it,
+ * it's arriving: the Station it runs on to is the one its card's time and countdown are for. It passes
+ * a place only where neither of its Stations is within reach, so that a card says no less of its calls
+ * than it did.
  */
 export function whereabouts<C extends Pick<Call, 'dist'>, P = never>(
   calls: C[],
@@ -132,16 +135,21 @@ export function whereabouts<C extends Pick<Call, 'dist'>, P = never>(
   toLeave: number,
   standing: boolean,
   reach: number,
-  dotAway: (call: C) => number = () => Infinity,
+  dot: (call: C) => { away: number; offset: number } = () => ({ away: Infinity, offset: 0 }),
   passed?: { place: P; away: number },
 ): Whereabouts<C, P> | undefined {
   const [next, last] = [calls[calls.length - toLeave], calls[calls.length - toLeave - 1]];
   if (!next) return undefined;
   if (standing) return { at: 'standing', next };
-  const away = (call: C) => Math.min(Math.abs(call.dist - dist), dotAway(call));
+  // Within reach of the platform, of the dot, or of the stretch between them, where the two distances sum to the dot's
+  // offset from the platform for a Train on it, and to that and two reaches at the far ends of the reach either side.
+  const within = (call: C) => {
+    const [along, { away, offset }] = [Math.abs(call.dist - dist), dot(call)];
+    return along <= reach || away <= reach || along + away <= offset + 2 * reach;
+  };
   // Short of its first Station, which the engine draws no Train in, it can only be on its way there.
-  if (!last || away(next) <= reach) return { at: 'arriving', next };
-  if (away(last) <= reach) return { at: 'leaving', last, next };
+  if (!last || within(next)) return { at: 'arriving', next };
+  if (within(last)) return { at: 'leaving', last, next };
   return passed && passed.away <= reach ? { at: 'passing', last, next, place: passed.place } : { at: 'between', last, next };
 }
 

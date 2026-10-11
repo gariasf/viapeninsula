@@ -40,8 +40,8 @@ export interface Moment {
   delay: number;
   /** How far along its shape it's drawn, in metres. */
   dist: number;
-  /** Its Trip's calls as it makes them, with the key the card names each by and how far the Train is drawn from the dot of its Station's place, in metres, where `near` is not that. */
-  calls: (Call & { key: string; away?: number })[];
+  /** Its Trip's calls as it makes them, with the key the card names each by, how far the Train is drawn from the dot of its Station's place, in metres, where `near` is not that, and how far that dot is from the Station (none: 0). */
+  calls: (Call & { key: string; away?: number; offset?: number })[];
   /** Whether it stands at the first Station it has still to leave. */
   standing: boolean;
   /** Every place's dot within the arrow's reach of where it's drawn, and within `reach.at` where that is more, nearest first. */
@@ -119,8 +119,8 @@ export function differences(m: Moment): Differences | undefined {
   const earlier = m.calls.length - upcoming.length;
   const next = upcoming[0];
   // What the card says: it stands at the next, or is arriving at it within the pill's reach, or leaving the one it left within as far after it, or is passing the place
-  // it has no call at within as far of it, or between them, by how far along its Trip each is and how far its place's dot is, as the card goes by both.
-  const dot = (call: { key: string; away?: number }) => call.away ?? m.near.find((n) => n.key === call.key)?.metres ?? Infinity;
+  // it has no call at within as far of it, or between them, by how far along its Trip each is, how far its place's dot is and the stretch between the two, as the card goes by all three.
+  const dot = (call: { key: string; away?: number; offset?: number }) => ({ away: call.away ?? m.near.find((n) => n.key === call.key)?.metres ?? Infinity, offset: call.offset ?? 0 });
   const says = whereabouts(m.calls, m.dist, upcoming.length, m.standing, m.reach.pill, dot, m.passed && { place: m.passed, away: m.passed.metres });
   if (!next || !says) return undefined;
   // Which Station the card has it at: the one it names, as arriving at, standing at or leaving, or the place it passes; none, between two.

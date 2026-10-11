@@ -99,6 +99,12 @@ for (const dir of process.argv.slice(2)) {
   const keyOf = byStation ? new Map(bundle.stations.map((s) => [s.id, s.place ?? s.name])) : new Map(shown.flatMap((p) => p.stations.map((id): [string, string] => [id, p.id])));
   // The dot the map draws each Station's place at, which the card goes by whichever of those it counts.
   const placeOf = new Map(shown.flatMap((p) => p.stations.map((id): [string, Place] => [id, p])));
+  // How far each Station is from the dot of its place, in metres: the card goes by the stretch between its platform and the dot too (#609).
+  const stationAt = new Map(bundle.stations.map((s) => [s.id, s]));
+  const offsetOf = new Map([...placeOf].map(([id, p]) => {
+    const s = stationAt.get(id) ?? p;
+    return [id, Math.hypot((s.lon - p.lon) * DEGREE * Math.cos((p.lat * Math.PI) / 180), (s.lat - p.lat) * DEGREE)];
+  }));
   const nameOf = new Map(bundle.stations.map((s) => [s.id, s.name]));
   // The name the map shows each of those keys' place with, which the card compares with its Trip's calls' (#457).
   const shownAs = new Map(bundle.stations.map((s) => [keyOf.get(s.id) ?? s.id, placeOf.get(s.id)?.name ?? s.name]));
@@ -177,7 +183,7 @@ for (const dir of process.argv.slice(2)) {
       const ownPlace = (key: string | undefined) => servedBy.get(key ?? '')?.has(line?.network ?? '') ?? false;
       const calls = o.calls.map((c) => {
         const place = placeOf.get(c.station);
-        return { ...c, key: keyOf.get(c.station) ?? c.station, away: place ? Math.hypot((place.lon - train.lon) * kx, (place.lat - train.lat) * DEGREE) : Infinity };
+        return { ...c, key: keyOf.get(c.station) ?? c.station, offset: offsetOf.get(c.station) ?? 0, away: place ? Math.hypot((place.lon - train.lon) * kx, (place.lat - train.lat) * DEGREE) : Infinity };
       });
       // The place it passes, as the card has it: of its own Network's, the places' dots whichever Stations `near` counts by, none the Stations it calls at, or named as one.
       const hit = passedPlace(around(placeGrid, train.lon, train.lat, half), train, o.calls.map((c) => ({ station: c.station, name: nameOf.get(c.station) ?? c.station })), half, line?.network ?? '');
