@@ -71,10 +71,13 @@ const results = await buildRegions(
       async network({ network, failed }) {
         const read = await readTimetables(network, failed, readDays, report.add);
         // Built before its own Train numbers are listed: one whose timetable has no shapes leaves to a
-        // Network before it only the Trains that one lists (unlisted()).
-        const one = build(network, read);
-        for (const [i, parts] of read.days.entries()) listed[i]?.push(...parts.map((p) => p.listed));
-        return one;
+        // Network before it only the Trains that one lists (unlisted()). Listed even where its build fails, as
+        // its region's last files still draw its Trains.
+        try {
+          return build(network, read);
+        } finally {
+          for (const [i, parts] of read.days.entries()) listed[i]?.push(...parts.map((p) => p.listed));
+        }
       },
       write,
       log: console.warn,
