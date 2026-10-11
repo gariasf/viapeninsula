@@ -36,7 +36,7 @@ export interface NetworkConfig extends Omit<Network, 'credit'> {
     /**
      * The rails each of its Lines runs on, by the Line's name: where its timetables have no shapes, to trace
      * its Trips along (#259), and where it runs on two gauges, to trace each Line's shapes along its own
-     * gauge's alone, of the Network's `rails` (#366).
+     * gauge's, or with no gauge tag, of the Network's `rails` (#366, #479).
      */
     gauges?: Record<string, Gauges>;
   };
