@@ -60,7 +60,7 @@ const STRINGS = {
     gl: 'Datos en tempo real non dispoñibles, posicións segundo o horario',
     en: 'Live data unavailable, positions from the timetable',
   },
-  // The follow panel. {n} is a number of minutes, and {ago} how long ago, as ago() words it.
+  // The follow panel. {n} is a number of minutes, or of seconds where a string says so, and {ago} how long ago, as ago() words it.
   // A departure's button, naming what it follows (#322); where a Trip still to come leaves; and Back, to a place or to Nearby, or to the Train it was opened from.
   followDeparture: { ca: 'Segueix el tren {line} cap a {headsign}, {time}', es: 'Seguir el tren {line} hacia {headsign}, {time}', eu: 'Jarraitu {line} trena, {headsign} aldera, {time}', gl: 'Seguir o tren {line} cara a {headsign}, {time}', en: 'Follow the {line} train to {headsign}, {time}' },
   leavesAt: { ca: 'Surt de {station} a les {time}', es: 'Sale de {station} a las {time}', eu: '{station} geltokitik irtengo da, {time}', gl: 'Sae de {station} ás {time}', en: 'Leaves {station} at {time}' },
@@ -94,9 +94,10 @@ const STRINGS = {
   arriving: { ca: 'Arribant a {station}', es: 'Llegando a {station}', eu: '{station} geltokira iristen', gl: 'Chegando a {station}', en: 'Arriving at {station}' },
   leaving: { ca: 'Sortint de {station}', es: 'Saliendo de {station}', eu: '{station} geltokitik irteten', gl: 'Saíndo de {station}', en: 'Leaving {station}' },
   between: { ca: 'Entre {a} i {b}', es: 'Entre {a} y {b}', eu: '{a} eta {b} artean', gl: 'Entre {a} e {b}', en: 'Between {a} and {b}' },
-  // How long until a Train comes: under a time on a board or in Nearby, and under the followed Train's next Station's.
+  // How long until a Train comes: under a time on a board or in Nearby, and under the followed Train's next Station's, which counts in seconds in its last minute (#456), the unit's symbol as the minutes' is: s, which has no plural.
   minutes: { ca: '{n} min', es: '{n} min', eu: '{n} min', gl: '{n} min', en: '{n} min' },
   inMinutes: { ca: "d'aquí a {n} min", es: 'en {n} min', eu: '{n} min barru', gl: 'en {n} min', en: 'in {n} min' },
+  inSeconds: { ca: "d'aquí a {n} s", es: 'en {n} s', eu: '{n} s barru', gl: 'en {n} s', en: 'in {n} s' },
   now: { ca: 'ara', es: 'ahora', eu: 'orain', gl: 'agora', en: 'now' },
   // At the foot of a peeking followed Train: how many Stations it has still to come after the next, and the last of them, where it's headed, and when it's due there.
   moreStations: {
@@ -356,9 +357,13 @@ export const trainCounts = (live: number, scheduled: number, lang = language()):
   counting(scheduled, 'oneScheduledCount', 'scheduledCount', lang),
 ];
 
-/** How long until a Train comes, `minutes` from now, in `lang`, or else the language the interface speaks now: as `minutes` has it, or for the next Station `inMinutes`, or now. */
-export const toGo = (minutes: number, phrase: 'minutes' | 'inMinutes', lang = language()): string =>
-  minutes > 0 ? STRINGS[phrase][lang].replace('{n}', String(minutes)) : STRINGS.now[lang];
+/**
+ * How long until a Train comes, `n` from now, in `lang`, or else the language the interface speaks now: `n` minutes as
+ * `minutes` has it, or for the followed Train's next Station `inMinutes`, or its seconds in its last minute `inSeconds`
+ * (#456); or now, for none.
+ */
+export const toGo = (n: number, phrase: 'minutes' | 'inMinutes' | 'inSeconds', lang = language()): string =>
+  n > 0 ? STRINGS[phrase][lang].replace('{n}', String(n)) : STRINGS.now[lang];
 
 /** The banner's short form, saying that a Network's live data is unavailable, by its name, in `lang`, or else the language the interface speaks now. */
 export const liveUnavailable = (network: string, lang = language()): string => STRINGS.liveUnavailable[lang].replace('{network}', network);
