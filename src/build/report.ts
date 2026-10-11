@@ -39,8 +39,9 @@ export interface Spot {
   text: string[];
   /**
    * A length's percentage off the feed's, how many metres a trace jumps across a Station, the most
-   * Trips left out, or whose stop numbers don't run 1…n, or buses, on any one day, a Network's Trips on each day of the week and how many of today's
-   * its config leaves out, its Closures today, a node's size in line widths, or each of the measures.
+   * Trips left out, or whose stop numbers don't run 1…n, or buses, on any one day, a Network's Trips
+   * on each day of the week and how many of today's its config leaves out, its Closures today, a
+   * node's size in line widths, or each of the measures.
    */
   numbers?: Record<string, number>;
 }

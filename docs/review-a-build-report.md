@@ -21,7 +21,7 @@ A fix in OpenStreetMap reaches the map when the build next downloads Geofabrik's
 Renfe's long-distance timetable has no shapes, so the build traces each run of a Line's Trips through its Stations (#259), with no feed's shape to hold the trace against. Two kinds of spot say where a trace may have gone wrong, though its Trains are drawn on it all the same (#262):
 
 - A `detour <line> <stations>` spot is a hop between two Stations traced more than twice its straight line and 10 km more, which a gap in the rails can cause. Open its map link: where the trace goes round a gap the Trains don't, fix OpenStreetMap there (2 above); where the line itself winds so, do nothing (4 above).
-- An `across <line> <station>` spot is a trace that leaves a Station on another of its tracks than it came in on, as OpenStreetMap has no switch there that leads on from that one, so its track jumps across the Station, by the spot's `metres`: on 11 Oct 2026, Alvia's 24 and 32 m at Alcázar de San Juan and AVE Int's 50 m at Figueres-Vilafant. Look at the Station's tracks and switches in OpenStreetMap, and map the switch that's missing (2 above).
+- An `across <line> <station>` spot is a trace that leaves a Station on another of its tracks than it came in on, as OpenStreetMap has no switch there that leads on from that one, so its track jumps across the Station, by the spot's `metres`, the most any of the Line's runs jumps there: on 11 Oct 2026, Alvia's 32 m at Alcázar de San Juan, where its run the other way jumps 24 m, and AVE Int's 50 m at Figueres-Vilafant. Look at the Station's tracks and switches in OpenStreetMap, and map the switch that's missing (2 above).
 
 Either shows as gone once the build's rails have the fix.
 
