@@ -219,10 +219,12 @@ test("reads TRAM's \"Servei alternatiu entre X i Y\" as closed, its \"Estació d
   expect(stretchesIn(said('sc-286'), stationsOf('tram'))).toEqual([{ stations: ['tram:ST-229', 'tram:ST-213'], says: 'closed' }]);
 });
 
-test("matches a Station's name without or with link words its Alert has or hasn't, as Adif's \"València-La Font de Sant Lluís\" is Renfe's \"Valencia Font de Sant Lluis\" (#396)", () => {
-  // AVISO_512648, Valencia's C3, with "por carretera" for its "por autobús", which isn't among the words read.
-  const text = 'Servicio alternativo por carretera entre las estaciones de Valencia Font de Sant Lluis y Valencia Sant Isidre por obras de mejora en la infraestructura.';
-  expect(stretchesIn(text, stationsOf('cercanias-valencia'))).toEqual([{ stations: ['adif:65002', 'adif:66212'], says: 'closed' }]);
+test("matches a Station's name without or with link words its Alert has or hasn't, as Adif's \"València-La Font de Sant Lluís\" is Renfe's \"Valencia Font de Sant Lluis\", and reads \"servicio alternativo por autobús\" as closed (#396, #552)", () => {
+  // AVISO_512648, Valencia's C3, since 10 Sep 2026: "#LÍNEA C3. SERVICIO ALTERNATIVO POR AUTOBÚS entre las estaciones de
+  // Valencia Font de Sant Lluis y Valencia Sant Isidre por obras de mejora en la infraestructura desde el 13 de septiembre."
+  expect(stretchesIn(said('AVISO_512648'), stationsOf('cercanias-valencia'))).toEqual([{ stations: ['adif:65002', 'adif:66212'], says: 'closed' }]);
+  // Its other two words for buses name no stretch: C3's and C5's "SERVICIO POR AUTOBÚS: Plan alternativo de transporte por carretera".
+  for (const id of ['AVISO_442947', 'AVISO_470390']) expect(stretchesIn(said(id), stationsOf('cercanias-valencia'))).toEqual([]);
 });
 
 test("reads no stretch in words that name none: Renfe's bare \"Sin servicio ferroviario\", TRAM's \"no donarà servei\", and the streets of Bilbao's Alert (#396)", () => {
@@ -568,7 +570,7 @@ test("an Alert about one Train, or for the Trains to or from a place, makes no C
   }
 });
 
-test("on 9 Oct at 23:20, the file whole, Spain's 68 Renfe Alerts and TRAM's 3, gives the Closures it gave but TRAM's T1–T3, whose trams still ran across theirs that night, and T6's sc-286, which none of T6's ran within the hour of, and San Sebastián's C1 twice, and none of Sevilla's C3, C5, Bilbao's streets or elsewhere (#396, #397)", () => {
+test("on 9 Oct at 23:20, the file whole, Spain's 68 Renfe Alerts and TRAM's 3, gives the Closures it gave but TRAM's T1–T3, whose trams still ran across theirs that night, and T6's sc-286, which none of T6's ran within the hour of, and San Sebastián's C1 twice, and Valencia's C3 once, and none of Sevilla's C3, C5, Bilbao's streets or elsewhere (#396, #397, #552)", () => {
   const day = { noonMinus12h: Date.parse('2026-10-09T00:00:00+02:00'), closures: [], lines: NIGHT_LINES, stations: NIGHT_STATIONS, trips: TRAM_TRIPS['2026-10-09']?.trips ?? [] };
   const name = new Map(NIGHT_STATIONS.map((s) => [s.id, s.name]));
   const shown = closuresAt(NIGHT, day, Date.parse('2026-10-09T23:20:11+02:00'));
@@ -584,6 +586,8 @@ test("on 9 Oct at 23:20, the file whole, Spain's 68 Renfe Alerts and TRAM's 3, g
     // T5's and T6's from Glòries to Can Jaumandreu, which none of their Trips runs, as before: T5's run to 00:26, within the hour, though T6's last was at 22:35.
     'tram:T5 closed Glòries – Can Jaumandreu (sc-279)',
     'tram:T6 closed Glòries – Can Jaumandreu (sc-279)',
+    // New: "SERVICIO ALTERNATIVO POR AUTOBÚS entre las estaciones de Valencia Font de Sant Lluis y Valencia Sant Isidre", since 10 Sep (#552).
+    'cercanias-valencia:C3 closed València-La Font de Sant Lluís – València-Sant Isidre (AVISO_512648)',
     // New: "se encuentra interrumpida la circulación entre las estaciones de Irun y Hernani", of 14 Aug, which the timetable has too (#340).
     'cercanias-san-sebastian:C1 closed Irun – Hernani (INFO_507703)',
   ]);
