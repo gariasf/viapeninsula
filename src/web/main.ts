@@ -18,7 +18,7 @@ import { atMostEvery, drifted, letsGo } from './centre.ts';
 import { keepView, lastView, markOf, openingView, toggledPitch } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { contrast, lettering } from './colour.ts';
-import { cardAlerts, inNameOrder, linesOnBoard, minutesTo, nearbyRows, progress, type CardAlert } from './cards.ts';
+import { cardAlerts, inNameOrder, linesOnBoard, linkedWords, minutesTo, nearbyRows, progress, type CardAlert } from './cards.ts';
 import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, tappedRows, type Shown } from './closures.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
@@ -2413,11 +2413,17 @@ function closuresTapped(keys: string[]) {
 /**
  * An Alert on a card, as alertsOn() has it, after the Lines it's on as pills, `byLine`, where the card
  * has more than one, as a board can: Rodalies' words don't name theirs. Or a Closure the timetable's
- * buses make, in the interface's words, whose they are unsaid (#341).
+ * buses make, in the interface's words, whose they are unsaid (#341). Each `http://` or `https://`
+ * address in a title or in words is a link, opening in a new tab, in the words as they were (#391).
  */
 function alertRow({ lines: named, header, description, from, by }: CardAlert, byLine: boolean, ran: string[] = []) {
-  // In an unknown language, lang="", where its feed doesn't say, rather than the viewer's.
-  const words = (tag: 'strong' | 'p', said?: Words) => (said ? [el(tag, { textContent: said.text, lang: said.language ?? '' })] : []);
+  // In an unknown language, lang="", where its feed doesn't say, rather than the viewer's. Each address in
+  // them is a link, in a new tab as About's are, among their text: built as nodes, never as HTML (#391).
+  const words = (tag: 'strong' | 'p', said?: Words) => {
+    if (!said) return [];
+    const parts = linkedWords(said.text).map((part) => (typeof part === 'string' ? part : el('a', { href: part.address, target: '_blank', rel: 'noopener noreferrer', textContent: part.address })));
+    return [el(tag, { lang: said.language ?? '' }, ...parts)];
+  };
   const other = description?.language && description.language !== language() ? description.language : undefined;
   const about: (Node | string)[] = [
     ...(from === undefined ? [] : [t('since').replace('{date}', clock(true).format(from))]),
