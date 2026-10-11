@@ -46,7 +46,7 @@ export interface Moment {
   standing: boolean;
   /** Every place's dot within the arrow's reach of where it's drawn, and within `reach.at` where that is more, nearest first. */
   near: Near[];
-  /** How far its followed pill reaches along its track, in metres: its box alone, which the card goes by (pillReach()), and with its arrow; and how near a Station it's drawn for its dot to be at it, AT px at the zoom measured. */
+  /** How far its followed pill reaches along its track, in metres: its box alone, which the card goes by (pillReach()), and with its arrow; and how near a Station it's drawn for its dot to be at it, AT px at the zoom its pill is drawn at. */
   reach: { pill: number; arrow: number; at: number };
   /**
    * The place the card has it pass without stopping, the nearest of those of its own Network's it has no call at
