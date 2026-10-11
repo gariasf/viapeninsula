@@ -18,11 +18,15 @@ import type { FeedBus, FeedTrip } from './trips.ts';
  */
 export const RAILWAYS = [...new Set(NETWORKS.flatMap((n) => n.rails.railway))].sort();
 
-/** Whether a way is one of these rails. */
+/**
+ * Whether a way is one of these rails. A way with no gauge tag is of every gauge, where gauges are given,
+ * as a way of two is, and as a Line's own `gauges` count it (layered()): six ways of Adif's left-hand
+ * track between Villallana and Mieres have railway=rail and none (#479).
+ */
 export function onRails({ railway, gauge, operator, notOperator }: Rails): (way: OsmWay) => boolean {
   return ({ tags }) =>
     railway.includes(tags.railway ?? '') &&
-    (!gauge || (tags.gauge ?? '').split(';').some((g) => gauge.includes(g))) &&
+    (!gauge || !tags.gauge || tags.gauge.split(';').some((g) => gauge.includes(g))) &&
     (!operator || operator.includes(tags.operator ?? '')) &&
     !notOperator?.includes(tags.operator ?? '');
 }

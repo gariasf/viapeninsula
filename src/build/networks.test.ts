@@ -8,7 +8,7 @@ import { afterAll, afterEach, expect, test, vi } from 'vitest';
 import { places } from '../bundle.ts';
 import { AVE_LARGA_DISTANCIA, CERCANIAS_ASTURIAS, CERCANIAS_BILBAO, MEDIA_DISTANCIA_AVANT, NETWORKS, RODALIES, TRAM, type NetworkConfig } from '../networks.ts';
 import { dirSource, rows, seconds, zipFile, zipSource, type Source } from './gtfs.ts';
-import { copyOf, FGC_FEED, joinParts, METRO_FEED, onFgcRails, onMetroRails, onRodaliesRails, ownRails, readFeed, readTimetables, RODALIES_FEED, TRAMBAIX_FEED, unlisted, untaken, type Feed } from './networks.ts';
+import { copyOf, FGC_FEED, joinParts, METRO_FEED, onFgcRails, onMetroRails, onRails, onRodaliesRails, ownRails, readFeed, readTimetables, RODALIES_FEED, TRAMBAIX_FEED, unlisted, untaken, type Feed } from './networks.ts';
 import type { Found } from './report.ts';
 import type { Snippet } from './snippet.ts';
 import { traceShapes } from './track.ts';
@@ -72,6 +72,28 @@ test('runs on Iberian-gauge rails only, so never on the high-speed line', () => 
     { gauge: '1000' },
   ];
   expect(kinds.map((tags) => onRodaliesRails({ id: 1, nodes: [], geometry: [], tags: { railway: 'rail', ...tags } }))).toEqual([true, true, true, false, false]);
+});
+
+test("counts a way with no gauge tag as every gauge's rails where a Network names gauges, as it does a way of two, and still not a way of another gauge (#479)", () => {
+  // Six ways of Adif's left-hand track between Villallana and Mieres have railway=rail and no gauge.
+  const kinds: Record<string, string>[] = [
+    { railway: 'rail' },
+    { railway: 'rail', gauge: '' },
+    { railway: 'narrow_gauge' }, // FEVE's
+    { railway: 'rail', gauge: '1668' },
+    { railway: 'rail', gauge: '1000' },
+    { railway: 'rail', gauge: '1435;1668' },
+    { railway: 'rail', gauge: '1435' }, // the high-speed line
+    { railway: 'tram' },
+    {},
+  ];
+  const on = (rails: NetworkConfig['rails']) => kinds.map((tags) => onRails(rails)({ id: 1, nodes: [], geometry: [], tags }));
+  // Iberian and metre gauge.
+  expect(on(CERCANIAS_ASTURIAS.rails)).toEqual([true, true, true, true, true, true, false, false, false]);
+  // Iberian gauge alone, and the kinds of rail its config names.
+  expect(on(RODALIES.rails)).toEqual([true, true, false, true, false, true, false, false, false]);
+  // A Network that names no gauge takes every way of its kinds, tagged or not.
+  expect(on(TRAM.rails)).toEqual([false, false, false, false, false, false, false, true, false]);
 });
 
 test("keeps the day's Trips that are Trains, with their Line, destination, Train number and calls", () => {
