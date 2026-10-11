@@ -293,6 +293,16 @@ test("a C8a or a C8b Train's card shows Madrid's AVISO_517064, which Renfe names
   expect(cardAlerts(renfe, { lines: [C4], stations: [] }, 'es', NOW).alerts.map((a) => a.id)).toEqual(['AVISO_518335', 'AVISO_518347']);
 });
 
+test("a board at Cercedilla, where no Trip of C8b calls on the days on the map, as AVISO_517064 says, but its timetable does, names C8b and shows that Alert, which names C8 (#359)", () => {
+  const text = readFileSync(new URL('../fetcher/fixtures/alerts/renfe-madrid.json', import.meta.url), 'utf8');
+  const renfe = readAlerts(ALERTS_START, { renfe: { alerts: { status: 200, body: { text } } } }, NOW).file ?? {};
+  // As the track names it (#392): Cercedilla is on C8b's shapes, and on none of C8a's.
+  const cercedilla = { stations: ['adif:12006'], lines: ['cercanias-madrid:C8b'] };
+  const lines = linesOnBoard([], cercedilla, ['cercanias-madrid:C8a', 'cercanias-madrid:C8b'], renfe);
+  expect(lines).toEqual(['cercanias-madrid:C8b']);
+  expect(cardAlerts(renfe, { lines, stations: cercedilla.stations }, 'es', NOW).alerts.map((a) => a.id)).toEqual(['AVISO_517064', 'AVISO_467462']);
+});
+
 test("a card says when its Alerts were read where that's over 15 minutes ago, by the feed read longest ago of those whose Alerts it shows", () => {
   const on = (...lines: string[]) => ({ lines, stations: [] });
   const [R2, T1, both] = [on('rodalies:R2'), on('tram:T1'), on('rodalies:R2', 'tram:T1')];
