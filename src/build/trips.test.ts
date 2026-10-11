@@ -285,6 +285,16 @@ test("leaves a Trip out without a word where retrace() has left it out and said 
   expect([log, found]).toEqual([[], []]);
 });
 
+test("doesn't trace a Trip that calls at fewer than two Stations, or whose shape has no track, nor ask for anything where each fits its own", () => {
+  const { ids, asked, log, found } = placeOnOwn([
+    [trip('fits', 'R2N', 'R2N', 'Sants Gràcia'), trip('one', 'R2N', 'R2N', 'Sants'), trip('no shape', 'R2N', 'none', 'Sants Gràcia')],
+  ]);
+  expect(ids).toEqual([['fits on R2N']]);
+  expect(asked).toEqual([]);
+  expect(log).toEqual(['one is left out: it calls at fewer than two Stations', 'no shape is left out: its shape none has no track']);
+  expect(found).toMatchObject([{ why: 'fewer', trip: 'one' }, { why: 'notrack', trip: 'no shape' }]);
+});
+
 // The Trips of a timetable with no shapes, as Renfe's long-distance one, each on the trace of its run, made
 // through its Stations (traceRuns(), #259).
 
@@ -306,14 +316,4 @@ test("leaves out and reports on its day a Trip of a timetable with no shapes tha
   expect(shapes.map((s) => s.id)).toEqual(['AVE:1']);
   expect(log).toEqual(['quick is left out: it would run Sants → Gràcia at 180 km/h along its track']);
   expect(found).toMatchObject([{ kind: 'trip', why: 'fast', trip: 'quick', line: 'AVE', stations: [{ id: 'Sants' }, { id: 'Gràcia' }], text: log, day: 1 }]);
-});
-
-test("doesn't trace a Trip that calls at fewer than two Stations, or whose shape has no track, nor ask for anything where each fits its own", () => {
-  const { ids, asked, log, found } = placeOnOwn([
-    [trip('fits', 'R2N', 'R2N', 'Sants Gràcia'), trip('one', 'R2N', 'R2N', 'Sants'), trip('no shape', 'R2N', 'none', 'Sants Gràcia')],
-  ]);
-  expect(ids).toEqual([['fits on R2N']]);
-  expect(asked).toEqual([]);
-  expect(log).toEqual(['one is left out: it calls at fewer than two Stations', 'no shape is left out: its shape none has no track']);
-  expect(found).toMatchObject([{ why: 'fewer', trip: 'one' }, { why: 'notrack', trip: 'no shape' }]);
 });
