@@ -102,7 +102,9 @@ export interface Timetable {
   /**
    * Which of its rail routes are this Network's, where not all are: those whose route_id starts so, and
    * whose route_short_name is one of these. And the rails those whose route_id ends so run on, whatever
-   * their Line runs on (`lines.gauges`), as the ex-FEVE regionals', which are Regional (#259).
+   * their Line runs on (`lines.gauges`), as the ex-FEVE regionals', which are Regional (#259). Renfe's
+   * long-distance timetable is divided between its two Networks by these names, and the build reports
+   * a name neither has, as its Trips are in neither (#401).
    */
   routes?: { idPrefix?: string; names?: string[]; gauges?: Record<string, Gauges> };
   /**
