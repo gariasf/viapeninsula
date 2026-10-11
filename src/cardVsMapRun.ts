@@ -310,8 +310,9 @@ for (const dir of process.argv.slice(2)) {
       if (held?.nowByDelay) add('fix.maxDelay.nowByDelay');
       if (held && held.timeOff > 60) add('fix.maxDelay.drawnAhead60');
       // The Delay measures, as jumps() and the stalls have them: Live in both seconds, moves faster than top speed + 5%, not moving at all more than 20 m from any call.
-      now.set(trip.id, train.dist);
+      // Only a Live Train's distance is kept for the next second, so that the second a report first places a Scheduled Train is no jump (#534).
       const before = was.get(trip.id);
+      if (train.live) now.set(trip.id, train.dist);
       if (train.live && before !== undefined) {
         add('delay.liveSeconds');
         if (Math.abs(train.dist - before) > o.network.profile.topSpeed * 1.05) add('delay.jumps');

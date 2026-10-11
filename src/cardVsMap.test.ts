@@ -1,5 +1,15 @@
+import { execFileSync } from 'node:child_process';
+import { copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { gunzipSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
+import type { Bundle } from './bundle.ts';
 import { differences, type Moment } from './cardVsMap.ts';
+import type { Received } from './engine.ts';
+import { jumps } from './jumps.ts';
+import { NETWORKS } from './networks.ts';
 
 // A Trip A (0 m) – B (2,000 m) – C (4,000 m): 100 s legs, the second day's noon-minus-12h at 0, so seconds into the day are ms / 1000.
 const calls = [
@@ -160,4 +170,24 @@ describe('differences', () => {
     expect(differences(moment(140, 2400, { pin: { dist: 0, call: 0 } }))?.pinnedAway).toBe('past');
     expect(differences(moment(80, 1900, { pin: { dist: 2000, call: 1 } }))?.pinnedAway).toBeUndefined();
   });
+});
+
+describe('the runner', () => {
+  it("counts a jump only for a Train that is Live in both seconds, as jumps() does, so that the second a report first places a Scheduled Train is not one (#534)", () => {
+    // 45 minutes of the rains of 7 October 2026, 16 Trips of Rodalies and Cercanías Madrid: kept as a Scheduled Train's distance too, the runner counts 18 and 26.
+    const file = fileURLToPath(new URL('fixtures/replay-2026-10-07.json.gz', import.meta.url));
+    const { bundle, received } = JSON.parse(gunzipSync(readFileSync(file)).toString()) as { bundle: Bundle; received: Received[] };
+    // The runner takes each Network's live traits from src/networks.ts, as an older bundle's can differ.
+    for (const network of bundle.networks) network.live = NETWORKS.find((n) => n.id === network.id)?.live ?? network.live;
+    const dir = mkdtempSync(join(tmpdir(), 'card-vs-map-test-'));
+    try {
+      writeFileSync(join(dir, 'bundle.json'), JSON.stringify(bundle));
+      copyFileSync(file, join(dir, 'replay.json.gz'));
+      const run = execFileSync(process.execPath, [fileURLToPath(new URL('./cardVsMapRun.ts', import.meta.url)), dir], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+      const counted = Object.entries(JSON.parse(run).results[dir] as Record<string, { all: Record<string, number> }>).map(([network, { all }]) => [network, all['delay.jumps'] ?? 0]);
+      expect(Object.fromEntries(counted)).toEqual(Object.fromEntries(Object.entries(jumps(bundle, received)).map(([network, j]) => [network, j.forward + j.back])));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
 });
