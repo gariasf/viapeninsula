@@ -70,7 +70,8 @@ const results = await buildRegions(
       dates: DAYS,
       async network({ network, failed }) {
         const read = await readTimetables(network, failed, readDays, report.add);
-        // Built before its own Train numbers are listed: a Network whose timetable has no shapes leaves only those a Network before it lists to that one.
+        // Built before its own Train numbers are listed: one whose timetable has no shapes leaves to a
+        // Network before it only the Trains that one lists (unlisted()).
         const one = build(network, read);
         for (const [i, parts] of read.days.entries()) listed[i]?.push(...parts.map((p) => p.listed));
         return one;
@@ -183,8 +184,8 @@ async function readDays(feeds: (Feed & { gtfs: Source })[]) {
  * its Trips are placed on their whole track, which is then cut at the border. Where its timetable has
  * no shapes, as Renfe's long-distance one, its track is the traces of its Trips' runs on DAYS, each
  * along the rails of its Line's gauges, and its Stations are those its Trips call at (#259, #262). And
- * the Closures its replacement buses make on each of DAYS (closuresOf()). What its tracing and placing log goes into
- * the report too, with the OpenStreetMap ways its Stations are on; so does what its timetables find
+ * the Closures its replacement buses make on each of DAYS (closuresOf()). What its tracing and placing
+ * log goes into the report too, with the OpenStreetMap ways its Stations are on; so does what its timetables find
  * wrong with their own Trips on each of DAYS, as a TRAM Trip's stop numbers (readFeed(), #406).
  */
 function build(config: NetworkConfig, { published, days }: Awaited<ReturnType<typeof readDays>>) {
@@ -220,7 +221,7 @@ function build(config: NetworkConfig, { published, days }: Awaited<ReturnType<ty
   const traces = crop(border, stations, placed.shapes, []).shapes;
   const lineOf = new Map(placed.days.flat().map((t) => [t.shape, t.line]));
   const closures = days.map((day, i) => closuresOf(day.flatMap((p) => p.buses), day.flatMap((p) => p.trips), feeds, cropped.stations, console.log, (f) => found({ ...f, day: i })));
-  // A timetable with no shapes has as its Stations those its Trips placed call at, as its runs' traces they're on are all its track.
+  // A timetable with no shapes has as its Stations those its Trips call at: the traces they're placed on are all its track.
   const calledAt = placed.days.flat().map((t) => ({ line: t.line, stations: t.calls.map((c) => c.station) }));
   const served = new Set(calledAt.flatMap((t) => t.stations));
   return {

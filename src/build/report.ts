@@ -11,7 +11,8 @@ export interface Spot {
   /**
    * A run of a Line's legs between Stations that keep the feed's shape, a Station a Line's trace turns
    * back at, Stations left out on a branch, a hop between two Stations traced much longer than its
-   * straight line, a Station a Line's trace sets off from on another track than it came in on, Trips left out, a Line's Trips whose stop numbers don't run 1…n, a route name in
+   * straight line, a Station a Line's trace sets off from on another track than it came in on, Trips
+   * left out, a Line's Trips whose stop numbers don't run 1…n, a route name in
    * Renfe's long-distance timetable that neither of its Networks takes, replacement buses where their
    * Line has no track, a Network with no Trips on a day, a Network's Trips on each day of the week,
    * which names those its config leaves out too, a Network's Closures today, a Network built from the
@@ -37,8 +38,8 @@ export interface Spot {
   /** Each line the log prints for it, once: for a node, its zoom's. */
   text: string[];
   /**
-   * A length's percentage off the feed's, how many metres a trace jumps across a Station, the most Trips left out, or whose stop numbers don't run
-   * 1…n, or buses, on any one day, a Network's Trips on each day of the week and how many of today's
+   * A length's percentage off the feed's, how many metres a trace jumps across a Station, the most
+   * Trips left out, or whose stop numbers don't run 1…n, or buses, on any one day, a Network's Trips on each day of the week and how many of today's
    * its config leaves out, its Closures today, a node's size in line widths, or each of the measures.
    */
   numbers?: Record<string, number>;

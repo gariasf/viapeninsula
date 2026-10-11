@@ -326,10 +326,10 @@ function ridden(ran: { trip: FeedTrip; run: Run }[][], traced: Map<Run, Shape | 
  * where a stretch has no path there, on its others too, all the way, though at OTHER_GAUGE times their
  * length, so that it keeps to its own as far as it can: one can't tell where it must change gauge till
  * a later stretch, as AVE can reach Ourense on standard gauge, but must change at Taboadela, short of
- * it, to go on to Santiago. Or why it can't be: a Station off the rails, or a
- * stretch with no path. Where it turns back on the way, a hop is much longer than its straight line,
- * or it sets off from another of a Station's tracks than it came in on (ACROSS), it logs and reports;
- * its length, and where it changes gauge, it only logs.
+ * it, to go on to Santiago. Or why it can't be: a Station off the rails, or a stretch with no path.
+ * Where it turns back on the way, a hop is much longer than its straight line, or it sets off from
+ * another of a Station's tracks than it came in on (ACROSS), it logs and reports; its length, and where
+ * it changes gauge, it only logs.
  */
 function traceRun(graph: Graph, run: Run, log: (line: string) => void, report: (found: Found) => void): Shape | Untraced {
   const { stations } = run;
@@ -374,7 +374,7 @@ function traceRun(graph: Graph, run: Run, log: (line: string) => void, report: (
   for (const a of stretches) {
     const [from, to] = [stations[a.waypoint - 1], stations[a.waypoint]];
     if (!from || !to) continue;
-    // Where it sets off from another of a Station's tracks, as OpenStreetMap has none there that leads on from the one it came in on: it jumps across.
+    // Where it sets off from another of a Station's tracks, as none there leads on from the one it came in on: it jumps across.
     const jump = across.get(a);
     if (jump !== undefined) {
       const text = `${run.id}: ${from.name} → ${to.name} sets off from another track than it came in on, ${Math.round(jump)} m across`;
