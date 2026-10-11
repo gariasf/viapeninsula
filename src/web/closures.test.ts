@@ -3,6 +3,7 @@ import { gunzipSync } from 'node:zlib';
 import { expect, test } from 'vitest';
 import { ALERTS_START, readAlerts } from '../fetcher/alerts.ts';
 import { APART, atZoom, BANDS, beside, DEGREE, inBand, onStroke, pixelMetres, zones, type Alert, type Alerts, type Bundle, type Line, type Shape, type Stroke } from '../bundle.ts';
+import { parseLine } from '../build/gtfs.ts';
 import { sideBySide } from '../build/sideBySide.ts';
 import { joinDays } from '../engine.ts';
 import { inNameOrder } from './cards.ts';
@@ -226,7 +227,10 @@ test("matches a Station's name without or with link words its Alert has or hasn'
   // Valencia Font de Sant Lluis y Valencia Sant Isidre por obras de mejora en la infraestructura desde el 13 de septiembre."
   expect(stretchesIn(said('AVISO_512648'), stationsOf('cercanias-valencia'))).toEqual([{ stations: ['adif:65002', 'adif:66212'], says: 'closed' }]);
   // Its other two words for buses name no stretch: C3's and C5's "SERVICIO POR AUTOBÚS: Plan alternativo de transporte por carretera".
-  for (const id of ['AVISO_442947', 'AVISO_470390']) expect(stretchesIn(said(id), stationsOf('cercanias-valencia'))).toEqual([]);
+  for (const id of ['AVISO_442947', 'AVISO_470390']) {
+    expect(said(id)).toContain('SERVICIO POR AUTOBÚS');
+    expect(stretchesIn(said(id), stationsOf('cercanias-valencia'))).toEqual([]);
+  }
 });
 
 test("reads no stretch in words that name none: Renfe's bare \"Sin servicio ferroviario\", TRAM's \"no donarà servei\", and the streets of Bilbao's Alert (#396)", () => {
@@ -313,15 +317,19 @@ const BUNDLE_NAMES = new Map<string, string>([
       .split('\n')
       .slice(1)
       .filter((row) => row.trim())
-      .map((row): [string, string] => [`adif:${row.split(',')[0]}`, (row.split(',')[1] ?? '').trim()]),
+      .map((row): [string, string] => {
+        const [id = '', name = ''] = parseLine(row);
+        return [`adif:${id}`, name];
+      }),
   ),
 ]);
 
 test("gives each Station of DAY, R1's among them, the ID and the name the bundle has, and each made-up one an ID whose name has its own within it, so that a test that copies a wrong ID fails here (#554)", () => {
   // Names only are read, so a wrong ID passes the tests that expect it back, and only this tells it. Neither
-  // source has Tordera (79607 in Renfe's stops.txt) or the Metro's Glòries, which the bundle has as tmb:1.130.
+  // of those two sources has Tordera (adif:79607) or the Metro's Glòries, which the bundle has as tmb:1.130:
+  // the Stations of either list that they lack are those two, so that a third fails here.
   const given = DAY.stations;
-  expect(given.filter((s) => !BUNDLE_NAMES.has(s.id)).map((s) => s.id)).toEqual(['adif:79607', 'tmb:1.130']);
+  expect([...new Set([...given, ...MADE_UP].filter((s) => !BUNDLE_NAMES.has(s.id)).map((s) => s.id))]).toEqual(['adif:79607', 'tmb:1.130']);
   for (const s of given) expect([s.id, s.name]).toEqual([s.id, BUNDLE_NAMES.get(s.id) ?? s.name]);
   // A made-up name is the bundle's cut, or joined otherwise: its words are within the bundle's name.
   const plain = (name: string) => name.toLowerCase().replace(/-/g, ' ');
