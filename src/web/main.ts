@@ -2627,7 +2627,7 @@ function countdown(at: number, now: number): Node[] {
  */
 function followedCountdown(at: number, now: number): Node[] {
   const { n, unit } = countdownTo(at, now);
-  return unit === 'seconds' || n < 60 ? [el('span', { className: 'in', textContent: toGo(n, unit === 'seconds' ? 'inSeconds' : 'inMinutes') })] : [];
+  return n < 60 ? [el('span', { className: 'in', textContent: toGo(n, unit === 'seconds' ? 'inSeconds' : 'inMinutes') })] : [];
 }
 
 /**

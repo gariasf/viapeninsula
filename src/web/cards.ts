@@ -20,8 +20,9 @@ export interface Countdown {
  * Delay in, by `now`, the map's time (mapTime()), both in ms since 1970 (#456): in whole seconds from 59 s out,
  * rounded up, so that 0, which the card says as now, is only once `at` has come or is past; and before that in
  * the whole minutes a board gives for that time (minutesTo()), as the time beside it shows it, so that the card
- * and a board agree to the minute. A board's rows and Nearby's keep the minutes, which read now for a time
- * from the start of its minute, as a clock does.
+ * and a board agree to the minute, but for a time 59 s and a part out within one clock minute, which a board
+ * reads as now and this as a minute, as it hasn't come. A board's rows and Nearby's keep the minutes, which read
+ * now for a time from the start of its minute, as a clock does.
  */
 export function countdownTo(at: number, now: number): Countdown {
   // To the ms, as the clocks count: a Train held at its Station is expected exactly now, a part of a ms off by two clocks' rounding.
@@ -31,10 +32,11 @@ export function countdownTo(at: number, now: number): Countdown {
 }
 
 /**
- * How long until countdownTo(`at`, `now`) next changes, in ms: when a second less of it is left, or a second
- * where it reads now, which doesn't change. So that a card refreshed then shows each number once: refreshed a
- * second after its last refresh, which a frame makes a little more each time, it skipped one about every two
- * minutes (#456).
+ * How long until a second less of the time to `at` is left, in ms, which is when countdownTo(`at`, `now`) next
+ * changes in its last minute (before that its minutes change with the clock's, and this only keeps a refresh
+ * on the time's seconds), or a second where it reads now, which doesn't change. So that a card refreshed then
+ * shows each number once: refreshed a second after its last refresh, which a frame makes a little more each
+ * time, it skipped one about every two minutes (#456).
  */
 export function untilTick(at: number, now: number): number {
   const left = Math.round(at - now);
