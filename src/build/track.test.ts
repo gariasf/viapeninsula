@@ -922,12 +922,12 @@ test("traces the Trips that call at a Station off their feed's shape through the
 });
 
 test("gives a trace the next number of its Line that no shape of the feed has as its ID, as a feed with a shape called rodalies:R15:1 would, so that two shapes of one ID don't share a track (#602)", () => {
-  // As above, but on a feed whose shape is called `line:<n>`, the ID the n-th run's trace would have had.
-  const traces = (feed: string) => {
+  // As above, but on a feed whose shapes are called `line:<n>`, the ID the n-th run's trace would have had.
+  const traces = (...named: string[]) => {
     const { traced, shapes, days } = own(
       branch(),
       [station('A', 500, 10), station('T', 2010, 1490), station('C', 3500, 10)],
-      [{ id: feed, feed: [[0, 1], [4000, 1]], stations: 'A T C' }],
+      named.map((id) => ({ id, feed: [[0, 1], [4000, 1]], stations: 'A T C' })),
       [[call('first', 'A T C', IBERIAN, 'line'), call('second', 'A T C', IBERIAN, 'line'), call('short', 'T C', IBERIAN, 'line')]],
     );
     const ids = [...traced, ...shapes].map((s) => s.id);
@@ -940,6 +940,8 @@ test("gives a trace the next number of its Line that no shape of the feed has as
   expect(traces('line:2')).toEqual({ feed: ['line:2'], traces: ['line:1', 'line:3'], ridden: ['line:1', 'line:1', 'line:3'] });
   // Not a number the feed has for another Line.
   expect(traces('other:1').traces).toEqual(['line:1', 'line:2']);
+  // Each of the feed's shapes counts, not the first's alone: with line:1 and line:3 the traces are line:2 and line:4.
+  expect(traces('line:1', 'line:3')).toEqual({ feed: ['line:1', 'line:3'], traces: ['line:2', 'line:4'], ridden: ['line:2', 'line:2', 'line:4'] });
 });
 
 test("takes the track its Line's shape took where it shares it, though the other of two ways between the same Stations is shorter", () => {
