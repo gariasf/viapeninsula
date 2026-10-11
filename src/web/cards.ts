@@ -112,18 +112,19 @@ export function progress(calls: Call[], dist: number, toLeave: number): { done: 
  * Where a followed Train is by how it's drawn (#455), in the words a card says it in: `standing` at
  * the first Station it has still to leave, where it stands at it; otherwise `arriving` at that Station
  * while it's drawn within `reach` metres of it, `leaving` the Station it left last within as far after
- * it, `passing` the place it passes without stopping (passedPlace(), #457) within as far of that, and
- * `between` the two where it's none of those. Given its Trip's calls, how far along its shape it's
- * drawn, how many Stations it has still to leave, the one it stands at too, whether it stands at it,
- * and how far its followed pill reaches either side of it, in metres (pillReach()), so that a card
- * says arriving where the pill sits on the Station's dot, and the place it passes, if any, and how far
- * it's drawn from its dot. A Station is as far from it as the nearer of how far along its Trip it is
- * and `dotAway`, how far it's drawn from the dot the map shows its place as: the middle of the place's
- * Stations, so at an interchange not where a Line's own Trains stop, and the pill can be on it a
- * hundred metres or more short of their platform. None where it has none left to leave. Where both
- * are within reach, as on a leg shorter than twice it, it's arriving: the Station it runs on to is the
- * one its card's time and countdown are for. It passes a place only where neither of its Stations is
- * within reach, so that a card says no less of its calls than it did.
+ * it, `passing` the place it passes without stopping within as far of that (`passed`, from
+ * passedPlace(), #457), and `between` the two where it's none of those. Given its Trip's calls, how
+ * far along its shape it's drawn, how many Stations it has still to leave, whether it stands at the
+ * first of them, how far its followed pill reaches either side of it, in metres (pillReach()), so that
+ * a card says arriving where the pill sits on the Station's dot, how far each call is drawn from the
+ * dot of its place (`dotAway`), and the place it passes, if there is one, with how far it's drawn from
+ * its dot. A Station is as far from it as the nearer of how far along its Trip it is and `dotAway`: the
+ * dot the map shows its place as is the middle of the place's Stations, so at an interchange not where
+ * a Line's own Trains stop, and the pill can be on it a hundred metres or more short of their
+ * platform. None where it has none left to leave. Where both are within reach, as on a leg shorter than
+ * twice it, it's arriving: the Station it runs on to is the one its card's time and countdown are for.
+ * It passes a place only where neither of its Stations is within reach, so that a card says no less of
+ * its calls than it did.
  */
 export function whereabouts<C extends Pick<Call, 'dist'>, P = never>(
   calls: C[],
@@ -150,10 +151,14 @@ export type Whereabouts<C, P = never> = { at: 'arriving' | 'standing'; next: C }
 /**
  * The place a followed Train, drawn at `at`, passes without stopping, and how far from its dot, if it's
  * near one (#457): of `places`, the one whose dot is nearest to it, within `within` metres, that its Trip
- * has no call at: none of its Stations is one of the Stations `called`, and it isn't named as one, since
- * to a viewer a Station is its name, and the Metro's Glòries is the TRAM's, two places the map shows
- * apart. A Station is any Station the page has, of whichever Network: the pill is on its dot on the map,
- * and a metro station next to a railway station is a Station of its own, as the map shows them.
+ * has no call at: none of its Stations is one of the Stations `called`, and it isn't shown with the name
+ * of one, since to a viewer a Station is its name, and the Metro's Glòries is the TRAM's, two places the
+ * map shows apart. Whose places it's given is its callers' to say: the page and the measure give it every
+ * place the page has, of whichever Network, as the pill is on its dot on the map, and a metro station
+ * next to a railway station is a Station of its own, as the map shows them (ADR-0005).
+ * ponytail: a name is the one the map shows, to the letter, so a place shown otherwise than the Station
+ * beside it (Rodalies' "Barcelona Arc de Triomf" and the Metro's "Arc de Triomf") is passed, as it is
+ * where the two aren't one place: leave out the places of a call's interchange (#572) if that shows.
  * ponytail: every place on the page is looked at each time, a few hundred to a thousand and some (586
  * on 7 Oct 2026's track, 1,173 on 10 Oct's with Cercanías): a cell of them by position if it shows.
  */

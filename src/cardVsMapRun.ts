@@ -19,9 +19,11 @@
 // the other said now with the Train far under `b.nowFar.reads.*` (#456). And `4.atNotCall` and `2.pill.notCall` are what the card
 // leaves unnamed of the places it has no call at, by the card's rule since #457 (`w.passing`: where neither Station of its calls is
 // within the pill's reach it names the nearest place within it that isn't a call, or named as one): `.own` those the Train's own
-// Network's Trains stop at and `.other` those only another Network's do, `.own.<what the card says>` and `.other.<…>` of them by what
-// it says, `.namedAsCall.<…>` those named as one of the Trip's calls, which the card has it pass none of though they're not a call by
-// their key, and `.before` the same counted with the card as it was before it named the place it passes, which is #352's column.
+// Network's Trains stop at and `.other` those only another Network's do, and `.<what the card says>` of them by what it says; of
+// `4.atNotCall` also `.own.<what the card says>` and `.other.<…>`, and `.namedAsCall.<…>` those named as one of the Trip's calls, which
+// the card has it pass none of though they're not a call by their key. Of both, `.before` is the same counted with the card as #455 and
+// #456 left it, before it named the place it passes: the column of the measure since #455, by the dots the map draws (#352's own, which
+// counted each Station by its own coordinates under the card before #455, is the note's section 2, and with STATIONS=1 its yardstick).
 // `w.passing.own`, `.other` and `.nearCall` (within 150 m of the dot of one of its Trip's calls, as at an interchange) say whose place the
 // card names, `w.passing.still` how many of those seconds a Live Train is drawn still in, `w.passing.episodes` how many times it begins
 // to, `w.nearer.arriving` and `.leaving` the seconds the card names its Station with a place it could pass nearer, and
