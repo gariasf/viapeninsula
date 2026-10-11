@@ -1950,12 +1950,18 @@ function locate() {
   );
 }
 
-/** Stops following a Train, or closes a Station's board, the nearby Trains or Search. */
+/**
+ * Stops following a Train, or closes a Station's board, the nearby Trains or Search. The keyboard's focus,
+ * where it was in the panel, goes back to the tab whose sheet it was, as the close button goes with the
+ * panel, rather than to the page (#470).
+ */
 function closePanel() {
+  const [tab, keyboard] = [currentTab({ following, boardPlace, nearMe, searching }), panel.contains(document.activeElement)];
   [following, boardPlace, nearMe, searching, back] = [undefined, undefined, undefined, false, undefined];
   showPanel();
   writeLink();
   map.easeTo({ padding: panelPadding() });
+  if (keyboard && tab) tabs[tab].focus();
 }
 
 /**
