@@ -25,7 +25,7 @@ import { addDays, LIVE_URL, madridDate, type Manifest, type Network } from '../b
 import { LONG_DISTANCE, NETWORKS, regionsOf, type NetworkConfig, type Timetable } from '../networks.ts';
 import { download, feedStart, type Source } from './gtfs.ts';
 import { manifestOf } from './manifest.ts';
-import { ownRails, RAILWAYS, readFeed, readTimetables, unlisted, type Feed } from './networks.ts';
+import { ownRails, RAILWAYS, readFeed, readTimetables, unlisted, untaken, type Feed } from './networks.ts';
 import { crop, toBorder } from './border.ts';
 import { measures, reported, summary } from './measures.ts';
 import { osm } from './osm.ts';
@@ -89,13 +89,22 @@ for (const found of reported(drawn, logged)) report.add(found);
 
 // Renfe's long-distance Trains, each one Trip made from the parts its timetable lists it in, less those
 // a Network on the map lists too, are counted and traced, each run of them along the rails of its Line's
-// gauge to Spain's border (#259), but not drawn till #262 and #263, so nothing of them goes in the report
-// yet: what their traces find is logged, as the calls their Trains drop are (#403). A long-distance
-// timetable that can't be read, nor its copy, as before a build has kept one, is logged, and stops
-// nothing else.
+// gauge to Spain's border (#259), but not drawn till #262 and #263, so only the route names no Network
+// takes go in the report yet (#401), as the Trips under them are left out unseen: what their traces
+// find is logged, as the calls their Trains drop are (#403). A long-distance timetable that can't be
+// read, nor its copy, as before a build has kept one, is logged, and stops nothing else.
+// Each Network reads its own copy of the file, so both find the route names neither takes: the report
+// joins them, and each line is logged once.
+const named = new Set<string>();
+const once = (line: string) => {
+  if (!named.has(line)) console.log(line);
+  named.add(line);
+};
 for (const { network, failed } of await longDistance) {
   try {
-    const { days } = await readTimetables(network, failed, readDays, () => {});
+    const read = async (feeds: (Feed & { gtfs: Source })[]) => ({ ...(await readDays(feeds)), routes: (await Promise.all(feeds.map((f) => untaken(f.gtfs, once)))).flat() });
+    const { days, routes } = await readTimetables(network, failed, read, () => {});
+    for (const found of routes) report.add(found);
     const trains = days.map((parts, i) => {
       const trips = parts.flatMap((p) => p.trips);
       const kept = unlisted(trips, listed[i] ?? []);
