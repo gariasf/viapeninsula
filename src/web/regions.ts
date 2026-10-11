@@ -14,7 +14,7 @@ const AHEAD = 0.5;
  * The regions the map needs, by their IDs, in the manifest's order (#266): from zoom 7, where it draws
  * Lines and Trains, those whose extent is in `view`, or within AHEAD of it; below it none, as the file
  * below zoom 7 draws every region's track there (ZoomedOut); and at every zoom, those with no extent,
- * which every view loads, as long distance's will, as every region of a manifest from before #266. And
+ * which every view loads, as long distance's, as every region of a manifest from before #266. And
  * wherever the map is, the region of the Train a link names, by the Network its Trip's ID leads with,
  * those that have the Station a link names, by the file below zoom 7's `stations`, once it has come,
  * and for Nearby, those within so many metres of the viewer.
@@ -36,6 +36,16 @@ export function regionsNeeded(
     const needed = !extent || inView(extent) || near(extent) || (network !== undefined && networks?.includes(network)) || (station && stations[id]?.includes(station));
     return needed ? [id] : [];
   });
+}
+
+/**
+ * Of the regions the map needs (regionsNeeded()), those it loads at its first look: all but those with no extent,
+ * as long distance's, which every view needs and whose track file is larger than any view's own (1.5 MB brotli
+ * against Catalonia's 0.4 MB on 11 Oct 2026). They come at its second, so that they hold back neither the first
+ * Lines in view nor, zoomed out, the Network tracks, which wait for the first look's track (#262).
+ */
+export function firstLook(regions: Pick<ManifestRegion, 'id' | 'extent'>[], needed: string[]): string[] {
+  return needed.filter((id) => regions.find((r) => r.id === id)?.extent);
 }
 
 /** What joins the names of the files a track was joined from, in `joined`'s keys. */

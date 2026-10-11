@@ -11,7 +11,7 @@ import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, train
 import { alertCount, alertsChanged, arrivingAt, basemapLabel, betweenStations, busesReplace, earlierStations, language, LANGUAGES, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, notRunning, passingStation, setLanguage, t, toGo, trainCounts, trainsRunHere, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { getJson, STALL } from './files.ts';
-import { forgetJoined, regionLoader, regionsNeeded } from './regions.ts';
+import { firstLook, forgetJoined, regionLoader, regionsNeeded } from './regions.ts';
 import { linesAt, popupRoom } from './tap.ts';
 import { alongside, callsIn, namedTwice, nameOffset, nameSort, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
 import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
@@ -638,6 +638,8 @@ const joinedTracks = new Map<string, Track>();
 let [shown, looking] = ['', false];
 /** Whether the map is to look for the days it needs again once it has, as a look was asked for meanwhile, as when the map comes onto a region. */
 let lookAgain = false;
+/** Whether the map has looked for the days it needs yet: a region with no extent, long distance's, comes at its second look (firstLook()). */
+let lookedOnce = false;
 /**
  * Whether the last look for the days the map needs had a region's file fail to come, which the map looks
  * for again each minute (refreshDays()): a board whose regions' Trips haven't come then says that none can
@@ -782,7 +784,8 @@ map.addSource('station-names', { type: 'geojson', data: { type: 'FeatureCollecti
 // Today's Lines and Stations are drawn as soon as its track comes, before the Trips, which are most of the bundle.
 // Where no region's track comes, as where the one region in view fails to, the map opens without, and the next
 // look fetches it again.
-void Promise.resolve(needed?.days.then(async (days) => showDays(days, await needed.regions), (error: unknown) => console.error(error))).finally(looked);
+// The second, for long distance's region (firstLook()), once what the first brought is on screen.
+void Promise.resolve(needed?.days.then(async (days) => showDays(days, await needed.regions), (error: unknown) => console.error(error))).finally(() => onScreen(looked));
 show((await needed?.track) ?? joinTracks([]));
 // Around midnight the days the map needs change, and each day's build names three more.
 setInterval(refreshDays, 60_000);
@@ -2973,7 +2976,10 @@ async function neededDays(): Promise<{ track: Promise<Track | undefined>; days: 
     console.warn(error);
   }
   getZoomedOut(manifest);
-  for (const id of neededRegions(manifest)) loaded.add(id);
+  const wanted = neededRegions(manifest);
+  for (const id of lookedOnce ? wanted : firstLook(manifest.regions ?? [], wanted)) loaded.add(id);
+  if (!lookedOnce && wanted.some((id) => !loaded.has(id))) lookAgain = true;
+  lookedOnce = true;
   // The next day's first Trains come SOON before they're on the map, so they're among the nearby Trains.
   const needed = daysNeeded(daysOf(manifest), mapTime(Date.now(), received), { early: SOON, late: LATE, emptyBoard });
   if (!needed) throw new Error('The manifest names no service day');
@@ -3041,6 +3047,27 @@ function looked() {
   if (!lookAgain) return;
   lookAgain = false;
   refreshDays();
+}
+
+/**
+ * Calls `then` once what the map has is on screen: the file below zoom 7, where the manifest names one, the tiles of the
+ * Lines and the Network tracks, and any of the days' Trains in view, by what MapLibre renders; or after 5 s at most, as
+ * where none is in view. The map's second look brings long distance's region (firstLook()), whose 1.5 MB track is read
+ * and drawn on the page's one thread, which would hold back drawing the first's for seconds: its file came before
+ * MapLibre had drawn them (#262).
+ */
+function onScreen(then: () => void) {
+  const done = () => {
+    map.off('render', check);
+    clearTimeout(cap);
+    then();
+  };
+  const check = () => {
+    const trains = !bundle || map.queryRenderedFeatures({ layers: ['trains', 'train-pills'] }).length > 0;
+    if ((zoomedOut || !manifest?.zoomedOut) && trains && ['lines', 'tracks'].every((id) => map.isSourceLoaded(id))) done();
+  };
+  const cap = setTimeout(done, 5000);
+  map.on('render', check);
 }
 
 /** Shows days that have come, with the regions whose files have (neededDays()), and opens a link that waited for them. */
