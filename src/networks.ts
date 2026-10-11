@@ -203,6 +203,13 @@ export const RODALIES: NetworkConfig = {
     // is pink (Wikidata Q6018166).
     colours: { R7: '#B57CBB', R13: '#E52E87' },
   },
+  // Renfe's timetable of 10 October 2026 puts Rajadell, where R4 and RL4 call, 66 m from Adif's track, so
+  // its dot is 18 px from its Line at zoom 14: OpenStreetMap's station node for it (ref 78506) is beside the
+  // track, 0.21 km from there (#495). Renfe's long-distance timetable has it at that point too, for Media
+  // Distancia y Avant's Regional, so that Network's `stations` is to have it once it's drawn (#262, #476).
+  stations: {
+    'adif:78506': { lon: 1.6985763, lat: 41.7323609, source: 'https://www.openstreetmap.org/node/1669114248' },
+  },
 };
 
 export const FGC: NetworkConfig = {
