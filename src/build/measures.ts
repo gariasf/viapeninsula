@@ -56,8 +56,9 @@ const HAIRPIN = 120;
  * NEAR are, zoomed out (ADR-0007). In `over` and `covered`, the Lines given of one Network and one
  * colour count as one Line (#303): sideBySide() gives them one lane (lanes()), their strokes lying on
  * each other on purpose (#283). `dangling`: stroke
- * ends drawn at LOOSE_ZOOM further than LOOSE from any other stroke of their Line, and not at a
- * terminus (#172). Links (LINK), the curves that join a Line's stroke on one Stretch to its next, count only
+ * ends drawn at LOOSE_ZOOM further than LOOSE from any other stroke of their Line, not counting the one
+ * that goes on from the stroke's other end, as a stub's curve does (#353), and not at a terminus (#172).
+ * Links (LINK), the curves that join a Line's stroke on one Stretch to its next, count only
  * there, in LOOSE_ZOOM's band, and in the measures of nodes, at each zoom in BANDS (ADR-0007, #186).
  * `kinks`: curves shorter than LENGTH × their side change × the band's line width. `weaves`: a Line's
  * strokes shorter than the room() of the nodes at their ends, where it changes side at either.
