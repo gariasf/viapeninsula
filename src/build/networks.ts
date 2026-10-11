@@ -306,9 +306,28 @@ export async function readFeed(
 const SAME_CALL = 120;
 
 /**
+ * A Train's Trips in the order joinParts() joins them in, the one the Train is made from first: those
+ * that run its whole way, from a Station none of its Trips calls at after another call to one none
+ * calls at before another, then those with more calls, then the one whose ID sorts first, so that the
+ * order its timetable lists them in decides nothing (#402). On 10 Oct 2026 Regional 18500's Trip from
+ * Teruel to Zaragoza Delicias is the one that runs the Train's whole way, though its Trip to
+ * Encinacorba, which calls at the villages between, has 4 calls more: another of its Trips calls at
+ * Encinacorba before Zaragoza Delicias, so that one doesn't end where the Train does.
+ * ponytail: a Trip that runs the whole way wins however few its calls; on the 3 Trains it changes in
+ * the file of 10 Oct 2026 it has 76 to 86% of the most. Set a floor if one ever would take a Train down
+ * to its ends.
+ */
+function joinOrder(each: FeedTrip[]): FeedTrip[] {
+  const after = new Set(each.flatMap((t) => t.calls.slice(1).map((c) => c.station)));
+  const before = new Set(each.flatMap((t) => t.calls.slice(0, -1).map((c) => c.station)));
+  const whole = (t: FeedTrip) => t.calls.length > 1 && !after.has(t.calls[0]?.station ?? '') && !before.has(t.calls.at(-1)?.station ?? '');
+  return each.toSorted((a, b) => Number(whole(b)) - Number(whole(a)) || b.calls.length - a.calls.length || (a.id < b.id ? -1 : Number(a.id > b.id)));
+}
+
+/**
  * A day's Trips, with each Train's made one where its timetable lists it in parts, a Trip for each part
- * of its run it sells, as Renfe's long-distance one does (CONTEXT.md). It's its Trip with the most
- * calls, joined by each other part in turn: a part's call at one of its Stations within SAME_CALL is
+ * of its run it sells, as Renfe's long-distance one does (CONTEXT.md). It's the Trip joinOrder() puts
+ * first, joined by each other part in turn: a part's call at one of its Stations within SAME_CALL is
  * that call, and its calls between two such ones join it in time, as MD 18030's at Linares-Baeza did on
  * 10 Oct 2026. Any other call is dropped, and logged with its Train number, Station and time: on 5 Oct
  * 2026 all were where Renfe runs part of the way by road, as Reg.Exp. 17307's to and from Baides (#269).
@@ -319,8 +338,7 @@ export function joinParts(trips: FeedTrip[], stations: Map<string, Station>, day
   // Each once, though one of a Train's Trips ends there and another starts there.
   const dropped = new Set<string>();
   const joined = [...parts.values()].map((each) =>
-    each
-      .toSorted((a, b) => b.calls.length - a.calls.length)
+    joinOrder(each)
       .reduce((trip, part) => {
         const shared = part.calls.map((c) => trip.calls.some((t) => t.station === c.station && Math.max(c.arrival - t.departure, t.arrival - c.departure) <= SAME_CALL));
         const [first, last] = [shared.indexOf(true), shared.lastIndexOf(true)];

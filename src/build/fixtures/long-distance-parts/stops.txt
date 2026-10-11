@@ -1,0 +1,77 @@
+stop_id,stop_code,stop_name,stop_desc,stop_lat,stop_lon,zone_id,stop_url,location_type,parent_station,stop_timezone,wheelchair_boarding
+17000,,Madrid-Chamartín-Clara Campoamor,,40.4711789,-3.6829524,,,,,Europe/Madrid,1
+18000,,Madrid-Atocha Cercanías,,40.4066191,-3.6894391,,,,,Europe/Madrid,1
+04040,,Zaragoza Delicias,,41.6586576,-0.9112693,,,,,Europe/Madrid,1
+65000,,València-Estació del Nord,,39.4669305,-0.3772239,,,,,Europe/Madrid,1
+64100,,Xàtiva,,38.9921480,-0.5245402,,,,,Europe/Madrid,1
+60400,,Alcázar de San Juan,,39.3956280,-3.2057440,,,,,Europe/Madrid,1
+50100,,Manzanares,,39.0058370,-3.3705070,,,,,Europe/Madrid,2
+50102,,Valdepeñas,,38.7628680,-3.3957200,,,,,Europe/Madrid,2
+50207,,Vilches,,38.2157420,-3.5175760,,,,,Europe/Madrid,2
+50300,,Linares-Baeza,,38.0688640,-3.5893960,,,,,Europe/Madrid,1
+60911,,Alicante/Alacant-Terminal,,38.3447127,-0.4955241,,,,,Europe/Madrid,2
+65200,,Sagunt,,39.6758025,-0.2715420,,,,,Europe/Madrid,1
+60905,,Elda-Petrer,,38.4848790,-0.8010900,,,,,Europe/Madrid,2
+60902,,Villena,,38.6317380,-0.8676890,,,,,Europe/Madrid,1
+61307,,Cartagena,,37.6049670,-0.9751220,,,,,Europe/Madrid,1
+62103,,Elche/Elx-Parc,,38.2717809,-0.6952193,,,,,Europe/Madrid,1
+62002,,Orihuela-Miguel Hernández,,38.0779321,-0.9446060,,,,,Europe/Madrid,1
+61304,,Torre-Pacheco,,37.7469050,-0.9670780,,,,,Europe/Madrid,2
+61303,,Balsicas-Mar Menor,,37.8188400,-0.9508910,,,,,Europe/Madrid,2
+61200,,Murcia del Carmen,,37.9748243,-1.1315080,,,,,Europe/Madrid,1
+06006,,Lorca-Sutullena,,37.6721129,-1.6962305,,,,,Europe/Madrid,1
+06002,,Alhama de Murcia,,37.8494024,-1.4145141,,,,,Europe/Madrid,1
+06003,,Totana,,37.7635424,-1.4956153,,,,,Europe/Madrid,2
+03100,,Jaén,,37.7798270,-3.7907980,,,,,Europe/Madrid,1
+18002,,Madrid-Nuevos Ministerios,,40.4466271,-3.6923468,,,,,Europe/Madrid,1
+18001,,Madrid-Recoletos,,40.4233731,-3.6909310,,,,,Europe/Madrid,1
+70302,,Sigüenza,,41.0714170,-2.6464070,,,,,Europe/Madrid,2
+70209,,Jadraque,,40.9302290,-2.9359350,,,,,Europe/Madrid,2
+70200,,Guadalajara,,40.6441928,-3.1822602,,,,,Europe/Madrid,1
+70103,,Alcalá de Henares,,40.4890814,-3.3662457,,,,,Europe/Madrid,2
+70207,,Espinosa de Henares,,40.9096860,-3.0731570,,,,,Europe/Madrid,2
+70208,,Carrascosa de Henares,,40.9059800,-3.0143520,,,,,Europe/Madrid,2
+70210,,Matillas,,40.9538080,-2.8432600,,,,,Europe/Madrid,2
+70300,,Baides,,41.0048640,-2.7856350,,,,,Europe/Madrid,2
+70101,,San Fernando de Henares,,40.4427805,-3.5339866,,,,,Europe/Madrid,2
+70102,,Torrejón de Ardoz,,40.4547895,-3.4797300,,,,,Europe/Madrid,1
+70107,,Alcalá de Henares-Universidad,,40.5054303,-3.3353258,,,,,Europe/Madrid,2
+70104,,Meco,,40.5346731,-3.2986806,,,,,Europe/Madrid,1
+70105,,Azuqueca,,40.5610770,-3.2653970,,,,,Europe/Madrid,1
+70002,,Asamblea de Madrid-Entrevías,,40.3818618,-3.6680454,,,,,Europe/Madrid,1
+70003,,El Pozo,,40.3760377,-3.6561407,,,,,Europe/Madrid,1
+70005,,Vallecas,,40.3823640,-3.6230420,,,,,Europe/Madrid,2
+70109,,Santa Eugenia,,40.3869545,-3.6089855,,,,,Europe/Madrid,1
+70100,,Vicálvaro,,40.4012524,-3.5958970,,,,,Europe/Madrid,1
+70108,,Coslada,,40.4232370,-3.5611109,,,,,Europe/Madrid,1
+70112,,Soto del Henares,,40.4639640,-3.4414076,,,,,Europe/Madrid,1
+70111,,La Garena,,40.4805448,-3.3930055,,,,,Europe/Madrid,1
+67200,,Teruel,,40.3410290,-1.1102840,,,,,Europe/Madrid,1
+67004,,María de Huerva,,41.5397590,-0.9980820,,,,,Europe/Madrid,2
+67007,,Arañales de Muel,,41.4689460,-1.0863940,,,,,Europe/Madrid,2
+67009,,Longares,,41.4047870,-1.1587910,,,,,Europe/Madrid,2
+67010,,Cariñena,,41.3355860,-1.2284220,,,,,Europe/Madrid,2
+67021,,Calamocha,,40.9038640,-1.2998410,,,,,Europe/Madrid,2
+67100,,Caminreal-Fuentes Claras,,40.8511100,-1.3376500,,,,,Europe/Madrid,2
+67101,,Torrijo del Campo,,40.8260120,-1.3404980,,,,,Europe/Madrid,2
+67113,,Monreal del Campo,,40.7823210,-1.3607920,,,,,Europe/Madrid,2
+67103,,Villafranca del Campo,,40.6838270,-1.3579270,,,,,Europe/Madrid,2
+67105,,Santa Eulalia del Campo,,40.5729170,-1.3129950,,,,,Europe/Madrid,2
+67107,,Cella,,40.4552660,-1.2443290,,,,,Europe/Madrid,2
+67011,,Encinacorba,,41.2886500,-1.2785340,,,,,Europe/Madrid,2
+67013,,Villarreal de Huerva,,41.1964980,-1.2870960,,,,,Europe/Madrid,2
+67014,,Villadoz,,41.1654820,-1.2793390,,,,,Europe/Madrid,2
+67015,,Badules,,41.1395100,-1.2515720,,,,,Europe/Madrid,2
+67016,,Villahermosa,,41.1084920,-1.2398030,,,,,Europe/Madrid,2
+67017,,Ferreruela,,41.0638700,-1.2393840,,,,,Europe/Madrid,2
+67018,,Cuencabuena,,41.0092930,-1.2546410,,,,,Europe/Madrid,2
+67019,,Lechago,,40.9576810,-1.2690870,,,,,Europe/Madrid,2
+67020,,Navarrete,,40.9367210,-1.2617330,,,,,Europe/Madrid,2
+67203,,Puebla de Valverde,,40.2134240,-0.9446740,,,,,Europe/Madrid,2
+67205,,Sarrión,,40.1463390,-0.8236310,,,,,Europe/Madrid,2
+67206,,Mora de Rubielos,,40.1231420,-0.7861450,,,,,Europe/Madrid,2
+67207,,Rubielos de Mora,,40.1180060,-0.7734630,,,,,Europe/Madrid,2
+67208,,Barracas,,40.0117400,-0.6961510,,,,,Europe/Madrid,2
+67215,,Segorbe-Ciudad,,39.8471755,-0.4823544,,,,,Europe/Madrid,1
+70204,,Humanes de Mohernando,,40.8312730,-3.1388600,,,,,Europe/Madrid,2
+70202,,Yunquera de Henares,,40.7470130,-3.1632260,,,,,Europe/Madrid,2

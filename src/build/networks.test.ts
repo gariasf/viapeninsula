@@ -382,7 +382,7 @@ test("gives a Line the profile its Network's config names for it, as Avlo's 300 
   expect(rodalies.lines.every((l) => !('profile' in l))).toBe(true);
 });
 
-test("makes each Train's Trips on a day one Trip, from its Trip with the most calls: Alvia 00622's six one Barcelona–Vigo, with Ourense's arrival and departure one call, and Alvia 00190's identical twins one", async () => {
+test("makes each Train's Trips on a day one Trip: Alvia 00622's six one Barcelona–Vigo, with Ourense's arrival and departure one call, and Alvia 00190's identical twins one", async () => {
   const { trips } = await readFeed(longDistance, '2026-10-10', AVE_FEED);
   // By its Train number, which is its trip_short_name.
   expect(trips.map((t) => [t.number, t.id])).toEqual([
@@ -401,7 +401,7 @@ test("makes each Train's Trips on a day one Trip, from its Trip with the most ca
   expect(trips.find((t) => t.number === '00190')?.calls).toHaveLength(12);
 });
 
-test("drops a Train's calls in its other Trips that lie outside the run they share with the one with the most calls, and logs its Train number, Station and time: Reg.Exp. 17307 is one Trip Soria–Madrid, as its Trip to Baides and its Trip from there are run by road", async () => {
+test("drops a Train's calls in its other Trips that lie outside the run they share with the one it's made from, and logs its Train number, Station and time: Reg.Exp. 17307 is one Trip Soria–Madrid, as its Trip to Baides and its Trip from there are run by road", async () => {
   const log: string[] = [];
   const { trips } = await readFeed(longDistance, '2026-10-10', MD_FEED, (l) => log.push(l));
   const [regExp, ...more] = trips.filter((t) => t.number === '17307');
@@ -416,7 +416,7 @@ test("drops a Train's calls in its other Trips that lie outside the run they sha
   ]);
 });
 
-test("joins the Trip of a Train with the most calls in a call another of its Trips makes between two they share, in time: MD 18030's at Linares-Baeza, between Almuradiel and Jaén, all run by road, where that Trip calls at Vilches and Mengíbar", async () => {
+test("joins the Trip a Train is made from in a call another of its Trips makes between two they share, in time: MD 18030's at Linares-Baeza, between Almuradiel and Jaén, all run by road, where that Trip calls at Vilches and Mengíbar", async () => {
   const log: string[] = [];
   const { trips } = await readFeed(longDistance, '2026-10-10', MD_FEED, (l) => log.push(l));
   const md = trips.find((t) => t.number === '18030');
@@ -433,6 +433,108 @@ test("joins the Trip of a Train with the most calls in a call another of its Tri
     'media-distancia-avant:MD 18030 drops its call at Vilches at 12:30 on 2026-10-10: it lies outside the run its Trips share',
     'media-distancia-avant:MD 18030 drops its call at Mengíbar-Artichuela at 13:34 on 2026-10-10: it lies outside the run its Trips share',
   ]);
+});
+
+// Rows cut from Renfe's long-distance feed of 2026-10-10, without the spaces it pads each line with: the
+// Trips that run on Tuesday 13 October of the Trains it lists in parts that don't run the same length,
+// which Renfe runs by road on Zaragoza–Teruel's line (18500, 18502, 18506, 18511, 18515 and 18517), at
+// Baides (Regional 35402 and 35403) and on Intercity 01460's and 01463's Lorca branch, and of MD 18034,
+// whose two longest Trips call differently. Of their services, only the exceptions to that day: none.
+const parts = dirSource(fileURLToPath(new URL('fixtures/long-distance-parts', import.meta.url)));
+const day = '2026-10-13';
+
+test("makes a Train of its Trip that runs its whole way though another has more calls, as Zaragoza–Teruel's Trains of the Trip from end to end by Cariñena, not of the one with the villages between Calamocha and Encinacorba, which would have them start or end there and lose their run to Zaragoza", async () => {
+  const log: string[] = [];
+  const { trips } = await readFeed(parts, day, MD_FEED, (l) => log.push(l));
+  const run = (number: string) => {
+    const [trip, ...more] = trips.filter((t) => t.number === number);
+    expect(more).toEqual([]);
+    return trip;
+  };
+  // Teruel at 06:10 to Zaragoza Delicias at 09:24, where its Trip to Encinacorba has 17 calls, to 08:50.
+  const r18500 = run('18500');
+  expect(r18500?.id).toBe('media-distancia-avant:1850012026-10-09');
+  expect(r18500?.calls).toHaveLength(13);
+  expect(r18500?.calls[0]).toEqual({ station: 'adif:67200', arrival: at('06:10'), departure: at('06:10') });
+  expect(r18500?.calls.at(-1)).toEqual({ station: 'adif:04040', arrival: at('09:24'), departure: at('09:24') });
+  // Its other Trips' calls that lie outside the run they share are logged as ever, 15 of them: the villages' from Navarrete's 07:54, Cariñena's 09:06 to Zaragoza Delicias' 09:40, and Encinacorba's 08:10.
+  const dropped = log.filter((l) => l.includes(' 18500 '));
+  expect(dropped).toHaveLength(15);
+  expect(dropped[0]).toBe('media-distancia-avant:Regional 18500 drops its call at Navarrete at 07:54 on 2026-10-13: it lies outside the run its Trips share');
+  // València at 15:15 to Zaragoza Delicias at 21:01, where its Trip to Encinacorba has 19, to 20:23.
+  const r18506 = run('18506');
+  expect(r18506?.id).toBe('media-distancia-avant:1850612026-10-09');
+  expect(r18506?.calls).toHaveLength(16);
+  expect([r18506?.calls[0]?.station, r18506?.calls.at(-1)?.station]).toEqual(['adif:65000', 'adif:04040']);
+  expect(r18506?.calls.at(-1)?.arrival).toBe(at('21:01'));
+  // Zaragoza Delicias at 08:15 to València at 14:01, where its Trip from Encinacorba has 21, from 08:41.
+  const r18511 = run('18511');
+  expect(r18511?.id).toBe('media-distancia-avant:1851112026-10-09');
+  expect(r18511?.calls).toHaveLength(18);
+  expect([r18511?.calls[0]?.station, r18511?.calls.at(-1)?.station]).toEqual(['adif:04040', 'adif:65000']);
+  expect(r18511?.calls[0]?.departure).toBe(at('08:15'));
+  // Its longest Trip runs the whole way and calls at the villages too, so it was always the one.
+  const r18517 = run('18517');
+  expect(r18517?.id).toBe('media-distancia-avant:1851722026-10-09');
+  expect(r18517?.calls).toHaveLength(22);
+  expect([r18517?.calls[0]?.station, r18517?.calls.at(-1)?.station]).toEqual(['adif:04040', 'adif:67200']);
+});
+
+test("makes a Train of the one of its Trips that runs its whole way where another has as many calls: MD 18502's and 18515's, whose Trips to and from Encinacorba tie with theirs from València and from Zaragoza, and Regional 35402's and 35403's, whose Trips to and from Baides, where Renfe's road shuttle is, tie with theirs to and from Sigüenza", async () => {
+  const { trips } = await readFeed(parts, day, MD_FEED, () => {});
+  const ends = (number: string) => {
+    const t = trips.find((trip) => trip.number === number);
+    return [t?.id.split(':')[1], t?.calls.length, t?.calls[0]?.station, t?.calls.at(-1)?.station];
+  };
+  // València to Zaragoza Delicias, 16 calls against its Trip to Encinacorba's 16.
+  expect(ends('18502')).toEqual(['1850212026-10-09', 16, 'adif:65000', 'adif:04040']);
+  // Zaragoza Delicias to València, 13 against its Trip from Encinacorba's 13.
+  expect(ends('18515')).toEqual(['1851512026-10-09', 13, 'adif:04040', 'adif:65000']);
+  // Madrid-Chamartín to Sigüenza, 15 against its Trip to Baides's 15.
+  expect(ends('35402')).toEqual(['3540212026-10-12', 15, 'adif:17000', 'adif:70302']);
+  // Sigüenza to Madrid-Chamartín, 26 against its Trip from Baides's 26, which leaves there at 06:25, before the 06:48 it leaves Sigüenza.
+  expect(ends('35403')).toEqual(['3540312026-10-12', 26, 'adif:70302', 'adif:17000']);
+});
+
+test("makes a Train of the one of its Trips whose ID sorts first where more than one runs its whole way with as many calls, as Intercity 01460's and 01463's, from and to Cartagena, not Lorca, whose branch has no rails, and logs the calls it leaves out", async () => {
+  const log: string[] = [];
+  const { trips } = await readFeed(parts, day, AVE_FEED, (l) => log.push(l));
+  const ends = (number: string) => {
+    const t = trips.find((trip) => trip.number === number);
+    return [t?.id.split(':')[1], t?.calls.length, t?.calls[0]?.station, t?.calls.at(-1)?.station];
+  };
+  expect(ends('01460')).toEqual(['0146012026-10-10', 11, 'adif:61307', 'adif:65000']); // Cartagena to València
+  expect(ends('01463')).toEqual(['0146312026-10-10', 11, 'adif:65000', 'adif:61307']);
+  // With Torre-Pacheco and Balsicas, then Murcia del Carmen, where the Lorca branch joins.
+  expect(trips.find((t) => t.number === '01460')?.calls.slice(0, 4).map((c) => c.station)).toEqual(['adif:61307', 'adif:61304', 'adif:61303', 'adif:61200']);
+  // The Lorca branch's calls are dropped, and logged.
+  expect(log.filter((l) => l.includes(' 01460 ')).map((l) => l.replace(/ on .*/, ''))).toEqual([
+    'ave-larga-distancia:Intercity 01460 drops its call at Lorca-Sutullena at 11:03',
+    'ave-larga-distancia:Intercity 01460 drops its call at Totana at 11:29',
+    'ave-larga-distancia:Intercity 01460 drops its call at Alhama de Murcia at 11:44',
+  ]);
+});
+
+test("makes the same Trains of a day whatever order its timetable lists a Train's Trips in, and logs the same calls dropped", async () => {
+  const backwards: Source = (file) => {
+    const lines = parts(file);
+    if (file !== 'trips.txt' || !lines) return lines;
+    return (async function* () {
+      const all: string[] = [];
+      for await (const l of lines) all.push(l);
+      yield* [all[0] ?? '', ...all.slice(1).reverse()];
+    })();
+  };
+  for (const feed of [AVE_FEED, MD_FEED]) {
+    const read = async (source: Source) => {
+      const log: string[] = [];
+      const { trips } = await readFeed(source, day, feed, (l) => log.push(l));
+      return { trips: trips.toSorted((a, b) => (a.number ?? '').localeCompare(b.number ?? '')), log: log.toSorted() };
+    };
+    const forwards = await read(parts);
+    expect(forwards.trips.length).toBeGreaterThan(0);
+    expect(await read(backwards)).toEqual(forwards);
+  }
 });
 
 /** A Trip of Train 00001 calling at Stations at times, each a moment. */
@@ -453,11 +555,31 @@ test("takes a call of a Train's other Trip at one of its Stations up to 2 minute
   expect(log).toEqual(['MD 00001 drops its call at A at 10:03 on 2026-10-10: it lies outside the run its Trips share']);
 });
 
-test("logs a call it drops once, where one of a Train's Trips ends and another starts, as MD 35807's Trips from Sevilla and to Madrid do at Fuente del Arco, which the one with the most calls passes", () => {
+test("logs a call it drops once, where one of a Train's Trips ends and another starts, as MD 35807's Trips from Sevilla and to Madrid do at Fuente del Arco, which the one it's made from passes", () => {
   const log: string[] = [];
   const stations = new Map([['X', { id: 'X', name: 'Fuente del Arco', lon: -5.94, lat: 38.13 }]]);
   joinParts([longest, part('d', ['A', '10:00'], ['X', '10:05']), part('e', ['X', '10:05'], ['C', '10:20'])], stations, '2026-10-10', (l) => log.push(l));
   expect(log).toEqual(['MD 00001 drops its call at Fuente del Arco at 10:05 on 2026-10-10: it lies outside the run its Trips share']);
+});
+
+test("makes a Train of its Trip that starts at a Station none of its Trips calls at after another call and ends at one none calls at before another, though one that does neither has more calls: W runs from A to Z, M has 4 calls to E, where S, from E to Z, starts", () => {
+  const log: string[] = [];
+  const whole = part('w', ['A', '10:00'], ['C', '10:20'], ['Z', '10:40']);
+  const more = part('m', ['A', '10:00'], ['B', '10:10'], ['C', '10:20'], ['E', '10:25']);
+  const [joined, ...rest] = joinParts([more, whole, part('s', ['E', '10:25'], ['Z', '10:40'])], new Map(), '2026-10-10', (l) => log.push(l));
+  expect(rest).toEqual([]);
+  expect(joined?.id).toBe('w');
+  // M's call at B, between two it shares, joins, and E, which lies outside the run they share, doesn't.
+  expect(joined?.calls.map((c) => c.station)).toEqual(['A', 'B', 'C', 'Z']);
+  expect(log).toEqual(['MD 00001 drops its call at E at 10:25 on 2026-10-10: it lies outside the run its Trips share']);
+});
+
+test("makes a Train of its Trip with the most calls where none of its Trips runs its whole way, as where one ends at the Station another starts at, and of the one whose ID sorts first where they tie, whatever order they come in", () => {
+  const [x, y] = [part('x', ['A', '10:00'], ['B', '10:10'], ['C', '10:20']), part('y', ['C', '10:20'], ['D', '10:30'], ['E', '10:40'])];
+  expect(joinParts([x, y], new Map(), '2026-10-10', () => {}).map((t) => t.id)).toEqual(['x']);
+  expect(joinParts([y, x], new Map(), '2026-10-10', () => {}).map((t) => t.id)).toEqual(['x']);
+  const longer = part('z', ['C', '10:20'], ['D', '10:30'], ['F', '10:35'], ['E', '10:40']);
+  expect(joinParts([x, longer], new Map(), '2026-10-10', () => {}).map((t) => t.id)).toEqual(['z']);
 });
 
 // Rows cut verbatim from Renfe's Cercanías feed of 2026-10-10: RT2's Train 15210 from Salou-Port
