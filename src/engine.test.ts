@@ -798,7 +798,7 @@ test("a followed Train's countdown in seconds is the same on a device whose cloc
       { snapshot: written(at('21:55:00')), at: at('21:55:00', off) },
     ];
     expect(countdown(at('21:55:20', off), received)).toEqual(right);
-    // By the device's own clock it's hours off: no countdown within the hour at all.
+    // By the device's own clock it's hours out: now, or no minutes within the hour.
     expect(countdown(at('21:55:20', off), received, (m) => m)).not.toEqual(right);
   }
 });
