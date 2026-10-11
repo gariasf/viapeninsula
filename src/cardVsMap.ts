@@ -13,8 +13,8 @@
 import type { Call, SpeedProfile } from './bundle.ts';
 import { countdownTo, minutesTo, whereabouts, type Countdown } from './web/cards.ts';
 
-/** How near a Station a Train is drawn, in metres, for its dot to be at it: about 7 px at zoom 13. */
-export const AT = 50;
+/** How near a Station a Train is drawn, in px on the screen, for its dot to be at it: about 50 m at zoom 13, 12 m at zoom 15. */
+export const AT = 7;
 
 /** How far short of a Station a Train can be, in metres, before the card reading `now` for it is early by more than a Station's dot. */
 export const FAR = 200;
@@ -44,10 +44,10 @@ export interface Moment {
   calls: (Call & { key: string; away?: number })[];
   /** Whether it stands at the first Station it has still to leave. */
   standing: boolean;
-  /** Every place's dot within `reach` of where it's drawn, nearest first. */
+  /** Every place's dot within the arrow's reach of where it's drawn, and within `reach.at` where that is more, nearest first. */
   near: Near[];
-  /** How far its followed pill reaches along its track, in metres: its box alone, which the card goes by (pillReach()), and with its arrow. */
-  reach: { pill: number; arrow: number };
+  /** How far its followed pill reaches along its track, in metres: its box alone, which the card goes by (pillReach()), and with its arrow; and how near a Station it's drawn for its dot to be at it, AT px at the zoom measured. */
+  reach: { pill: number; arrow: number; at: number };
   /**
    * The place the card has it pass without stopping, the nearest of those of its own Network's it has no call at
    * (passedPlace(), over the places' dots, which the card goes by whichever Stations `near` counts by), by the key the card
@@ -105,7 +105,7 @@ export interface Differences {
   /** The card's time for the Station it counts down to, with its Delay, in ms since 1970, and which Station and which of its times it counts to (`B arrives`, `B leaves`): to see its steps. */
   expected: number;
   countsTo: string;
-  /** The Train is drawn within AT of its next Station, and doesn't stand there: the last of its way in. */
+  /** The Train is drawn within `reach.at` of its next Station, and doesn't stand there: the last of its way in. */
   atNext: boolean;
   /** Cause 5: the card's time for its next Station against when the drawn Train gets there, in seconds: positive where the Train is drawn ahead of its Delay. */
   timeOff: number;
@@ -129,7 +129,7 @@ export function differences(m: Moment): Differences | undefined {
   const kindOf = (key: string): Kind => (key === next.key ? 'next' : m.calls.some((c) => c.key === key) ? 'otherCall' : 'notCall');
   const unnamed = (metres: number, covers = (_: Near) => true) => m.near.find((n) => n.metres <= metres && n.key !== has && covers(n));
   const kind = (n: Near | undefined) => n && kindOf(n.key);
-  const [atAt, pillAt] = [unnamed(AT), unnamed(m.reach.pill)];
+  const [atAt, pillAt] = [unnamed(m.reach.at), unnamed(m.reach.pill)];
   // Its arrow points ahead, so it covers no Station it has left, unless the Trip comes back to it.
   const left = new Set(m.calls.slice(0, earlier).map((c) => c.key));
   const ahead = (n: Near) => !left.has(n.key) || upcoming.some((c) => c.key === n.key);
@@ -141,7 +141,7 @@ export function differences(m: Moment): Differences | undefined {
   const far = !m.standing && gap > FAR;
   const nowFar = reads0 && far;
   const reads = countdownTo(expected, m.at);
-  const atNext = !m.standing && m.near.some((n) => n.metres <= AT && n.key === next.key);
+  const atNext = !m.standing && m.near.some((n) => n.metres <= m.reach.at && n.key === next.key);
   // How long the drawn Train has to its timetable's time for the Station, in seconds: its own clock, whatever the card counts by.
   const toGo = due - m.time;
   // How far short of a Station the speed model has a Train braking at most: where `Arriving at B` would be true by braking, which the card doesn't go by (the pill's reach, #352's pick).

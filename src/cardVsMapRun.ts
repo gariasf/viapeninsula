@@ -8,7 +8,8 @@
 // - `LIMIT=<seconds>` replays only that long, for a look;
 // - `ZOOM=<n>` is the zoom the followed pill's reach is worked out at (13, the follow zoom's floor),
 //   as the card works it out at the map's (pillReach(), which holds at the zoom its Line's Trains are
-//   pills from, below it);
+//   pills from, below it), and the zoom AT's 7 px are metres at, how near a Station a Train is drawn for
+//   its dot to be at it (50 m at 13, 12 m at 15), so that what is counted at a dot says the same at every zoom (#608);
 // - `STATIONS=1` counts each Station by its own coordinates, keyed by its place or else its name, as #352's note did
 //   (its sections 1 and 2), not as the places the map shows; the card goes by the place's dot either way (#455);
 // - the Networks' live traits are src/networks.ts's, as an older bundle's can differ or be missing.
@@ -41,7 +42,7 @@ import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 import { DEGREE, pixelMetres, places, type Bundle, type Place, type Trip } from './bundle.ts';
-import { differences, type Moment, type Near } from './cardVsMap.ts';
+import { AT, differences, type Moment, type Near } from './cardVsMap.ts';
 import { passedPlace } from './web/cards.ts';
 import type { Received } from './engine.ts';
 import { NETWORKS } from './networks.ts';
@@ -165,7 +166,10 @@ for (const dir of process.argv.slice(2)) {
       const box = boxOf(outlineOf(line?.kind ?? 'commuter'), (line?.name.length ?? 0) * 6, FOLLOWED_TEXT);
       const pillZoom = pillZoomOf.get(line?.network ?? '') ?? 10;
       const half = pillReach(box, zoom, pillZoom, train.lat);
-      const arrowReach = half + ARROW_GAP * pixelMetres(Math.max(zoom, pillZoom), train.lat);
+      const px = pixelMetres(Math.max(zoom, pillZoom), train.lat);
+      const arrowReach = half + ARROW_GAP * px;
+      // How near a Station it's drawn for its dot to be at it: AT px at the zoom its pill is drawn at, as its reach is, so that the count says the same at every zoom (#608).
+      const at = AT * px;
       // As the operator runs it: its calls as `o.calls` has them, one for one (cutTrip(), #346).
       const made = o.trip;
       const kx = DEGREE * Math.cos((train.lat * Math.PI) / 180);
@@ -190,8 +194,9 @@ for (const dir of process.argv.slice(2)) {
         dist: train.dist,
         calls,
         standing: !!train.standsAt,
-        near: nearTo(train.lon, train.lat, arrowReach),
-        reach: { pill: half, arrow: arrowReach },
+        // The places within the arrow's reach, and within `at` if that is more, which it's not while AT is the arrow's gap's 7 px: near holds all that is counted from it.
+        near: nearTo(train.lon, train.lat, Math.max(at, arrowReach)),
+        reach: { pill: half, arrow: arrowReach, at },
         ...(hit && { passed: { key: keyOf.get(hit.place.stations[0] ?? '') ?? hit.place.id, metres: hit.away } }),
         profile: o.profile,
         ...(pinned && { pin: { dist: pinned.dist, call: made.calls.indexOf(pinned) } }),
