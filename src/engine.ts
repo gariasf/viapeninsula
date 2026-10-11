@@ -988,6 +988,15 @@ export function namedIn(bundle: Bundle): Map<string, Trip[]> {
 const add = (to: Map<string, Trip[]>, key: string, trip: Trip) => to.set(key, [...(to.get(key) ?? []), trip]);
 
 /**
+ * A bundle's Trips by their Train numbers, where they have one, those of one number in any Network
+ * and on each of the days joined: the Trips a report that names a Train by its number alone can be
+ * about, of which the one whose timetable runs nearest when it was reported is (reportsByTrip()).
+ */
+export function numberedIn(bundle: Bundle): Map<string, Trip[]> {
+  return bundle.trips.reduce((numbered, trip) => (trip.number ? add(numbered, trip.number, trip) : numbered), new Map<string, Trip[]>());
+}
+
+/**
  * How far apart when TMB expects a Block at its next Station and when a Trip's timetable has it there
  * can be for the Block to be running that Trip, in seconds: half an hour, well over half the longest
  * the Metro's timetable leaves between two Trains, 19 minutes. A Block further from every Trip, such
@@ -1056,12 +1065,9 @@ function reportsByTrip(bundle: Bundle, snapshot: Snapshot, lines: Map<string, Ne
   if (known?.bundle === bundle) return known;
   const prior = before && matched.get(before);
   const ran = prior?.bundle === bundle ? prior.ran : new Map<string, string>();
-  const [reports, offs, headed, named, numbered, kept] = [new Map<string, Report>(), new Map<string, number>(), new Map<string, Trip[]>(), namedIn(bundle), new Map<string, Trip[]>(), new Set<string>()];
+  const [reports, offs, headed, named, numbered, kept] = [new Map<string, Report>(), new Map<string, number>(), new Map<string, Trip[]>(), namedIn(bundle), numberedIn(bundle), new Set<string>()];
   const refused = new Set<string>();
-  for (const trip of bundle.trips) {
-    add(headed, `${trip.line} ${trip.headsign}`, trip);
-    if (trip.number) add(numbered, trip.number, trip);
-  }
+  for (const trip of bundle.trips) add(headed, `${trip.line} ${trip.headsign}`, trip);
   // The Metro's Blocks that don't keep their Trip, each with the Trips headed its way and its next Station.
   const rest: [Report, Trip[], NonNullable<Report['expected']>][] = [];
   for (const report of snapshot.reports) {

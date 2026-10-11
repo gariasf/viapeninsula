@@ -24,19 +24,21 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { addDays, daysOf, joinTracks, joinTrips, LIVE_URL, madridDate, type Bundle, type DayFiles, type DayTrips, type Manifest, type Snapshot, type Trip } from './bundle.ts';
-import { joinDays, namedIn, trainsAt, type Received } from './engine.ts';
+import { joinDays, namedIn, numberedIn, trainsAt, type Received } from './engine.ts';
 import { decodeTrack, type TrackFile } from './pieces.ts';
 
 /**
- * A recording's bundle cut down to the Trips its replay needs: those its snapshots name, on whichever
- * of the days joined (joinDays()) they run, and those Live at any second of the replay: the Metro's
- * Blocks name none. And every Trip a Block could run, on its Line within an hour of the replay (the
- * engine matches within half an hour): cutting one a Block ran while it was off the map, such as
- * waiting at its first Station, would have the Block run another.
+ * A recording's bundle cut down to the Trips its replay needs: those its snapshots name, by their IDs
+ * or, as Renfe's long-distance reports do, by their Train numbers, on whichever of the days joined
+ * (joinDays()) they run, though no Train runs them, as a Cancelled one's doesn't (#427); and those
+ * Live at any second of the replay: the Metro's Blocks name none. And every Trip a Block could run, on
+ * its Line within an hour of the replay (the engine matches within half an hour): cutting one a Block
+ * ran while it was off the map, such as waiting at its first Station, would have the Block run another.
  */
 export function cut(bundle: Bundle, received: Received[]): Bundle {
-  const named = namedIn(bundle);
-  const kept = new Set(received.flatMap((r) => r.snapshot.reports.flatMap((report) => (report.trip ? (named.get(report.trip) ?? []).map((t) => t.id) : []))));
+  const [named, numbered] = [namedIn(bundle), numberedIn(bundle)];
+  // A report can be about any Trip of its ID, or of its Train number where it names no ID, and the engine picks the one whose timetable runs nearest when it was reported (reportsByTrip()): keep each.
+  const kept = new Set(received.flatMap((r) => r.snapshot.reports.flatMap((report) => (report.trip ? (named.get(report.trip) ?? []) : (numbered.get(report.number ?? '') ?? [])).map((t) => t.id))));
   for (let at = received[0]?.at ?? 0; at <= (received.at(-1)?.at ?? 0); at += 1000) {
     for (const train of trainsAt(bundle, at, received.filter((r) => r.at <= at))) if (train.live) kept.add(train.trip.id);
   }

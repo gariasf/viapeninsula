@@ -12,8 +12,8 @@ const PROFILE = { acceleration: 1, braking: 1, topSpeed: 160 / 3.6, dwell: 30 };
 const RODALIES: Network = { id: 'rodalies', name: 'Rodalies de Catalunya', profile: PROFILE, runningSide: 'right', colour: '#000', pillZoom: 10, credit: { text: '', url: '' }, live: NETWORKS.find((n) => n.id === 'rodalies')?.live };
 const [BADALONA, MASNOU] = [{ dist: 18429, lon: 2.24892096, lat: 41.4458838 }, { dist: 24701, lon: 2.3103772, lat: 41.4770363 }];
 
-/** A service day's bundle of these Trips, by their IDs and the times they leave Badalona and arrive at El Masnou, in seconds into the day. */
-function day(serviceDay: string, trips: Record<string, [leaves: number, arrives: number]>): Bundle {
+/** A service day's bundle of these Trips, by their IDs and the times they leave Badalona and arrive at El Masnou, in seconds into the day, and their Train numbers where they have one. */
+function day(serviceDay: string, trips: Record<string, [leaves: number, arrives: number, number?: string]>): Bundle {
   return {
     serviceDay,
     // Midnight in Barcelona, which is noon less 12 hours on any day the clocks don't change.
@@ -26,11 +26,12 @@ function day(serviceDay: string, trips: Record<string, [leaves: number, arrives:
     rails: [],
     slots: [],
     tracks: [],
-    trips: Object.entries(trips).map(([id, [leaves, arrives]]) => ({
+    trips: Object.entries(trips).map(([id, [leaves, arrives, number]]) => ({
       id,
       line: 'R1',
       shape: 'R1',
       headsign: 'El Masnou',
+      ...(number && { number }),
       calls: [
         { station: 'Badalona', arrival: leaves, departure: leaves, dist: BADALONA.dist },
         { station: 'El Masnou', arrival: arrives, departure: arrives, dist: MASNOU.dist },
@@ -99,6 +100,25 @@ test("cuts a recording that crossed midnight to the Trips its snapshots name, wh
   const [whole, kept] = [trainsAt(joined, AT, received), trainsAt(cut(joined, received), AT, received)];
   expect(whole.map((t) => [t.trip.id, t.live])).toEqual([['2026-09-25/night', true], ['early', true]]);
   expect(kept.map((t) => [t.trip.id, t.dist, t.live])).toEqual(whole.map((t) => [t.trip.id, t.dist, t.live]));
+});
+
+test("keeps the Trips a report names by their Train number as it keeps those it names by their IDs, on whichever of the days joined, though no Train runs them: a Cancelled one's, and one Renfe's report of has no position", () => {
+  // Renfe's long-distance feed names a Train by its number alone (#261), and has no position for a Cancelled one.
+  const [friday, saturday] = [
+    day('2026-09-25', { late: [22 * 3600, 22 * 3600 + 30 * 60, '15007'], night: [...NIGHT, '15001'], noon: [12 * 3600, 12 * 3600 + 30 * 60, '15002'] }),
+    day('2026-09-26', { night: [...NIGHT, '15001'], morning: [5 * 3600, 5 * 3600 + 30 * 60, '15062'] }),
+  ];
+  const joined = joinDays([friday, saturday]);
+  const received = reporting();
+  received[0]?.snapshot.reports.push({ number: '15007', at: AT, cancelled: true }, { number: '15001', at: AT, delay: 120 });
+  // The night's Trip of 15001 runs on both days, and the report names both alike, as one of an ID does. Nothing names the noon one, or the morning's.
+  expect(cut(joined, received).trips.map((t) => t.id)).toEqual(['2026-09-25/late', '2026-09-25/night', 'night']);
+  // None of them is Live, so the Live rule keeps none: Friday's night Trip is drawn Scheduled, and the Cancelled one isn't drawn.
+  const [whole, kept] = [trainsAt(joined, AT, received), trainsAt(cut(joined, received), AT, received)];
+  expect(whole.map((t) => [t.trip.id, t.live])).toEqual([['2026-09-25/night', false]]);
+  expect(kept.map((t) => [t.trip.id, t.dist, t.live])).toEqual(whole.map((t) => [t.trip.id, t.dist, t.live]));
+  // And its reports are matched by their number, so unmatched() has none of them to count.
+  expect(unmatched(joined, received)).toEqual({ reports: 0, trips: 0 });
 });
 
 test("cuts a recording of one day to the Trips its snapshots name, by their operators' names as it did before the days were joined", () => {
