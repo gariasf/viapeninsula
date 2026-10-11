@@ -51,18 +51,20 @@ test('reads a single track, and leaves a stretch whose Station is none of the Li
   expect(stretchesIn(text, R2)).toEqual([{ stations: ['adif:71600', 'adif:71603'], says: 'single' }]);
 });
 
+/** Made up, on Rodalies' Stations: some with their names cut or joined otherwise than the bundle has them. */
+const MADE_UP = [
+  ...R1,
+  { id: 'adif:79009', name: 'Barcelona-El Clot' },
+  { id: 'adif:78802', name: 'Fabra i Puig' },
+  { id: 'adif:71700', name: 'Vilanova i la Geltrú' },
+  { id: 'adif:71701', name: 'Sitges' },
+  { id: 'adif:77102', name: 'La Garriga' },
+];
+
 test("matches a name within a Station's name, where it's within one Station's only, and a Station's name with a joining word in it", () => {
-  // Made up, on Rodalies' Stations.
-  const stations = [
-    ...R1,
-    { id: 'adif:79009', name: 'Barcelona-El Clot' },
-    { id: 'adif:78806', name: 'Fabra i Puig' },
-    { id: 'adif:71700', name: 'Vilanova i la Geltrú' },
-    { id: 'adif:71701', name: 'Sitges' },
-    { id: 'adif:77106', name: 'La Garriga' },
-  ];
+  const stations = MADE_UP;
   expect(stretchesIn('Servicio alternativo por carretera entre Blanes y Maçanet.', stations)).toEqual([{ stations: ['adif:79606', 'adif:79200'], says: 'closed' }]);
-  expect(stretchesIn('Circulación interrumpida entre Fabra i Puig y El Clot.', stations)).toEqual([{ stations: ['adif:78806', 'adif:79009'], says: 'closed' }]);
+  expect(stretchesIn('Circulación interrumpida entre Fabra i Puig y El Clot.', stations)).toEqual([{ stations: ['adif:78802', 'adif:79009'], says: 'closed' }]);
   expect(stretchesIn('Circulación por vía única entre Vilanova i la Geltrú e Sitges.', stations)).toEqual([{ stations: ['adif:71700', 'adif:71701'], says: 'single' }]);
   // "la" is within two of their names, and too short to tell.
   expect(stretchesIn('Servicio alternativo por carretera entre Blanes y la estación.', stations)).toEqual([]);
@@ -285,7 +287,7 @@ const DAY = {
       { id: 'adif:77102', name: 'La Garriga' },
       { id: 'adif:77200', name: 'Ripoll' },
       { id: 'adif:77309', name: 'Puigcerdà' },
-      { id: 'adif:78806', name: 'Fabra i Puig' },
+      { id: 'adif:78802', name: 'Barcelona Fabra i Puig' },
       { id: 'adif:73100', name: 'La Plana-Picamoixons' },
       { id: 'adif:73003', name: 'Les Borges Blanques' },
     ].map((s) => ({ ...s, networks: ['rodalies'] })),
@@ -299,6 +301,32 @@ const DAY = {
     { id: 'tmb:1.130', name: 'Glòries', networks: ['metro'] },
   ],
 };
+
+/**
+ * Each Station's name by ID as the bundle has it: those of 10 Oct's bundle that the Alerts' words could name
+ * (NIGHT_STATIONS), and Renfe's own rows in the build's fixtures, which the bundle takes its names from.
+ */
+const BUNDLE_NAMES = new Map<string, string>([
+  ...NIGHT_STATIONS.map((s) => [s.id, s.name] as [string, string]),
+  ...['rodalies', 'rodalies-buses'].flatMap((dir) =>
+    readFileSync(new URL(`../build/fixtures/${dir}/stops.txt`, import.meta.url), 'utf8')
+      .split('\n')
+      .slice(1)
+      .filter((row) => row.trim())
+      .map((row): [string, string] => [`adif:${row.split(',')[0]}`, (row.split(',')[1] ?? '').trim()]),
+  ),
+]);
+
+test("gives each Station of DAY, R1's among them, the ID and the name the bundle has, and each made-up one an ID whose name has its own within it, so that a test that copies a wrong ID fails here (#554)", () => {
+  // Names only are read, so a wrong ID passes the tests that expect it back, and only this tells it. Neither
+  // source has Tordera (79607 in Renfe's stops.txt) or the Metro's Glòries, which the bundle has as tmb:1.130.
+  const given = DAY.stations;
+  expect(given.filter((s) => !BUNDLE_NAMES.has(s.id)).map((s) => s.id)).toEqual(['adif:79607', 'tmb:1.130']);
+  for (const s of given) expect([s.id, s.name]).toEqual([s.id, BUNDLE_NAMES.get(s.id) ?? s.name]);
+  // A made-up name is the bundle's cut, or joined otherwise: its words are within the bundle's name.
+  const plain = (name: string) => name.toLowerCase().replace(/-/g, ' ');
+  for (const s of MADE_UP) expect([s.id, plain(BUNDLE_NAMES.get(s.id) ?? s.name)]).toEqual([s.id, expect.stringContaining(plain(s.name))]);
+});
 
 /** One of TRAM's service days in the fixture, with DAY's Lines and Stations, as a page that has loaded only that day has it. */
 function tramDay(date: string) {
