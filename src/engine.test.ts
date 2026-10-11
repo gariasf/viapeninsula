@@ -1127,6 +1127,25 @@ test('a Train runs on through Stations its Trip skips between others, stopping a
   expect(nearby(cunit, at('21:30:00'), received)).toEqual([]);
 });
 
+test("a followed Train passes a Station its operator has said it won't stop at, which is not among the calls it makes, and names the one it calls at as it did (#457)", () => {
+  // Made up, as in the test before: the R2S skips Segur de Calafell and Cunit, as Renfe said at 21:20. Cunit's place is where the map shows its dot.
+  const cunit = { stations: ['Cunit'], lon: 1.63194242, lat: 41.1950415 };
+  const reach = 130;
+  const says = (received: Received[]) => {
+    const seen = new Set<string>();
+    for (let moment = at('21:38:00'); moment <= at('21:43:00'); moment += 1000) {
+      const f = followed(R2S, moment, received);
+      const w = f && whereabouts(f.trip.calls, f.dist, f.upcoming.length, !!f.standsAt, reach, undefined, passedPlace([cunit], f, new Set(f.trip.calls.map((c) => c.station)), reach));
+      if (w) seen.add(w.at === 'passing' ? `passing ${w.place.stations[0]}` : w.at);
+    }
+    return [...seen].sort();
+  };
+  // Running on through it, between Calafell and Cubelles, it passes it for the 17 s its pill, 130 m either side of it, is on its dot, and is between otherwise.
+  expect(says(skipping(R2S, ['Segur de Calafell', 'Cunit'], at('21:20:00')))).toEqual(['between', 'passing Cunit']);
+  // Stopping there, it's arriving at it, standing at it and leaving it, and never passing it.
+  expect(says([])).toEqual(['arriving', 'between', 'leaving', 'standing']);
+});
+
 test('a Train whose Trip skips Stations that Renfe first said so of once its timetable had left the one before them starts late after them, as Renfe lists none its timetable has left', () => {
   // As Renfe first listed an R4 from Manresa skipping Barberà del Vallès to Plaça de Catalunya at 13:15
   // on 7 October 2026, when its timetable had left Manresa at 12:24 and Sabadell Sud, the Station
