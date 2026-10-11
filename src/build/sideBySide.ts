@@ -1443,14 +1443,15 @@ function depthAt(stroke: Stroke, d: number): number {
  * Strokes cut where they go into a tunnel or come out, or deeper, each piece `under` as deep as it is,
  * so that the map draws it below the Lines above it (#178). Only once the curves are made, so that they
  * join the strokes as they would on one level; each piece is cut back as far as the stroke it's part
- * of is, for the curves there.
+ * of is, for the curves there. The first starts where the stroke does, which together() may have moved
+ * back from where its first run began (#541).
  */
 function split(strokes: Stroke[]): Stroke[] {
   return strokes.flatMap((s) => {
     const runs = depths.get(s);
     if (!runs) return [s];
-    return runs.map(([from, below], i): Stroke => {
-      const to = runs[i + 1]?.[0] ?? s.to;
+    return runs.map(([run, below], i): Stroke => {
+      const [from, to] = [i ? run : s.from, runs[i + 1]?.[0] ?? s.to];
       const length = to - from;
       const cut = s.cut?.map(([start, end]): [number, number] => {
         const a = Math.min(length, Math.max(0, s.from + start - from));
