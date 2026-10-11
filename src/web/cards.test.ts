@@ -257,6 +257,10 @@ test("a Train stays arriving, or leaving, across the stretch between a dot and i
   const dotAhead = (dist: number) => whereabouts(ABC, dist, 2, false, 73, (call) => (call.station === 'b' ? { away: Math.abs(2204 - dist), offset: 204 } : { away: Infinity, offset: 0 }));
   expect(dotAhead(1900)).toEqual({ at: 'between', last: A, next: B });
   expect(dotAhead(1930)).toEqual({ at: 'arriving', next: B });
+  // The track needn't run along the line between them: 100 m short of the platform and 200 m from the dot, which is 100 m off it, is still the stretch, as 100 and 260 m are not, by the two reaches' slack.
+  const beside = (away: number) => whereabouts(ABC, 1900, 2, false, 73, (call) => (call.station === 'b' ? { away, offset: 204 } : { away: Infinity, offset: 0 }));
+  expect(beside(200)).toEqual({ at: 'arriving', next: B });
+  expect(beside(260)).toEqual({ at: 'between', last: A, next: B });
 });
 
 /** The Network the Train in these tests runs for, and whose Trains stop at the places the map shows unless they say. */
