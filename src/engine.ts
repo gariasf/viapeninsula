@@ -381,8 +381,13 @@ function onMap(bundle: Bundle, at: number, received: Received[], closures: reado
   };
   const of = (trip: Trip, nested = false): OnMap | undefined => {
     const said = heard.get(trip.id);
-    // Cancelled outright, it runs none of its Trip, as its timetable has it.
-    const cut = said?.report.cancelled ? undefined : cuts.get(trip.id);
+    // Cancelled outright, it runs none of its Trip, as its timetable has it. By a report naming its Train
+    // number, only once its Trip is due to leave its first Station: Renfe's long-distance trip update that
+    // says only CANCELED has no stops, and its calendar's date, so it can't say which run, and before then
+    // the Train can run after all, as FEVE's 71832 did on 10 October 2026, CANCELED from 13:47 and running
+    // out of Oviedo from 14:45 (#429).
+    const cancels = !!said?.report.cancelled && (!said.report.number || now >= (trip.calls[0]?.departure ?? -Infinity));
+    const cut = cancels ? undefined : cuts.get(trip.id);
     const asRun = cut?.trip ?? trip;
     const [network, shape, first, last, ease] = [lines.get(trip.line), shapes.get(trip.shape), asRun.calls[0], asRun.calls.at(-1), eases.get(trip.id)];
     if (!network || !shape) return undefined;
@@ -403,7 +408,7 @@ function onMap(bundle: Bundle, at: number, received: Received[], closures: reado
     const block = live ? said?.report.block : undefined;
     const waits = !nested && block && first && time < (dwelt[0]?.arrival ?? -Infinity) && !ranBy(block).some((t) => t !== trip && t.calls.at(-1)?.station === first.station && of(t, true)?.train);
     const calls = waits ? dwelt.map((c, i) => (i ? c : { ...c, arrival: time })) : dwelt;
-    const cancelled = !!said?.report.cancelled || (!!cut && !cut.trip);
+    const cancelled = cancels || (!!cut && !cut.trip);
     const off = { trip: asRun, cancelled, skips: cut?.skips ?? [], closed: closedOn.get(trip.line), now, time, timeAt, delay, calls, network, profile, ease, said, live };
     if (cancelled) return off;
     // Most Trips aren't on the map at any one moment, whatever their dwell: skip those first.
