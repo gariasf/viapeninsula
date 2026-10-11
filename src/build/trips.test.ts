@@ -204,6 +204,20 @@ test("places the last call of a Trip that turns back at the far end of its trace
   expect(days[0]?.[0]?.calls.map((c) => c.dist)).toEqual([0, 3499, 7007]);
 });
 
+test("places a call after the last of a trace that turns back at a Station short of it where the Trip comes to it on the way back, though the way out's pass is nearer", () => {
+  // A spur, off R2N's track, out to 1,000 m and back, Z 100 m short of its end and S 350 m: the way out passes S 250 m
+  // before Z, the way back 455 m after it, and the Trip, at Z and then at S, has been to the end and is on its way back.
+  const spur = shape('spur', [2000, 1800], [3000, 1800], [3000, 1805], [2000, 1805]);
+  const { days } = placeDays(
+    [[trip('turned back', 'R2N', 'R2N', 'Z S')]],
+    R2N[0],
+    [...R2N[1], station('Z', 2900, 1800), station('S', 2650, 1800)],
+    TOP_SPEED,
+    (unfit) => ({ shapes: [spur], days: unfit.map((day) => day.map((t) => ({ ...t, shape: spur.id }))) }),
+  );
+  expect(days[0]?.[0]?.calls.map((c) => c.dist)).toEqual([900, 1355]);
+});
+
 test("places a Trip that would have to run faster than its Network's top speed along its shape on a trace of its own, as R16's from Tortosa past L'Aldea would", () => {
   // R16's track from Tortosa to Ulldecona comes back a kilometre from L'Aldea: along it, L'Aldea → Ulldecona is 180 km/h.
   const stations = [station("L'Aldea", 0, 30), station('Tortosa', 12000, 25), station('Ulldecona', 1000, -20000)];

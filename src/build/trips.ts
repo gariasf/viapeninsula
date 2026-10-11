@@ -250,8 +250,10 @@ function passes({ coords, dist }: Shape, p: Point): Pass[] {
  * its Stations. Along a trace made through the Trip's own Stations it's `onward`: the Trip runs it
  * from its start to its end, so a Station is at the pass it can be reached by going on, as R15's from
  * Ulldecona by Tortosa back to L'Aldea is at the trace's end, not at the way out's, which the least
- * travel would take by a few metres of track (#280). A Station within REACH of the one before may
- * come a little behind it.
+ * travel would take by a few metres of track (#280).
+ * ponytail: a Station that's a little behind the one before it, as two at one place can be, and has a
+ * later pass too, goes to that one, and a Trip it doesn't fit is left out as too fast. Allow it some
+ * slack, a hundred metres or so, if a Trip is ever left out so.
  */
 function leastTravel(options: Pass[][], onward = false): number[] {
   const better = <T extends { travel: number; off: number }>(a: T, b: T) => (b.travel < a.travel || (b.travel === a.travel && b.off < a.off) ? b : a);
@@ -264,7 +266,7 @@ function leastTravel(options: Pass[][], onward = false): number[] {
     // Only the passes it can go on to, where it can go on to any.
     const onwards = onward
       ? passes.flatMap((p) => {
-          const from = ways.filter((way) => p.along >= (way.dist.at(-1) ?? 0) - REACH);
+          const from = ways.filter((way) => p.along >= (way.dist.at(-1) ?? 0));
           return from.length ? [go(p, from)] : [];
         })
       : [];
