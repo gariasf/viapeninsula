@@ -123,7 +123,7 @@ const STRINGS = {
   nextDepartures: { ca: 'Properes sortides', es: 'Próximas salidas', eu: 'Hurrengo irteerak', gl: 'Próximas saídas', en: 'Next departures' },
   noDepartures: { ca: 'Cap sortida propera', es: 'Ninguna salida próxima', eu: 'Ez dago hurrengo irteerarik', gl: 'Ningunha saída próxima', en: 'No upcoming departures' },
   cancelled: { ca: 'Cancel·lat', es: 'Cancelado', eu: 'Bertan behera', gl: 'Cancelado', en: 'Cancelled' },
-  // A departure at a Station its Train won't stop at, as one cut short doesn't run to (#346).
+  // A departure at a Station its Train won't stop at, as one cut short doesn't run to (#346) or within a closed Closure (#345), and that Station in the Train's strip (#420).
   notStopping: { ca: "No s'atura aquí", es: 'No para aquí', eu: 'Ez da hemen gelditzen', gl: 'Non para aquí', en: "Doesn't stop here" },
   // At the foot of a peeking board: how many departures more it lists.
   moreDepartures: { ca: '{n} sortides més', es: '{n} salidas más', eu: '{n} irteera gehiago', gl: '{n} saídas máis', en: '{n} more departures' },
@@ -154,6 +154,14 @@ const STRINGS = {
     eu: 'Autobusak trenen ordez {a} eta {b} artean',
     gl: 'Autobuses no canto de trens entre {a} e {b}',
     en: 'Buses replace trains between {a} and {b}',
+  },
+  // A followed Train within a closed Closure that hides Trains, which the map doesn't draw there (#420): that it doesn't run between {a} and {b}, the Closure's Stations in the order it meets them (notRunning()).
+  notRunning: {
+    ca: 'No circula entre {a} i {b}',
+    es: 'No circula entre {a} y {b}',
+    eu: 'Ez da {a} eta {b} artean ibiltzen',
+    gl: 'Non circula entre {a} e {b}',
+    en: "Doesn't run between {a} and {b}",
   },
   // A tap on a Closure an Alert makes, once a Live Train of its Line has been seen within it (#422): {line}'s Trains run there, since {time}.
   trainsRunHere: {
@@ -367,14 +375,19 @@ export const alertCount = (n: number, lang = language()): string => counting(n, 
 export const alertsChanged = (by: string, time: string, lang = language()): string => STRINGS.alertsChanged[lang].replace('{by}', by).replace('{time}', time);
 
 /**
- * That buses run in a Line's Trains' place between two Stations, as the timetable's Closures say (#341),
- * in `lang`, or else the language the interface speaks now: in Spanish with "e" for "y" before a name
+ * A string that names two Stations, `a` and `b`, in `lang`: in Spanish with "e" for "y" before a name
  * starting with an i sound, as in "Hernani e Irun", but not "hie", as the RAE has it.
  */
-export const busesReplace = (a: string, b: string, lang = language()): string => {
-  const text = STRINGS.busesReplace[lang].replace('{a}', a);
+const between = (key: 'busesReplace' | 'notRunning', a: string, b: string, lang: Language): string => {
+  const text = STRINGS[key][lang].replace('{a}', a);
   return (lang === 'es' && /^h?[iíIÍ](?![aeoáéó])/i.test(b) ? text.replace(' y {b}', ' e {b}') : text).replace('{b}', b);
 };
+
+/** That buses run in a Line's Trains' place between two Stations, as the timetable's Closures say (#341), in `lang`, or else the language the interface speaks now. */
+export const busesReplace = (a: string, b: string, lang = language()): string => between('busesReplace', a, b, lang);
+
+/** That a followed Train doesn't run between two Stations, `a` and `b`, a closed Closure's, which it's within and the map doesn't draw it in (#420), in `lang`, or else the language the interface speaks now. */
+export const notRunning = (a: string, b: string, lang = language()): string => between('notRunning', a, b, lang);
 
 /** That a Line's Trains have run within a lifted Closure since `time` (#422), in `lang`, or else the language the interface speaks now. */
 export const trainsRunHere = (line: string, time: string, lang = language()): string => STRINGS.trainsRunHere[lang].replace('{line}', line).replace('{time}', time);

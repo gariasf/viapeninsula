@@ -926,6 +926,16 @@ time .in {
   font-weight: 400;
 }
 
+/* A Station the Train doesn't stop at, within a closed Closure that hides Trains (#420): its time struck through and its name in the soft ink, with the board's words after it, as a board's row has them (#345). */
+.strip li.skipped time {
+  color: var(--ink-soft);
+  text-decoration: line-through;
+}
+
+.strip li.skipped > span:last-child {
+  color: var(--ink-soft);
+}
+
 .strip :is(li.next, li.terminus),
 .strip :is(li.next, li.terminus) time {
   font-weight: 700;
