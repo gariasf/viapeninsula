@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { expect, test } from 'vitest';
 import { DEGREE, type Bundle, type LineProfile, type LiveTraits, type Network, type Report, type SpeedProfile } from './bundle.ts';
-import { trainsAt, type Received } from './engine.ts';
+import { trainsAt, unavailable, type Received } from './engine.ts';
 import { jumps } from './jumps.ts';
 import { AVE_LARGA_DISTANCIA, MEDIA_DISTANCIA_AVANT, type NetworkConfig } from './networks.ts';
 
@@ -116,9 +116,9 @@ test("each Line of Renfe's long-distance Networks has the profile its Network's 
   const [md, mdLines] = configured(MEDIA_DISTANCIA_AVANT, named(MEDIA_DISTANCIA_AVANT));
   expect(md.profile).toEqual(RODALIES_PROFILE);
   expect(runs(md, mdLines)).toEqual({ Avant: [250, 0.5], 'Avant Exp': [250, 0.5], MD: [160, 1], Regional: [160, 1], 'Reg.Exp.': [160, 1], Proximidad: [160, 1] });
-  // Both read their live data as Rodalies' is, and snap by the minute.
-  expect(ave.live).toEqual({ delay: 'gps', near: 'pinned', snap: 60 });
-  expect(md.live).toEqual({ delay: 'gps', near: 'pinned', snap: 60 });
+  // Both read their live data as Rodalies' is, snap by the minute, and have their Trains named by number in it.
+  expect(ave.live).toEqual({ delay: 'gps', near: 'pinned', snap: 60, numbers: true });
+  expect(md.live).toEqual({ delay: 'gps', near: 'pinned', snap: 60, numbers: true });
 });
 
 test("a Line with a profile of its own accelerates as it says, and one without accelerates as its Network's does", () => {
@@ -421,4 +421,27 @@ test("counts each long-distance Network's jumps over 12 minutes of its live data
     'ave-larga-distancia': { forward: 7, back: 12, liveSeconds: 3426 },
     'media-distancia-avant': { forward: 13, back: 6, liveSeconds: 9571 },
   });
+}, 60_000);
+
+test("Renfe's long-distance live data, which names each Train by its number, is its own Networks' feed: their live data is available while it has their Trains in it, and isn't from its third update with none of one's", () => {
+  /** Each time a snapshot arrives that changes which Networks' live data is unavailable, by the clock in Spain, and which they are then. */
+  const changes = (bundle: Bundle, received: Received[]) => {
+    let before = '';
+    return received.flatMap((r, i) => {
+      const now = unavailable(bundle, r.at, received.slice(0, i + 1));
+      if (now.join() === before) return [];
+      before = now.join();
+      return [[new Date(r.at).toLocaleTimeString('en-GB', { timeZone: 'Europe/Madrid' }), now]];
+    });
+  };
+  // All 12 minutes, with 5 or 6 of AVE y Larga Distancia's Trains and 17 of Media Distancia y Avant's on
+  // the map, 21 to 23 of them Live: before, both were unavailable from the first snapshot on, as a report
+  // by number counted towards no Network's feed.
+  expect(changes(replayed(), REPLAY.received)).toEqual([]);
+  // With none of AVE y Larga Distancia's Trains in the feed from 13:53:08, as Renfe's Cercanías feeds once
+  // had a header and no Trains (#124), it's unavailable from the third of its updates without them, its
+  // last having reported them at 13:52:24.
+  const ave = new Set(REPLAY.bundle.trips.filter((t) => t.line.startsWith('ave-larga-distancia:')).map((t) => t.number));
+  const quiet = REPLAY.received.map((r, i) => (i < 16 ? r : { ...r, snapshot: { ...r.snapshot, reports: r.snapshot.reports.filter((x) => !ave.has(x.number)) } }));
+  expect(changes(replayed(), quiet)).toEqual([['13:54:31', ['ave-larga-distancia']]]);
 }, 60_000);

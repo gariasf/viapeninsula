@@ -1,6 +1,6 @@
 // Where each Train is. The timetable drives motion (ADR-0002); the browser and the tests share this.
 
-import { closestOnSegment, DEGREE, direction, pointAt, profiled, type Bundle, type Call, type Closure, type Freshness, type Network, type Point, type Report, type Shape, type Skipped, type Snapshot, type SpeedProfile, type Trip } from './bundle.ts';
+import { closestOnSegment, DEGREE, direction, pointAt, profiled, type Bundle, type Call, type Closure, type Freshness, type LiveTraits, type Network, type Point, type Report, type Shape, type Skipped, type Snapshot, type SpeedProfile, type Trip } from './bundle.ts';
 
 /**
  * A Train on the map: its Trip, how far along the Trip's shape it is, in metres, where that is, and
@@ -728,9 +728,8 @@ interface Heard {
   from: Received;
   /**
    * When its Network's own feed last reported it, as `got` has it: not in a report by its Train number,
-   * as Renfe's long-distance live data sends, which says nothing of its Network's feed (#124, #261).
-   * ponytail: a long-distance Network's own Trains, once on the map (#262), have only such reports,
-   * so they'd never count: count a report by number where its feed is its Trip's Network's by then.
+   * as Renfe's long-distance live data sends, which says nothing of its Network's feed (#124, #261), but
+   * where its Network's live data names its Trains by number, as AVE y Larga Distancia's does (#262).
    */
   own?: number;
   /** The report's own Delay, in seconds, as delayOf() has it: for Renfe's, Renfe's own figure. */
@@ -797,9 +796,9 @@ const FOLLOWS = 2 * 60_000;
 
 /**
  * What live data says about a Train each time a snapshot reports it, given what it said before,
- * when the fetcher got the report, by its clock in ms since 1970, the snapshot, whether its
- * Network's live data carries the GPS Delay, as Renfe's does, how to work out a report's own
- * Delay, as delayOf() does, and its Line's top speed, in m/s. A Train Renfe pins to a Station or
+ * when the fetcher got the report, by its clock in ms since 1970, the snapshot, how its Network's
+ * live data reads, as whether it carries the GPS Delay, as Renfe's does, how to work out a report's
+ * own Delay, as delayOf() does, and its Line's top speed, in m/s. A Train Renfe pins to a Station or
  * gives no position for carries on from the last Delay its GPS gave it that counts, until that's
  * CARRY old: Renfe's own figure moves in whole minutes and is often minutes off, so going by it made
  * Trains jump each time Renfe switched between the two (#33). Renfe's GPS unchanged since the Train's
@@ -820,7 +819,8 @@ const FOLLOWS = 2 * 60_000;
  * fixes it would take as none in 10 October 2026's long-distance replay, each was its Train's real
  * position, and one would leave its Train drawn 7 to 8 km behind for 5 minutes.
  */
-function hear(before: Heard | undefined, report: Report, got: number, from: Received, carriesGpsDelay: boolean, ownDelay: (report: Report) => OwnDelay, topSpeed: number): Heard {
+function hear(before: Heard | undefined, report: Report, got: number, from: Received, live: LiveTraits | undefined, ownDelay: (report: Report) => OwnDelay, topSpeed: number): Heard {
+  const carriesGpsDelay = live?.delay === 'gps';
   const follows = <T extends { got: number }>(earlier: T | undefined): earlier is T => earlier !== undefined && got - earlier.got < FOLLOWS;
   // The same report again, as in a snapshot the map records twice or a feed's last good response the fetcher keeps, is unchanged too.
   const frozen = carriesGpsDelay && follows(before) && sameSpot(before.report.position, report.position);
@@ -836,7 +836,7 @@ function hear(before: Heard | undefined, report: Report, got: number, from: Rece
   const { position } = taken;
   const [newest] = before?.fixes ?? [];
   const fixes = fix && !sameSpot(newest, fix) ? [fix, ...(newest ? [newest] : [])] : before?.fixes;
-  const heard = { report, got, placed: position ? got : before?.placed, confirmed: position ? report.at : before?.confirmed, from, own: report.number ? before?.own : got, fixes };
+  const heard = { report, got, placed: position ? got : before?.placed, confirmed: position ? report.at : before?.confirmed, from, own: report.number && !live?.numbers ? before?.own : got, fixes };
   if (!carriesGpsDelay) return { ...heard, delay: ownDelay(taken).delay };
   const figure = ownDelay({ ...taken, position: undefined }).delay;
   const { gps, counted } = before ?? {};
@@ -961,7 +961,7 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
         // kept while its own feed fails, it never ages. Give such a report its own feed's freshness
         // if either shows (#261).
         const got = feed?.lastSuccess ?? NaN;
-        heard.set(id, hear(heard.get(id), report, got, r, network.live?.delay === 'gps', (given) => delayOf(trip, calls, shape, network, given, bundle.noonMinus12h), profile.topSpeed));
+        heard.set(id, hear(heard.get(id), report, got, r, network.live, (given) => delayOf(trip, calls, shape, network, given, bundle.noonMinus12h), profile.topSpeed));
       }
       // A Train live data stops reporting keeps its last Delay until that's CARRY old.
       const said = recent(heard.get(id), upTo);

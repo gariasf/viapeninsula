@@ -649,9 +649,10 @@ const RENFE_LONG_DISTANCE = 'https://ssl.renfe.com/gtransit/Fichero_AV_LD/google
  * position isn't at its Station (6 of 177 were within 500 m of it), so no position holds a Train there.
  * And a position has no time of its own: the feed's header time stands for it, though the visor, which
  * has one, puts a position a median 9 s older than the file's, and 35 s at the 90th percentile. A
- * kilometre at 300 km/h is 12 s, so a Train jumps for being a minute off, as JUMP_TIME has it.
+ * kilometre at 300 km/h is 12 s, so a Train jumps for being a minute off, as JUMP_TIME has it. It names
+ * each Train by its Train number alone (#261), and is these Networks' own feed (#262).
  */
-const RENFE_LONG_DISTANCE_LIVE = { delay: 'gps', near: 'pinned', snap: 60 } as const;
+const RENFE_LONG_DISTANCE_LIVE = { delay: 'gps', near: 'pinned', snap: 60, numbers: true } as const;
 
 /** AVE's, Avlo's and AVE Int's top speed, on the high-speed lines, above the Network's 250 km/h. */
 const HIGH_SPEED = { topSpeed: 300 / 3.6 };

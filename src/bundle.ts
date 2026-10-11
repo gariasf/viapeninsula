@@ -375,6 +375,12 @@ export interface LiveTraits {
    * (JUMP_TIME), so 60 or more is that time rule alone.
    */
   snap?: number;
+  /**
+   * It names each Train by its Train number alone, as Renfe's long-distance live data does (#261): a
+   * report by number is its feed's for this Network's Trips, which keeps its live data available
+   * (#124), where of another Network's Trip, as of an R15 of Rodalies', it says nothing of that one's feed.
+   */
+  numbers?: true;
 }
 
 /** How a Network's Trains run between Stations, in metres and seconds. */
