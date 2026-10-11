@@ -1,6 +1,6 @@
 import { createExpression, latest, type ExpressionSpecification, type Feature, type StylePropertySpecification } from '@maplibre/maplibre-gl-style-spec';
 import { afterEach, expect, test, vi } from 'vitest';
-import { alertCount, alertsChanged, basemapLabel, busesReplace, earlierStations, LANGUAGES, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, pickLanguage, t, toGo, trainCounts, trainsRunHere, unlocated } from './i18n.ts';
+import { alertCount, alertsChanged, basemapLabel, busesReplace, earlierStations, LANGUAGES, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, notRunning, pickLanguage, t, toGo, trainCounts, trainsRunHere, unlocated } from './i18n.ts';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -311,6 +311,15 @@ test('says "e" for "and" in Spanish before a name starting with an i sound, as i
   expect(busesReplace('Lezo', 'Hipódromo', 'es')).toBe('Autobuses en lugar de trenes entre Lezo e Hipódromo');
   expect(busesReplace('Lezo', 'Hierro', 'es')).toBe('Autobuses en lugar de trenes entre Lezo y Hierro');
   expect(busesReplace('Lezo', 'Íllora', 'es')).toBe('Autobuses en lugar de trenes entre Lezo e Íllora');
+});
+
+test("says a followed Train within a closed Closure doesn't run between its Stations, in each language, with Spanish's \"e\" before an i sound (#420)", () => {
+  expect(notRunning('Blanes', 'Maçanet-Massanes', 'en')).toBe("Doesn't run between Blanes and Maçanet-Massanes");
+  expect(notRunning('Blanes', 'Maçanet-Massanes', 'ca')).toBe('No circula entre Blanes i Maçanet-Massanes');
+  expect(notRunning('Blanes', 'Maçanet-Massanes', 'es')).toBe('No circula entre Blanes y Maçanet-Massanes');
+  expect(notRunning('Hernani', 'Irun', 'es')).toBe('No circula entre Hernani e Irun');
+  expect(notRunning('Hernani', 'Irun', 'eu')).toBe('Ez da Hernani eta Irun artean ibiltzen');
+  expect(notRunning('Blanes', 'Maçanet-Massanes', 'gl')).toBe('Non circula entre Blanes e Maçanet-Massanes');
 });
 
 test("says a Line's Trains have run within a lifted Closure since a time, in each language (#422)", () => {
