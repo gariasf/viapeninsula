@@ -565,6 +565,25 @@ body {
   clip-path: polygon(6px 0, calc(100% - 6px) 0, 100% 50%, calc(100% - 6px) 100%, 6px 100%, 0 50%);
 }
 
+/* A long-distance Line's (#262): its ends cut slanting the same way, 8 px across its height, as the map's are 6 px across 15. */
+.pill.slanted {
+  padding: 0 10px;
+  border: 0;
+  border-radius: 0;
+  background: var(--line, #555);
+  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+}
+
+/* Its ring 2 px wide across its slanted ends too. */
+.pill.slanted.scheduled::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  z-index: -1;
+  background: var(--card);
+  clip-path: polygon(7.35px 0, calc(100% - 0.95px) 0, calc(100% - 7.35px) 100%, 0.95px 100%);
+}
+
 .pill.small {
   min-width: 2.7em;
   height: 18px;
@@ -1284,11 +1303,13 @@ time .in {
     color: CanvasText;
   }
 
-  .pill.pointed.scheduled {
+  .pill.pointed.scheduled,
+  .pill.slanted.scheduled {
     background: CanvasText;
   }
 
-  .pill.pointed.scheduled::before {
+  .pill.pointed.scheduled::before,
+  .pill.slanted.scheduled::before {
     background: Canvas;
   }
 

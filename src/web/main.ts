@@ -20,7 +20,7 @@ import { keepView, lastView, markOf, openingView, toggledPitch } from './view.ts
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { darkInk, INK, lettering } from './colour.ts';
 import { boardAsks, boardList, cardAlerts, countdownTo, inNameOrder, linesOnBoard, linkedWords, minutesTo, nearbyRows, nextOnItsWay, passedPlace, progress, tripsState, untilTick, whereabouts, type CardAlert, type Whereabouts } from './cards.ts';
-import { ARROW_GAP, boxOf, FOLLOWED_TEXT, LINE_HEIGHT, OUTLINE_SIZES, outlineOf, PILL_EDGE, PILL_PADDING, PILL_TEXT, pillReach, type Outline } from './pill.ts';
+import { ARROW_GAP, boxOf, FOLLOWED_TEXT, LINE_HEIGHT, OUTLINE_SIZES, outlineOf, OUTLINES_OF, PILL_EDGE, PILL_PADDING, PILL_TEXT, pillReach, type Outline } from './pill.ts';
 import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, tappedRows, type Shown } from './closures.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
@@ -77,11 +77,16 @@ const OUTLINES: Record<Outline | 'arrow', { w: number; h: number; across?: numbe
   round: { ...OUTLINE_SIZES.round, outside: roundedSquare(7.5, 6.5) },
   // Its ends 5 px long, to a point 2 px across.
   pointed: { ...OUTLINE_SIZES.pointed, outside: (x, y) => Math.max(Math.abs(y) - 7.5, Math.abs(x) - 6, 0.7926 * (Math.abs(x) - 6) + 0.6097 * (Math.abs(y) - 1)) },
+  // Its ends cut slanting the same way, 6 px across its height, leaning forward as italics do.
+  slanted: { ...OUTLINE_SIZES.slanted, outside: (x, y) => Math.max(Math.abs(y) - 7.5, (Math.abs(x + 0.4 * y) - 4.5) / Math.hypot(1, 0.4)) },
   // A square with corners rounded 3 px, which a name of two letters leaves nearly square, like the Metro's and TRAM's Line badges.
   badge: { ...OUTLINE_SIZES.badge, outside: roundedSquare(7.5, 3) },
   // Its tip 4.5 px ahead of its middle, and its base 2.25 px behind and 6 px across.
   arrow: { ...OUTLINE_SIZES.arrow, outside: (x, y) => Math.max(y - 2.25, (6.75 * Math.abs(x) - 3 * (y + 4.5)) / Math.hypot(3, 6.75)) },
 };
+// The long-distance outline's two variants on #262's PR, for the maintainer to pick: slanted (B), or with
+// `?ld=a` in the page's query, as MapLibre owns its hash, pointed, as regional Lines' are (A).
+if (new URLSearchParams(location.search).get('ld') === 'a') OUTLINES_OF['long-distance'] = 'pointed';
 /**
  * The cards' icons, drawn in the colour of the text around them, which a forced-colours theme sets
  * too (#116): a close cross, a chevron down and up, the die that follows a random Train, Nearby's
@@ -2859,13 +2864,14 @@ function showBanner() {
 
 /**
  * Fills the About dialog, in the viewer's language, as it opens: in a machine-translated language, that
- * it is (#327); what the map shows and that its positions are estimates; Reading the map, with the pills
+ * it is (#327); what the map shows and that its positions are estimates, and that Iryo's Trains aren't
+ * on it, as Iryo publishes nothing (ADR-0010); Reading the map, with the pills
  * a Train is drawn as, Live and Scheduled, and its outlines, drawn with the first of the map's Lines of
  * each kind of outline; the credits showCredits() lists there; the code and its licence; and privacy.
  */
 function showAbout() {
   const machineTranslated = MACHINE_TRANSLATED[language()];
-  const [round, pointed, badge] = (['round', 'pointed', 'badge'] as const).map((outline) => [...pills].find(([, p]) => p.outline === outline)?.[0]);
+  const [round, pointed, slanted, badge] = (['round', 'pointed', 'slanted', 'badge'] as const).map((outline) => [...pills].find(([, p]) => p.outline === outline)?.[0]);
   // On a phone, About's handle closes it, as dragging it down does: a pointer's, as its close button is the keyboard's.
   const aboutHandle = el('button', { type: 'button', className: 'handle', tabIndex: -1, onclick: () => about.close() }, el('span'));
   aboutHandle.setAttribute('aria-hidden', 'true');
@@ -2881,6 +2887,7 @@ function showAbout() {
       { className: 'sheet-body' },
       ...(machineTranslated ? [el('p', { className: 'subtitle' }, ...linked(machineTranslated, 'GitHub', 'https://github.com/gariasf/viapeninsula/issues'))] : []),
       el('p', { textContent: t('estimates') }),
+      el('p', { textContent: t('noIryo') }),
       el('h3', { className: 'label', textContent: t('readingTheMap') }),
       el(
         'ul',
@@ -2888,8 +2895,8 @@ function showAbout() {
         el('li', {}, round ? pill(round) : '', el('span', {}, el('b', { textContent: t('live') }), `: ${t('liveMeans')}`)),
         el('li', {}, round ? pill(round, { live: false }) : '', el('span', {}, el('b', { textContent: t('scheduled') }), `: ${t('scheduledMeans')}`)),
       ),
-      el('p', { className: 'shapes' }, ...[round, pointed, badge].flatMap((line) => (line ? [pill(line)] : []))),
-      el('p', { textContent: t('outlines') }),
+      el('p', { className: 'shapes' }, ...[round, pointed, slanted, badge].flatMap((line) => (line ? [pill(line)] : []))),
+      el('p', { textContent: t(OUTLINES_OF['long-distance'] === 'pointed' ? 'outlinesA' : 'outlines') }),
       el('h3', { className: 'label', textContent: t('credits') }),
       aboutCredits,
       el('h3', { className: 'label', textContent: t('sourceCode') }),

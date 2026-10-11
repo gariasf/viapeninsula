@@ -12,8 +12,8 @@ export const LINE_HEIGHT = 1.2;
 /** How far outside its pill's outline the middle of a Train's arrow is, in px. */
 export const ARROW_GAP = 7;
 
-/** How a Line's Trains are outlined: rounded, pointed at both ends, or a rounded square. */
-export type Outline = 'round' | 'pointed' | 'badge';
+/** How a Line's Trains are outlined: rounded, pointed at both ends, slanted at both ends, or a rounded square. */
+export type Outline = 'round' | 'pointed' | 'slanted' | 'badge';
 
 /**
  * The outlines' sizes, `w`×`h` px around their middles, and for a pill's the `across` px of its middle
@@ -22,20 +22,19 @@ export type Outline = 'round' | 'pointed' | 'badge';
 export const OUTLINE_SIZES = {
   round: { w: 15, h: 15, across: 9 },
   pointed: { w: 12, h: 15, across: 2 },
+  slanted: { w: 15, h: 15, across: 3 },
   badge: { w: 15, h: 15, across: 13 },
   arrow: { w: 12, h: 12 },
 } satisfies Record<Outline | 'arrow', { w: number; h: number; across?: number }>;
 
 /**
  * Each kind of service's pills: rounded for commuter and suburban Lines, pointed at both ends for
- * regional ones, and badges for metros and trams, as their operators badge their Lines, and for rack
- * railways and funiculars (#90). Long-distance Lines get theirs once they're on the map (#262): till
- * then they'd be round, as the Lines of a track that names no kinds are, and tsc asks every other kind
- * for its own.
+ * regional ones, slanted at both ends for long-distance ones (#262), and badges for metros and trams, as
+ * their operators badge their Lines, and for rack railways and funiculars (#90).
  */
-export const OUTLINES_OF: Partial<Record<Kind, Outline>> = { commuter: 'round', regional: 'pointed', metro: 'badge', tram: 'badge', rack: 'badge', funicular: 'badge' } satisfies Record<Exclude<Kind, 'long-distance'>, Outline>;
+export const OUTLINES_OF: Record<Kind, Outline> = { commuter: 'round', regional: 'pointed', 'long-distance': 'slanted', metro: 'badge', tram: 'badge', rack: 'badge', funicular: 'badge' };
 
-/** How a Line's Trains are outlined: by its kind of service, and round where the map has none for it, as a long-distance Line's are till #262 gives them theirs. */
+/** How a Line's Trains are outlined: by its kind of service, and round where a track built before #241 names none. */
 export function outlineOf(kind: Kind): Outline {
   return OUTLINES_OF[kind] ?? 'round';
 }
