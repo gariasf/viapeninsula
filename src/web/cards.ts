@@ -31,9 +31,10 @@ export function countdownTo(at: number, now: number): Countdown {
 }
 
 /**
- * How long until countdownTo(`at`, `now`) next changes, in ms: until a second less of it is left. So that a
- * card refreshed then shows each number once: refreshed a second after the last time, as it was, a frame late
- * each time, it skipped one about every two minutes. A second where it reads now, which doesn't change.
+ * How long until countdownTo(`at`, `now`) next changes, in ms: when a second less of it is left, or a second
+ * where it reads now, which doesn't change. So that a card refreshed then shows each number once: refreshed a
+ * second after its last refresh, which a frame makes a little more each time, it skipped one about every two
+ * minutes (#456).
  */
 export function untilTick(at: number, now: number): number {
   const left = Math.round(at - now);

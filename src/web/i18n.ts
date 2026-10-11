@@ -94,7 +94,7 @@ const STRINGS = {
   arriving: { ca: 'Arribant a {station}', es: 'Llegando a {station}', eu: '{station} geltokira iristen', gl: 'Chegando a {station}', en: 'Arriving at {station}' },
   leaving: { ca: 'Sortint de {station}', es: 'Saliendo de {station}', eu: '{station} geltokitik irteten', gl: 'Saíndo de {station}', en: 'Leaving {station}' },
   between: { ca: 'Entre {a} i {b}', es: 'Entre {a} y {b}', eu: '{a} eta {b} artean', gl: 'Entre {a} e {b}', en: 'Between {a} and {b}' },
-  // How long until a Train comes: under a time on a board or in Nearby, and under the followed Train's next Station's, which counts in seconds in its last minute (#456), the unit's symbol as the minutes' is: s, which has no plural.
+  // How long until a Train comes: under a time on a board or in Nearby, and under the followed Train's next Station's, which counts in seconds in its last minute (#456). Their units are symbols, min and s, which have no plural.
   minutes: { ca: '{n} min', es: '{n} min', eu: '{n} min', gl: '{n} min', en: '{n} min' },
   inMinutes: { ca: "d'aquí a {n} min", es: 'en {n} min', eu: '{n} min barru', gl: 'en {n} min', en: 'in {n} min' },
   inSeconds: { ca: "d'aquí a {n} s", es: 'en {n} s', eu: '{n} s barru', gl: 'en {n} s', en: 'in {n} s' },

@@ -2030,7 +2030,7 @@ function panelPadding(height?: number) {
 interface Panel {
   header: HTMLElement;
   body: Node[];
-  /** How long until what it shows next changes of itself, in ms, where that's within the second: a followed Train's countdown in seconds (untilTick(), #456). */
+  /** How long until what it shows next changes of itself, in ms, where that's within a second: a followed Train's countdown (untilTick(), #456). */
   changes?: number;
 }
 
