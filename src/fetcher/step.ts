@@ -351,7 +351,9 @@ function renfeReports(source: SourceOf<'renfe'>, positions: GtfsRt, updates: Gtf
  * where every trip update for its number is CANCELED and it has no position: Renfe lists a CANCELED
  * trip update after a running one for some Trains it places, as for 17501, its GPS moving near
  * Zaragoza, on 4 October 2026, and for each of Intercity 01460's three parts on 10 October, which the
- * Cercanías files' last-entry rule would take off the map.
+ * Cercanías files' last-entry rule would take off the map. Such an update has no stops, and its
+ * trip_id's date is its calendar's, so it can't say which run: the engine cancels the Trip only once
+ * that's due to leave its first Station (#429).
  */
 function numberedReports(positions: GtfsRt, updates: GtfsRt): Report[] {
   const reports = new Map<string, Report>();
