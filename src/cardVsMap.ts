@@ -49,9 +49,10 @@ export interface Moment {
   /** How far its followed pill reaches along its track, in metres: its box alone, which the card goes by (pillReach()), and with its arrow. */
   reach: { pill: number; arrow: number };
   /**
-   * The place the card has it pass without stopping, the nearest of those it has no call at (passedPlace(), over the places'
-   * dots, which the card goes by whichever Stations `near` counts by), by the key the card names places by, and how far it's
-   * drawn from its dot, in metres, within its pill's reach or not (whereabouts() says); none where it has none near.
+   * The place the card has it pass without stopping, the nearest of those of its own Network's it has no call at
+   * (passedPlace(), over the places' dots, which the card goes by whichever Stations `near` counts by), by the key the card
+   * names places by, and how far it's drawn from its dot, in metres, within its pill's reach or not (whereabouts() says);
+   * none where it has none near.
    */
   passed?: Near;
   profile: SpeedProfile;

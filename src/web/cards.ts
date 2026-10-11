@@ -150,23 +150,25 @@ export type Whereabouts<C, P = never> = { at: 'arriving' | 'standing'; next: C }
 
 /**
  * The place a followed Train, drawn at `at`, passes without stopping, and how far from its dot, if it's
- * near one (#457): of `places`, the one whose dot is nearest to it, within `within` metres, that its Trip
- * has no call at: none of its Stations is one of the Stations `called`, and it isn't shown with the name
- * of one, since to a viewer a Station is its name, and the Metro's Glòries is the TRAM's, two places the
- * map shows apart. Whose places it's given is its callers' to say: the page and the measure give it every
- * place the page has, of whichever Network, as the pill is on its dot on the map, and a metro station
- * next to a railway station is a Station of its own, as the map shows them (ADR-0005).
- * ponytail: a name is the one the map shows, to the letter, so a place shown otherwise than the Station
- * beside it (Rodalies' "Barcelona Arc de Triomf" and the Metro's "Arc de Triomf") is passed, as it is
- * where the two aren't one place: leave out the places of a call's interchange (#572) if that shows.
+ * near one (#457): of the places of `network`, the Network the Train runs for, those its Trains stop
+ * at, the one whose dot is nearest to it, within `within` metres, that its Trip has no call at: none
+ * of its Stations is one of the Stations `called`, and it isn't shown with the name of one, since to a
+ * viewer a Station is its name. A Train passes a Station of its own railway without stopping, not a
+ * metro or tram stop its tunnel runs by, nor the other half of an interchange it calls at, which are
+ * other Networks' places, as the map shows them (ADR-0005). A track built before #243 names no
+ * place's Networks, and none is passed.
+ * ponytail: the name is the one the map shows, to the letter, and on 10 Oct 2026's track covers none:
+ * the 17 names that two places share are each one of the TRAM's and one of the Metro's, which `network`
+ * leaves out. It's there for a Network's own two places of one name, which the map would name twice.
  * ponytail: every place on the page is looked at each time, a few hundred to a thousand and some (586
  * on 7 Oct 2026's track, 1,173 on 10 Oct's with Cercanías): a cell of them by position if it shows.
  */
-export function passedPlace<P extends Pick<Place, 'name' | 'lon' | 'lat' | 'stations'>>(
+export function passedPlace<P extends Pick<Place, 'name' | 'lon' | 'lat' | 'stations' | 'networks'>>(
   places: Iterable<P>,
   at: { lon: number; lat: number },
   called: readonly { station: string; name: string }[],
   within: number,
+  network: string,
 ): { place: P; away: number } | undefined {
   const kx = DEGREE * Math.cos((at.lat * Math.PI) / 180);
   const [stations, names] = [new Set(called.map((c) => c.station)), new Set(called.map((c) => c.name))];
@@ -175,7 +177,7 @@ export function passedPlace<P extends Pick<Place, 'name' | 'lon' | 'lat' | 'stat
     const dy = (place.lat - at.lat) * DEGREE;
     if (Math.abs(dy) > within) continue;
     const away = Math.hypot((place.lon - at.lon) * kx, dy);
-    if (away <= within && away < (nearest?.away ?? Infinity) && !names.has(place.name) && !place.stations.some((station) => stations.has(station))) nearest = { place, away };
+    if (away <= within && away < (nearest?.away ?? Infinity) && place.networks.includes(network) && !names.has(place.name) && !place.stations.some((station) => stations.has(station))) nearest = { place, away };
   }
   return nearest;
 }

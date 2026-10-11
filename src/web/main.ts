@@ -2295,17 +2295,18 @@ function dotAway({ lon, lat }: Followed): (call: Call) => number {
 
 /**
  * The place on the map a followed Train passes without stopping, where its pill, which reaches `reach`
- * metres, is on its dot (passedPlace(), #457): of the Stations the page has, one its Trip has no call at,
- * by Station or by the name it's shown with.
+ * metres, is on its dot (passedPlace(), #457): of the Stations the page has that its own Network's Trains
+ * stop at, one its Trip has no call at, by Station or by the name it's shown with. None where its Line,
+ * and so its Network, isn't known.
  */
 function passedBy({ trip, lon, lat }: Followed, reach: number): { place: Place; away: number } | undefined {
-  return passedPlace(shownPlaces.values(), { lon, lat }, trip.calls.map(({ station }) => ({ station, name: stationName(station) })), reach);
+  return passedPlace(shownPlaces.values(), { lon, lat }, trip.calls.map(({ station }) => ({ station, name: stationName(station) })), reach, lines.get(trip.line)?.network ?? '');
 }
 
 /**
  * What a followed Train's strip says of where it is by how it's drawn (whereabouts(), #455), by the
  * Stations' names: that it's arriving at its next Station, leaving the one it left, passing a place it
- * doesn't call at (#457), by the name the map shows it with, or between the two Stations. Standing, it
+ * doesn't call at (#457), a place of its own Network's by the name the map shows it with, or between the two Stations. Standing, it
  * says nothing there: its Train's mark is on its Station's row.
  */
 function whereIs(where: Whereabouts<Call, Place>): string {

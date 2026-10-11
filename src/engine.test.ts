@@ -855,19 +855,20 @@ test("a followed Train is passing a place its Trip has no call at while it's dra
   const [mid, on] = [followed(R2S, at('21:53:00')), followed(R2S, at('21:53:05'))];
   const kx = DEGREE * Math.cos(((mid?.lat ?? 0) * Math.PI) / 180);
   const [dx, dy] = [((on?.lon ?? NaN) - (mid?.lon ?? NaN)) * kx, ((on?.lat ?? NaN) - (mid?.lat ?? NaN)) * DEGREE];
-  // A Station 40 m to the left of its way there, with the Stations it has, as the map's dot for its place.
-  const place = (station: string) => ({ name: station, stations: [station], lon: (mid?.lon ?? NaN) - ((dy / Math.hypot(dx, dy)) * 40) / kx, lat: (mid?.lat ?? NaN) + ((dx / Math.hypot(dx, dy)) * 40) / DEGREE });
+  // A Station 40 m to the left of its way there, of its Network's, with the Stations it has, as the map's dot for its place.
+  const place = (station: string) => ({ name: station, stations: [station], networks: ['rodalies'], lon: (mid?.lon ?? NaN) - ((dy / Math.hypot(dx, dy)) * 40) / kx, lat: (mid?.lat ?? NaN) + ((dx / Math.hypot(dx, dy)) * 40) / DEGREE });
   const says = (moment: number, near: ReturnType<typeof place>) => {
     const f = followed(R2S, moment);
-    const w = f && whereabouts(f.trip.calls, f.dist, f.upcoming.length, !!f.standsAt, reach, undefined, passedPlace([near], f, f.trip.calls.map((c) => ({ station: c.station, name: c.station })), reach));
+    const w = f && whereabouts(f.trip.calls, f.dist, f.upcoming.length, !!f.standsAt, reach, undefined, passedPlace([near], f, f.trip.calls.map((c) => ({ station: c.station, name: c.station })), reach, BUNDLE.lines.find((l) => l.id === f.trip.line)?.network ?? ''));
     return w?.at === 'passing' ? [w.at, w.place.stations[0]] : w && [w.at];
   };
   // 215 m before it, 108 m, none, 108 m after it, and 215 m after: with its track 40 m off, it's within 130 m of the dot from 124 m either way.
   expect(says(at('21:52:50'), place('Garraf'))).toEqual(['between']);
   for (const time of ['21:52:55', '21:53:00', '21:53:05']) expect(says(at(time), place('Garraf'))).toEqual(['passing', 'Garraf']);
   expect(says(at('21:53:10'), place('Garraf'))).toEqual(['between']);
-  // Sitges's place, which it calls at, is not one it passes, though the pill is on it.
+  // Sitges's place, which it calls at, is not one it passes, though the pill is on it; nor is a metro station on that dot, which isn't its Network's.
   expect(says(at('21:53:00'), place('Sitges'))).toEqual(['between']);
+  expect(says(at('21:53:00'), { ...place('Mercat Nou'), networks: ['metro'] })).toEqual(['between']);
   // Standing at Vilanova i la Geltrú, and leaving it, it's the Station it names, whatever place is on its dot.
   const there = { ...place('Garraf'), lon: 1.73077249, lat: 41.2203207 };
   expect(says(at('21:49:30'), there)).toEqual(['standing']);
@@ -1129,13 +1130,13 @@ test('a Train runs on through Stations its Trip skips between others, stopping a
 
 test("a followed Train passes a Skipped Station, which is none of the calls it makes, and names the one it calls at as it did (#457)", () => {
   // Made up, as in the test before: the R2S skips Segur de Calafell and Cunit, as Renfe said at 21:20. Cunit's place is where the map shows its dot.
-  const cunit = { name: 'Cunit', stations: ['Cunit'], lon: 1.63194242, lat: 41.1950415 };
+  const cunit = { name: 'Cunit', stations: ['Cunit'], networks: ['rodalies'], lon: 1.63194242, lat: 41.1950415 };
   const reach = 130;
   const says = (received: Received[]) => {
     const seen = new Set<string>();
     for (let moment = at('21:38:00'); moment <= at('21:43:00'); moment += 1000) {
       const f = followed(R2S, moment, received);
-      const w = f && whereabouts(f.trip.calls, f.dist, f.upcoming.length, !!f.standsAt, reach, undefined, passedPlace([cunit], f, f.trip.calls.map((c) => ({ station: c.station, name: c.station })), reach));
+      const w = f && whereabouts(f.trip.calls, f.dist, f.upcoming.length, !!f.standsAt, reach, undefined, passedPlace([cunit], f, f.trip.calls.map((c) => ({ station: c.station, name: c.station })), reach, 'rodalies'));
       if (w) seen.add(w.at === 'passing' ? `passing ${w.place.stations[0]}` : w.at);
     }
     return [...seen].sort();

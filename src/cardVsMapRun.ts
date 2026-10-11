@@ -18,17 +18,19 @@
 // countdown in seconds is under `s.` (`s.nowFar`, `s.nowByMinute`, `s.reads.*`, `s.steps.*`), and what it reads where
 // the other said now with the Train far under `b.nowFar.reads.*` (#456). And `4.atNotCall` and `2.pill.notCall` are what the card
 // leaves unnamed of the places it has no call at, by the card's rule since #457 (`w.passing`: where neither Station of its calls is
-// within the pill's reach it names the nearest place within it that isn't a call, or named as one): `.own` those the Train's own
-// Network's Trains stop at and `.other` those only another Network's do, and `.<what the card says>` of them by what it says; of
-// `4.atNotCall` also `.own.<what the card says>` and `.other.<…>`, and `.namedAsCall.<…>` those named as one of the Trip's calls, which
-// the card has it pass none of though they're not a call by their key. Of both, `.before` is the same counted with the card as #455 and
+// within the pill's reach it names the nearest place of its own Network's within it that isn't a call, or named as one): `.own` those
+// the Train's own Network's Trains stop at, which it names, so that they're 0 where it says `Between` or `Passing`, as the ticket's
+// "at 0 where the card says it" reads (the maintainer's, 11 Oct 2026), and `.other` those only another Network's stop at, which it never
+// names, a dot under the pill that is another railway's; and `.<what the card says>` of them by what it says; of `4.atNotCall` also
+// `.own.<what the card says>` and `.other.<…>`, and `.namedAsCall.<…>` those named as one of the Trip's calls (the TRAM's Glòries beside
+// the Metro's), which the card names no more than any other Network's. Of both, `.before` is the same counted with the card as #455 and
 // #456 left it, before it named the place it passes: the column of the measure since #455, by the dots the map draws (#352's own, which
 // counted each Station by its own coordinates under the card before #455, is the note's section 2, and with STATIONS=1 its yardstick).
-// `w.passing.own`, `.other` and `.nearCall` (within 150 m of the dot of one of its Trip's calls, as at an interchange) say whose place the
-// card names, `w.passing.still` how many of those seconds a Live Train is drawn still in, `w.passing.episodes` how many times it begins
-// to, `w.nearer.arriving` and `.leaving` the seconds the card names its Station with a place it could pass nearer, and
-// `w.flaps.passingReturns`, `.afterPassing` and `.other` which words come back within 10 s: a place it passes coming back, the words
-// before it after it, and any other, as #455 counted them.
+// `w.passing.nearCall` (within 150 m of the dot of one of its Trip's calls, as FGC's Sant Gervasi is of Pl. Molina), `w.passing.still` how
+// many of those seconds a Live Train is drawn still in, `w.passing.episodes` how many times it begins to, `w.nearer.arriving` and
+// `.leaving` the seconds the card names its Station with a place it could pass nearer, and `w.flaps.passingReturns`, `.afterPassing` and
+// `.other` which words come back within 10 s: a place it passes coming back, the words before it after it, and any other, as #455
+// counted them.
 
 import { rmSync } from 'node:fs';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
@@ -165,14 +167,14 @@ for (const dir of process.argv.slice(2)) {
       // As the operator runs it: its calls as `o.calls` has them, one for one (cutTrip(), #346).
       const made = o.trip;
       const kx = DEGREE * Math.cos((train.lat * Math.PI) / 180);
-      // Whose Station a place is: its Network's Trains stop there, or only another's (#457).
+      // Whose Station a place is: its Network's Trains stop there, or only another's, to say whose a place the card leaves unnamed is (#457).
       const ownPlace = (key: string | undefined) => servedBy.get(key ?? '')?.has(line?.network ?? '') ?? false;
       const calls = o.calls.map((c) => {
         const place = placeOf.get(c.station);
         return { ...c, key: keyOf.get(c.station) ?? c.station, away: place ? Math.hypot((place.lon - train.lon) * kx, (place.lat - train.lat) * DEGREE) : Infinity };
       });
-      // The place it passes, as the card has it: the places' dots whichever Stations `near` counts by, none the Stations it calls at, or named as one.
-      const hit = passedPlace(around(placeGrid, train.lon, train.lat, half), train, o.calls.map((c) => ({ station: c.station, name: nameOf.get(c.station) ?? c.station })), half);
+      // The place it passes, as the card has it: of its own Network's, the places' dots whichever Stations `near` counts by, none the Stations it calls at, or named as one.
+      const hit = passedPlace(around(placeGrid, train.lon, train.lat, half), train, o.calls.map((c) => ({ station: c.station, name: nameOf.get(c.station) ?? c.station })), half, line?.network ?? '');
       const position = o.said?.report.position as { near?: string } | undefined;
       const fresh = o.said?.confirmed !== undefined && bundle.noonMinus12h + o.now * 1000 - o.said.confirmed <= CONFIRMED;
       const pinned = train.live && fresh && typeof position?.near === 'string' ? made.calls.find((c) => c.station === position.near) : undefined;
@@ -205,9 +207,8 @@ for (const dir of process.argv.slice(2)) {
       // What the card says (#455): how long each of its words lasts, and how often they change and come straight back.
       add(`w.${d.says.at}`);
       if (d.says.at === 'passing') {
-        // Whose place it names (#457): of the Train's own Network, or another's; and whether it's within 150 m of the dot of one of its Trip's calls, as at an interchange;
+        // A place it names is its own Network's (#457). Whether it's within 150 m of the dot of one of its Trip's calls, as FGC's Sant Gervasi is of Pl. Molina;
         // and whether a Live Train is held, drawn still in this second.
-        add(ownPlace(d.says.key) ? 'w.passing.own' : 'w.passing.other');
         if (hit && o.calls.some((c) => { const there = placeOf.get(c.station); return !!there && Math.hypot((there.lon - hit.place.lon) * kx, (there.lat - hit.place.lat) * DEGREE) <= 150; })) add('w.passing.nearCall');
         const prior = was.get(trip.id);
         if (train.live && prior !== undefined && Math.abs(train.dist - prior) < 0.1) add('w.passing.still');
