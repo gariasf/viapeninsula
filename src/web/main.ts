@@ -641,6 +641,11 @@ let lookAgain = false;
  * regions (come()) if that shows.
  */
 let tripsFailed = false;
+/**
+ * Whether a board with none left, whose own regions' Trips failed, has had the map look again at once for
+ * them, for the look that had a file fail (boardPanel(), #597): the next look is the minute's.
+ */
+let failedRetried = false;
 /** The Stations of the track on the map, which come with its Lines. */
 let shownStations: Track['stations'] | undefined;
 /**
@@ -2551,13 +2556,19 @@ function boardPanel(id: string, up: boolean): Panel | undefined {
   const departures = bundle ? boardAt(bundle, now, received, place.stations, hidingClosures) : [];
   const trips = tripsState(loaded, shownRegions, tripsFailed);
   // With none left today, the next day's first are to come; refreshDays() runs again within a minute if it's busy now.
-  // Only once the Trips of its own regions have come (#597): before that it has none because they haven't, and
-  // where they failed, the next day's would be fetched with their retry, which waits for every file, and the
-  // rows would come only once they had, where the retry alone is a file or two.
+  // Only once the Trips of its own regions have come (#597): before that it has none because they haven't. Where
+  // they failed, the next day's would be fetched with their retry, whose look waits for every file, so the map looks
+  // again for the failed ones alone, at once, and once for each look that had a file fail: the next is the minute's.
   const date = madridDate(new Date(mapNow));
-  if (bundle && !departures.length && emptyBoard !== date && place.stations.every((station) => come({ station }))) {
-    emptyBoard = date;
-    refreshDays();
+  if (bundle && !departures.length) {
+    const own = place.stations.every((station) => come({ station }));
+    if (own && emptyBoard !== date) {
+      emptyBoard = date;
+      refreshDays();
+    } else if (!own && trips === 'failed' && !failedRetried) {
+      failedRetried = true;
+      refreshDays();
+    }
   }
   const shown = up ? departures : departures.slice(0, PEEK);
   // Neither rows nor "none" while the Trips of a region the map has loaded are on their way, as the bundle has the others' already
@@ -2965,6 +2976,7 @@ async function neededDays(): Promise<{ track: Promise<Track | undefined>; days: 
     // Without today's bundle there's nothing to draw; without another day's, the map does without it until next time.
     const lost = got.flatMap((g, i) => (g.status === 'rejected' ? [[days[i], g.reason] as const] : []));
     tripsFailed = load.failed();
+    failedRetried &&= tripsFailed;
     for (const [day, reason] of lost) if (day === today) throw reason;
     if (lost.length) console.warn(...lost.map(([, reason]) => reason));
     shown = load.failed() || lost.length ? '' : keys.join();
