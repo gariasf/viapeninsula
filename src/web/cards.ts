@@ -150,25 +150,27 @@ export type Whereabouts<C, P = never> = { at: 'arriving' | 'standing'; next: C }
 /**
  * The place a followed Train, drawn at `at`, passes without stopping, and how far from its dot, if it's
  * near one (#457): of `places`, the one whose dot is nearest to it, within `within` metres, that its Trip
- * has no call at (`called`: the IDs of the Stations it calls at, none of which is any of the place's
- * Stations). A Station is any Station the page has, of whichever Network: the pill is on its dot on the
- * map, and a metro station next to a railway station is a Station of its own, as the map shows them.
+ * has no call at: none of its Stations is one of the Stations `called`, and it isn't named as one, since
+ * to a viewer a Station is its name, and the Metro's Glòries is the TRAM's, two places the map shows
+ * apart. A Station is any Station the page has, of whichever Network: the pill is on its dot on the map,
+ * and a metro station next to a railway station is a Station of its own, as the map shows them.
  * ponytail: every place on the page is looked at each time, a few hundred to a thousand and some (586
  * on 7 Oct 2026's track, 1,173 on 10 Oct's with Cercanías): a cell of them by position if it shows.
  */
-export function passedPlace<P extends Pick<Place, 'lon' | 'lat' | 'stations'>>(
+export function passedPlace<P extends Pick<Place, 'name' | 'lon' | 'lat' | 'stations'>>(
   places: Iterable<P>,
   at: { lon: number; lat: number },
-  called: ReadonlySet<string>,
+  called: readonly { station: string; name: string }[],
   within: number,
 ): { place: P; away: number } | undefined {
   const kx = DEGREE * Math.cos((at.lat * Math.PI) / 180);
+  const [stations, names] = [new Set(called.map((c) => c.station)), new Set(called.map((c) => c.name))];
   let nearest: { place: P; away: number } | undefined;
   for (const place of places) {
     const dy = (place.lat - at.lat) * DEGREE;
     if (Math.abs(dy) > within) continue;
     const away = Math.hypot((place.lon - at.lon) * kx, dy);
-    if (away <= within && away < (nearest?.away ?? Infinity) && !place.stations.some((station) => called.has(station))) nearest = { place, away };
+    if (away <= within && away < (nearest?.away ?? Infinity) && !names.has(place.name) && !place.stations.some((station) => stations.has(station))) nearest = { place, away };
   }
   return nearest;
 }

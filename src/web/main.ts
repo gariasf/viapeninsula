@@ -2295,10 +2295,11 @@ function dotAway({ lon, lat }: Followed): (call: Call) => number {
 
 /**
  * The place on the map a followed Train passes without stopping, where its pill, which reaches `reach`
- * metres, is on its dot (passedPlace(), #457): of the Stations the page has, one its Trip has no call at.
+ * metres, is on its dot (passedPlace(), #457): of the Stations the page has, one its Trip has no call at,
+ * by Station or by the name it's shown with.
  */
 function passedBy({ trip, lon, lat }: Followed, reach: number): { place: Place; away: number } | undefined {
-  return passedPlace(shownPlaces.values(), { lon, lat }, new Set(trip.calls.map((call) => call.station)), reach);
+  return passedPlace(shownPlaces.values(), { lon, lat }, trip.calls.map(({ station }) => ({ station, name: stationName(station) })), reach);
 }
 
 /**

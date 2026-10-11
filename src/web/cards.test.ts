@@ -243,9 +243,11 @@ test('a Station no place on the map shows has no dot to go by, only where its pl
   expect(whereabouts(ABC, 1000, 2, false, 100, () => Infinity)).toEqual({ at: 'between', last: A, next: B });
 });
 
-/** A place the map shows `metres` due north of where a Train is drawn, at 2° E and 41° N, with its Stations' IDs, which are its own where none is given. */
-const north = (id: string, metres: number, ...stations: string[]) => ({ id, stations: stations.length ? stations : [id], lon: 2, lat: 41 + metres / DEGREE });
+/** A place the map shows `metres` due north of where a Train is drawn, at 2° E and 41° N, named by its ID, with its Stations' IDs, which are its own where none is given. */
+const north = (id: string, metres: number, ...stations: string[]) => ({ id, name: id, stations: stations.length ? stations : [id], lon: 2, lat: 41 + metres / DEGREE });
 const HERE = { lon: 2, lat: 41 };
+/** The Stations a Trip calls at, as passedPlace() has them: by ID, and by the name they're shown with, which is their ID's here unless it says. */
+const calledAt = (...stations: string[]) => stations.map((station) => ({ station, name: station }));
 
 test("a Train between its Stations is passing the place it's drawn nearest, within its pill's reach of its dot, where it has no call, and arriving at a Station or leaving one says that first (#457)", () => {
   const X = north('x', 60);
@@ -269,26 +271,36 @@ test("a Train with no place it passes says what it said before, whichever of its
 
 test("of the places a Train is drawn near, it passes the nearest that its Trip has no call at, which is within its pill's reach of it, and says how far (#457)", () => {
   const places = [north('far', 90), north('x', 60), north('y', 80), north('behind', 70)];
-  const hit = passedPlace(places, HERE, new Set(), 100);
+  const hit = passedPlace(places, HERE, [], 100);
   expect(hit?.place.id).toBe('x');
   expect(hit?.away).toBeCloseTo(60, 3);
   // The reach is how far its dot is from the Train, on any side.
-  expect(passedPlace(places, HERE, new Set(), 59)).toBeUndefined();
-  expect(passedPlace([{ ...north('west', 0), lon: 2 - 50 / (DEGREE * Math.cos((41 * Math.PI) / 180)) }], HERE, new Set(), 60)?.away).toBeCloseTo(50, 3);
+  expect(passedPlace(places, HERE, [], 59)).toBeUndefined();
+  expect(passedPlace([{ ...north('west', 0), lon: 2 - 50 / (DEGREE * Math.cos((41 * Math.PI) / 180)) }], HERE, [], 60)?.away).toBeCloseTo(50, 3);
 });
 
 test("a place one of whose Stations its Trip calls at is not passed, as a Line's own interchange isn't, and one it calls at none of is (#457)", () => {
   // Passeig de Gràcia's three Stations, one for each Line (ADR-0005), as the Metro's one place.
   const place = north('tmb:P.6660327', 40, 'tmb:1.325', 'tmb:1.327', 'tmb:1.328');
-  expect(passedPlace([place], HERE, new Set(['tmb:1.327', 'tmb:1.300']), 100)).toBeUndefined();
-  expect(passedPlace([place], HERE, new Set(['tmb:1.300']), 100)?.place.id).toBe('tmb:P.6660327');
+  expect(passedPlace([place], HERE, calledAt('tmb:1.327', 'tmb:1.300'), 100)).toBeUndefined();
+  expect(passedPlace([place], HERE, calledAt('tmb:1.300'), 100)?.place.id).toBe('tmb:P.6660327');
+});
+
+test("a place named as one of the Trip's calls is not passed, as the Metro's Glòries isn't to a TRAM Train that calls at the TRAM's, which is the same Station to the viewer (#457)", () => {
+  // The TRAM's stop and the Metro's station are two places the map shows apart, with the same name.
+  const metro = { ...north('tmb:P.6660130', 50, 'tmb:1.116'), name: 'Glòries' };
+  const called = [{ station: 'tram:ST-206', name: 'Glòries' }, { station: 'tram:ST-207', name: 'Ca l’Aranyó' }];
+  expect(passedPlace([metro], HERE, called, 100)).toBeUndefined();
+  // Another name there is passed, and the name is the exact one it's shown with.
+  expect(passedPlace([{ ...metro, name: 'Glòries (Metro)' }], HERE, called, 100)?.place.id).toBe('tmb:P.6660130');
+  expect(passedPlace([metro], HERE, [{ station: 'tram:ST-207', name: 'Ca l’Aranyó' }], 100)?.place.id).toBe('tmb:P.6660130');
 });
 
 test("a Station of another railway is passed too where the pill is on its dot, as a metro station next to a railway station is a Station of its own, and the nearest of them is named (#457)", () => {
   // Nothing of a place says whose it is: a Train under Cornellà's railway Station passes it, if its Trip has no call there.
   const places = [north('adif:72303', 30), north('tmb:P.6660117', 20)];
-  expect(passedPlace(places, HERE, new Set(['tmb:1.100']), 100)?.place.id).toBe('tmb:P.6660117');
-  expect(passedPlace([places[0] as (typeof places)[number]], HERE, new Set(['tmb:1.100']), 100)?.place.id).toBe('adif:72303');
+  expect(passedPlace(places, HERE, calledAt('tmb:1.100'), 100)?.place.id).toBe('tmb:P.6660117');
+  expect(passedPlace([places[0] as (typeof places)[number]], HERE, calledAt('tmb:1.100'), 100)?.place.id).toBe('adif:72303');
 });
 
 /** A Trip on a Line, calling at these Stations. */
