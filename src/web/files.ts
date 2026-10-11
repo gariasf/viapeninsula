@@ -15,7 +15,7 @@ export async function getJson<T>(url: string, { signal, stall }: { signal?: Abor
   const cut = new AbortController();
   signal?.addEventListener('abort', () => cut.abort(signal.reason));
   let timer: ReturnType<typeof setTimeout> | undefined;
-  /** Gives the file `stall` more from now, as the request is made and again as each part of its body comes. */
+  /** Gives the file `stall` more from now: as the request is made, as its response comes, and as each part of its body does. */
   const wait = () => {
     clearTimeout(timer);
     if (stall) timer = setTimeout(() => cut.abort(new Error(`${url}: no bytes for ${stall / 1000} s`)), stall);
@@ -23,6 +23,7 @@ export async function getJson<T>(url: string, { signal, stall }: { signal?: Abor
   wait();
   try {
     const res = await fetch(url, { signal: cut.signal });
+    wait();
     if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
     const coming = new TransformStream<Uint8Array, Uint8Array>({ transform: (part, out) => (wait(), out.enqueue(part)) });
     return (await new Response(res.body?.pipeThrough(coming)).json()) as T;

@@ -8,20 +8,26 @@ afterEach(() => {
 });
 
 /**
- * A fetch that answers at once, with a body the test gives bytes as it likes, and that fails with the
- * request's abort reason where its signal aborts, as the browser's does a body it is still reading.
+ * A fetch that answers after `headers` ms, with a body the test gives bytes as it likes, and that fails with
+ * the request's abort reason where its signal aborts, as the browser's does, before its headers or while
+ * its body is still being read.
  */
-function answering() {
+function answering(headers = 0) {
   let body: ReadableStreamDefaultController<Uint8Array> | undefined;
-  vi.stubGlobal('fetch', (_url: string, { signal }: RequestInit = {}) => {
-    const stream = new ReadableStream<Uint8Array>({
-      start(controller) {
-        body = controller;
-        signal?.addEventListener('abort', () => controller.error(signal.reason));
-      },
-    });
-    return Promise.resolve(new Response(stream));
-  });
+  vi.stubGlobal(
+    'fetch',
+    (_url: string, { signal }: RequestInit = {}) =>
+      new Promise((resolve, reject) => {
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            body = controller;
+            signal?.addEventListener('abort', () => controller.error(signal.reason));
+          },
+        });
+        const answer = setTimeout(() => resolve(new Response(stream)), headers);
+        signal?.addEventListener('abort', () => (clearTimeout(answer), reject(signal.reason)));
+      }),
+  );
   const text = new TextEncoder();
   return { send: (part: string) => body?.enqueue(text.encode(part)), end: () => body?.close() };
 }
@@ -47,6 +53,19 @@ test("a file that keeps coming isn't cut, however long it takes in all", async (
   server.end();
   await vi.advanceTimersByTimeAsync(0);
   expect(file).toEqual({ came: { stations: [1, 2, 3, 4] } });
+});
+
+test("a response's headers are bytes: a body that starts 15 s after headers that took 15 s isn't cut", async () => {
+  const server = answering(15_000);
+  const file = outcome(getJson('https://live.test/trips.json', { stall: STALL }));
+  await vi.advanceTimersByTimeAsync(15_000);
+  // The request is 15 s old, and 15 s on it is 30 s, with the headers in at 15 s.
+  await vi.advanceTimersByTimeAsync(15_000);
+  expect(file).toEqual({});
+  server.send('{"trips":[]}');
+  server.end();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(file).toEqual({ came: { trips: [] } });
 });
 
 test('a file with no bytes for STALL fails, the part of it that came counting for nothing', async () => {
