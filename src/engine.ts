@@ -63,7 +63,8 @@ export const KEEP = CARRY + 5 * 60_000;
  * received by then, where its Trip's timetable puts it, shifted in time by live data (ADR-0002):
  * eased towards as late or early as live data has it, or where that's far, jumping there. Between
  * Stations it accelerates, cruises and brakes, as its Line's speed profile has it (#260), so that it
- * leaves and arrives exactly on time. A Train its operator has cancelled leaves the map, and one it
+ * leaves and arrives exactly on time. A Train its operator has cancelled leaves the map, by a report
+ * naming only its Train number once its Trip is due to leave its first Station (#429), and one it
  * has said won't stop at some Stations runs its Trip as cutTrip() has it (#346). One that
  * live data stops reporting stays Live through two of its feed's updates and turns Scheduled at the
  * third, and it keeps its last Delay for CARRY before it's back on its plain timetable. One of the
@@ -185,7 +186,7 @@ export interface Departure {
   live: boolean;
   /** Whether, drawn on the map, it has no live data though its Network's live data is available, as Train.unreported has it. Not before it's on the map, when no feed reports it yet. */
   unreported: boolean;
-  /** Whether its operator has announced that it won't run: then it's expected when its timetable has it leave. */
+  /** Whether its operator has announced that it won't run, by a report naming only its Train number once its Trip is due to leave its first Station (#429): then it's expected when its timetable has it leave. */
   cancelled: boolean;
   /**
    * Whether it won't stop at the Station: as its operator has said, where it's cut short or starts late
@@ -302,7 +303,7 @@ interface OnMap {
   train?: Train;
   /** Its Trip as it runs it, where its operator has said it won't stop at some of its Stations (cutTrip()), and otherwise as its timetable has it. */
   trip: Trip;
-  /** Whether its operator has said it won't run, or would stop at one of its Stations or none. */
+  /** Whether its operator has said it won't run, by a report naming only its Train number once its Trip is due to leave its first Station (#429), or would stop at one of its Stations or none. */
   cancelled: boolean;
   /** The calls its timetable has that it doesn't make, at Stations its operator has said it won't stop at, as cutTrip() has them. */
   skips: Call[];
@@ -383,9 +384,13 @@ function onMap(bundle: Bundle, at: number, received: Received[], closures: reado
     const said = heard.get(trip.id);
     // Cancelled outright, it runs none of its Trip, as its timetable has it. By a report naming its Train
     // number, only once its Trip is due to leave its first Station: Renfe's long-distance trip update that
-    // says only CANCELED has no stops, and its calendar's date, so it can't say which run, and before then
-    // the Train can run after all, as FEVE's 71832 did on 10 October 2026, CANCELED from 13:47 and running
-    // out of Oviedo from 14:45 (#429).
+    // says only CANCELED has no stops, and its trip_id's date is its calendar's, so it can't say which run,
+    // and before then the Train can run after all, as FEVE's 71832 did on 10 October 2026, CANCELED from
+    // 13:47 and running out of Oviedo from 14:45 (#429).
+    // ponytail: once its Trip is due, an update about another run of its number cancels it all the same,
+    // as one Renfe still lists from the day before would: it still listed R15 15007's, due at 10:45, at
+    // 18:42 that day. Have the fetcher keep when Renfe first listed each, as it does a Trip's skipped
+    // Stations, and go by that if that shows.
     const cancels = !!said?.report.cancelled && (!said.report.number || now >= (trip.calls[0]?.departure ?? -Infinity));
     const cut = cancels ? undefined : cuts.get(trip.id);
     const asRun = cut?.trip ?? trip;
