@@ -1,0 +1,32 @@
+after {"pages":26,"map":{"n":654,"ink":318,"white":336,"wrong":0},"cards":{"n":158,"ink":118,"white":40,"wrong":0},"byWhere":{"card title":{"n":4,"ink":4,"white":0,"wrong":0},"about":{"n":8,"ink":4,"white":4,"wrong":0},"tap popup":{"n":6,"ink":4,"white":2,"wrong":0},"nearby":{"n":48,"ink":34,"white":14,"wrong":0},"board":{"n":92,"ink":72,"white":20,"wrong":0}},"distinctMapLines":24}
+  errors/warnings: []
+before {"pages":26,"map":{"n":654,"ink":0,"white":654,"wrong":318},"cards":{"n":158,"ink":0,"white":158,"wrong":118},"byWhere":{"card title":{"n":4,"ink":0,"white":4,"wrong":4},"about":{"n":8,"ink":0,"white":8,"wrong":4},"tap popup":{"n":6,"ink":0,"white":6,"wrong":4},"nearby":{"n":48,"ink":0,"white":48,"wrong":34},"board":{"n":92,"ink":0,"white":92,"wrong":72}},"distinctMapLines":24}
+  map wrong (first 12): [
+  'card-r2n R2N #D0DF00',
+  'card-t2 T2 #80FF80',
+  'about L3 #1EB53A',
+  'about R4 #F7A30D',
+  'about S2 #88BB0B',
+  'about R2N #D0DF00',
+  'about R6 #b3b3b3',
+  'about R15 #978571',
+  'about L8 #E274AA',
+  'about R1 #7DBCEC',
+  'tap-r2n L4 #F7A30E',
+  'tap-r2n L3 #1EB53A'
+]
+  cards wrong (first 12): [
+  'card-r2n R2N #D0DF00 rgb(255, 255, 255)',
+  'card-t2 T2 #80FF80 rgb(255, 255, 255)',
+  'about R1 #7DBCEC rgb(255, 255, 255)',
+  'tap-r2n R2 #26A741 rgb(255, 255, 255)',
+  'tap-r2n R2N #D0DF00 rgb(255, 255, 255)',
+  'nearby R4 #F7A30D rgb(255, 255, 255)',
+  'nearby L3 #1EB53A rgb(255, 255, 255)',
+  'nearby R6 #b3b3b3 rgb(255, 255, 255)',
+  'nearby R15 #978571 rgb(255, 255, 255)',
+  'nearby R1 #7DBCEC rgb(255, 255, 255)',
+  'nearby S3 #4F868E rgb(255, 255, 255)',
+  'nearby R2N #D0DF00 rgb(255, 255, 255)'
+]
+  errors/warnings: []

@@ -1,0 +1,2996 @@
+[
+ {
+  "side": "before",
+  "scheme": "light",
+  "size": "phone",
+  "spot": "card-r2n",
+  "file": "before-light-phone-card-r2n.png",
+  "note": [],
+  "ours": [],
+  "errors": [],
+  "zoom": 14,
+  "centre": [
+   2.113,
+   41.3389
+  ],
+  "pins": [
+   {
+    "name": "R2N",
+    "id": "rodalies:5182D25438R2N",
+    "x": 73,
+    "y": 362
+   },
+   {
+    "name": "R2N",
+    "id": "rodalies:5182D28438R2N",
+    "x": 195,
+    "y": 288
+   }
+  ],
+  "drawn": [
+   {
+    "name": "R2N",
+    "colour": "#D0DF00",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "R2N",
+    "colour": "#D0DF00",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L9S",
+    "colour": "#FB712B",
+    "dark": false,
+    "live": false
+   }
+  ],
+  "dom": [
+   {
+    "text": "R2N",
+    "live": true,
+    "line": "#D0DF00",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": true,
+    "inPopup": false,
+    "inGroups": false
+   }
+  ],
+  "link": "#map=14/41.33893/2.11303&train=2026-10-11/rodalies:5182D28438R2N"
+ },
+ {
+  "side": "before",
+  "scheme": "light",
+  "size": "phone",
+  "spot": "card-t2",
+  "file": "before-light-phone-card-t2.png",
+  "note": [],
+  "ours": [],
+  "errors": [],
+  "zoom": 14,
+  "centre": [
+   2.0592,
+   41.3629
+  ],
+  "pins": [
+   {
+    "name": "T2",
+    "id": "tram:TBX:2585_0367",
+    "x": 195,
+    "y": 288
+   }
+  ],
+  "drawn": [
+   {
+    "name": "T2",
+    "colour": "#80FF80",
+    "dark": false,
+    "live": true
+   }
+  ],
+  "dom": [
+   {
+    "text": "T2",
+    "live": true,
+    "line": "#80FF80",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": true,
+    "inPopup": false,
+    "inGroups": false
+   }
+  ],
+  "link": "#map=14/41.36291/2.0592&train=2026-10-11/tram:TBX:2585_0367"
+ },
+ {
+  "side": "before",
+  "scheme": "light",
+  "size": "phone",
+  "spot": "about",
+  "file": "before-light-phone-about.png",
+  "note": [],
+  "ours": [],
+  "errors": [],
+  "zoom": 12.4,
+  "centre": [
+   2.125,
+   41.357
+  ],
+  "pins": [
+   {
+    "name": "R1",
+    "id": "rodalies:5182D25649R1",
+    "x": 138,
+    "y": 307
+   },
+   {
+    "name": "R2N",
+    "id": "rodalies:5182D25438R2N",
+    "x": 65,
+    "y": 637
+   },
+   {
+    "name": "R2N",
+    "id": "rodalies:5182D28438R2N",
+    "x": 106,
+    "y": 610
+   }
+  ],
+  "drawn": [
+   {
+    "name": "L3",
+    "colour": "#1EB53A",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R2S",
+    "colour": "#146520",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R4",
+    "colour": "#F7A30D",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L3",
+    "colour": "#1EB53A",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L3",
+    "colour": "#1EB53A",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "S2",
+    "colour": "#88BB0B",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R2N",
+    "colour": "#D0DF00",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "R6",
+    "colour": "#b3b3b3",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L5",
+    "colour": "#005A97",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L10S",
+    "colour": "#00A6D6",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L9S",
+    "colour": "#FB712B",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "R2N",
+    "colour": "#D0DF00",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L9S",
+    "colour": "#FB712B",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L10S",
+    "colour": "#00A6D6",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L10S",
+    "colour": "#00A6D6",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L10S",
+    "colour": "#00A6D6",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L10S",
+    "colour": "#00A6D6",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "R6",
+    "colour": "#b3b3b3",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R15",
+    "colour": "#978571",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L8",
+    "colour": "#E274AA",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R2S",
+    "colour": "#146520",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L9S",
+    "colour": "#FB712B",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R1",
+    "colour": "#7DBCEC",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L9S",
+    "colour": "#FB712B",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L5",
+    "colour": "#005A97",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L5",
+    "colour": "#005A97",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L3",
+    "colour": "#1EB53A",
+    "dark": false,
+    "live": true
+   }
+  ],
+  "dom": [
+   {
+    "text": "R1",
+    "live": true,
+    "line": "#7DBCEC",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": false,
+    "inAbout": true,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": false
+   },
+   {
+    "text": "R1",
+    "live": false,
+    "line": "#7DBCEC",
+    "lettering": "#517a99",
+    "colour": "rgb(81, 122, 153)",
+    "inSheet": false,
+    "inAbout": true,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": false
+   },
+   {
+    "text": "R1",
+    "live": true,
+    "line": "#7DBCEC",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": false,
+    "inAbout": true,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": false
+   },
+   {
+    "text": "R11",
+    "live": true,
+    "line": "#0069AA",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": false,
+    "inAbout": true,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": false
+   },
+   {
+    "text": "MM",
+    "live": true,
+    "line": "#000000",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": false,
+    "inAbout": true,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": false
+   }
+  ],
+  "link": "#map=12.4/41.357/2.125"
+ },
+ {
+  "side": "before",
+  "scheme": "light",
+  "size": "phone",
+  "spot": "tap-r2n",
+  "file": "before-light-phone-tap-r2n.png",
+  "note": [
+   "tap at {\"x\":183,\"y\":280,\"n\":103}"
+  ],
+  "ours": [],
+  "errors": [],
+  "zoom": 12,
+  "centre": [
+   2.19,
+   41.44
+  ],
+  "pins": [
+   {
+    "name": "R1",
+    "id": "rodalies:5182D25647R1",
+    "x": 224,
+    "y": 561
+   },
+   {
+    "name": "R1",
+    "id": "rodalies:5182D25825R1",
+    "x": 179,
+    "y": 714
+   },
+   {
+    "name": "R1",
+    "id": "rodalies:5182D25648R1",
+    "x": 107,
+    "y": 807
+   },
+   {
+    "name": "R1",
+    "id": "rodalies:5182D25822R1",
+    "x": 249,
+    "y": 496
+   },
+   {
+    "name": "R2N",
+    "id": "rodalies:5182D25436R2N",
+    "x": 182,
+    "y": 145
+   }
+  ],
+  "drawn": [
+   {
+    "name": "L4",
+    "colour": "#F7A30E",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L3",
+    "colour": "#1EB53A",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L4",
+    "colour": "#F7A30E",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L11",
+    "colour": "#89B94C",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R4",
+    "colour": "#F7A30D",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R2N",
+    "colour": "#D0DF00",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R4",
+    "colour": "#F7A30D",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L9N",
+    "colour": "#FB712B",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L9N",
+    "colour": "#FB712B",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L2",
+    "colour": "#93248F",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R4",
+    "colour": "#F7A30D",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R2S",
+    "colour": "#146520",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "S1",
+    "colour": "#EF7900",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R1",
+    "colour": "#7DBCEC",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R11",
+    "colour": "#0069AA",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R2S",
+    "colour": "#146520",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L4",
+    "colour": "#F7A30E",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L7",
+    "colour": "#B2600B",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L4",
+    "colour": "#F7A30E",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L4",
+    "colour": "#F7A30E",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L4",
+    "colour": "#F7A30E",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L5",
+    "colour": "#005A97",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "T5",
+    "colour": "#FF0080",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "T4",
+    "colour": "#008080",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L3",
+    "colour": "#1EB53A",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "T4",
+    "colour": "#008080",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L2",
+    "colour": "#93248F",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R1",
+    "colour": "#7DBCEC",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R15",
+    "colour": "#978571",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L4",
+    "colour": "#F7A30E",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L5",
+    "colour": "#005A97",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L2",
+    "colour": "#93248F",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L5",
+    "colour": "#005A97",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L4",
+    "colour": "#F7A30E",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R11",
+    "colour": "#0069AA",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L2",
+    "colour": "#93248F",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L10N",
+    "colour": "#00A6D6",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "R1",
+    "colour": "#7DBCEC",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L5",
+    "colour": "#005A97",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L9N",
+    "colour": "#FB712B",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L5",
+    "colour": "#005A97",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L4",
+    "colour": "#F7A30E",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L4",
+    "colour": "#F7A30E",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R4",
+    "colour": "#F7A30D",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L5",
+    "colour": "#005A97",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L5",
+    "colour": "#005A97",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L3",
+    "colour": "#1EB53A",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "T4",
+    "colour": "#008080",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "T4",
+    "colour": "#008080",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L4",
+    "colour": "#F7A30E",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "T5",
+    "colour": "#FF0080",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L2",
+    "colour": "#93248F",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L4",
+    "colour": "#F7A30E",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R1",
+    "colour": "#7DBCEC",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "T5",
+    "colour": "#FF0080",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L2",
+    "colour": "#93248F",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L9N",
+    "colour": "#FB712B",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L10N",
+    "colour": "#00A6D6",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L10N",
+    "colour": "#00A6D6",
+    "dark": false,
+    "live": false
+   }
+  ],
+  "dom": [
+   {
+    "text": "R2",
+    "live": true,
+    "line": "#26A741",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": false,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": true,
+    "inGroups": false
+   },
+   {
+    "text": "R11",
+    "live": true,
+    "line": "#0069AA",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": false,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": true,
+    "inGroups": false
+   },
+   {
+    "text": "R2N",
+    "live": true,
+    "line": "#D0DF00",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": false,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": true,
+    "inGroups": false
+   }
+  ],
+  "link": "#map=12/41.44/2.19"
+ },
+ {
+  "side": "before",
+  "scheme": "light",
+  "size": "phone",
+  "spot": "nearby",
+  "file": "before-light-phone-nearby.png",
+  "note": [],
+  "ours": [],
+  "errors": [],
+  "zoom": 13,
+  "centre": [
+   2.141,
+   41.38
+  ],
+  "pins": [],
+  "drawn": [
+   {
+    "name": "L3",
+    "colour": "#1EB53A",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R2S",
+    "colour": "#146520",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R4",
+    "colour": "#F7A30D",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L5",
+    "colour": "#005A97",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L10S",
+    "colour": "#00A6D6",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L10S",
+    "colour": "#00A6D6",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "R6",
+    "colour": "#b3b3b3",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L8",
+    "colour": "#E274AA",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L5",
+    "colour": "#005A97",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L3",
+    "colour": "#1EB53A",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L9S",
+    "colour": "#FB712B",
+    "dark": false,
+    "live": false
+   }
+  ],
+  "dom": [
+   {
+    "text": "R2S",
+    "live": true,
+    "line": "#146520",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R4",
+    "live": true,
+    "line": "#F7A30D",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "L3",
+    "live": true,
+    "line": "#1EB53A",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "L1",
+    "live": true,
+    "line": "#CE1126",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "L1",
+    "live": true,
+    "line": "#CE1126",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "L3",
+    "live": true,
+    "line": "#1EB53A",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "L5",
+    "live": true,
+    "line": "#005A97",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R6",
+    "live": true,
+    "line": "#b3b3b3",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R15",
+    "live": true,
+    "line": "#978571",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R1",
+    "live": true,
+    "line": "#7DBCEC",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "L5",
+    "live": true,
+    "line": "#005A97",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R1",
+    "live": true,
+    "line": "#7DBCEC",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "S3",
+    "live": true,
+    "line": "#4F868E",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R4",
+    "live": true,
+    "line": "#F7A30D",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R15",
+    "live": true,
+    "line": "#978571",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R2N",
+    "live": true,
+    "line": "#D0DF00",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R11",
+    "live": true,
+    "line": "#0069AA",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R2S",
+    "live": false,
+    "line": "#146520",
+    "lettering": "#146520",
+    "colour": "rgb(20, 101, 32)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "S3",
+    "live": true,
+    "line": "#4F868E",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R4",
+    "live": true,
+    "line": "#F7A30D",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R5",
+    "live": true,
+    "line": "#3dbfc3",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R1",
+    "live": false,
+    "line": "#7DBCEC",
+    "lettering": "#517a99",
+    "colour": "rgb(81, 122, 153)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R4",
+    "live": false,
+    "line": "#F7A30D",
+    "lettering": "#a16a08",
+    "colour": "rgb(161, 106, 8)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R2S",
+    "live": false,
+    "line": "#146520",
+    "lettering": "#146520",
+    "colour": "rgb(20, 101, 32)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R16",
+    "live": true,
+    "line": "#B52B46",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R5",
+    "live": true,
+    "line": "#3dbfc3",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R11",
+    "live": false,
+    "line": "#0069AA",
+    "lettering": "#0069AA",
+    "colour": "rgb(0, 105, 170)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "L8",
+    "live": false,
+    "line": "#E274AA",
+    "lettering": "#b05a85",
+    "colour": "rgb(176, 90, 133)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R2N",
+    "live": true,
+    "line": "#D0DF00",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R4",
+    "live": false,
+    "line": "#F7A30D",
+    "lettering": "#a16a08",
+    "colour": "rgb(161, 106, 8)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R1",
+    "live": false,
+    "line": "#7DBCEC",
+    "lettering": "#517a99",
+    "colour": "rgb(81, 122, 153)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "L8",
+    "live": false,
+    "line": "#E274AA",
+    "lettering": "#b05a85",
+    "colour": "rgb(176, 90, 133)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R2N",
+    "live": false,
+    "line": "#D0DF00",
+    "lettering": "#727b00",
+    "colour": "rgb(114, 123, 0)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "S4",
+    "live": false,
+    "line": "#A78600",
+    "lettering": "#907300",
+    "colour": "rgb(144, 115, 0)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R15",
+    "live": false,
+    "line": "#978571",
+    "lettering": "#837462",
+    "colour": "rgb(131, 116, 98)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "S4",
+    "live": true,
+    "line": "#A78600",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R6",
+    "live": false,
+    "line": "#b3b3b3",
+    "lettering": "#767676",
+    "colour": "rgb(118, 118, 118)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R11",
+    "live": false,
+    "line": "#0069AA",
+    "lettering": "#0069AA",
+    "colour": "rgb(0, 105, 170)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   }
+  ],
+  "link": "#map=13/41.38/2.141"
+ },
+ {
+  "side": "before",
+  "scheme": "dark",
+  "size": "phone",
+  "spot": "card-r2n",
+  "file": "before-dark-phone-card-r2n.png",
+  "note": [],
+  "ours": [],
+  "errors": [],
+  "zoom": 14,
+  "centre": [
+   2.113,
+   41.3389
+  ],
+  "pins": [
+   {
+    "name": "R2N",
+    "id": "rodalies:5182D25438R2N",
+    "x": 73,
+    "y": 362
+   },
+   {
+    "name": "R2N",
+    "id": "rodalies:5182D28438R2N",
+    "x": 195,
+    "y": 288
+   }
+  ],
+  "drawn": [
+   {
+    "name": "R2N",
+    "colour": "#D0DF00",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "R2N",
+    "colour": "#D0DF00",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L9S",
+    "colour": "#FB712B",
+    "dark": false,
+    "live": false
+   }
+  ],
+  "dom": [
+   {
+    "text": "R2N",
+    "live": true,
+    "line": "#D0DF00",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": true,
+    "inPopup": false,
+    "inGroups": false
+   }
+  ],
+  "link": "#map=14/41.33893/2.11303&train=2026-10-11/rodalies:5182D28438R2N"
+ },
+ {
+  "side": "before",
+  "scheme": "dark",
+  "size": "phone",
+  "spot": "card-t2",
+  "file": "before-dark-phone-card-t2.png",
+  "note": [],
+  "ours": [],
+  "errors": [],
+  "zoom": 14,
+  "centre": [
+   2.0592,
+   41.3629
+  ],
+  "pins": [
+   {
+    "name": "T2",
+    "id": "tram:TBX:2585_0367",
+    "x": 195,
+    "y": 288
+   }
+  ],
+  "drawn": [
+   {
+    "name": "T2",
+    "colour": "#80FF80",
+    "dark": false,
+    "live": true
+   }
+  ],
+  "dom": [
+   {
+    "text": "T2",
+    "live": true,
+    "line": "#80FF80",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": true,
+    "inPopup": false,
+    "inGroups": false
+   }
+  ],
+  "link": "#map=14/41.36291/2.0592&train=2026-10-11/tram:TBX:2585_0367"
+ },
+ {
+  "side": "before",
+  "scheme": "dark",
+  "size": "phone",
+  "spot": "about",
+  "file": "before-dark-phone-about.png",
+  "note": [],
+  "ours": [],
+  "errors": [],
+  "zoom": 12.4,
+  "centre": [
+   2.125,
+   41.357
+  ],
+  "pins": [
+   {
+    "name": "R1",
+    "id": "rodalies:5182D25649R1",
+    "x": 138,
+    "y": 307
+   },
+   {
+    "name": "R2N",
+    "id": "rodalies:5182D25438R2N",
+    "x": 65,
+    "y": 637
+   },
+   {
+    "name": "R2N",
+    "id": "rodalies:5182D28438R2N",
+    "x": 106,
+    "y": 610
+   }
+  ],
+  "drawn": [
+   {
+    "name": "L3",
+    "colour": "#1EB53A",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R2S",
+    "colour": "#146520",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R4",
+    "colour": "#F7A30D",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L3",
+    "colour": "#1EB53A",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L3",
+    "colour": "#1EB53A",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "S2",
+    "colour": "#88BB0B",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R2N",
+    "colour": "#D0DF00",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "R6",
+    "colour": "#b3b3b3",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L5",
+    "colour": "#005A97",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L10S",
+    "colour": "#00A6D6",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L9S",
+    "colour": "#FB712B",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "R2N",
+    "colour": "#D0DF00",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L9S",
+    "colour": "#FB712B",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L10S",
+    "colour": "#00A6D6",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L10S",
+    "colour": "#00A6D6",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L10S",
+    "colour": "#00A6D6",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L10S",
+    "colour": "#00A6D6",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "R6",
+    "colour": "#b3b3b3",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R15",
+    "colour": "#978571",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L8",
+    "colour": "#E274AA",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R2S",
+    "colour": "#146520",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L9S",
+    "colour": "#FB712B",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R1",
+    "colour": "#7DBCEC",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L9S",
+    "colour": "#FB712B",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L5",
+    "colour": "#005A97",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L5",
+    "colour": "#005A97",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L3",
+    "colour": "#1EB53A",
+    "dark": false,
+    "live": true
+   }
+  ],
+  "dom": [
+   {
+    "text": "R1",
+    "live": true,
+    "line": "#7DBCEC",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": false,
+    "inAbout": true,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": false
+   },
+   {
+    "text": "R1",
+    "live": false,
+    "line": "#7DBCEC",
+    "lettering": "#7DBCEC",
+    "colour": "rgb(125, 188, 236)",
+    "inSheet": false,
+    "inAbout": true,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": false
+   },
+   {
+    "text": "R1",
+    "live": true,
+    "line": "#7DBCEC",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": false,
+    "inAbout": true,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": false
+   },
+   {
+    "text": "R11",
+    "live": true,
+    "line": "#0069AA",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": false,
+    "inAbout": true,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": false
+   },
+   {
+    "text": "MM",
+    "live": true,
+    "line": "#000000",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": false,
+    "inAbout": true,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": false
+   }
+  ],
+  "link": "#map=12.4/41.357/2.125"
+ },
+ {
+  "side": "before",
+  "scheme": "dark",
+  "size": "phone",
+  "spot": "tap-r2n",
+  "file": "before-dark-phone-tap-r2n.png",
+  "note": [
+   "tap at {\"x\":183,\"y\":280,\"n\":103}"
+  ],
+  "ours": [],
+  "errors": [],
+  "zoom": 12,
+  "centre": [
+   2.19,
+   41.44
+  ],
+  "pins": [
+   {
+    "name": "R1",
+    "id": "rodalies:5182D25647R1",
+    "x": 224,
+    "y": 561
+   },
+   {
+    "name": "R1",
+    "id": "rodalies:5182D25825R1",
+    "x": 179,
+    "y": 714
+   },
+   {
+    "name": "R1",
+    "id": "rodalies:5182D25648R1",
+    "x": 107,
+    "y": 807
+   },
+   {
+    "name": "R1",
+    "id": "rodalies:5182D25822R1",
+    "x": 249,
+    "y": 496
+   },
+   {
+    "name": "R2N",
+    "id": "rodalies:5182D25436R2N",
+    "x": 182,
+    "y": 145
+   }
+  ],
+  "drawn": [
+   {
+    "name": "L4",
+    "colour": "#F7A30E",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L3",
+    "colour": "#1EB53A",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L4",
+    "colour": "#F7A30E",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L11",
+    "colour": "#89B94C",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R4",
+    "colour": "#F7A30D",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R2N",
+    "colour": "#D0DF00",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R4",
+    "colour": "#F7A30D",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L9N",
+    "colour": "#FB712B",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L9N",
+    "colour": "#FB712B",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L2",
+    "colour": "#93248F",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R4",
+    "colour": "#F7A30D",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R2S",
+    "colour": "#146520",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "S1",
+    "colour": "#EF7900",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R1",
+    "colour": "#7DBCEC",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R11",
+    "colour": "#0069AA",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R2S",
+    "colour": "#146520",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L4",
+    "colour": "#F7A30E",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L7",
+    "colour": "#B2600B",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L4",
+    "colour": "#F7A30E",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L4",
+    "colour": "#F7A30E",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L4",
+    "colour": "#F7A30E",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L5",
+    "colour": "#005A97",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "T5",
+    "colour": "#FF0080",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "T4",
+    "colour": "#008080",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L3",
+    "colour": "#1EB53A",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "T4",
+    "colour": "#008080",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L2",
+    "colour": "#93248F",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R1",
+    "colour": "#7DBCEC",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R15",
+    "colour": "#978571",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L4",
+    "colour": "#F7A30E",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L5",
+    "colour": "#005A97",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L2",
+    "colour": "#93248F",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L5",
+    "colour": "#005A97",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L4",
+    "colour": "#F7A30E",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R11",
+    "colour": "#0069AA",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L2",
+    "colour": "#93248F",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L10N",
+    "colour": "#00A6D6",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "R1",
+    "colour": "#7DBCEC",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L5",
+    "colour": "#005A97",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L9N",
+    "colour": "#FB712B",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L5",
+    "colour": "#005A97",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L4",
+    "colour": "#F7A30E",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L4",
+    "colour": "#F7A30E",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R4",
+    "colour": "#F7A30D",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L5",
+    "colour": "#005A97",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L5",
+    "colour": "#005A97",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L3",
+    "colour": "#1EB53A",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "T4",
+    "colour": "#008080",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "T4",
+    "colour": "#008080",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L4",
+    "colour": "#F7A30E",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "T5",
+    "colour": "#FF0080",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L2",
+    "colour": "#93248F",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L4",
+    "colour": "#F7A30E",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R1",
+    "colour": "#7DBCEC",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "T5",
+    "colour": "#FF0080",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L2",
+    "colour": "#93248F",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L9N",
+    "colour": "#FB712B",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L10N",
+    "colour": "#00A6D6",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L10N",
+    "colour": "#00A6D6",
+    "dark": false,
+    "live": false
+   }
+  ],
+  "dom": [
+   {
+    "text": "R2",
+    "live": true,
+    "line": "#26A741",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": false,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": true,
+    "inGroups": false
+   },
+   {
+    "text": "R11",
+    "live": true,
+    "line": "#0069AA",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": false,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": true,
+    "inGroups": false
+   },
+   {
+    "text": "R2N",
+    "live": true,
+    "line": "#D0DF00",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": false,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": true,
+    "inGroups": false
+   }
+  ],
+  "link": "#map=12/41.44/2.19"
+ },
+ {
+  "side": "before",
+  "scheme": "dark",
+  "size": "phone",
+  "spot": "nearby",
+  "file": "before-dark-phone-nearby.png",
+  "note": [],
+  "ours": [],
+  "errors": [],
+  "zoom": 13,
+  "centre": [
+   2.141,
+   41.38
+  ],
+  "pins": [],
+  "drawn": [
+   {
+    "name": "L3",
+    "colour": "#1EB53A",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R2S",
+    "colour": "#146520",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "R4",
+    "colour": "#F7A30D",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L5",
+    "colour": "#005A97",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L10S",
+    "colour": "#00A6D6",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "L10S",
+    "colour": "#00A6D6",
+    "dark": false,
+    "live": false
+   },
+   {
+    "name": "R6",
+    "colour": "#b3b3b3",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L8",
+    "colour": "#E274AA",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L1",
+    "colour": "#CE1126",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L5",
+    "colour": "#005A97",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L3",
+    "colour": "#1EB53A",
+    "dark": false,
+    "live": true
+   },
+   {
+    "name": "L9S",
+    "colour": "#FB712B",
+    "dark": false,
+    "live": false
+   }
+  ],
+  "dom": [
+   {
+    "text": "R2S",
+    "live": true,
+    "line": "#146520",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R4",
+    "live": true,
+    "line": "#F7A30D",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "L3",
+    "live": true,
+    "line": "#1EB53A",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "L1",
+    "live": true,
+    "line": "#CE1126",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "L1",
+    "live": true,
+    "line": "#CE1126",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "L3",
+    "live": true,
+    "line": "#1EB53A",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "L5",
+    "live": true,
+    "line": "#005A97",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R6",
+    "live": true,
+    "line": "#b3b3b3",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R15",
+    "live": true,
+    "line": "#978571",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R1",
+    "live": true,
+    "line": "#7DBCEC",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "L5",
+    "live": true,
+    "line": "#005A97",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R1",
+    "live": true,
+    "line": "#7DBCEC",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "S3",
+    "live": true,
+    "line": "#4F868E",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R4",
+    "live": true,
+    "line": "#F7A30D",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R15",
+    "live": true,
+    "line": "#978571",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R2N",
+    "live": true,
+    "line": "#D0DF00",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R11",
+    "live": true,
+    "line": "#0069AA",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R2S",
+    "live": false,
+    "line": "#146520",
+    "lettering": "#56905e",
+    "colour": "rgb(86, 144, 94)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "S3",
+    "live": true,
+    "line": "#4F868E",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R4",
+    "live": true,
+    "line": "#F7A30D",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R5",
+    "live": true,
+    "line": "#3dbfc3",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R1",
+    "live": false,
+    "line": "#7DBCEC",
+    "lettering": "#7DBCEC",
+    "colour": "rgb(125, 188, 236)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R4",
+    "live": false,
+    "line": "#F7A30D",
+    "lettering": "#F7A30D",
+    "colour": "rgb(247, 163, 13)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R2S",
+    "live": false,
+    "line": "#146520",
+    "lettering": "#56905e",
+    "colour": "rgb(86, 144, 94)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R16",
+    "live": true,
+    "line": "#B52B46",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R5",
+    "live": true,
+    "line": "#3dbfc3",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R11",
+    "live": false,
+    "line": "#0069AA",
+    "lettering": "#388abd",
+    "colour": "rgb(56, 138, 189)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "L8",
+    "live": false,
+    "line": "#E274AA",
+    "lettering": "#E274AA",
+    "colour": "rgb(226, 116, 170)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R2N",
+    "live": true,
+    "line": "#D0DF00",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R4",
+    "live": false,
+    "line": "#F7A30D",
+    "lettering": "#F7A30D",
+    "colour": "rgb(247, 163, 13)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R1",
+    "live": false,
+    "line": "#7DBCEC",
+    "lettering": "#7DBCEC",
+    "colour": "rgb(125, 188, 236)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "L8",
+    "live": false,
+    "line": "#E274AA",
+    "lettering": "#E274AA",
+    "colour": "rgb(226, 116, 170)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R2N",
+    "live": false,
+    "line": "#D0DF00",
+    "lettering": "#D0DF00",
+    "colour": "rgb(208, 223, 0)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "S4",
+    "live": false,
+    "line": "#A78600",
+    "lettering": "#A78600",
+    "colour": "rgb(167, 134, 0)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R15",
+    "live": false,
+    "line": "#978571",
+    "lettering": "#978571",
+    "colour": "rgb(151, 133, 113)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "S4",
+    "live": true,
+    "line": "#A78600",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R6",
+    "live": false,
+    "line": "#b3b3b3",
+    "lettering": "#b3b3b3",
+    "colour": "rgb(179, 179, 179)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   },
+   {
+    "text": "R11",
+    "live": false,
+    "line": "#0069AA",
+    "lettering": "#388abd",
+    "colour": "rgb(56, 138, 189)",
+    "inSheet": true,
+    "inAbout": false,
+    "inTitle": false,
+    "inPopup": false,
+    "inGroups": true
+   }
+  ],
+  "link": "#map=13/41.38/2.141"
+ }
+]
