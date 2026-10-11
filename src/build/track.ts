@@ -248,7 +248,7 @@ export function traceRuns(
  * traceShapes() was given them), and so along the track the shapes took where they share it. A run with a
  * Station off those rails, or a stretch with no path along them, isn't drawn straight across the country:
  * its Trips are left out, logged and reported. Gives the traced runs, and each day's other Trips, each
- * with its run as its shape.
+ * with its run as its shape: `<Line>:<n>`, n counting the runs but for the numbers a feed shape's ID has (#602).
  */
 export function traceOwn(
   days: FeedTrip[][],
@@ -259,7 +259,7 @@ export function traceOwn(
   report: (found: Found) => void = () => {},
 ): { shapes: Shape[]; days: FeedTrip[][] } {
   const gauges = new Map(feeds.map((s) => [s.id, s.gauges]));
-  const { runs, ran } = runsOf(days, stations, (trip) => gauges.get(trip.shape));
+  const { runs, ran } = runsOf(days, stations, (trip) => gauges.get(trip.shape), new Set(feeds.map((s) => s.id)));
   const traced = new Map<Run, Shape | Untraced>();
   for (const run of runs.values()) traced.set(run, traceRun(graphs(run.gauges), run, log, report));
   return { shapes: shapesOf(traced), days: ridden(ran, traced, log, report) };
@@ -267,17 +267,26 @@ export function traceOwn(
 
 /**
  * Each run of these Trips once, by its Line, its rails (`gaugesOf`) and its Stations, in the order its
- * first Trip comes in, and each day's Trips with theirs.
+ * first Trip comes in, and each day's Trips with theirs. A run is `<Line>:<n>`, counting the runs of the
+ * build, but for the numbers whose ID is one of `taken`, the feed's shape IDs, so that no two shapes of
+ * a track have one (#602). Long distance's timetable has no shapes, so traceRuns() gives none.
  */
-function runsOf<T extends FeedTrip, G extends Gauges | undefined>(days: T[][], stations: Station[], gaugesOf: (trip: T) => G) {
+function runsOf<T extends FeedTrip, G extends Gauges | undefined>(days: T[][], stations: Station[], gaugesOf: (trip: T) => G, taken = new Set<string>()) {
   const byId = new Map(stations.map((s) => [s.id, s]));
   const runs = new Map<string, Run<G>>();
+  let count = 0;
+  const idOf = (line: string) => {
+    let id: string;
+    do id = `${line}:${++count}`;
+    while (taken.has(id));
+    return id;
+  };
   const ran = days.map((trips) =>
     trips.map((trip) => {
       const gauges = gaugesOf(trip);
       const key = JSON.stringify([trip.line, gauges ?? null, trip.calls.map((c) => c.station)]);
       const run = runs.get(key) ?? {
-        id: `${trip.line}:${runs.size + 1}`,
+        id: idOf(trip.line),
         line: trip.line,
         gauges,
         stations: trip.calls.map((c) => byId.get(c.station) ?? { id: c.station, name: c.station, lon: NaN, lat: NaN }),
