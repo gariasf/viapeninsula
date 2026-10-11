@@ -69,21 +69,35 @@ test("leaves an Alert that names a Line the bundle has as Renfe names it, Madrid
   expect(madrid('AVISO_516750')?.lines).toEqual(['cercanias-madrid:C5']);
 });
 
-test("shows an Alert that names Rodalies' R3a, which runs as R3, on R3, once (#359)", () => {
-  // Made up: none of the 8 on 7 October names R3a alone. On its two routes in the timetable, 51T0017R3a and 51T0018R3a.
-  const R3A = {
+/** The Lines the first run writes for an Alert, made up, that names these routes, after Rodalies' in Renfe's file as recorded. */
+const linesNaming = (...routes: string[]) => {
+  const made = {
     id: 'AVISO_MADE_UP',
     alert: {
       activePeriod: [{ start: '1791358372' }],
-      informedEntity: [{ routeId: '51T0017R3a' }, { routeId: '51T0018R3a' }],
+      informedEntity: routes.map((routeId) => ({ routeId })),
       descriptionText: { translation: [{ text: 'Made up.', language: 'es' }] },
     },
   };
-  const lines = (...entities: object[]) => readAlerts(ALERTS_START, { renfe: renfeWith(...entities) }, NOW).file?.renfe?.alerts.find((a) => a.id === 'AVISO_MADE_UP')?.lines;
-  expect(lines(R3A)).toEqual(['rodalies:R3']);
+  return readAlerts(ALERTS_START, { renfe: renfeWith(made) }, NOW).file?.renfe?.alerts.find((a) => a.id === made.id)?.lines;
+};
+
+test("shows an Alert that names Rodalies' R3a, which runs as R3, on R3, once (#359)", () => {
+  // Made up: none of the 8 on 7 October names R3a alone. On its two routes in the timetable, 51T0017R3a and 51T0018R3a.
+  expect(linesNaming('51T0017R3a', '51T0018R3a')).toEqual(['rodalies:R3']);
   // Naming R3 too, as AVISO_518187 does, R3 is there once.
-  const both = { ...R3A, alert: { ...R3A.alert, informedEntity: [{ routeId: '51T0244R3' }, ...R3A.alert.informedEntity] } };
-  expect(lines(both)).toEqual(['rodalies:R3']);
+  expect(linesNaming('51T0244R3', '51T0017R3a', '51T0018R3a')).toEqual(['rodalies:R3']);
+});
+
+test("takes the Line a name is of by the Network the route is of, as Asturias' C8, which has Trips of its own, is not Madrid's (#359)", () => {
+  // Made up: none of the 69 names it. Asturias' routes 20T0019C8 and 20T0020C8 have 894 Trips in the timetable of 10 October 2026, and Madrid's 10T0039C8 none.
+  expect(linesNaming('20T0019C8', '20T0020C8')).toEqual(['cercanias-asturias:C8']);
+  expect(linesNaming('20T0019C8', '10T0039C8')).toEqual(['cercanias-asturias:C8', 'cercanias-madrid:C8a', 'cercanias-madrid:C8b']);
+});
+
+test('names the Line a route_id ends in whatever it is, as "constructor" or "toString", which every object has, and not as one the config lists (#359)', () => {
+  // Made up: a route_id's end is Renfe's text. Looked up among the config's names without its own only, it would be Object's function, and reading the file would fail.
+  expect(linesNaming('10T0001constructor', '10T0002toString')).toEqual(['cercanias-madrid:constructor', 'cercanias-madrid:toString']);
 });
 
 /** Renfe's file as recorded, with these entities after Rodalies'. */
