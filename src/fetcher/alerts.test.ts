@@ -7,7 +7,8 @@ import { START, type Fetched, type Get, type State } from './step.ts';
 
 // Renfe's alerts.json as fetched at 11:39 on Wednesday 7 October 2026, the morning after heavy rain,
 // cut down to Rodalies' 9 alerts (renfe.json) and to the 34 others of its 43 with a second entry
-// (renfe-second-entries.json, #371), and TRAM's from both its halves at 12:35 (#339's first comment).
+// (renfe-second-entries.json, #371), and Madrid's 6 that name Lines, from the same file as read again at
+// 07:54 on 11 October (renfe-madrid.json, #359), and TRAM's from both its halves at 12:35 (#339's first comment).
 const recorded = (file: string) => readFileSync(new URL(`fixtures/alerts/${file}`, import.meta.url), 'utf8');
 
 /** An answer to a request for alerts, with the validators Renfe gives its file where they're given. */
@@ -44,11 +45,60 @@ test('names each of its Lines once, however many of their routes an Alert names'
 });
 
 test('makes one Alert of those Renfe gives one ID and the same words, on the Lines of both', () => {
-  // Renfe gives AVISO_518187, "Servicio alternativo por carretera en todo su recorrido", once for R8 and once for all 20 of Rodalies' Lines.
+  // Renfe gives AVISO_518187, "Servicio alternativo por carretera en todo su recorrido", once for R8 and once for the 20 names of Rodalies' Lines, R3a's too.
   const same = renfeRun().file?.renfe?.alerts.filter((a) => a.id === 'AVISO_518187');
   expect(same).toHaveLength(1);
-  const all = ['R1', 'R2', 'R2N', 'R2S', 'R3', 'R3a', 'R4', 'R7', 'R8', 'R11', 'R13', 'R14', 'R15', 'R16', 'R17', 'RG1', 'RL3', 'RL4', 'RT1', 'RT2'];
+  // 19 Lines: its R3a is R3, which it names too (#359).
+  const all = ['R1', 'R2', 'R2N', 'R2S', 'R3', 'R4', 'R7', 'R8', 'R11', 'R13', 'R14', 'R15', 'R16', 'R17', 'RG1', 'RL3', 'RL4', 'RT1', 'RT2'];
   expect(same?.[0]?.lines.toSorted()).toEqual(all.map((name) => `rodalies:${name}`).toSorted());
+});
+
+/** What the first run writes for Renfe's Alerts that name Madrid's Lines, by their IDs: its six of 7 October 2026 that name Lines, whole and as Renfe gave them, which its file still has (#359). */
+const madrid = (id: string) => renfeRun({ alerts: answer(recorded('renfe-madrid.json')) }).file?.renfe?.alerts.find((a) => a.id === id);
+
+test("shows an Alert that names Madrid's C8, which has no Trips of its own but runs as C8a and C8b, on those two Lines and no other (#359)", () => {
+  // AVISO_517064: from 10 to 12 October no Trains between Villalba de Guadarrama and Cercedilla, naming 12 routes of C8.
+  expect(madrid('AVISO_517064')?.lines).toEqual(['cercanias-madrid:C8a', 'cercanias-madrid:C8b']);
+  // AVISO_467462, the toilets at Cercedilla, names C8 and C9: C9, which only buses run, has no Line to be shown on, and stays as named.
+  expect(madrid('AVISO_467462')?.lines).toEqual(['cercanias-madrid:C8a', 'cercanias-madrid:C8b', 'cercanias-madrid:C9']);
+  expect(madrid('AVISO_483553')?.lines).toEqual(['cercanias-madrid:C9']);
+});
+
+test("leaves an Alert that names a Line the bundle has as Renfe names it, Madrid's C3, C4, C4a, C4b and C5 (#359)", () => {
+  expect(madrid('AVISO_518347')?.lines).toEqual(['cercanias-madrid:C3', 'cercanias-madrid:C4', 'cercanias-madrid:C4a', 'cercanias-madrid:C4b']);
+  expect(madrid('AVISO_518335')?.lines).toEqual(['cercanias-madrid:C4', 'cercanias-madrid:C4a', 'cercanias-madrid:C4b']);
+  expect(madrid('AVISO_516750')?.lines).toEqual(['cercanias-madrid:C5']);
+});
+
+/** The Lines the first run writes for an Alert, made up, that names these routes, after Rodalies' in Renfe's file as recorded. */
+const linesNaming = (...routes: string[]) => {
+  const made = {
+    id: 'AVISO_MADE_UP',
+    alert: {
+      activePeriod: [{ start: '1791358372' }],
+      informedEntity: routes.map((routeId) => ({ routeId })),
+      descriptionText: { translation: [{ text: 'Made up.', language: 'es' }] },
+    },
+  };
+  return renfeRun(renfeWith(made)).file?.renfe?.alerts.find((a) => a.id === made.id)?.lines;
+};
+
+test("shows an Alert that names Rodalies' R3a, which runs as R3, on R3, once (#359)", () => {
+  // Made up: none of the 8 on 7 October names R3a alone. On its two routes in the timetable, 51T0017R3a and 51T0018R3a.
+  expect(linesNaming('51T0017R3a', '51T0018R3a')).toEqual(['rodalies:R3']);
+  // Naming R3 too, as AVISO_518187 does, R3 is there once.
+  expect(linesNaming('51T0244R3', '51T0017R3a', '51T0018R3a')).toEqual(['rodalies:R3']);
+});
+
+test("takes the Line a name is of by the Network the route is of, as Asturias' C8, which has Trips of its own, is not Madrid's (#359)", () => {
+  // Made up: none of the 69 names it. Asturias' routes 20T0019C8 and 20T0020C8 have 894 Trips in the timetable of 10 October 2026, and Madrid's 10T0039C8 none.
+  expect(linesNaming('20T0019C8', '20T0020C8')).toEqual(['cercanias-asturias:C8']);
+  expect(linesNaming('20T0019C8', '10T0039C8')).toEqual(['cercanias-asturias:C8', 'cercanias-madrid:C8a', 'cercanias-madrid:C8b']);
+});
+
+test('names the Line a route_id ends in whatever it is, as "constructor" or "toString", which every object has, and not as one the config lists (#359)', () => {
+  // Made up: a route_id's end is Renfe's text. Looked up among the config's names without its own only, it would be Object's function, and reading the file would fail.
+  expect(linesNaming('10T0001constructor', '10T0002toString')).toEqual(['cercanias-madrid:constructor', 'cercanias-madrid:toString']);
 });
 
 /** Renfe's file as recorded, with these entities after Rodalies'. */
@@ -456,4 +506,19 @@ test("asks Renfe for its whole file once the config says another Network's Alert
   const late = (run: ReturnType<typeof readAlerts>) => tagged(run.state.feeds.renfe?.alerts.find((a) => a.id === 'AVISO_518349'));
   expect(late(before)).toEqual(['es', 'es']);
   expect(late(added)).toEqual(['es', 'ca']);
+});
+
+test("asks Renfe for its whole file once the config says where an Alert on a Line the bundle lacks is shown, and shows it there, though Renfe hasn't changed the file (#359)", async () => {
+  // Made up: Renfe's source as it was before, which said none.
+  const WITHOUT_LINES = LIVE_SOURCES.map((s) => (s.id === 'renfe' && s.alerts ? { ...s, alerts: { ...s.alerts, lines: undefined } } : s));
+  const asked: string[] = [];
+  const get = answering(asked, undefined, recorded('renfe-madrid.json'));
+  const before = readAlerts(ALERTS_START, await fetchAlerts(ALERTS_START, START.state, get, WITHOUT_LINES), NOW, WITHOUT_LINES);
+  const added = readAlerts(before.state, await fetchAlerts(before.state, START.state, get), NOW + 20_000);
+  await fetchAlerts(added.state, START.state, get);
+  const url = 'https://gtfsrt.renfe.com/alerts.json';
+  expect(asked).toEqual([url, url, `${url} ${ETAG} ${MODIFIED}`]);
+  const lines = (run: ReturnType<typeof readAlerts>) => run.state.feeds.renfe?.alerts.find((a) => a.id === 'AVISO_517064')?.lines;
+  expect(lines(before)).toEqual(['cercanias-madrid:C8']);
+  expect(lines(added)).toEqual(['cercanias-madrid:C8a', 'cercanias-madrid:C8b']);
 });

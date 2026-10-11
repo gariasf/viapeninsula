@@ -514,6 +514,32 @@ test('a day file built before #340 has no Closures', () => {
   expect(closuresAt({}, { ...DAY, closures: undefined }, READ)).toEqual([]);
 });
 
+test("Madrid's AVISO_517064, on C8a and C8b, adds no Closure to the timetable's: C8b's from its replacement buses, once, Villalba de Guadarrama to Cercedilla (#359)", () => {
+  // Renfe's six of Madrid's Alerts that name Lines, as the fetcher writes them: AVISO_517064 names C8, which is C8a and C8b.
+  const madrid = readAlerts(ALERTS_START, { renfe: { alerts: recorded('renfe-madrid.json') } }, READ).file ?? {};
+  const alert = madrid.renfe?.alerts.find((a) => a.id === 'AVISO_517064');
+  expect(alert?.lines).toEqual(['cercanias-madrid:C8a', 'cercanias-madrid:C8b']);
+  const stations = [
+    { id: 'adif:10200', name: 'Villalba de Guadarrama', networks: ['cercanias-madrid'] },
+    { id: 'adif:12006', name: 'Cercedilla', networks: ['cercanias-madrid'] },
+  ];
+  // The Alert's words, "los trenes no prestan servicio entre Villalba de Guadarrama y Cercedilla", name the
+  // stretch, but SAYING has "no presta servicio" and not "prestan", so they say nothing of it (no `says`): it's
+  // the day the plural is read that this test is for.
+  expect(stretchesIn(alert?.description[0]?.text ?? '', stations)).toEqual([{ stations: ['adif:10200', 'adif:12006'] }]);
+  // 11 Oct's: C8b's replacement buses, from 06:35 to 24:42, as the build has them (#340). No Closure comes of the Alert for either Line.
+  const day = {
+    noonMinus12h: Date.parse('2026-10-11T00:00:00+02:00'),
+    closures: [{ line: 'cercanias-madrid:C8b', stations: ['adif:10200', 'adif:12006'] as [string, string], from: 23700, to: 88920, kind: 'buses' as const }],
+    trips: [],
+    lines: ['C8a', 'C8b'].map((name) => ({ id: `cercanias-madrid:${name}`, network: 'cercanias-madrid' })),
+    stations,
+  };
+  expect(closuresAt(madrid, day, Date.parse('2026-10-11T10:00:00+02:00'))).toEqual([
+    { line: 'cercanias-madrid:C8b', stations: ['adif:10200', 'adif:12006'], kind: 'closed', from: Date.parse('2026-10-11T06:35:00+02:00') },
+  ]);
+});
+
 test("an Alert about one Train, or for the Trains to or from a place, makes no Closure of its Line though its words close a stretch, as Sevilla's two C5 Alerts of 7 Oct and its C3 plan for Madrid's do (#396)", () => {
   const sevilla = {
     noonMinus12h: Date.parse('2026-10-09T00:00:00+02:00'),
