@@ -3,7 +3,7 @@ import { expect, test } from 'vitest';
 import { along, APART, atZoom, BANDS, beside, cutIn, DEGREE, drawnIn, GRAPH_BAND, inBand, LINK, onStroke, pieces, zones, pixelMetres, pointAt, SMOOTH, STRETCH, type Line, type Shape, type Stroke, type Track } from '../bundle.ts';
 import { measures } from './measures.ts';
 import { offset } from './offset.ts';
-import { crossing, KX, sharedTrack, sideBySide } from './sideBySide.ts';
+import { across, crossing, KX, sharedTrack, sideBySide, type Leg } from './sideBySide.ts';
 
 // Track drawn in metres east (x) and north (y) of a point in Barcelona.
 const M = (6_371_008.8 * Math.PI) / 180; // metres in a degree of latitude
@@ -645,6 +645,23 @@ test('leaves out the one piece a shape touches of the Stretch it goes on along, 
   // First or last of the shape, it's kept, as at the station a loop Line begins and ends at.
   expect(crossing([on, touch], found)).toEqual([on, touch]);
   expect(crossing([touch, on], found)).toEqual([touch, on]);
+});
+
+test("keeps a Line's way across a node from the end whose strokes' numbers come first as numbers, not as strings, so that it's the same end however many strokes are numbered before them (#448)", () => {
+  // One way, from the end of S onto the start of T, which across() finds from either. Numbered 9 and 12 its
+  // keys are "9.1 12.0" and "12.0 9.1", and as strings the second comes first, which numbered 1 and 2 it doesn't.
+  const s: Stroke = { line: 'C3', shape: 'c0', from: 0, to: 500, side: 0 };
+  const t: Stroke = { line: 'C3', shape: 'c1', from: 0, to: 500, side: 0 };
+  const fromS: [Stroke, [Leg[], Leg[]]] = [s, [[], [{ stroke: t, end: 0 }]]];
+  const fromT: [Stroke, [Leg[], Leg[]]] = [t, [[{ stroke: s, end: 1 }], []]];
+  for (const [a, b] of [[1, 2], [9, 12], [90, 100], [12, 9], [100, 90]] as const) {
+    for (const at of [new Map([fromS, fromT]), new Map([fromT, fromS])]) {
+      const found = across(at, () => false, new Map([[s, a], [t, b]]));
+      expect(found).toHaveLength(1);
+      // It leaves the stroke numbered first, whichever it was found from.
+      expect(found[0]?.[0]?.stroke).toBe(a < b ? s : t);
+    }
+  }
 });
 
 test("draws the bands below zoom 10 on graphs of their own with every visit of each shape, as SHORT's metres are no measure of a line width there (#353)", async () => {
