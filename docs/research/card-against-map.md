@@ -24,7 +24,7 @@ Research for #352, under #234 (part of #1). It builds on [ADR-0002](../adr/0002-
 
 `differences()` (`src/cardVsMap.ts`) takes one Train at one second. Its card is: `next` the first call with a departure still to come, `standing` when `standsAt`, `lastLeft` the call before it when it doesn't stand (the card's `now · Left A`), and `has` the Station the card has it at, `next` standing, `lastLeft` otherwise. A Station is named by its place (`place`, else its name), as the map shows it.
 
-That is the measure as #352 built it. Since #455 `differences()` takes the card's words from `whereabouts()` and a Station as the place the map shows it as, a dot at the middle of its Stations (section 7).
+That is the measure as #352 built it. Since #455 `differences()` takes the card's words from `whereabouts()` and a Station as the place the map shows it as, a dot at the middle of its Stations (section 7). Since #456 it also reads the followed Train's countdown by `countdownTo()`, by the map's time; `readsNow`, `nowFar`, `nowByMinute` and `nowByDelay` stay the minute-reading card's, which is what a board's rows say (section 8).
 
 | Measure | A second counts when |
 |---|---|
