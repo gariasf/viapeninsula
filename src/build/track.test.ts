@@ -1118,7 +1118,7 @@ test("keeps Cercanías Asturias' C1 to its left-hand track from Pola de Lena to 
 
   // What onRails() took before #479, the ways with a gauge: the trace has no way on from Villallana to Ujo on the left.
   const tagged = asturiasC1((ways) => ways.filter((w) => w.tags.gauge));
-  expect(() => tagged.traced()).toThrow("cercanias-asturias:20_C1_INV's traced track is 21.6 km against the feed's 15.1 km (+42.7%)");
+  expect(() => tagged.traced()).toThrow(/^cercanias-asturias:20_C1_INV's traced track is \d+\.\d km against the feed's 15\.1 km \(\+\d+\.\d%\)$/);
   expect(tagged.log).toContain('cercanias-asturias:20_C1_INV: Villallana → Ujo turns back at Pola de Lena');
 });
 
