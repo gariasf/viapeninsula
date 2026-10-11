@@ -326,7 +326,7 @@ test("on 10 Oct, the first of TRAM's works, also closes T1–T3 Francesc Macià 
   );
 });
 
-test("closes TRAM's T1–T3 from Francesc Macià to Montesa only where the day's timetable turns them back, not for as long as its Alert shows (#397)", () => {
+test("closes TRAM's T1–T3 from Francesc Macià to Montesa, together, only where the day's timetable turns them back, not for as long as its Alert shows (#397)", () => {
   // Each day's own Alerts: sc-280 as listed on 7 Oct, from 1 Oct 07:00 to 13 Oct 01:00; sc-287, in its place
   // in the file of 9 Oct 23:20, from 1 Oct 05:00 to 10 Oct 03:00; and sc-280 as listed for the works' days.
   // With `turnedBack`, the Trips' calls at Francesc Macià are taken from them, as 10 Oct's don't have them.
@@ -347,12 +347,11 @@ test("closes TRAM's T1–T3 from Francesc Macià to Montesa only where the day's
     }
   }
   // 10 Oct: T2's 159 and T3's 160 Trips call at Montesa and none at Francesc Macià; T1's 5 (06:42, 06:58, 12:00,
-  // 17:03 and 02:27 the next morning) go no further than Montesa, and it has none within the hour of 05:30 or 09:00.
-  expect(closed(TRAM_10, '2026-10-10', '2026-10-10T05:30:00+02:00')).toEqual(['T2', 'T3']);
-  expect(closed(TRAM_10, '2026-10-10', '2026-10-10T09:00:00+02:00')).toEqual(['T2', 'T3']);
-  expect(closed(TRAM_10, '2026-10-10', '2026-10-10T12:00:00+02:00')).toEqual(['T2', 'T3', 'T1']);
-  // 11 and 12 Oct: T1's 1 and 2 Trips are all after midnight, at 02:24, and 00:34 and 00:48.
-  for (const date of ['2026-10-11', '2026-10-12']) expect(closed(TRAM_10, date, `${date}T12:00:00+02:00`)).toEqual(['T2', 'T3']);
+  // 17:03 and 02:27 the next morning) go no further than Montesa. T1 has none within the hour of 05:30 or 09:00,
+  // and its Closure is in force with T2's and T3's, as the Alert's Lines' Trips are together.
+  for (const time of ['05:30', '09:00', '12:00']) expect(closed(TRAM_10, '2026-10-10', `2026-10-10T${time}:00+02:00`)).toEqual(['T2', 'T3', 'T1']);
+  // 11 and 12 Oct: T1's 1 and 2 Trips are all after midnight, at 02:24, and 00:34 and 00:48, and it's in force at noon.
+  for (const date of ['2026-10-11', '2026-10-12']) expect(closed(TRAM_10, date, `${date}T12:00:00+02:00`)).toEqual(['T2', 'T3', 'T1']);
   expect(closed(TRAM_10, '2026-10-11', '2026-10-12T02:30:00+02:00')).toEqual(['T2', 'T3', 'T1']);
   // Till its Alert ends, at 01:00:05 on the 13th, though 12 Oct's last Trips run to 00:58.
   expect(closed(TRAM_10, '2026-10-12', '2026-10-13T01:00:05+02:00')).toEqual(['T2', 'T3', 'T1']);
@@ -380,38 +379,47 @@ test("doesn't close T6 from Estació St.Adrià to Parc del Besòs, sc-286's stre
   // 14:20 the Line has none within the hour, and before and after those, those that run cross it, so
   // sc-286's Closure is in force at no moment.
   for (const time of ['05:30', '07:00', '07:36', '07:50', '08:10', '10:00', '12:00', '13:45', '14:05', '14:25', '18:00']) expect(on('2026-10-14', time, 'sc-286')).toEqual([]);
-  // T6's sc-279, Glòries – Can Jaumandreu, is, while T6 has Trips within the hour, as they run to Can Jaumandreu and no further.
-  expect(on('2026-10-14', '07:50', 'sc-279')).toEqual(['tram:T5', 'tram:T6']);
-  expect(on('2026-10-14', '10:00', 'sc-279')).toEqual(['tram:T5']);
-  expect(on('2026-10-14', '14:05', 'sc-279')).toEqual(['tram:T5', 'tram:T6']);
+  // That's the gap and the crossing, both: turned back at Parc del Besòs, the same Trips have it in force
+  // within the hour of one, until 08:06 and from 13:50, and not in between.
+  for (const time of ['05:30', '07:00', '07:36', '07:50', '14:05', '14:25', '18:00']) expect(on('2026-10-14', time, 'sc-286', true)).toEqual(['tram:T6']);
+  for (const time of ['08:10', '10:00', '12:00', '13:45']) expect(on('2026-10-14', time, 'sc-286', true)).toEqual([]);
+  // sc-279, Glòries – Can Jaumandreu, names T5 and T6, whose Trips run to Can Jaumandreu and no further, and its
+  // Closure is T6's with T5's, which run through T6's gap.
+  for (const time of ['07:50', '10:00', '14:05']) expect(on('2026-10-14', time, 'sc-279')).toEqual(['tram:T5', 'tram:T6']);
 });
 
-test("a TRAM Closure is in force from half an hour before the first of its Line's Trips that turn back to half an hour after the last, and not in the night between (#397)", () => {
-  // T2's on 10 Oct: the first leaves Montesa at 05:00:00, the last gets there at 02:21:30 on the 11th.
-  const t2 = (time: string) => closuresAt(ALERTS, WORKS, Date.parse(time)).some((c) => c.line === 'tram:T2');
-  expect(t2('2026-10-10T04:29:59+02:00')).toBe(false);
-  expect(t2('2026-10-10T04:30:00+02:00')).toBe(true);
-  expect(t2('2026-10-11T02:51:30+02:00')).toBe(true);
-  expect(t2('2026-10-11T02:51:31+02:00')).toBe(false);
-  // Not before the Alert's period begins, or after it ends, whatever the timetable runs: made up, sc-280 with its period cut to 06:00–18:00.
+test("a TRAM Closure is in force from half an hour before the first of its Alert's Lines' Trips that turn back to half an hour after the last, and not in the night between (#397)", () => {
+  // T1–T3's on 10 Oct: the first, T3's, leaves Montesa at 04:55:00 (T2's at 05:00:00, T1's at 06:42), the last, T1's,
+  // gets there at 02:37:00 on the 11th (T3's at 02:26:20, T2's at 02:21:30). The three go together.
   const sc280 = ALERTS.tram?.alerts.find((a) => a.id === 'sc-280') as Alert;
+  const lines = (time: string, alerts = ALERTS) => closuresAt(alerts, WORKS, Date.parse(time)).filter((c) => c.alert?.id === 'sc-280').map((c) => c.line);
+  const all = ['tram:T2', 'tram:T3', 'tram:T1'];
+  expect(lines('2026-10-10T04:24:59+02:00')).toEqual([]);
+  expect(lines('2026-10-10T04:25:00+02:00')).toEqual(all);
+  expect(lines('2026-10-11T03:07:00+02:00')).toEqual(all);
+  expect(lines('2026-10-11T03:07:01+02:00')).toEqual([]);
+  // Not before the Alert's period begins, or after it ends, whatever the timetable runs: made up, sc-280 with its period cut to 06:00–18:00.
   const cut: Alerts = { tram: { status: 'ok', alerts: [{ ...sc280, from: Date.parse('2026-10-10T06:00:00+02:00'), to: Date.parse('2026-10-10T18:00:00+02:00') }] } };
-  const within = (time: string) => closuresAt(cut, WORKS, Date.parse(time)).map((c) => c.line);
-  // T1 has no Trip within the hour of 06:00 or 18:00 (its are at 06:42 and 17:03), where T2 and T3 have.
-  expect([within('2026-10-10T05:59:59+02:00'), within('2026-10-10T06:00:00+02:00'), within('2026-10-10T18:00:00+02:00'), within('2026-10-10T18:00:01+02:00')]).toEqual([[], ['tram:T2', 'tram:T3'], ['tram:T2', 'tram:T3'], []]);
+  // T1 has no Trip within the hour of 06:00 or 18:00 (its are at 06:42 and 17:03), and is in force with T2's and T3's.
+  expect(['05:59:59', '06:00:00', '18:00:00', '18:00:01'].map((time) => lines(`2026-10-10T${time}+02:00`, cut))).toEqual([[], all, all, []]);
 });
 
-test("a TRAM Closure isn't in force while any one of its Line's Trips within the hour calls at both its Stations, though the others turn back, wherever it comes among them (#397)", () => {
+test("a TRAM Closure isn't in force while any one of its Alert's Lines' Trips within the hour calls at both its Stations, though the others turn back, wherever it comes among them, and a Line the Alert doesn't name doesn't decide (#397)", () => {
   // Made up: one of 10 Oct's T2 Trips that runs at noon, with the call at Francesc Macià that the others haven't, before and after them.
   const t2 = WORKS.trips.find((t) => t.line === 'tram:T2' && t.calls[0] && t.calls[0].departure <= 12 * 3600 && (t.calls.at(-1)?.arrival ?? 0) >= 12 * 3600) as (typeof WORKS.trips)[number];
   const first = t2.calls[0] as (typeof t2.calls)[number];
   const crossing = { ...t2, calls: [{ ...first, station: 'tram:ST-172' }, ...t2.calls] };
-  const lines = (trips: typeof WORKS.trips) => closuresAt(ALERTS, { ...WORKS, trips }, NOON).map((c) => c.line);
-  // T3's and T1's, whose Trips all turn back, stay; T2's goes, though the rest of its Trips within the hour turn back.
-  const without = ['rodalies:R3', 'rodalies:R1', 'rodalies:R2', 'tram:T3', 'tram:T1', 'tram:T5', 'tram:T6'];
+  const lines = (trips: typeof WORKS.trips, alerts = ALERTS) => closuresAt(alerts, { ...WORKS, trips }, NOON).map((c) => c.line);
+  // T2's, T3's and T1's all go, though the rest of their Trips within the hour turn back: the Alert is one.
+  const without = ['rodalies:R3', 'rodalies:R1', 'rodalies:R2', 'tram:T5', 'tram:T6'];
   expect(lines([...WORKS.trips, crossing])).toEqual(without);
   expect(lines([crossing, ...WORKS.trips])).toEqual(without);
-  expect(lines(WORKS.trips)).toEqual(['rodalies:R3', 'rodalies:R1', 'rodalies:R2', 'tram:T2', ...without.slice(3)]);
+  expect(lines(WORKS.trips)).toEqual(['rodalies:R3', 'rodalies:R1', 'rodalies:R2', 'tram:T2', 'tram:T3', 'tram:T1', 'tram:T5', 'tram:T6']);
+  // But not for a Line it doesn't name: made up, sc-280 naming T2 and T3 only, with the crossing Trip T1's.
+  const sc280 = ALERTS.tram?.alerts.find((a) => a.id === 'sc-280') as Alert;
+  const two: Alerts = { tram: { status: 'ok', alerts: [{ ...sc280, lines: ['tram:T2', 'tram:T3'] }] } };
+  expect(lines([...WORKS.trips, { ...crossing, line: 'tram:T1' }], two)).toEqual(['tram:T2', 'tram:T3']);
+  expect(lines([...WORKS.trips, crossing], two)).toEqual([]);
 });
 
 test("none of TRAM's Closures is in force where the page has none of its Lines' Trips, as where its region's file failed to come, and Renfe's, which read none, are (#397)", () => {
@@ -534,7 +542,7 @@ test("an Alert about one Train, or for the Trains to or from a place, makes no C
   }
 });
 
-test("on 9 Oct at 23:20, the file whole, Spain's 68 Renfe Alerts and TRAM's 3, gives the Closures it gave but TRAM's T1–T3, whose trams still ran across theirs that night, and T6's, which has none running within the hour, and San Sebastián's C1 twice, and none of Sevilla's C3, C5, Bilbao's streets or elsewhere (#396, #397)", () => {
+test("on 9 Oct at 23:20, the file whole, Spain's 68 Renfe Alerts and TRAM's 3, gives the Closures it gave but TRAM's T1–T3, whose trams still ran across theirs that night, and T6's sc-286, which none of T6's ran within the hour of, and San Sebastián's C1 twice, and none of Sevilla's C3, C5, Bilbao's streets or elsewhere (#396, #397)", () => {
   const day = { noonMinus12h: Date.parse('2026-10-09T00:00:00+02:00'), closures: [], lines: NIGHT_LINES, stations: NIGHT_STATIONS, trips: TRAM_TRIPS['2026-10-09']?.trips ?? [] };
   const name = new Map(NIGHT_STATIONS.map((s) => [s.id, s.name]));
   const shown = closuresAt(NIGHT, day, Date.parse('2026-10-09T23:20:11+02:00'));
@@ -547,8 +555,9 @@ test("on 9 Oct at 23:20, the file whole, Spain's 68 Renfe Alerts and TRAM's 3, g
     // New: "queda interrumpida la circulación entre las estaciones de Brinkola y Zumarraga", of 7 Oct 04:46.
     'cercanias-san-sebastian:C1 closed Brinkola – Zumarraga (AVISO_518303)',
     // Not TRAM's sc-287 for 10–12 Oct, whose period runs to 10 Oct 03:00: 9 Oct's T1–T3 Trips run to 03:12, every one across it.
-    // T5's from Glòries to Can Jaumandreu, which none of its Trips runs, as before; not T6's, which has none running at 23:20 (its last is at 22:35).
+    // T5's and T6's from Glòries to Can Jaumandreu, which none of their Trips runs, as before: T5's run to 00:26, within the hour, though T6's last was at 22:35.
     'tram:T5 closed Glòries – Can Jaumandreu (sc-279)',
+    'tram:T6 closed Glòries – Can Jaumandreu (sc-279)',
     // New: "se encuentra interrumpida la circulación entre las estaciones de Irun y Hernani", of 14 Aug, which the timetable has too (#340).
     'cercanias-san-sebastian:C1 closed Irun – Hernani (INFO_507703)',
   ]);
