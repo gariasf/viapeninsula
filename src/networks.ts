@@ -12,8 +12,8 @@ export interface NetworkConfig extends Omit<Network, 'credit'> {
   /**
    * The region it's built and loaded in, with every other Network that names it: Networks whose Lines
    * share Stretches, so that they're drawn side by side, as Catalonia's four (ADR-0014). Its own ID
-   * where it names none (regionOf()). Long distance's Networks, once they're on the map, are a region
-   * of their own too, which every view loads (EVERYWHERE, #266).
+   * where it names none (regionOf()). Long distance's Networks are a region of their own too, which
+   * every view loads (EVERYWHERE, #266).
    */
   region?: string;
   rails: Rails;
@@ -604,32 +604,10 @@ export const CERCANIAS_ZARAGOZA: NetworkConfig = {
   lines: { kind: 'commuter' },
 };
 
-/** Every Network, in the order the bundle lists them. */
-export const NETWORKS = [
-  RODALIES,
-  FGC,
-  TRAM,
-  METRO,
-  CERCANIAS_MADRID,
-  CERCANIAS_ASTURIAS,
-  CERCANIAS_SEVILLA,
-  CERCANIAS_CADIZ,
-  CERCANIAS_MALAGA,
-  CERCANIAS_VALENCIA,
-  CERCANIAS_MURCIA_ALICANTE,
-  CERCANIAS_CARTAGENA,
-  CERCANIAS_FERROL,
-  CERCANIAS_LEON,
-  CERCANIAS_BILBAO,
-  CERCANIAS_SAN_SEBASTIAN,
-  CERCANIAS_SANTANDER,
-  CERCANIAS_ZARAGOZA,
-];
-
 /**
  * The region every view loads, wherever the map is and at every zoom (ADR-0014), as AVE y Larga
- * Distancia's Trains show at every zoom (ADR-0010): long distance's, whose Networks name it, once
- * they're on the map (#262). The manifest gives it no extent, which is what the map loads it by (#266).
+ * Distancia's Trains show at every zoom (ADR-0010): long distance's, whose Networks name it (#262). The
+ * manifest gives it no extent, which is what the map loads it by (#266).
  */
 export const EVERYWHERE = 'long-distance';
 
@@ -655,11 +633,11 @@ const RENFE_LONG_DISTANCE = 'https://ssl.renfe.com/gtransit/Fichero_AV_LD/google
 // Renfe's long-distance timetable makes two Networks, as Renfe's own maps divide it (ADR-0010): each
 // takes the routes named as its Lines are. Their Lines are the names the timetable gives its Trips, as
 // it names no others, but written as Renfe writes them in public, rather than in the feed's capitals,
-// and their colours are their config's, as the feed gives every route F2F5F5. Their Trains are read and
-// traced (#259), but not on the map until they're drawn (#262, #263), so each has only what reading them,
-// tracing them and running their Trains needs: how they run (#260), with the rest to come with those. As
-// the timetable has no shapes, each Line runs on the rails of its gauge, STANDARD, BOTH, IBERIAN or METRE
-// above (#259, docs/research/high-speed.md).
+// and their colours are their config's, as the feed gives every route F2F5F5. As the timetable has no
+// shapes, each Line runs on the rails of its gauge, STANDARD, BOTH, IBERIAN or METRE above (#259,
+// docs/research/high-speed.md). AVE y Larga Distancia is on the map (#262). Media Distancia y Avant's
+// Trains are read and traced, but not on the map until they're drawn (#263), so it has only what reading
+// them, tracing them and running them needs: how they run (#260), with the rest to come with #263.
 
 /**
  * How the engine reads Renfe's long-distance live data (#260), by what #260's triage found of it on 4
@@ -684,9 +662,17 @@ const HIGH_SPEED = { topSpeed: 300 / 3.6 };
  */
 const RENFE_LONG_DISTANCE_POINTS: Timetable['points'] = { '02030': [-4.56158, 37.02951] };
 
-export const AVE_LARGA_DISTANCIA: Pick<NetworkConfig, 'id' | 'name' | 'region' | 'profile' | 'live' | 'runningSide' | 'timetables' | 'lines'> = {
+/**
+ * Renfe's purple, AVE's since 2022 and on renfe.com, for AVE y Larga Distancia's track below zoom 7 and its
+ * Lines, rather than the magenta of Renfe's 2025 AVE map, about #DA055C, which can't be told from Ouigo's
+ * #E50A70 (#262).
+ */
+const AVE_PURPLE = '#81005E';
+
+export const AVE_LARGA_DISTANCIA: NetworkConfig = {
   id: 'ave-larga-distancia',
   name: 'AVE y Larga Distancia',
+  // Built and loaded on its own, at every view, as its Trains show at every zoom (ADR-0010, ADR-0014).
   region: EVERYWHERE,
   // Fitted by #260's triage to the hops of Monday 5 October 2026's Trips as traced along OpenStreetMap's
   // rails: 300 km/h at 0.5 m/s² fits all 442 of AVE's, Avlo's and AVE Int's, and 250 fits all of Alvia's
@@ -702,6 +688,12 @@ export const AVE_LARGA_DISTANCIA: Pick<NetworkConfig, 'id' | 'name' | 'region' |
   // keep left, which one side for a Network can't say, but where OpenStreetMap tags which way Trains run
   // a track, a trace follows it (ADR-0004).
   runningSide: 'right',
+  colour: AVE_PURPLE,
+  // Its Trains are drawn at every zoom, as dots below 7 and pills from 7, where the Lines are (ADR-0010).
+  pillZoom: 7,
+  // Its Lines' runs are traced on the rails of their gauges (`lines.gauges`), and a way with no gauge tag
+  // is every gauge's for them (#259): these are only the ways the report names a Station on.
+  rails: { railway: ['rail'] },
   timetables: [
     {
       url: RENFE_LONG_DISTANCE,
@@ -716,12 +708,12 @@ export const AVE_LARGA_DISTANCIA: Pick<NetworkConfig, 'id' | 'name' | 'region' |
       points: RENFE_LONG_DISTANCE_POINTS,
     },
   ],
+  // Renfe's, as every Network of Renfe's credits it, so that the map credits Renfe once (ADR-0010).
+  credit: RENFE,
   lines: {
     kind: 'long-distance',
     names: { AVLO: 'Avlo', ALVIA: 'Alvia', EUROMED: 'Euromed', 'AVE INT': 'AVE Int', TRENCELTA: 'Trencelta' },
-    // Renfe's purple, AVE's since 2022 and on renfe.com, rather than the magenta of Renfe's 2025 AVE
-    // map, which can't be told from Ouigo's (#262).
-    colour: '#81005E',
+    colour: AVE_PURPLE,
     // High speed's 300 km/h, where the Network's 250 is Alvia's, Euromed's, Intercity's and Trencelta's.
     profiles: { AVE: HIGH_SPEED, Avlo: HIGH_SPEED, 'AVE Int': HIGH_SPEED },
     // AVE Int, AVE's trains to France, as AVE. The rest change gauge.
@@ -772,8 +764,42 @@ export const MEDIA_DISTANCIA_AVANT: Pick<NetworkConfig, 'id' | 'name' | 'region'
   },
 };
 
-/** The Networks of Renfe's long-distance timetable, whose Trains the daily build reads, but doesn't draw yet (#258). */
+/**
+ * The Networks of Renfe's long-distance timetable, whose routes they take between them by name (#401):
+ * AVE y Larga Distancia, on the map (#262), and Media Distancia y Avant, whose Trains the daily build
+ * reads, traces and logs, but doesn't draw yet (#263).
+ */
 export const LONG_DISTANCE = [AVE_LARGA_DISTANCIA, MEDIA_DISTANCIA_AVANT];
+
+/**
+ * Every Network, in the order the bundle lists them, which is the order below zoom 7 draws their track
+ * in, each over those before it: the file below zoom 7 has each region's Network tracks, and each
+ * region's own, in this order (zoomedOut(), #262). So AVE y Larga Distancia is last, its track over every
+ * other Network's, and its region, built last, finds every Train a Network before it lists too
+ * (unlisted()). Media Distancia y Avant goes before it, its track under AVE y Larga Distancia's and over
+ * the Cercanías Networks' and Catalonia's (#263).
+ */
+export const NETWORKS = [
+  RODALIES,
+  FGC,
+  TRAM,
+  METRO,
+  CERCANIAS_MADRID,
+  CERCANIAS_ASTURIAS,
+  CERCANIAS_SEVILLA,
+  CERCANIAS_CADIZ,
+  CERCANIAS_MALAGA,
+  CERCANIAS_VALENCIA,
+  CERCANIAS_MURCIA_ALICANTE,
+  CERCANIAS_CARTAGENA,
+  CERCANIAS_FERROL,
+  CERCANIAS_LEON,
+  CERCANIAS_BILBAO,
+  CERCANIAS_SAN_SEBASTIAN,
+  CERCANIAS_SANTANDER,
+  CERCANIAS_ZARAGOZA,
+  AVE_LARGA_DISTANCIA,
+];
 
 /**
  * A source of live data, read in the fetcher by the adapter for its format: its files, by what that
