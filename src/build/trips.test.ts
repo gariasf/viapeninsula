@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import type { Shape, Station } from '../bundle.ts';
 import { collect, type Found } from './report.ts';
-import { placeTrips, type FeedTrip } from './trips.ts';
+import { placeDays, placeTrips, type FeedTrip } from './trips.ts';
 
 // Track drawn in metres east (x) and north (y) of a point near L'Aldea.
 const M = (6_371_008.8 * Math.PI) / 180; // metres in a degree of latitude
@@ -150,4 +150,96 @@ test("leaves out and reports a Trip that would have to run faster than its Netwo
   expect(placed).toEqual([]);
   expect(log).toEqual(["from Tortosa is left out: it would run L'Aldea → Ulldecona at 180 km/h along its track"]);
   expect(found).toMatchObject([{ kind: 'trip', why: 'fast', trip: 'from Tortosa', stations: [{ id: "L'Aldea" }, { id: 'Ulldecona' }], text: log }]);
+});
+
+/**
+ * A trace through Sants, Gràcia and Estació de França, which the Trips that don't fit R2N's shape take
+ * (#280): R2N's track, and out from Gràcia to França, which is off it.
+ */
+const OWN = shape('own', [0, 0], [2500, 40], [3000, 1800]);
+
+/**
+ * Places the days' Trips, those that don't fit their shape on OWN, which is what the retrace gives, less the
+ * Trips `left` says it leaves out. `asked` is what it was asked to trace, by day.
+ */
+function placeOnOwn(days: FeedTrip[][], stations = R2N[1], left: (day: number, id: string) => boolean = () => false) {
+  const [log, found, asked]: [string[], Found[], string[][][]] = [[], [], []];
+  const placed = placeDays(
+    days,
+    R2N[0],
+    stations,
+    TOP_SPEED,
+    (unfit) => {
+      asked.push(unfit.map((day) => day.map((t) => t.id)));
+      return { shapes: [OWN], days: unfit.map((day, i) => day.filter((t) => !left(i, t.id)).map((t) => ({ ...t, shape: OWN.id }))) };
+    },
+    (l) => log.push(l),
+    (f) => found.push(f),
+  );
+  return { ...placed, log, found, asked, ids: placed.days.map((day) => day.map((t) => `${t.id} on ${t.shape}`)) };
+}
+
+test("places a Trip that calls at a Station off its shape on a trace of its own through its Stations, as R2N's to Estació de França, and the others where they were", () => {
+  const { ids, shapes, asked, log, found } = placeOnOwn([[trip('to França', 'R2N', 'R2N', 'Sants Gràcia França'), trip('to Gràcia', 'R2N', 'R2N', 'Sants Gràcia')]]);
+  // Each where it came, the one that didn't fit on the trace: only that one was asked for.
+  expect(ids).toEqual([['to França on own', 'to Gràcia on R2N']]);
+  expect(asked).toEqual([[['to França']]]);
+  expect(shapes.map((s) => s.id)).toEqual(['own']);
+  expect(log).toEqual([]);
+  expect(found).toEqual([]);
+});
+
+test("places a Trip that would have to run faster than its Network's top speed along its shape on a trace of its own, as R16's from Tortosa past L'Aldea would", () => {
+  // R16's track from Tortosa to Ulldecona comes back a kilometre from L'Aldea: along it, L'Aldea → Ulldecona is 180 km/h.
+  const stations = [station("L'Aldea", 0, 30), station('Tortosa', 12000, 25), station('Ulldecona', 1000, -20000)];
+  const R16 = shape('R16', [0, 0], [12000, 0], [1000, -1000], [1000, -20000]);
+  const calls = [
+    { station: 'Tortosa', arrival: 0, departure: 0 },
+    { station: "L'Aldea", arrival: 720, departure: 1020 },
+    { station: 'Ulldecona', arrival: 1860, departure: 1920 },
+  ];
+  const own = shape('own', [12000, 0], [0, 0], [1000, -20000]);
+  const [log, found]: [string[], Found[]] = [[], []];
+  const { days } = placeDays(
+    [[{ id: 'from Tortosa', line: 'R16', shape: 'R16', headsign: 'Ulldecona', calls }]],
+    [R16],
+    stations,
+    TOP_SPEED,
+    (unfit) => ({ shapes: [own], days: unfit.map((day) => day.map((t) => ({ ...t, shape: 'own' }))) }),
+    (l) => log.push(l),
+    (f) => found.push(f),
+  );
+  expect(days[0]?.map((t) => [t.id, t.shape, t.calls.map((c) => c.dist)])).toEqual([['from Tortosa', 'own', [0, 12000, 32025]]]);
+  expect([log, found]).toEqual([[], []]);
+});
+
+test("leaves out and reports a Trip that fits its own trace no better, as placeTrips() does, on its day, and drops a trace no Trip is placed on", () => {
+  // A minute from Sants to Gràcia, 2.5 km, is faster than Rodalies' top speed on any trace.
+  const usual = trip('usual', 'R2N', 'R2N', 'Sants Gràcia França');
+  const quick = { ...usual, id: 'quick', calls: usual.calls.map((c, i) => ({ ...c, arrival: i * 60, departure: i * 60 + 10 })) };
+  const { ids, shapes, log, found } = placeOnOwn([[], [quick]]);
+  expect(ids).toEqual([[], []]);
+  expect(shapes).toEqual([]);
+  expect(log).toEqual(['quick is left out: it would run Sants → Gràcia at 180 km/h along its track']);
+  expect(found).toMatchObject([{ kind: 'trip', why: 'fast', trip: 'quick', line: 'R2N', stations: [{ id: 'Sants' }, { id: 'Gràcia' }], text: log, day: 1 }]);
+});
+
+test("leaves a Trip out without a word where retrace() has left it out and said so, and keeps each day's other Trips in the order they came", () => {
+  const trips = ['a', 'b', 'c'].map((id) => trip(id, 'R2N', 'R2N', 'Sants Gràcia França'));
+  const { ids, log, found } = placeOnOwn([trips, [...trips, trip('d', 'R2N', 'R2N', 'Sants Gràcia')]], R2N[1], (day, id) => day === 0 && id === 'b');
+  expect(ids).toEqual([
+    ['a on own', 'c on own'],
+    ['a on own', 'b on own', 'c on own', 'd on R2N'],
+  ]);
+  expect([log, found]).toEqual([[], []]);
+});
+
+test("doesn't trace a Trip that calls at fewer than two Stations, or whose shape has no track, nor ask for anything where each fits its own", () => {
+  const { ids, asked, log, found } = placeOnOwn([
+    [trip('fits', 'R2N', 'R2N', 'Sants Gràcia'), trip('one', 'R2N', 'R2N', 'Sants'), trip('no shape', 'R2N', 'none', 'Sants Gràcia')],
+  ]);
+  expect(ids).toEqual([['fits on R2N']]);
+  expect(asked).toEqual([]);
+  expect(log).toEqual(['one is left out: it calls at fewer than two Stations', 'no shape is left out: its shape none has no track']);
+  expect(found).toMatchObject([{ why: 'fewer', trip: 'one' }, { why: 'notrack', trip: 'no shape' }]);
 });
