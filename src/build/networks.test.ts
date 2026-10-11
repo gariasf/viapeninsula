@@ -792,7 +792,7 @@ async function c2Trip(network: NetworkConfig) {
   const { stations, shapes, trips } = await readFeed(asturias, '2026-10-10', { network, ...network.timetables[0] });
   const left: string[] = [];
   const traced = traceShapes(shapes, stations, ownRails(langreo, network), network.runningSide, () => {});
-  const placed = placeTrips(trips, traced, stations, network.profile.topSpeed, (l) => left.push(l));
+  const placed = placeTrips(trips, traced, stations, () => network.profile.topSpeed, (l) => left.push(l));
   return { stations, placed, left };
 }
 

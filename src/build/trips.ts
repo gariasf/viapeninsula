@@ -44,14 +44,15 @@ interface Unplaced {
  * Places each Trip's Stations along its track. Where the track passes a Station more than once, a
  * Station goes where the Trip travels least to reach it and carry on: a Trip can turn back at a
  * Station, but not in between. A Trip calling at a Station off its track, or that would have to run
- * faster than its Network's top speed (in m/s) between two Stations, is left out and logged rather
- * than drawn wrong, and reported with the Stations its log names, or else its first.
+ * faster than its Line's top speed (`topSpeed`, by the Line's ID, in m/s) between two Stations, is
+ * left out and logged rather than drawn wrong, and reported with the Stations its log names, or else
+ * its first.
  */
 export function placeTrips(
   trips: FeedTrip[],
   shapes: Shape[],
   stations: Station[],
-  topSpeed: number,
+  topSpeed: (line: string) => number,
   log = console.log,
   report: (found: Found) => void = () => {},
 ): Trip[] {
@@ -71,7 +72,7 @@ function leave({ trip, why, reason, at }: Unplaced, log: (line: string) => void,
 
 /**
  * Why a Trip doesn't fit its shape, to be traced through its own Stations instead (placeDays()): a Station
- * off its track, or a stretch faster than its Network's top speed along it. Not one that calls at fewer
+ * off its track, or a stretch faster than its Line's top speed along it. Not one that calls at fewer
  * than two Stations, nor whose shape has no track, which no trace of its own would mend.
  * ponytail: a stretch its timetable gives no time, as Asturias' C4 Trips from Candás to Candás-Apeadero
  * (6–7 a day on 11–13 Oct 2026), is traced and left out all the same: each run takes milliseconds, so skip
@@ -90,7 +91,7 @@ export function placeDays(
   days: FeedTrip[][],
   shapes: Shape[],
   stations: Station[],
-  topSpeed: number,
+  topSpeed: (line: string) => number,
   retrace: (unfit: FeedTrip[][]) => { shapes: Shape[]; days: FeedTrip[][] },
   log = console.log,
   report: (found: Found) => void = () => {},
@@ -121,7 +122,7 @@ export function placeDays(
  * Each Trip placed on its shape's track, or why it can't be, in the order they came. `onward` is for a
  * trace made through the Trips' own Stations (placeDays()), which they run from its start to its end.
  */
-function place(trips: FeedTrip[], shapes: Shape[], stations: Station[], topSpeed: number, onward = false): (Trip | Unplaced)[] {
+function place(trips: FeedTrip[], shapes: Shape[], stations: Station[], topSpeed: (line: string) => number, onward = false): (Trip | Unplaced)[] {
   const byId = new Map(stations.map((s) => [s.id, s]));
   const byShape = new Map(shapes.map((s) => [s.id, s]));
   const cached = new Map<string, Pass[]>();
@@ -143,9 +144,9 @@ function place(trips: FeedTrip[], shapes: Shape[], stations: Station[], topSpeed
     const off = calledAt.find((_, i) => !options[i]?.length);
     if (off) return leave('off', `${off.name} is ${(nearest(shape.coords, [off.lon, off.lat]).metres / 1000).toFixed(1)} km off its track`, [off]);
     const dist = leastTravel(options, onward);
-    // A stretch faster than the Network's top speed is placed on the wrong track, say one that runs back past a Station.
+    // A stretch faster than its Line's top speed is placed on the wrong track, say one that runs back past a Station.
     const speed = (i: number) => Math.abs((dist[i] ?? 0) - (dist[i - 1] ?? 0)) / ((calls[i]?.arrival ?? 0) - (calls[i - 1]?.departure ?? 0));
-    const fast = calls.findIndex((_, i) => i > 0 && speed(i) > topSpeed);
+    const fast = calls.findIndex((_, i) => i > 0 && speed(i) > topSpeed(trip.line));
     if (fast > 0) return leave('fast', `it would run ${calledAt[fast - 1]?.name} → ${calledAt[fast]?.name} at ${Math.round(speed(fast) * 3.6)} km/h along its track`, calledAt.slice(fast - 1, fast + 1));
     return { ...trip, calls: calls.map((c, i) => ({ ...c, dist: Math.round(dist[i] ?? 0) })) };
   });

@@ -23,7 +23,7 @@ import { createHash } from 'node:crypto';
 import { appendFile, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { brotliCompressSync, constants } from 'node:zlib';
-import { addDays, LIVE_URL, madridDate, type Manifest, type Network } from '../bundle.ts';
+import { addDays, LIVE_URL, madridDate, profiled, type Manifest, type Network } from '../bundle.ts';
 import { LONG_DISTANCE, NETWORKS, regionsOf, type NetworkConfig, type Timetable } from '../networks.ts';
 import { decodeTrack, type TrackFile } from '../pieces.ts';
 import { download, feedStart, type Source } from './gtfs.ts';
@@ -213,8 +213,11 @@ function build(config: NetworkConfig, { published, days }: Awaited<ReturnType<ty
   const graphs = railGraphs(feeds, stations, own, network.runningSide);
   const shapes = traceShapes(feeds, stations, own, network.runningSide, console.log, found, graphs);
   const cropped = crop(border, stations, shapes, days.map((day) => day.flatMap((p) => p.trips)));
+  // Each Line's top speed, its own where its profile has one, as AVE's 300 km/h (#260), or its Network's.
+  const speeds = new Map(lines.map((l) => [l.id, profiled(network, l)?.profile.topSpeed ?? profile.topSpeed]));
+  const topSpeed = (line: string) => speeds.get(line) ?? profile.topSpeed;
   // A Trip that doesn't fit its feed's shape runs on a trace through its own Stations, which its Line has too (#280).
-  const placed = placeDays(cropped.days, shapes, stations, network.profile.topSpeed, (unfit) => traceOwn(unfit, feeds, stations, graphs, console.log, found), console.log, found);
+  const placed = placeDays(cropped.days, shapes, stations, topSpeed, (unfit) => traceOwn(unfit, feeds, stations, graphs, console.log, found), console.log, found);
   const traces = crop(border, stations, placed.shapes, []).shapes;
   const lineOf = new Map(placed.days.flat().map((t) => [t.shape, t.line]));
   const closures = days.map((day, i) => closuresOf(day.flatMap((p) => p.buses), day.flatMap((p) => p.trips), feeds, cropped.stations, console.log, (f) => found({ ...f, day: i })));

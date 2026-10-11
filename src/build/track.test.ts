@@ -315,7 +315,7 @@ test("places a circle Line's Trips on its circle, the last call at its end, and 
   // Trips that end at San Bernardo, as 90 of the timetable's do, and one that starts there.
   const trips = [whole, { ...whole, id: 'to San Bernardo', calls: calls.slice(0, 5) }, { ...whole, id: 'from San Bernardo', calls: calls.slice(4) }];
   const log: string[] = [];
-  const placed = placeTrips(trips, [track], stations, CERCANIAS_SEVILLA.profile.topSpeed, (line) => log.push(line));
+  const placed = placeTrips(trips, [track], stations, () => CERCANIAS_SEVILLA.profile.topSpeed, (line) => log.push(line));
   expect(log).toEqual([]);
   const [round, ends, from] = placed.map((t) => t.calls.map((c) => c.dist));
   const length = track.dist.at(-1) ?? 0;
@@ -1016,7 +1016,7 @@ function placedFrom(file: string, network: NetworkConfig, trips: FeedTrip[]) {
   const owned = ownRails(rails, network);
   const graphs = railGraphs(shapes, stations, owned, network.runningSide);
   const traced = traceShapes(shapes, stations, owned, network.runningSide, () => {}, () => {}, graphs);
-  const topSpeed = network.profile.topSpeed;
+  const topSpeed = () => network.profile.topSpeed;
   const alone: string[] = [];
   placeTrips(trips, traced, stations, topSpeed, (line) => alone.push(line));
   const placed = placeDays([trips], traced, stations, topSpeed, (unfit) => traceOwn(unfit, shapes, stations, graphs, (line) => log.push(line), (f) => found.push(f)), (line) => log.push(line), (f) => found.push(f));
