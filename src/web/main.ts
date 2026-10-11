@@ -15,7 +15,7 @@ import { firstLook, forgetJoined, regionLoader, regionsNeeded } from './regions.
 import { linesAt, popupRoom } from './tap.ts';
 import { alongside, callsIn, namedTwice, nameOffset, nameSort, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
 import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
-import { atMostEvery, drifted, letsGo, pointersDown, tapZooms } from './centre.ts';
+import { atMostEvery, drifted, letsGo, outsideMiddle, pointersDown, tapZooms } from './centre.ts';
 import { keepView, lastView, markOf, openingView, toggledPitch } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { darkInk, INK, lettering } from './colour.ts';
@@ -106,6 +106,8 @@ const ICONS = {
 const PEEK = 3;
 /** The zoom the map eases to, to bring a Train it follows or a Station into view, where it's further out (easeOnto()). */
 const FOLLOW_ZOOM = 13;
+/** How long the map takes to bring the Train it follows back into the middle of the map beside the panel, in ms (easeIn()). */
+const EASE_IN = 1000;
 /** How far a finger moves the top of a sheet, in px, before it drags it rather than taps. */
 const SLOP = 6;
 /** What measures names for textWidth(), and reads colours for hex(). */
@@ -2072,13 +2074,17 @@ function holding() {
 
 /**
  * Jumps the map to the Train it follows, in the middle of the map beside the panel, once it's a quarter
- * pixel off it, at the viewer's zoom and bearing (#325). Not while the map is held (holding()), so it
- * never fights the viewer's hand or an ease.
+ * pixel off it, at the viewer's zoom and bearing (#325). Where it's outside the middle 60% of that part
+ * of the map, as one that comes out of a Closure is, or one the map missed while the tab was hidden, it
+ * eases to it over a second, as keepInView() does, rather than jump across the map in a frame (#586).
+ * Not while the map is held (holding()), so it never fights the viewer's hand or an ease.
  */
 function centreOn(at: Point) {
   if (holding()) return;
   const [from, to] = [map.project(map.getCenter()), map.project(at)];
-  if (drifted(to.x - from.x, to.y - from.y)) map.jumpTo({ center: at });
+  if (!drifted(to.x - from.x, to.y - from.y)) return;
+  if (outside(to)) easeIn(ahead(at));
+  else map.jumpTo({ center: at });
 }
 
 /**
@@ -2088,11 +2094,29 @@ function centreOn(at: Point) {
  */
 function keepInView(at: Point) {
   if (holding()) return;
-  const { x, y } = map.project(at);
+  if (outside(map.project(at))) easeIn(at);
+}
+
+/** Whether a point on the map, in px, is outside the middle 60% of the map beside the panel (outsideMiddle()). */
+function outside(at: { x: number; y: number }) {
   const { clientWidth: width, clientHeight: height } = map.getContainer();
-  const padding = panelPadding();
-  const outside = (v: number, from: number, to: number) => v < from + 0.2 * (to - from) || v > from + 0.8 * (to - from);
-  if (outside(x, padding.left, width - padding.right) || outside(y, padding.top, height - padding.bottom)) map.easeTo({ center: at, duration: 1000, padding });
+  return outsideMiddle(at, { width, height }, panelPadding());
+}
+
+/** Eases the map over EASE_IN to a point, into the middle of the map beside the panel. */
+function easeIn(at: Point) {
+  map.easeTo({ center: at, duration: EASE_IN, padding: panelPadding() });
+}
+
+/**
+ * Where the Train the map follows will be drawn once an ease of EASE_IN ends, so that the ease ends with
+ * it in the middle, not trailing it by what it goes meanwhile: 68 px at zoom 17 and 136 px at 18 for a
+ * Train at 110 km/h, where a phone's middle 60% reaches only 117 px each way, so that an ease to where
+ * it was would be followed by another, and another (#586). `at` where the engine has none.
+ */
+function ahead(at: Point): Point {
+  const train = bundle && trainAt(bundle, Date.now() + EASE_IN, received, followedId() ?? '', hidingClosures);
+  return train ? whereDrawn(train, map.getZoom()) : at;
 }
 
 /**

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { atMostEvery, drifted, letsGo, pointersDown, tapZooms } from './centre.ts';
+import { atMostEvery, drifted, letsGo, outsideMiddle, pointersDown, tapZooms } from './centre.ts';
 
 test('a Train a quarter pixel or more off the middle has the map jump to it, and one nearer holds it still', () => {
   expect(drifted(0, 0)).toBe(false);
@@ -23,6 +23,32 @@ test('the arrow keys let go, and the keys that zoom, turn and tilt, and a turn b
   expect(key('+')).toBe(false);
   expect(letsGo({ type: 'movestart', originalEvent: {} })).toBe(false);
   expect(letsGo({ type: 'movestart' })).toBe(false);
+});
+
+test("a Train is outside the middle 60% of the map beside the panel once it's in the outer fifth of that part on a side, or beyond it", () => {
+  const none = { top: 0, right: 0, bottom: 0, left: 0 };
+  const size = { width: 1000, height: 600 };
+  // No panel: the middle 60% is x 200 to 800 and y 120 to 480.
+  expect(outsideMiddle({ x: 500, y: 300 }, size, none)).toBe(false);
+  expect(outsideMiddle({ x: 200, y: 120 }, size, none)).toBe(false);
+  expect(outsideMiddle({ x: 800, y: 480 }, size, none)).toBe(false);
+  expect(outsideMiddle({ x: 199, y: 300 }, size, none)).toBe(true);
+  expect(outsideMiddle({ x: 801, y: 300 }, size, none)).toBe(true);
+  expect(outsideMiddle({ x: 500, y: 119 }, size, none)).toBe(true);
+  expect(outsideMiddle({ x: 500, y: 481 }, size, none)).toBe(true);
+  // A card over the left 400 px: the part beside it is x 400 to 1000, and its middle 60% x 520 to 880.
+  const card = { ...none, left: 400 };
+  expect(outsideMiddle({ x: 700, y: 300 }, size, card)).toBe(false);
+  expect(outsideMiddle({ x: 520, y: 300 }, size, card)).toBe(false);
+  expect(outsideMiddle({ x: 519, y: 300 }, size, card)).toBe(true);
+  expect(outsideMiddle({ x: 881, y: 300 }, size, card)).toBe(true);
+  // A sheet over the bottom 300 px: the part above it is y 0 to 300, and its middle 60% y 60 to 240.
+  const sheet = { ...none, bottom: 300 };
+  expect(outsideMiddle({ x: 500, y: 150 }, size, sheet)).toBe(false);
+  expect(outsideMiddle({ x: 500, y: 59 }, size, sheet)).toBe(true);
+  expect(outsideMiddle({ x: 500, y: 241 }, size, sheet)).toBe(true);
+  // Far off the screen, as a Train that comes out of a Closure 14 km away at zoom 13 is.
+  expect(outsideMiddle({ x: 2000, y: -1500 }, size, card)).toBe(true);
 });
 
 test("MapLibre's zoom for a double-click or a double-tap is told from the ease that carries a gesture on, and from the app's own", () => {

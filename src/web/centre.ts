@@ -7,6 +7,16 @@ const DRIFT = 0.25;
 /** Whether a Train `dx` and `dy` px off the middle is far enough for the map to jump to it. */
 export const drifted = (dx: number, dy: number) => Math.hypot(dx, dy) >= DRIFT;
 
+/**
+ * Whether a Train drawn at `at`, in px on a map of `size` with `padding` the panel takes, is outside the
+ * middle 60% of the part of the map that's left beside it: in the outer fifth of it on a side, or off
+ * it. Where the map eases to it over a second (keepInView(), centreOn(): #586), rather than jumps.
+ */
+export function outsideMiddle(at: { x: number; y: number }, size: { width: number; height: number }, padding: { top: number; right: number; bottom: number; left: number }): boolean {
+  const outside = (v: number, from: number, to: number) => v < from + 0.2 * (to - from) || v > from + 0.8 * (to - from);
+  return outside(at.x, padding.left, size.width - padding.right) || outside(at.y, padding.top, size.height - padding.bottom);
+}
+
 /** The part of a MapLibre event that tells what moved the map. */
 interface Moved {
   type: string;
