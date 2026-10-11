@@ -402,8 +402,7 @@ export interface Line {
   kind: Kind;
   /**
    * How its Trains run where that isn't as its Network's do, as AVE's are quicker than Alvia's: only what differs (#260), profiled().
-   * The engine, jumps() and placeTrips()'s speed check (#262) go by it.
-   * ponytail: quarterPixel() still goes by the Network's top speed; go by the Line's when long distance's Trains reach it (#262).
+   * The engine, jumps(), placeTrips()'s speed check and the page's quarterPixel() go by it (#262).
    */
   profile?: LineProfile;
 }

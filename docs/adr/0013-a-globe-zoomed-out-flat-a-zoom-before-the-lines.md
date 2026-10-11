@@ -19,4 +19,4 @@ The maintainer asked, 7 Oct 2026, for the map to be a round Earth zoomed out, as
 
 - `FLAT` is `linesZoom - 1`: if the first band moves, the globe still stops a zoom short of it.
 - Near the globe's edge, names stand partly over space: MapLibre places a label anywhere on the planet's visible side, however near its edge.
-- ADR-0010 has long distance's Trains show at every zoom: zoomed out, they'll run on the globe, along each Network's track drawn once.
+- ADR-0010 has long distance's Trains show at every zoom: zoomed out, they run on the globe, as dots, along each Network's track drawn once (#262).

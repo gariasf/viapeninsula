@@ -6,7 +6,7 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import nunitoSans from '@fontsource/nunito-sans/files/nunito-sans-latin-400-normal.woff2?url';
 import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-normal.woff2?url';
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
-import { along, APART, atZoom, BANDS, bandZooms, coveredIn, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, daysOf, DEGREE, EARTH, joinTracks, LIVE_URL, madridDate, networkTracks, places, type Alerts, type Bundle, type Credit, type Call, type DayFiles, type Place, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH, type ZoomedOut } from '../bundle.ts';
+import { along, APART, atZoom, BANDS, bandZooms, coveredIn, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, profiled, zones, type Zone, daysNeeded, daysOf, DEGREE, EARTH, joinTracks, LIVE_URL, madridDate, networkTracks, places, type Alerts, type Bundle, type Credit, type Call, type DayFiles, type Place, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH, type ZoomedOut } from '../bundle.ts';
 import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, unavailable, type Coming, type Departure, type Followed, type Received, type Train } from '../engine.ts';
 import { alertCount, alertsChanged, arrivingAt, basemapLabel, betweenStations, busesReplace, earlierStations, language, LANGUAGES, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, notRunning, passingStation, setLanguage, t, toGo, trainCounts, trainsRunHere, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
@@ -170,7 +170,7 @@ const CLOSURE_COATS: { kind: Shown['kind']; colour: 'line' | 'casing'; width: nu
  */
 const FADE = 0.5;
 // Below the first band's zoom, Lines side by side can't be read: each Network's track is drawn once
-// instead, in its colour, and no Trains (#190).
+// instead, in its colour (#190), and only long distance's Trains, as dots (ADR-0010, #262).
 const linesZoom = BANDS[0] ?? 7;
 /**
  * Zoomed out, where it draws each Network's track once and no Lines, the map is a globe, and it
@@ -321,6 +321,8 @@ const byZoom = (stops: [zoom: number, px: number][], value: (px: number, zoom: n
 
 /** Whether a Train is drawn as a dot, zoomed out from its Line's pill zoom (pillOf()), or as a pill. */
 const [AS_DOT, AS_PILL]: [ExpressionSpecification, ExpressionSpecification] = [['<', ['zoom'], ['get', 'pillZoom']], ['>=', ['zoom'], ['get', 'pillZoom']]];
+/** Whether a Train is drawn at all: from the zoom its Line's Trains are drawn from (pillOf()). */
+const DRAWN: ExpressionSpecification = ['>=', ['zoom'], ['get', 'dotZoom']];
 
 /** An expression that takes one value for a Live Train and another for a Scheduled one. */
 const byLive = (live: string | number | ExpressionSpecification, scheduled: string | number | ExpressionSpecification): ExpressionSpecification => [
@@ -613,6 +615,8 @@ let liftClosures = () => {};
 let lines = new Map<string, Line>();
 /** How each Line's Trains are drawn as pills, by the Line's ID. */
 let pills = new Map<string, Pill>();
+/** The top speed of the fastest Line of the days on the map, AVE's 300 km/h with long distance's, in m/s, which quarterPixel() goes by: worked out as they come, not each frame. */
+let fastest = 0;
 /** The cards' colour, style.css's --card, which a Scheduled Train's pill letters its Line's colour against (pill()). */
 const cardColour = hex(getComputedStyle(document.documentElement).getPropertyValue('--card').trim() || '#fff');
 /** The Lines the last place whose board the panel showed names, for the days on the map and the Alerts then (servedBy()). */
@@ -945,13 +949,13 @@ const dotAt = (zoom: number, followed: boolean) => atZoom(TRAIN_DOT.map(([z, px,
 /** A Train's dot's radius, in px, as an expression (TRAIN_DOT). */
 const trainDot: ExpressionSpecification = ['interpolate', ['linear'], ['zoom'], ...TRAIN_DOT.flatMap(([zoom, px, followed]): (number | ExpressionSpecification)[] => [zoom, ['case', ['get', 'followed'], followed, px]])];
 // Zoomed out, Trains are dots over the Stations they stand at, under the Stations' names.
+// Below linesZoom, only long distance's (`dotZoom`, pillOf()).
 map.addSource('trains', { type: 'geojson', data: trains() });
 map.addLayer({
   id: 'trains',
   type: 'circle',
   source: 'trains',
-  minzoom: linesZoom,
-  filter: AS_DOT,
+  filter: ['all', DRAWN, AS_DOT],
   // A Live Train is filled with its Line's colour; a Scheduled one is only ringed with it.
   layout: { 'circle-sort-key': ['case', ['get', 'followed'], 1, 0] },
   // The Train the map follows is drawn larger, over the rest.
@@ -975,8 +979,7 @@ map.addLayer(
     id: 'train-halos',
     type: 'circle',
     source: 'trains',
-    minzoom: linesZoom,
-    filter: ['get', 'live'],
+    filter: ['all', DRAWN, ['get', 'live']],
     paint: { 'circle-radius': ['get', 'haloRadius'], 'circle-color': ['get', 'colour'], 'circle-blur': HALO_BLUR, 'circle-opacity': HALO_OPACITY, 'circle-pitch-scale': 'viewport' },
   },
   'line-names',
@@ -1179,13 +1182,13 @@ requestAnimationFrame(function move(now) {
   // The panel's times and ages change by the second, a followed Train's countdown as each second of it ends.
   if ((following || boardPlace || nearMe) && performance.now() - panelShown > panelDue) showPanel();
   // Which Networks the banner names changes as Trains and the view move, and the banner with it.
-  // Zoomed out, where no Trains are drawn, none of them is in view.
+  // Zoomed out, only those drawn there, long distance's, can be in view (#247).
   // ponytail: in view by the map's bounds, which on a turned or tilted map take in some of the map
   // around the view too, as followRandom()'s do. Test where each Train and stretch of track is on
   // screen, as keepInView() does, if a banner for a Network just out of view ever shows.
   if (now - bannerChecked > 1000) {
     bannerChecked = now;
-    const drawnTrains = map.getZoom() < linesZoom ? [] : drawing.features.map((f) => ({ network: f.properties?.network, at: f.geometry.coordinates as Point }));
+    const drawnTrains = drawing.features.filter((f) => map.getZoom() >= f.properties?.dotZoom).map((f) => ({ network: f.properties?.network, at: f.geometry.coordinates as Point }));
     const followedNetwork = drawing.features.find((f) => f.properties?.followed)?.properties?.network;
     const named = bannerNetworks({ unavailable: unavailable(bundle, Date.now(), received), noTrips: noTripsIds }, { trains: drawnTrains, followedNetwork, tracks: shownTracks }, map.getBounds().toArray());
     if (JSON.stringify(named) !== JSON.stringify(bannerIds)) {
@@ -1237,6 +1240,8 @@ function show(days: Track | Bundle) {
   // A track built before #241 names no kinds of service and no pill zooms: its Trains are round pills from zoom 10.
   const pillZoom = new Map(days.networks.map((n) => [n.id, n.pillZoom]));
   pills = new Map(days.lines.map((l) => [l.id, pillOf(l, pillZoom.get(l.network) ?? 10)]));
+  const networks = new Map(days.networks.map((n) => [n.id, n]));
+  fastest = Math.max(...days.lines.map((l) => profiled(networks.get(l.network), l)?.profile.topSpeed ?? 0));
   shownStrokes = days.strokes;
   // Zoomed in, on its own rails, a Line's bends are rounded (#203).
   const drawn = (strokes: Stroke[], round = false): GeoJSON.FeatureCollection => ({
@@ -1444,6 +1449,7 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
           outline: pill?.outline,
           dark: pill?.dark,
           pillZoom: pill?.zoom,
+          dotZoom: pill?.dotZoom ?? linesZoom,
           reach: box && reach(box, heading - bearing),
           // Its halo's radius: HALO_DOT times its dot's, or from its Line's pill zoom, out to the corners of its pill's box and HALO_BEYOND beyond.
           haloRadius: pill && box && zoom >= pill.zoom ? Math.hypot(...box) + HALO_BEYOND : HALO_DOT * dotAt(zoom, trip.id === followed),
@@ -1545,9 +1551,8 @@ function nameLines(name: string, style: NameStyle): string[] {
   return lines;
 }
 
-/** How long the fastest Train, at its Network's top speed, takes to move a quarter of a pixel where the map is, in ms. */
+/** How long the fastest Train, at its Line's top speed, takes to move a quarter of a pixel where the map is, in ms. */
 function quarterPixel(): number {
-  const fastest = Math.max(...credited.map((n) => n.profile.topSpeed));
   const pixel = pixelMetres(map.getZoom()) * Math.cos((map.getCenter().lat * Math.PI) / 180);
   return (1000 * pixel) / 4 / fastest;
 }
@@ -1564,6 +1569,8 @@ interface Pill {
   /** What its Line's colour letters its name in, rings its Scheduled Trains and colours its Trains' arrows in: on the dark basemap, lettering(). */
   lettering: string;
   zoom: number;
+  /** The zoom its Trains are drawn from, as dots: a long-distance Line's at every zoom, as ADR-0010 has AVE y Larga Distancia's (#262), and every other's from linesZoom, where the Lines are. */
+  dotZoom: number;
   box: [number, number];
   followedBox: [number, number];
 }
@@ -1572,7 +1579,7 @@ interface Pill {
 function pillOf({ name, colour, kind }: Line, zoom: number): Pill {
   const outline = outlineOf(kind);
   const width = textWidth(name, `bold ${PILL_TEXT}px ${TYPEFACE}`);
-  return { name, outline, dark: darkInk(colour), lettering: darkBasemap ? lettering(colour, paper) : colour, zoom, box: boxOf(outline, width, PILL_TEXT), followedBox: boxOf(outline, width, FOLLOWED_TEXT) };
+  return { name, outline, dark: darkInk(colour), lettering: darkBasemap ? lettering(colour, paper) : colour, zoom, dotZoom: kind === 'long-distance' ? 0 : linesZoom, box: boxOf(outline, width, PILL_TEXT), followedBox: boxOf(outline, width, FOLLOWED_TEXT) };
 }
 
 /** How wide a place's name, or a line of it, is, in px, in its style. */
