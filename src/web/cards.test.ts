@@ -4,7 +4,7 @@ import { expect, test } from 'vitest';
 import type { Alert, AlertFeed, Alerts, Bundle, Call, Line, Trip } from '../bundle.ts';
 import type { Pass } from '../engine.ts';
 import { ALERTS_START, readAlerts } from '../fetcher/alerts.ts';
-import { boardList, cardAlerts, inNameOrder, linesCallingAt, linesOnBoard, linkedWords, minutesTo, nearbyRows, progress, tripsState, whereabouts, type Part } from './cards.ts';
+import { boardList, cardAlerts, countdownTo, inNameOrder, linesCallingAt, linesOnBoard, linkedWords, minutesTo, nearbyRows, progress, tripsState, untilTick, whereabouts, type Part } from './cards.ts';
 
 /** A time of day in Barcelona on Wednesday 7 Oct 2026, in summer time, in ms since 1970. */
 const at = (hours: number, minutes: number, seconds = 0) => Date.UTC(2026, 9, 7, hours - 2, minutes, seconds);
@@ -21,6 +21,90 @@ test("counts the minutes to a time as a clock reads them, as a board shows a Tra
 test('a time this minute, or past, is no minutes away', () => {
   expect(minutesTo(at(8, 12, 50), NOW)).toBe(0);
   expect(minutesTo(at(8, 10), NOW)).toBe(0);
+});
+
+test("a followed Train's countdown is in whole seconds from 59 s out, rounded up, and 0 only once its time has come (#456)", () => {
+  const to = (ms: number) => countdownTo(NOW + ms, NOW);
+  expect(to(59_000)).toEqual({ n: 59, unit: 'seconds' });
+  expect(to(40_000)).toEqual({ n: 40, unit: 'seconds' });
+  expect(to(1_000)).toEqual({ n: 1, unit: 'seconds' });
+  // A part of a second to go is a second, not 0 s: it reads now only when the time has come.
+  expect(to(1_001)).toEqual({ n: 2, unit: 'seconds' });
+  expect(to(400)).toEqual({ n: 1, unit: 'seconds' });
+  expect(to(1)).toEqual({ n: 1, unit: 'seconds' });
+  expect(to(0)).toEqual({ n: 0, unit: 'seconds' });
+});
+
+test("a followed Train's countdown reads now for a time that is past, as a board's minutes do, though its Train hasn't come (#456)", () => {
+  expect(countdownTo(NOW - 1, NOW)).toEqual({ n: 0, unit: 'seconds' });
+  expect(countdownTo(NOW - 20_000, NOW)).toEqual({ n: 0, unit: 'seconds' });
+  expect(countdownTo(at(8, 10), NOW)).toEqual({ n: 0, unit: 'seconds' });
+  expect(minutesTo(NOW - 20_000, NOW)).toBe(0);
+});
+
+test("a followed Train's countdown is the minutes a board shows for that time until its last minute, so that the card and a board agree to the minute (#456)", () => {
+  expect(countdownTo(NOW + 60_000, NOW)).toEqual({ n: 1, unit: 'minutes' });
+  // Shown at 8:15, at 8:12: three minutes by the clock, 2 min 40 s by the Train.
+  expect(countdownTo(at(8, 15, 10), NOW)).toEqual({ n: 3, unit: 'minutes' });
+  for (const ms of [60_000, 61_000, 95_000, 125_000, 600_000, 3_000_000]) expect(countdownTo(NOW + ms, NOW)).toEqual({ n: minutesTo(NOW + ms, NOW), unit: 'minutes' });
+});
+
+test("a time 59 s and a part out in the same clock minute is a minute out, not now, as minutesTo() has it (#456)", () => {
+  // 8:12:00.2 to 8:12:59.7: one clock minute, which a board reads as 0 min.
+  const [from, due] = [at(8, 12, 0) + 200, at(8, 12, 59) + 700];
+  expect(minutesTo(due, from)).toBe(0);
+  expect(countdownTo(due, from)).toEqual({ n: 1, unit: 'minutes' });
+  expect(countdownTo(due, from + 1_000)).toEqual({ n: 59, unit: 'seconds' });
+});
+
+test('counted every second, a countdown takes each number from 59 to 1 once and then reads now, whichever part of a second the time to go has (#456)', () => {
+  const due = at(8, 14, 10);
+  for (const part of [0, 1, 250, 500, 999]) {
+    // 80 s and a part out, then every second to 10 s past it.
+    const reads = Array.from({ length: 91 }, (_, i) => countdownTo(due, due - 80_000 - part + i * 1_000));
+    expect(reads.filter((r) => r.unit === 'seconds' && r.n > 0).map((r) => r.n)).toEqual(Array.from({ length: 59 }, (_, i) => 59 - i));
+    // Minutes before, now after, in order.
+    expect(reads.map((r) => (r.unit === 'minutes' ? 'm' : r.n ? 's' : 'now')).join('').replace(/m+s+(now)+/, 'ok')).toBe('ok');
+  }
+});
+
+test("a Train's countdown to a Station counts to its time with its Delay, as the card shows it (#456)", () => {
+  // B is due 130 s into the day, and the Train is 45 s late: 175 s. The service day's noon less 12 hours is at(0, 0).
+  const [noon, late] = [at(0, 0), 45];
+  const due = noon + (B.arrival + late) * 1_000;
+  expect(countdownTo(due, noon + 116_000)).toEqual({ n: 59, unit: 'seconds' });
+  // The timetable's own time has gone by: it's the Delay's time the Train comes at.
+  expect(countdownTo(due, noon + (B.arrival + 5) * 1_000)).toEqual({ n: 40, unit: 'seconds' });
+  expect(countdownTo(due, noon + 175_000)).toEqual({ n: 0, unit: 'seconds' });
+});
+
+test("a countdown in seconds changes as a second of it ends, so that a card refreshed then shows each number once, where a fixed second late each time skips one (#456)", () => {
+  expect(untilTick(NOW + 40_300, NOW)).toBe(300);
+  expect(untilTick(NOW + 40_000, NOW)).toBe(1_000);
+  expect(untilTick(NOW + 1, NOW)).toBe(1);
+  // Counted every second, as the card is refreshed, a frame (17 ms) late each time.
+  const due = at(8, 14, 10) + 123;
+  const shown = (step: (now: number) => number) => {
+    const seen: number[] = [];
+    for (let now = due - 70_000; now < due; now += step(now)) {
+      const read = countdownTo(due, now);
+      if (read.unit === 'seconds' && read.n > 0) seen.push(read.n);
+    }
+    return seen;
+  };
+  const all = Array.from({ length: 59 }, (_, i) => 59 - i);
+  expect(shown((now) => untilTick(due, now) + 17)).toEqual(all);
+  expect(shown(() => 1_017)).toHaveLength(58);
+});
+
+test("a countdown that reads now has no second to end, so its card is refreshed as any is, every second, not every frame (#456)", () => {
+  expect(untilTick(NOW, NOW)).toBe(1_000);
+  expect(untilTick(NOW - 3_000, NOW)).toBe(1_000);
+  // A Train held at a Station is expected exactly now, which float arithmetic on a time in ms since 1970 can make a step of its precision (2^-12 ms) either side.
+  expect(untilTick(NOW + 2 ** -12, NOW)).toBe(1_000);
+  expect(untilTick(NOW - 2 ** -12, NOW)).toBe(1_000);
+  expect(countdownTo(NOW + 2 ** -12, NOW)).toEqual({ n: 0, unit: 'seconds' });
+  expect(countdownTo(NOW + 0.4, NOW)).toEqual({ n: 0, unit: 'seconds' });
 });
 
 /** A Train passing nearby on a Line, headed somewhere, at a time of day, Live or Scheduled. */
