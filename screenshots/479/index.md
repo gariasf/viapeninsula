@@ -59,3 +59,19 @@ the same frozen inputs (OpenStreetMap's copy of 9 Oct, Renfe's, FGC's, TMB's and
 `-A-B` files: Madrid C4b's way back (34.1 m: A moves it, B and main don't), Sevilla C3's way back (4.3 m, same), Santander C1's way
 out and back (5.2 and 6.2 m), Murcia-Alicante C1 (5.7 m of its 10.8). **Asturias' 23 shapes are the same under B**: C1 and C1_INV each
 lose one point (≤ 0.2 m), no shape moves; B changes no spot of the build report.
+
+## 5. The live page, before and after the deploy (`live/`)
+
+The deployed page (viapeninsula.gariasf.com) in a fresh headless Chrome, with no clock or data changed, at 1280×800 and 390×844 (2×, the whole viewport), opened at `#map=<zoom>/<lat>/<lon>`:
+
+- **before**, 11 Oct 2026 at 14:39: the bundle #624's deploy published (the page asked for `days/track-cercanias-asturias-4c7804131d22.json`);
+- **after**, 11 Oct at 14:58: once run 38140172528 had published #627's (`days/track-cercanias-asturias-73fcf8dab095.json`).
+
+Live Trains are drawn where they are at that time (2 live before, 3 after). Console and `pageerror` on every page: no `pageerror`; OpenFreeMap's own style warnings (`highway-shield` filters) and Cloudflare's analytics beacon, refused in this sandbox, are all.
+
+| Pair (`live/<name>-before.jpg`, `-after.jpg`) | Where | What to see |
+|---|---|---|
+| `villallana-ujo-z14.6-1280` / `-390` | 43.193, −5.796, z14.6 | before: C1 on the road-side alignment (AS-375) alone, the other alignment, through El Pedriscu and El Riquixu, in grey dashes. After: C1 drawn on both: its way back on the left-hand one |
+| `villallana-ujo-z17-1280` / `-390` | same, z17 | the same close up: the left-hand alignment drawn in C1's red, with its labels |
+| `ujo-z14.6-1280` / `-390` | Ujo (adif:15200) 43.2047, −5.7926, z14.6 | after: the two alignments south of Ujo, one straight on past the Station's dot, one curving east |
+| `ujo-z17-1280` / `-390` | same, z17 | before: both C1 strokes on the east pair, the left-hand track beside the Station's dot in grey dashes. After: C1 on two tracks both north and south of the Station, one straight past its dot, the other curving east |
