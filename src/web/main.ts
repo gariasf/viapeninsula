@@ -1355,9 +1355,11 @@ function show(days: Track | Bundle) {
     setTimeout(() => {
       if (namesDue !== days) return;
       namesDue = undefined;
-      // Names go beside the track, not the stretches' centrelines, clear of the Trains on their Lines' strokes along those.
+      // Names go beside the track, not the stretches' centrelines, clear of the Trains on their Lines' strokes along those,
+      // and of the other places' dots (#501).
       const [track, centrelines] = [days.shapes.filter((s) => !s.id.startsWith(STRETCH)), days.shapes.filter((s) => s.id.startsWith(STRETCH))];
-      const spots = alongside(track, (days.slots ?? []).filter((s) => s.band === undefined), (line) => placing.keep.get(line) ?? 1, days.lines, new Map(centrelines.map((c) => [c.id, c])));
+      const dots = tiered.map(({ lon, lat }): Point => [lon, lat]);
+      const spots = alongside(track, (days.slots ?? []).filter((s) => s.band === undefined), (line) => placing.keep.get(line) ?? 1, days.lines, new Map(centrelines.map((c) => [c.id, c])), dots);
       // A track built before #243 names no Station's Networks: its names go beside the nearest track of any.
       names = tiered.map(({ id, name, networks, nameZoom, tier, stations, larger, style, lon, lat }) => {
         const rows = nameLines(name, style);
@@ -1535,7 +1537,7 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
 /**
  * Puts each place's name beside its own Networks' track (alongside()) as the track lies on screen now, at each of
  * NAME_ZOOMS on the side nearestSide() takes, as far out from its dot as clearance() says, and off any track
- * crossing its own there (underName()), and sorts them for where they collide (nameSort(), #372).
+ * crossing its own there and any other place's dot (underName()), and sorts them for where they collide (nameSort(), #372).
  * ponytail: tries a name under a crossing track at the zoom and the next, not in between, and as far
  * out at the next as at this one. Try more steps if a name lies across one mid-zoom.
  * ponytail: laid out flat, so on a tilted map a name sits a little nearer its track or further than
@@ -1551,10 +1553,12 @@ function showNames() {
       const properties = NAME_ZOOMS.flatMap((zoom) => {
         // MapLibre lays names out at whole zooms, so a track crossing its own lies under one from this zoom to the next, at half the metres a px.
         const metresPerPx = pixelMetres(zoom) * Math.cos((dot[1] * Math.PI) / 180);
-        // The Lines whose strokes lie under a name, or within `gap` px of it, at this zoom's Lines' spacing and width and the next's.
+        // The Lines whose strokes lie under a name, or within `gap` px of it, at this zoom's Lines' spacing and width and the next's,
+        // and what the dots near it cost.
         const underAt = (s: Spot, far: number, gap: number) =>
           [0, 1].reduce((sum, step) => sum + underName(s, far, size, metresPerPx / 2 ** step, atZoom(APART, zoom + step), gap + atZoom(WIDTH, zoom + step) / 2), 0);
-        // Below the zoom it shows from, no name lies anywhere; from it, fewest under it first, then fewest within NAME_GAP.
+        // Below the zoom it shows from, no name lies anywhere; from it, fewest under it first, with a place's dot near it
+        // costing it Lines (DOT_COST), then fewest within NAME_GAP.
         const under = (s: Spot, far: number) => (zoom < nameZoom ? 0 : 1000 * underAt(s, far, 0) + underAt(s, far, NAME_GAP));
         const { spot, far } = nearestSide(at, (s) => clearance(s, larger, zoom), under);
         // MapLibre offsets names in ems.
