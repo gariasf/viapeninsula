@@ -1,6 +1,6 @@
-// What the cards work out from the days on the map and the engine's Trains: minutes to go, and a followed Train's countdown in seconds in its last minute (#456), Nearby's rows, what a board's list is before the day's Trips have come (#379), how far along its Trip a followed Train is and where it is by how it's drawn (#455), and a board's Lines (#321), and the order the cards name Lines in (#399); and from alerts.json, the Alerts each shows (#342).
-// Pure, with only types from the page's modules, as the measure of the card against the map (src/cardVsMap.ts) runs whereabouts() and countdownTo() under Node.
-import type { Alert, Alerts, Call, Line, Trip, Words } from '../bundle.ts';
+// What the cards work out from the days on the map and the engine's Trains: minutes to go, and a followed Train's countdown in seconds in its last minute (#456), Nearby's rows, how far along its Trip a followed Train is and where it is by how it's drawn, and the Station it passes without stopping (#455, #457), and a board's Lines (#321), and the order the cards name Lines in (#399); and from alerts.json, the Alerts each shows (#342).
+// Pure, with nothing from the page, as the measure of the card against the map (src/cardVsMap.ts) runs whereabouts(), passedPlace() and countdownTo() under Node.
+import { DEGREE, type Alert, type Alerts, type Call, type Line, type Place, type Trip, type Words } from '../bundle.ts';
 import type { Pass } from '../engine.ts';
 import type { Language } from './i18n.ts';
 
@@ -112,35 +112,66 @@ export function progress(calls: Call[], dist: number, toLeave: number): { done: 
  * Where a followed Train is by how it's drawn (#455), in the words a card says it in: `standing` at
  * the first Station it has still to leave, where it stands at it; otherwise `arriving` at that Station
  * while it's drawn within `reach` metres of it, `leaving` the Station it left last within as far after
- * it, and `between` the two where it's neither. Given its Trip's calls, how far along its shape it's
+ * it, `passing` the place it passes without stopping (passedPlace(), #457) within as far of that, and
+ * `between` the two where it's none of those. Given its Trip's calls, how far along its shape it's
  * drawn, how many Stations it has still to leave, the one it stands at too, whether it stands at it,
  * and how far its followed pill reaches either side of it, in metres (pillReach()), so that a card
- * says arriving where the pill sits on the Station's dot. A Station is as far from it as the nearer of
- * how far along its Trip it is and `dotAway`, how far it's drawn from the dot the map shows its place
- * as: the middle of the place's Stations, so at an interchange not where a Line's own Trains stop, and
- * the pill can be on it a hundred metres or more short of their platform. None where it has none left
- * to leave. Where both are within reach, as on a leg shorter than twice it, it's arriving: the Station
- * it runs on to is the one its card's time and countdown are for.
+ * says arriving where the pill sits on the Station's dot, and the place it passes, if any, and how far
+ * it's drawn from its dot. A Station is as far from it as the nearer of how far along its Trip it is
+ * and `dotAway`, how far it's drawn from the dot the map shows its place as: the middle of the place's
+ * Stations, so at an interchange not where a Line's own Trains stop, and the pill can be on it a
+ * hundred metres or more short of their platform. None where it has none left to leave. Where both
+ * are within reach, as on a leg shorter than twice it, it's arriving: the Station it runs on to is the
+ * one its card's time and countdown are for. It passes a place only where neither of its Stations is
+ * within reach, so that a card says no less of its calls than it did.
  */
-export function whereabouts<C extends Pick<Call, 'dist'>>(
+export function whereabouts<C extends Pick<Call, 'dist'>, P = never>(
   calls: C[],
   dist: number,
   toLeave: number,
   standing: boolean,
   reach: number,
   dotAway: (call: C) => number = () => Infinity,
-): Whereabouts<C> | undefined {
+  passed?: { place: P; away: number },
+): Whereabouts<C, P> | undefined {
   const [next, last] = [calls[calls.length - toLeave], calls[calls.length - toLeave - 1]];
   if (!next) return undefined;
   if (standing) return { at: 'standing', next };
   const away = (call: C) => Math.min(Math.abs(call.dist - dist), dotAway(call));
   // Short of its first Station, which the engine draws no Train in, it can only be on its way there.
   if (!last || away(next) <= reach) return { at: 'arriving', next };
-  return { at: away(last) <= reach ? 'leaving' : 'between', last, next };
+  if (away(last) <= reach) return { at: 'leaving', last, next };
+  return passed && passed.away <= reach ? { at: 'passing', last, next, place: passed.place } : { at: 'between', last, next };
 }
 
-/** Where a followed Train is, with the calls it's at or between: the Station it's arriving at or stands at is `next`, the one it's leaving `last`. */
-export type Whereabouts<C> = { at: 'arriving' | 'standing'; next: C } | { at: 'leaving' | 'between'; last: C; next: C };
+/** Where a followed Train is, with the calls it's at or between: the Station it's arriving at or stands at is `next`, the one it's leaving `last`, and the place it's passing, as the caller has it, `place`. */
+export type Whereabouts<C, P = never> = { at: 'arriving' | 'standing'; next: C } | { at: 'leaving' | 'between'; last: C; next: C } | { at: 'passing'; last: C; next: C; place: P };
+
+/**
+ * The place a followed Train, drawn at `at`, passes without stopping, and how far from its dot, if it's
+ * near one (#457): of `places`, the one whose dot is nearest to it, within `within` metres, that its Trip
+ * has no call at (`called`: the IDs of the Stations it calls at, none of which is any of the place's
+ * Stations). A Station is any Station the page has, of whichever Network: the pill is on its dot on the
+ * map, and a metro station next to a railway station is a Station of its own, as the map shows them.
+ * ponytail: every place on the page is looked at each time, a few hundred to a thousand and some (586
+ * on 7 Oct 2026's track, 1,173 on 10 Oct's with Cercanías): a cell of them by position if it shows.
+ */
+export function passedPlace<P extends Pick<Place, 'lon' | 'lat' | 'stations'>>(
+  places: Iterable<P>,
+  at: { lon: number; lat: number },
+  called: ReadonlySet<string>,
+  within: number,
+): { place: P; away: number } | undefined {
+  const kx = DEGREE * Math.cos((at.lat * Math.PI) / 180);
+  let nearest: { place: P; away: number } | undefined;
+  for (const place of places) {
+    const dy = (place.lat - at.lat) * DEGREE;
+    if (Math.abs(dy) > within) continue;
+    const away = Math.hypot((place.lon - at.lon) * kx, dy);
+    if (away <= within && away < (nearest?.away ?? Infinity) && !place.stations.some((station) => called.has(station))) nearest = { place, away };
+  }
+  return nearest;
+}
 
 /** How Lines' names are put in order: digits as numbers, in English whatever the viewer's language, so that every device has the same order. */
 const NAMES = new Intl.Collator('en', { numeric: true });

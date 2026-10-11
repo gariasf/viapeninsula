@@ -80,6 +80,33 @@ describe('differences', () => {
     expect(differences(moment(60, 700, { near: [{ key: 'X', metres: 20 }] }))).toMatchObject({ at: 'notCall', pill: 'notCall', graced: false });
   });
 
+  it('has the card say it is passing the place it passes without stopping, which it names, so that it is not a Station the card leaves unnamed (#457)', () => {
+    // Between A and B, 1,000 m along: X, which it has no call at, 40 m away, under the pill (100 m) and within AT.
+    const d = differences(moment(80, 1000, { near: [{ key: 'X', metres: 40 }], passed: { key: 'X', metres: 40 } }));
+    expect(d).toMatchObject({ says: { at: 'passing', key: 'X' }, at: undefined, pill: undefined, arrow: undefined, atKey: undefined });
+    // The same, the card not saying it: the Station it is drawn at and the pill covers is not a call, which cause 4 counted.
+    expect(differences(moment(80, 1000, { near: [{ key: 'X', metres: 40 }] }))).toMatchObject({ says: { at: 'between', key: 'A – B' }, at: 'notCall', atKey: 'X', pill: 'notCall' });
+  });
+
+  it('leaves unnamed a second place that is as near, which the card has none of its words for, and one past its pill, as the card goes by the nearest within reach (#457)', () => {
+    const near = [{ key: 'X', metres: 30 }, { key: 'Y', metres: 45 }, { key: 'Z', metres: 120 }];
+    const d = differences(moment(80, 1000, { near, passed: { key: 'X', metres: 30 } }));
+    expect(d).toMatchObject({ says: { at: 'passing', key: 'X' }, at: 'notCall', atKey: 'Y', pill: 'notCall' });
+    // A place its pill doesn't reach is not named, and the card says between, as it did.
+    const out = differences(moment(80, 1000, { near: [{ key: 'Z', metres: 120 }], passed: { key: 'Z', metres: 120 } }));
+    expect(out).toMatchObject({ says: { at: 'between', key: 'A – B' }, at: undefined, pill: undefined, arrow: 'notCall' });
+  });
+
+  it('has the card name the Station it is arriving at, leaving or standing at before one it passes, as it did, so that what it passes is counted if drawn at it (#457)', () => {
+    // 50 m short of B and within 50 m of X: arriving at B, the nearest it hasn't named is X.
+    const arriving = differences(moment(125, 1950, { near: [{ key: 'B', metres: 50 }, { key: 'X', metres: 49 }], passed: { key: 'X', metres: 49 } }));
+    expect(arriving).toMatchObject({ says: { at: 'arriving', key: 'B' }, at: 'notCall', atKey: 'X' });
+    const leaving = differences(moment(40, 60, { near: [{ key: 'A', metres: 60 }, { key: 'X', metres: 30 }], passed: { key: 'X', metres: 30 } }));
+    expect(leaving).toMatchObject({ says: { at: 'leaving', key: 'A' }, at: 'notCall', atKey: 'X' });
+    const standing = differences(moment(140, 2000, { standing: true, near: [{ key: 'B', metres: 0 }, { key: 'X', metres: 30 }], passed: { key: 'X', metres: 30 } }));
+    expect(standing).toMatchObject({ says: { at: 'standing', key: 'B' }, at: 'notCall', atKey: 'X' });
+  });
+
   it('has the card at the Station it stands at, and the header saying so', () => {
     const d = differences(moment(140, 2000, { standing: true, near: [{ key: 'B', metres: 0 }] }));
     expect(d).toMatchObject({ says: { at: 'standing', key: 'B' }, standingHeaderNext: false, at: undefined, pill: undefined, atNextBeforeArriving: false });

@@ -1,10 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { expect, test } from 'vitest';
-import type { Alert, AlertFeed, Alerts, Bundle, Call, Line, Trip } from '../bundle.ts';
+import { DEGREE, type Alert, type AlertFeed, type Alerts, type Bundle, type Call, type Line, type Trip } from '../bundle.ts';
 import type { Pass } from '../engine.ts';
 import { ALERTS_START, readAlerts } from '../fetcher/alerts.ts';
-import { boardList, cardAlerts, countdownTo, inNameOrder, linesCallingAt, linesOnBoard, linkedWords, minutesTo, nearbyRows, progress, tripsState, untilTick, whereabouts, type Part } from './cards.ts';
+import { boardList, cardAlerts, countdownTo, inNameOrder, linesCallingAt, linesOnBoard, linkedWords, minutesTo, nearbyRows, passedPlace, progress, tripsState, untilTick, whereabouts, type Part } from './cards.ts';
 
 /** A time of day in Barcelona on Wednesday 7 Oct 2026, in summer time, in ms since 1970. */
 const at = (hours: number, minutes: number, seconds = 0) => Date.UTC(2026, 9, 7, hours - 2, minutes, seconds);
@@ -241,6 +241,54 @@ test("a Train is arriving at or leaving a Station too where it's drawn within it
 test('a Station no place on the map shows has no dot to go by, only where its platform is along the Trip', () => {
   expect(whereabouts(ABC, 1950, 2, false, 100, () => Infinity)).toEqual({ at: 'arriving', next: B });
   expect(whereabouts(ABC, 1000, 2, false, 100, () => Infinity)).toEqual({ at: 'between', last: A, next: B });
+});
+
+/** A place the map shows `metres` due north of where a Train is drawn, at 2° E and 41° N, with its Stations' IDs, which are its own where none is given. */
+const north = (id: string, metres: number, ...stations: string[]) => ({ id, stations: stations.length ? stations : [id], lon: 2, lat: 41 + metres / DEGREE });
+const HERE = { lon: 2, lat: 41 };
+
+test("a Train between its Stations is passing the place it's drawn nearest, within its pill's reach of its dot, where it has no call, and arriving at a Station or leaving one says that first (#457)", () => {
+  const X = north('x', 60);
+  const passing = (dist: number, away: number, toLeave = 2, standing = false) => whereabouts(ABC, dist, toLeave, standing, 100, undefined, { place: X, away });
+  expect(passing(1000, 60)).toEqual({ at: 'passing', last: A, next: B, place: X });
+  expect(passing(1000, 100)).toEqual({ at: 'passing', last: A, next: B, place: X });
+  expect(passing(1000, 101)).toEqual({ at: 'between', last: A, next: B });
+  // Within reach of B, which it has still to leave, or of A, which it has left: the card names them, as it did.
+  expect(passing(1950, 20)).toEqual({ at: 'arriving', next: B });
+  expect(passing(50, 20)).toEqual({ at: 'leaving', last: A, next: B });
+  // And at B, where it stands.
+  expect(passing(2000, 20, 2, true)).toEqual({ at: 'standing', next: B });
+});
+
+test("a Train with no place it passes says what it said before, whichever of its words, and one with no Station left to leave says nothing (#457)", () => {
+  expect(whereabouts(ABC, 1000, 2, false, 100, undefined, undefined)).toEqual({ at: 'between', last: A, next: B });
+  expect(whereabouts(ABC, 4000, 0, false, 100, undefined, { place: north('x', 10), away: 10 })).toBeUndefined();
+  // On its way to its first Station, which it has none before, it's arriving at it, whatever it's passing.
+  expect(whereabouts(ABC, 500, 3, false, 100, undefined, { place: north('x', 10), away: 10 })).toEqual({ at: 'arriving', next: A });
+});
+
+test("of the places a Train is drawn near, it passes the nearest that its Trip has no call at, which is within its pill's reach of it, and says how far (#457)", () => {
+  const places = [north('far', 90), north('x', 60), north('y', 80), north('behind', 70)];
+  const hit = passedPlace(places, HERE, new Set(), 100);
+  expect(hit?.place.id).toBe('x');
+  expect(hit?.away).toBeCloseTo(60, 3);
+  // The reach is how far its dot is from the Train, on any side.
+  expect(passedPlace(places, HERE, new Set(), 59)).toBeUndefined();
+  expect(passedPlace([{ ...north('west', 0), lon: 2 - 50 / (DEGREE * Math.cos((41 * Math.PI) / 180)) }], HERE, new Set(), 60)?.away).toBeCloseTo(50, 3);
+});
+
+test("a place one of whose Stations its Trip calls at is not passed, as a Line's own interchange isn't, and one it calls at none of is (#457)", () => {
+  // Passeig de Gràcia's three Stations, one for each Line (ADR-0005), as the Metro's one place.
+  const place = north('tmb:P.6660327', 40, 'tmb:1.325', 'tmb:1.327', 'tmb:1.328');
+  expect(passedPlace([place], HERE, new Set(['tmb:1.327', 'tmb:1.300']), 100)).toBeUndefined();
+  expect(passedPlace([place], HERE, new Set(['tmb:1.300']), 100)?.place.id).toBe('tmb:P.6660327');
+});
+
+test("a Station of another railway is passed too where the pill is on its dot, as a metro station next to a railway station is a Station of its own, and the nearest of them is named (#457)", () => {
+  // Nothing of a place says whose it is: a Train under Cornellà's railway Station passes it, if its Trip has no call there.
+  const places = [north('adif:72303', 30), north('tmb:P.6660117', 20)];
+  expect(passedPlace(places, HERE, new Set(['tmb:1.100']), 100)?.place.id).toBe('tmb:P.6660117');
+  expect(passedPlace([places[0] as (typeof places)[number]], HERE, new Set(['tmb:1.100']), 100)?.place.id).toBe('adif:72303');
 });
 
 /** A Trip on a Line, calling at these Stations. */

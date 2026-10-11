@@ -7,7 +7,7 @@ import { stationsOf } from './build/track.ts';
 import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, unavailable, type Received, type ShownClosure } from './engine.ts';
 import { jumps } from './jumps.ts';
 import { NETWORKS } from './networks.ts';
-import { countdownTo, minutesTo, whereabouts } from './web/cards.ts';
+import { countdownTo, minutesTo, passedPlace, whereabouts } from './web/cards.ts';
 
 /** A speed profile like Rodalies', in metres and seconds, which the times below are worked out from. */
 const PROFILE = { acceleration: 1, braking: 1, topSpeed: 160 / 3.6, dwell: 30 };
@@ -847,6 +847,31 @@ test("a followed Train's card says where it is by where it's drawn, Scheduled or
   expect(says(at('21:56:50'), live)).toEqual(['arriving', 'Sitges']);
   expect(says(at('21:57:30'), live)).toEqual(['standing', 'Sitges']);
   expect(says(at('21:58:10'), live)).toEqual(['leaving', 'Sitges']);
+});
+
+test("a followed Train is passing a place its Trip has no call at while it's drawn within its pill's reach of it, and not one its Trip calls at (#457)", () => {
+  // The R2S cruises at 21.5 m/s between Vilanova i la Geltrú and Sitges, so it's 107.6 m on at 21:53:05 from where it's drawn at 21:53:00.
+  const reach = 130;
+  const [mid, on] = [followed(R2S, at('21:53:00')), followed(R2S, at('21:53:05'))];
+  const kx = DEGREE * Math.cos(((mid?.lat ?? 0) * Math.PI) / 180);
+  const [dx, dy] = [((on?.lon ?? NaN) - (mid?.lon ?? NaN)) * kx, ((on?.lat ?? NaN) - (mid?.lat ?? NaN)) * DEGREE];
+  // A Station 40 m to the left of its way there, with the Stations it has, as the map's dot for its place.
+  const place = (station: string) => ({ stations: [station], lon: (mid?.lon ?? NaN) - ((dy / Math.hypot(dx, dy)) * 40) / kx, lat: (mid?.lat ?? NaN) + ((dx / Math.hypot(dx, dy)) * 40) / DEGREE });
+  const says = (moment: number, near: ReturnType<typeof place>) => {
+    const f = followed(R2S, moment);
+    const w = f && whereabouts(f.trip.calls, f.dist, f.upcoming.length, !!f.standsAt, reach, undefined, passedPlace([near], f, new Set(f.trip.calls.map((c) => c.station)), reach));
+    return w?.at === 'passing' ? [w.at, w.place.stations[0]] : w && [w.at];
+  };
+  // 215 m before it, 108 m, none, 108 m after it, and 215 m after: with its track 40 m off, it's within 130 m of the dot from 124 m either way.
+  expect(says(at('21:52:50'), place('Garraf'))).toEqual(['between']);
+  for (const time of ['21:52:55', '21:53:00', '21:53:05']) expect(says(at(time), place('Garraf'))).toEqual(['passing', 'Garraf']);
+  expect(says(at('21:53:10'), place('Garraf'))).toEqual(['between']);
+  // Sitges's place, which it calls at, is not one it passes, though the pill is on it.
+  expect(says(at('21:53:00'), place('Sitges'))).toEqual(['between']);
+  // Standing at Vilanova i la Geltrú, and leaving it, it's the Station it names, whatever place is on its dot.
+  const there = { ...place('Garraf'), lon: 1.73077249, lat: 41.2203207 };
+  expect(says(at('21:49:30'), there)).toEqual(['standing']);
+  expect(says(at('21:50:10'), there)).toEqual(['leaving']);
 });
 
 /** A board of the next departures from some Stations at a moment by the device's clock, with the live data received by then, in `BUNDLE` unless it says, and the Closures the map shows, none unless it says. */
