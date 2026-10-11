@@ -183,7 +183,7 @@ const STRINGS = {
     en: "{line}'s Trains have run here since {time}",
   },
   // The tab bar on a phone and the rail on a wide window (#470): its name, which a screen reader reads, and its tabs' labels, Nearby's being nearbyButton. Now's and Favourites' are for their tabs, which #474 and #472 add.
-  tabs: { ca: 'Principal', es: 'Principal', eu: 'Nagusia', gl: 'Principal', en: 'Main' },
+  tabBar: { ca: 'Principal', es: 'Principal', eu: 'Nagusia', gl: 'Principal', en: 'Main' },
   search: { ca: 'Cerca', es: 'Buscar', eu: 'Bilatu', gl: 'Buscar', en: 'Search' },
   nowTab: { ca: 'Ara', es: 'Ahora', eu: 'Orain', gl: 'Agora', en: 'Now' },
   favourites: { ca: 'Preferits', es: 'Favoritos', eu: 'Gogokoak', gl: 'Favoritos', en: 'Favourites' },

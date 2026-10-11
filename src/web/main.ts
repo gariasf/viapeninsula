@@ -1720,7 +1720,7 @@ function showLanguage() {
   languageSwitch.setAttribute('aria-label', t('language'));
   legend.title = t('about');
   // Each tab's label is its name, under its icon.
-  nav.setAttribute('aria-label', t('tabs'));
+  nav.setAttribute('aria-label', t('tabBar'));
   tabs.search.replaceChildren(icon('search'), t('search'));
   tabs.nearby.replaceChildren(icon('nearby'), t('nearbyButton'));
   tiltButton.title = t('tilt');

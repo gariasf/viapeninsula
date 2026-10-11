@@ -126,7 +126,7 @@ test('labels the button that tilts the map in each language', () => {
 });
 
 test("labels the tab bar, its tabs and Search's close button in each language (#470)", () => {
-  const strings = (lang: Language) => [t('tabs', lang), t('search', lang), t('nearbyButton', lang), t('nowTab', lang), t('favourites', lang), t('closeSearch', lang)];
+  const strings = (lang: Language) => [t('tabBar', lang), t('search', lang), t('nearbyButton', lang), t('nowTab', lang), t('favourites', lang), t('closeSearch', lang)];
   expect(strings('ca')).toEqual(['Principal', 'Cerca', 'A prop', 'Ara', 'Preferits', 'Tanca la cerca']);
   expect(strings('es')).toEqual(['Principal', 'Buscar', 'Cerca', 'Ahora', 'Favoritos', 'Cerrar la búsqueda']);
   expect(strings('en')).toEqual(['Main', 'Search', 'Nearby', 'Now', 'Favourites', 'Close search']);
