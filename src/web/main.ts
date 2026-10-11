@@ -6,9 +6,9 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import nunitoSans from '@fontsource/nunito-sans/files/nunito-sans-latin-400-normal.woff2?url';
 import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-normal.woff2?url';
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
-import { along, APART, atZoom, BANDS, bandZooms, coveredIn, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, daysOf, EARTH, joinTracks, LIVE_URL, madridDate, networkTracks, places, type Alerts, type Bundle, type Credit, type DayFiles, type Place, type Kind, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH, type ZoomedOut } from '../bundle.ts';
+import { along, APART, atZoom, BANDS, bandZooms, coveredIn, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, daysOf, DEGREE, EARTH, joinTracks, LIVE_URL, madridDate, networkTracks, places, type Alerts, type Bundle, type Credit, type Call, type DayFiles, type Place, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH, type ZoomedOut } from '../bundle.ts';
 import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, unavailable, type Coming, type Departure, type Followed, type Received, type Train } from '../engine.ts';
-import { alertCount, alertsChanged, basemapLabel, busesReplace, earlierStations, language, LANGUAGES, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, notRunning, setLanguage, t, toGo, trainCounts, trainsRunHere, unlocated, type Language, type Unlocated } from './i18n.ts';
+import { alertCount, alertsChanged, arrivingAt, basemapLabel, betweenStations, busesReplace, earlierStations, language, LANGUAGES, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, notRunning, setLanguage, t, toGo, trainCounts, trainsRunHere, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { forgetJoined, regionLoader, regionsNeeded } from './regions.ts';
 import { linesAt, popupRoom } from './tap.ts';
@@ -18,7 +18,8 @@ import { atMostEvery, drifted, letsGo } from './centre.ts';
 import { keepView, lastView, markOf, openingView, toggledPitch } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { contrast, lettering } from './colour.ts';
-import { boardList, cardAlerts, inNameOrder, linesOnBoard, linkedWords, minutesTo, nearbyRows, progress, tripsState, type CardAlert } from './cards.ts';
+import { boardList, cardAlerts, inNameOrder, linesOnBoard, linkedWords, minutesTo, nearbyRows, progress, tripsState, whereabouts, type CardAlert, type Whereabouts } from './cards.ts';
+import { ARROW_GAP, boxOf, FOLLOWED_TEXT, LINE_HEIGHT, OUTLINE_SIZES, outlineOf, PILL_EDGE, PILL_PADDING, PILL_TEXT, pillReach, type Outline } from './pill.ts';
 import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, tappedRows, type Shown } from './closures.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
@@ -56,16 +57,8 @@ const FONT_FACES: FontFacesSpecification = {
   'Noto Sans Italic': [{ url: nunitoSansItalic, 'unicode-range': LATIN }],
 };
 const NAME_SIZE = 12;
-/** The size of a Line's name on its Trains' pills, in px, and on the followed Train's, which is larger. */
-const [PILL_TEXT, FOLLOWED_TEXT] = [10, 12];
-/** How far a pill reaches beyond its Line's name either side, and above and below the name's line, in px. */
-const [PILL_PADDING, PILL_EDGE] = [2, 1.5];
 /** How wide the edge drawn round a pill is, in px. */
 const PILL_HALO = 1.5;
-/** MapLibre's `text-line-height`, in ems: the height of a line of text, as of the Line's name a pill fits or of a place's name. */
-const LINE_HEIGHT = 1.2;
-/** How far outside its pill's outline the middle of a Train's arrow is, in px. */
-const ARROW_GAP = 7;
 /** The dark lettering for a Line's colour that white doesn't read on. */
 const INK = '#111';
 /**
@@ -75,29 +68,21 @@ const INK = '#111';
  */
 const [HALO_DOT, HALO_BEYOND, HALO_BLUR, HALO_OPACITY] = [2, 4, 0.6, 0.6];
 /**
- * The outlines a Train is drawn with, `w`×`h` px around their middles: how far `outside` each a point
- * is, in px (x right, y down), or inside where negative. A pill's outline stretches across its middle
- * 2 px both ways to fit its Line's name over its middle `across` px, and all but PILL_EDGE of its
- * height. The arrow points up.
+ * The outlines a Train is drawn with, as pill.ts sizes them, `w`×`h` px around their middles: how far
+ * `outside` each a point is, in px (x right, y down), or inside where negative. A pill's outline
+ * stretches across its middle 2 px both ways to fit its Line's name over its middle `across` px, and all
+ * but PILL_EDGE of its height. The arrow points up.
  */
-const OUTLINES: Record<Pill['outline'] | 'arrow', { w: number; h: number; across?: number; outside: (x: number, y: number) => number }> = {
+const OUTLINES: Record<Outline | 'arrow', { w: number; h: number; across?: number; outside: (x: number, y: number) => number }> = {
   // A square with corners so round it's nearly a circle.
-  round: { w: 15, h: 15, across: 9, outside: roundedSquare(7.5, 6.5) },
+  round: { ...OUTLINE_SIZES.round, outside: roundedSquare(7.5, 6.5) },
   // Its ends 5 px long, to a point 2 px across.
-  pointed: { w: 12, h: 15, across: 2, outside: (x, y) => Math.max(Math.abs(y) - 7.5, Math.abs(x) - 6, 0.7926 * (Math.abs(x) - 6) + 0.6097 * (Math.abs(y) - 1)) },
+  pointed: { ...OUTLINE_SIZES.pointed, outside: (x, y) => Math.max(Math.abs(y) - 7.5, Math.abs(x) - 6, 0.7926 * (Math.abs(x) - 6) + 0.6097 * (Math.abs(y) - 1)) },
   // A square with corners rounded 3 px, which a name of two letters leaves nearly square, like the Metro's and TRAM's Line badges.
-  badge: { w: 15, h: 15, across: 13, outside: roundedSquare(7.5, 3) },
+  badge: { ...OUTLINE_SIZES.badge, outside: roundedSquare(7.5, 3) },
   // Its tip 4.5 px ahead of its middle, and its base 2.25 px behind and 6 px across.
-  arrow: { w: 12, h: 12, outside: (x, y) => Math.max(y - 2.25, (6.75 * Math.abs(x) - 3 * (y + 4.5)) / Math.hypot(3, 6.75)) },
+  arrow: { ...OUTLINE_SIZES.arrow, outside: (x, y) => Math.max(y - 2.25, (6.75 * Math.abs(x) - 3 * (y + 4.5)) / Math.hypot(3, 6.75)) },
 };
-/**
- * Each kind of service's pills: rounded for commuter and suburban Lines, pointed at both ends for
- * regional ones, and badges for metros and trams, as their operators badge their Lines, and for rack
- * railways and funiculars (#90). Long-distance Lines get theirs once they're on the map (#262): till
- * then they'd be round, as the Lines of a track that names no kinds are, and tsc asks every other kind
- * for its own.
- */
-const OUTLINES_OF: Partial<Record<Kind, Pill['outline']>> = { commuter: 'round', regional: 'pointed', metro: 'badge', tram: 'badge', rack: 'badge', funicular: 'badge' } satisfies Record<Exclude<Kind, 'long-distance'>, Pill['outline']>;
 /**
  * The cards' icons, drawn in the colour of the text around them, which a forced-colours theme sets
  * too (#116): a close cross, a chevron down and up, the die that follows a random Train, Nearby's
@@ -1568,7 +1553,7 @@ function quarterPixel(): number {
  */
 interface Pill {
   name: string;
-  outline: 'round' | 'pointed' | 'badge';
+  outline: Outline;
   dark: boolean;
   /** What its Line's colour letters its name in, rings its Scheduled Trains and colours its Trains' arrows in: on the dark basemap, lettering(). */
   lettering: string;
@@ -1579,15 +1564,9 @@ interface Pill {
 
 /** How a Line's Trains are drawn as pills from a zoom, its Network's, outlined by its kind of service. */
 function pillOf({ name, colour, kind }: Line, zoom: number): Pill {
-  const outline = OUTLINES_OF[kind] ?? 'round';
+  const outline = outlineOf(kind);
   const width = textWidth(name, `bold ${PILL_TEXT}px ${TYPEFACE}`);
   return { name, outline, dark: darkInk(colour), lettering: darkBasemap ? lettering(colour, paper) : colour, zoom, box: boxOf(outline, width, PILL_TEXT), followedBox: boxOf(outline, width, FOLLOWED_TEXT) };
-}
-
-/** How far a pill reaches either side of its Train and above and below it, in px, with its outline, around a name `width` px wide at PILL_TEXT, lettered at `size` px. */
-function boxOf(outline: Pill['outline'], width: number, size: number): [number, number] {
-  const { w, across = 0 } = OUTLINES[outline];
-  return [Math.max(w, w - across + (width * size) / PILL_TEXT + 2 * PILL_PADDING) / 2, PILL_EDGE + (LINE_HEIGHT * size) / 2];
 }
 
 /** Whether INK reads better on a colour than white does, by WCAG's contrast ratio. */
@@ -2174,12 +2153,13 @@ function moreButton(text: string) {
 /**
  * The followed Train's panel: its Line's pill and where it's headed; Live or Scheduled, how long ago
  * live data last placed it, its modelled speed, and its Unit type where its operator reports one; its
- * next Station, when it's expected there, with its Delay but for a Metro Train's, and the minutes to
- * it; how far along its Trip it is; and its Line's Alerts, folded away (#342). Peeking, it ends in how
- * many Stations it has still to come; pulled up, it shows them, from the Train to its Trip's last
- * Station (#321), after a fold that shows those it has left (#349). Its Stations within a closed Closure
- * that hides Trains are marked as not stopped at in the strip, and not counted in how many it has to
- * come (#420). Where its Train is within one, it's the panel of a Trip still to come (comingPanel()).
+ * next Station, as it's arriving at it or stands at it by how it's drawn (#455), when it's expected
+ * there, with its Delay but for a Metro Train's, and the minutes to it; how far along its Trip it is;
+ * and its Line's Alerts, folded away (#342). Peeking, it ends in how many Stations it has still to
+ * come; pulled up, it shows them, from the Train to its Trip's last Station (#321), after a fold that
+ * shows those it has left (#349). Its Stations within a closed Closure that hides Trains are marked as
+ * not stopped at in the strip, and not counted in how many it has to come (#420). Where its Train is
+ * within one, it's the panel of a Trip still to come (comingPanel()).
  */
 function followedPanel(up: boolean): Panel | undefined {
   const now = Date.now();
@@ -2197,6 +2177,8 @@ function followedPanel(up: boolean): Panel | undefined {
   // The Stations it stops at, which it has still to come, the next of them first.
   const running = upcoming.filter((c) => !c.skipped);
   const last = running.at(-1);
+  // Where it is by how it's drawn: how near its pill reaches its Stations (#455).
+  const where = whereabouts(trip.calls, train.dist, upcoming.length, !!train.standsAt, followedReach(train), dotAway(train));
   const status: (Node | string)[] = [t(live ? 'live' : 'scheduled')];
   if (unreported) status.push(t('noLiveTrain'));
   else if (since !== undefined) status.push(t(live ? 'confirmed' : 'lastConfirmed').replace('{ago}', ago(since)));
@@ -2206,11 +2188,11 @@ function followedPanel(up: boolean): Panel | undefined {
     header: el('header', {}, ...backButton(), el('h2', { className: 'title', tabIndex: -1 }, pill(trip.line, { live, train: true }), ` ${trip.headsign}`), closeButton(t('stopFollowing'))),
     body: [
       el('p', { className: 'meta status-line' }, el('span', { className: `dot ${live ? 'live' : 'scheduled'}` }), ...status.flatMap((part, i) => (i ? [' · ', part] : [part]))),
-      ...nextStation(train, mapNow),
+      ...nextStation(train, mapNow, where),
       tripBar(train),
       alertsOn({ lines: [trip.line], stations: [] }),
       ...(up
-        ? [el('hr', { className: 'dash' }), ...strip(train)]
+        ? [el('hr', { className: 'dash' }), ...strip(train, where)]
         : last && running.length > 1
           ? [moreButton(moreStations(running.length - 1, trip.headsign, clock().format(last.arrival)))]
           : []),
@@ -2260,22 +2242,58 @@ function due(call: Followed['upcoming'][number], standing: boolean): number {
 }
 
 /**
- * A followed Train's next Station: its name, when the Train's expected there, with its status beside
- * it, and the minutes to it within the hour. The first it stops at, not one within a closed Closure that
- * hides Trains (#420).
+ * A followed Train's next Station: its name, labelled as the Train is arriving at it or stands at it,
+ * where `where` says so (#455); when the Train's expected there, with its status beside it, and the
+ * minutes to it within the hour. Standing, that time is when it leaves, which it says unless that's
+ * its Trip's last Station, where the Train doesn't leave. The first it stops at, not one within a
+ * closed Closure that hides Trains (#420).
  */
-function nextStation({ upcoming, standsAt, delay, live }: Pick<Followed, 'upcoming' | 'standsAt' | 'delay' | 'live'>, now: number): Node[] {
+function nextStation({ upcoming, standsAt, delay, live }: Pick<Followed, 'upcoming' | 'standsAt' | 'delay' | 'live'>, now: number, where?: Whereabouts<Call>): Node[] {
   const next = upcoming.find((c) => !c.skipped);
   if (!next) return [];
   const at = due(next, !!standsAt && next === upcoming[0]);
+  const label = where?.at === 'arriving' ? 'nextStationArriving' : where?.at === 'standing' ? 'nextStationStanding' : 'nextStation';
+  const leaves = where?.at === 'standing' && upcoming.length > 1 ? [el('span', { className: 'soft', textContent: t('leaves') })] : [];
   return [
     el(
       'div',
       { className: 'next-station' },
-      el('div', {}, el('p', { className: 'label', textContent: t('nextStation') }), stationLink(next.station, el('strong', { className: 'next-name', textContent: stationName(next.station) }))),
-      el('div', { className: 'next-when' }, el('span', { className: 'at' }, el('time', {}, ...timeOfDay(at)), status({ delay, live })), ...countdown(at, now, 'inMinutes')),
+      el('div', {}, el('p', { className: 'label', textContent: t(label) }), stationLink(next.station, el('strong', { className: 'next-name', textContent: stationName(next.station) }))),
+      el('div', { className: 'next-when' }, el('span', { className: 'at' }, ...leaves, el('time', {}, ...timeOfDay(at)), status({ delay, live })), ...countdown(at, now, 'inMinutes')),
     ),
   ];
+}
+
+/** How far a followed Train's pill reaches either side of it along its track now, in metres, as the map draws it at its zoom (pillReach()), and none where its Line has no pill, as every Line of a Train on the map has. */
+function followedReach({ trip, lat }: Followed): number {
+  const pill = pills.get(trip.line);
+  return pill ? pillReach(pill.followedBox, map.getZoom(), pill.zoom, lat) : 0;
+}
+
+/**
+ * How far a followed Train is drawn from the dot of the place a call's Station is shown in, in metres
+ * (whereabouts()'s `dotAway`, #455), none where no place on the map has the Station.
+ * ponytail: flat, from where the engine draws it on its shape, though zoomed out, it sits on its Line's
+ * stroke, up to half a line width to the side. Go by where the map draws it if that shows.
+ */
+function dotAway({ lon, lat }: Followed): (call: Call) => number {
+  const kx = DEGREE * Math.cos((lat * Math.PI) / 180);
+  return ({ station }) => {
+    const place = placeOfStation.get(station);
+    return place ? Math.hypot((place.lon - lon) * kx, (place.lat - lat) * DEGREE) : Infinity;
+  };
+}
+
+/**
+ * What a followed Train's strip says of where it is by how it's drawn (whereabouts(), #455), by the
+ * Stations' names: that it's arriving at its next Station, leaving the one it left, or between the two.
+ * Standing, it says nothing there: its Train's mark is on its Station's row.
+ */
+function whereIs(where: Whereabouts<Call>): string {
+  const name = ({ station }: Call) => stationName(station);
+  if (where.at === 'arriving') return arrivingAt(name(where.next));
+  if (where.at === 'leaving') return leavingStation(name(where.last));
+  return where.at === 'between' ? betweenStations(name(where.last), name(where.next)) : '';
 }
 
 /** How far a followed Train is along its Trip, as a bar from its first Station to its last, by distance (progress()), with the Trip's length. */
@@ -2299,15 +2317,16 @@ function tripBar({ trip, dist, upcoming }: Followed) {
 
 /**
  * The Stations a followed Train has still to come to, as a strip in its Line's colour: from the
- * Train, now, which has left the Station before them or stands at the first, to its Trip's last
- * Station, where the strip ends in a bar across it, as the operators' maps end a Line. The next, the
- * first it stops at, and the last are in bold; one it doesn't stop at, within a closed Closure that
- * hides Trains, has its time struck through and says so, as a board's row does (#420). Once it has
- * left a Station, the fold before the strip (foldButton()) shows those it has already left at its
- * top, greyed, by name only, as the map has no time it passed them but its timetable's, and the
+ * Train, now, which is arriving at the first, leaving the Station before them or between the two, as
+ * it's drawn (`where`, #455), or stands at the first, to its Trip's last Station, where the strip
+ * ends in a bar across it, as the operators' maps end a Line. The next, the first it stops at, and the
+ * last are in bold; one it doesn't stop at, within a closed Closure that hides Trains, has its time
+ * struck through and says so, as a board's row does (#420). Once it has left a Station, the fold
+ * before the strip (foldButton()) shows those it has already left at its top, greyed, by name only,
+ * as the map has no time it passed them but its timetable's, and the
  * Train then as a compact mark after them (#349).
  */
-function strip({ trip, upcoming, standsAt }: Pick<Followed, 'trip' | 'upcoming' | 'standsAt'>): Node[] {
+function strip({ trip, upcoming, standsAt }: Pick<Followed, 'trip' | 'upcoming' | 'standsAt'>, where?: Whereabouts<Call>): Node[] {
   // How many Stations it has already left, and the last of them, before those it has still to leave.
   const earlier = trip.calls.length - upcoming.length;
   const lastLeft = trip.calls[earlier - 1];
@@ -2319,7 +2338,7 @@ function strip({ trip, upcoming, standsAt }: Pick<Followed, 'trip' | 'upcoming' 
     'ol',
     { className: past ? 'strip past' : 'strip' },
     ...(past ? trip.calls.slice(0, earlier).map((call, i) => station(i ? 'passed soft' : 'passed soft origin', [], stationName(call.station), el('span', { className: 'sr-only', textContent: `, ${t('passed')}` }))) : []),
-    ...(lastLeft && !standsAt ? [past ? station('train soft compact', [t('now')]) : station('train soft', [t('now')], t('left').replace('{station}', stationName(lastLeft.station)))] : []),
+    ...(lastLeft && !standsAt ? [past ? station('train soft compact', [t('now')]) : station('train soft', [t('now')], where ? whereIs(where) : '')] : []),
     ...upcoming.map((call, i) => {
       const classes = [i === 0 && standsAt ? 'train' : '', i === next ? 'next' : '', i === upcoming.length - 1 ? 'terminus' : '', call.skipped ? 'skipped' : ''].filter(Boolean).join(' ');
       const link = stationLink(call.station, stationName(call.station));

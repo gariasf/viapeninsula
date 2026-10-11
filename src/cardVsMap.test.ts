@@ -25,26 +25,64 @@ const moment = (time: number, dist: number, over: Partial<Moment> = {}): Moment 
 });
 
 describe('differences', () => {
-  it('has none for a Train mid-leg that nothing is near', () => {
-    expect(differences(moment(80, 1000))).toMatchObject({ at: undefined, pill: undefined, arrow: undefined, nowFar: false, readsNow: false, pinnedAway: undefined, timeOff: 0 });
+  it('has none for a Train mid-leg that nothing is near, which the card says is between its Stations', () => {
+    expect(differences(moment(80, 1000))).toMatchObject({ says: { at: 'between', key: 'A – B' }, at: undefined, pill: undefined, arrow: undefined, nowFar: false, readsNow: false, pinnedAway: undefined, timeOff: 0 });
   });
 
   it('says nothing of a Train with no Station left to leave', () => {
     expect(differences(moment(300, 4000))).toBeUndefined();
   });
 
-  it('has the card at the Station it left, and the pill covering the next one as it comes in', () => {
+  it('has the card say it is arriving at the next Station as the pill covers it, so that nothing differs (#455)', () => {
     const d = differences(moment(125, 1950, { near: [{ key: 'B', metres: 50 }] }));
-    expect(d).toMatchObject({ atNextBeforeArriving: true, at: 'next', pill: 'next', arrow: 'next', graced: true });
+    expect(d).toMatchObject({ says: { at: 'arriving', key: 'B' }, atNextBeforeArriving: false, at: undefined, pill: undefined, arrow: undefined, graced: false });
+  });
+
+  it('has the card between its Stations where the pill is short of the next one, though its arrow covers it and the Train is drawn at it', () => {
+    // A pill reaching 40 m, and its arrow 100 m, as at a zoom in.
+    const d = differences(moment(125, 1950, { near: [{ key: 'B', metres: 50 }], reach: { pill: 40, arrow: 100 } }));
+    expect(d).toMatchObject({ says: { at: 'between', key: 'A – B' }, atNextBeforeArriving: true, at: 'next', pill: undefined, arrow: 'next', graced: true });
+  });
+
+  it('has the card say it is leaving the Station it left as far after it as the pill reaches, and that Station is the one it has it at', () => {
+    const d = differences(moment(40, 100, { near: [{ key: 'A', metres: 100 }] }));
+    expect(d).toMatchObject({ says: { at: 'leaving', key: 'A' }, at: undefined, pill: undefined });
+  });
+
+  it("has the card say it is arriving at the next Station where the pill covers its place's dot, though its platform is further along its Trip, as at an interchange (#455)", () => {
+    // 350 m short of B's platform, with the pill reaching 100 m, and B's place's dot 80 m from it.
+    const d = differences(moment(110, 1650, { near: [{ key: 'B', metres: 80 }] }));
+    expect(d).toMatchObject({ says: { at: 'arriving', key: 'B' }, atNextBeforeArriving: false, at: undefined, pill: undefined, arrow: undefined });
+  });
+
+  it("goes by a call's own distance to its place's dot where it has one, and by `near` where it hasn't, so that near can be each Station by its coordinates", () => {
+    // 350 m short of B's platform, the pill reaching 100 m, and the dot 80 m from the Train: `near` has only another Station of the place, 300 m away.
+    const dotted = calls.map((c) => (c.key === 'B' ? { ...c, away: 80 } : c));
+    expect(differences(moment(110, 1650, { near: [{ key: 'B', metres: 300 }], calls: dotted }))).toMatchObject({ says: { at: 'arriving', key: 'B' } });
+    expect(differences(moment(110, 1650, { near: [{ key: 'B', metres: 300 }] }))).toMatchObject({ says: { at: 'between', key: 'A – B' } });
+  });
+
+  it('has its arrow, which points ahead, cover no Station it has left, and the next one as it comes into reach', () => {
+    // 130 m past A, the pill reaching 100 m and its arrow 150: A is behind it.
+    expect(differences(moment(40, 130, { near: [{ key: 'A', metres: 130 }] }))).toMatchObject({ says: { at: 'between' }, pill: undefined, arrow: undefined });
+    // 140 m short of B: its arrow covers it, though the pill doesn't.
+    expect(differences(moment(120, 1860, { near: [{ key: 'B', metres: 140 }] }))).toMatchObject({ says: { at: 'between' }, pill: undefined, arrow: 'next' });
+  });
+
+  it('has the pill cover the Station it left where the card says it is arriving at the next, on a leg shorter than twice its reach', () => {
+    // 150 m from A to B, which the Train has 130 m to: A is 20 m behind it and B 130 m ahead, the pill reaching 130 m.
+    const short = [{ station: 'a', key: 'A', arrival: 0, departure: 30, dist: 0 }, { station: 'b', key: 'B', arrival: 60, departure: 90, dist: 150 }];
+    const d = differences(moment(40, 20, { calls: short, near: [{ key: 'A', metres: 20 }, { key: 'B', metres: 130 }], reach: { pill: 130, arrow: 180 } }));
+    expect(d).toMatchObject({ says: { at: 'arriving', key: 'B' }, at: 'otherCall', pill: 'otherCall', atNextBeforeArriving: false });
   });
 
   it('names a Station passed without stopping as not a call', () => {
     expect(differences(moment(60, 700, { near: [{ key: 'X', metres: 20 }] }))).toMatchObject({ at: 'notCall', pill: 'notCall', graced: false });
   });
 
-  it('has the card at the Station it stands at, and the header still saying next', () => {
+  it('has the card at the Station it stands at, and the header saying so', () => {
     const d = differences(moment(140, 2000, { standing: true, near: [{ key: 'B', metres: 0 }] }));
-    expect(d).toMatchObject({ standingHeaderNext: true, at: undefined, pill: undefined, atNextBeforeArriving: false });
+    expect(d).toMatchObject({ says: { at: 'standing', key: 'B' }, standingHeaderNext: false, at: undefined, pill: undefined, atNextBeforeArriving: false });
   });
 
   it('reads now by the minute while the clock has not come to the card’s time, and by the Delay once it has', () => {

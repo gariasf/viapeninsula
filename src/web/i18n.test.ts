@@ -1,6 +1,6 @@
 import { createExpression, latest, type ExpressionSpecification, type Feature, type StylePropertySpecification } from '@maplibre/maplibre-gl-style-spec';
 import { afterEach, expect, test, vi } from 'vitest';
-import { alertCount, alertsChanged, basemapLabel, busesReplace, earlierStations, LANGUAGES, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, notRunning, pickLanguage, t, toGo, trainCounts, trainsRunHere, unlocated } from './i18n.ts';
+import { alertCount, alertsChanged, arrivingAt, basemapLabel, betweenStations, busesReplace, earlierStations, LANGUAGES, leavingStation, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, notRunning, pickLanguage, t, toGo, trainCounts, trainsRunHere, unlocated } from './i18n.ts';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -337,4 +337,37 @@ test("says whose Alerts last changed when, as a card does where that was over a 
   expect(alertsChanged('TRAM', '7 oct 2026, 9:32', 'es')).toBe('Avisos de TRAM: último cambio el 7 oct 2026, 9:32');
   expect(alertsChanged('Renfe', '2026(e)ko urr. 7(a) (09:32)', 'eu')).toBe('Abisuak (Renfe): azken aldaketa 2026(e)ko urr. 7(a) (09:32)');
   expect(alertsChanged('Renfe', '7 de out. de 2026, 09:32', 'gl')).toBe('Avisos de Renfe: último cambio o 7 de out. de 2026, 09:32');
+});
+
+test("says where a followed Train is by how it's drawn, in each language: arriving at a Station, leaving one, and between two (#455)", () => {
+  expect(arrivingAt('Sants', 'en')).toBe('Arriving at Sants');
+  expect(arrivingAt('Sants', 'ca')).toBe('Arribant a Sants');
+  expect(arrivingAt('Sants', 'es')).toBe('Llegando a Sants');
+  expect(arrivingAt('Sants', 'eu')).toBe('Sants geltokira iristen');
+  expect(arrivingAt('Sants', 'gl')).toBe('Chegando a Sants');
+  expect(leavingStation('Sants', 'en')).toBe('Leaving Sants');
+  expect(leavingStation('Sants', 'ca')).toBe('Sortint de Sants');
+  expect(leavingStation('Sants', 'es')).toBe('Saliendo de Sants');
+  expect(leavingStation('Sants', 'eu')).toBe('Sants geltokitik irteten');
+  expect(leavingStation('Sants', 'gl')).toBe('Saíndo de Sants');
+  expect(betweenStations('Sants', 'Plaça de Catalunya', 'en')).toBe('Between Sants and Plaça de Catalunya');
+  expect(betweenStations('Sants', 'Plaça de Catalunya', 'ca')).toBe('Entre Sants i Plaça de Catalunya');
+  expect(betweenStations('Sants', 'Plaça de Catalunya', 'es')).toBe('Entre Sants y Plaça de Catalunya');
+  expect(betweenStations('Sants', 'Plaça de Catalunya', 'eu')).toBe('Sants eta Plaça de Catalunya artean');
+  expect(betweenStations('Sants', 'Plaça de Catalunya', 'gl')).toBe('Entre Sants e Plaça de Catalunya');
+});
+
+test('says "e" for "y" in Spanish between two Stations before a name starting with an i sound, as busesReplace() does for "and"', () => {
+  expect(betweenStations('Hernani', 'Irun', 'es')).toBe('Entre Hernani e Irun');
+  expect(betweenStations('Manresa', 'Igualada', 'es')).toBe('Entre Manresa e Igualada');
+  expect(betweenStations('Lezo', 'Hierro', 'es')).toBe('Entre Lezo y Hierro');
+  expect(betweenStations('Hernani', 'Irun', 'ca')).toBe('Entre Hernani i Irun');
+});
+
+test("labels a followed Train's next Station by whether it's arriving there or stands there, and what its time is then, in each language (#455)", () => {
+  expect([t('nextStation', 'en'), t('nextStationArriving', 'en'), t('nextStationStanding', 'en'), t('leaves', 'en')]).toEqual(['Next station', 'Arriving at', 'At station', 'leaves']);
+  expect([t('nextStation', 'ca'), t('nextStationArriving', 'ca'), t('nextStationStanding', 'ca'), t('leaves', 'ca')]).toEqual(['Propera estació', 'Arribant a', "A l'estació", 'surt']);
+  expect([t('nextStation', 'es'), t('nextStationArriving', 'es'), t('nextStationStanding', 'es'), t('leaves', 'es')]).toEqual(['Próxima estación', 'Llegando a', 'En la estación', 'sale']);
+  expect([t('nextStation', 'eu'), t('nextStationArriving', 'eu'), t('nextStationStanding', 'eu'), t('leaves', 'eu')]).toEqual(['Hurrengo geltokia', 'Iristen', 'Geltokian', 'irteera']);
+  expect([t('nextStation', 'gl'), t('nextStationArriving', 'gl'), t('nextStationStanding', 'gl'), t('leaves', 'gl')]).toEqual(['Próxima estación', 'Chegando a', 'Na estación', 'sae']);
 });

@@ -4,7 +4,7 @@ import { expect, test } from 'vitest';
 import type { Alert, AlertFeed, Alerts, Bundle, Call, Line, Trip } from '../bundle.ts';
 import type { Pass } from '../engine.ts';
 import { ALERTS_START, readAlerts } from '../fetcher/alerts.ts';
-import { boardList, cardAlerts, inNameOrder, linesCallingAt, linesOnBoard, linkedWords, minutesTo, nearbyRows, progress, tripsState, type Part } from './cards.ts';
+import { boardList, cardAlerts, inNameOrder, linesCallingAt, linesOnBoard, linkedWords, minutesTo, nearbyRows, progress, tripsState, whereabouts, type Part } from './cards.ts';
 
 /** A time of day in Barcelona on Wednesday 7 Oct 2026, in summer time, in ms since 1970. */
 const at = (hours: number, minutes: number, seconds = 0) => Date.UTC(2026, 9, 7, hours - 2, minutes, seconds);
@@ -92,6 +92,81 @@ test('a Trip that runs back along its track adds up both ways', () => {
 test('a Train at its first Station has gone nowhere, and one with no Station left to leave has gone the whole way', () => {
   expect(progress(calls(0, 1000, 3000), 0, 3).done).toBe(0);
   expect(progress(calls(0, 1000, 3000), 3000, 0).done).toBe(3000);
+});
+
+/** A Trip A (0 m), B (2,000 m) and C (4,000 m) with 100 s legs: the same as cardVsMap.test.ts's. */
+const ABC: Call[] = [
+  { station: 'a', arrival: 0, departure: 30, dist: 0 },
+  { station: 'b', arrival: 130, departure: 160, dist: 2000 },
+  { station: 'c', arrival: 260, departure: 260, dist: 4000 },
+];
+const [A, B, C] = ABC as [Call, Call, Call];
+
+test("a Train is arriving at the Station it comes to within its pill's reach of it, leaving the one it left within as far after it, and between them otherwise", () => {
+  // Past A, with B and C still to leave, and a pill reaching 100 m either side of it.
+  const says = (dist: number) => whereabouts(ABC, dist, 2, false, 100);
+  expect(says(1000)).toEqual({ at: 'between', last: A, next: B });
+  expect(says(1900)).toEqual({ at: 'arriving', next: B });
+  expect(says(1999)).toEqual({ at: 'arriving', next: B });
+  expect(says(100)).toEqual({ at: 'leaving', last: A, next: B });
+  expect(says(1)).toEqual({ at: 'leaving', last: A, next: B });
+});
+
+test('a Train standing at a Station is at it, whatever else is near, as at its first with the next Station 40 m on', () => {
+  expect(whereabouts(ABC, 2000, 2, true, 100)).toEqual({ at: 'standing', next: B });
+  expect(whereabouts(ABC, 0, 3, true, 100)).toEqual({ at: 'standing', next: A });
+  const close = [A, { ...B, dist: 40 }, C];
+  expect(whereabouts(close, 0, 3, true, 100)).toEqual({ at: 'standing', next: A });
+});
+
+test("on a leg shorter than twice the pill's reach it's arriving where it's within reach of both Stations, and leaving only for as long as the next is out of reach", () => {
+  // A leg of 150 m and a pill reaching 130 m: B is within reach from 20 m out of A.
+  const short = [A, { ...B, dist: 150 }];
+  expect(whereabouts(short, 10, 1, false, 130)).toMatchObject({ at: 'leaving' });
+  expect(whereabouts(short, 20, 1, false, 130)).toMatchObject({ at: 'arriving' });
+  expect(whereabouts(short, 75, 1, false, 130)).toMatchObject({ at: 'arriving' });
+});
+
+test("at its Trip's last Station it arrives there and then stands there, and having left it has none to say", () => {
+  expect(whereabouts(ABC, 3950, 1, false, 100)).toEqual({ at: 'arriving', next: C });
+  expect(whereabouts(ABC, 4000, 1, true, 100)).toEqual({ at: 'standing', next: C });
+  expect(whereabouts(ABC, 4000, 0, false, 100)).toBeUndefined();
+  // Between B and C, having left B.
+  expect(whereabouts(ABC, 3000, 1, false, 100)).toEqual({ at: 'between', last: B, next: C });
+});
+
+test("a Train with no Station before it is on its way to its first, and one on a Trip that runs back along its track is by its way along it, as progress() has it", () => {
+  expect(whereabouts(ABC, 10, 3, false, 100)).toEqual({ at: 'arriving', next: A });
+  // However far short of it it's drawn, as it has no Station it has left to be leaving or between.
+  expect(whereabouts(ABC, 500, 3, false, 100)).toEqual({ at: 'arriving', next: A });
+  // Out 4 km and back to 2.5 km, 1 km into its way back, 500 m short of its last Station and 1 km past the one it left.
+  const back = [A, { ...B, dist: 4000 }, { ...C, dist: 2500 }];
+  expect(whereabouts(back, 3000, 1, false, 400)).toMatchObject({ at: 'between', last: back[1], next: back[2] });
+  expect(whereabouts(back, 3000, 1, false, 500)).toMatchObject({ at: 'arriving', next: back[2] });
+  expect(whereabouts(back, 3600, 1, false, 400)).toMatchObject({ at: 'leaving', last: back[1] });
+});
+
+test('a pill that reaches nothing makes a Train arriving only where it is drawn at the Station', () => {
+  expect(whereabouts(ABC, 1999.5, 2, false, 0)).toMatchObject({ at: 'between' });
+  expect(whereabouts(ABC, 2000, 2, false, 0)).toMatchObject({ at: 'arriving' });
+});
+
+test("a Train is arriving at or leaving a Station too where it's drawn within its pill's reach of the dot its place is shown by, which is the middle of an interchange's Stations, not where its own Line stops (#455)", () => {
+  // The pill reaches 120 m. How far it's drawn from A's place's dot and B's, where no dot is known: none.
+  const says = (dist: number, a = Infinity, b = Infinity) => whereabouts(ABC, dist, 2, false, 120, (call) => (call.station === 'a' ? a : call.station === 'b' ? b : Infinity));
+  // Drawn 1,650 m along, it's 350 m short of B's platform: B's place is shown 100 m ahead of it.
+  expect(says(1650)).toEqual({ at: 'between', last: A, next: B });
+  expect(says(1650, undefined, 100)).toEqual({ at: 'arriving', next: B });
+  // 300 m past A's platform, with A's place shown 100 m behind it.
+  expect(says(300)).toEqual({ at: 'between', last: A, next: B });
+  expect(says(300, 100)).toEqual({ at: 'leaving', last: A, next: B });
+  // Out of reach of both dots as of both platforms.
+  expect(says(1000, 1000, 1000)).toEqual({ at: 'between', last: A, next: B });
+});
+
+test('a Station no place on the map shows has no dot to go by, only where its platform is along the Trip', () => {
+  expect(whereabouts(ABC, 1950, 2, false, 100, () => Infinity)).toEqual({ at: 'arriving', next: B });
+  expect(whereabouts(ABC, 1000, 2, false, 100, () => Infinity)).toEqual({ at: 'between', last: A, next: B });
 });
 
 /** A Trip on a Line, calling at these Stations. */

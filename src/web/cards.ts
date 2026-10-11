@@ -1,4 +1,5 @@
-// What the cards work out from the days on the map and the engine's Trains: minutes to go, Nearby's rows, what a board's list is before the day's Trips have come (#379), how far along its Trip a followed Train is, and a board's Lines (#321), and the order the cards name Lines in (#399); and from alerts.json, the Alerts each shows (#342).
+// What the cards work out from the days on the map and the engine's Trains: minutes to go, Nearby's rows, what a board's list is before the day's Trips have come (#379), how far along its Trip a followed Train is and where it is by how it's drawn (#455), and a board's Lines (#321), and the order the cards name Lines in (#399); and from alerts.json, the Alerts each shows (#342).
+// Pure, with only types from the page's modules, as the measure of the card against the map (src/cardVsMap.ts) runs whereabouts() under Node.
 import type { Alert, Alerts, Call, Line, Trip, Words } from '../bundle.ts';
 import type { Pass } from '../engine.ts';
 import type { Language } from './i18n.ts';
@@ -72,6 +73,40 @@ export function progress(calls: Call[], dist: number, toLeave: number): { done: 
   if (on >= legs.length) return { done: length, length };
   return { done: sum(legs.slice(0, on)) + Math.min(Math.abs(dist - (calls[on]?.dist ?? dist)), legs[on] ?? 0), length };
 }
+
+/**
+ * Where a followed Train is by how it's drawn (#455), in the words a card says it in: `standing` at
+ * the first Station it has still to leave, where it stands at it; otherwise `arriving` at that Station
+ * while it's drawn within `reach` metres of it, `leaving` the Station it left last within as far after
+ * it, and `between` the two where it's neither. Given its Trip's calls, how far along its shape it's
+ * drawn, how many Stations it has still to leave, the one it stands at too, whether it stands at it,
+ * and how far its followed pill reaches either side of it, in metres (pillReach()), so that a card
+ * says arriving where the pill sits on the Station's dot. A Station is as far from it as the nearer of
+ * how far along its Trip it is and `dotAway`, how far it's drawn from the dot the map shows its place
+ * as: the middle of the place's Stations, so at an interchange not where a Line's own Trains stop, and
+ * the pill can be on it a hundred metres or more short of their platform. None where it has none left
+ * to leave. Where both are within reach, as on a leg shorter than twice it, it's arriving: the Station
+ * it runs on to is the one its card's time and countdown are for.
+ */
+export function whereabouts<C extends Pick<Call, 'dist'>>(
+  calls: C[],
+  dist: number,
+  toLeave: number,
+  standing: boolean,
+  reach: number,
+  dotAway: (call: C) => number = () => Infinity,
+): Whereabouts<C> | undefined {
+  const [next, last] = [calls[calls.length - toLeave], calls[calls.length - toLeave - 1]];
+  if (!next) return undefined;
+  if (standing) return { at: 'standing', next };
+  const away = (call: C) => Math.min(Math.abs(call.dist - dist), dotAway(call));
+  // Short of its first Station, which the engine draws no Train in, it can only be on its way there.
+  if (!last || away(next) <= reach) return { at: 'arriving', next };
+  return { at: away(last) <= reach ? 'leaving' : 'between', last, next };
+}
+
+/** Where a followed Train is, with the calls it's at or between: the Station it's arriving at or stands at is `next`, the one it's leaving `last`. */
+export type Whereabouts<C> = { at: 'arriving' | 'standing'; next: C } | { at: 'leaving' | 'between'; last: C; next: C };
 
 /** How Lines' names are put in order: digits as numbers, in English whatever the viewer's language, so that every device has the same order. */
 const NAMES = new Intl.Collator('en', { numeric: true });

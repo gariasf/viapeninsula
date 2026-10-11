@@ -6,7 +6,11 @@
 // onMap() is what it samples, from a copy of src/engine.ts with it exported.
 //
 // - `LIMIT=<seconds>` replays only that long, for a look;
-// - `ZOOM=<n>` is the zoom the followed pill's reach is worked out at (13, the follow zoom's floor);
+// - `ZOOM=<n>` is the zoom the followed pill's reach is worked out at (13, the follow zoom's floor),
+//   as the card works it out at the map's (pillReach(), which holds at the zoom its Line's Trains are
+//   pills from, below it);
+// - `STATIONS=1` counts each Station by its own coordinates, keyed by its place or else its name, as #352's note did
+//   (its sections 1 and 2), not as the places the map shows; the card goes by the place's dot either way (#455);
 // - the Networks' live traits are src/networks.ts's, as an older bundle's can differ or be missing.
 
 import { rmSync } from 'node:fs';
@@ -15,10 +19,11 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { gunzipSync } from 'node:zlib';
-import { DEGREE, type Bundle, type Station, type Trip } from './bundle.ts';
+import { DEGREE, pixelMetres, places, type Bundle, type Place, type Trip } from './bundle.ts';
 import { differences, type Moment, type Near } from './cardVsMap.ts';
 import type { Received } from './engine.ts';
 import { NETWORKS } from './networks.ts';
+import { ARROW_GAP, boxOf, FOLLOWED_TEXT, outlineOf, pillReach } from './web/pill.ts';
 
 // The engine with its onMap() exported: the replay's own answer for each Trip, and what it knows about it.
 const engineSource = await readFile(new URL('./engine.ts', import.meta.url), 'utf8');
@@ -42,17 +47,11 @@ const { onMap } = (await import(pathToFileURL(engineCopy).href)) as {
   onMap: (bundle: Bundle, at: number, received: Received[]) => { of: (trip: Trip) => OnMap | undefined };
 };
 
-const [PILL_TEXT, FOLLOWED_TEXT, PILL_PADDING, ARROW_GAP] = [10, 12, 2, 7];
 const zoom = Number(process.env.ZOOM ?? 13);
 /** How long ago a report can have been, in ms, for the card's `confirmed N s ago` to name the Station it pins the Train to as where it is. */
 const CONFIRMED = 30_000;
-/** Followed pill half-lengths along its track, in px, as main.ts's boxOf() has them, with the name's width as its fallback measure (6 px a letter at PILL_TEXT) has it. */
-const boxAcross = (kind: string, name: string) => {
-  const [w, across] = { commuter: [15, 9], regional: [12, 2] }[kind] ?? [15, 13];
-  return Math.max(w!, w! - across! + ((name.length * 6 * FOLLOWED_TEXT) / PILL_TEXT) + 2 * PILL_PADDING) / 2;
-};
-/** Metres a px is on the ground at a latitude, at the map's zoom, 512 px tiles. */
-const metresPerPx = (lat: number) => (40_075_016.686 / (512 * 2 ** zoom)) * Math.cos((lat * Math.PI) / 180);
+/** How many seconds a card's words can come back in, as a flap: the Train says one thing, another, and the first again within this many. */
+const FLAP = 10;
 
 type Counts = Record<string, number>;
 const results: Record<string, Record<string, { all: Counts; live: Counts }>> = {};
@@ -69,13 +68,22 @@ for (const dir of process.argv.slice(2)) {
   const t0 = received[0]?.at ?? 0;
   const t1 = Math.min(received.at(-1)?.at ?? 0, t0 + Number(process.env.LIMIT || Infinity) * 1000);
   if (Number.isNaN(t1)) throw new Error(`LIMIT=${process.env.LIMIT} isn't a number of seconds`);
-  const keyOf = new Map(bundle.stations.map((s) => [s.id, s.place ?? s.name]));
+  // The Stations as the map shows them: a place at the middle of its Stations, which the card names by (places()),
+  // or with STATIONS=1 each Station by its own coordinates, as #352's note had them.
+  const shown = places(bundle.stations);
+  const byStation = !!process.env.STATIONS;
+  const dots = byStation ? bundle.stations.map((s) => ({ key: s.place ?? s.name, lon: s.lon, lat: s.lat })) : shown.map((p) => ({ key: p.id, lon: p.lon, lat: p.lat }));
+  const keyOf = byStation ? new Map(bundle.stations.map((s) => [s.id, s.place ?? s.name])) : new Map(shown.flatMap((p) => p.stations.map((id): [string, string] => [id, p.id])));
+  // The dot the map draws each Station's place at, which the card goes by whichever of those it counts.
+  const placeOf = new Map(shown.flatMap((p) => p.stations.map((id): [string, Place] => [id, p])));
   const lineOf = new Map(bundle.lines.map((l) => [l.id, l]));
+  // The zoom each Network's Trains are drawn as pills from: round pills from zoom 10 where a track names none (main.ts's show()).
+  const pillZoomOf = new Map(bundle.networks.map((n) => [n.id, n.pillZoom]));
   const networkOf = (trip: Trip) => lineOf.get(trip.line)?.network ?? '';
-  // Stations by a grid of about 0.0045 degrees (500 m), to look for those near a Train.
+  // Places by a grid of about 0.0045 degrees (500 m), to look for those near a Train.
   const cell = (lon: number, lat: number) => `${Math.floor(lon / 0.0045)} ${Math.floor(lat / 0.0045)}`;
-  const grid = new Map<string, Station[]>();
-  for (const s of bundle.stations) grid.set(cell(s.lon, s.lat), [...(grid.get(cell(s.lon, s.lat)) ?? []), s]);
+  const grid = new Map<string, typeof dots>();
+  for (const p of dots) grid.set(cell(p.lon, p.lat), [...(grid.get(cell(p.lon, p.lat)) ?? []), p]);
   const nearTo = (lon: number, lat: number, radius: number): Near[] => {
     const [cx, cy] = [Math.floor(lon / 0.0045), Math.floor(lat / 0.0045)];
     const kx = DEGREE * Math.cos((lat * Math.PI) / 180);
@@ -84,9 +92,9 @@ for (const dir of process.argv.slice(2)) {
     const near: Near[] = [];
     for (let x = cx - sx; x <= cx + sx; x++) {
       for (let y = cy - sy; y <= cy + sy; y++) {
-        for (const s of grid.get(`${x} ${y}`) ?? []) {
-          const metres = Math.hypot((s.lon - lon) * kx, (s.lat - lat) * DEGREE);
-          if (metres <= radius) near.push({ key: s.place ?? s.name, metres });
+        for (const p of grid.get(`${x} ${y}`) ?? []) {
+          const metres = Math.hypot((p.lon - lon) * kx, (p.lat - lat) * DEGREE);
+          if (metres <= radius) near.push({ key: p.key, metres });
         }
       }
     }
@@ -96,6 +104,8 @@ for (const dir of process.argv.slice(2)) {
   const [from, to] = [(t0 - bundle.noonMinus12h) / 1000, (t1 - bundle.noonMinus12h) / 1000];
   const candidates = bundle.trips.filter((t) => (t.calls[0]?.arrival ?? Infinity) - 3600 <= to && (t.calls.at(-1)?.departure ?? -Infinity) + 4 * 3600 >= from);
   const was = new Map<string, number>();
+  // What each Train's card said in each of the last FLAP seconds, to count the words that come back.
+  let saying = new Map<string, string[]>();
   let stalled = new Map<string, number>();
   let heard = 0;
   for (let at = t0; at <= t1; at += 1000) {
@@ -103,6 +113,7 @@ for (const dir of process.argv.slice(2)) {
     const { of } = onMap(bundle, at, received.slice(0, heard));
     const now = new Map<string, number>();
     const stalling = new Map<string, number>();
+    const said = new Map<string, string[]>();
     for (const trip of candidates) {
       const o = of(trip);
       const { train } = o ?? {};
@@ -110,10 +121,18 @@ for (const dir of process.argv.slice(2)) {
       const network = networkOf(trip);
       const row = (found[network] ??= { all: {}, live: {} });
       const line = lineOf.get(trip.line);
-      const half = boxAcross(line?.kind ?? 'commuter', line?.name ?? '') * metresPerPx(train.lat);
+      // The followed pill's reach as the card has it: boxOf() with the name as wide as textWidth() has it with no canvas, 6 px a letter at PILL_TEXT.
+      const box = boxOf(outlineOf(line?.kind ?? 'commuter'), (line?.name.length ?? 0) * 6, FOLLOWED_TEXT);
+      const pillZoom = pillZoomOf.get(line?.network ?? '') ?? 10;
+      const half = pillReach(box, zoom, pillZoom, train.lat);
+      const arrowReach = half + ARROW_GAP * pixelMetres(Math.max(zoom, pillZoom), train.lat);
       // As the operator runs it: its calls as `o.calls` has them, one for one (cutTrip(), #346).
       const made = o.trip;
-      const calls = o.calls.map((c) => ({ ...c, key: keyOf.get(c.station) ?? c.station }));
+      const kx = DEGREE * Math.cos((train.lat * Math.PI) / 180);
+      const calls = o.calls.map((c) => {
+        const place = placeOf.get(c.station);
+        return { ...c, key: keyOf.get(c.station) ?? c.station, away: place ? Math.hypot((place.lon - train.lon) * kx, (place.lat - train.lat) * DEGREE) : Infinity };
+      });
       const position = o.said?.report.position as { near?: string } | undefined;
       const fresh = o.said?.confirmed !== undefined && bundle.noonMinus12h + o.now * 1000 - o.said.confirmed <= CONFIRMED;
       const pinned = train.live && fresh && typeof position?.near === 'string' ? made.calls.find((c) => c.station === position.near) : undefined;
@@ -126,8 +145,8 @@ for (const dir of process.argv.slice(2)) {
         dist: train.dist,
         calls,
         standing: !!train.standsAt,
-        near: nearTo(train.lon, train.lat, half + ARROW_GAP * metresPerPx(train.lat)),
-        reach: { pill: half, arrow: half + ARROW_GAP * metresPerPx(train.lat) },
+        near: nearTo(train.lon, train.lat, arrowReach),
+        reach: { pill: half, arrow: arrowReach },
         profile: o.profile,
         ...(pinned && { pin: { dist: pinned.dist, call: made.calls.indexOf(pinned) } }),
       };
@@ -139,7 +158,16 @@ for (const dir of process.argv.slice(2)) {
       const counts = [row.all, ...(train.live ? [row.live] : [])];
       const add = (key: string, n = 1) => counts.forEach((c) => (c[key] = (c[key] ?? 0) + n));
       add('seconds');
-      if (d.standingHeaderNext) add('standing');
+      if (d.says.at === 'standing') add('standing');
+      if (d.standingHeaderNext) add('1.standingHeaderNext');
+      // What the card says (#455): how long each of its words lasts, and how often they change and come straight back.
+      add(`w.${d.says.at}`);
+      const [words, lately] = [`${d.says.at} ${d.says.key}`, saying.get(trip.id)];
+      said.set(trip.id, [...(lately ?? []), words].slice(-FLAP));
+      if (lately && lately.at(-1) !== words) {
+        add('w.changes');
+        if (lately.slice(0, -1).includes(words)) add('w.flaps');
+      }
       if (d.atNextBeforeArriving) add('1.atNextBeforeArriving');
       if (d.at) add(`a.at.${d.at}`);
       if (d.pill) add(`2.pill.${d.pill}`);
@@ -179,6 +207,7 @@ for (const dir of process.argv.slice(2)) {
     }
     was.clear();
     for (const [id, dist] of now) was.set(id, dist);
+    saying = said;
     stalled = stalling;
   }
   console.error(`${dir}: ${Math.round((t1 - t0) / 1000)} s`);
