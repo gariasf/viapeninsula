@@ -2512,16 +2512,18 @@ function boardPanel(id: string, up: boolean): Panel | undefined {
   const now = Date.now();
   const mapNow = mapTime(now, received);
   const departures = bundle ? boardAt(bundle, now, received, place.stations, hidingClosures) : [];
+  const trips = tripsState(loaded, shownRegions, tripsFailed);
   // With none left today, the next day's first are to come; refreshDays() runs again within a minute if it's busy now.
+  // Not while its Trips are on their way, as it has none because they haven't come.
   const date = madridDate(new Date(mapNow));
-  if (bundle && !departures.length && emptyBoard !== date) {
+  if (bundle && trips !== 'coming' && !departures.length && emptyBoard !== date) {
     emptyBoard = date;
     refreshDays();
   }
   const shown = up ? departures : departures.slice(0, PEEK);
   // Neither rows nor "none" while the Trips of a region the map has loaded are on their way, as the bundle has the others' already
   // (#266): it can't tell that none are to come, and says that only once they've come or a file has failed to.
-  const list = boardList(tripsState(loaded, shownRegions, tripsFailed), departures.length);
+  const list = boardList(trips, departures.length);
   return {
     header: el(
       'header',
