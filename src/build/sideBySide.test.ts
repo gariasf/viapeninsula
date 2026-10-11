@@ -3,7 +3,7 @@ import { expect, test } from 'vitest';
 import { along, APART, atZoom, BANDS, beside, cutIn, DEGREE, drawnIn, GRAPH_BAND, inBand, LINK, onStroke, pieces, zones, pixelMetres, pointAt, SMOOTH, STRETCH, type Line, type Shape, type Stroke, type Track } from '../bundle.ts';
 import { measures } from './measures.ts';
 import { offset } from './offset.ts';
-import { KX, sharedTrack, sideBySide } from './sideBySide.ts';
+import { crossing, KX, sharedTrack, sideBySide } from './sideBySide.ts';
 
 // Track drawn in metres east (x) and north (y) of a point in Barcelona.
 const M = (6_371_008.8 * Math.PI) / 180; // metres in a degree of latitude
@@ -592,6 +592,64 @@ test("takes C10 across the node south-east of Madrid-Atocha without hooking back
   const { strokes, centrelines } = await sideBySide(lines, shapes);
   const found = measures({ shapes: [...shapes, ...centrelines], strokes, lines });
   expect(BANDS.map((zoom, band) => (band >= GRAPH_BAND ? found.hairpins[zoom] : 0))).toEqual(BANDS.map(() => 0));
+});
+
+test("closes a loop Line across the node it began at, where its last piece touches the Stretch it started on, as Sevilla's C4 does at Santa Justa (#353)", async () => {
+  // A runs along one track through a station and B only west of it, so that the Lines sit differently on
+  // the two Stretches either side. L begins 10 m west of the station, runs west, round a loop on a track of
+  // its own, and comes back from the east to end where it began: its last piece, 49 m, is on the Stretch it
+  // began on, and its Line's stroke goes from the one side to the other across the node by a curve.
+  const lines = [line('A', 'A', 'A_INV'), line('B', 'B', 'B_INV'), line('L', 'L')];
+  const shapes = [
+    straight('A', [-3000, 0], [3000, 0]),
+    straight('A_INV', [3000, 0], [-3000, 0]),
+    straight('B', [-3000, 0], [0, 0]),
+    straight('B_INV', [0, 0], [-3000, 0]),
+    straight('L', [-10, 0], [-3000, 0], [-3000, 400], [3000, 400], [3000, 0], [-10, 0]),
+  ];
+  const { strokes } = await sideBySide(lines, shapes);
+  // From zoom 10 on, the curve along the one centreline: from L's stroke east of the station to its stroke west of it.
+  const across = (band: number) => strokes.filter((s) => s.line === 'L' && s.band === band && s.shape.startsWith(LINK) && s.across?.length === 2 && s.across[0]?.[0] === s.across[1]?.[0]);
+  expect(BANDS.map((_, band) => (band >= GRAPH_BAND ? across(band).length : 1))).toEqual(BANDS.map(() => 1));
+});
+
+/** A Stretch along a centreline from one distance to another, as sideBySide() finds them, and a visit of a shape to one. */
+const stretch = (shape: string, from: number, to: number) => ({ steps: [{ line: -1, piece: 0, shape, way: 1, from, to }], lines: [] });
+const visit = (edge: number, first: number, last: number, length: number) => ({ edge, first, last, length, steps: [0, 1] as [number, number] });
+
+test('leaves out a shape\'s track round a node only where it follows the Stretch it left along one centreline, and left it beyond REACH from its end (#353)', () => {
+  // Two Stretches of one centreline, 0 to 1,000 and 1,000 to 2,000 m, and a bridge of its own, 145 m.
+  const found = [stretch('c0', 0, 1000), stretch('c0', 1000, 2000), stretch('c1', 0, 145)];
+  const [out, over, back] = [visit(1, 1900, 1250, 650), visit(2, 10, 135, 145), visit(0, 990, 20, 970)];
+  // Gone off the Stretch 250 m from its end, round on the bridge and onto the next: the bridge goes.
+  expect(crossing([out, over, back], found)).toEqual([out, back]);
+  // Gone off it 50 m from its end, as the Line goes off a junction onto a track beside it: it stays.
+  const near = visit(1, 1900, 1050, 850);
+  expect(crossing([near, over, back], found)).toEqual([near, over, back]);
+  // A Stretch of another centreline that happens to be the next one by number, which a spur is: it stays.
+  const spur = [stretch('c0', 0, 1000), stretch('c1', 0, 49)];
+  const [along, onto] = [visit(0, 900, 990, 90), visit(1, 24.5, 24.5, 49)];
+  expect(crossing([along, onto, along], spur)).toEqual([along, onto, along]);
+});
+
+test('leaves out the one piece a shape touches of the Stretch it goes on along, but not at its first or last visit, where its Line ends (#353)', () => {
+  const found = [stretch('c0', 0, 1000), stretch('c0', 1000, 2000)];
+  const [touch, on] = [visit(1, 1020, 1020, 47), visit(0, 990, 20, 970)];
+  // Between two visits, the piece is left out; a visit of that one place as long as SHORT or more, going out and back on it, is not.
+  expect(crossing([visit(1, 1900, 1100, 800), touch, on], found)).toEqual([visit(1, 1900, 1100, 800), on]);
+  const dwell = visit(1, 1020, 1020, 200);
+  expect(crossing([visit(1, 1900, 1100, 800), dwell, on], found)).toEqual([visit(1, 1900, 1100, 800), dwell, on]);
+  // First or last of the shape, it's kept, as at the station a loop Line begins and ends at.
+  expect(crossing([on, touch], found)).toEqual([on, touch]);
+  expect(crossing([touch, on], found)).toEqual([touch, on]);
+});
+
+test("draws the bands below zoom 10 on graphs of their own with every visit of each shape, as SHORT's metres are no measure of a line width there (#353)", async () => {
+  // C10's 49 m touch of the Stretch beyond, left out of its shape's visits there too, would take six strokes
+  // of the 79 away in each of zoom 7 to 9, and move other Lines' with them.
+  const { lines, shapes } = JSON.parse(readFileSync(new URL('fixtures/atocha.json', import.meta.url), 'utf8')) as Pick<Track, 'lines' | 'shapes'>;
+  const { strokes } = await sideBySide(lines, shapes);
+  expect(BANDS.slice(0, GRAPH_BAND).map((_, band) => strokes.filter((s) => s.band === band).length)).toEqual([79, 79, 79]);
 });
 
 test('ends Lines that end together at one point across their Stretch', async () => {

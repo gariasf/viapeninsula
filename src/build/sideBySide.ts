@@ -411,15 +411,17 @@ function visits(shape: Step[], pieces: Piece[], drawer: number[], edgeOf: Map<nu
  * it comes onto the centreline's; and those under SHORT between two on Stretches that follow one another,
  * where it left the first further than REACH from its end, which are a track of its own round the node, as
  * the westbound track of a double track has on a bridge. A join to either runs back onto the Stretch the
- * shape doesn't go along, which hooks, or leaves the track round the node with an end in the air.
+ * shape doesn't go along, which hooks, or leaves the track round the node with an end in the air. Not the
+ * first or last, where the shape's Line ends: a loop Line, as Sevilla's C4, ends on the Stretch it began
+ * on, and without its join there it would close at the node with a step from one side to the other.
  */
-function crossing(all: Visit[], found: Stretch[]): Visit[] {
+export function crossing(all: Visit[], found: Stretch[]): Visit[] {
   /** Whether b is on the Stretch past the end of a's that its shape goes out at, along the same centreline. */
   const follows = (a: Visit, b?: Visit): boolean => {
     const next = a.edge + (end(a, found, false) ? 1 : -1);
     return b?.edge === next && found[next]?.steps[0]?.shape === found[a.edge]?.steps[0]?.shape;
   };
-  const touch = (v: Visit, i: number) => v.first === v.last && v.length < SHORT && (follows(v, all[i + 1]) || follows(v, all[i - 1]));
+  const touch = (v: Visit, i: number) => i > 0 && i < all.length - 1 && v.first === v.last && v.length < SHORT && (follows(v, all[i + 1]) || follows(v, all[i - 1]));
   const kept = all.filter((v, i) => !touch(v, i));
   for (let i = 1; i < kept.length - 1; i++) {
     let j = i;
