@@ -552,7 +552,7 @@ function curves(joins: Join[], found: Stretch[], onStretch: Map<string, Stroke[]
      * starts, the first looked for only up to the second, so that the chain doesn't turn back along it.
      * Where a hidden stroke runs on beside the next leg, past where that starts, as C4's does at
      * Madrid-Atocha, the chain would run to its end and back, and so would its curve (#311). Either end,
-     * as the legs are kept whichever way round sorts first (across()).
+     * as the legs are kept whichever way round has its strokes' numbers first (across()).
      */
     const spans = (legs: Leg[]): [on: number, off: number][] => {
       const spanned: [number, number][] = [];
