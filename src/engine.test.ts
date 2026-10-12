@@ -7,7 +7,7 @@ import { stationsOf } from './build/track.ts';
 import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, unavailable, type Received, type ShownClosure } from './engine.ts';
 import { jumps } from './jumps.ts';
 import { NETWORKS } from './networks.ts';
-import { countdownTo, minutesTo, passedPlace, whereabouts } from './web/cards.ts';
+import { countdownTo, due, minutesTo, passedPlace, whereabouts } from './web/cards.ts';
 
 /** A speed profile like Rodalies', in metres and seconds, which the times below are worked out from. */
 const PROFILE = { acceleration: 1, braking: 1, topSpeed: 160 / 3.6, dwell: 30 };
@@ -816,6 +816,27 @@ test("a followed Train's countdown in seconds counts by the map's time to its ne
     // By the device's own clock it's hours out: now, or no minutes within the hour.
     expect(countdown(at('21:55:20', off), received, (m) => m)).not.toEqual(right);
   }
+});
+
+test("a followed Train standing at its Trip's last Station is expected there when it arrived, running its Delay late, with no countdown to the dwell's end the engine makes up, and counted down to on its way in (#607)", () => {
+  // Made up: Renfe has the R2S a minute late on the way to Barcelona Estació de França, its last Station, due at 22:51:00: it's there from 22:52:00,
+  // and stays on the map to 22:52:30, as its profile's dwell has it, which is the `departure` the engine gives that call.
+  const received = [late(R2S, 60, at('22:50:00'))];
+  const card = (moment: number, trip = R2S, bundle = BUNDLE, got = received) => {
+    const f = followed(trip, moment, got, bundle);
+    return f && { ...f, due: due(f.upcoming[0] ?? { arrival: NaN, departure: NaN }, !!f.standsAt, f.upcoming.length === 1) };
+  };
+  const standing = card(at('22:52:10'));
+  expect(standing).toMatchObject({ standsAt: 'Barcelona Estació de França', upcoming: [{ station: 'Barcelona Estació de França', arrival: at('22:52:00'), departure: at('22:52:30') }] });
+  expect(standing?.due).toEqual({ at: at('22:52:00'), countdown: false });
+  // Before it gets there, as at any Station: its arrival, and a countdown to it.
+  expect(card(at('22:51:40'))).toMatchObject({ standsAt: undefined, due: { at: at('22:52:00'), countdown: true } });
+  // Standing at a Station before its last, it's expected when it leaves, as ever: Vilanova i la Geltrú, from 21:49:00 to 21:50:00.
+  expect(card(at('21:49:30'))).toMatchObject({ standsAt: 'Vilanova i la Geltrú', due: { at: at('21:50:00'), countdown: true } });
+  // Its last Station is the last of its calls, not the last Station it calls at: R11 calls at Portbou on its way to Cerbère and again on its way back.
+  const R11 = 'rodalies:5165J15900R11';
+  expect(card(at('08:51:30'), R11)).toMatchObject({ standsAt: 'Portbou', due: { at: at('08:52:00'), countdown: true } });
+  expect(card(at('09:08:10'), R11)).toMatchObject({ standsAt: 'Portbou', upcoming: [{ arrival: at('09:08:00'), departure: at('09:08:30') }], due: { at: at('09:08:00'), countdown: false } });
 });
 
 test("a followed Train easing towards where live data has it runs as late as live data says, and is expected at its Stations that late", () => {

@@ -4,7 +4,7 @@ import { expect, test } from 'vitest';
 import { DEGREE, type Alert, type AlertFeed, type Alerts, type Bundle, type Call, type Line, type Trip } from '../bundle.ts';
 import type { Pass } from '../engine.ts';
 import { ALERTS_START, readAlerts } from '../fetcher/alerts.ts';
-import { ago, boardAsks, boardList, cardAlerts, countdownTo, inNameOrder, linesCallingAt, linesOnBoard, linkedWords, minutesTo, nearbyRows, nextOnItsWay, passedPlace, progress, tripsState, untilTick, whereabouts, type Part } from './cards.ts';
+import { ago, boardAsks, boardList, cardAlerts, countdownTo, due, inNameOrder, linesCallingAt, linesOnBoard, linkedWords, minutesTo, nearbyRows, nextOnItsWay, passedPlace, progress, tripsState, untilTick, whereabouts, type Part } from './cards.ts';
 
 /** A time of day in Barcelona on Wednesday 7 Oct 2026, in summer time, in ms since 1970. */
 const at = (hours: number, minutes: number, seconds = 0) => Date.UTC(2026, 9, 7, hours - 2, minutes, seconds);
@@ -95,6 +95,18 @@ test("a countdown that reads now has no second to end, so its card is refreshed 
   expect(untilTick(NOW - 2 ** -12, NOW)).toBe(1_000);
   expect(countdownTo(NOW + 2 ** -12, NOW)).toEqual({ n: 0, unit: 'seconds' });
   expect(countdownTo(NOW + 0.4, NOW)).toEqual({ n: 0, unit: 'seconds' });
+});
+
+test("a followed Train is expected at the Station it comes to when it arrives there, and at the one it stands at when it leaves, with a countdown to either (#607)", () => {
+  const call = { arrival: at(8, 14), departure: at(8, 14, 30) };
+  expect(due(call, false, false)).toEqual({ at: at(8, 14), countdown: true });
+  expect(due(call, true, false)).toEqual({ at: at(8, 14, 30), countdown: true });
+  expect(due(call, false, true)).toEqual({ at: at(8, 14), countdown: true });
+});
+
+test("a followed Train standing at its Trip's last Station is expected there when it arrived, with no countdown: it doesn't leave there, and the dwell the engine makes up isn't a time it goes at (#607)", () => {
+  const call = { arrival: at(8, 14), departure: at(8, 14, 30) };
+  expect(due(call, true, true)).toEqual({ at: at(8, 14), countdown: false });
 });
 
 test("how long ago live data placed a Train is to the second under a minute and to the minute after, each number joined to its unit by a no-break space so that a line never ends between them (#612)", () => {

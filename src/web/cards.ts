@@ -44,6 +44,17 @@ export function untilTick(at: number, now: number): number {
 }
 
 /**
+ * When a followed Train is expected at a Station it has still to come to, in ms since 1970, and whether the card
+ * counts down to it: when it arrives at the one it's coming to, and when it leaves the one it `standing` at, which
+ * it counts down to as well. Not at its Trip's last Station, `ends`: the Train doesn't leave there, and the
+ * `departure` it's given is the dwell the engine makes up for it to stay on the map, so it's when it arrived, with no
+ * countdown (#607). A Station it calls at again later, as a Line that turns back does, isn't its last.
+ */
+export function due({ arrival, departure }: { arrival: number; departure: number }, standing: boolean, ends: boolean): { at: number; countdown: boolean } {
+  return standing && !ends ? { at: departure, countdown: true } : { at: arrival, countdown: !standing };
+}
+
+/**
  * How long ago live data placed a Train, `ms` before: to the second under a minute and to the minute after, as
  * `confirmed 12 s ago` and `last confirmed 3 min ago` say it. Its number and unit are joined by a no-break space
  * (U+00A0), as toGo()'s are, so that a line of the status line never ends between them (#612).
