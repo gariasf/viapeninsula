@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { createExpression, latest, type ExpressionSpecification, type Feature, type StylePropertySpecification } from '@maplibre/maplibre-gl-style-spec';
 import { afterEach, expect, test, vi } from 'vitest';
-import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, earlierStations, followDeparture, LANGUAGES, leavesAt, leavingStation, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, notRunning, passingStation, pickLanguage, t, toGo, trainCounts, trainsRunHere, unlocated } from './i18n.ts';
+import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, earlierStations, followDeparture, LANGUAGES, leavesAt, leavingStation, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, notRunning, passingStation, pickLanguage, t, toGo, trainCounts, trainsRunHere, unlocated } from './i18n.ts';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -132,6 +132,32 @@ test("labels the tab bar, its tabs and Search's close button in each language (#
   expect(strings('en')).toEqual(['Main', 'Search', 'Nearby', 'Now', 'Favourites', 'Close search']);
   expect(strings('eu')).toEqual(['Nagusia', 'Bilatu', 'Inguruan', 'Orain', 'Gogokoak', 'Itxi bilaketa']);
   expect(strings('gl')).toEqual(['Principal', 'Buscar', 'Preto', 'Agora', 'Favoritos', 'Pechar a busca']);
+});
+
+test("labels Search's field, says what it finds and that Train numbers are Renfe's only, of the parts of the map loaded, and names its sections, in each language (#471)", () => {
+  const strings = (lang: Language) => [t('searchPlaceholder', lang), t('searchLabel', lang), t('clearSearch', lang), t('find', lang), t('aStation', lang), t('aTrainNumber', lang), t('renfeOnly', lang), t('stations', lang), t('trainNumbers', lang)];
+  expect(strings('ca')).toEqual(['Estació o número de tren', 'Cerca una estació o un número de tren', 'Esborra la cerca', 'Troba', 'Una estació', 'Un número de tren', "Només trens de Renfe, de les zones del mapa ja carregades: cap d'FGC, del TRAM ni del metro no en té", 'Estacions', 'Números de tren']);
+  expect(strings('es')).toEqual(['Estación o número de tren', 'Buscar una estación o un número de tren', 'Borrar la búsqueda', 'Encuentra', 'Una estación', 'Un número de tren', 'Solo trenes de Renfe, de las zonas del mapa ya cargadas: ninguno de FGC, del TRAM ni del metro tiene', 'Estaciones', 'Números de tren']);
+  expect(strings('en')).toEqual(['Station or train number', 'Search for a station or a train number', 'Clear the search', 'Find', 'A station', 'A train number', "Renfe's trains only, in the parts of the map loaded so far: none of FGC, TRAM or the Metro has one", 'Stations', 'Train numbers']);
+  expect(strings('eu')).toEqual(['Geltokia edo tren-zenbakia', 'Bilatu geltoki bat edo tren-zenbaki bat', 'Ezabatu bilaketa', 'Aurkitu', 'Geltoki bat', 'Tren-zenbaki bat', 'Renferen trenak bakarrik, maparen kargatutako eremuetakoak: FGC, TRAM eta metroko trenek ez dute zenbakirik', 'Geltokiak', 'Tren-zenbakiak']);
+  expect(strings('gl')).toEqual(['Estación ou número de tren', 'Buscar unha estación ou un número de tren', 'Borrar a busca', 'Atopa', 'Unha estación', 'Un número de tren', 'Só trens de Renfe, das zonas do mapa xa cargadas: ningún de FGC, do TRAM nin do metro ten', 'Estacións', 'Números de tren']);
+});
+
+test("says what Search found nothing for, how many more Train numbers it found than it shows, and each Train number's row, in each language (#471)", () => {
+  const rows = (lang: Language) => [
+    t('nothingFound', lang).replace('{query}', 'xyz'),
+    moreNumbers(27, '774', lang),
+    moreNumbers(1, '774', lang),
+    t('trainTo', lang).replace('{number}', '77428').replace('{headsign}', 'Manresa'),
+    t('nextAt', lang).replace('{station}', 'Manresa').replace('{time}', '15:16'),
+    t('leavesAt', lang).replace('{station}', 'Barcelona-Sants').replace('{time}', '15:16'),
+    t('endedAt', lang).replace('{time}', '15:16'),
+  ];
+  expect(rows('ca')).toEqual(["No s'ha trobat res per a «xyz».", '27 més amb un número que comença per 774', '1 més amb un número que comença per 774', '77428 cap a Manresa', 'propera: Manresa, 15:16', 'Surt de Barcelona-Sants a les 15:16', 'Ha acabat a les 15:16']);
+  expect(rows('es')).toEqual(['No se ha encontrado nada para «xyz».', '27 más con un número que empieza por 774', '1 más con un número que empieza por 774', '77428 hacia Manresa', 'próxima: Manresa, 15:16', 'Sale de Barcelona-Sants a las 15:16', 'Terminó a las 15:16']);
+  expect(rows('en')).toEqual(['Nothing found for “xyz”.', '27 more with a number starting 774', '1 more with a number starting 774', '77428 to Manresa', 'next Manresa, 15:16', 'Leaves Barcelona-Sants at 15:16', 'Ended at 15:16']);
+  expect(rows('eu')).toEqual(['Ez da ezer aurkitu «xyz» bilaketarako.', 'Beste 27, 774 hasierako zenbakiarekin', 'Beste bat, 774 hasierako zenbakiarekin', '77428, Manresa aldera', 'hurrengoa: Manresa, 15:16', 'Barcelona-Sants geltokitik irtengo da, 15:16', 'Amaitu da: 15:16']);
+  expect(rows('gl')).toEqual(['Non se atopou nada para «xyz».', '27 máis cun número que comeza por 774', '1 máis cun número que comeza por 774', '77428 cara a Manresa', 'próxima: Manresa, 15:16', 'Sae de Barcelona-Sants ás 15:16', 'Rematou ás 15:16']);
 });
 
 test('labels the button that follows a random Train in each language', () => {
