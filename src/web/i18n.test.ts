@@ -472,6 +472,16 @@ test("writes a Station's name in Catalan after a, de and per as Catalan does: El
   expect(leavingStation('El Maresme | Fòrum', 'ca')).toBe('Sortint del Maresme | Fòrum');
 });
 
+test("doesn't elide de before an i or u that's a semivowel, with an h or not, as Catalan writes \"de Huelva\" (#606)", () => {
+  for (const name of ['Huelva', 'Huesca', 'Huercal-Viator']) expect(leavingStation(name, 'ca')).toBe(`Sortint de ${name}`);
+  // The IEC's own example of an i (a place's name, not a Station's of the bundle).
+  expect(leavingStation('Ialta', 'ca')).toBe('Sortint de Ialta');
+  // An i or u that's a vowel, before a consonant, elides as any other vowel does.
+  expect(leavingStation('Humanes', 'ca')).toBe("Sortint d'Humanes");
+  expect(leavingStation('Irun', 'ca')).toBe("Sortint d'Irun");
+  expect(leavingStation('Urgell', 'ca')).toBe("Sortint d'Urgell");
+});
+
 test("writes La, Les and L' as they stand in Catalan, as the ticket has them: \"a la\", \"de la\" and \"a l'\" are written so already (#606)", () => {
   for (const name of ['La Garriga', 'La Pobla de Segur', 'Les Borges Blanques', 'Les Corts', "L'Hospitalet de Llobregat", "L'Aldea-Amposta-Tortosa", "L'Arboç"]) {
     expect(arrivingAt(name, 'ca')).toBe(`Arribant a ${name}`);

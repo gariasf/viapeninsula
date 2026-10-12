@@ -394,8 +394,12 @@ const CONTRACTED: Partial<Record<Language, Record<string, Record<string, string>
   },
 };
 
-/** Whether a name or the rest of one starts with a vowel or an h, which Catalan's de and el elide before: "d'Arenys de Mar", "d'Hostalric", "l'Escorial". */
-const elides = (name: string): boolean => /^h?[aeiou]/i.test(name.normalize('NFD'));
+/**
+ * Whether a name or the rest of one starts with a vowel or an h, which Catalan's de and el elide before:
+ * "d'Arenys de Mar", "d'Hostalric", "l'Escorial". Not an i or u that's a semivowel, before another vowel,
+ * with an h or not: "de Huelva", "de Ialta" (the IEC's Ortografia catalana, 4.1.2d).
+ */
+const elides = (name: string): boolean => /^h?(?![iu][aeiou])[aeiou]/i.test(name.normalize('NFD'));
 
 /**
  * `text` with `name`, a Station's name, a place's or a headsign, where its `slot` is, in `lang`: as it's
