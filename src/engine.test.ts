@@ -2140,16 +2140,22 @@ function renfeRead(moment: number, reports: Report[]): Received {
   return { snapshot: { generated: moment, feeds, reports }, at: moment };
 }
 
+/** Renfe's long-distance report of 30550 at a moment, its GPS where `trip`'s timetable has its Train at another, in `SHARED`. */
+const at30550 = (trip: string, timetabled: number, moment: number): Report => {
+  const [lon, lat] = pointAt(SHARED.shapes.find((s) => s.id === trip) as Shape, where(trip, timetabled, [], SHARED) ?? NaN);
+  return { number: '30550', at: moment, position: { lon, lat } };
+};
+
 test("a report naming a Train number is about that number's Trip, in any Network, that runs nearest when it was reported", () => {
-  // Renfe says 30550 is 2 minutes late at 11:25: the C1's Train, running then, not the R15's, due out of Quinto at 11:56.
-  const early = [renfeRead(at('11:25:00'), [{ number: '30550', at: at('11:25:00'), delay: 120 }])];
-  expect(trainAt(SHARED, at('11:25:10'), early, C1)?.delay).toBe(120);
-  expect(boardAt(SHARED, at('11:25:10'), early, ['Quinto'])).toMatchObject([{ trip: { id: R15 }, delay: 0 }]);
-  // And 3 minutes late at 11:50, between the two: the R15's, which leaves Quinto 6 minutes after, where the C1's ended 18 minutes before.
-  const later = [renfeRead(at('11:50:00'), [{ number: '30550', at: at('11:50:00'), delay: 180 }])];
-  expect(boardAt(SHARED, at('11:50:10'), later, ['Quinto'])).toMatchObject([{ trip: { id: R15 }, delay: 180, departure: at('11:59:00') }]);
-  expect(where(R15, at('11:59:00'), later, SHARED)).toBe(0);
-  expect(where(R15, at('11:59:01'), later, SHARED)).toBeGreaterThan(0);
+  // Renfe's GPS has 30550 where the C1's timetable has it 2 minutes before 11:25: the C1's Train, running then, not the R15's, due out of Quinto at 11:56.
+  const early = [renfeRead(at('11:25:00'), [at30550(C1, at('11:23:00'), at('11:25:00'))])];
+  expect(trainAt(SHARED, at('11:25:10'), early, C1)).toMatchObject({ live: true });
+  expect(trainAt(SHARED, at('11:25:10'), early, C1)?.delay).toBeCloseTo(120, 0);
+  expect(boardAt(SHARED, at('11:25:10'), early, ['Quinto'])).toMatchObject([{ trip: { id: R15 }, delay: 0, live: false }]);
+  // And where the R15's has it 3 minutes before 12:00: the R15's, which left Quinto 4 minutes before, where the C1's ended 28 minutes before.
+  const later = [renfeRead(at('12:00:00'), [at30550(R15, at('11:57:00'), at('12:00:00'))])];
+  expect(trainAt(SHARED, at('12:00:10'), later, R15)).toMatchObject({ live: true });
+  expect(trainAt(SHARED, at('12:00:10'), later, R15)?.delay).toBeCloseTo(180, 0);
 });
 
 /** The Trips of `BUNDLE`, the R2S with its Train number, as its trip_id gives it. */
@@ -2176,18 +2182,126 @@ test("a Train both its Network's own feed and Renfe's long-distance one report i
   }
 });
 
-test("a Train whose long-distance GPS is off its Trip's track, on another part of its run, runs as late as Renfe says, not where that GPS is nearest its track", () => {
+test("a Train whose long-distance GPS is off its Trip's track, on another part of its run, is drawn as without that report, not where that GPS is nearest its track, nor as late as Renfe says (#442)", () => {
   // As R16 18093 at 13:48 on 10 October 2026, whose Trip had ended at L'Aldea at 12:31: its GPS near
   // Orpesa, 70 km on, came nearest its track before L'Aldea, and drew it there 83 minutes late. Made
   // up: Renfe's long-distance GPS has the R2S 30 km out to sea from between Sitges and Castelldefels,
-  // and Renfe says it's 2 minutes late.
+  // and Renfe says it's 2 minutes late, against its long-distance timetable, which a Rodalies Trip of
+  // its number can run apart from, as R15 17050's did on 10 October 2026.
   const [lon, lat] = offTrack(MIDWAY, 30_000);
   const received = [renfeRead(at('22:00:00'), [{ number: '25478', at: at('22:00:00'), position: { lon, lat }, delay: 120 }])];
-  expect(where(R2S, at('22:00:10'), received, NUMBERED)).toBeCloseTo(where(R2S, at('21:58:10')) ?? NaN, 3);
+  expect(train(R2S, at('22:00:10'), received, NUMBERED)).toMatchObject({ live: false, dist: where(R2S, at('22:00:10')) });
+  expect(boardAt(NUMBERED, at('22:00:10'), received, ['Barcelona-Sants']).find((d) => d.trip.id === R2S)).toMatchObject({ delay: 0, live: false });
   // Within a kilometre of its track, it runs as late as its GPS has it, as any of Renfe's.
   const [onLon, onLat] = offTrack(MIDWAY, 500);
   const near = [renfeRead(at('22:00:00'), [{ number: '25478', at: at('22:00:00'), position: { lon: onLon, lat: onLat }, delay: 120 }])];
   expect(where(R2S, at('22:00:10'), near, NUMBERED)).toBeCloseTo(MIDWAY + (where(R2S, at('22:00:10')) ?? NaN) - (where(R2S, at('22:00:00')) ?? NaN), -1);
+});
+
+/** `NUMBERED` with AVE y Larga Distancia's Network, whose live data names Trains by number, as a page has it once long distance's region has come. */
+const WITH_LD: Bundle = { ...NUMBERED, networks: [...NUMBERED.networks, { ...(NUMBERED.networks[0] as Network), id: 'ave-larga-distancia', name: 'AVE y Larga Distancia', live: liveOf('ave-larga-distancia') }] };
+
+/**
+ * A snapshot written and received at a moment, with these reports, Renfe's Cercanías feed, read every
+ * 20 s, last read at one moment, and its long-distance one, read every 40 s, at another, each failing since.
+ */
+function renfeSince(moment: number, reports: Report[], cercanias: number, ld: number): Received {
+  const read = (last: number, every: number) => ({ lastSuccess: last, lastAttempt: moment, status: last === moment ? 'ok' : 'HTTP 503', every });
+  return { snapshot: { generated: moment, feeds: { rodalies: read(cercanias, 20_000), 'ave-larga-distancia': read(ld, 40_000) }, reports }, at: moment };
+}
+
+/** Renfe's long-distance report of the R2S, by its number, at a moment, its GPS where its timetable has it so many seconds before, and Renfe's own figure. */
+const by25478 = (moment: number, late: number, delay?: number): Report => {
+  const [lon, lat] = pointAt(BUNDLE.shapes.find((s) => s.id === R2S) as Shape, where(R2S, moment - late * 1000) ?? NaN);
+  return { number: '25478', at: moment, position: { lon, lat }, delay };
+};
+
+test("a Train only a report by its number places is Live within three of Renfe's long-distance feed's updates, 120 s, not three of its own Network's, 60 s (#425)", () => {
+  // Renfe's long-distance GPS has the R2S 30 s late at 22:00, and then not, both feeds read on time.
+  const received = [renfeRead(at('22:00:00'), [by25478(at('22:00:00'), 30)]), ...[20, 40, 60, 80, 100, 120, 140].map((s) => renfeRead(at('22:00:00', s), []))];
+  const live = (moment: number) => train(R2S, moment, received, WITH_LD)?.live;
+  expect([at('22:00:50'), at('22:01:10'), at('22:01:50'), at('22:02:10')].map(live)).toEqual([true, true, true, false]);
+  // Before long distance's region has come, the page has no Network that names Trains by number: it goes by its Trip's Network's then.
+  expect([at('22:00:50'), at('22:01:10')].map((moment) => train(R2S, moment, received, NUMBERED)?.live)).toEqual([true, false]);
+});
+
+test("through Renfe's long-distance feed failing, with its Cercanías one working, a Train only its reports placed turns Scheduled within 120 s, and drops its Delay after 30 minutes, never taking Renfe's stale figure (#425)", () => {
+  // As #261's simulation of R15 15010: Renfe's long-distance GPS has the R2S 116 s late at 22:00, where
+  // Renfe says 600. Then that feed fails, and the fetcher keeps its last report in each snapshot, every 20 s.
+  const last = by25478(at('22:00:00'), 116, 600);
+  const received = Array.from({ length: 34 * 3 }, (_, i) => renfeSince(at('22:00:00', i * 20), [last], at('22:00:00', i * 20), at('22:00:00')));
+  const drawn = (moment: number) => train(R2S, moment, received, WITH_LD);
+  expect(drawn(at('22:01:50'))).toMatchObject({ live: true });
+  expect(drawn(at('22:02:00'))).toMatchObject({ live: false });
+  // Its GPS Delay all the while, never Renfe's 600 s, and then none, back on its timetable.
+  for (const moment of [at('22:10:00'), at('22:29:50')]) expect(drawn(moment)?.dist).toBeCloseTo(where(R2S, moment - 116_000) ?? NaN, -1);
+  for (const moment of [at('22:30:30'), at('22:33:00')]) expect(drawn(moment)?.dist).toBeCloseTo(where(R2S, moment) ?? NaN, 3);
+  expect(trainAt(WITH_LD, at('22:33:00'), by(received, at('22:33:00')), R2S)?.delay).toBe(0);
+});
+
+test("a Train whose long-distance GPS holds for over 30 minutes, its feed working, is drawn as without those reports once its last GPS Delay has run out, never by Renfe's figure (#442)", () => {
+  // Renfe's long-distance GPS has the R2S 116 s late at 22:00, and at the same spot every 40 s after, where Renfe says 1,800.
+  const first = by25478(at('22:00:00'), 116, 1800);
+  const received = Array.from({ length: 60 }, (_, i) => renfeSince(at('22:00:00', i * 40), [{ ...first, at: at('22:00:00', i * 40) }], at('22:00:00', i * 40), at('22:00:00', i * 40)));
+  const alone = received.map((r, i) => (i === 0 ? r : { ...r, snapshot: { ...r.snapshot, reports: [] } }));
+  for (const moment of [at('22:01:00'), at('22:10:00'), at('22:29:50'), at('22:31:00'), at('22:39:00')]) {
+    const [held, without] = [train(R2S, moment, received, WITH_LD), train(R2S, moment, alone, WITH_LD)];
+    expect([held?.live, held?.dist]).toEqual([without?.live, without?.dist]);
+  }
+  expect(train(R2S, at('22:39:00'), received, WITH_LD)?.dist).toBeCloseTo(where(R2S, at('22:39:00')) ?? NaN, 3);
+});
+
+test("through Renfe's Cercanías feed failing, with its long-distance one working, a Train its long-distance reports place stays Live, as R16 18127 (#425)", () => {
+  // Renfe's long-distance GPS has the R2S on time every 40 s from 22:00, its Cercanías feed failing from 21:59.
+  const received = Array.from({ length: 12 }, (_, i) => {
+    const moment = at('22:00:00', i * 20);
+    const ld = at('22:00:00', Math.floor(i / 2) * 40);
+    return renfeSince(moment, [by25478(ld, 0)], at('21:59:00'), ld);
+  });
+  for (const s of [30, 90, 150, 230]) expect(train(R2S, at('22:00:00', s), received, WITH_LD)).toMatchObject({ live: true });
+});
+
+// Rodalies' R15 17050 of 10 October 2026, Reus 15:06 to Barcelona Estació de França 16:54, as its
+// timetable that day had it, its track as the build traced it then, cut to within 10 km of its Trip, and
+// the live snapshots of 15:26–15:29 and 15:34–15:38 CEST, received as written, cut to Renfe's
+// long-distance report of 17050 and the feeds' freshness. Renfe's long-distance timetable runs the same
+// Train 30 minutes later, from Zaragoza Delicias at 11:21, and leaves Reus at 15:36 (#442).
+const R15_17050: { bundle: Bundle; received: Received[] } = JSON.parse(gunzipSync(readFileSync(new URL('fixtures/replay-2026-10-10-r15-17050.json.gz', import.meta.url))).toString());
+
+test("R15 17050, whose long-distance GPS measured no Delay from 15:26 to 15:37 on 10 October 2026, coming in to Reus and standing there, is drawn as without those reports, not Live 20–25 km ahead by Renfe's figure, until its GPS measures a Delay, about 31 minutes late (#442)", () => {
+  const { bundle, received } = R15_17050;
+  const id = 'rodalies:5181S17050R15';
+  const kept = (moment: number) => received.filter((r) => r.at <= moment);
+  const drawn = (moment: number) => trainsAt(bundle, moment, kept(moment)).find((t) => t.trip.id === id);
+  const shown = (moment: number, got: Received[]) => boardAt(bundle, moment, got, ['adif:71400', 'adif:71500', 'adif:71502']).map((d) => [d.trip.id, d.departure, d.delay, d.live]);
+  // Each snapshot until 15:37:13 has its GPS 3–7 km west of Reus, off its Trip's track, or standing at Reus, where it hasn't left.
+  const before = received.filter((r) => r.at < Date.parse('2026-10-10T15:37:00+02:00'));
+  expect(before).toHaveLength(19);
+  for (const { at: moment } of before) {
+    for (const s of [5, 15]) {
+      const plain = trainsAt(bundle, moment + s * 1000, []).find((t) => t.trip.id === id);
+      expect(drawn(moment + s * 1000)).toMatchObject({ live: false, dist: plain?.dist });
+      expect(shown(moment + s * 1000, kept(moment + s * 1000))).toEqual(shown(moment + s * 1000, []));
+    }
+  }
+  // At 15:37:13 its GPS is on its track out of Reus: Live, about 31 minutes late, drawn within a kilometre of that GPS, about 29 km back.
+  const moment = Date.parse('2026-10-10T15:37:18+02:00');
+  const report = kept(moment).at(-1)?.snapshot.reports[0];
+  const gps = report?.position && 'lon' in report.position ? report.position : { lon: NaN, lat: NaN };
+  expect(drawn(moment)?.live).toBe(true);
+  expect(trainAt(bundle, moment, kept(moment), id)?.delay).toBeCloseTo(31 * 60, -2);
+  const [lon, lat] = pointAt(bundle.shapes[0] as Shape, drawn(moment)?.dist ?? NaN);
+  expect(Math.hypot((lon - gps.lon) * DEGREE * Math.cos((lat * Math.PI) / 180), (lat - gps.lat) * DEGREE)).toBeLessThan(1000);
+});
+
+test("an AVE y Larga Distancia Trip whose long-distance GPS is off its track, on a part of its run it doesn't cover, still runs as late as Renfe says, as Renfe's figure is against its own timetable (#442)", () => {
+  // Made up: the R2S is a Trip of AVE y Larga Distancia's, whose live data names Trains by number, and
+  // Renfe's long-distance GPS has it 30 km out to sea from between Sitges and Castelldefels, 2 minutes late.
+  const ld: Bundle = { ...NUMBERED, networks: NUMBERED.networks.map((n) => ({ ...n, live: liveOf('ave-larga-distancia') })) };
+  const [lon, lat] = offTrack(MIDWAY, 30_000);
+  const received = [renfeRead(at('22:00:00'), [{ number: '25478', at: at('22:00:00'), position: { lon, lat }, delay: 120 }])];
+  expect(train(R2S, at('22:00:10'), received, ld)).toMatchObject({ live: true });
+  expect(where(R2S, at('22:00:10'), received, ld)).toBeCloseTo(where(R2S, at('21:58:10')) ?? NaN, 3);
 });
 
 test("a Train Renfe's long-distance live data cancels by its Train number is drawn neither Live nor Scheduled, and boards show it cancelled", () => {
@@ -3066,7 +3180,7 @@ const RAINS: { bundle: Bundle; received: Received[] } = JSON.parse(gunzipSync(re
 function drawnWhereNotRun(received: Received[]) {
   const { bundle } = RAINS;
   const said = new Map<string, { stations: Set<string>; since: number }>();
-  for (const { trip, stations, since } of RAINS.received.flatMap((r) => r.snapshot.skipped ?? [])) {
+  for (const { trip = '', stations, since } of RAINS.received.flatMap((r) => r.snapshot.skipped ?? [])) {
     const before = said.get(trip);
     said.set(trip, { stations: new Set([...(before?.stations ?? []), ...stations]), since: Math.min(before?.since ?? Infinity, since) });
   }
@@ -3242,8 +3356,9 @@ test('a report for a Trip that runs on both days is about the Train running then
 });
 
 test("a report naming the Train number of a Trip that runs on both days is about the Train running then, as Renfe's long-distance trip_ids pick no day", () => {
-  // Made up: the night's Train is 25800, and Renfe says 25800 is 2 minutes late at 00:10.
-  const numbered = (day: Bundle) => ({ ...day, trips: day.trips.map((t) => (t.id === 'night' ? { ...t, number: '25800' } : t)) });
+  // Made up: the night's Train is 25800, of a Network whose live data names Trains by number, as long
+  // distance's does, so that Renfe's own figure goes for it (#442), and Renfe says 25800 is 2 minutes late at 00:10.
+  const numbered = (day: Bundle) => ({ ...day, networks: day.networks.map((n) => ({ ...n, live: liveOf('ave-larga-distancia') })), trips: day.trips.map((t) => (t.id === 'night' ? { ...t, number: '25800' } : t)) });
   const days = joinDays([numbered(FRIDAY), numbered(SATURDAY)]);
   const moment = onSaturday('00:10:00');
   const received = [{ snapshot: { ...written(moment), reports: [{ number: '25800', at: moment, delay: 120 }] }, at: moment }];

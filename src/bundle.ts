@@ -21,8 +21,10 @@ export interface Snapshot {
 
 /** A Trip's Stations its operator has said it won't stop at, where its trip updates list them SKIPPED (#346). */
 export interface Skipped {
-  /** Its Trip, as the bundle names it. */
-  trip: string;
+  /** Its Trip, as the bundle names it; or for a Train its operator names by any part of its run, none. */
+  trip?: string;
+  /** For a Train its operator names by any part of its run, as Renfe's long-distance live data does: its Train number, the union of every part's Stations (#426). */
+  number?: string;
   /** The Stations, by their IDs. */
   stations: string[];
   /** When its operator first said so of any of them, in ms since 1970: Renfe no longer lists a Station its timetable has left, skipped or not. */

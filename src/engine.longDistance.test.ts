@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { expect, test } from 'vitest';
 import { DEGREE, type Bundle, type LineProfile, type LiveTraits, type Network, type Report, type SpeedProfile } from './bundle.ts';
-import { trainsAt, unavailable, type Received } from './engine.ts';
+import { trainAt, trainsAt, unavailable, type Received } from './engine.ts';
 import { jumps } from './jumps.ts';
 import { AVE_LARGA_DISTANCIA, MEDIA_DISTANCIA_AVANT, type NetworkConfig } from './networks.ts';
 
@@ -288,6 +288,21 @@ test("a long-distance position that holds counts as none, so the Train neither s
   expect(Math.max(...stood)).toBeGreaterThan(7000);
 });
 
+test("a long-distance Train whose position holds stays Live for up to 5 minutes, drawn as it would be Scheduled, and then turns Scheduled, where a Rodalies one turns Scheduled at its feed's third update (#443, #33)", () => {
+  // GPS has the Train on time at 10:40:00, and at the same spot every 40 s for 6 minutes, where Renfe's figure grows a minute every 40 s.
+  const spot = (where(VIA_B, 'ave', at('10:40:00')) ?? NaN) / 1000;
+  const received = Array.from({ length: 10 }, (_, i) => heard(at('10:40:00', i * 40), [{ ...gps('ave', spot, at('10:40:00', i * 40)), delay: i * 60 }]));
+  const live = (bundle: Bundle, s: number) => trainsAt(bundle, at('10:40:00', s), received.filter((r) => r.at <= at('10:40:00', s))).find((t) => t.trip.id === 'ave')?.live;
+  // Scheduled once the device has its feed's update 5 minutes after the first that gave it, at 10:45:20.
+  expect([60, 150, 240, 299, 319, 320, 330, 400].map((s) => live(VIA_B, s))).toEqual([true, true, true, true, true, false, false, false]);
+  // Its Network's live data not naming Trains by number, as Rodalies' doesn't, the same position again counts as none: Scheduled 120 s on.
+  const rodalies = day(network(LD.profile, CERCANIAS), LD_LINES, { ave: { line: 'AVE', calls: BY_B } });
+  expect([60, 119, 120, 240].map((s) => live(rodalies, s))).toEqual([true, true, false, false]);
+  // Drawn the same either way, running on its last GPS Delay all the while.
+  expect(course(VIA_B, 'ave', at('10:40:00'), 400, received)).toEqual(course(rodalies, 'ave', at('10:40:00'), 400, received));
+  expect(Math.min(...speeds(course(VIA_B, 'ave', at('10:40:00'), 400, received)))).toBeGreaterThan(20);
+});
+
 test("a long-distance position that holds for 26 minutes and then moves 73 km, as 4 October's longest did, neither stalls the Train nor snaps it back, nor does Renfe's figure, which grows all the while, take it over", () => {
   // 4 October's positions weren't kept, so the hold is made up to its size: GPS has the Train on time
   // at 10:34:00, and at the same spot every 40 s for 26 minutes, where Renfe's figure grows a minute
@@ -410,16 +425,19 @@ test("replaying long-distance positions that held and then moved, no Train stand
 }, 60_000);
 
 test("counts each long-distance Network's jumps over 12 minutes of its live data, as the fetcher will read it: fewer snapped by the minute than by the kilometre", () => {
-  // Per Train-minute, (forward + back) / (liveSeconds / 60): AVE y Larga Distancia 0.105 and Media
-  // Distancia y Avant 0.081, in the replay's 23 Trains, whose positions held and then moved.
+  // Per Train-minute, (forward + back) / (liveSeconds / 60): AVE y Larga Distancia 0.091 and Media
+  // Distancia y Avant 0.080, in the replay's 23 Trains, whose positions held and then moved. A Train
+  // whose position holds is Live for up to 5 minutes (#443), drawn as it was when Scheduled, so that 3
+  // of Media Distancia y Avant's moves jumps() skipped then, Live in one second and Scheduled in the
+  // other, are Live in both now: they were 0.105 and 0.081, in 3,426 and 9,571 Live seconds.
   expect(jumps(replayed(), REPLAY.received)).toEqual({
-    'ave-larga-distancia': { forward: 3, back: 3, liveSeconds: 3426 },
-    'media-distancia-avant': { forward: 10, back: 3, liveSeconds: 9571 },
+    'ave-larga-distancia': { forward: 3, back: 3, liveSeconds: 3968 },
+    'media-distancia-avant': { forward: 13, back: 3, liveSeconds: 11968 },
   });
   // As Rodalies' are, snapped past a kilometre, a Train jumps about twice as often.
-  expect(jumps(replayed({ delay: 'gps', near: 'pinned' }), REPLAY.received)).toEqual({
-    'ave-larga-distancia': { forward: 7, back: 12, liveSeconds: 3426 },
-    'media-distancia-avant': { forward: 13, back: 6, liveSeconds: 9571 },
+  expect(jumps(replayed({ delay: 'gps', near: 'pinned', numbers: true }), REPLAY.received)).toEqual({
+    'ave-larga-distancia': { forward: 7, back: 12, liveSeconds: 3968 },
+    'media-distancia-avant': { forward: 16, back: 7, liveSeconds: 11968 },
   });
 }, 60_000);
 
@@ -445,3 +463,40 @@ test("Renfe's long-distance live data, which names each Train by its number, is 
   const quiet = REPLAY.received.map((r, i) => (i < 16 ? r : { ...r, snapshot: { ...r.snapshot, reports: r.snapshot.reports.filter((x) => !ave.has(x.number)) } }));
   expect(changes(replayed(), quiet)).toEqual([['13:54:31', ['ave-larga-distancia']]]);
 }, 60_000);
+
+// Renfe's Cercanías and long-distance files as #261 recorded them from 13:47:33 to 13:59:43 on 10 October
+// 2026, stepped through the fetcher, cut to Intercity 01460's and R17 15062's reports and skipped
+// Stations (#426). Each of 01460's three parts lists Alicante/Alacant-Terminal to València-Estació del
+// Nord SKIPPED, and 15062's Barcelona-Sants to Estació de França; Renfe's Cercanías files list only
+// 15062's next Station, Vilanova i la Geltrú, none SKIPPED, and drop it from 13:58:19. The bundle has
+// 15062's R17 Trip of that day, and 01460's whole run, Cartagena to València, as Renfe's long-distance
+// timetable of 12 October has it, along a track straight from Station to Station: the build leaves it
+// out, finding no path along the rails from Elche/Elx-Parc to Alicante.
+const SKIPPED: { bundle: Bundle; received: Received[] } = JSON.parse(gunzipSync(readFileSync(new URL('fixtures/replay-2026-10-10-skipped-by-number.json.gz', import.meta.url))).toString());
+const [IC_01460, R17_15062] = ['ave-larga-distancia:0146012026-10-10', 'rodalies:5181S15062R17'];
+/** A Trip's Train as the follow panel has it at a moment, given the snapshots received by then. */
+const panel = (trip: string, moment: number, received = SKIPPED.received) => trainAt(SKIPPED.bundle, moment, received.filter((r) => r.at <= moment), trip);
+/** The snapshots received, without the skipped Stations they carry, as before #426. */
+const unskipped = SKIPPED.received.map((r) => ({ ...r, snapshot: { ...r.snapshot, skipped: undefined } }));
+
+test("a Train whose Trip Renfe's long-distance feed says, by its Train number, won't stop at its last Stations is cut short there, as Intercity 01460 at Elche/Elx-Parc (#426)", () => {
+  // Headed for Elche/Elx-Parc, where its Trip now ends, Live, 11 minutes late.
+  const coming = panel(IC_01460, at('13:59:43'));
+  expect(coming).toMatchObject({ live: true, trip: { headsign: 'Elche/Elx-Parc' } });
+  expect(coming?.trip.calls.at(-1)?.station).toBe('adif:62103');
+  // Off the map once it has come in there, where before it ran on, Scheduled, to Alicante and València.
+  expect(panel(IC_01460, at('14:04:00'))).toBeUndefined();
+  expect(panel(IC_01460, at('14:04:00'), unskipped)?.trip.headsign).toBe('València-Estació del Nord');
+  expect(panel(IC_01460, at('14:30:00'), unskipped)).toBeDefined();
+});
+
+test("a Train whose own Cercanías feed says it won't stop at some Stations goes by that first, and otherwise by what Renfe's long-distance feed says of its Train number, as R17 15062 (#426, #261)", () => {
+  // Renfe's Cercanías files say 15062 skips none: by the long-distance feed, it's cut short at Vilanova i la Geltrú.
+  expect(panel(R17_15062, at('13:59:43'))?.trip.headsign).toBe('Vilanova i la Geltrú');
+  expect(panel(R17_15062, at('13:59:43'), unskipped)?.trip.headsign).toBe('Barcelona Estació de França');
+  // Made up: where its Cercanías files say it skips only Estació de França, it runs to Passeig de Gràcia.
+  const own = SKIPPED.received.map((r) => ({ ...r, snapshot: { ...r.snapshot, skipped: [{ trip: R17_15062, stations: ['adif:79400'], since: r.snapshot.skipped?.[0]?.since ?? r.at }, ...(r.snapshot.skipped ?? [])] } }));
+  expect(panel(R17_15062, at('13:59:43'), own)?.trip.headsign).toBe('Barcelona-Passeig de Gràcia');
+  // And Intercity 01460, which no Cercanías file names, is cut short as before.
+  expect(panel(IC_01460, at('13:59:43'), own)?.trip.headsign).toBe('Elche/Elx-Parc');
+});
