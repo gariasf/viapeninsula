@@ -253,11 +253,11 @@ async function graphed(
   });
   // Which way the centreline runs along each of the pieces it is made of, against the way each points.
   const wayOn = new Map(found.flatMap(({ steps }) => steps.map((s): [number, number] => [s.piece, s.way])));
-  // Which way a shape goes over a Stretch of one piece (#599), and less where it only crosses a node along its
-  // centreline (#353), on the graph every band from zoom 10 up shares. ponytail: not on a band's own below it,
-  // where #353 fixes no hairpin and moves other Lines' strokes, SHORT being in metres and a line width there
-  // 250 m to 690 m, and #599 takes in a stroke of under a pixel and moves nodes' rooms with it, which makes
-  // hairpins at zoom 9: scale them with the band if a hook or a stroke beside its curve shows there.
+  // Less where a shape only crosses a node along its centreline (#353), on the graph every band from zoom 10 up
+  // shares. ponytail: not on a band's own below it, where it fixes no hairpin and moves other Lines' strokes,
+  // SHORT being in metres and a line width there 250 m to 690 m: scale it with the band if a hook shows there.
+  // Nor which way it goes over a Stretch of one piece (#599) there, a stroke of under a pixel whose joins move the
+  // nodes' rooms: 7 hairpins more at zoom 9, a Stretch of 1.76 km no longer absorbed. Find why before widening it.
   const seen = every.map((shape) => visits(shape, pieces, drawer, edgeOf, own === undefined ? wayOn : undefined));
   const walked = every.map((shape, k) => ({ line: shape[0]?.line ?? -1, visits: own === undefined ? crossing(seen[k] ?? [], found) : (seen[k] ?? []) }));
   const byId = new Map(centrelines.map((c) => [c.id, c]));
@@ -412,7 +412,7 @@ function visits(shape: Step[], pieces: Piece[], drawer: number[], edgeOf: Map<nu
     const drawn = drawer[s.piece] ?? s.piece;
     const [edge, middle] = edgeOf.get(drawn) ?? [];
     if (edge === undefined || middle === undefined) continue;
-    // None where `wayOn` isn't given.
+    // Which way it goes, where `wayOn` is given, else none (#599).
     const way = wayOn ? wayAlong(s, pieces, drawn, wayOn) : 0;
     const length = pieces[s.piece]?.length ?? 0;
     const v = found.at(-1);
@@ -826,9 +826,9 @@ export function across(at: Map<Stroke, [Leg[], Leg[]]>, hidden: (s: Stroke) => b
 }
 
 /**
- * Each Line's ways across the nodes less those through a stroke of one piece (`short`) where the Line has
- * another between the same two strokes without it: that stroke is a piece of its other track, which a way
- * of its own would draw as the same curve again, as T1's does at the 37 m Stretch by Cádiz's junction (#599).
+ * Each Line's ways across the nodes, less those through a hidden stroke of one piece (`short`) where the Line
+ * has another between the same two strokes without it. That stroke is a piece of the Line's other track, and
+ * a curve of its own would draw the same line again, as Cádiz's T1 does by a 37 m Stretch at its junction (#599).
  */
 export function notTwice(ways: Leg[][], short: (s: Stroke) => boolean, id: Map<Stroke, number>): Leg[][] {
   // A way's Line, the stroke ends it goes between, and the strokes between them but those of one piece, whichever way round it goes.
