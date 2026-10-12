@@ -8,9 +8,9 @@ export type Language = keyof typeof LANGUAGES;
 
 /**
  * Every interface string, in each language. Names aren't here, as they read the same in every
- * language: Stations and Lines are shown as their operators publish them, but for a Station's article
- * after a preposition in Catalan and Galician, which runs into it (named(), #606), and the credits name
- * their sources as those sources do. The Basque and Galician are machine-translated, as About says
+ * language: Stations and Lines are shown as their operators publish them, but for the word before a
+ * Station's name in Catalan and Galician, which runs into its article or elides before its vowel
+ * (named(), #606), and the credits name their sources as those sources do. The Basque and Galician are machine-translated, as About says
  * (MACHINE_TRANSLATED). Basque writes one in words, after its noun ("geltoki bat"), as Euskaltzaindia's
  * norm 203 has it.
  */
