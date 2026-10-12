@@ -217,26 +217,25 @@ export async function readFeed(
     if (ids.length < 2) continue;
     const parts = ids.map((id) => ({ id, calls: (held.get(id) ?? []).toSorted((a, b) => a.seq - b.seq) }));
     const into = new Map<string, string>(); // each Trip made one with another, by that Trip
-    for (const chain of meeting(parts)) {
-      const main = joinOrder(chain)[0];
+    for (const run of meeting(parts)) {
+      const main = joinOrder(run)[0];
       if (!main) continue;
-      const run = joinedCalls(chain);
-      const others = chain.filter((t) => t !== main);
+      const calls = joinedCalls(run);
+      ends.set(main.id, { first: [1, calls[0]?.station ?? ''], last: [calls.length, calls.at(-1)?.station ?? ''] });
+      const entry = dayTrips.get(main.id);
+      const others = run.filter((t) => t !== main);
       for (const t of others) {
         into.set(t.id, main.id);
         ends.delete(t.id);
-      }
-      ends.set(main.id, { first: [1, run[0]?.station ?? ''], last: [run.length, run.at(-1)?.station ?? ''] });
-      const entry = dayTrips.get(main.id);
-      if (!entry) continue;
-      for (const t of others) {
-        // Where it meets the Trips before it, at its last call, or those after it, at its first.
-        const [before, call] = [chain.indexOf(t) < chain.indexOf(main), chain.indexOf(t) < chain.indexOf(main) ? t.calls.at(-1) : t.calls[0]];
-        const text = `${entry.line} ${entry.number} joins its ${dayTrips.get(t.id)?.line} Trip at ${stationOf(call?.stop ?? '')?.stop_name ?? call?.station} at ${clock((before ? call?.arrival : call?.departure) ?? 0).slice(0, 5)} on ${day}: the two meet there in the same minute`;
-        log(text);
+        if (!entry) continue;
+        // Where it meets the Trip before it, at its last call, or the one after it, at its first.
+        const before = run.indexOf(t) < run.indexOf(main);
+        const call = before ? t.calls.at(-1) : t.calls[0];
+        const [name, time] = [stationOf(call?.stop ?? '')?.stop_name ?? call?.station, (before ? call?.arrival : call?.departure) ?? 0];
+        log(`${entry.line} ${entry.number} joins its ${dayTrips.get(t.id)?.line} Trip at ${name} at ${clock(time).slice(0, 5)} on ${day}: the two meet there in the same minute`);
         dayTrips.delete(t.id);
       }
-      dayTrips.set(main.id, { ...entry, calls: run.map(({ stop: _, ...c }, i) => ({ ...c, seq: i + 1 })), joined: others.map((t) => `${prefix}:${t.id}`) });
+      if (entry) dayTrips.set(main.id, { ...entry, calls: calls.map(({ stop: _, ...c }, i) => ({ ...c, seq: i + 1 })), joined: others.map((t) => `${prefix}:${t.id}`) });
     }
     for (const { id, calls } of parts) {
       const shape = shapeOf.get(into.get(id) ?? id);
