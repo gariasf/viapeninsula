@@ -40,7 +40,8 @@ export interface Spot {
   /**
    * A length's percentage off the feed's, how many metres a trace jumps across a Station, the most
    * Trips left out, or whose stop numbers don't run 1…n, or buses, on any one day, a Network's Trips
-   * on each day of the week and how many of today's its config leaves out, its Closures today, a
+   * on each day of the week and how many of today's its config leaves out, its Closures today, how
+   * many days of its last build's files the manifest still names for a region whose build failed, a
    * node's size in line widths, or each of the measures.
    */
   numbers?: Record<string, number>;
@@ -207,19 +208,24 @@ const PROBLEM: Record<Spot['kind'], boolean> = { kept: true, turn: true, branch:
 /** The most characters a GitHub comment holds, counted here as UTF-8's bytes, which are never fewer however GitHub counts them. */
 const COMMENT = 65536;
 
+/** Whether a failed region's spot says no day of its last files is left, where the last report's didn't (#452). */
+const lost = (was: Spot | undefined, spot: Spot) => spot.kind === 'region' && spot.numbers?.days === 0 && was?.numbers?.days !== 0;
+
 /**
  * The comment that tells the maintainer of the problem spots new since the last build, on the
  * standing "Build report" issue: how many, with a link to the run, whose summary has the whole diff,
  * then as many as a comment holds, each with its links and its first line of the log, which names
  * its Stations, so that one with many Trips left out doesn't push the others out, and how many more
- * there are. Nothing where none is new. With no last report, every one is new.
+ * there are. Nothing where none is new. With no last report, every one is new. A failed region's spot,
+ * whose key is the region's alone, is new again the build its `days` fall to none, as the map loses the
+ * region then, once: it keeps none after (#452).
  * ponytail: measures the whole comment again for each spot it cuts, 0.2 s for a thousand new spots
  * and 1.4 s for three thousand; add up each spot's size if a build ever finds many more.
  */
 export function comment(last: Spot[] | undefined, spots: Spot[], run: string): string | undefined {
-  const before = new Set(last?.map((s) => s.key));
+  const before = new Map(last?.map((s) => [s.key, s]));
   const items = spots
-    .filter((s) => PROBLEM[s.kind] && !before.has(s.key))
+    .filter((s) => PROBLEM[s.kind] && (!before.has(s.key) || lost(before.get(s.key), s)))
     .map((s) => item({ ...s, text: [...s.text.slice(0, 1), ...(s.text.length > 1 ? [`…and ${s.text.length - 1} more like it, in the run's summary`] : [])] }));
   if (!items.length) return undefined;
   const count = `${items.length} new problem spot${items.length === 1 ? '' : 's'}`;

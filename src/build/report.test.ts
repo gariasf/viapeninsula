@@ -257,6 +257,31 @@ test("comments only on problem spots new since the last build: a run kept, a tur
   ]);
 });
 
+test("comments again on a failed region the build its days fall to none, when the map loses it, and on no other change of its days, nor once it has gone (#452)", () => {
+  const region = (days?: number): Spot => ({
+    kind: 'region',
+    key: 'region cercanias-madrid',
+    region: 'cercanias-madrid',
+    text: [days === 0 ? "cercanias-madrid isn't built, and has gone from the map: HTTP 503" : `cercanias-madrid isn't built, and keeps the files of its last build for ${days} more days: HTTP 503`],
+    ...(days !== undefined && { numbers: { days } }),
+  });
+  // Its days falling, with some left: the summary shows the change, and there's no new problem.
+  expect(comment([region(3)], [region(2)], RUN)).toBeUndefined();
+  expect(comment([region(2)], [region(1)], RUN)).toBeUndefined();
+  // The build the last are gone: the region is off the map, which is new.
+  expect(listed(comment([region(1)], [region(0)], RUN))).toEqual(['region cercanias-madrid']);
+  expect(comment([region(1)], [region(0)], RUN)).toContain("cercanias-madrid isn't built, and has gone from the map: HTTP 503");
+  // And once, not each build after.
+  expect(comment([region(0)], [region(0)], RUN)).toBeUndefined();
+  // A spot that's new comments, whatever its days, as any does; so does one of a last report from before it had days, now that none is left.
+  expect(listed(comment([], [region(3)], RUN))).toEqual(['region cercanias-madrid']);
+  expect(listed(comment([LENGTH], [LENGTH, region(0)], RUN))).toEqual(['region cercanias-madrid']);
+  expect(listed(comment([region()], [region(0)], RUN))).toEqual(['region cercanias-madrid']);
+  expect(comment([region()], [region(2)], RUN)).toBeUndefined();
+  // No other kind of spot's numbers say so.
+  expect(comment([TURN], [{ ...TURN, numbers: { days: 0 } }], RUN)).toBeUndefined();
+});
+
 test("says how many problem spots are new and links the run, whose summary has the whole diff, then lists each with its links and its lines of the log", () => {
   expect(comment([LENGTH], [LENGTH, NO_TRIPS, TURN], RUN)?.split('\n')).toEqual([
     "2 new problem spots since the last build. The whole diff is in [the run's summary](https://github.com/gariasf/viapeninsula/actions/runs/37330911997).",
