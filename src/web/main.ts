@@ -1289,7 +1289,8 @@ addEventListener('hashchange', () => openLink());
 /**
  * Draws the Lines and Stations of the days on the map, and each Network's track below zoom 7, with
  * the Networks credited and named in the banner (showZoomedOut()), where they've changed, and once
- * their Trips have come, moves their Trains.
+ * their Trips have come, moves their Trains. With `tripsOnly`, the days that have come before the
+ * others' (#593), it puts their Trips on the track the map has drawn and lays nothing out again.
  */
 function show(days: Track | Bundle, tripsOnly = false) {
   if ('trips' in days) {
@@ -1298,8 +1299,11 @@ function show(days: Track | Bundle, tripsOnly = false) {
   }
   // A day's Trips come after its track, which is drawn already, unless the days joined bring more than one:
   // the names' ranks by calls come with them. And the Trips of the days that have come, before the others' (#593),
-  // go on the track the map has, which the track of another day, built earlier, is not drawn over.
-  if (days.stations === shownStations || (tripsOnly && shownStations)) {
+  // go on the track the map has, which the track of another day, built earlier, is not drawn over: unless it
+  // has none (today's failed to come, and an empty one was drawn in its place), where the first day's is drawn.
+  // ponytail: so a Line or Station only the earlier build of a day has isn't drawn, and its Trains are drawn with
+  // no colour, until the last step lays the days out. Lay the day that came out as well if that shows.
+  if (days.stations === shownStations || (tripsOnly && shownStations?.length)) {
     if ('trips' in days && !namesDue) showNames();
     return drawClosures();
   }
@@ -2045,9 +2049,10 @@ function openPanel(up: boolean) {
  * once its Trips have come, a Train to follow, which the map stops following straight away if it's
  * no longer running. A Station the map doesn't know goes from the link. Where the link names no
  * view, the map goes to the Station, by follow()'s rule (#292). A Station or a Train opens once its
- * regions have come, which load meanwhile (#266), and those whose Trips fail to come are logged where
- * show() gets them, and looked for again; opened then, it doesn't ring its point again, which a tap
- * may have cleared meanwhile. A Search row opens a Station's board as a link that names it alone (openStation()).
+ * regions have come, which load meanwhile (#266), with the first day's Trips where more days are to come,
+ * and a Train once its Trip is on the map or every day has (#593); those whose Trips fail to come are
+ * logged where show() gets them, and looked for again; opened then, it doesn't ring its point again, which
+ * a tap may have cleared meanwhile. A Search row opens a Station's board as a link that names it alone (openStation()).
  */
 function openLink(ring = true) {
   if (ring) showMark(markOf(openedLink));
@@ -3352,10 +3357,11 @@ async function neededDays(): Promise<{ track: Promise<Track | undefined>; arriva
   // A region whose file fails to come is left out of its day, and fetched again next time.
   const load = regionLoader(get, joinedTracks);
   const cameOf = (done: DayFiles[]) => regionsCame(loaded, days, done, (file) => fetched.has(file));
-  // Every day's files are asked for at once, as they were, whenever the first step is read.
+  // Every day's files are asked for at once, here, as they were, and not when the first step is read, which comes
+  // after today's track has been drawn: the other days' would then be asked for a round trip later.
   const steps = daysAsTheyCome(days, load.bundleOf, shownDays);
   const arrivals = (async function* () {
-    for await (const { bundle, came, lost, byDate, complete } of steps) {
+    for await (const { bundle: joined, came, lost, byDate, complete } of steps) {
       if (complete) {
         tripsFailed = load.failed();
         failedRetried &&= tripsFailed;
@@ -3364,9 +3370,9 @@ async function neededDays(): Promise<{ track: Promise<Track | undefined>; arriva
         if (lost.length) console.warn(...lost.map(([, reason]) => reason));
         shown = load.failed() || lost.length ? '' : keys.join();
       }
-      if (!bundle) throw new Error('No service day to show');
+      if (!joined) throw new Error('No service day to show');
       shownDays = byDate;
-      yield { days: bundle, regions: cameOf(complete ? days : came), complete };
+      yield { days: joined, regions: cameOf(complete ? days : came), complete };
     }
   })();
   // Settled at once, as the map's first look awaits it only once the map has loaded.
@@ -3442,7 +3448,7 @@ async function showArrivals(arrivals: AsyncIterable<Arrival>) {
  * for them. `complete` where every day the look is for has: the regions then are those whose Trips are all in,
  * which a board's and Nearby's saying that none can be had wait for, as another day's could add some.
  */
-function showDays(days: Bundle, regions: string[], complete = true) {
+function showDays(days: Bundle, regions: string[], complete: boolean) {
   // Before every day has come, their Trips go on the track the map has.
   show(days, !complete);
   daysComing = !complete;
@@ -3471,7 +3477,9 @@ function want() {
 /**
  * Whether the days on the map have every region a link's Station or Train, or Nearby, needs
  * (regionsNeeded()): a Station's once the file below zoom 7 has said which they are, where the
- * manifest names one.
+ * manifest names one. By `regions` that have their Trips from every day the look is for (shownRegions),
+ * which what a board and Nearby say of none being had wait for, as another day's could add some, or,
+ * for a link, from the days that have come so far (joinedRegions, #593).
  */
 function come(needs: { station?: string | null; train?: string | null; nearby?: { at: Point; metres: number } }, regions = shownRegions): boolean {
   if (needs.station && !zoomedOut && manifest?.zoomedOut) return false;
