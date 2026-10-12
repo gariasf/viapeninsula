@@ -1,0 +1,76 @@
+[
+ {
+  "name": "live-dark-wide-map-north",
+  "scheme": "dark",
+  "size": "wide",
+  "spot": "map-north",
+  "note": [],
+  "pins": [
+   {
+    "name": "R1",
+    "x": 669,
+    "y": 539,
+    "fill": "#7DBCEC",
+    "dark": 132,
+    "light": 1,
+    "onFill": 500,
+    "total": 704,
+    "verdict": "INK"
+   },
+   {
+    "name": "R1",
+    "x": 624,
+    "y": 692,
+    "fill": "#7DBCEC",
+    "dark": 125,
+    "light": 3,
+    "onFill": 485,
+    "total": 704,
+    "verdict": "INK"
+   },
+   {
+    "name": "R1",
+    "x": 552,
+    "y": 785,
+    "fill": "#7DBCEC",
+    "dark": 370,
+    "light": 12,
+    "onFill": 222,
+    "total": 704,
+    "verdict": "n/a"
+   },
+   {
+    "name": "R1",
+    "x": 694,
+    "y": 474,
+    "fill": "#7DBCEC",
+    "dark": 125,
+    "light": 1,
+    "onFill": 505,
+    "total": 704,
+    "verdict": "INK"
+   },
+   {
+    "name": "R2N",
+    "x": 627,
+    "y": 123,
+    "fill": "#D0DF00",
+    "dark": 190,
+    "light": 0,
+    "onFill": 355,
+    "total": 704,
+    "verdict": "INK"
+   }
+  ],
+  "dom": [],
+  "hash": "#map=12/41.44/2.19",
+  "title": "Via Península",
+  "ours": [
+   "error: Failed to load resource: net::ERR_CONNECTION_REFUSED"
+  ],
+  "consoleAll": 5,
+  "errors": [],
+  "requests": 6,
+  "seconds": 8
+ }
+]

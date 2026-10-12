@@ -71,3 +71,7 @@ unchanged.
   change).
 - Bilbao's C2 (#0F8C2D, 4.37:1 white, 4.32:1 ink): not running in a view I took. It stays white by `darkInk()`; `colour.test.ts` pins
   it (and #632 asks whether an ink of `#0a0a0a` should take it).
+
+## Production, after the deploy
+
+The live check on the production page, one frozen snapshot, light and dark, 390×844 and 1280×800: see `live/index.md`.

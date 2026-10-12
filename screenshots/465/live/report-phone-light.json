@@ -1,0 +1,483 @@
+[
+ {
+  "name": "live-light-phone-map-north",
+  "scheme": "light",
+  "size": "phone",
+  "spot": "map-north",
+  "note": [],
+  "pins": [
+   {
+    "name": "R1",
+    "x": 224,
+    "y": 561,
+    "fill": "#7DBCEC",
+    "dark": 132,
+    "light": 1,
+    "onFill": 500,
+    "total": 704,
+    "verdict": "INK"
+   },
+   {
+    "name": "R1",
+    "x": 179,
+    "y": 714,
+    "fill": "#7DBCEC",
+    "dark": 125,
+    "light": 3,
+    "onFill": 484,
+    "total": 704,
+    "verdict": "INK"
+   },
+   {
+    "name": "R1",
+    "x": 107,
+    "y": 807,
+    "fill": "#7DBCEC",
+    "dark": 142,
+    "light": 1,
+    "onFill": 472,
+    "total": 704,
+    "verdict": "INK"
+   },
+   {
+    "name": "R1",
+    "x": 249,
+    "y": 496,
+    "fill": "#7DBCEC",
+    "dark": 125,
+    "light": 1,
+    "onFill": 503,
+    "total": 704,
+    "verdict": "INK"
+   },
+   {
+    "name": "R2N",
+    "x": 182,
+    "y": 145,
+    "fill": "#D0DF00",
+    "dark": 190,
+    "light": 0,
+    "onFill": 355,
+    "total": 704,
+    "verdict": "INK"
+   }
+  ],
+  "dom": [],
+  "hash": "#map=12/41.44/2.19",
+  "title": "Via Península",
+  "ours": [
+   "error: Failed to load resource: net::ERR_CONNECTION_REFUSED"
+  ],
+  "consoleAll": 8,
+  "errors": [],
+  "requests": 6,
+  "seconds": 7
+ },
+ {
+  "name": "live-light-phone-map-t2",
+  "scheme": "light",
+  "size": "phone",
+  "spot": "map-t2",
+  "note": [],
+  "pins": [
+   {
+    "name": "T2",
+    "x": 294,
+    "y": 356,
+    "fill": "#80FF80",
+    "dark": 96,
+    "light": 112,
+    "onFill": 404,
+    "total": 704,
+    "verdict": "INK"
+   },
+   {
+    "name": "T2",
+    "x": 89,
+    "y": 478,
+    "fill": "#80FF80",
+    "dark": 102,
+    "light": 110,
+    "onFill": 397,
+    "total": 704,
+    "verdict": "INK"
+   }
+  ],
+  "dom": [],
+  "hash": "#map=13.2/41.366/2.067",
+  "title": "Via Península",
+  "ours": [
+   "error: Failed to load resource: net::ERR_CONNECTION_REFUSED"
+  ],
+  "consoleAll": 4,
+  "errors": [],
+  "requests": 6,
+  "seconds": 7
+ },
+ {
+  "name": "live-light-phone-board-sants",
+  "scheme": "light",
+  "size": "phone",
+  "spot": "board-sants",
+  "note": [],
+  "dom": [
+   {
+    "text": "R1",
+    "live": true,
+    "line": "#7DBCEC",
+    "lettering": "#111",
+    "colour": "rgb(17, 17, 17)",
+    "inSheet": true,
+    "inRows": false,
+    "inAbout": false
+   },
+   {
+    "text": "R2",
+    "live": true,
+    "line": "#26A741",
+    "lettering": "#111",
+    "colour": "rgb(17, 17, 17)",
+    "inSheet": true,
+    "inRows": false,
+    "inAbout": false
+   },
+   {
+    "text": "R2N",
+    "live": true,
+    "line": "#D0DF00",
+    "lettering": "#111",
+    "colour": "rgb(17, 17, 17)",
+    "inSheet": true,
+    "inRows": false,
+    "inAbout": false
+   },
+   {
+    "text": "R2S",
+    "live": true,
+    "line": "#146520",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inRows": false,
+    "inAbout": false
+   },
+   {
+    "text": "R4",
+    "live": true,
+    "line": "#F7A30D",
+    "lettering": "#111",
+    "colour": "rgb(17, 17, 17)",
+    "inSheet": true,
+    "inRows": false,
+    "inAbout": false
+   },
+   {
+    "text": "R11",
+    "live": true,
+    "line": "#0069AA",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inRows": false,
+    "inAbout": false
+   },
+   {
+    "text": "R13",
+    "live": true,
+    "line": "#E52E87",
+    "lettering": "#111",
+    "colour": "rgb(17, 17, 17)",
+    "inSheet": true,
+    "inRows": false,
+    "inAbout": false
+   },
+   {
+    "text": "R14",
+    "live": true,
+    "line": "#6C60A8",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inRows": false,
+    "inAbout": false
+   },
+   {
+    "text": "R15",
+    "live": true,
+    "line": "#978571",
+    "lettering": "#111",
+    "colour": "rgb(17, 17, 17)",
+    "inSheet": true,
+    "inRows": false,
+    "inAbout": false
+   },
+   {
+    "text": "R16",
+    "live": true,
+    "line": "#B52B46",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inRows": false,
+    "inAbout": false
+   },
+   {
+    "text": "R17",
+    "live": true,
+    "line": "#F3B12E",
+    "lettering": "#111",
+    "colour": "rgb(17, 17, 17)",
+    "inSheet": true,
+    "inRows": false,
+    "inAbout": false
+   },
+   {
+    "text": "R2S",
+    "live": true,
+    "line": "#146520",
+    "lettering": "#fff",
+    "colour": "rgb(255, 255, 255)",
+    "inSheet": true,
+    "inRows": true,
+    "inAbout": false
+   },
+   {
+    "text": "R4",
+    "live": true,
+    "line": "#F7A30D",
+    "lettering": "#111",
+    "colour": "rgb(17, 17, 17)",
+    "inSheet": true,
+    "inRows": true,
+    "inAbout": false
+   },
+   {
+    "text": "R15",
+    "live": true,
+    "line": "#978571",
+    "lettering": "#111",
+    "colour": "rgb(17, 17, 17)",
+    "inSheet": true,
+    "inRows": true,
+    "inAbout": false
+   },
+   {
+    "text": "R1",
+    "live": true,
+    "line": "#7DBCEC",
+    "lettering": "#111",
+    "colour": "rgb(17, 17, 17)",
+    "inSheet": true,
+    "inRows": true,
+    "inAbout": false
+   },
+   {
+    "text": "R1",
+    "live": true,
+    "line": "#7DBCEC",
+    "lettering": "#111",
+    "colour": "rgb(17, 17, 17)",
+    "inSheet": true,
+    "inRows": true,
+    "inAbout": false
+   },
+   {
+    "text": "R4",
+    "live": true,
+    "line": "#F7A30D",
+    "lettering": "#111",
+    "colour": "rgb(17, 17, 17)",
+    "inSheet": true,
+    "inRows": true,
+    "inAbout": false
+   },
+   {
+    "text": "R15",
+    "live": true,
+    "line": "#978571",
+    "lettering": "#111",
+    "colour": "rgb(17, 17, 17)",
+    "inSheet": true,
+    "inRows": true,
+    "inAbout": false
+   },
+   {
+    "text": "R2N",
+    "live": true,
+    "line": "#D0DF00",
+    "lettering": "#111",
+    "colour": "rgb(17, 17, 17)",
+    "inSheet": true,
+    "inRows": true,
+    "inAbout": false
+   },
+   {
+    "text": "R2S",
+    "live": false,
+    "line": "#146520",
+    "lettering": "#146520",
+    "colour": "rgb(20, 101, 32)",
+    "inSheet": true,
+    "inRows": true,
+    "inAbout": false
+   },
+   {
+    "text": "R4",
+    "live": true,
+    "line": "#F7A30D",
+    "lettering": "#111",
+    "colour": "rgb(17, 17, 17)",
+    "inSheet": true,
+    "inRows": true,
+    "inAbout": false
+   }
+  ],
+  "hash": "#map=13/41.38/2.141&station=adif:71801",
+  "title": "Via Península",
+  "ours": [
+   "error: Failed to load resource: net::ERR_CONNECTION_REFUSED"
+  ],
+  "consoleAll": 4,
+  "errors": [],
+  "requests": 6,
+  "seconds": 8
+ },
+ {
+  "name": "live-light-phone-board-t2",
+  "scheme": "light",
+  "size": "phone",
+  "spot": "board-t2",
+  "note": [],
+  "dom": [
+   {
+    "text": "T1",
+    "live": true,
+    "line": "#FF0D0D",
+    "lettering": "#111",
+    "colour": "rgb(17, 17, 17)",
+    "inSheet": true,
+    "inRows": false,
+    "inAbout": false
+   },
+   {
+    "text": "T2",
+    "live": true,
+    "line": "#80FF80",
+    "lettering": "#111",
+    "colour": "rgb(17, 17, 17)",
+    "inSheet": true,
+    "inRows": false,
+    "inAbout": false
+   },
+   {
+    "text": "T2",
+    "live": true,
+    "line": "#80FF80",
+    "lettering": "#111",
+    "colour": "rgb(17, 17, 17)",
+    "inSheet": true,
+    "inRows": true,
+    "inAbout": false
+   },
+   {
+    "text": "T2",
+    "live": false,
+    "line": "#80FF80",
+    "lettering": "#418241",
+    "colour": "rgb(65, 130, 65)",
+    "inSheet": true,
+    "inRows": true,
+    "inAbout": false
+   },
+   {
+    "text": "T2",
+    "live": false,
+    "line": "#80FF80",
+    "lettering": "#418241",
+    "colour": "rgb(65, 130, 65)",
+    "inSheet": true,
+    "inRows": true,
+    "inAbout": false
+   },
+   {
+    "text": "T2",
+    "live": false,
+    "line": "#80FF80",
+    "lettering": "#418241",
+    "colour": "rgb(65, 130, 65)",
+    "inSheet": true,
+    "inRows": true,
+    "inAbout": false
+   },
+   {
+    "text": "T2",
+    "live": false,
+    "line": "#80FF80",
+    "lettering": "#418241",
+    "colour": "rgb(65, 130, 65)",
+    "inSheet": true,
+    "inRows": true,
+    "inAbout": false
+   },
+   {
+    "text": "T2",
+    "live": false,
+    "line": "#80FF80",
+    "lettering": "#418241",
+    "colour": "rgb(65, 130, 65)",
+    "inSheet": true,
+    "inRows": true,
+    "inAbout": false
+   },
+   {
+    "text": "T2",
+    "live": false,
+    "line": "#80FF80",
+    "lettering": "#418241",
+    "colour": "rgb(65, 130, 65)",
+    "inSheet": true,
+    "inRows": true,
+    "inAbout": false
+   },
+   {
+    "text": "T2",
+    "live": false,
+    "line": "#80FF80",
+    "lettering": "#418241",
+    "colour": "rgb(65, 130, 65)",
+    "inSheet": true,
+    "inRows": true,
+    "inAbout": false
+   },
+   {
+    "text": "T2",
+    "live": false,
+    "line": "#80FF80",
+    "lettering": "#418241",
+    "colour": "rgb(65, 130, 65)",
+    "inSheet": true,
+    "inRows": true,
+    "inAbout": false
+   },
+   {
+    "text": "T2",
+    "live": false,
+    "line": "#80FF80",
+    "lettering": "#418241",
+    "colour": "rgb(65, 130, 65)",
+    "inSheet": true,
+    "inRows": true,
+    "inAbout": false
+   }
+  ],
+  "hash": "#map=13/41.3603/2.0622&station=tram:ST-193",
+  "title": "Via Península",
+  "ours": [
+   "error: Failed to load resource: net::ERR_CONNECTION_REFUSED"
+  ],
+  "consoleAll": 4,
+  "errors": [],
+  "requests": 6,
+  "seconds": 8
+ }
+]
