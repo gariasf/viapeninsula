@@ -7,8 +7,8 @@ import nunitoSans from '@fontsource/nunito-sans/files/nunito-sans-latin-400-norm
 import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-normal.woff2?url';
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
 import { along, APART, atZoom, BANDS, bandZooms, coveredIn, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, profiled, zones, type Zone, daysNeeded, daysOf, DEGREE, EARTH, joinTracks, LIVE_URL, madridDate, networkTracks, places, type Alerts, type Bundle, type Credit, type Call, type DayFiles, type Place, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH, type ZoomedOut } from '../bundle.ts';
-import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, unavailable, type Coming, type Departure, type Followed, type Received, type Train } from '../engine.ts';
-import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, earlierStations, followDeparture, language, LANGUAGES, leavesAt, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, notRunning, passingStation, setLanguage, t, toGo, trainCounts, trainsRunHere, unlocated, type Language, type Unlocated } from './i18n.ts';
+import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, tripsAt, unavailable, type Coming, type Departure, type Followed, type Received, type Train, type TripNow } from '../engine.ts';
+import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, earlierStations, followDeparture, language, LANGUAGES, leavesAt, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, setLanguage, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { getJson, STALL } from './files.ts';
 import { firstLook, forgetJoined, regionLoader, regionsNeeded } from './regions.ts';
@@ -22,6 +22,8 @@ import { darkInk, INK, lettering } from './colour.ts';
 import { ago, boardAsks, boardList, cardAlerts, countdownTo, due, inNameOrder, linesOnBoard, linkedWords, minutesTo, nearbyRows, nextOnItsWay, passedPlace, progress, tripsState, untilTick, whereabouts, type CardAlert, type Whereabouts } from './cards.ts';
 import { ARROW_GAP, boxOf, FOLLOWED_TEXT, LINE_HEIGHT, OUTLINE_SIZES, outlineOf, PILL_EDGE, PILL_PADDING, PILL_TEXT, pillReach, type Outline } from './pill.ts';
 import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, tappedRows, type Shown } from './closures.ts';
+import { currentTab, type Tab } from './tabs.ts';
+import { keyboardRise, networkNames, numbered, numberQuery, results, searchPlaces, type Found } from './search.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
 setWorkerUrl(workerUrl);
@@ -86,24 +88,30 @@ const OUTLINES: Record<Outline | 'arrow', { w: number; h: number; across?: numbe
 };
 /**
  * The cards' icons, drawn in the colour of the text around them, which a forced-colours theme sets
- * too (#116): a close cross, a chevron down and up, the die that follows a random Train, Nearby's
- * radius round a dot, the tilted plane of the tilt button, About's ⓘ, the credits' © and a warning.
+ * too (#116): a close cross, a chevron down, up and right, the die that follows a random Train, Nearby's
+ * radius round a dot and Search's lens, the tilted plane of the tilt button, About's ⓘ, the credits' ©,
+ * a warning, and the ring Search marks a Station with (#471).
  */
 const ICONS = {
   close: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
   chevron: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
   up: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>',
+  right: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>',
   die: '<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="9" r="1.3"/><circle cx="15" cy="9" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="9" cy="15" r="1.3"/><circle cx="15" cy="15" r="1.3"/></svg>',
   tilt: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M8 6h8l5 12H3L8 6z"/><path d="M5.5 12h13"/></svg>',
   nearby: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5" stroke-dasharray="2.6 3.1"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></svg>',
+  search: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>',
   centre: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="6"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>',
   info: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.6v.1"/></svg>',
   copyright: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M14.9 9.4a4 4 0 1 0 0 5.2"/></svg>',
   back: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>',
   warning: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4.5M12 17.4v.1"/></svg>',
+  station: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="6.5"/></svg>',
 };
 /** How many departures a board shows peeking on a phone, and Nearby rows (#321). */
 const PEEK = 3;
+/** What Search's hints give as examples, which read the same in every language: names of Stations, and a Train number (#471). */
+const SEARCH_EXAMPLES = { stations: 'Barcelona-Sants, Terrassa, Mataró', number: '77428' };
 /** The zoom the map eases to, to bring a Train it follows or a Station into view, where it's further out (easeOnto()). */
 const FOLLOW_ZOOM = 13;
 /** How long the map takes to bring the Train it follows back into the middle of the map beside the panel, in ms (easeIn()). */
@@ -344,7 +352,7 @@ const LICENCES: Record<NonNullable<Credit['licence']>, string> = {
 /**
  * The page's link as it was opened, or last pasted into the tab, even while the map loads, which
  * openLink() opens: MapLibre puts the view in the link as soon as the map opens, so whether the link
- * named one is read from this (#292).
+ * named one is read from this (#292). Or the link of a Station alone, as a Search row opens it (#471).
  */
 let openedLink = location.hash;
 addEventListener('hashchange', () => (openedLink = location.hash));
@@ -450,19 +458,19 @@ let counts: [live: number, scheduled: number] | undefined;
 const banner = el('div', { className: 'maplibregl-ctrl banner' });
 banner.setAttribute('role', 'status');
 map.addControl({ onAdd: () => banner, onRemove: () => banner.remove() }, 'top-left');
-// The panel, which showPanel() fills while the map follows a Train, or shows a Station's board or the
-// viewer's nearby Trains: on a phone a sheet docked to the bottom, which peeks or is pulled up, and on
-// a wide window a card at the bottom left (#321).
+// On a wide window the rail goes under it while it's up, however far down it reaches (style.css's --banner, #470).
+new ResizeObserver(() => document.documentElement.style.setProperty('--banner', `${banner.getBoundingClientRect().bottom}px`)).observe(banner);
+// The panel, which showPanel() fills while the map follows a Train, or shows a Station's board, the
+// viewer's nearby Trains or Search: on a phone a sheet docked to the bottom, over the tab bar, which
+// peeks or is pulled up, and on a wide window a card at the bottom left, beside the rail (#321, #470).
 const panel = el('section', { className: 'sheet', hidden: true });
 // The buttons that ride on its top edge on a phone, where a thumb reaches them and the sheet never
-// covers them, labelled by showLanguage(): the credits bottom left, and bottom right the one that shows
-// the viewer's nearby Trains, with the one that follows a random Train over it, both once the map can
-// move Trains. The random follow is disabled while there's no Train on the map but the one the map
-// follows. On a wide window they go bottom right, over the credits' strip.
-const nearbyLabel = el('span');
-const nearbyButton = el('button', { type: 'button', className: 'card fab nearby', onclick: showNearby }, icon('nearby'), nearbyLabel);
+// covers them, labelled by showLanguage(): the credits bottom left, and bottom right the one that
+// follows a random Train, once the map can move Trains, till Now has it (#474). The random follow is
+// disabled while there's no Train on the map but the one the map follows. On a wide window they go
+// bottom right, over the credits' strip.
 const followRandomButton = el('button', { type: 'button', className: 'card fab', disabled: true, onclick: followRandom }, icon('die'));
-// The Centre button over them, shown while the map has let go of the Train it follows (#325).
+// The Centre button over it, shown while the map has let go of the Train it follows (#325).
 const centreButton = el('button', { type: 'button', className: 'card fab', hidden: true, onclick: centre }, icon('centre'));
 // The tilt button over them: it eases the map's pitch between flat and tilted, pressed while it's tilted
 // (#326). Another easing that starts meanwhile, a panel's padding, stops it short, so it's started again
@@ -491,13 +499,23 @@ map.on('moveend', () => {
   else setTimeout(() => tiltTo !== undefined && map.easeTo({ pitch: tiltTo, padding: panelPadding() }));
 });
 showTilt();
-const trainButtons = el('div', { className: 'fabs', hidden: true }, tiltButton, centreButton, followRandomButton, nearbyButton);
+const trainButtons = el('div', { className: 'fabs', hidden: true }, tiltButton, centreButton, followRandomButton);
 // The credits, which showCredits() fills: behind the © button on a phone, and a strip on a wide window.
 const creditsButton = el('summary', { className: 'card' }, icon('copyright'));
 const creditsText = el('div', { className: 'card credits-text' });
 const creditsStrip = el('div', { className: 'card credits-strip' });
 const riders = el('div', { className: 'riders' }, el('details', { className: 'credits' }, creditsButton, creditsText), trainButtons, creditsStrip);
-document.body.append(el('div', { className: 'dock' }, riders, panel));
+// The tab bar, under the sheet on a phone, and a rail down the left edge on a wide window (#470), labelled
+// by showLanguage(): each tab opens its screen's sheet, as #321's are, and is current while it shows
+// (showPanel()). After the corners and before the credits, as the keyboard goes. Its tabs open nothing
+// till the map can move Trains, as Nearby's button didn't show till then.
+const tabs: Record<Tab, HTMLButtonElement> = {
+  search: el('button', { type: 'button', className: 'tab', disabled: true, onclick: showSearch }),
+  nearby: el('button', { type: 'button', className: 'tab', disabled: true, onclick: showNearby }),
+};
+const nav = el('nav', { className: 'card tabs' }, ...Object.values(tabs));
+const dock = el('div', { className: 'dock' }, riders, panel);
+document.body.append(nav, dock);
 // The About dialog, opened from the legend, which showAbout() fills: on a phone, a sheet of its own,
 // nearly the full height. Tapping outside it closes it too, in browsers that can.
 const about = el('dialog', { className: 'about' });
@@ -553,6 +571,9 @@ wide.addEventListener('change', () => {
   showPanel();
   map.easeTo({ padding: panelPadding() });
 });
+// Search's sheet rises over the on-screen keyboard as it comes up, and back down as it goes (#471).
+visualViewport?.addEventListener('resize', riseOverKeyboard);
+visualViewport?.addEventListener('scroll', riseOverKeyboard);
 /**
  * The Train the map follows, by its service day and its Trip as its operator names it, so that it
  * stays followed as the days joined change around midnight, and where it's drawn, at which zoom.
@@ -580,6 +601,10 @@ let emptyBoard: string | undefined;
  * still finding out, or why it couldn't (unlocated()). It's never sent anywhere, nor put in the page's link.
  */
 let nearMe: Point | Unlocated | undefined;
+/** Whether the panel shows Search, its tab's sheet (#470). */
+let searching = false;
+/** What's typed in Search's field (#471), which starts afresh each time Search opens: never stored, nor put in the link (ADR-0011). */
+let query = '';
 /** How many times Nearby has asked the browser where the viewer is, so that only the last ask's answer shows (locate()). */
 let asks = 0;
 /** When the panel was last filled, by performance.now(), and how long after that it is next due, in ms: a second, or as a followed Train's countdown next changes (Panel's `changes`). */
@@ -676,6 +701,8 @@ const loaded = new Set<string>();
 let shownRegions = new Set<string>();
 /** The file below zoom 7 (ZoomedOut) as the map last got it, and the key of the one it has or is getting, which the manifest names. */
 let [zoomedOut, zoomedOutKey]: [ZoomedOut | undefined, string | undefined] = [undefined, undefined];
+/** The places Search finds Stations in, every region's, and the Lines it names at them, by their IDs, from the file below zoom 7, once it has come (#471). */
+let [searched, searchedLines]: [Found[], Map<string, NonNullable<ZoomedOut['lines']>[number]>] = [[], new Map()];
 /** Whether the page's link names a Station or a Train whose regions are still to come, which openLink() opens once they have. */
 let linkWaits = false;
 /** Each Network's track, drawn once zoomed out (#190), which the banner goes by for a Network with no Trips today (bannerNetworks()). */
@@ -1152,13 +1179,14 @@ map.on('moveend', () => {
 const pointed = ['trains', 'train-pills', 'train-pills-followed', 'stations', 'station-names', ...strokeLayers];
 map.on('mousemove', ({ point }) => (map.getCanvas().style.cursor = map.queryRenderedFeatures(point, { layers: pointed }).length ? 'pointer' : ''));
 // Escape closes the About dialog on its own, if it's open.
-document.addEventListener('keydown', (e) => e.key === 'Escape' && !about.open && (following || boardPlace || nearMe) && closePanel());
+document.addEventListener('keydown', (e) => e.key === 'Escape' && !about.open && (following || boardPlace || nearMe || searching) && closePanel());
 
 // Moves the Trains as often as MOVED says, and once a second works out which Networks the banner
 // names. The browser stops asking while the tab is hidden.
 const trainSource = map.getSource<GeoJSONSource>('trains');
-// The map can move Trains now, so Nearby and the random follow can show them.
+// The map can move Trains now, so the tabs, Nearby's among them, and the random follow can show them.
 trainButtons.hidden = false;
+for (const tab of Object.values(tabs)) tab.disabled = false;
 /** When the map last moved, as a drag, a zoom or an easing, or followed a Train, and when its Trains were last drawn, by performance.now(), and at which zoom and bearing. */
 let [moved, drawn, drawnAt] = [-Infinity, -Infinity, ''];
 requestAnimationFrame(function move(now) {
@@ -1190,8 +1218,9 @@ requestAnimationFrame(function move(now) {
     }
   }
   showCentring();
-  // The panel's times and ages change by the second, a followed Train's countdown as each second of it ends.
-  if ((following || boardPlace || nearMe) && performance.now() - panelShown > panelDue) showPanel();
+  // The panel's times and ages change by the second, a followed Train's countdown as each second of it ends, and
+  // where Search finds Train numbers, where their Trains are (#471).
+  if ((following || boardPlace || nearMe || (searching && numberQuery(query))) && performance.now() - panelShown > panelDue) showPanel();
   // Which Networks the banner names changes as Trains and the view move, and the banner with it.
   // Zoomed out, only those drawn there, long distance's, can be in view (#247).
   // ponytail: in view by the map's bounds, which on a turned or tilted map take in some of the map
@@ -1704,8 +1733,10 @@ function showLanguage() {
   languageSwitch.title = t('language');
   languageSwitch.setAttribute('aria-label', t('language'));
   legend.title = t('about');
-  nearbyLabel.textContent = t('nearbyButton');
-  nearbyButton.title = t('nearby');
+  // Each tab's label is its name, under its icon.
+  nav.setAttribute('aria-label', t('tabBar'));
+  tabs.search.replaceChildren(icon('search'), t('search'));
+  tabs.nearby.replaceChildren(icon('nearby'), t('nearbyButton'));
   tiltButton.title = t('tilt');
   tiltButton.setAttribute('aria-label', t('tilt'));
   followRandomButton.title = t('followRandom');
@@ -1770,7 +1801,7 @@ function follow(id: string, up = false) {
   following = day && trip ? { day, trip } : { day: bundle?.serviceDay ?? '', trip: id };
   // A Train followed again, by a tap on it too, is taken back (#325).
   released = undefined;
-  [boardPlace, nearMe, back] = [undefined, undefined, undefined];
+  [boardPlace, nearMe, searching, back] = [undefined, undefined, false, undefined];
   trainSource?.setData(trains());
   openPanel(up);
   writeLink();
@@ -1825,7 +1856,7 @@ function here(): NonNullable<typeof back> | undefined {
   return nearMe && typeof nearMe !== 'string' ? { to: 'nearby', near: nearMe, up, scroll } : undefined;
 }
 
-/** Opens another panel from this one, by a departure or a Station, which has a Back to this one (#322). */
+/** Opens another panel from this one, by a departure, a Station or a Search row, which has a Back to this one, but to Search, which here() doesn't name (#322, #471). */
 function openFrom(open: () => void, at?: Point) {
   const [was, keyboard] = [here(), panel.contains(document.activeElement)];
   open();
@@ -1849,7 +1880,7 @@ function goBack() {
   if (!to) return;
   if (to.to === 'train') follow(`${to.day}/${to.trip}`, to.up);
   else {
-    [following, boardPlace, nearMe, back] = [undefined, to.to === 'board' ? to.place : undefined, to.to === 'nearby' ? to.near : undefined, undefined];
+    [following, boardPlace, nearMe, searching, back] = [undefined, to.to === 'board' ? to.place : undefined, to.to === 'nearby' ? to.near : undefined, false, undefined];
     trainSource?.setData(trains());
     openPanel(to.up);
     writeLink();
@@ -1866,11 +1897,27 @@ function easeOnto(at: Point) {
 
 /** Shows a place's board, by its ID in places(), following no Train. */
 function showBoard(place: string) {
-  [following, boardPlace, nearMe, back] = [undefined, place, undefined, undefined];
+  [following, boardPlace, nearMe, searching, back] = [undefined, place, undefined, false, undefined];
   trainSource?.setData(trains());
   openPanel(false);
   writeLink();
   map.easeTo({ padding: panelPadding() });
+}
+
+/**
+ * Shows Search, its tab's sheet (#470), pulled up, following no Train: afresh, as a press on its tab again
+ * opens it, its field emptied and focused, which on a phone brings up the keyboard (#471).
+ */
+function showSearch() {
+  [following, boardPlace, nearMe, searching, back, query] = [undefined, undefined, undefined, true, undefined, ''];
+  trainSource?.setData(trains());
+  openPanel(true);
+  writeLink();
+  map.easeTo({ padding: panelPadding() });
+  // The field the panel kept, where it showed Search already.
+  const field = panel.querySelector<HTMLInputElement>('.search-field');
+  if (field) field.value = '';
+  field?.focus();
 }
 
 /**
@@ -1879,7 +1926,7 @@ function showBoard(place: string) {
  * stays where it is: the basemap's tiles for where they are would tell OpenFreeMap.
  */
 function showNearby() {
-  [following, boardPlace, nearMe, back] = [undefined, undefined, 'locating', undefined];
+  [following, boardPlace, nearMe, searching, back] = [undefined, undefined, 'locating', false, undefined];
   trainSource?.setData(trains());
   openPanel(true);
   writeLink();
@@ -1887,7 +1934,7 @@ function showNearby() {
   locate();
 }
 
-/** Nearby's Try again: asks the browser again where the viewer is, as Nearby's button does, saying meanwhile that it's finding out, under which the button stays, and the keyboard's focus on it (#324). */
+/** Nearby's Try again: asks the browser again where the viewer is, as Nearby's tab does, saying meanwhile that it's finding out, under which the button stays, and the keyboard's focus on it (#324). */
 function askAgain() {
   nearMe = 'retrying';
   showPanel();
@@ -1924,12 +1971,18 @@ function locate() {
   );
 }
 
-/** Stops following a Train, or closes a Station's board or the nearby Trains. */
+/**
+ * Stops following a Train, or closes a Station's board, the nearby Trains or Search, and a board a Search row
+ * is opening once its region has come opens no more (#471). The keyboard's focus, where it was in the panel,
+ * goes back to the tab whose sheet it was, as the close button goes with the panel, rather than to the page (#470).
+ */
 function closePanel() {
-  [following, boardPlace, nearMe, back] = [undefined, undefined, undefined, undefined];
+  const [tab, keyboard] = [currentTab({ following, boardPlace, nearMe, searching }), panel.contains(document.activeElement)];
+  [following, boardPlace, nearMe, searching, back, linkWaits] = [undefined, undefined, undefined, false, undefined, false];
   showPanel();
   writeLink();
   map.easeTo({ padding: panelPadding() });
+  if (keyboard && tab) tabs[tab].focus();
 }
 
 /**
@@ -1952,7 +2005,7 @@ function openPanel(up: boolean) {
  * view, the map goes to the Station, by follow()'s rule (#292). A Station or a Train opens once its
  * regions have come, which load meanwhile (#266), and those whose Trips fail to come are logged where
  * show() gets them, and looked for again; opened then, it doesn't ring its point again, which a tap
- * may have cleared meanwhile.
+ * may have cleared meanwhile. A Search row opens a Station's board as a link that names it alone (openStation()).
  */
 function openLink(ring = true) {
   if (ring) showMark(markOf(openedLink));
@@ -1964,7 +2017,10 @@ function openLink(ring = true) {
   linkWaits = !place && (!!station || !!train) && !come({ station, train });
   if (linkWaits) want();
   else if (place) {
+    const keyboard = panel.contains(document.activeElement);
     showBoard(place.id);
+    // The keyboard's focus, where it was in the panel, as on the Search row that opened the board (#471), to its title, as what it was on has gone.
+    if (keyboard) focusTitle();
     // ponytail: eased before the board's departures come on a page just opened, so on a phone the
     // Station then sits just above the board, not mid-way above it; ease again as they come if that
     // shows. A `map=` MapLibre won't open (zoom 99) counts as a view too, so the board opens over
@@ -2145,19 +2201,39 @@ interface Panel {
 
 /**
  * Fills the panel, in the viewer's language, with the Train the map follows, the Station board it
- * shows, or the viewer's nearby Trains: on a phone pulled up, as `up` says, or peeking. Hides it while
- * there's none. It changes in place, so that its refresh every second never takes the keyboard's
- * focus or a screen reader's place (patch()).
+ * shows, the viewer's nearby Trains or Search: on a phone pulled up, as `up` says, or peeking. Hides it
+ * while there's none. It changes in place, so that its refresh every second never takes the keyboard's
+ * focus or a screen reader's place (patch()). And marks the tab whose sheet it is current (#470).
  */
 function showPanel(up = wide.matches || pulledUp || dragging) {
   panelShown = performance.now();
-  const shown = following ? followedPanel(up) : boardPlace ? boardPanel(boardPlace, up) : nearMe ? nearbyPanel(nearMe, up) : undefined;
+  const shown = following ? followedPanel(up) : boardPlace ? boardPanel(boardPlace, up) : nearMe ? nearbyPanel(nearMe, up) : searching ? searchPanel() : undefined;
   panelDue = shown?.changes ?? 1000;
   panel.hidden = !shown;
   panel.classList.toggle('up', up);
   patch(panel, shown ? [el('div', { className: 'sheet-top' }, handle(up), shown.header), el('div', { className: 'sheet-body' }, ...shown.body)] : []);
+  const current = currentTab({ following, boardPlace, nearMe, searching });
+  for (const [tab, button] of Object.entries(tabs)) {
+    if (tab === current) button.setAttribute('aria-current', 'page');
+    else button.removeAttribute('aria-current');
+  }
   // Where the Train followed has changed, so that the Centre button doesn't wait for the next draw.
   showCentring();
+  riseOverKeyboard();
+}
+
+/**
+ * Raises Search's sheet over the on-screen keyboard while it's up, as it covers the bottom of the page the
+ * sheet docks to, up to the top of what's on screen, the visual viewport, and lets it back down as the
+ * keyboard goes (keyboardRise(), #471): the keyboard is up while Search's field has the focus, and goes as
+ * the field loses it, or a phone's back button puts it away. The map's padding stays as it was: what's under
+ * the keyboard can't be seen anyway.
+ */
+function riseOverKeyboard() {
+  const rise = searching && visualViewport ? keyboardRise(innerHeight, visualViewport) : undefined;
+  dock.classList.toggle('risen', !!rise);
+  dock.style.setProperty('--risen-bottom', rise ? `${rise.bottom}px` : '');
+  dock.style.setProperty('--risen-height', rise ? `${rise.height}px` : '');
 }
 
 /** Shows what the panel shows pulled up, or peeking, and gives how high it is then, in px. */
@@ -2571,16 +2647,17 @@ function showTapped() {
  * Fits the tap's popup to the room round the point it points from, `at`, and places it there again
  * where it's open (#341): GUTTER in from the map's sides, and as far from the corners' cards over the
  * map's top, the buttons riding on the sheet over its bottom, and on a wide window the panel's card at
- * its left, as the map's own padding is (panelPadding()). MapLibre puts it above the point, or below or
- * beside it where it doesn't fit, by those insets (`padding`), and popupRoom() keeps it small enough
- * for one of those to fit: no wider than its most width, nor higher than `--popup-room` in the CSS.
+ * its left, as the map's own padding is (panelPadding()), or the rail where the card's closed (#470).
+ * MapLibre puts it above the point, or below or beside it where it doesn't fit, by those insets
+ * (`padding`), and popupRoom() keeps it small enough for one of those to fit: no wider than its most
+ * width, nor higher than `--popup-room` in the CSS.
  */
 function fitPopup(at: LngLat) {
   const box = map.getContainer().getBoundingClientRect();
   const inset = {
     top: Math.max(box.top, ...[legend, banner, languageChip].map((card) => card.getBoundingClientRect().bottom)) - box.top + GUTTER,
     bottom: box.bottom - Math.min(box.bottom, riders.getBoundingClientRect().top) + GUTTER,
-    left: GUTTER + panelPadding().left,
+    left: GUTTER + Math.max(panelPadding().left, wide.matches ? nav.getBoundingClientRect().right - box.left : 0),
     right: GUTTER,
   };
   const room = popupRoom(map.project(at), box, inset);
@@ -2766,6 +2843,142 @@ function followedCountdown(at: number, now: number): Node[] {
 }
 
 /**
+ * Search's sheet (#470, #471): its field at its top, which showSearch() focuses, with a clear button once
+ * something's typed, under a heading for a screen reader; and under it, while it's empty, what it finds
+ * (searchHints()), or what it finds for what's typed, section by section (results()), or that it finds
+ * nothing: Stations from the file below zoom 7, every region's, and Train numbers from the Trips of the
+ * regions the map has loaded, with where each one's Train is now (tripsAt()).
+ */
+function searchPanel(): Panel {
+  // Not by el(), whose Partial<HTMLInputElement> is a union too large for tsc, with an input's `autocomplete`.
+  const field = document.createElement('input');
+  [field.type, field.className, field.placeholder, field.spellcheck] = ['search', 'search-field', t('searchPlaceholder'), false];
+  field.oninput = () => search(field.value);
+  field.setAttribute('aria-label', t('searchLabel'));
+  field.setAttribute('autocomplete', 'off');
+  // Names of Stations, which a phone's keyboard would otherwise correct to words it knows as a space follows them.
+  field.setAttribute('autocorrect', 'off');
+  field.setAttribute('enterkeyhint', 'search');
+  const clearField = () => {
+    const shown = panel.querySelector<HTMLInputElement>('.search-field');
+    if (shown) shown.value = '';
+    shown?.focus();
+    search('');
+  };
+  const clear = el('button', { type: 'button', className: 'clear', title: t('clearSearch'), hidden: !query, onclick: clearField }, icon('close'));
+  clear.setAttribute('aria-label', t('clearSearch'));
+  // Its Enter, a phone keyboard's Search, puts the keyboard away, over what's found already.
+  const submitted = (e: SubmitEvent) => {
+    e.preventDefault();
+    (document.activeElement as HTMLElement | null)?.blur();
+  };
+  const form = el('form', { className: 'card field', onsubmit: submitted }, icon('search'), field, clear);
+  form.setAttribute('role', 'search');
+  const header = el('header', {}, el('h2', { className: 'sr-only', textContent: t('search') }), form, closeButton(t('closeSearch')));
+  if (!query.trim()) return { header, body: searchHints() };
+  const trips = bundle ? numbered(bundle.trips, query) : [];
+  const sections = results(query, searched, bundle && trips.length ? tripsAt(bundle, Date.now(), received, trips, hidingClosures) : []);
+  if (!sections.length) return { header, body: [el('p', { className: 'empty', textContent: t('nothingFound').replace('{query}', query.trim()) })] };
+  return { header, body: sections.flatMap((section) => ('places' in section ? stationResults(section.places) : trainResults(section))) };
+}
+
+/** Shows what Search finds for `text`, typed in its field, from the top (#471). */
+function search(text: string) {
+  query = text;
+  showPanel();
+  panel.querySelector('.sheet-body')?.scrollTo(0, 0);
+}
+
+/** What Search says it finds while its field is empty (#471): a Station, beside examples of their names, and a Train number, which only Renfe's Trains have, of the parts of the map loaded. A Line comes with a Line's screen (#473). */
+function searchHints(): Node[] {
+  const hint = (lead: Node, what: string, under: string) =>
+    el('li', {}, el('span', { className: 'lead' }, lead), el('span', { className: 'what' }, el('span', { className: 'what-title', textContent: what }), el('span', { className: 'what-under', textContent: under })));
+  return [
+    el('h3', { className: 'label', textContent: t('find') }),
+    el('ul', { className: 'hints' }, hint(icon('station'), t('aStation'), SEARCH_EXAMPLES.stations), hint(el('b', { className: 'num', textContent: SEARCH_EXAMPLES.number }), t('aTrainNumber'), t('renfeOnly'))),
+  ];
+}
+
+/**
+ * Search's Stations (#471): a row for each place it finds, with its name and its Lines' pills, and where another
+ * it finds reads alike, its Networks, by their short names where they have them (networkNames()), each a button
+ * that opens the place's board (openStation()).
+ */
+function stationResults(found: { place: Found; alike: boolean }[]): Node[] {
+  const networks = networkNames(zoomedOut?.networks ?? []);
+  const row = ({ place, alike }: { place: Found; alike: boolean }) =>
+    el(
+      'button',
+      { type: 'button', className: 'result', onclick: () => openStation(place.stations[0] ?? '') },
+      el('span', { className: 'lead' }, icon('station')),
+      el(
+        'span',
+        { className: 'what' },
+        el('span', { className: 'what-title' }, place.name, ...(alike ? [el('span', { className: 'soft', textContent: ` · ${place.networks.map((n) => networks.get(n) ?? n).join(', ')}` })] : [])),
+        el('span', { className: 'what-under served' }, ...place.lines.map((line) => pill(line, { small: true }))),
+      ),
+      el('span', { className: 'end' }, icon('right')),
+    );
+  return [el('h3', { className: 'label', textContent: t('stations') }), el('ol', { className: 'results' }, ...found.map((f) => el('li', {}, row(f))))];
+}
+
+/**
+ * Search's Train numbers (#471): a row for each Trip it shows (trainResult()), and how many more it found, whose
+ * numbers start with what's typed.
+ */
+function trainResults({ trains, more }: { trains: TripNow[]; more: number }): Node[] {
+  return [
+    el('h3', { className: 'label', textContent: t('trainNumbers') }),
+    el('ol', { className: 'results' }, ...trains.map((now) => el('li', {}, trainResult(now)))),
+    ...(more ? [el('p', { className: 'meta more-results', textContent: moreNumbers(more, numberQuery(query) ?? '') })] : []),
+  ];
+}
+
+/**
+ * One of Search's Train rows (#471): its Line's pill, which tells a screen reader Live or Scheduled, as a
+ * board's rows' do (#321), its number and where it's headed, and where its Train is now: Live or Scheduled, its
+ * next Station it stops at and when it's due there, as the follow panel says it (due(), #607), with its Delay at
+ * the row's end, as a board's; where and when it leaves; Cancelled; or when it ended. One running, on the map or
+ * within a closed Closure that hides Trains, or still to leave is a button that follows its Train (#322), and one
+ * Cancelled or ended follows nothing.
+ */
+function trainResult(now: TripNow): HTMLElement {
+  const { trip } = now;
+  const row = (live: boolean, follows: boolean, under: (Node | string)[], end: Node[] = []) => {
+    const cells = [
+      el('span', { className: 'lead' }, pill(trip.line, { live, train: follows })),
+      el('span', { className: 'what' }, el('span', { className: 'what-title', textContent: trainTo(trip.number ?? '', trip.headsign) }), el('span', { className: 'what-under' }, ...under)),
+      el('span', { className: 'end' }, ...end, ...(follows ? [icon('right')] : [])),
+    ];
+    return follows ? el('button', { type: 'button', className: 'result', onclick: () => openFrom(() => follow(trip.id)) }, ...cells) : el('div', { className: 'result' }, ...cells);
+  };
+  if ('cancelled' in now) return row(false, false, [el('span', { className: 'status cancelled', textContent: t('cancelled') })]);
+  if ('ended' in now) return row(false, false, [t('endedAt').replace('{time}', clock().format(now.ended))]);
+  const { upcoming, delay, live } = 'train' in now ? now.train : now.coming;
+  if ('coming' in now && !now.coming.within) {
+    const first = upcoming[0];
+    return row(live, true, [first ? leavesAt(stationName(first.station), clock().format(first.departure)) : ''], [status({ delay, live })]);
+  }
+  const next = upcoming.find((c) => !c.skipped);
+  const standing = 'train' in now && !!now.train.standsAt && next === upcoming[0];
+  // Its pill says it to a screen reader already.
+  const said = el('span', { textContent: `${t(live ? 'live' : 'scheduled')} · ` });
+  said.setAttribute('aria-hidden', 'true');
+  const where = next ? nextAt(stationName(next.station), clock().format(due(next, standing, next === upcoming.at(-1)).at)) : '';
+  return row(live, true, [said, where], [status({ delay, live, unreported: 'train' in now && now.train.unreported })]);
+}
+
+/**
+ * Opens a place's board from a Search row, by one of its Stations, as a link that names that Station alone
+ * does (openLink(), #292): at once where its region is on the map, or once it has come, which loads meanwhile
+ * wherever the map is (#266), Search's sheet showing till then; and the map eases onto it (#471).
+ */
+function openStation(station: string) {
+  openedLink = `#station=${station}`;
+  openLink(false);
+}
+
+/**
  * The viewer's nearby Trains: a row for each Line and destination that passes within NEARBY of them
  * within SOON, soonest first, with its next Train's pill and its Delay but for a Metro Train's, and
  * its next passes in minutes to go, a Live one's bold (nearbyRows()). Peeking, the first PEEK rows.
@@ -2888,14 +3101,15 @@ function closeButton(label: string, onclick = closePanel) {
  * A Line's name as its Trains' pill on the map, outlined by its kind of service (pillOf()): filled
  * with its colour and lettered as on the map, or for a Scheduled Train ringed in it and lettered in
  * it, as it reads on the card (lettering()). A Train's tells a screen reader which it is too, as its
- * fill says it. A pill naming a Line, not a Train, is filled, as operators' badges are.
+ * fill says it. A pill naming a Line, not a Train, is filled, as operators' badges are. A Line of a
+ * region the map hasn't loaded, as Search names at a Station, as the file below zoom 7 has it (#471).
  */
 function pill(id: string, { live = true, train = false, small = false } = {}) {
-  const [line, drawn] = [lines.get(id), pills.get(id)];
-  const name = el('span', { className: `pill ${drawn?.outline ?? 'round'} ${live ? 'live' : 'scheduled'}${small ? ' small' : ''}`, textContent: line?.name ?? '' });
+  const line = lines.get(id) ?? searchedLines.get(id);
+  const name = el('span', { className: `pill ${line ? outlineOf(line.kind) : 'round'} ${live ? 'live' : 'scheduled'}${small ? ' small' : ''}`, textContent: line?.name ?? '' });
   if (line) {
     name.style.setProperty('--line', line.colour);
-    name.style.setProperty('--lettering', live ? (drawn?.dark ? INK : '#fff') : lettering(line.colour, cardColour));
+    name.style.setProperty('--lettering', live ? (darkInk(line.colour) ? INK : '#fff') : lettering(line.colour, cardColour));
   }
   if (train) name.append(el('span', { className: 'sr-only', textContent: `, ${t(live ? 'live' : 'scheduled')}` }));
   return name;
@@ -3165,7 +3379,9 @@ function showDays(days: Bundle, regions: string[]) {
 
 /**
  * The regions the map needs now (regionsNeeded(), #266): those in view, those every view loads, the
- * page's link's, as it was opened or pasted, and those round the viewer, where Nearby has found them.
+ * page's link's, as it was opened or pasted, or as the last Search row that opened a Station's board made it (#471),
+ * and those round the viewer, where Nearby has found them. A link's region stays needed till the link changes,
+ * after its board has closed too.
  */
 function neededRegions({ regions = [] }: Manifest): string[] {
   const link = new URLSearchParams(openedLink.slice(1));
@@ -3188,15 +3404,15 @@ function come(needs: { station?: string | null; train?: string | null; nearby?: 
   return regionsNeeded(manifest?.regions ?? [], undefined, { ...needs, stations: zoomedOut?.stations }).every((id) => shownRegions.has(id));
 }
 
-/** Opens the page's link where it waited for its regions (openLink()), as the viewer hasn't opened another Train, board or Nearby meanwhile (openPanel()). */
+/** Opens the page's link where it waited for its regions (openLink()), or a Search row's Station (openStation()), as the viewer hasn't opened another panel meanwhile (openPanel()), nor closed it (closePanel()). */
 function openWaitingLink() {
   if (linkWaits) openLink(false);
 }
 
 /**
  * Gets the file below zoom 7 the manifest names (ZoomedOut, #266), where it's another than the map
- * has, and draws it as it comes, which opens a link whose Station waited for it to say where it is.
- * Where it fails to come, it's got at the next look.
+ * has, and draws it as it comes, which opens a link whose Station waited for it to say where it is, and
+ * gives Search its Stations (#471). Where it fails to come, it's got at the next look.
  */
 function getZoomedOut({ zoomedOut: key }: Manifest) {
   if (!key || key === zoomedOutKey) return;
@@ -3205,8 +3421,11 @@ function getZoomedOut({ zoomedOut: key }: Manifest) {
     (file) => {
       if (zoomedOutKey !== key) return;
       zoomedOut = file;
+      [searched, searchedLines] = [searchPlaces(file), new Map((file.lines ?? []).map((l) => [l.id, l]))];
       showZoomedOut(file);
       openWaitingLink();
+      // Search finds the Stations in it from now on, and their Lines (#471).
+      if (searching) showPanel();
     },
     (error: unknown) => {
       if (zoomedOutKey === key) zoomedOutKey = undefined;

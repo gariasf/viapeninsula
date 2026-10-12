@@ -123,7 +123,12 @@ export interface Followed extends Train {
 export function trainAt(bundle: Bundle, at: number, received: Received[], id: string, closures: readonly ShownClosure[] = []): Followed | undefined {
   const trip = bundle.trips.find((t) => t.id === id);
   const on = trip && onMap(bundle, at, received, closures).of(trip);
-  if (!on?.train) return undefined;
+  return on && followedOf(bundle, on);
+}
+
+/** A Trip's Train as the follow panel shows it (trainAt()), from where onMap() has it: none where it isn't on the map. */
+function followedOf(bundle: Bundle, on: OnMap): Followed | undefined {
+  if (!on.train) return undefined;
   const { train, now, time, timeAt, calls, profile, said, network, delay, drawnDelay } = on;
   // When it's expected at a moment of its timetable, running the Delay it's drawn at late, which eases to live data's as the Train does (#610).
   const expected = (seconds: number) => bundle.noonMinus12h + (seconds + drawnDelay) * 1000;
@@ -167,8 +172,13 @@ export interface Coming {
 export function comingAt(bundle: Bundle, at: number, received: Received[], id: string, closures: readonly ShownClosure[] = []): Coming | undefined {
   const trip = bundle.trips.find((t) => t.id === id);
   const on = trip && onMap(bundle, at, received, closures).of(trip);
-  const first = on?.calls[0];
-  if (!on || on.train || on.cancelled || !first || (!on.within && on.time >= first.departure)) return undefined;
+  return on && comingOf(bundle, on);
+}
+
+/** A Trip whose Train isn't on the map as comingAt() has it, from where onMap() has it: none where it's on the map, has ended or is Cancelled. */
+function comingOf(bundle: Bundle, on: OnMap): Coming | undefined {
+  const first = on.calls[0];
+  if (on.train || on.cancelled || !first || (!on.within && on.time >= first.departure)) return undefined;
   const expected = (seconds: number) => bundle.noonMinus12h + (seconds + on.delay) * 1000;
   // Which of its Stations lie within a closed Closure that hides Trains, which it doesn't stop at.
   const shut = on.closed && closedCalls(on.calls, on.closed, on.trip.shape);
@@ -180,6 +190,35 @@ export function comingAt(bundle: Bundle, at: number, received: Received[], id: s
     live: on.live,
     ...(on.within && { within: on.within.closure }),
   };
+}
+
+/**
+ * Where a Trip's Train is in its day, as Search's rows say it (#471): running on the map, as trainAt() has it
+ * (`train`); still to leave its first Station, or within a closed Closure that hides Trains, as comingAt() has
+ * it (`coming`); Cancelled; or ended, and when it reached its last Station (`ended`, in ms since 1970), running
+ * its Delay late. With its Trip as its Train runs it (cutTrip()).
+ */
+export type TripNow = { trip: Trip } & ({ train: Followed } | { coming: Coming } | { cancelled: true } | { ended: number });
+
+/**
+ * Where each of these Trips' Trains is in its day (TripNow) at a moment by the device's clock (ms since 1970),
+ * given the snapshots received by then and the Closures that hide Trains, in the order asked: none for one whose
+ * Line or shape the days given haven't got, nor one off its track before it has ended. In one look at the map,
+ * as trainsAt() takes, not trainAt()'s and comingAt()'s for each, which on 12 Oct 2026's Trips of Catalonia and
+ * Madrid took 0.23 ms a Trip on a Mac, 123 ms for the 532 numbered 27… that a Search for 27 lists, where this
+ * takes 1.2 ms.
+ */
+export function tripsAt(bundle: Bundle, at: number, received: Received[], trips: Trip[], closures: readonly ShownClosure[] = []): TripNow[] {
+  const { of } = onMap(bundle, at, received, closures);
+  return trips.flatMap((asked): TripNow[] => {
+    const on = of(asked);
+    if (!on) return [];
+    const [train, coming, last] = [followedOf(bundle, on), comingOf(bundle, on), on.calls.at(-1)];
+    if (train) return [{ trip: on.trip, train }];
+    if (on.cancelled) return [{ trip: on.trip, cancelled: true }];
+    if (coming) return [{ trip: on.trip, coming }];
+    return last && on.time > last.departure ? [{ trip: on.trip, ended: bundle.noonMinus12h + (last.arrival + on.delay) * 1000 }] : [];
+  });
 }
 
 /** A Train on a Station's board: when it's expected to leave the Station, and how far to trust that. */

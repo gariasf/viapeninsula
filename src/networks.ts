@@ -162,6 +162,7 @@ export const RODALIES: NetworkConfig = {
   id: 'rodalies',
   region: 'catalonia',
   name: 'Rodalies de Catalunya',
+  short: 'Rodalies',
   // Every stretch between Stations in Renfe's timetable of 24 September 2026 fits 1 m/s² (138 don't
   // fit 0.7), and the fastest Units on the regional lines run at 160 km/h. Small Stations get half a minute.
   profile: { acceleration: 1, braking: 1, topSpeed: 160 / 3.6, dwell: 30 },
@@ -208,6 +209,7 @@ export const FGC: NetworkConfig = {
   id: 'fgc',
   region: 'catalonia',
   name: 'Ferrocarrils de la Generalitat de Catalunya',
+  short: 'FGC',
   // FGC's timetable is in quarter minutes, so a tenth of the stretches it runs on 1 October 2026 fit
   // no train at 1 m/s², such as Baixador de Vallvidrera to Les Planes, 933 m in 30 s: those Trains
   // accelerate and brake harder. Its fastest Units, on the line to La Pobla, run at 120 km/h. Most of
@@ -303,6 +305,7 @@ export const METRO: NetworkConfig = {
   id: 'metro',
   region: 'catalonia',
   name: 'Metro de Barcelona',
+  short: 'Metro',
   // Every stretch the Metro runs on 1 October 2026 fits 1.3 m/s² (689 don't fit 1.2), but for one L1
   // Trip's 894 m from Santa Coloma to Fondo in 30 s. Its Units run at 80 km/h. TMB gives each Station
   // about 20 seconds.
@@ -712,6 +715,7 @@ const AVE_PURPLE = '#81005E';
 export const AVE_LARGA_DISTANCIA: NetworkConfig = {
   id: 'ave-larga-distancia',
   name: 'AVE y Larga Distancia',
+  short: 'Larga Distancia',
   // Built and loaded on its own, at every view, as its Trains show at every zoom (ADR-0010, ADR-0014).
   region: EVERYWHERE,
   // Fitted by #260's triage to the hops of Monday 5 October 2026's Trips as traced along OpenStreetMap's
@@ -771,9 +775,10 @@ export const AVE_LARGA_DISTANCIA: NetworkConfig = {
 /** Avant's and Avant Exp's: high speed on the same track as AVE's, at 250 km/h and 0.5 m/s². */
 const AVANT = { acceleration: 0.5, braking: 0.5, topSpeed: 250 / 3.6 };
 
-export const MEDIA_DISTANCIA_AVANT: Pick<NetworkConfig, 'id' | 'name' | 'region' | 'profile' | 'live' | 'runningSide' | 'timetables' | 'lines'> = {
+export const MEDIA_DISTANCIA_AVANT: Pick<NetworkConfig, 'id' | 'name' | 'short' | 'region' | 'profile' | 'live' | 'runningSide' | 'timetables' | 'lines'> = {
   id: 'media-distancia-avant',
   name: 'Media Distancia y Avant',
+  short: 'Media Distancia',
   region: EVERYWHERE,
   // Rodalies' 160 km/h at 1 m/s², which #260's triage found fits 99% of MD's hops on Monday 5 October
   // 2026, as traced, the misses being road legs. The ex-FEVE regionals, which the feed names REGIONAL
