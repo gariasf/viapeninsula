@@ -76,6 +76,8 @@ export const KEEP = CARRY + 5 * 60_000;
  * waits there for its Block while that live data is available, for up to WAIT past when it's due to
  * leave, and then catches up with its timetable. A Scheduled one within a closed Closure that hides
  * Trains, between its two Stations, isn't drawn, but a Live one is: live data wins (#345).
+ * One of Renfe's that its reports have named at one Station for 10 minutes or more stands there, unless
+ * it's its Trip's last (#485).
  */
 export function trainsAt(bundle: Bundle, at: number, received: Received[] = [], closures: readonly ShownClosure[] = []): Train[] {
   const { of } = onMap(bundle, at, received, closures);
@@ -740,6 +742,8 @@ interface Heard {
   counted?: GpsDelay;
   /** For Renfe's: the last two different GPS fixes it reported for it, newest first, as first reported, whether hear() took them as positions or not. */
   fixes?: Fix[];
+  /** For Renfe's: the Station its reports have named it at, as `near`, and when its operator first did, in ms since 1970, where none since has named another or given GPS (replay() holds it there from LONG_PIN on). */
+  pin?: { station: string; since: number };
 }
 
 /** A Delay Renfe's GPS gave a Train, in seconds, and when the fetcher got the report that did, as Heard's `got` has it. */
@@ -787,6 +791,26 @@ const GATE = 10 * 60;
 const SLACK = 300;
 
 /**
+ * How long Renfe's reports can name a Train at one Station, as `near`, for it to stand there, in ms.
+ * They pin a Train coming into a Station too, and late, and from one Station to the next, so a minute or
+ * two says little (#8), but one named there for this long is more often at it than not: of the 27 GPS
+ * fixes in the 15 minutes after a pin of 10 minutes or more, in 4 recordings of Rodalies' and the
+ * núcleos' Trains, that the map had drawn 3 km or more from the pin, 17 were at it, 7 near where the map
+ * had the Train and 3 at neither (#485).
+ * ponytail: one length for every Line and núcleo, and a Train unreported for FOLLOWS starts it again.
+ * Give the fetcher the first time it named the Station (`since`), so that a Train pinned before the map
+ * opened is held at once, and not from 10 minutes after, if that matters. Nor can it tell Renfe's
+ * INCOMING_AT from STOPPED_AT, so a Train named as coming in to a Station for the whole run in is held at
+ * it before it has got there: 25 of the 410 Train-minutes it moves in #233's four recordings, as RL4
+ * 33526's 6.5 minutes of 25 September 2026. Keep `currentStatus` in the report, once a Record has it,
+ * and go by that if that matters.
+ */
+const LONG_PIN = 10 * 60_000;
+
+/** Whether a Train's latest report names it at a Station its reports have named it at for LONG_PIN or more: it stands there. */
+const stands = (pin: Heard['pin'], report: Report) => !!pin && report.at - pin.since >= LONG_PIN;
+
+/**
  * How soon after a Train's report the next has to come to go on from it, in ms: for one of Renfe's,
  * to be judged against it, as GPS unchanged since it or far off it, and for a Metro Block, to keep
  * the Trip it ran. It's under KEEP less CARRY and LAG, so that replaying only the snapshots kept
@@ -817,7 +841,8 @@ const FOLLOWS = 2 * 60_000;
  * no time of its own, its feed's header stands for it, and its position holds for minutes and then
  * moves kilometres, so the time between two says nothing of how far a Train could have run: of the 7
  * fixes it would take as none in 10 October 2026's long-distance replay, each was its Train's real
- * position, and one would leave its Train drawn 7 to 8 km behind for 5 minutes.
+ * position, and one would leave its Train drawn 7 to 8 km behind for 5 minutes. It keeps where the
+ * Train's reports have named it at one Station, and since when, which holds it there from LONG_PIN on (#485).
  */
 function hear(before: Heard | undefined, report: Report, got: number, from: Received, live: LiveTraits | undefined, ownDelay: (report: Report) => OwnDelay, topSpeed: number): Heard {
   const carriesGpsDelay = live?.delay === 'gps';
@@ -836,7 +861,11 @@ function hear(before: Heard | undefined, report: Report, got: number, from: Rece
   const { position } = taken;
   const [newest] = before?.fixes ?? [];
   const fixes = fix && !sameSpot(newest, fix) ? [fix, ...(newest ? [newest] : [])] : before?.fixes;
-  const heard = { report, got, placed: position ? got : before?.placed, confirmed: position ? report.at : before?.confirmed, from, own: report.number && !live?.numbers ? before?.own : got, fixes };
+  // Where its reports have named it at one Station since, until one names another or gives GPS: one with no position doesn't. A gap of FOLLOWS or more ends it.
+  const near = report.position && 'near' in report.position ? report.position.near : undefined;
+  const kept = follows(before) ? before.pin : undefined;
+  const pin = !carriesGpsDelay ? undefined : near !== undefined ? (kept?.station === near ? kept : { station: near, since: report.at }) : report.position ? undefined : kept;
+  const heard = { report, got, placed: position ? got : before?.placed, confirmed: position ? report.at : before?.confirmed, from, own: report.number && !live?.numbers ? before?.own : got, fixes, pin };
   if (!carriesGpsDelay) return { ...heard, delay: ownDelay(taken).delay };
   const figure = ownDelay({ ...taken, position: undefined }).delay;
   const { gps, counted } = before ?? {};
@@ -965,7 +994,16 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
       }
       // A Train live data stops reporting keeps its last Delay until that's CARRY old.
       const said = recent(heard.get(id), upTo);
-      const [live, delay] = [isLive(said, feed, upTo), said ? delayBy(said, upTo) : 0];
+      const [live, carried] = [isLive(said, feed, upTo), said ? delayBy(said, upTo) : 0];
+      // One of Renfe's that its reports have named at a Station for LONG_PIN stands there (#485), as FGC's
+      // do (#39): drawn at it, its times as late as that, however far its Delay had it run on, until a
+      // report has it elsewhere. Not at its Trip's last Station, where it has ended its run, and at its
+      // first only held from leaving, as FGC's, each as it runs the Trip (cutTrip()). Its Delay goes on
+      // as before once the pin ends.
+      const stop = live && said && stands(said.pin, said.report) ? calls.findIndex((c) => c.station === said.pin?.station) : -1;
+      const ran = stop >= 0 ? (cutsIn(bundle, r.snapshot).get(id)?.trip ?? trip).calls : [];
+      const pinned = stop >= 0 && calls[stop]?.station !== ran.at(-1)?.station ? calls[stop] : undefined;
+      const delay = pinned && pinned.station !== ran[0]?.station ? arrived - pinned.departure : carried;
       // Until live data first shifts it, a Train runs on its timetable, but for one of the Metro's that
       // waits for its Block (#125). It's in this snapshot, so its Network's feed has one of its Trains
       // in it: its live data is available where that feed works (#124).
@@ -990,7 +1028,7 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
       // back, or jumped back (#107). Not one already drawn out of that Station, as its timetable had it
       // before live data first placed it: holding it there would run it back.
       const held = live && said?.report.block && first && (said.report.at - bundle.noonMinus12h) / 1000 - delay <= first.departure && (i === 0 || far || time <= first.departure);
-      eases.set(id, { at: arrived, time, delay, hold: held ? first.departure : undefined, leaving: !held && leaving && !far ? true : undefined });
+      eases.set(id, { at: arrived, time, delay, hold: held ? first.departure : pinned?.departure, leaving: !held && leaving && !far ? true : undefined });
     }
   }
   const reported = new Map<string, number>();
