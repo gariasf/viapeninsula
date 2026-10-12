@@ -8,7 +8,7 @@ import { afterAll, afterEach, expect, test, vi } from 'vitest';
 import { places, type Point } from '../bundle.ts';
 import { AVE_LARGA_DISTANCIA, CERCANIAS_ASTURIAS, CERCANIAS_BILBAO, CERCANIAS_SANTANDER, CERCANIAS_ZARAGOZA, MEDIA_DISTANCIA_AVANT, NETWORKS, RODALIES, TRAM, type NetworkConfig } from '../networks.ts';
 import { dirSource, rows, seconds, zipFile, zipSource, type Source } from './gtfs.ts';
-import { copyOf, FGC_FEED, joinParts, METRO_FEED, onFgcRails, onMetroRails, onRails, onRodaliesRails, ownRails, readFeed, readTimetables, RODALIES_FEED, TRAMBAIX_FEED, unlisted, untaken, type Feed } from './networks.ts';
+import { copyOf, FGC_FEED, joinParts, meeting, METRO_FEED, onFgcRails, onMetroRails, onRails, onRodaliesRails, ownRails, readFeed, readTimetables, RODALIES_FEED, TRAMBAIX_FEED, unlisted, untaken, type Feed } from './networks.ts';
 import type { Found } from './report.ts';
 import type { Snippet } from './snippet.ts';
 import { nearest, traceShapes } from './track.ts';
@@ -769,6 +769,26 @@ test("makes the same Trips of a day whatever order its timetable lists a Train's
   const forwards = await read(rajadell);
   expect(forwards.log).toHaveLength(2);
   expect(await read(backwards)).toEqual(forwards);
+});
+
+test("finds the runs of a Train's Trips that meet, each in the order its Trips run, whatever order they're given in, and none for a Trip that meets no other (#467)", () => {
+  const [a, b, c] = [part('a', ['A', '10:00'], ['B', '10:10']), part('b', ['B', '10:10'], ['C', '10:20']), part('c', ['C', '10:20'], ['D', '10:30'])];
+  const ids = (runs: FeedTrip[][]) => runs.map((run) => run.map((t) => t.id));
+  // Three Trips that each start where the one before ends make one run, and the Trip of another Station none.
+  const other = part('x', ['X', '10:15'], ['Y', '10:25']);
+  expect(ids(meeting([c, other, a, b]))).toEqual([['a', 'b', 'c']]);
+  expect(ids(meeting([b, a, other]))).toEqual([['a', 'b']]);
+  // A minute off, at the same Station, or the same minute at another, is no meeting.
+  expect(meeting([a, part('late', ['B', '10:11'], ['C', '10:20'])])).toEqual([]);
+  expect(meeting([a, part('else', ['E', '10:10'], ['C', '10:20'])])).toEqual([]);
+  // Seconds into one minute are one: the Train arrives at 10:10:00 and the next Trip leaves at 10:10:30.
+  const half = { ...b, calls: b.calls.map((call, i) => (i ? call : { ...call, arrival: at('10:10') + 30, departure: at('10:10') + 30 })) };
+  expect(ids(meeting([a, half]))).toEqual([['a', 'b']]);
+  // A Trip of one call, which starts and ends where it is, goes with the Trip that ends there in that minute, and after it.
+  const stub = part('s', ['B', '10:10']);
+  expect(ids(meeting([stub, a]))).toEqual([['a', 's']]);
+  // Of two Trips that start where one ends, in the same minute, the one that ends first goes with it, and the other none.
+  expect(ids(meeting([part('b2', ['B', '10:10'], ['C', '10:25']), a, b]))).toEqual([['a', 'b']]);
 });
 
 // Rows cut verbatim from Renfe's Cercanías feed of 2026-10-10: RT2's Train 15210 from Salou-Port

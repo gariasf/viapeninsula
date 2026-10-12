@@ -87,12 +87,14 @@ export async function untaken(gtfs: Source, log = console.log): Promise<Found[]>
  * feed, and its Trips and replacement buses on one service day (YYYY-MM-DD). Renfe lists the buses
  * it runs in its Trains' place as Trips of bus routes named as their Line's routes are, as R3's: a
  * bus route named as none of them, as TMB's city buses are, is no Line's. Where the feed lists a Train
- * in parts, they're made one Trip, and the calls that fit none are logged (joinParts()). Where its live
- * data names a stop by its number in its Trip (`stopNumbers`), a Trip whose numbers don't run 1…n is
- * logged and given in `found`, for the report (#406): it's read all the same. A Trip that calls at a
- * Station its Network's config has beyond it isn't the Network's (`beyond`, #368): it's left out as
- * though the feed hadn't it, with its Train number, its shape where no other Trip runs it and the
- * Stations only it calls at, and each of the day's is logged and given back as `left`.
+ * in parts, they're made one Trip, and the calls that fit none are logged (joinParts()); where it lists
+ * one as Trips that meet at a Station in the same minute, they're made one too, and each join is
+ * logged (meeting(), #467). Where its live data names a stop by its number in its Trip (`stopNumbers`),
+ * a Trip whose numbers don't run 1…n is logged and given in `found`, for the report (#406): it's read
+ * all the same. A Trip that calls at a Station its Network's config has beyond it isn't the Network's
+ * (`beyond`, #368): it's left out as though the feed hadn't it, with its Train number, its shape where
+ * no other Trip runs it and the Stations only it calls at, and each of the day's is logged and given
+ * back as `left`.
  */
 export async function readFeed(
   gtfs: Source,
