@@ -96,6 +96,27 @@ export function boardList(trips: TripsState, departures: number, next = false): 
 }
 
 /**
+ * What a board with none left today asks the map for (#597): the next day's Trips, once the Trips of its
+ * own regions have come (`own`) and it hasn't asked today (`asked`); or, where they haven't and the last
+ * look had a file fail, a look again at once for the files that failed (`again`), as that look would wait
+ * for every file of the next day's, once for a run of looks that have had a file fail (`retried`) and then
+ * by the minute's. Nothing while its own regions' Trips are on their way: it has none because they haven't come.
+ */
+export function boardAsks(own: boolean, trips: TripsState, asked: boolean, retried: boolean): 'next' | 'again' | undefined {
+  if (own) return asked ? undefined : 'next';
+  return trips === 'failed' && !retried ? 'again' : undefined;
+}
+
+/**
+ * Whether the next day's Trips, which a board with none left today asked for (`asked`), are on their way
+ * (#596): the map is looking for the days it needs, and the last day of its bundle, today's where it has
+ * none, isn't past `today` yet, as it is once they're on it.
+ */
+export function nextOnItsWay(looking: boolean, asked: boolean, lastDay: string | undefined, today: string): boolean {
+  return looking && asked && (lastDay ?? today) <= today;
+}
+
+/**
  * How far along its Trip a Train is, in metres, and how long the Trip is, by its legs from Station to
  * Station, so that a Trip which runs back along its track adds up both ways: given its calls, how far
  * along its shape it's drawn, and how many Stations it has still to leave, the one it stands at too.

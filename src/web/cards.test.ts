@@ -4,7 +4,7 @@ import { expect, test } from 'vitest';
 import { DEGREE, type Alert, type AlertFeed, type Alerts, type Bundle, type Call, type Line, type Trip } from '../bundle.ts';
 import type { Pass } from '../engine.ts';
 import { ALERTS_START, readAlerts } from '../fetcher/alerts.ts';
-import { boardList, cardAlerts, countdownTo, inNameOrder, linesCallingAt, linesOnBoard, linkedWords, minutesTo, nearbyRows, passedPlace, progress, tripsState, untilTick, whereabouts, type Part } from './cards.ts';
+import { boardAsks, boardList, cardAlerts, countdownTo, inNameOrder, linesCallingAt, linesOnBoard, linkedWords, minutesTo, nearbyRows, nextOnItsWay, passedPlace, progress, tripsState, untilTick, whereabouts, type Part } from './cards.ts';
 
 /** A time of day in Barcelona on Wednesday 7 Oct 2026, in summer time, in ms since 1970. */
 const at = (hours: number, minutes: number, seconds = 0) => Date.UTC(2026, 9, 7, hours - 2, minutes, seconds);
@@ -141,7 +141,7 @@ test("a board's list is its label alone while the day's Trips are on their way, 
 });
 
 test("a board with none left today is its label alone while the next day's Trips, which it asked for, are on their way, then their rows, or that none can be had where they fail (#596)", () => {
-  // Asked for tomorrow's Trips at 23:50, with the map looking for them: the bundle has only today's, which has none left.
+  // Asked for tomorrow's Trips at 22:30, with the map looking for them: the bundle has only today's, which has none left.
   expect(boardList('came', 0, true)).toBe('label');
   // Their rows once they have come, which the look for them is no more of.
   expect(boardList('came', 3, false)).toBe('rows');
@@ -154,6 +154,37 @@ test("a board with none left today is its label alone while the next day's Trips
   expect(boardList('coming', 0, true)).toBe('label');
   // A board with some left lists them while the next day's come, as it did.
   expect(boardList('came', 1, true)).toBe('rows');
+});
+
+test("a board with none left asks for the next day's Trips once its own regions' have come, once a day, and not while they're on their way (#597)", () => {
+  // Its own regions' Trips have come: the next day's, and not again the same day.
+  expect(boardAsks(true, 'came', false, false)).toBe('next');
+  expect(boardAsks(true, 'came', true, false)).toBeUndefined();
+  // Another region's Trips having failed is no reason to wait for them: its own have come.
+  expect(boardAsks(true, 'failed', false, false)).toBe('next');
+  // Its own still on their way: it has none because they haven't come, whatever the map is looking for.
+  expect(boardAsks(false, 'coming', false, false)).toBeUndefined();
+});
+
+test("a board with none left whose own regions' Trips failed has the map look again at once for those, once for a run of looks that have had a file fail, and not for the next day (#597)", () => {
+  expect(boardAsks(false, 'failed', false, false)).toBe('again');
+  // Not again for the retry that fails too, nor for the looks after it, which are the minute's.
+  expect(boardAsks(false, 'failed', false, true)).toBeUndefined();
+  // Whether it asked for the next day today isn't what retries them.
+  expect(boardAsks(false, 'failed', true, false)).toBe('again');
+});
+
+test("the next day's Trips that a board asked for are on their way while the map is looking and the last day of its bundle isn't past today (#596)", () => {
+  expect(nextOnItsWay(true, true, '2026-10-11', '2026-10-11')).toBe(true);
+  // A bundle left from the day before, as a tab hidden overnight has until the new day's have come, is behind today.
+  expect(nextOnItsWay(true, true, '2026-10-10', '2026-10-11')).toBe(true);
+  // Without a bundle there's no last day, and today stands for it.
+  expect(nextOnItsWay(true, true, undefined, '2026-10-11')).toBe(true);
+  // On the map once its last day is the day after today: a board with none even then says so, and not its label for each look.
+  expect(nextOnItsWay(true, true, '2026-10-12', '2026-10-11')).toBe(false);
+  // Not once the look is over, nor for a board that hasn't asked today.
+  expect(nextOnItsWay(false, true, '2026-10-11', '2026-10-11')).toBe(false);
+  expect(nextOnItsWay(true, false, '2026-10-11', '2026-10-11')).toBe(false);
 });
 
 test("a board's Trips are on their way while a region the map has loaded hasn't come, though another's have, and failed where the last look had a file fail (#379)", () => {

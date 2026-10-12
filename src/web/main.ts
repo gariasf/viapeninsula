@@ -19,7 +19,7 @@ import { atMostEvery, drifted, letsGo } from './centre.ts';
 import { keepView, lastView, markOf, openingView, toggledPitch } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { darkInk, INK, lettering } from './colour.ts';
-import { boardList, cardAlerts, countdownTo, inNameOrder, linesOnBoard, linkedWords, minutesTo, nearbyRows, passedPlace, progress, tripsState, untilTick, whereabouts, type CardAlert, type Whereabouts } from './cards.ts';
+import { boardAsks, boardList, cardAlerts, countdownTo, inNameOrder, linesOnBoard, linkedWords, minutesTo, nearbyRows, nextOnItsWay, passedPlace, progress, tripsState, untilTick, whereabouts, type CardAlert, type Whereabouts } from './cards.ts';
 import { ARROW_GAP, boxOf, FOLLOWED_TEXT, LINE_HEIGHT, OUTLINE_SIZES, outlineOf, PILL_EDGE, PILL_PADDING, PILL_TEXT, pillReach, type Outline } from './pill.ts';
 import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, tappedRows, type Shown } from './closures.ts';
 
@@ -2564,14 +2564,10 @@ function boardPanel(id: string, up: boolean): Panel | undefined {
   // fail (failedRetried), and then by the minute's.
   const date = madridDate(new Date(mapNow));
   if (bundle && !departures.length) {
-    const own = place.stations.every((station) => come({ station }));
-    if (own && emptyBoard !== date) {
-      emptyBoard = date;
-      refreshDays();
-    } else if (!own && trips === 'failed' && !failedRetried) {
-      failedRetried = true;
-      refreshDays();
-    }
+    const ask = boardAsks(place.stations.every((station) => come({ station })), trips, emptyBoard === date, failedRetried);
+    if (ask === 'next') emptyBoard = date;
+    if (ask === 'again') failedRetried = true;
+    if (ask) refreshDays();
   }
   const shown = up ? departures : departures.slice(0, PEEK);
   // Neither rows nor "none" while the Trips of a region the map has loaded are on their way, as the bundle has the others' already
@@ -2581,7 +2577,7 @@ function boardPanel(id: string, up: boolean): Panel | undefined {
   // ponytail: a next day the manifest doesn't name, where a build has left the map without one, is looked for by
   // no look, so a board that asked has its label alone for the second or so each minute's look takes. Go by the
   // manifest's days if that shows.
-  const next = looking && emptyBoard === date && (bundle?.serviceDay ?? date) <= date;
+  const next = nextOnItsWay(looking, emptyBoard === date, bundle?.serviceDay, date);
   const list = boardList(trips, departures.length, next);
   return {
     header: el(
