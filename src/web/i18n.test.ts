@@ -220,6 +220,14 @@ test('says atop About, in Basque and in Galician alone, that their texts are mac
   for (const note of Object.values(MACHINE_TRANSLATED)) expect(note.split('GitHub')).toHaveLength(2);
 });
 
+test('says after the text of a link that opens in a new tab, for a screen reader, that it does, in each language (#585)', () => {
+  expect(t('opensInNewTab', 'ca')).toBe("(s'obre en una pestanya nova)");
+  expect(t('opensInNewTab', 'es')).toBe('(se abre en una pestaña nueva)');
+  expect(t('opensInNewTab', 'en')).toBe('(opens in a new tab)');
+  expect(t('opensInNewTab', 'eu')).toBe('(fitxa berri batean irekitzen da)');
+  expect(t('opensInNewTab', 'gl')).toBe('(ábrese nunha lapela nova)');
+});
+
 test("counts down to a Train in minutes on a board and in Nearby, or says it's now, in each language", () => {
   expect(toGo(3, 'minutes', 'ca')).toBe('3\u00A0min');
   expect(toGo(3, 'minutes', 'es')).toBe('3\u00A0min');
