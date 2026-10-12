@@ -1,10 +1,10 @@
 import { expect, test } from 'vitest';
-import { STRETCH, type Network, type Shape, type Station, type Track, type Trip } from '../bundle.ts';
+import { STRETCH, type Manifest, type Network, type Shape, type Station, type Track, type Trip } from '../bundle.ts';
 import { EVERYWHERE } from '../networks.ts';
 import { decodeTrack, type StoredTrack } from '../pieces.ts';
 import { noonMinus12h } from './gtfs.ts';
 import { manifestOf } from './manifest.ts';
-import { buildRegion, buildRegions, sharedStretches, trackFile, zoomedOut, type BuiltNetwork } from './regions.ts';
+import { buildRegion, buildRegions, failedRegions, sharedStretches, trackFile, zoomedOut, type BuiltNetwork } from './regions.ts';
 import { collect, diff, type Found, type Spot } from './report.ts';
 
 // Track drawn in metres east (x) and north (y) of a point in Barcelona, as sideBySide.test.ts has it.
@@ -20,6 +20,9 @@ function shape(id: string, [x0, y0]: [number, number], [x1, y1]: [number, number
 }
 
 const PROFILE = { acceleration: 1, braking: 1, topSpeed: 44, dwell: 30 };
+
+/** A region's files as a manifest names them, one for each of these days. */
+const named = (region: string, ...dates: string[]) => dates.map((date) => ({ date, track: `days/track-${region}-old.json`, trips: `days/${date}-${region}-old.json`, from: 1, to: 2 }));
 
 /**
  * A Network of one Line along one shape from x metres to another, with Trips on each of the days that
@@ -132,8 +135,8 @@ test("builds a region whose Networks have no Trips today as the others, its trac
   expect(found.find((f) => f.kind === 'notrips')).toMatchObject({ network: 'cercanias-cadiz', day: 0 });
 });
 
-test("builds each region one after another, and leaves out one whose build fails, as it logs and reports, so that the others are built", async () => {
-  const [events, log, found]: [string[], string[], Found[]] = [[], [], []];
+test("builds each region one after another, and leaves out one whose build fails, as it logs, with why, so that the others are built", async () => {
+  const [events, log]: [string[], string[]] = [[], []];
   const regions = ['catalonia', 'cercanias-madrid', 'cercanias-leon'].map((id) => ({ id, networks: [{ id }] }));
   const result = await buildRegions(
     regions,
@@ -144,21 +147,20 @@ test("builds each region one after another, and leaves out one whose build fails
       events.push(`end ${id}`);
       return { days: [], id };
     },
-    { log: (line) => log.push(line), report: { add: (f) => found.push(f), carry: () => {} }, last: [] },
+    { log: (line) => log.push(line), report: { carry: () => {} }, last: [] },
   );
   expect(events).toEqual(['start catalonia', 'end catalonia', 'start cercanias-madrid', 'start cercanias-leon', 'end cercanias-leon']);
-  expect(result).toEqual([{ id: 'catalonia', built: { days: [], id: 'catalonia' } }, { id: 'cercanias-madrid' }, { id: 'cercanias-leon', built: { days: [], id: 'cercanias-leon' } }]);
-  // Logged and reported with the first line of why, as a Network built from its copy is.
-  const line = "cercanias-madrid isn't built, and keeps the files of its last build: Cercanías Madrid has no copy of its timetables to build it from: Couldn't read stop_times.txt";
-  expect(log).toEqual([line, expect.stringMatching(/^Error: Cercanías Madrid has no copy[\s\S]*unzip: end of central directory not found[\s\S]*at /)]);
-  expect(found).toEqual([{ kind: 'region', region: 'cercanias-madrid', text: [line] }]);
+  // Why it failed, in one line, as a Network built from its copy gives its reason, for the report (failedRegions()).
+  const why = "Cercanías Madrid has no copy of its timetables to build it from: Couldn't read stop_times.txt";
+  expect(result).toEqual([{ id: 'catalonia', built: { days: [], id: 'catalonia' } }, { id: 'cercanias-madrid', failed: why }, { id: 'cercanias-leon', built: { days: [], id: 'cercanias-leon' } }]);
+  expect(log).toEqual([`cercanias-madrid isn't built: ${why}`, expect.stringMatching(/^Error: Cercanías Madrid has no copy[\s\S]*unzip: end of central directory not found[\s\S]*at /)]);
 });
 
 test("carries the spots of the last report for the Networks of a region whose build failed, which no other region's are", async () => {
   const spot = (network: string): Spot => ({ kind: 'trips', key: `trips ${network}`, network, text: [''], numbers: { friday: 1 } });
   const last = [spot('rodalies'), spot('fgc'), spot('cercanias-madrid'), { kind: 'measures', key: 'measures', text: [''] } as Spot];
   const report = collect();
-  await buildRegions(
+  const results = await buildRegions(
     [{ id: 'catalonia', networks: [{ id: 'rodalies' }, { id: 'fgc' }] }, { id: 'cercanias-madrid', networks: [{ id: 'cercanias-madrid' }] }],
     async ({ id }) => {
       if (id === 'catalonia') throw new Error('sideBySide failed');
@@ -166,8 +168,12 @@ test("carries the spots of the last report for the Networks of a region whose bu
     },
     { log: () => {}, report, last },
   );
+  expect(report.spots().map((s) => s.key)).toEqual(['trips fgc', 'trips rodalies']);
+  // The region's failure is a spot of its own once the manifest says what's kept (failedRegions()), and the only one new.
+  const kept: Manifest = { regions: [{ id: 'catalonia', days: named('catalonia', '2026-10-10', '2026-10-11') }] };
+  const manifest = manifestOf(results.map(({ id, built }) => ({ id, days: built && named(id, '2026-10-11') })), kept);
+  for (const found of failedRegions(results, manifest, kept, () => {})) report.add(found);
   expect(report.spots().map((s) => s.key)).toEqual(['region catalonia', 'trips fgc', 'trips rodalies']);
-  // Of the last report's, only the region's failure is new.
   expect(diff(last, report.spots())).toContain('1 new');
 });
 
@@ -183,9 +189,9 @@ test("leaves out a region whose build failed where the last report can't be read
       },
       { log: () => {}, report, last: odd as unknown as Spot[] },
     );
-    expect(results.map((r) => [r.id, r.built !== undefined])).toEqual([['catalonia', false], ['cercanias-madrid', true]]);
-    // Nothing of the last report to carry, and the region's failure is reported all the same.
-    expect(report.spots().map((s) => s.key)).toEqual(['region catalonia']);
+    expect(results.map((r) => [r.id, r.built !== undefined, r.failed])).toEqual([['catalonia', false, 'sideBySide failed'], ['cercanias-madrid', true, undefined]]);
+    // Nothing of the last report to carry, and the region's failure is there to report all the same.
+    expect(report.spots()).toEqual([]);
   }
 });
 
@@ -193,10 +199,10 @@ test("fails the build where none of the regions has Trips today, which is a brok
   const empty = (id: string) => ({ id, networks: [{ id }] });
   const { deps: d } = deps({ a: network('a', [0, 3000], 0, [[], [300], [300]]), b: network('b', [0, 3000], 100, [[], [300], [300]]) });
   const regions = [empty('a'), empty('b')];
-  await expect(buildRegions(regions, (r) => buildRegion(r, d), { log: () => {}, report: { add: () => {}, carry: () => {} }, last: [] })).rejects.toThrow("No Network's timetable has Trips on 2026-10-10");
+  await expect(buildRegions(regions, (r) => buildRegion(r, d), { log: () => {}, report: { carry: () => {} }, last: [] })).rejects.toThrow("No Network's timetable has Trips on 2026-10-10");
   // One of them having some is enough.
   const { deps: ok } = deps({ a: network('a', [0, 3000], 0, [[], [300], [300]]), b: network('b', [0, 3000], 100, [[300], [300], [300]]) });
-  const built = await buildRegions(regions, (r) => buildRegion(r, ok), { log: () => {}, report: { add: () => {}, carry: () => {} }, last: [] });
+  const built = await buildRegions(regions, (r) => buildRegion(r, ok), { log: () => {}, report: { carry: () => {} }, last: [] });
   expect(built.map((r) => r.id)).toEqual(['a', 'b']);
 });
 
@@ -207,7 +213,7 @@ test("a region that fails keeps its last files in the manifest while the others'
   };
   const { deps: d, files } = deps(table);
   const regions = [{ id: 'catalonia', networks: [{ id: 'rodalies' }] }, { id: 'cercanias-madrid', networks: [{ id: 'madrid' }] }];
-  const results = await buildRegions(regions, (r) => buildRegion(r, d), { log: () => {}, report: { add: () => {}, carry: () => {} }, last: [] });
+  const results = await buildRegions(regions, (r) => buildRegion(r, d), { log: () => {}, report: { carry: () => {} }, last: [] });
   // The last manifest named Madrid's files for yesterday and the days to come.
   const entry = (date: string) => ({ date, track: 'days/track-madrid-old.json', trips: `days/${date}-madrid-old.json`, from: 1, to: 2 });
   const last = { regions: [{ id: 'cercanias-madrid', days: ['2026-10-09', '2026-10-10', '2026-10-11'].map(entry) }] };
@@ -236,8 +242,60 @@ test("a region whose track file wouldn't read back as built fails like any other
   // Neither its track nor its Trips were written, and the others' were.
   expect(files.map((f) => f.prefix).filter((p) => p.includes('madrid'))).toEqual([]);
   expect(files.some((f) => f.prefix === 'days/track-catalonia')).toBe(true);
-  expect(log[0]).toContain("cercanias-madrid isn't built, and keeps the files of its last build: cercanias-madrid's track file doesn't give back the track built");
-  expect(report.spots().map((s) => s.key)).toEqual(['region cercanias-madrid']);
+  expect(log[0]).toContain("cercanias-madrid isn't built: cercanias-madrid's track file doesn't give back the track built");
+  // And reported once the manifest says it keeps three days of its last files: its spot, which the manifest of the other region's is no part of.
+  for (const found of failedRegions(results, manifest, last, () => {})) report.add(found);
+  expect(report.spots().map((s) => [s.key, s.numbers?.days])).toEqual([['region cercanias-madrid', 3]]);
+});
+
+/** The report's spot for a failed Madrid, as the build makes it after the manifest of a day on which Catalonia built `dates` and the last manifest named Madrid's days `kept`. */
+function madrid(dates: string[], kept: string[] | undefined, why = 'HTTP 503') {
+  const last: Manifest = { regions: [{ id: 'catalonia', days: named('catalonia', ...dates) }, ...(kept ? [{ id: 'cercanias-madrid', days: named('cercanias-madrid', ...kept) }] : [])] };
+  const results = [{ id: 'catalonia', built: { days: named('catalonia', ...dates) } }, { id: 'cercanias-madrid', failed: why }];
+  const manifest = manifestOf(results.map(({ id, built }) => ({ id, days: built?.days })), last);
+  const log: string[] = [];
+  return { found: failedRegions(results, manifest, last, (line) => log.push(line)), manifest, log };
+}
+
+test("says in a failed region's spot how many days of its last build's files the manifest still names for it, with those it keeps, from the day before the days built on (#452)", () => {
+  // Madrid's last build, on the 9th, named its three days, the 9th to the 11th, and the 8th. The build of the 10th keeps the 9th, 10th and 11th.
+  const { found, log } = madrid(['2026-10-10', '2026-10-11', '2026-10-12'], ['2026-10-08', '2026-10-09', '2026-10-10', '2026-10-11']);
+  const text = "cercanias-madrid isn't built, and keeps the files of its last build for 3 more days: HTTP 503";
+  expect(found).toEqual([{ kind: 'region', region: 'cercanias-madrid', text: [text], numbers: { days: 3 } }]);
+  expect(log).toEqual([text]);
+});
+
+test("counts a failed region's days down by one a build, says 1 more day for the last, and that it has gone from the map once none is left (#452)", () => {
+  // Each build names Madrid's files for the days from the day before it on, of the last build's.
+  const kept = ['2026-10-09', '2026-10-10', '2026-10-11'];
+  const says = (day: number, from: string[]) => {
+    const dates = [day, day + 1, day + 2].map((d) => `2026-10-${d}`);
+    const { found, manifest } = madrid(dates, from);
+    return [found[0]?.text[0], found[0]?.numbers?.days, manifest.regions.find((r) => r.id === 'cercanias-madrid')?.days.map((d) => d.date)];
+  };
+  expect(says(10, kept)).toEqual(["cercanias-madrid isn't built, and keeps the files of its last build for 3 more days: HTTP 503", 3, kept]);
+  expect(says(11, kept)).toEqual(["cercanias-madrid isn't built, and keeps the files of its last build for 2 more days: HTTP 503", 2, kept.slice(1)]);
+  expect(says(12, kept.slice(1))).toEqual(["cercanias-madrid isn't built, and keeps the files of its last build for 1 more day: HTTP 503", 1, kept.slice(2)]);
+  // The 13th's build has none of the 11th's but not the 12th, which isn't named: the manifest leaves Madrid out.
+  expect(says(13, kept.slice(2))).toEqual(["cercanias-madrid isn't built, and has gone from the map: HTTP 503", 0, undefined]);
+});
+
+test("says a failed region the last manifest names no day of has no files of a last build, as one a config change added whose first build fails, and keeps one spot's key through the days so that the report shows its days as changed, not new and gone (#452)", () => {
+  const never = madrid(['2026-10-10', '2026-10-11', '2026-10-12'], undefined);
+  expect(never.found).toEqual([{ kind: 'region', region: 'cercanias-madrid', text: ["cercanias-madrid isn't built, and has no files of a last build: HTTP 503"], numbers: { days: 0 } }]);
+  // Nor does a last manifest of one bundle, the shape before regions, name any region's files.
+  const oneBundle = { days: [{ date: '2026-10-09', track: 'days/track-a.json', trips: 'days/2026-10-09-b.json', from: 0, to: 1 }] } as unknown as Manifest;
+  expect(failedRegions([{ id: 'cercanias-madrid', failed: 'HTTP 503' }], { regions: [] }, oneBundle, () => {})).toMatchObject([{ text: ["cercanias-madrid isn't built, and has no files of a last build: HTTP 503"], numbers: { days: 0 } }]);
+  expect(failedRegions([{ id: 'cercanias-madrid', failed: 'HTTP 503' }], { regions: [] }, undefined, () => {})).toMatchObject([{ numbers: { days: 0 } }]);
+  // The same region's spot of two builds, a day apart, differs in its days and its text alone: its key's the same.
+  const [day1, day2] = [madrid(['2026-10-10', '2026-10-11', '2026-10-12'], ['2026-10-09', '2026-10-10', '2026-10-11']).found, madrid(['2026-10-11', '2026-10-12', '2026-10-13'], ['2026-10-10', '2026-10-11']).found];
+  const [a, b] = [collect(), collect()];
+  for (const f of day1) a.add(f);
+  for (const f of day2) b.add(f);
+  expect(a.spots().map((s) => s.key)).toEqual(['region cercanias-madrid']);
+  expect(b.spots().map((s) => s.key)).toEqual(['region cercanias-madrid']);
+  expect(diff(a.spots(), b.spots())).toContain('`region cercanias-madrid`: days (3 → 2)');
+  expect(diff(a.spots(), b.spots())).toContain('0 new, 0 gone, 1 changed');
 });
 
 test("logs each pair of regions whose Lines share a Stretch, how many, how long and where, or says none do", () => {

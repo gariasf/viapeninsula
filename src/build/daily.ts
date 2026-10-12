@@ -32,7 +32,7 @@ import { ownRails, RAILWAYS, readFeed, readTimetables, unlisted, untaken, type F
 import { crop, toBorder } from './border.ts';
 import { measures, reported, summary } from './measures.ts';
 import { osm } from './osm.ts';
-import { buildRegion, buildRegions, sharedStretches, zoomedOut } from './regions.ts';
+import { buildRegion, buildRegions, failedRegions, sharedStretches, zoomedOut } from './regions.ts';
 import { railGraphs, railsBeside, traceOwn, traceRuns, traceShapes, withLines } from './track.ts';
 import { collect, comment, diff, type Found, type Spot } from './report.ts';
 import { closuresOf, placeDays, placeRuns, unserved, type FeedTrip } from './trips.ts';
@@ -118,11 +118,14 @@ for (const { network, failed } of await longDistance) {
   }
 }
 
+// Each region's days, a failed region's from the last manifest, which its spot says how many of (#452).
+const named = manifestOf(results.map(({ id, built: region }) => ({ id, days: region?.days })), lastManifest);
+for (const found of failedRegions(results, named, lastManifest)) report.add(found);
 const spots = report.spots();
-// Each region's days, then its Networks and where it lies, and the file below zoom 7, which the map
-// needs to load only the regions in view (#266): a failed region's from its last track file.
+// Then each region's Networks and where it lies, and the file below zoom 7, which the map needs to
+// load only the regions in view (#266): a failed region's from its last track file.
 const { regions, file } = await zoomedOut(
-  manifestOf(results.map(({ id, built: region }) => ({ id, days: region?.days })), lastManifest),
+  named,
   new Map(built.map((r) => [r.id, r.track])),
   async (key) => {
     const last = await lastPublished<TrackFile>(key, "the build fails, as the map would lose its region's track below zoom 7");

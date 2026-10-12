@@ -102,11 +102,12 @@ export function trackFile(track: Track, region: string, log: (line: string) => v
 
 /**
  * Builds each region with `build`, one after another, in the order given. One whose build throws is
- * logged, with its stack, and reported as a spot, and goes without a result, so that the manifest keeps
- * the files of its last build (manifestOf()) and the others are built and published as ever. The
- * spots of the last report that are its Networks' are carried over as they were, so that they don't
- * show gone from the report, and new in the next. Fails where none of the regions built has Trips on
- * its first day, today: that's a broken build, not a day without Trains.
+ * logged, with its stack, and goes without a result but why, in one line (`failed`), so that the
+ * manifest keeps the files of its last build (manifestOf()) and the others are built and published as
+ * ever, and failedRegions() reports it once the manifest says what's kept. The spots of the last
+ * report that are its Networks' are carried over as they were, so that they don't show gone from the
+ * report, and new in the next. Fails where none of the regions built has Trips on its first day,
+ * today: that's a broken build, not a day without Trains.
  * ponytail: one after another, as ADR-0014 has it, though the regions share nothing: the build's
  * 281 s on a Mac, 9 minutes in Actions (run 38044181878, set-up too), are far inside its 60, but if
  * they ever aren't, run them in parallel, each reading the same downloads and rails.
@@ -114,28 +115,48 @@ export function trackFile(track: Track, region: string, log: (line: string) => v
 export async function buildRegions<N extends { id: string }, R extends { days: ManifestDay[] }>(
   regions: Region<N>[],
   build: (region: Region<N>) => Promise<R>,
-  { log = console.warn, report, last = [] }: { log?: (line: string) => void; report: { add: (found: Found) => void; carry: (spot: Spot) => void }; last?: Spot[] },
-): Promise<{ id: string; built?: R }[]> {
-  const results: { id: string; built?: R }[] = [];
+  { log = console.warn, report, last = [] }: { log?: (line: string) => void; report: { carry: (spot: Spot) => void }; last?: Spot[] },
+): Promise<{ id: string; built?: R; failed?: string }[]> {
+  const results: { id: string; built?: R; failed?: string }[] = [];
   for (const region of regions) {
     try {
       results.push({ id: region.id, built: await build(region) });
     } catch (error) {
       // One line for the report, as readTimetables() gives its reason, and the whole of it for the log.
       const reason = `${error instanceof Error ? error.message : error}`.replace(/\n.*/s, '');
-      const line = `${region.id} isn't built, and keeps the files of its last build: ${reason}`;
-      log(line);
+      log(`${region.id} isn't built: ${reason}`);
       log(`${error instanceof Error ? (error.stack ?? error.message) : error}`);
-      report.add({ kind: 'region', region: region.id, text: [line] });
       // A last report it can't read, as one of an older shape, has none to carry, and doesn't stop the build (dayTrips()).
       const own = new Set(region.networks.map((n) => n.id));
       for (const spot of Array.isArray(last) ? last : []) if (spot?.network && own.has(spot.network)) report.carry(spot);
-      results.push({ id: region.id });
+      results.push({ id: region.id, failed: reason });
     }
   }
   const today = results.flatMap((r) => r.built?.days[0] ?? []);
   if (today.length && !today.some((d) => Number.isFinite(d.from))) throw new Error(`No Network's timetable has Trips on ${today[0]?.date}`);
   return results;
+}
+
+/**
+ * The report's spot for each region whose build failed (`failed` is why, in one line, as buildRegions()
+ * gives it), made once the manifest says what's kept of it (manifestOf(), given the last manifest, `last`):
+ * how many days of its last build's files the manifest still names for it, `numbers.days`, which falls by
+ * one with each build it fails, until none is left and the map has lost the region, which it says, or that
+ * it has no files of a last build, as a region the last manifest names no day of has none, one added by a
+ * config change whose first build fails (#452). Its key is the region's alone, so that the next build's
+ * report shows the days as changed, not the spot as new and gone. Each one's text is logged.
+ */
+export function failedRegions(results: { id: string; failed?: string }[], manifest: Manifest, last?: Manifest, log: (line: string) => void = console.warn): Found[] {
+  // A last manifest in an older shape, as one of one bundle, names no region's files.
+  const had = new Set(Array.isArray(last?.regions) ? last.regions.map((r) => r.id) : []);
+  return results.flatMap(({ id, failed }): Found[] => {
+    if (failed === undefined) return [];
+    const days = manifest.regions.find((r) => r.id === id)?.days.length ?? 0;
+    const kept = days ? `keeps the files of its last build for ${days} more day${days === 1 ? '' : 's'}` : had.has(id) ? 'has gone from the map' : 'has no files of a last build';
+    const text = `${id} isn't built, and ${kept}: ${failed}`;
+    log(text);
+    return [{ kind: 'region', region: id, text: [text], numbers: { days } }];
+  });
 }
 
 /**
