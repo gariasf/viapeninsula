@@ -20,6 +20,8 @@ const LINES: [id: string, kind: Kind][] = [
 
 /** Some Stations of 12 Oct 2026, as the build names them, by region: their IDs, names, Lines, and the places their operators group them in. */
 const STATIONS: [region: string, id: string, name: string, lines: string[], place?: string][] = [
+  // Two of its eleven Lines, as the build lists them, by their IDs.
+  ['catalonia', 'adif:71801', 'Barcelona-Sants', ['rodalies:R11', 'rodalies:R4']],
   ['catalonia', 'adif:72305', "L'Hospitalet de Llobregat", ['rodalies:R4']],
   ['catalonia', 'adif:78607', 'Vacarisses-Torreblanca', ['rodalies:R4']],
   ['catalonia', 'adif:78700', 'Terrassa Estació del Nord', ['rodalies:R4']],
@@ -67,8 +69,12 @@ test("finds a Station by the start of each word typed of its name, in any order,
   // One place for the Metro's Stations TMB groups, with their Lines in the order the cards name them.
   for (const query of ['paral·lel', 'Parallel', 'paral']) expect(found(query)).toEqual(['Paral·lel']);
   expect(findPlaces(PLACES, 'paral')[0]?.place).toMatchObject({ stations: ['tmb:1.210', 'tmb:1.323', 'tmb:1.9901'], lines: ['metro:FM', 'metro:L2', 'metro:L3'] });
+  // R4 before R11, digits as numbers, as a board names them, not as the build lists them.
+  expect(findPlaces(PLACES, 'sants')[0]?.place.lines).toEqual(['rodalies:R4', 'rodalies:R11']);
   expect(found("l'hospitalet")).toEqual(["L'Hospitalet de Llobregat"]);
   expect(found('hospitalet llob')).toEqual(["L'Hospitalet de Llobregat"]);
+  // A query with no word in it finds nothing, not every place.
+  for (const query of ['', '   ', '-', "'", '·']) expect(found(query)).toEqual([]);
 });
 
 test("gives two places that read alike a row each, which names their Networks, in the order of the file's regions, as the build joins no Station by name: 80 to 202 km apart, as Girona's, or an interchange #572 will join (#471)", () => {
@@ -102,7 +108,8 @@ const trip = (number: string | undefined, departs = 0, line = 'rodalies:R4'): Tr
 });
 
 test('finds Trips by the start of their Train numbers, from two digits, and by nothing else (#471)', () => {
-  const trips = [trip('77428'), trip('77432'), trip('25478'), trip(undefined), trip('7742', 0, 'cercanias-madrid:C4')];
+  // 25774's has 774 in it, and 77 too, but doesn't start with them.
+  const trips = [trip('77428'), trip('77432'), trip('25478'), trip('25774'), trip(undefined), trip('7742', 0, 'cercanias-madrid:C4')];
   const numbers = (query: string) => numbered(trips, query).map((t) => t.number);
   expect(numbers('77')).toEqual(['77428', '77432', '7742']);
   expect(numbers('774')).toEqual(['77428', '77432', '7742']);
@@ -134,6 +141,10 @@ test("lists the Trips found by number with those running first, on the map or wi
   ]);
   expect(section && 'trains' in section && section.more).toBe(2);
   expect(results('774', [], found.slice(0, 6))).toMatchObject([{ more: 0 }]);
+  // Fewer than six: none more, and Cancelled before ended, whatever their numbers.
+  expect(results('774', [], found.slice(0, 3))).toMatchObject([{ more: 0 }]);
+  const [few] = results('774', [], [at('ended', '77402'), at('cancelled', '77436')]);
+  expect(few && 'trains' in few && few.trains.map(({ trip }) => trip.number)).toEqual(['77436', '77402']);
 });
 
 test('shows Stations, then Train numbers, each only where it finds some, and nothing for a query that finds neither (#471)', () => {

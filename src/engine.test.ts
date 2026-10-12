@@ -784,6 +784,8 @@ test("says of many Trips at once where each one's Train is in its day, as Search
   expect(running && 'train' in running && running.train.upcoming[0]?.station).toBe('Montcada i Reixac-Manresa');
   // It ends as late as live data last had it: 2 minutes late by Renfe's trip updates at 22:40, at Estació de França at 22:53.
   expect(tripsAt(BUNDLE, at('23:00:00'), [late(R2S, 120, at('22:40:00'))], [trip(R2S)])).toEqual([{ trip: trip(R2S), ended: at('22:53:00') }]);
+  // Its Trip as its Train runs it: cut short at Barcelona-Sants, it's headed there, as the follow panel has it (#346).
+  expect(tripsAt(BUNDLE, at('21:50:00'), skipping(R2S, PAST_SANTS, at('21:30:00')), [trip(R2S)])).toMatchObject([{ trip: { headsign: 'Barcelona-Sants' }, train: { trip: { headsign: 'Barcelona-Sants' } } }]);
 });
 
 test("a followed Train running late is expected at each Station as late as it's drawn, and gets there then", () => {
