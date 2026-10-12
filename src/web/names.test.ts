@@ -233,8 +233,35 @@ test("another place's dot costs a name less the further it lies from its box, no
   // As far as that and more, nothing; and each dot counts.
   expect(cost(at(70, 20))).toBe(0);
   expect(cost(at(40, 20), at(-40, 20))).toBe(2 * DOT_COST);
+  // Due north and due east of its own dot count as any other, and past a corner it's the distance to the corner that counts.
+  expect(cost(at(0, 20))).toBe(DOT_COST);
+  expect(cost(at(40, 0))).toBeCloseTo((DOT_COST * 3) / 13);
+  expect(cost(at(54, 7))).toBeCloseTo(DOT_COST * (1 - 5 / 13));
   // The place's own dot, which the list of every place's holds, is under no name of its own.
   expect(cost(at(0, 0))).toBe(0);
+});
+
+test("its own dot's distance is from the dot, not from the track the name is measured from, where the track passes beyond the dot (#501)", () => {
+  // The track runs 20 m north of the dot, so the name above it is measured from the track, 20 m beyond the dot (`dot`),
+  // and `far` is 30 px, from the dot: its near edge 30 m north of it, 100 m wide and 20 m tall.
+  const place = alongside([track('own', [-500, 20], [500, 20])], [], right)(at(0, 0));
+  const spot = place(0)[0]?.clear ?? assert.fail('no side');
+  expect(spot.dot).toBeCloseTo(20);
+  const cost = (...dots: Point[]) => underName({ ...spot, neighbours: dots.map((d) => [d[0] * DEGREE, d[1] * DEGREE]) }, 30, [100, 20], 1, 0, 0);
+  // Its own dot is 30 px from the box, so 3 px more is where a dot costs nothing: 33 px from the box's end.
+  expect(cost(at(83, 40))).toBe(0);
+  expect(cost(at(70, 40))).toBeCloseTo(DOT_COST * (1 - 20 / 33));
+});
+
+test("another place's dot is found away from 0°, 0° too, where a cell of the track is not as many metres east to west as north to south (#501)", () => {
+  const [lon, lat] = [2.1, 41.4];
+  const [east, north] = [DEGREE * Math.cos((lat * Math.PI) / 180), DEGREE];
+  const own: Shape = { id: 'own', coords: [[lon - 0.01, lat], [lon + 0.01, lat]], dist: [0, 0.02 * east] };
+  const neighbour: Point = [lon + 40 / east, lat + 20 / north];
+  // And one in the corner of the cells looked in, 3.4 km off, which is further than REACH and not kept.
+  const far: Point = [lon + 2400 / east, lat + 2400 / north];
+  const spot = alongside([own], [], right, [], new Map(), [[lon, lat], neighbour, far])([lon, lat])(0)[0]?.clear ?? assert.fail('no side');
+  expect(spot.neighbours.map((m) => m.map((v) => Math.round(v)))).toEqual([[40, 20]]);
 });
 
 test('where the dot lies the other side of its track, it goes from the track', () => {

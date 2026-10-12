@@ -335,7 +335,7 @@ export function underName(spot: Spot, far: number, size: [number, number], metre
   // And each other place's dot, which makes the name read as that place's, as a stroke under it does as that Line's:
   // as much as DOT_COST at the box, down to nothing as far from it as the name's own dot is (and DOT_MARGIN more).
   const [bx0, bx1, by0, by1] = [ox + x0, ox + x1, oy + y0, oy + y1];
-  const own = far + spot.dot / metresPerPx + DOT_MARGIN;
+  const own = far + DOT_MARGIN;
   let cost = 0;
   for (const dot of spot.neighbours) {
     const [x, y] = screen(dot);
