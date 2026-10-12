@@ -2387,6 +2387,54 @@ test("a Metro Train on a Line TMB publishes no predictions for, as L9's, isn't m
   ]);
 });
 
+test("an FGC Train of the Vallvidrera funicular, none of whose Trips Geotren names, isn't marked as having no live data, as L9's isn't, while an S1 Train Geotren leaves out is", () => {
+  // The funicular's 13:28 from Vallvidrera Inferior on Saturday 10 October 2026, and two S1 Trips on
+  // stretches of their runs then, as the daily build had them, each on a track straight from Station to Station.
+  const saturday = bundleOf('2026-10-10', { id: 'fgc', name: 'FGC', profile: { ...PROFILE, topSpeed: 120 / 3.6 } }, {
+    'fgc:684bdae702747664bd|782dc1e101': {
+      line: 'FV',
+      calls: [
+        ['fgc:VR', '13:28:00', '13:28:00', 0, 2.111263, 41.409328], // Vallvidrera Inferior
+        ['fgc:VS', '13:31:00', '13:31:00', 685, 2.1058163381683, 41.414111713828], // Vallvidrera Superior
+      ],
+    },
+    'fgc:6c4bdae702747644e61684|6a2dc7e00b': {
+      line: 'S1',
+      calls: [
+        ['fgc:TR', '13:25:30', '13:26:00', 29288, 2.007525272, 41.55974631], // Terrassa - Rambla
+        ['fgc:VP', '13:28:30', '13:29:00', 30864, 2.0190489, 41.5633063], // Vallparadís Universitat
+        ['fgc:EN', '13:30:30', '13:31:00', 31784, 2.015487, 41.5701675], // Terrassa Estació del Nord
+      ],
+    },
+    'fgc:6c4bdae702747644e61684|6a2dc7e703': {
+      line: 'S1',
+      calls: [
+        ['fgc:VD', '13:26:30', '13:27:00', 13750, 2.06831203, 41.45784156], // Valldoreix
+        ['fgc:SC', '13:29:00', '13:30:00', 15184, 2.078203288, 41.46791038], // Sant Cugat Centre
+        ['fgc:MS', '13:31:30', '13:32:00', 16719, 2.061380927, 41.46936873], // Mira-Sol
+      ],
+    },
+  });
+  // Made up: FGC's feed works, and Geotren names one of the S1's Trains, standing at Terrassa - Rambla
+  // at 13:27:00, a minute late.
+  const written = Date.parse('2026-10-10T13:27:40+02:00');
+  const received: Received[] = [{
+    snapshot: {
+      generated: written,
+      feeds: { fgc: { lastSuccess: written, lastAttempt: written, status: 'ok', every: 120_000 } },
+      reports: [{ trip: 'fgc:6c4bdae702747644e61684|6a2dc7e00b', at: Date.parse('2026-10-10T13:27:00+02:00'), position: { near: 'fgc:TR' } }],
+    },
+    at: written,
+  }];
+  expect(trainsAt(saturday, Date.parse('2026-10-10T13:29:30+02:00'), received).map((t) => [t.trip.line, t.live, t.unreported])).toEqual([
+    ['FV', false, false],
+    ['S1', true, false],
+    ['S1', false, true],
+  ]);
+  // Nor is it on Vallvidrera Inferior's board as it's about to leave.
+  expect(board(['fgc:VR'], Date.parse('2026-10-10T13:27:50+02:00'), received, saturday)).toMatchObject([{ trip: { line: 'FV' }, live: false, unreported: false }]);
+});
+
 test('a Block that turns back at the end of its Line runs the Trip back from there', () => {
   // At 13:15:40 TMB has L1's 112 in at Fondo, which it reached at 13:15:38 as the Trip into Fondo,
   // and expects it back at Santa Coloma at 13:17:31: 69 s before the next Trip out of Fondo is due
