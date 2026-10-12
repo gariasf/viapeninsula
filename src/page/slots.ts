@@ -56,19 +56,21 @@ function holders(slots: string): Map<string, number> {
 
 /**
  * Runs a batch once `n` of the slots are free (a perf run takes all three), polling every second,
- * and frees them after. A batch still running at 10 minutes exits the process, with status 1; after
+ * and frees them after. A batch still running at 10 minutes exits the process, with status 3; after
  * 15 minutes' wait, the process exits with status 2, the check not run.
  * ponytail: no queue, so a run that wants all three can wait behind a stream of single slots; add a
  * ticket file per waiter if that starves one.
  */
+/** The slot files this process holds, freed however it exits. */
+const mine: string[] = [];
+const free = () => {
+  for (const file of mine.splice(0)) fs.rmSync(file, { force: true });
+};
+
 export async function withSlots<T>(n: number, batch: () => Promise<T>): Promise<T> {
   const slots = dir();
   fs.mkdirSync(slots, { recursive: true });
-  const mine: string[] = [];
-  const free = () => {
-    for (const f of mine.splice(0)) fs.rmSync(path.join(slots, f), { force: true });
-  };
-  process.on('exit', free);
+  if (!process.listeners('exit').includes(free)) process.on('exit', free);
   const start = Date.now();
   for (;;) {
     const held = holders(slots);
@@ -76,8 +78,9 @@ export async function withSlots<T>(n: number, batch: () => Promise<T>): Promise<
     if (SLOTS - held.size - foreign >= n) {
       for (let i = 1; i <= SLOTS && mine.length < n; i++) {
         try {
-          fs.writeFileSync(path.join(slots, `slot.${i}`), String(process.pid), { flag: 'wx' });
-          mine.push(`slot.${i}`);
+          const file = path.join(slots, `slot.${i}`);
+          fs.writeFileSync(file, String(process.pid), { flag: 'wx' });
+          mine.push(file);
         } catch {}
       }
       if (mine.length === n) break;
@@ -92,7 +95,7 @@ export async function withSlots<T>(n: number, batch: () => Promise<T>): Promise<
   console.log(`${new Date().toTimeString().slice(0, 8)} ${n} browser slot${n > 1 ? 's' : ''} taken after ${Math.round((Date.now() - start) / 1000)} s`);
   const cap = setTimeout(() => {
     console.error('The batch ran past 10 min in its slots: stopped.');
-    process.exit(1);
+    process.exit(3);
   }, CAP);
   try {
     return await batch();

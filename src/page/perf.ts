@@ -1,8 +1,8 @@
 // The map's perf against milestone 1's budget (budget.json), on the page harness (page.ts), from the 12 Oct
 // roadmap review's P-1:
 //   npm run perf -- <scenario>... [--phone] [--runs <n>] [--tree <dir>]... [--out [dir]] [--slow]
-// Each scenario's runs (3 by default) are one batch in all three browser slots, a cold context each, the
-// trees' runs alternated, so that a before and an after share the batch. It prints each check's median
+// Each round of a scenario's runs (3 by default), a run of each tree, a before's and an after's alternated,
+// is one batch in all three browser slots, so that it keeps under the batch's 10 min; each run has a cold context. It prints each check's median
 // against its limit, appends every run to .cache/page/perf/runs.jsonl, and exits 1 on a breach.
 // Scenarios, at Barcelona z12 but S4's, each measured over its own window:
 // - S2: a cold load, its first 30 s, and long distance's join in it (S6).
@@ -12,6 +12,7 @@
 // - S7: the next day's join, the clock set 20 s before the map needs it, and the snapshot blocked.
 // - S8: following a moving Train at z14 for 30 s.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import type { Browser, Page } from 'playwright-core';
 import { addDays, daysOf, LIVE_URL, madridDate, type Manifest } from '../bundle.ts';
@@ -68,6 +69,7 @@ const SCENARIOS: Record<string, Scenario> = {
       await zoomSteps(page, device, 12, 4, mark);
       await page.evaluate(([lat, lon]) => (location.hash = location.hash.replace(/map=([\d.]+)\/[^/]+\/[^&]+/, `map=$1/${lat}/${lon}`)), MAD);
       await sleep(1000);
+      await mark('madrid');
       await zoomSteps(page, device, 4, 12, mark);
       await sleep(4000);
       await mark('end');
@@ -193,13 +195,15 @@ export function metrics(run: Run): Record<string, number | undefined> {
   }
   if (run.scenario === 'S3' || run.scenario === 'S4') {
     const steps = run.marks.slice(run.marks.indexOf(a), run.marks.indexOf(b) + 1);
-    out.stepMaxGap = max(steps.slice(1).flatMap((m, i) => (joins.some(([s, e]) => s < m.t && e > steps[i]!.t) ? [] : gapsIn(run.frames, steps[i]!.t, m.t))));
+    // A step ends at its own mark (zoomSteps()'s z<n>, panTo()'s drag<n>), not at the jump to Madrid nor the wait before `end`.
+    out.stepMaxGap = max(steps.slice(1).flatMap((m, i) => (!/^(z|drag)\d/.test(m.name) || joins.some(([s, e]) => s < m.t && e > steps[i]!.t) ? [] : gapsIn(run.frames, steps[i]!.t, m.t))));
   }
   if (run.scenario === 'S2') {
     const first = (source: string) => run.setData.find(([, id, n]) => id === source && n !== 0)?.[0];
     const [lines, trains] = [first('lines'), first('trains')];
-    out.firstLines = lines === undefined ? undefined : Math.round(lines - a.t);
-    out.firstTrains = trains === undefined ? undefined : Math.round(trains - a.t);
+    // From navigation's start, the page's time origin, as P-1's were.
+    out.firstLines = lines === undefined ? undefined : Math.round(lines);
+    out.firstTrains = trains === undefined ? undefined : Math.round(trains);
     out.gapAfterLines = lines === undefined ? undefined : max(gapsIn(run.frames, lines, b.t));
     out.workerFirst15s = run.workerMs;
   }
@@ -295,7 +299,7 @@ async function measure(browser: Browser, name: string, o: { device: Device; dist
 if (import.meta.main) {
   const args = process.argv.slice(2);
   const after = (flag: string) => args.flatMap((a, i) => (a === flag && args[i + 1] && !args[i + 1]!.startsWith('--') ? [args[i + 1]!] : []));
-  const scenarios = args.filter((a, i) => !a.startsWith('--') && !['--runs', '--tree', '--out'].includes(args[i - 1] ?? ''));
+  const scenarios = args.filter((a, i) => !a.startsWith('--') && (SCENARIOS[a] || !['--runs', '--tree', '--out'].includes(args[i - 1] ?? '')));
   const unknown = scenarios.filter((s) => !SCENARIOS[s]);
   if (!scenarios.length || unknown.length) {
     console.error(`npm run perf -- <${Object.keys(SCENARIOS).join('|')}>... [--phone] [--runs <n>] [--tree <dir>]... [--out [dir]] [--slow]${unknown.length ? `\nNo scenario ${unknown.join(', ')}` : ''}`);
@@ -304,28 +308,28 @@ if (import.meta.main) {
   const device = args.includes('--phone') ? 'phone' : 'desktop';
   const runs = Number(after('--runs')[0] ?? 3);
   const trees = (after('--tree').length ? after('--tree') : ['.']).map((t) => path.resolve(t));
-  const out = args.includes('--out') ? path.resolve(after('--out')[0] ?? 'out') : undefined;
+  const out = args.includes('--out') ? path.resolve(after('--out').find((d) => !SCENARIOS[d]) ?? 'out') : undefined;
   const dists = trees.map(build);
   const log = path.resolve('.cache/page/perf/runs.jsonl');
   fs.mkdirSync(path.dirname(log), { recursive: true });
   const all: Run[] = [];
   for (const name of scenarios)
-    await withSlots(SLOTS, async () => {
-      const browser = await launch();
-      try {
-        for (let r = 1; r <= runs; r++)
+    for (let r = 1; r <= runs; r++)
+      await withSlots(SLOTS, async () => {
+        const browser = await launch();
+        try {
           for (const [i, tree] of trees.entries()) {
             const run = await measure(browser, name, { device, dist: dists[i]!, tree, out, slow: args.includes('--slow'), run: r });
-            run.load = (await import('node:os')).loadavg().map((l) => l.toFixed(1)).join(' ');
+            run.load = os.loadavg().map((l) => l.toFixed(1)).join(' ');
             fs.appendFileSync(log, JSON.stringify(run) + '\n');
             all.push(run);
             const pageerrors = run.errors.filter((e) => e.startsWith('pageerror'));
             console.log(`${new Date().toTimeString().slice(0, 8)} ${name} ${device} ${path.basename(tree)} run ${r}: load ${run.load}${pageerrors.length ? `, ${pageerrors.join('; ')}` : ''}`);
           }
-      } finally {
-        await browser.close();
-      }
-    });
+        } finally {
+          await browser.close();
+        }
+      });
   let breached = false;
   for (const tree of trees) {
     const medians: Record<string, Record<string, number | undefined>> = {};

@@ -207,7 +207,9 @@ if (import.meta.main) {
   const args = process.argv.slice(2);
   const flag = (name: string) => args.indexOf(name);
   const value = (name: string, otherwise: string) => (flag(name) >= 0 && args[flag(name) + 1] && !args[flag(name) + 1]!.startsWith('--') ? args[flag(name) + 1]! : otherwise);
-  const hash = args.find((a, i) => !a.startsWith('--') && !['--out', '--wait', '--tree'].includes(args[i - 1] ?? ''));
+  // A hash isn't the bundle's dir that `--out` may take.
+  const isHash = (a: string) => /^#?map=/.test(a);
+  const hash = args.find((a, i) => !a.startsWith('--') && (isHash(a) || !['--out', '--wait', '--tree'].includes(args[i - 1] ?? '')));
   const tree = path.resolve(value('--tree', '.'));
   const shots = path.resolve('.cache/page/shots');
   fs.mkdirSync(shots, { recursive: true });
@@ -218,7 +220,7 @@ if (import.meta.main) {
     try {
       for (const device of ['phone', 'laptop'] as const)
         for (const scheme of ['light', 'dark'] as const) {
-          const m = await openMap(browser, { device, scheme, dist, hash: hash && (hash.startsWith('#') ? hash : `#${hash}`), out: flag('--out') >= 0 ? value('--out', 'out') : undefined, slow: flag('--slow') >= 0 });
+          const m = await openMap(browser, { device, scheme, dist, hash: hash && (hash.startsWith('#') ? hash : `#${hash}`), out: flag('--out') >= 0 ? (isHash(value('--out', 'out')) ? 'out' : value('--out', 'out')) : undefined, slow: flag('--slow') >= 0 });
           await m.go();
           await ready(m.page, Number(value('--wait', '10')) * 1000);
           const { width, height } = DEVICES[device].viewport;

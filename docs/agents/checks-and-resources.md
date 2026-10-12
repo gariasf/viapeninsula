@@ -25,7 +25,7 @@ Every ticket runs `npm run check`, `npx vitest run --dir src` and the review. Th
 | **Data and build**: `src/build`, `networks.ts`, `bundle.ts`, `pieces.ts` | A dry run of the regions it touches, against the shared main baseline. A byte-compare of the other regions and the report's diff. One view per changed spot, where the drawn output changes | Perf, screenshot sets |
 | **Page logic**: `src/web` with no visual change | One browser smoke at 390×844: the page loads, then the console, `pageerror`, and the ticket's flow. Node checks for the data it builds | Screenshot sets, perf, dry runs |
 | **Visual**: style expressions, labels, strokes, pills, colours | Screenshots of the changed spots only: 390×844 and 1280×800, light and dark, plus hover and focus where they apply. A pixel diff against main where nothing else should change | Perf (unless it adds layers or per-feature work), dry runs |
-| **Perf** | `npm run perf` on milestone 0's harness, which takes all three browser slots. Before and after in one batch, three runs each, medians, and the phone at 4× CPU | Screenshots beyond one or two |
+| **Perf** | `npm run perf` (`src/page/`), which takes all three browser slots. Before and after in one batch, three runs each, medians, and the phone at 4× CPU | Screenshots beyond one or two |
 | **Docs and research notes**: only CI's Check, instead of the line above | A review that re-derives the numbers with its own scripts | Browser, dry runs, the code-review skill |
 
 - **Measure what the acceptance criteria name, and only that.**

@@ -16,7 +16,7 @@ const run = (r: Partial<Run>): Run => ({ scenario: 'S2', device: 'desktop', tree
 const mark = (name: string, t: number, task = 0) => ({ name, t, task });
 
 describe('metrics', () => {
-  it("reads a cold load's first Lines and Trains from the setData calls, its gap after the Lines, its workers, and long distance's join (S6)", () => {
+  it("reads a cold load's first Lines and Trains from the setData calls, from navigation's start, its gap after the Lines, its workers, and long distance's join (S6)", () => {
     const m = metrics(
       run({
         marks: [mark('nav', 100), mark('end', 30_100)],
@@ -26,7 +26,7 @@ describe('metrics', () => {
         workerMs: 1200,
       }),
     );
-    expect(m).toMatchObject({ firstLines: 600, firstTrains: 1400, gapAfterLines: 900, workerFirst15s: 1200, joinMaxGap: 900, joinFrozen: 900 });
+    expect(m).toMatchObject({ firstLines: 700, firstTrains: 1500, gapAfterLines: 900, workerFirst15s: 1200, joinMaxGap: 900, joinFrozen: 900 });
   });
 
   it("takes a zoom's steps with no join apart from those a day's file came in, which count as joins for 5 s", () => {
@@ -39,8 +39,9 @@ describe('metrics', () => {
         heapMB: 1600,
       }),
     );
-    // The join's window, 5.1 to 10.1 s, freezes 200 + 120 ms; the 60 ms gap at 11 s is in the step from 5 s, which the window overlaps.
-    expect(m).toMatchObject({ joinMaxGap: 200, joinFrozen: 320, stepMaxGap: 40, heapMB: 1600 });
+    // The join's window, 5.1 to 10.1 s, freezes 200 + 120 ms; the 60 ms gap at 11 s is in the step from 5 s, which the window
+    // overlaps, and the 40 ms one at 13 s in the wait before `end`, no step.
+    expect(m).toMatchObject({ joinMaxGap: 200, joinFrozen: 320, stepMaxGap: 30, heapMB: 1600 });
   });
 
   it("counts a gap in the window its frame ends in, so a gap across a mark isn't lost", () => {
