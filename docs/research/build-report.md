@@ -115,6 +115,8 @@ The 2–4 Oct logs show what can't be a key:
 | a largest node | `node <zoom> <lat> <lon>`, the point rounded to 3 decimals, about 100 m |
 | measures | one record, `measures`, with each number |
 
+This table is #219's design, with the eight kinds of spot the build had then. The kinds since, `detour`, `sequence`, `route`, `bus`, `trips`, `closures`, `copy` and `region` among them, aren't in it: `keyOf()` in `src/build/report.ts` is the list of keys, and the only place they're keyed.
+
 - Station IDs come from the feeds. They can change too, but much less often than Trip IDs. Where one does, the spot shows as gone and new on the same day, with the same names, and is easy to read.
 - **The diff:** a key in today's report and not the last is new; one in the last and not today's is gone. For records with numbers (length, Trip counts, measures), the record shows as changed when a number moves past a threshold: length by more than 1 point, a Trip count by any, a measure by any.
 - **Dedup across days:** a Trip left out on two of the three days is one record. Today's log prints such a Trip twice.
