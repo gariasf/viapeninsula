@@ -399,8 +399,8 @@ test("says where a followed Train is passing a Station without stopping, in each
   expect(passingStation('Sants', 'es')).toBe('Pasando por Sants');
   expect(passingStation('Sants', 'eu')).toBe('Sants geltokitik igarotzen');
   expect(passingStation('Sants', 'gl')).toBe('Pasando por Sants');
-  // L' stays as the name has it, capital and all (#606).
-  expect(passingStation("L'Hospitalet de Llobregat", 'ca')).toBe("Passant per L'Hospitalet de Llobregat");
+  // L' goes in lower case in Catalan, as the IEC writes a Catalan name's article in a sentence (#606).
+  expect(passingStation("L'Hospitalet de Llobregat", 'ca')).toBe("Passant per l'Hospitalet de Llobregat");
 });
 
 test('says "e" for "y" in Spanish between two Stations before a name starting with an i sound, as busesReplace() does for "and"', () => {
@@ -483,12 +483,30 @@ test("doesn't elide de before an i or u that's a semivowel, with an h or not, as
   expect(leavingStation('Urgell', 'ca')).toBe("Sortint d'Urgell");
 });
 
-test("leaves La, Les and L' as the name has them in Catalan, capital and all, as the ticket's criteria have La Garriga and L'Hospitalet unchanged (#606)", () => {
-  for (const name of ['La Garriga', 'La Pobla de Segur', 'Les Borges Blanques', 'Les Corts', "L'Hospitalet de Llobregat", "L'Aldea-Amposta-Tortosa", "L'Arboç"]) {
-    expect(arrivingAt(name, 'ca')).toBe(`Arribant a ${name}`);
-    expect(leavingStation(name, 'ca')).toBe(`Sortint de ${name}`);
-    expect(passingStation(name, 'ca')).toBe(`Passant per ${name}`);
+test("writes La, Les and L' in lower case in Catalan, as the IEC writes a Catalan name's article in a sentence: \"a la Garriga\", \"de les Borges Blanques\", \"per l'Hospitalet\", from the maintainer's pick (#606)", () => {
+  for (const [name, written] of [
+    ['La Garriga', 'la Garriga'],
+    ['La Pobla de Segur', 'la Pobla de Segur'],
+    ['La Tor de Querol-Enveig', 'la Tor de Querol-Enveig'],
+    ['Les Borges Blanques', 'les Borges Blanques'],
+    ['Les Corts', 'les Corts'],
+    ["L'Hospitalet de Llobregat", "l'Hospitalet de Llobregat"],
+    ["L'Hospitalet de l'Infant", "l'Hospitalet de l'Infant"],
+    ["L'Arboç", "l'Arboç"],
+  ] as const) {
+    expect(arrivingAt(name, 'ca')).toBe(`Arribant a ${written}`);
+    expect(leavingStation(name, 'ca')).toBe(`Sortint de ${written}`);
+    expect(passingStation(name, 'ca')).toBe(`Passant per ${written}`);
   }
+  // The other sentences with a name after a preposition go the same: cap a, fins a, Back to a Train and to a place, and where a Trip leaves.
+  expect(followDeparture('R3', 'La Tor de Querol-Enveig', '9:33', 'ca')).toBe('Segueix el tren R3 cap a la Tor de Querol-Enveig, 9:33');
+  expect(moreStations(22, 'La Garriga', '9:33', 'ca')).toBe('22 estacions més, fins a la Garriga (9:33)');
+  expect(moreStations(1, "L'Hospitalet de Llobregat", '9:33', 'ca')).toBe("1 estació més, fins a l'Hospitalet de Llobregat (9:33)");
+  expect(backToTrain('Les Borges Blanques', 'ca')).toBe('Torna al tren cap a les Borges Blanques');
+  expect(backTo("L'Hospitalet de Llobregat", 'ca')).toBe("Torna a l'Hospitalet de Llobregat");
+  expect(leavesAt('La Garriga', '9:33', 'ca')).toBe('Surt de la Garriga a les 9:33');
+  // A name that only starts with those letters has no article of them, and Los and Las aren't Catalan's.
+  for (const name of ['Lleida', 'Lesseps', 'Laviana', 'Las Rozas', 'Los Nietos']) expect(arrivingAt(name, 'ca')).toBe(`Arribant a ${name}`);
 });
 
 test("leaves El before a vowel or an h as the name has it in Catalan, where it's a Spanish name's, with de elided before it: \"a El Escorial\", \"d'El Escorial\" (#606)", () => {
@@ -535,7 +553,7 @@ test("writes a Station's name in Galician after a, de and por as Galician does: 
 });
 
 test("leaves a name as it's published in Spanish, Basque and English, as the RAE has a capital article that's part of a name in Spanish: \"a El Prat\", in each of the sentences that has one (#606)", () => {
-  for (const name of ['El Prat de Llobregat', 'Els Monjos', 'A Coruña', 'O Porriño', 'Arenys de Mar', 'Hostalric', 'El Escorial', 'Huelva']) {
+  for (const name of ['El Prat de Llobregat', 'Els Monjos', 'A Coruña', 'O Porriño', 'Arenys de Mar', 'Hostalric', 'El Escorial', 'Huelva', 'La Garriga', 'Les Borges Blanques', "L'Hospitalet de Llobregat"]) {
     expect(arrivingAt(name, 'es')).toBe(`Llegando a ${name}`);
     expect(leavingStation(name, 'es')).toBe(`Saliendo de ${name}`);
     expect(passingStation(name, 'es')).toBe(`Pasando por ${name}`);

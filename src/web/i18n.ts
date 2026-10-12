@@ -9,8 +9,9 @@ export type Language = keyof typeof LANGUAGES;
 /**
  * Every interface string, in each language. Names aren't here, as they read the same in every
  * language: Stations and Lines are shown as their operators publish them, but for the word before a
- * Station's name in Catalan and Galician, which runs into its article or elides before its vowel
- * (named(), #606), and the credits name their sources as those sources do. The Basque and Galician are machine-translated, as About says
+ * Station's name in Catalan and Galician, which runs into its article or elides before its vowel, and
+ * a Catalan name's La, Les or L' that goes in lower case after it (named(), #606), and the credits name
+ * their sources as those sources do. The Basque and Galician are machine-translated, as About says
  * (MACHINE_TRANSLATED). Basque writes one in words, after its noun ("geltoki bat"), as Euskaltzaindia's
  * norm 203 has it.
  */
@@ -404,17 +405,19 @@ const elides = (name: string): boolean => /^h?(?![iu][aeiou])[aeiou]/i.test(name
 /**
  * `text` with `name`, a Station's name, a place's or a headsign, where its `slot` is, in `lang`: as it's
  * published, except that Catalan and Galician write the word before it as one with its article, which
- * the name has as a capital (CONTRACTED), and Catalan elides de before a vowel or an h, "d'Arenys de Mar"
- * (#606). "Fins a", "cap a" and "cara a" end in a, and Galician's "ata" takes no contraction. El before a
- * vowel or an h is a Spanish name's, as Catalan writes L' there, and a name of another language that
- * starts with an article keeps it and its capital, with no contraction and de elided before it: "a El
- * Escorial", "d'El Escorial", "d'A Coruña" (the IEC's Ortografia catalana, 4.1.2g and 4.2.2c). La, Les
- * and L' are left as the name has them, as the ticket has them, though the IEC writes a Catalan name's
- * article in lower case; Spanish, Basque and English go by the name as published, as the RAE has it for
- * a capital article that's part of the name.
+ * the name has as a capital (CONTRACTED), and Catalan elides de before a vowel or an h, "d'Arenys de Mar",
+ * and writes a name's La, Les and L' in lower case (#606). "Fins a", "cap a" and "cara a" end in a, and
+ * Galician's "ata" takes no contraction. El before a vowel or an h is a Spanish name's, as Catalan writes
+ * L' there, and a name of another language that starts with an article keeps it and its capital, with no
+ * contraction and de elided before it: "a El Escorial", "d'El Escorial", "d'A Coruña" (the IEC's
+ * Ortografia catalana, 4.1.2g and 4.2.2c). La, Les and L' go in lower case, "a la Garriga", "de les Borges
+ * Blanques", "per l'Hospitalet", as the IEC writes a Catalan name's article in a sentence (its Regles d'ús
+ * de les majúscules, 18.2); Galician, Spanish, Basque and English go by the name as published, as the RAE
+ * has it for a capital article that's part of the name.
  * ponytail: an h that's aspirated, a loanword's, elides too, as no Station's name has one; and a Spanish
- * name's El before a consonant contracts as Catalan's does, "al Berrón", where the IEC keeps it, "a El
- * Berrón", as a name has no language here but the one it's written in: its Network's would tell them apart.
+ * name's El before a consonant contracts as Catalan's does, "al Berrón", and its La goes in lower case,
+ * "a la Garena", where the IEC keeps both as the name has them, "a El Berrón", "a La Garena", as a name
+ * has no language here but the one it's written in: its Network's would tell them apart (#673).
  */
 const named = (text: string, slot: '{station}' | '{place}' | '{headsign}', name: string, lang: Language): string => {
   const [before = '', after = ''] = text.split(slot);
@@ -424,7 +427,7 @@ const named = (text: string, slot: '{station}' | '{place}' | '{headsign}', name:
   const into = CONTRACTED[lang]?.[article]?.[prep];
   if (into && !(article === 'El' && elides(rest))) return `${head}${into} ${rest}${after}`;
   if (lang === 'ca' && prep === 'de' && elides(name)) return `${head}d'${name}${after}`;
-  return `${before}${name}${after}`;
+  return `${before}${lang === 'ca' ? name.replace(/^(?:La |Les |L')/, (lead) => lead.toLowerCase()) : name}${after}`;
 };
 
 /** How many Stations a followed Train has still to come after its next, `n`, to its last, where it's headed, and when it's due there, in `lang`, or else the language the interface speaks now. */
