@@ -29,6 +29,8 @@ const STRINGS = {
   },
   // Before the day an operator last updated its data, in the credits.
   updated: { ca: 'actualitzat el', es: 'actualizado el', eu: 'azken eguneratzea:', gl: 'actualizado o', en: 'updated' },
+  // After the text of a link that opens in a new tab, for a screen reader alone (opensInNewTab()): the credits', About's and an Alert's words' (#585).
+  opensInNewTab: { ca: "(s'obre en una pestanya nova)", es: '(se abre en una pestaña nueva)', eu: '(fitxa berri batean irekitzen da)', gl: '(ábrese nunha lapela nova)', en: '(opens in a new tab)' },
   // Live and Scheduled, and what each means in About's key. Alone, they're the followed Train's status, and what a Train's pill tells a screen reader.
   live: { ca: 'En directe', es: 'En directo', eu: 'Zuzenean', gl: 'En directo', en: 'Live' },
   liveMeans: {

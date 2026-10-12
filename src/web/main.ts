@@ -24,6 +24,7 @@ import { ARROW_GAP, boxOf, FOLLOWED_TEXT, LINE_HEIGHT, OUTLINE_SIZES, outlineOf,
 import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, tappedRows, type Shown } from './closures.ts';
 import { currentTab, type Tab } from './tabs.ts';
 import { keyboardRise, networkNames, numbered, numberQuery, results, searchPlaces, type Found } from './search.ts';
+import { opensInNewTab, putHtml } from './newTab.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
 setWorkerUrl(workerUrl);
@@ -355,7 +356,7 @@ const byLive = (live: string | number | ExpressionSpecification, scheduled: stri
 
 /** Each licence a source's data can be under, with the link to its text that it asks for. */
 const LICENCES: Record<NonNullable<Credit['licence']>, string> = {
-  'CC BY 4.0': '<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank">CC BY 4.0</a>',
+  'CC BY 4.0': '<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>',
 };
 
 /**
@@ -2758,14 +2759,16 @@ function closuresTapped(keys: string[]) {
  * An Alert on a card, as alertsOn() has it, after the Lines it's on as pills, `byLine`, where the card
  * has more than one, as a board can: Rodalies' words don't name theirs. Or a Closure the timetable's
  * buses make, in the interface's words, whose they are unsaid (#341). Each `http://` or `https://`
- * address in a title or in words is a link, opening in a new tab, in the words as they were (#391).
+ * address in a title or in words is a link, opening in a new tab and saying so to a screen reader
+ * (opensInNewTab()), in the words as they were (#391).
  */
 function alertRow({ lines: named, header, description, from, by }: CardAlert, byLine: boolean, ran: string[] = []) {
   // In an unknown language, lang="", where its feed doesn't say, rather than the viewer's. Each address in
-  // them is a link, in a new tab as About's are, among their text: built as nodes, never as HTML (#391).
+  // them is a link, in a new tab as About's are (opensInNewTab()), among their text: built as nodes,
+  // never as HTML (#391).
   const words = (tag: 'strong' | 'p', said?: Words) => {
     if (!said) return [];
-    const parts = linkedWords(said.text).map((part) => (typeof part === 'string' ? part : el('a', { href: part.address, target: '_blank', rel: 'noopener noreferrer', textContent: part.address })));
+    const parts = linkedWords(said.text).map((part) => (typeof part === 'string' ? part : opensInNewTab(el('a', { href: part.address, textContent: part.address }))));
     return [el(tag, { lang: said.language ?? '' }, ...parts)];
   };
   const other = description?.language && description.language !== language() ? description.language : undefined;
@@ -3268,9 +3271,9 @@ function showAbout() {
       el(
         'p',
         {},
-        el('a', { href: 'https://github.com/gariasf/viapeninsula', target: '_blank', textContent: 'github.com/gariasf/viapeninsula' }),
+        opensInNewTab(el('a', { href: 'https://github.com/gariasf/viapeninsula', textContent: 'github.com/gariasf/viapeninsula' })),
         ', ',
-        el('a', { href: 'https://www.gnu.org/licenses/agpl-3.0.html', target: '_blank', textContent: 'AGPL-3.0' }),
+        opensInNewTab(el('a', { href: 'https://www.gnu.org/licenses/agpl-3.0.html', textContent: 'AGPL-3.0' })),
       ),
       el('h3', { className: 'label', textContent: t('privacy') }),
       el('p', { textContent: t('noCookies') }),
@@ -3281,35 +3284,38 @@ function showAbout() {
 }
 
 /**
- * A sentence of About's, with a link to `href` round where it names `name`.
+ * A sentence of About's, with a link to `href`, which opens in a new tab, round where it names `name`.
  * ponytail: every language names it so, once, as tests check. A language that words it otherwise needs
  * a placeholder in its string instead.
  */
 function linked(text: string, name: string, href: string): (Node | string)[] {
   const [before = '', after = ''] = text.split(name);
-  return [before, el('a', { href, target: '_blank', textContent: name }), after];
+  return [before, opensInNewTab(el('a', { href, textContent: name })), after];
 }
 
 /** Credits the basemap and each Network's data, in the viewer's language: behind the © button on a phone, in a strip on a wide window, and in the About dialog. */
 function showCredits() {
   const html = [
-    '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> ' +
-      '<a href="https://www.openmaptiles.org/" target="_blank">© OpenMapTiles</a> ' +
-      `<a href="https://www.openstreetmap.org/copyright" target="_blank">${t('osmContributors')}</a>`,
+    '<a href="https://openfreemap.org">OpenFreeMap</a> ' +
+      '<a href="https://www.openmaptiles.org/">© OpenMapTiles</a> ' +
+      `<a href="https://www.openstreetmap.org/copyright">${t('osmContributors')}</a>`,
     // Each source's once, however many Networks it feeds and credit it alike (ADR-0010). A track built
     // before #241 has no credits: its Networks get their names.
     ...new Set(credited.map((network) => (network.credit ? creditOf(network.credit) : network.name))),
   ];
   // The credits go in as they are, which is safe while they're all ours: these constants, t(), and the
-  // credits and Network names the daily build publishes.
-  creditsText.innerHTML = creditsStrip.innerHTML = html.join(' | ');
-  aboutCredits.replaceChildren(...html.map((credit) => el('li', { innerHTML: credit })));
+  // credits and Network names the daily build publishes. Their links are written with no target: putHtml()
+  // makes each open in a new tab as it's in, as every link on the page does (#585).
+  const line = html.join(' | ');
+  putHtml(creditsText, line);
+  putHtml(creditsStrip, line);
+  aboutCredits.replaceChildren(...html.map((credit) => putHtml(el('li'), credit)));
 }
 
 /** A source's credit, as its terms ask. */
 function creditOf({ text, url, licence, updated }: Credit): string {
   return (
-    `<a href="${url}" target="_blank">${text}</a>` +
+    `<a href="${url}">${text}</a>` +
     (licence ? `, ${LICENCES[licence]}` : '') +
     (updated ? `, ${t('updated')} ${new Intl.DateTimeFormat(locale(), { dateStyle: 'medium', timeZone: 'UTC' }).format(Date.parse(updated))}` : '')
   );
