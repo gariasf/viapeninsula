@@ -1629,6 +1629,11 @@ test("a Train Renfe has pinned to one Station for 10 minutes or more is held the
   expect(where(R2S, at('22:10:10'), received)).toBeGreaterThan(135376 + 10_000);
   for (const s of [0, 10, 20, 30, 60, 120, 240]) expect(where(R2S, at('22:10:20', s), received)).toBe(135376);
   expect(train(R2S, at('22:12:00'), received)).toMatchObject({ live: true, standsAt: 'Sitges' });
+  // To the second: Renfe's reports come at any second of the minute, and one 9 minutes 59 s after the
+  // first that names Sitges doesn't hold it there, where one 10 minutes after does.
+  const nine = [...received.filter((r) => r.at < at('22:10:00')), near(R2S, 'Sitges', 30, at('22:10:19'))];
+  expect(where(R2S, at('22:10:29'), nine)).toBeCloseTo(where(R2S, at('22:09:59')) ?? NaN, 3);
+  expect(where(R2S, at('22:10:30'), [...nine, near(R2S, 'Sitges', 30, at('22:10:20'))])).toBe(135376);
 });
 
 test("a Train Renfe has pinned to a Station its Delay has it short of for 10 minutes or more is drawn at it from then, on before its timetable has it come in: its Delay is never so large that the timetable has it elsewhere", () => {
@@ -2755,6 +2760,20 @@ test("counts each Network's jumps over 45 minutes of live data as the map receiv
     metro: { forward: 0, back: 14, liveSeconds: 304017 },
   });
 }, 60_000);
+
+test("a Train Renfe has named at one Station for 10 minutes or more is drawn at it from then, as R15 5166V15013 is in the replay of 25 September 2026", () => {
+  // Renfe names it at adif:71600 from 16:25:06, 10 minutes late by its own figure, and goes on to the
+  // recording's end. Its Delay had the map run it on past that Station, 8.6 km by 16:35:20, and from the
+  // snapshot with the report of 16:35:06 on, the 10th minute, it's at the Station, which its timetable
+  // has it leave at 16:19, and stands there.
+  const { bundle, received } = RECORDED;
+  const dist = (time: string) => {
+    const moment = Date.parse(`2026-09-25T${time}+02:00`);
+    return trainsAt(bundle, moment, by(received, moment)).find((t) => t.trip.id === 'rodalies:5166V15013R15')?.dist;
+  };
+  expect(dist('16:35:20')).toBeLessThan(140639 - 8000);
+  for (const time of ['16:36:10', '16:38:00', '16:41:00']) expect(dist(time)).toBe(140639);
+});
 
 // 45 minutes of production snapshots as the map received them, every 20 s from 08:20 to 09:05 on
 // Monday 28 September 2026, a weekday morning (#100), and that day's bundle cut to the Trips they
