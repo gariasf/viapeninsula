@@ -4,7 +4,7 @@
 
 import { isDeepStrictEqual } from 'node:util';
 import { BANDS, networkTracks, STRETCH, type Closure, type Line, type Manifest, type ManifestDay, type ManifestRegion, type Network, type Point, type Shape, type Station, type Track, type Trip, type ZoomedOut } from '../bundle.ts';
-import { EVERYWHERE } from '../networks.ts';
+import { EVERYWHERE, NETWORKS } from '../networks.ts';
 import { decodeTrack, encodeTrack, type StoredTrack } from '../pieces.ts';
 import { dayTrips, manifestDay } from './manifest.ts';
 import { simplify } from './offset.ts';
@@ -166,15 +166,19 @@ export function failedRegions(results: { id: string; failed?: string }[], manife
  */
 const ZOOMED_OUT = 360 / (512 * 2 ** (BANDS[0] ?? 7)) / 10;
 
+/** Each Network's short name, by its ID, where its config gives one (Network's `short`), which the file below zoom 7 carries. */
+const SHORT = new Map(NETWORKS.flatMap((n): [string, string][] => (n.short ? [[n.id, n.short]] : [])));
+
 /**
  * What the map needs to load only the regions in view (#266): in the manifest, each region's Networks,
  * which a link to one of their Trains finds it by, and where its Stations and track lie, outward to a
  * thousandth of a degree, about 100 m, but for the region every view loads (EVERYWHERE), which has no
- * extent; and the file below zoom 7 (ZoomedOut), with every region's Networks, Network tracks, simplified
- * by ZOOMED_OUT and to a ten-thousandth of a degree, and Stations, with their names, places and Lines, and
- * its Lines, which Search finds a Station by (#471). Each region's are its track's as built, or for one
- * whose build failed, those of the track file the manifest names for it, its last build's, which `read`
- * fetches, so that the map doesn't lose its track below zoom 7. Where that can't be read, the build fails.
+ * extent; and the file below zoom 7 (ZoomedOut), with every region's Networks, with the short names their
+ * configs give them, Network tracks, simplified by ZOOMED_OUT and to a ten-thousandth of a degree, and
+ * Stations, with their names, places and Lines, and its Lines, which Search finds a Station by (#471).
+ * Each region's are its track's as built, or for one whose build failed, those of the track file the
+ * manifest names for it, its last build's, which `read` fetches, so that the map doesn't lose its track
+ * below zoom 7. Where that can't be read, the build fails.
  */
 export async function zoomedOut(manifest: Manifest, built: Map<string, Track>, read: (key: string) => Promise<Track>): Promise<{ regions: ManifestRegion[]; file: ZoomedOut }> {
   const tracks = await Promise.all(manifest.regions.map(({ id, days }) => built.get(id) ?? read(days.at(-1)?.track ?? '')));
@@ -190,7 +194,8 @@ export async function zoomedOut(manifest: Manifest, built: Map<string, Track>, r
     return { ...region, networks: track.networks.map((n) => n.id), ...(region.id !== EVERYWHERE && { extent }) };
   });
   const file: ZoomedOut = {
-    networks: tracks.flatMap((t) => t.networks),
+    // Each with the short name its config gives it, which no track carries (#471).
+    networks: tracks.flatMap((t) => t.networks).map((n) => (SHORT.has(n.id) ? { ...n, short: SHORT.get(n.id) } : n)),
     tracks: tracks.flatMap((t) => networkTracks(t).map(({ network, coordinates }) => ({ network, coordinates: simplify(coordinates, ZOOMED_OUT).map(([lon, lat]): Point => [round(lon, 1e4), round(lat, 1e4)]) }))),
     stations: Object.fromEntries(manifest.regions.map(({ id }, i) => [id, tracks[i]?.stations.map((s) => s.id) ?? []])),
     names: Object.fromEntries(manifest.regions.map(({ id }, i) => [id, tracks[i]?.stations.map(({ name, place, lines }) => ({ name, ...(place && { place }), ...(lines && { lines }) })) ?? []])),

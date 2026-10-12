@@ -385,6 +385,9 @@ test("names each region's Stations in the file below zoom 7, with the places the
     catalonia: [{ name: 'rodalies 1', lines: ['rodalies:C1'] }, { name: 'rodalies 2', place: 'tmb:P.6660327', lines: ['rodalies:C1'] }],
     'cercanias-madrid': [{ name: 'cercanias-madrid 1', lines: ['cercanias-madrid:C1'] }, { name: 'cercanias-madrid 2' }],
   });
+  // Each Network as its track has it, with the short name its config gives it, which Search names it by where two
+  // places read alike (#471): Rodalies de Catalunya's, and none for a Cercanías núcleo's, whose name is short already.
+  expect(file.networks).toEqual([{ ...catalonia.networks[0], short: 'Rodalies' }, madrid.networks[0]]);
   // Neither a Line's shapes nor its profile.
   expect(file.lines).toEqual([
     { id: 'rodalies:C1', network: 'rodalies', name: 'C1', colour: '#800', kind: 'commuter' },

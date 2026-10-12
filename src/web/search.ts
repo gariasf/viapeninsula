@@ -2,7 +2,7 @@
 // the Trips it finds by Train number, of the regions the map has loaded; in which order it lists them; and where its
 // sheet goes over the on-screen keyboard. Pure, with nothing from the page, so that Node tests it.
 
-import { places, type Place, type Station, type Trip, type ZoomedOut } from '../bundle.ts';
+import { places, type Network, type Place, type Station, type Trip, type ZoomedOut } from '../bundle.ts';
 import type { TripNow } from '../engine.ts';
 import { inNameOrder } from './cards.ts';
 
@@ -35,6 +35,11 @@ export function searchPlaces({ stations, names, lines = [] }: Pick<ZoomedOut, 's
   );
   const rank = (line: string) => order.get(line) ?? lines.length;
   return places(named).map(({ lon, lat, ...place }) => ({ ...place, lines: place.lines.toSorted((a, b) => rank(a) - rank(b)) }));
+}
+
+/** What a row names each Network by, by its ID, where two places read alike (#471): its short name, as the file below zoom 7 gives it, or its name. */
+export function networkNames(networks: Pick<Network, 'id' | 'name' | 'short'>[]): Map<string, string> {
+  return new Map(networks.map((n) => [n.id, n.short ?? n.name]));
 }
 
 /**
