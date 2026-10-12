@@ -65,4 +65,4 @@ node --env-file=.env.local -e "process.stdout.write(process.env.GITHUB_DISPATCH_
 
 ## Licence
 
-The code is AGPL-3.0. Timetables come from Renfe and FGC under CC BY 4.0, as does their live data, from TRAM (Powered by TRAM Barcelona) and from TMB, whose terms both ask for the day their data was last updated to be shown with it: TMB's feed's start date and, as TRAM's feeds have none, the day the build read them. The track follows OpenStreetMap's rails and the basemap comes from OpenFreeMap, both © OpenStreetMap contributors under the ODbL.
+The code is AGPL-3.0. Timetables come from Renfe and FGC under CC BY 4.0, as does their live data, from TRAM (Powered by TRAM Barcelona) and from TMB, whose terms both ask for the day their data was last updated to be shown with it: TMB's feed's start date and, as TRAM's feeds have none, the day the build read them, or where it built them from their copy, the day that was kept. The track follows OpenStreetMap's rails and the basemap comes from OpenFreeMap, both © OpenStreetMap contributors under the ODbL.

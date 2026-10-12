@@ -1297,18 +1297,19 @@ test("builds a Network from its copy where one of its timetables gives it no Lin
   expect(await readTimetables(PAIR, RENFE_499, read, () => {}, cache)).toEqual({ lines: [['T1'], ['T4']] });
 });
 
-test("gives each timetable the day it was read: the day it's downloaded, or where the Network is built from its copy, the day the copy was kept (#537)", async () => {
+test("gives each timetable the day it was read: the Madrid day it's downloaded, or where the Network is built from its copy, the day the copy was kept (#537)", async () => {
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.useFakeTimers({ toFake: ['Date'] });
-  vi.setSystemTime(new Date('2026-10-11T08:00:00Z'));
+  // 00:30 on 12 Oct in Madrid, still 11 Oct in UTC: the day is Madrid's, as the build's `today` is.
+  vi.setSystemTime(new Date('2026-10-11T22:30:00Z'));
   try {
     const readOn = async (feeds: (Feed & { gtfs: Source; readOn: string })[]) => ({ ...(await read(feeds)), readOn: feeds.map((f) => f.readOn) });
-    // The copy was kept on 5 Oct 2026, when nothing was new to read.
+    // The download fails (HTTP 499), so the Network is built from its copy, which was kept on 5 Oct 2026.
     const cache = await copied(PAIR, ['T1'], ['T4']);
     expect((await readTimetables(PAIR, RENFE_499, readOn, () => {}, cache)).readOn).toEqual(['2026-10-05', '2026-10-05']);
     await downloaded(`${PREFIX}-a`, 'T1');
     await downloaded(`${PREFIX}-b`, 'T4');
-    expect((await readTimetables(PAIR, undefined, readOn, () => {}, cache)).readOn).toEqual(['2026-10-11', '2026-10-11']);
+    expect((await readTimetables(PAIR, undefined, readOn, () => {}, cache)).readOn).toEqual(['2026-10-12', '2026-10-12']);
   } finally {
     vi.useRealTimers();
   }

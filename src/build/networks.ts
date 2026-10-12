@@ -500,6 +500,11 @@ export async function readTimetables<T extends { lines: unknown[][] }>(
  * The day a Network's timetables were last updated, where its terms ask the map to show it (`updated`):
  * its feed's start date, from its feed_info.txt, which fails where there's none, or, as TRAM's feeds
  * have none, the day it was read (#537).
+ * ponytail: that is when the map last had TRAM's data, not when TRAM changed it, and it moves each day,
+ * so Catalonia's track file and the file below zoom 7, which hold the credits, are renamed each day
+ * (450,891 and 25,372 bytes brotli on 12 Oct 2026); date it by the day a download last differed from
+ * its copy, less its calendar_dates.txt, which rolls, kept across builds, if that ever costs more than
+ * it's worth.
  */
 export async function updatedOn(feeds: (Pick<Feed, 'updated'> & { gtfs: Source; readOn: string })[]): Promise<string | undefined> {
   const dated = feeds.find((f) => f.updated);
