@@ -148,11 +148,6 @@ test("says in About what a Train's outline says of its Line's kind of service, l
   expect(t('outlines', 'gl')).toBe(
     'Co mapa ampliado, cada tren é unha etiqueta co nome da súa liña, e a súa forma indica o tipo de servizo: arredondada para as liñas de proximidade e as suburbanas, rematada en punta polos dous extremos para as rexionais, cortada en diagonal polos dous extremos para as de longa distancia, e cadrada coas esquinas arredondadas para as do metro de TMB, do TRAM, do tren-tranvía de Cádiz, do tren de cremalleira e dos funiculares.',
   );
-  // With `?ld=a`, the variant that outlines long distance's pills as regional ones are (#262), till the maintainer picks.
-  expect(t('outlinesA', 'en')).toBe(
-    "Zoomed in, each train is a label with its line's name, shaped by the line's kind of service: rounded for commuter and suburban lines, pointed at both ends for regional and long-distance lines, and a rounded square for the lines of TMB's metro, TRAM, Cádiz's tram-train, the rack railway and the funiculars.",
-  );
-  for (const lang of Object.keys(LANGUAGES) as Language[]) expect(t('outlinesA', lang)).not.toBe(t('outlines', lang));
 });
 
 test("says in About that the map shows Renfe's AVE and long-distance trains, and that Iryo's aren't on it as Iryo publishes nothing, in each language (ADR-0010)", () => {

@@ -20,7 +20,7 @@ import { keepView, lastView, markOf, openingView, toggledPitch } from './view.ts
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { darkInk, INK, lettering } from './colour.ts';
 import { boardAsks, boardList, cardAlerts, countdownTo, inNameOrder, linesOnBoard, linkedWords, minutesTo, nearbyRows, nextOnItsWay, passedPlace, progress, tripsState, untilTick, whereabouts, type CardAlert, type Whereabouts } from './cards.ts';
-import { ARROW_GAP, boxOf, FOLLOWED_TEXT, LINE_HEIGHT, OUTLINE_SIZES, outlineOf, OUTLINES_OF, PILL_EDGE, PILL_PADDING, PILL_TEXT, pillReach, type Outline } from './pill.ts';
+import { ARROW_GAP, boxOf, FOLLOWED_TEXT, LINE_HEIGHT, OUTLINE_SIZES, outlineOf, PILL_EDGE, PILL_PADDING, PILL_TEXT, pillReach, type Outline } from './pill.ts';
 import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, tappedRows, type Shown } from './closures.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
@@ -84,9 +84,6 @@ const OUTLINES: Record<Outline | 'arrow', { w: number; h: number; across?: numbe
   // Its tip 4.5 px ahead of its middle, and its base 2.25 px behind and 6 px across.
   arrow: { ...OUTLINE_SIZES.arrow, outside: (x, y) => Math.max(y - 2.25, (6.75 * Math.abs(x) - 3 * (y + 4.5)) / Math.hypot(3, 6.75)) },
 };
-// The long-distance outline's two variants on #262's PR, for the maintainer to pick: slanted (B), or with
-// `?ld=a` in the page's query, as MapLibre owns its hash, pointed, as regional Lines' are (A).
-if (new URLSearchParams(location.search).get('ld') === 'a') OUTLINES_OF['long-distance'] = 'pointed';
 /**
  * The cards' icons, drawn in the colour of the text around them, which a forced-colours theme sets
  * too (#116): a close cross, a chevron down and up, the die that follows a random Train, Nearby's
@@ -2933,7 +2930,7 @@ function showAbout() {
         el('li', {}, round ? pill(round, { live: false }) : '', el('span', {}, el('b', { textContent: t('scheduled') }), `: ${t('scheduledMeans')}`)),
       ),
       el('p', { className: 'shapes' }, ...[round, pointed, slanted, badge].flatMap((line) => (line ? [pill(line)] : []))),
-      el('p', { textContent: t(OUTLINES_OF['long-distance'] === 'pointed' ? 'outlinesA' : 'outlines') }),
+      el('p', { textContent: t('outlines') }),
       el('h3', { className: 'label', textContent: t('credits') }),
       aboutCredits,
       el('h3', { className: 'label', textContent: t('sourceCode') }),
