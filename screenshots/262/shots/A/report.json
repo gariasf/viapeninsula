@@ -1,0 +1,331 @@
+[
+ {
+  "spot": "1-z5-spain",
+  "zoom": 5,
+  "trains": 102,
+  "ld": 102,
+  "ldLive": 0,
+  "drawn": 90,
+  "drawnLd": 90,
+  "outlines": [
+   "pointed"
+  ],
+  "clock": "2026-10-12T16:35:00.000Z",
+  "ours": [],
+  "errors": []
+ },
+ {
+  "spot": "2-z7-madrid",
+  "zoom": 7,
+  "trains": 202,
+  "ld": 102,
+  "ldLive": 0,
+  "drawn": 91,
+  "drawnLd": 35,
+  "outlines": [
+   "pointed"
+  ],
+  "clock": "2026-10-12T16:35:00.000Z",
+  "ours": [],
+  "errors": []
+ },
+ {
+  "spot": "3-z10-atocha",
+  "zoom": 10,
+  "trains": 158,
+  "ld": 102,
+  "ldLive": 0,
+  "drawn": 54,
+  "drawnLd": 11,
+  "outlines": [
+   "pointed"
+  ],
+  "clock": "2026-10-12T16:35:00.000Z",
+  "ours": [],
+  "errors": []
+ },
+ {
+  "spot": "4-z13-sants-follow",
+  "zoom": 13,
+  "trains": 303,
+  "ld": 102,
+  "ldLive": 0,
+  "drawn": 23,
+  "drawnLd": 1,
+  "outlines": [
+   "pointed"
+  ],
+  "panel": "AVE, Scheduled Madrid-Puerta de Atocha-Almudena Grandes",
+  "clock": "2026-10-12T16:35:00.000Z",
+  "ours": [],
+  "errors": []
+ },
+ {
+  "spot": "5-sants-board",
+  "zoom": 13,
+  "trains": 303,
+  "ld": 102,
+  "ldLive": 0,
+  "drawn": 26,
+  "drawnLd": 1,
+  "outlines": [
+   "pointed"
+  ],
+  "panel": "Barcelona-Sants",
+  "clock": "2026-10-12T16:35:00.000Z",
+  "ours": [],
+  "errors": []
+ },
+ {
+  "spot": "W1-z5-spain",
+  "zoom": 5,
+  "trains": 102,
+  "ld": 102,
+  "ldLive": 0,
+  "drawn": 102,
+  "drawnLd": 102,
+  "outlines": [
+   "pointed"
+  ],
+  "clock": "2026-10-12T16:35:00.000Z",
+  "ours": [],
+  "errors": []
+ },
+ {
+  "spot": "W2-z7-madrid",
+  "zoom": 7,
+  "trains": 423,
+  "ld": 102,
+  "ldLive": 0,
+  "drawn": 121,
+  "drawnLd": 52,
+  "outlines": [
+   "pointed"
+  ],
+  "clock": "2026-10-12T16:35:00.000Z",
+  "ours": [],
+  "errors": []
+ },
+ {
+  "spot": "W3-z10-atocha",
+  "zoom": 10,
+  "trains": 158,
+  "ld": 102,
+  "ldLive": 0,
+  "drawn": 65,
+  "drawnLd": 12,
+  "outlines": [
+   "pointed"
+  ],
+  "clock": "2026-10-12T16:35:00.000Z",
+  "ours": [],
+  "errors": []
+ },
+ {
+  "spot": "W4-z13-sants-follow",
+  "zoom": 13,
+  "trains": 303,
+  "ld": 102,
+  "ldLive": 0,
+  "drawn": 65,
+  "drawnLd": 1,
+  "outlines": [
+   "pointed"
+  ],
+  "panel": "AVE, Scheduled Madrid-Puerta de Atocha-Almudena Grandes",
+  "clock": "2026-10-12T16:35:00.000Z",
+  "ours": [],
+  "errors": []
+ },
+ {
+  "spot": "W5-sants-board",
+  "zoom": 13,
+  "trains": 303,
+  "ld": 102,
+  "ldLive": 0,
+  "drawn": 65,
+  "drawnLd": 1,
+  "outlines": [
+   "pointed"
+  ],
+  "panel": "Barcelona-Sants",
+  "clock": "2026-10-12T16:35:00.000Z",
+  "ours": [],
+  "errors": []
+ },
+ {
+  "spot": "D4-dark-z13-sants-follow",
+  "zoom": 13,
+  "trains": 303,
+  "ld": 102,
+  "ldLive": 0,
+  "drawn": 23,
+  "drawnLd": 1,
+  "outlines": [
+   "pointed"
+  ],
+  "panel": "AVE, Scheduled Madrid-Puerta de Atocha-Almudena Grandes",
+  "clock": "2026-10-12T16:35:00.000Z",
+  "ours": [],
+  "errors": []
+ },
+ {
+  "spot": "D5-dark-sants-board",
+  "zoom": 13,
+  "trains": 303,
+  "ld": 102,
+  "ldLive": 0,
+  "drawn": 26,
+  "drawnLd": 1,
+  "outlines": [
+   "pointed"
+  ],
+  "panel": "Barcelona-Sants",
+  "clock": "2026-10-12T16:35:00.000Z",
+  "ours": [],
+  "errors": []
+ },
+ {
+  "spot": "L2-z7-madrid",
+  "zoom": 7,
+  "trains": 156,
+  "ld": 49,
+  "ldLive": 43,
+  "drawn": 66,
+  "drawnLd": 14,
+  "outlines": [
+   "pointed"
+  ],
+  "clock": "2026-10-11T13:04:55.211Z",
+  "ours": [],
+  "errors": []
+ },
+ {
+  "spot": "L3-z10-atocha",
+  "zoom": 10,
+  "trains": 101,
+  "ld": 49,
+  "ldLive": 43,
+  "drawn": 47,
+  "drawnLd": 4,
+  "outlines": [
+   "pointed"
+  ],
+  "clock": "2026-10-11T13:04:55.211Z",
+  "ours": [],
+  "errors": []
+ },
+ {
+  "spot": "L4-z13-sants-follow",
+  "zoom": 13,
+  "trains": 246,
+  "ld": 49,
+  "ldLive": 43,
+  "drawn": 18,
+  "drawnLd": 2,
+  "outlines": [
+   "pointed"
+  ],
+  "panel": "AVE, Live Barcelona-Sants",
+  "clock": "2026-10-11T13:04:55.211Z",
+  "ours": [],
+  "errors": []
+ },
+ {
+  "spot": "L5-sants-board",
+  "zoom": 13,
+  "trains": 246,
+  "ld": 49,
+  "ldLive": 43,
+  "drawn": 24,
+  "drawnLd": 0,
+  "outlines": [],
+  "panel": "Barcelona-Sants",
+  "clock": "2026-10-11T13:04:55.211Z",
+  "ours": [],
+  "errors": []
+ },
+ {
+  "spot": "H-wide-board-hover",
+  "zoom": 13,
+  "trains": 303,
+  "ld": 102,
+  "ldLive": 0,
+  "drawn": 65,
+  "drawnLd": 1,
+  "outlines": [
+   "pointed"
+  ],
+  "panel": "Barcelona-Sants",
+  "clock": "2026-10-12T16:35:00.000Z",
+  "ours": [],
+  "errors": [
+   "hover: TimeoutError: page.hover: Timeout 10000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-ld]')\u001b[22m\n"
+  ]
+ },
+ {
+  "spot": "F-wide-board-focus",
+  "zoom": 13,
+  "trains": 303,
+  "ld": 102,
+  "ldLive": 0,
+  "drawn": 65,
+  "drawnLd": 1,
+  "outlines": [
+   "pointed"
+  ],
+  "panel": "Barcelona-Sants",
+  "clock": "2026-10-12T16:35:00.000Z",
+  "ours": [],
+  "errors": []
+ },
+ {
+  "spot": "H-dark-wide-board-hover",
+  "zoom": 13,
+  "trains": 303,
+  "ld": 102,
+  "ldLive": 0,
+  "drawn": 65,
+  "drawnLd": 1,
+  "outlines": [
+   "pointed"
+  ],
+  "panel": "Barcelona-Sants",
+  "clock": "2026-10-12T16:35:00.000Z",
+  "ours": [],
+  "errors": [
+   "hover: TimeoutError: page.hover: Timeout 10000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-ld]')\u001b[22m\n"
+  ]
+ },
+ {
+  "spot": "F-dark-wide-board-focus",
+  "zoom": 13,
+  "trains": 303,
+  "ld": 102,
+  "ldLive": 0,
+  "drawn": 65,
+  "drawnLd": 1,
+  "outlines": [
+   "pointed"
+  ],
+  "panel": "Barcelona-Sants",
+  "clock": "2026-10-12T16:35:00.000Z",
+  "ours": [],
+  "errors": []
+ },
+ {
+  "spot": "about",
+  "zoom": 7,
+  "trains": 202,
+  "ld": 102,
+  "ldLive": 0,
+  "drawn": 91,
+  "drawnLd": 35,
+  "outlines": [
+   "pointed"
+  ],
+  "clock": "2026-10-12T16:35:00.000Z",
+  "ours": [],
+  "errors": []
+ }
+]

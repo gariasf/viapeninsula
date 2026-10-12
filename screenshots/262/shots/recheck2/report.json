@@ -1,0 +1,65 @@
+[
+ {
+  "spot": "1-z5-spain",
+  "zoom": 5,
+  "trains": 102,
+  "ld": 102,
+  "ldLive": 0,
+  "drawn": 90,
+  "drawnLd": 90,
+  "outlines": [
+   "slanted"
+  ],
+  "clock": "2026-10-12T16:35:00.000Z",
+  "ours": [],
+  "errors": []
+ },
+ {
+  "spot": "4-z13-sants-follow",
+  "zoom": 13,
+  "trains": 303,
+  "ld": 102,
+  "ldLive": 0,
+  "drawn": 23,
+  "drawnLd": 1,
+  "outlines": [
+   "slanted"
+  ],
+  "panel": "AVE, Scheduled Madrid-Puerta de Atocha-Almudena Grandes",
+  "clock": "2026-10-12T16:35:00.000Z",
+  "ours": [],
+  "errors": []
+ },
+ {
+  "spot": "5-sants-board",
+  "zoom": 13,
+  "trains": 303,
+  "ld": 102,
+  "ldLive": 0,
+  "drawn": 26,
+  "drawnLd": 1,
+  "outlines": [
+   "slanted"
+  ],
+  "panel": "Barcelona-Sants",
+  "clock": "2026-10-12T16:35:00.000Z",
+  "ours": [],
+  "errors": []
+ },
+ {
+  "spot": "L4-z13-sants-follow",
+  "zoom": 13,
+  "trains": 245,
+  "ld": 48,
+  "ldLive": 42,
+  "drawn": 18,
+  "drawnLd": 2,
+  "outlines": [
+   "slanted"
+  ],
+  "panel": "AVE, Live Barcelona-Sants",
+  "clock": "2026-10-11T13:04:55.211Z",
+  "ours": [],
+  "errors": []
+ }
+]

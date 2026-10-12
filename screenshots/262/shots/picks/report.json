@@ -1,0 +1,77 @@
+[
+ {
+  "spot": "P1-alcazar-alvia-00694-standing",
+  "zoom": 16.5,
+  "trains": 62,
+  "ld": 62,
+  "ldLive": 0,
+  "drawn": 1,
+  "drawnLd": 1,
+  "outlines": [
+   "slanted"
+  ],
+  "clock": "2026-10-12T11:40:00.000Z",
+  "ours": [],
+  "errors": []
+ },
+ {
+  "spot": "P1-alcazar-alvia-00694-leaving",
+  "zoom": 16.5,
+  "trains": 61,
+  "ld": 61,
+  "ldLive": 0,
+  "drawn": 1,
+  "drawnLd": 1,
+  "outlines": [
+   "slanted"
+  ],
+  "clock": "2026-10-12T11:42:10.000Z",
+  "ours": [],
+  "errors": []
+ },
+ {
+  "spot": "P1-figueres-ave-int-09742-standing",
+  "zoom": 16.5,
+  "trains": 299,
+  "ld": 99,
+  "ldLive": 0,
+  "drawn": 1,
+  "drawnLd": 1,
+  "outlines": [
+   "slanted"
+  ],
+  "clock": "2026-10-12T16:22:00.000Z",
+  "ours": [],
+  "errors": []
+ },
+ {
+  "spot": "P1-figueres-ave-int-09742-leaving",
+  "zoom": 16.5,
+  "trains": 297,
+  "ld": 97,
+  "ldLive": 0,
+  "drawn": 1,
+  "drawnLd": 1,
+  "outlines": [
+   "slanted"
+  ],
+  "clock": "2026-10-12T16:24:10.000Z",
+  "ours": [],
+  "errors": []
+ },
+ {
+  "spot": "P2-sants-z13",
+  "zoom": 13,
+  "trains": 303,
+  "ld": 102,
+  "ldLive": 0,
+  "drawn": 28,
+  "drawnLd": 1,
+  "outlines": [
+   "slanted"
+  ],
+  "clock": "2026-10-12T16:35:00.000Z",
+  "ours": [],
+  "errors": []
+ }
+]
