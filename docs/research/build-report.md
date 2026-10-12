@@ -23,7 +23,7 @@ All of it is `console.log` or `console.warn` in the daily run's log. Nothing is 
 | A shape's length, traced against the feed's | `traceShapes()`, `track.ts` | yes, if more than 5% off (or 2 × `BAND` on short shapes) |
 | A stretch that keeps the feed's shape: a Station off the network, or no path along the rails | `traceShape()`, `track.ts` | no |
 | A trace that turns back on the way between two Stations | `traceShape()` | no |
-| A Station left out, off the feed's shape on a branch | `traceShape()` | no |
+| A Station left out, off the feed's shape on a branch, unless a Trip's trace of its own serves it (#601) | `traceShape()`, `unserved()` | no |
 | A shape whose Trips serve fewer than two Stations | `traceShape()` | no |
 | A Trip left out: fewer than two Stations, no track, a Station too far off its track or too fast along it, and where it fits no trace through its own Stations either (#280) | `placeDays()`, `trips.ts`, `traceOwn()`, `track.ts` | no |
 | A feed shape with no points | `readFeed()`, `networks.ts` | no |
