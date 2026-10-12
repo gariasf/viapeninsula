@@ -35,17 +35,32 @@ export function letsGo({ type, originalEvent: e }: Moved): boolean {
 const PRESSED = 3000;
 
 /**
+ * How long a touch is a tap, and how long after one a second tap makes a double-tap, in ms: MapLibre's
+ * MAX_TOUCH_TIME and MAX_TAP_INTERVAL, both 500.
+ */
+const TAP = 500;
+
+/**
  * The pointers down on the map, which hold it where it is (#581). The jump that pans the map with a
  * Train ends the press MapLibre has seen but not yet a move of, so the drag never starts. Each pointer
  * holds it from its press to its lift, or its cancel, or PRESSED, whichever comes first: a `pointerup`
  * can fail to come, as the context menu or a pointer let go out of the window may have it.
+ * A touch short enough to be a tap goes on holding it for TAP after its lift (`now`, none for a cancel),
+ * so that a second tap can come: the jump forgets the first tap, as MapLibre's recogniser of a double-tap
+ * is reset by it, and a double-tap never zoomed while the map panned with a moving Train (#432). A mouse's
+ * click has its `dblclick`, which keeps no state to forget.
  */
 export function pointersDown() {
-  const down = new Map<number, number>();
+  const down = new Map<number, { at: number; touch: boolean }>();
+  let tapped = -Infinity;
   return {
-    press: (id: number, now: number) => void down.set(id, now),
-    lift: (id: number) => void down.delete(id),
-    holds: (now: number) => [...down.values()].some((at) => now - at < PRESSED),
+    press: (id: number, now: number, touch = false) => void down.set(id, { at: now, touch }),
+    lift: (id: number, now?: number) => {
+      const pointer = down.get(id);
+      if (now !== undefined && pointer?.touch && now - pointer.at < TAP) tapped = now;
+      down.delete(id);
+    },
+    holds: (now: number) => now - tapped < TAP || [...down.values()].some(({ at }) => now - at < PRESSED),
   };
 }
 

@@ -2023,8 +2023,16 @@ for (const type of ['dragstart', 'movestart'] as const) {
 // first move and its lift can come in one frame (a flick, or a frame that takes long), and MapLibre applies
 // the move only once the frame loop has run, so a lift seen at once leaves that frame's centreOn() free to
 // jump, which drops the move it has not applied yet and the drag with it.
-map.getCanvasContainer().addEventListener('pointerdown', (e) => pressed.press(e.pointerId, performance.now()));
-for (const type of ['pointerup', 'pointercancel'] as const) addEventListener(type, (e) => requestAnimationFrame(() => pressed.lift(e.pointerId)), true);
+map.getCanvasContainer().addEventListener('pointerdown', (e) => pressed.press(e.pointerId, performance.now(), e.pointerType === 'touch'));
+addEventListener(
+  'pointerup',
+  (e) => {
+    const now = performance.now();
+    requestAnimationFrame(() => pressed.lift(e.pointerId, now));
+  },
+  true,
+);
+addEventListener('pointercancel', (e) => requestAnimationFrame(() => pressed.lift(e.pointerId)), true);
 /** Shows the Centre button while the map has let go, and has the wheel and a pinch zoom about the middle while it pans with the Train, where the Train is (#325). */
 function showCentring() {
   centreButton.hidden = lessMotion.matches || !letGo();
@@ -2055,7 +2063,8 @@ function centre() {
 /**
  * Whether the map is held where it is: it moves, which a jumpTo() or an easeTo() of the app's would stop,
  * or a pointer is down on it, whose drag they would end before it began, MapLibre having seen the press
- * but not yet a move past its click tolerance (#581).
+ * but not yet a move past its click tolerance (#581), or a tap has just lifted, whose second a jump would
+ * make a first again (#432).
  */
 function holding() {
   return map.isMoving() || pressed.holds(performance.now());

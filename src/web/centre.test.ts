@@ -48,9 +48,9 @@ test('a pointer down on the map holds it from its press to its lift or its cance
   expect(down.holds(100)).toBe(true);
   expect(down.holds(900)).toBe(true);
   down.press(8, 950);
-  down.lift(7);
+  down.lift(7, 990);
   expect(down.holds(1000)).toBe(true);
-  down.lift(8);
+  down.lift(8, 1040);
   expect(down.holds(1050)).toBe(false);
   // A lift of a pointer that was never down, or twice, holds nothing and takes nothing: one down on the map stays.
   down.press(10, 1060);
@@ -59,6 +59,30 @@ test('a pointer down on the map holds it from its press to its lift or its cance
   expect(down.holds(1100)).toBe(true);
   down.lift(10);
   expect(down.holds(1150)).toBe(false);
+});
+
+test('a touch short enough to be a tap holds it for the half second in which a second tap makes a double-tap, as a jump would forget the first', () => {
+  const down = pointersDown();
+  down.press(5, 1000, true);
+  down.lift(5, 1100);
+  expect(down.holds(1100)).toBe(true);
+  expect(down.holds(1599)).toBe(true);
+  expect(down.holds(1600)).toBe(false);
+  // The second tap holds from its own lift as well.
+  down.press(6, 1300, true);
+  down.lift(6, 1380);
+  expect(down.holds(1879)).toBe(true);
+  expect(down.holds(1880)).toBe(false);
+  // A mouse's click has its dblclick, which keeps no state; a touch held as long as a tap may last is a press; a cancelled one is none.
+  down.press(1, 5000);
+  down.lift(1, 5050);
+  expect(down.holds(5051)).toBe(false);
+  down.press(7, 6000, true);
+  down.lift(7, 6500);
+  expect(down.holds(6501)).toBe(false);
+  down.press(8, 7000, true);
+  down.lift(8);
+  expect(down.holds(7001)).toBe(false);
 });
 
 test('a press holds it for 3 s at most, so that a lift that never came does not hold it for good', () => {
