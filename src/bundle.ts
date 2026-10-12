@@ -518,8 +518,9 @@ export interface Station {
    */
   networks?: string[];
   /**
-   * The Lines whose timetable calls there on any day, by their IDs in order: those a board names where
-   * no Trip of them calls that day, as where works stop them (#392). A track built before #392 names none.
+   * The Lines whose timetable calls there on any day, by their IDs in order: those a board names,
+   * whether or not a Trip of them calls that day, as where works stop them (#392, #529). A track built
+   * before #392 names none.
    */
   lines?: string[];
 }

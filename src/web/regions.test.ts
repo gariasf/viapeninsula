@@ -1,8 +1,8 @@
 import { expect, test } from 'vitest';
-import type { DayFiles, DayTrips, ManifestRegion, Point, Shape, Track, Trip } from '../bundle.ts';
+import type { Bundle, DayFiles, DayTrips, ManifestRegion, Point, Shape, Track, Trip } from '../bundle.ts';
 import { metres } from '../build/track.ts';
 import { encodeTrack } from '../pieces.ts';
-import { firstLook, forgetJoined, regionLoader, regionsNeeded } from './regions.ts';
+import { daysAsTheyCome, firstLook, forgetJoined, regionLoader, regionsCame, regionsNeeded } from './regions.ts';
 
 /** A region's track of one Line and one Station, named for it. */
 const track = (id: string): Track => ({
@@ -114,6 +114,172 @@ test("reads a track file that stores its shapes as pieces back as the track it w
   // Another loader, as the page's next look makes, finds the shape it decoded already.
   const again = await regionLoader(get, new Map(), () => {}).bundleOf(days);
   expect(again.shapes[0]).toBe(first.shapes[0]);
+});
+
+/** A service day's bundle, as a look makes it from its files: the Trips of these IDs on a day's clock. */
+const bundleOf = (date: string, ...ids: string[]): Bundle => ({ ...track('catalonia'), serviceDay: date, noonMinus12h: Date.parse(`${date}T00:00:00Z`), trips: ids.map(trip) });
+/** A day's files for these regions, named as the manifest names them, with none for the day where a region is left out. */
+const filesFor = (date: string, ...ids: string[]): DayFiles => ({ date, from: 0, to: 1, regions: ids.map((id) => ({ id, track: `${id}.track`, trips: `${id}.${date}.trips` })) });
+/** A promise a test settles when it likes, so that one day's files can come after another's. */
+function wait<T>() {
+  let [resolve, reject] = [(_: T) => {}, (_: unknown) => {}];
+  const promise = new Promise<T>((yes, no) => ([resolve, reject] = [yes, no]));
+  return { promise, resolve, reject };
+}
+/** The days a look needs, in this order, each of whose bundles comes (or fails) when a test says. */
+function coming(...dates: string[]) {
+  const waits = new Map(dates.map((date) => [date, wait<Bundle>()]));
+  const days = dates.map((date) => filesFor(date));
+  return { days, bundleOf: (day: DayFiles) => waits.get(day.date)?.promise ?? Promise.reject(new Error(`no ${day.date}`)), come: (bundle: Bundle) => waits.get(bundle.serviceDay)?.resolve(bundle), fail: (date: string, why: string) => waits.get(date)?.reject(new Error(why)) };
+}
+const [DAY, NEXT] = ['2026-10-11', '2026-10-12'];
+/** The IDs of the Trips a step's bundle has, in its order. */
+const tripsOf = (bundle: Bundle | undefined) => bundle?.trips.map((t) => t.id);
+
+test("gives the day whose files come first on its own and joins the other's as they come, in the days' order, so that the map has the first day's Trips when they come and not when the last day's have (#593)", async () => {
+  // Two days needed, as after midnight: the earlier slow, the later fast.
+  const files = coming(DAY, NEXT);
+  const steps = daysAsTheyCome(files.days, files.bundleOf);
+  files.come(bundleOf(NEXT, 'n1'));
+  const first = await steps.next();
+  expect(tripsOf(first.value?.bundle)).toEqual(['n1']);
+  expect(first.value?.complete).toBe(false);
+  expect(first.value?.came.map((d) => d.date)).toEqual([NEXT]);
+  // The earlier day's Trips run on the clock of the last, led by their day (joinDays()).
+  files.come(bundleOf(DAY, 'd1'));
+  const last = await steps.next();
+  expect(tripsOf(last.value?.bundle)).toEqual([`${DAY}/d1`, 'n1']);
+  expect(last.value?.complete).toBe(true);
+  expect((await steps.next()).done).toBe(true);
+});
+
+test("gives the earlier day's Trips on their own where they come first, and the two joined once the later's do", async () => {
+  const files = coming(DAY, NEXT);
+  const steps = daysAsTheyCome(files.days, files.bundleOf);
+  files.come(bundleOf(DAY, 'd1'));
+  const first = await steps.next();
+  // Alone, a day is the bundle of the files it came from, as the map had before this.
+  expect(tripsOf(first.value?.bundle)).toEqual(['d1']);
+  expect(first.value?.bundle?.serviceDay).toBe(DAY);
+  files.come(bundleOf(NEXT, 'n1'));
+  expect(tripsOf((await steps.next()).value?.bundle)).toEqual([`${DAY}/d1`, 'n1']);
+});
+
+test("keeps what the map had of a day until its new files come, so that a look that adds a region doesn't take a day's Trips off the map while another day's come", async () => {
+  const [files, had] = [coming(DAY, NEXT), bundleOf(DAY, 'old')];
+  const steps = daysAsTheyCome(files.days, files.bundleOf, new Map([[DAY, had]]));
+  files.come(bundleOf(NEXT, 'n1'));
+  const first = await steps.next();
+  // The later day's new Trips, with the earlier day's as the map had them.
+  expect(tripsOf(first.value?.bundle)).toEqual([`${DAY}/old`, 'n1']);
+  expect(first.value?.complete).toBe(false);
+  expect([...(first.value?.byDate ?? [])].map(([date]) => date)).toEqual([DAY, NEXT]);
+  files.come(bundleOf(DAY, 'new'));
+  const last = await steps.next();
+  expect(tripsOf(last.value?.bundle)).toEqual([`${DAY}/new`, 'n1']);
+  expect(last.value?.complete).toBe(true);
+});
+
+test("leaves out a day whose files fail, with what the map had of it, once the look is over, and says which failed and why", async () => {
+  const [files, had] = [coming(DAY, NEXT), bundleOf(DAY, 'old')];
+  const steps = daysAsTheyCome(files.days, files.bundleOf, new Map([[DAY, had]]));
+  files.come(bundleOf(NEXT, 'n1'));
+  expect(tripsOf((await steps.next()).value?.bundle)).toEqual([`${DAY}/old`, 'n1']);
+  files.fail(DAY, 'HTTP 503');
+  const last = await steps.next();
+  expect(last.value?.complete).toBe(true);
+  expect(tripsOf(last.value?.bundle)).toEqual(['n1']);
+  expect(last.value?.lost.map(([day, why]) => [day.date, String(why)])).toEqual([[DAY, 'Error: HTTP 503']]);
+});
+
+test("has no bundle at the look's end where no day's files come, and no step before it: a day that fails while another is still to come is nothing to show", async () => {
+  const files = coming(DAY, NEXT);
+  const steps = daysAsTheyCome(files.days, files.bundleOf);
+  files.fail(NEXT, 'HTTP 404');
+  const step = steps.next();
+  // The first failure is no step of its own, the look waiting on the other day as it was.
+  await new Promise((resolve) => setTimeout(resolve));
+  files.fail(DAY, 'HTTP 503');
+  const { value } = await step;
+  expect([value?.bundle, value?.complete, value?.lost.map(([day]) => day.date)]).toEqual([undefined, true, [NEXT, DAY]]);
+  expect((await steps.next()).done).toBe(true);
+});
+
+test("is one step for days whose files come in the same turn, and the last for a day that fails after another's came, with that one's bundle as it was", async () => {
+  const files = coming(DAY, NEXT);
+  const steps = daysAsTheyCome(files.days, files.bundleOf);
+  files.come(bundleOf(DAY, 'd1'));
+  files.come(bundleOf(NEXT, 'n1'));
+  const all = [];
+  for await (const step of steps) all.push(step);
+  expect(all.map((s) => [tripsOf(s.bundle), s.complete])).toEqual([[[`${DAY}/d1`, 'n1'], true]]);
+  const more = coming(DAY, NEXT);
+  const later = daysAsTheyCome(more.days, more.bundleOf);
+  more.come(bundleOf(NEXT, 'n1'));
+  const first = await later.next();
+  more.fail(DAY, 'HTTP 503');
+  const last = await later.next();
+  // A day that fails is the look's last step, which is the same Trips as before it: the map shows them again as it must be told it's over.
+  expect([tripsOf(first.value?.bundle), first.value?.complete]).toEqual([['n1'], false]);
+  expect([tripsOf(last.value?.bundle), last.value?.complete, last.value?.bundle]).toEqual([['n1'], true, first.value?.bundle]);
+});
+
+test("shows a day's new bundle in place of the one the map had of it as it comes, and the bundle the map had of a day still to come until then (#593)", async () => {
+  // A look for a region new to the map: both days' files asked for again, and both days on the map already.
+  const [files, hadDay, hadNext] = [coming(DAY, NEXT), bundleOf(DAY, 'old'), bundleOf(NEXT, 'oldn')];
+  const steps = daysAsTheyCome(files.days, files.bundleOf, new Map([[DAY, hadDay], [NEXT, hadNext]]));
+  files.come(bundleOf(NEXT, 'n1'));
+  const first = await steps.next();
+  // The later day's new Trips, which are what the look is for, not the Trips it had of the day: only the other's are kept.
+  expect(tripsOf(first.value?.bundle)).toEqual([`${DAY}/old`, 'n1']);
+  expect(first.value?.byDate.get(NEXT)).not.toBe(hadNext);
+  expect(first.value?.byDate.get(DAY)).toBe(hadDay);
+});
+
+test("is no step where a day fails first with the map's bundles of the days kept, which come on as they were until a day comes (#593)", async () => {
+  const [files, hadDay, hadNext] = [coming(DAY, NEXT), bundleOf(DAY, 'old'), bundleOf(NEXT, 'oldn')];
+  const steps = daysAsTheyCome(files.days, files.bundleOf, new Map([[DAY, hadDay], [NEXT, hadNext]]));
+  files.fail(NEXT, 'HTTP 503');
+  const step = steps.next();
+  // Nothing new: the failed day's bundle the map had is what it still has, so no step re-joins them with none of the days come.
+  await new Promise((resolve) => setTimeout(resolve));
+  files.come(bundleOf(DAY, 'd2'));
+  const { value } = await step;
+  expect([tripsOf(value?.bundle), value?.complete, value?.came.map((d) => d.date)]).toEqual([['d2'], true, [DAY]]);
+  expect((await steps.next()).done).toBe(true);
+});
+
+test("is the bundle of the step before it where the look's last step has the same days, so that the map has nothing to lay out again (#593)", async () => {
+  // Three days, as a board with none left after midnight needs: the first two come, one after the other, and the third fails.
+  const [LAST] = ['2026-10-13'];
+  const files = coming(DAY, NEXT, LAST);
+  const steps = daysAsTheyCome(files.days, files.bundleOf);
+  files.come(bundleOf(DAY, 'd1'));
+  expect(tripsOf((await steps.next()).value?.bundle)).toEqual(['d1']);
+  files.come(bundleOf(NEXT, 'n1'));
+  const joined = await steps.next();
+  expect(tripsOf(joined.value?.bundle)).toEqual([`${DAY}/d1`, 'n1']);
+  files.fail(LAST, 'HTTP 503');
+  const last = await steps.next();
+  expect([last.value?.complete, last.value?.lost.length]).toEqual([true, 1]);
+  // The same object, not another joined from the same parts: the map lays a bundle out again when its Stations aren't the ones it drew.
+  expect(last.value?.bundle).toBe(joined.value?.bundle);
+});
+
+test("the regions that have come are those loaded whose files for the days that have come are all in, and those with none in any day, which have nothing to wait for (#593)", () => {
+  const [d1, d2] = [filesFor('2026-10-11', 'catalonia', 'cercanias-madrid'), filesFor('2026-10-12', 'catalonia', 'cercanias-madrid')];
+  const fetched = new Set(['catalonia.track', 'catalonia.2026-10-11.trips', 'catalonia.2026-10-12.trips', 'cercanias-madrid.track', 'cercanias-madrid.2026-10-11.trips']);
+  const loaded = ['catalonia', 'cercanias-madrid', 'cercanias-leon'];
+  // Every day has come: Madrid's Trips of the 12th failed, and León has no file in either day.
+  expect(regionsCame(loaded, [d1, d2], [d1, d2], (file) => fetched.has(file))).toEqual(['catalonia', 'cercanias-leon']);
+  // The first day alone, as the map has it first: Madrid's files for it are all in.
+  expect(regionsCame(loaded, [d1, d2], [d1], (file) => fetched.has(file))).toEqual(['catalonia', 'cercanias-madrid', 'cercanias-leon']);
+  // Not a region whose track failed, whatever of its Trips are in.
+  expect(regionsCame(loaded, [d1, d2], [d1], (file) => fetched.has(file) && file !== 'cercanias-madrid.track')).toEqual(['catalonia', 'cercanias-leon']);
+  // A region whose files are in the other day alone has none to show for the first, though it has nothing to wait for in no day.
+  const late = filesFor('2026-10-12', 'catalonia', 'cercanias-madrid', 'cercanias-sevilla');
+  expect(regionsCame([...loaded, 'cercanias-sevilla'], [d1, late], [d1], () => true)).not.toContain('cercanias-sevilla');
+  expect(regionsCame([...loaded, 'cercanias-sevilla'], [d1, late], [d1, late], () => true)).toContain('cercanias-sevilla');
 });
 
 // Where some regions lay, as the daily build of 10 Oct 2026 found them: west, south, east, north.

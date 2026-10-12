@@ -2,6 +2,7 @@
 // come, joined as one, which it draws before the Trips, and then the Trips of those whose track came.
 
 import { BANDS, DEGREE, joinTracks, joinTrips, type Bundle, type DayFiles, type DayTrips, type ManifestRegion, type Point, type Track, type ZoomedOut } from '../bundle.ts';
+import { joinDays } from '../engine.ts';
 import { decodeTrack, type TrackFile } from '../pieces.ts';
 
 /**
@@ -108,4 +109,57 @@ export function regionLoader(get: <T>(key: string) => Promise<T>, joined: Map<st
     return { ...track, ...joinTrips(trips) };
   };
   return { trackOf, bundleOf, failed: () => failed };
+}
+
+/**
+ * The regions of `loaded` that have come for the days that have (`done`, of the `days` a look is for): those
+ * whose files in them are all among those fetched (`has`), as one whose file failed has to come at a later
+ * look, and those with files in none of `days`, which have nothing to wait for. One with files only in a day
+ * still to come hasn't, as it has none to show yet.
+ */
+export function regionsCame(loaded: Iterable<string>, days: DayFiles[], done: DayFiles[], has: (file: string) => boolean): string[] {
+  return [...loaded].filter((id) => {
+    const filesIn = (list: DayFiles[]) => list.flatMap((d) => d.regions.filter((r) => r.id === id));
+    const mine = filesIn(done);
+    return (mine.length > 0 || filesIn(days).length === 0) && mine.every((r) => has(r.track) && has(r.trips));
+  });
+}
+
+/**
+ * The days a look needs, as their bundles come (#593): a step each time one comes, of the days that
+ * have so far, joined in the order of `days` (joinDays()), so that the map has the first day's Trips
+ * when they come, and the others' join as theirs do, not all together once the last day's have. A day
+ * that fails is no step of its own, but for the last where it's the one that ends the look.
+ * A day that hasn't come yet is, for as long as it hasn't, the bundle the map had of it (`kept`, by its
+ * date), so that a look for a region the map doesn't have yet, which fetches every day's files again,
+ * doesn't take a day's Trips off the map while the other's come. The last step, `complete`, is the days
+ * that came alone, with those that failed in `lost` and with the bundle of none where none came;
+ * `byDate` is the bundle each day of the step has, to give the next look as `kept`.
+ */
+export function daysAsTheyCome(days: DayFiles[], bundleOf: (day: DayFiles) => Promise<Bundle>, kept: ReadonlyMap<string, Bundle> = new Map()) {
+  const came = new Map<DayFiles, Bundle>();
+  const lost: [DayFiles, unknown][] = [];
+  // Asked for at once, whether or not a step has been asked for yet, so that a day that fails first is handled.
+  const waiting = new Map(
+    days.map((day, i) => [i, bundleOf(day).then((bundle) => void came.set(day, bundle), (reason: unknown) => void lost.push([day, reason])).then(() => i)]),
+  );
+  return (async function* () {
+    // What the map has of these days to begin with, the bundles it kept, so that a failure that comes first is nothing new.
+    let last: { parts: Bundle[]; bundle?: Bundle } = { parts: days.flatMap((day) => kept.get(day.date) ?? []) };
+    for (let complete = false; !complete; ) {
+      waiting.delete(await Promise.race(waiting.values()));
+      // Every day has come or failed to: days that came in the one turn are one step.
+      complete = came.size + lost.length === days.length;
+      const byDate = new Map(days.flatMap((day): [string, Bundle][] => {
+        const bundle = came.get(day) ?? (complete ? undefined : kept.get(day.date));
+        return bundle ? [[day.date, bundle]] : [];
+      }));
+      const parts = [...byDate.values()];
+      // Nothing new since the last step, as where a day failed, or came with another in one turn.
+      const same = parts.length === last.parts.length && parts.every((part, i) => part === last.parts[i]);
+      if (same && !complete) continue;
+      last = { parts, bundle: same ? last.bundle : parts.length ? joinDays(parts) : undefined };
+      yield { bundle: last.bundle, came: days.filter((day) => came.has(day)), lost, byDate, complete };
+    }
+  })();
 }
