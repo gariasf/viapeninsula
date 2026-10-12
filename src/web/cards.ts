@@ -1,4 +1,4 @@
-// What the cards work out from the days on the map and the engine's Trains: minutes to go, and a followed Train's countdown in seconds in its last minute (#456), how long ago live data placed it (#612), Nearby's rows, how far along its Trip a followed Train is and where it is by how it's drawn, and the Station it passes without stopping (#455, #457), and a board's Lines (#321), and the order the cards name Lines in (#399); and from alerts.json, the Alerts each shows (#342).
+// What the cards work out from the days on the map and the engine's Trains: minutes to go, and a followed Train's countdown in seconds in its last minute (#456), how long ago live data placed it (#612), Nearby's rows, how far along its Trip a followed Train is and where it is by how it's drawn, and the Station it passes without stopping (#455, #457), and a board's Lines (#321, #529), and the order the cards name Lines in (#399); and from alerts.json, the Alerts each shows (#342).
 // Pure, with nothing from the page, as the measure of the card against the map (src/cardVsMap.ts) runs whereabouts(), passedPlace() and countdownTo() under Node.
 import { DEGREE, type Alert, type Alerts, type Call, type Line, type Place, type Trip, type Words } from '../bundle.ts';
 import type { Pass } from '../engine.ts';
@@ -264,16 +264,17 @@ export function linesCallingAt(trips: Trip[], stations: string[], lines: string[
 }
 
 /**
- * The Lines a board names, of `order` (the cards' order): those whose Trips call at the place's Stations
- * on the days on the map, and those whose timetable calls there on any day (`lines`) that an Alert is on,
- * so that where works stop a Line's Trains at a Station for the day, the board names it and shows the
- * Alert that says why (#392). A place with no Alert on its Lines names only those that call, as before.
+ * The Lines a board names, of `order` (the cards' order): those of the place's timetable, which calls at
+ * its Stations on any day (`lines`, #392), whether or not a Trip of them calls on the days on the map and
+ * whether or not an Alert is on them (#529), so that where works stop a Line's Trains at a Station for the
+ * day the board names it and shows the Alert that says why, and where a day has none of its Trips, or
+ * they haven't come, it names them as it will when they have (#594); and those whose Trips call there,
+ * which a track built before #392, that names no Lines, has alone.
  */
-export function linesOnBoard(trips: Trip[], place: { stations: string[]; lines?: string[] }, order: string[], alerts: Alerts): string[] {
+export function linesOnBoard(trips: Trip[], place: { stations: string[]; lines?: string[] }, order: string[]): string[] {
   const calling = new Set(linesCallingAt(trips, place.stations, order));
   const timetable = new Set(place.lines);
-  const alerted = new Set(Object.values(alerts).flatMap((feed) => feed.alerts.flatMap((a) => a.lines)));
-  return order.filter((line) => calling.has(line) || (timetable.has(line) && alerted.has(line)));
+  return order.filter((line) => calling.has(line) || timetable.has(line));
 }
 
 /**

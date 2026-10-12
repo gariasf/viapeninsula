@@ -536,6 +536,24 @@ test("a followed Train's card has its Line's Alerts, and a board those naming it
   expect(cardAlerts(ALERTS, { lines: ['rodalies:R8'], stations: ['adif:79400'] }, 'en', NOW).alerts).toEqual([]);
 });
 
+test("a board names the Lines of its place's timetable, whether or not a Trip of them calls that day, with or without an Alert, in the order of the Lines it's given (#529)", () => {
+  // Made up, as San Sebastián's on 10 Oct: no Trip calls at Martutene that day, and its Lines' timetable does.
+  const order = ['rodalies:R1', 'rodalies:R2', 'rodalies:R4', 'tram:T1'];
+  const martutene = { stations: ['adif:11509'], lines: ['rodalies:R2', 'rodalies:R1'] };
+  // Those two, in the order's and not the timetable's, and not R4 or T1, which its timetable doesn't have there: no Line is made up.
+  expect(linesOnBoard([], martutene, order)).toEqual(['rodalies:R1', 'rodalies:R2']);
+  // With no Alert on either, which #392 named none for, as Santander's 11 Stations have none: C1 and C2, on two gauges.
+  const santander = { stations: ['adif:14100'], lines: ['cercanias-santander:C2', 'cercanias-santander:C1'] };
+  expect(linesOnBoard([], santander, ['cercanias-santander:C1', 'cercanias-santander:C2'])).toEqual(['cercanias-santander:C1', 'cercanias-santander:C2']);
+  // Those that call and those of the timetable, each once, in the order's.
+  expect(linesOnBoard([trip('rodalies:R4', 'adif:11509')], { stations: ['adif:11509'], lines: ['rodalies:R2', 'tram:T1'] }, order)).toEqual(['rodalies:R2', 'rodalies:R4', 'tram:T1']);
+  // A Line that calls is named whatever the timetable says of it, as a track that names no Lines gives those that call, as before.
+  expect(linesOnBoard([trip('rodalies:R7', 'adif:11509')], { stations: ['adif:11509'], lines: ['rodalies:R8'] }, [...order, 'rodalies:R7'])).toEqual(['rodalies:R7']);
+  expect(linesOnBoard([trip('rodalies:R4', 'adif:11509')], { stations: ['adif:11509'] }, order)).toEqual(['rodalies:R4']);
+  // A Line of the timetable that the days on the map have no Line of is not one to name.
+  expect(linesOnBoard([], { stations: ['adif:11509'], lines: ['rodalies:R9'] }, order)).toEqual([]);
+});
+
 test("a link's Trip is the ID it has among the days joined: led by its day but for the last day's, and a bare ID is the last day's (#593)", () => {
   const link = '2026-10-10/metro:1.1.11781651';
   // Joined with the 11th, the 10th's Trips are led by their day, as joinDays() has them.
@@ -548,20 +566,15 @@ test("a link's Trip is the ID it has among the days joined: led by its day but f
   expect(linkedTrip('metro:1.1.11781651', '2026-10-11')).toBe('metro:1.1.11781651');
 });
 
-test("a board also names a Line of its Stations' timetable that no Trip of calls that day, where there's an Alert on it, and no other (#392)", () => {
-  // Made up, as San Sebastián's on 10 Oct: no Trip calls at Martutene that day, its Lines' timetable does, and both have Alerts.
-  const order = ['rodalies:R1', 'rodalies:R2', 'rodalies:R4', 'tram:T1'];
-  const martutene = { stations: ['adif:11509'], lines: ['rodalies:R1', 'rodalies:R2'] };
-  // R4 has an Alert too, and neither calls nor is in its timetable: no Alert is made up for it.
-  expect(linesOnBoard([], martutene, order, ALERTS)).toEqual(['rodalies:R1', 'rodalies:R2']);
-  // A Line with no Alert isn't named.
-  expect(linesOnBoard([], { ...martutene, lines: ['rodalies:R8', 'tram:T1'] }, [...order, 'rodalies:R8'], { renfe: { status: 'ok', alerts: [] } })).toEqual([]);
-  // Those that call and those Alerted, each once, in the order's.
-  expect(linesOnBoard([trip('rodalies:R4', 'adif:11509')], { stations: ['adif:11509'], lines: ['rodalies:R2', 'tram:T1'] }, order, ALERTS)).toEqual(['rodalies:R2', 'rodalies:R4', 'tram:T1']);
-  // A Line that calls is named with no Alert on it, as before: an Alert is only what names one that doesn't.
-  expect(linesOnBoard([trip('rodalies:R7', 'adif:11509')], { stations: ['adif:11509'], lines: ['rodalies:R7'] }, [...order, 'rodalies:R7'], ALERTS)).toEqual(['rodalies:R7']);
-  // A track that names no Lines gives the Lines that call, as before.
-  expect(linesOnBoard([trip('rodalies:R4', 'adif:11509')], { stations: ['adif:11509'] }, order, ALERTS)).toEqual(['rodalies:R4']);
+test("a board names the same Lines while its Trips are on their way and once they've come, so that its pills are there before its rows and don't change as they come (#594)", () => {
+  // Onze de Setembre, as 10 Oct's track names it: L9N and L10N, where the Trips of the days on the map call at it.
+  const [L9N, L10N] = ['metro:L9N', 'metro:L10N'];
+  const place = { stations: ['tmb:1.932'], lines: [L10N, L9N] };
+  const order = ['metro:L1', L9N, L10N];
+  const coming = linesOnBoard([], place, order);
+  const came = linesOnBoard([trip(L9N, 'tmb:1.932', 'tmb:1.933'), trip(L10N, 'tmb:1.931', 'tmb:1.932'), trip('metro:L1', 'tmb:1.100')], place, order);
+  expect(coming).toEqual([L9N, L10N]);
+  expect(came).toEqual(coming);
 });
 
 test("a board's Alert names the Lines it's on of those that call there, in the board's order, as Rodalies' words don't, and its Station's none", () => {
@@ -637,7 +650,7 @@ test("a C8a or a C8b Train's card shows Madrid's AVISO_517064, which Renfe names
 test("a board at Cercedilla, where no Trip of C8b calls on the days on the map, as AVISO_517064 says, but its timetable does, names C8b and shows that Alert, which names C8 (#359)", () => {
   // As the track names it (#392): Cercedilla is on C8b's shapes, and on none of C8a's.
   const cercedilla = { stations: ['adif:12006'], lines: ['cercanias-madrid:C8b'] };
-  const lines = linesOnBoard([], cercedilla, ['cercanias-madrid:C8a', 'cercanias-madrid:C8b'], MADRID);
+  const lines = linesOnBoard([], cercedilla, ['cercanias-madrid:C8a', 'cercanias-madrid:C8b']);
   expect(lines).toEqual(['cercanias-madrid:C8b']);
   expect(cardAlerts(MADRID, { lines, stations: cercedilla.stations }, 'es', NOW).alerts.map((a) => a.id)).toEqual(['AVISO_517064', 'AVISO_467462']);
 });

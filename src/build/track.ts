@@ -526,8 +526,8 @@ export function stationsOf(networks: { network: Pick<Network, 'id'>; stations: S
 
 /**
  * `stations`, each with the Lines whose timetable calls there on any day, by their IDs in order, as
- * `shapes` have them: the Lines a board can name where none of their Trips call that day, as where
- * works stop them, so that it shows the Alerts that say why (#392). A Station none of them calls at has none.
+ * `shapes` have them: the Lines a board names whether or not a Trip of them calls that day, as where
+ * works stop them, so that it shows the Alerts that say why (#392, #529). A Station none of them calls at has none.
  */
 export function withLines(stations: Station[], shapes: { line: string; stations: string[] }[]): Station[] {
   const of = new Map<string, Set<string>>();

@@ -668,8 +668,8 @@ let fastest = 0;
 let namesDue: Track | Bundle | undefined;
 /** The cards' colour, style.css's --card, which a Scheduled Train's pill letters its Line's colour against (pill()). */
 const cardColour = hex(getComputedStyle(document.documentElement).getPropertyValue('--card').trim() || '#fff');
-/** The Lines the last place whose board the panel showed names, for the days on the map and the Alerts then (servedBy()). */
-let served: { place?: string; days?: Bundle; alerts?: Alerts; lines: string[] } = { lines: [] };
+/** The Lines the last place whose board the panel showed names, for the days on the map then (servedBy()). */
+let served: { place?: Place; days?: Bundle; lines: string[] } = { lines: [] };
 showLanguage();
 
 /** The manifest as the map last got it. */
@@ -2776,12 +2776,13 @@ function alertRow({ lines: named, header, description, from, by }: CardAlert, by
 }
 
 /**
- * A place's board: its nameboard, with the Lines that call there; the Alerts on its Stations and on
- * those Lines, folded away (#342); then its next departures from each of its Stations, each with when
- * it's expected to leave, its Train's pill, where it's headed and its status. Peeking, the next PEEK
- * of them, and how many more. Until the Trips of the regions the map has loaded have come, only its
- * label, as Nearby's heading stands alone (boardList(), #379), and with none left today, until the next
- * day's, which it asks for once its own regions' have come, have (#597, #596).
+ * A place's board: its nameboard, with the Lines of its timetable there, as they are before its Trips
+ * have come (servedBy(), #594); the Alerts on its Stations and on those Lines, folded away (#342); then
+ * its next departures from each of its Stations, each with when it's expected to leave, its Train's pill,
+ * where it's headed and its status. Peeking, the next PEEK of them, and how many more. Until the Trips of
+ * the regions the map has loaded have come, only its label, as Nearby's heading stands alone (boardList(),
+ * #379), and with none left today, until the next day's, which it asks for once its own regions' have
+ * come, have (#597, #596).
  */
 function boardPanel(id: string, up: boolean): Panel | undefined {
   const place = shownPlaces.get(id);
@@ -2830,12 +2831,12 @@ function boardPanel(id: string, up: boolean): Panel | undefined {
 }
 
 /**
- * The Lines a place's board names, by their IDs, in the order the cards name Lines: those whose Trips
- * call there, and those whose timetable does that an Alert is on (linesOnBoard(), #392). For the last
- * place asked about, until the days or the Alerts change.
+ * The Lines a place's board names, by their IDs, in the order the cards name Lines: those of its timetable,
+ * wherever its Trips are, on their way or no Trip of them calling that day (linesOnBoard(), #392, #529, #594).
+ * For the last place asked about, until the days or its track change.
  */
 function servedBy(place: Place): string[] {
-  if (served.place !== place.id || served.days !== bundle || served.alerts !== alerts) served = { place: place.id, days: bundle, alerts, lines: linesOnBoard(bundle?.trips ?? [], place, [...lines.keys()], alerts) };
+  if (served.place !== place || served.days !== bundle) served = { place, days: bundle, lines: linesOnBoard(bundle?.trips ?? [], place, [...lines.keys()]) };
   return served.lines;
 }
 
