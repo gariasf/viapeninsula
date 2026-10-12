@@ -1,0 +1,65 @@
+{
+ "taken": "2026-10-12T12:23:49.626Z",
+ "site": "https://viapeninsula.gariasf.com",
+ "results": [
+  {
+   "name": "santander",
+   "zoom": 8,
+   "lat": 43.44,
+   "lon": -3.84,
+   "scheme": "light",
+   "file": "live-santander-z8-light.jpg",
+   "pill": "232 live 69 scheduled",
+   "seconds": 11,
+   "errors": [
+    "error: Failed to load resource: net::ERR_FAILED"
+   ],
+   "failed": []
+  },
+  {
+   "name": "santander",
+   "zoom": 8,
+   "lat": 43.44,
+   "lon": -3.84,
+   "scheme": "dark",
+   "file": "live-santander-z8-dark.jpg",
+   "pill": "232 live 69 scheduled",
+   "seconds": 11,
+   "errors": [
+    "error: Failed to load resource: net::ERR_FAILED"
+   ],
+   "failed": []
+  },
+  {
+   "name": "santander-phone",
+   "zoom": 8,
+   "lat": 43.44,
+   "lon": -3.84,
+   "scheme": "light",
+   "width": 390,
+   "height": 844,
+   "scale": 2,
+   "file": "live-santander-phone-z8-light.jpg",
+   "pill": "68 live 13 scheduled",
+   "seconds": 10,
+   "errors": [
+    "error: Failed to load resource: net::ERR_FAILED"
+   ],
+   "failed": []
+  },
+  {
+   "name": "santander",
+   "zoom": 9,
+   "lat": 43.44,
+   "lon": -3.84,
+   "scheme": "light",
+   "file": "live-santander-z9-light.jpg",
+   "pill": "73 live 36 scheduled",
+   "seconds": 10,
+   "errors": [
+    "error: Failed to load resource: net::ERR_FAILED"
+   ],
+   "failed": []
+  }
+ ]
+}

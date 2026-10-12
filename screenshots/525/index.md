@@ -34,3 +34,14 @@ close-ups at x3 of the places named below.
 What to look at: that "Santander" is by its Station on all three (light, dark, phone), and the cost rows: a Line's name or a town's
 label lost where a city's is drawn (Alvia at Burgos and Vitoria, La Pola de Laviana at Oviedo). Counts for all núcleos are in
 `picks.md`, `pr-525.md` and `wrapup-525.md`.
+
+## `live/`: the deployed site, after #717
+
+Taken on 12 Oct 2026 at 14:22–14:23 CEST by one headless Chrome (the cached headless shell, the Mac's GPU through ANGLE's Metal) on the site as served: `assets/index-D7Bvt27V.js`, byte for byte the `vite build` of origin/main 9a132845 (#717's merge), the real clock, the visit counter blocked, `en-GB`. `live/live.json` has what each page said: the pill's counts, the console and `pageerror`. No `pageerror`; the one console error on each page is the blocked counter's beacon (`net::ERR_FAILED`).
+
+| file | shows |
+|---|---|
+| `live/live-santander-z8-light.jpg` | `#map=8/43.44/-3.84`, 1280×800: **box 1, live.** "Santander" is drawn above its Station at the bay's head, and "El Astillero" below it |
+| `live/live-santander-z8-dark.jpg` | the same on the dark basemap: "SANTANDER" (and "EL ASTILLERO") drawn |
+| `live/live-santander-phone-z8-light.jpg` | the same at 390×844 (x2): "Santander" over its Station, "El Astillero" under it |
+| `live/live-santander-z9-light.jpg` | zoom 9, 1280×800: "Santander" by its Station, "El Astillero" below it |
