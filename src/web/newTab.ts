@@ -21,3 +21,14 @@ export function opensInNewTab(link: HTMLAnchorElement, lang: Language = language
   link.append(Object.assign(link.ownerDocument.createElement('span'), { className: 'sr-only', lang, textContent: ` ${t('opensInNewTab', lang)}` }));
   return link;
 }
+
+/**
+ * Puts `html` in `container`, with each link in it made to open in a new tab as opensInNewTab() does,
+ * which a string of HTML has no way to say in a place a test can reach, and gives back `container`. The
+ * credits' are the page's one HTML with links, as a test checks (#585).
+ */
+export function putHtml<T extends Element>(container: T, html: string): T {
+  container.innerHTML = html;
+  for (const link of container.querySelectorAll('a')) opensInNewTab(link);
+  return container;
+}

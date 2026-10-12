@@ -24,7 +24,7 @@ import { ARROW_GAP, boxOf, FOLLOWED_TEXT, LINE_HEIGHT, OUTLINE_SIZES, outlineOf,
 import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, tappedRows, type Shown } from './closures.ts';
 import { currentTab, type Tab } from './tabs.ts';
 import { keyboardRise, networkNames, numbered, numberQuery, results, searchPlaces, type Found } from './search.ts';
-import { opensInNewTab } from './newTab.ts';
+import { opensInNewTab, putHtml } from './newTab.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
 setWorkerUrl(workerUrl);
@@ -3303,11 +3303,12 @@ function showCredits() {
     ...new Set(credited.map((network) => (network.credit ? creditOf(network.credit) : network.name))),
   ];
   // The credits go in as they are, which is safe while they're all ours: these constants, t(), and the
-  // credits and Network names the daily build publishes. Their links are written with no target: each
-  // is made to open in a new tab as it's in, as every link on the page does (#585).
-  creditsText.innerHTML = creditsStrip.innerHTML = html.join(' | ');
-  aboutCredits.replaceChildren(...html.map((credit) => el('li', { innerHTML: credit })));
-  for (const credits of [creditsText, creditsStrip, aboutCredits]) for (const link of credits.querySelectorAll('a')) opensInNewTab(link);
+  // credits and Network names the daily build publishes. Their links are written with no target: putHtml()
+  // makes each open in a new tab as it's in, as every link on the page does (#585).
+  const line = html.join(' | ');
+  putHtml(creditsText, line);
+  putHtml(creditsStrip, line);
+  aboutCredits.replaceChildren(...html.map((credit) => putHtml(el('li'), credit)));
 }
 
 /** A source's credit, as its terms ask. */

@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
-import { opensInNewTab } from './newTab.ts';
+import { setLanguage } from './i18n.ts';
+import { opensInNewTab, putHtml } from './newTab.ts';
 
 /**
  * An anchor as far as opensInNewTab() touches one, and the span it makes: Node has no DOM to make a link in,
@@ -24,6 +25,32 @@ test("opens a link in a new tab, with noopener and noreferrer, and says so after
   expect(link.children).toEqual([{ tag: 'span', className: 'sr-only', lang: 'ca', textContent: " (s'obre en una pestanya nova)" }]);
 });
 
+test('says it in the language the interface speaks, which every link of the page asks for, where it is asked for none', () => {
+  setLanguage('eu');
+  const link = anchor();
+  opensInNewTab(link as unknown as HTMLAnchorElement);
+  expect(link.children).toEqual([{ tag: 'span', className: 'sr-only', lang: 'eu', textContent: ' (fitxa berri batean irekitzen da)' }]);
+});
+
+test('puts HTML in a container and makes each link in it open in a new tab once it is in, where HTML written as a string has no way to say so', () => {
+  const links = [anchor(), anchor()];
+  const seen: string[] = [];
+  const container = {
+    innerHTML: '',
+    querySelectorAll(selector: string) {
+      seen.push(`${selector} in ${this.innerHTML}`);
+      return selector === 'a' ? links : [];
+    },
+  };
+  expect(putHtml(container as unknown as HTMLElement, '<a href="/">A</a> | <a href="/">B</a>')).toBe(container);
+  // Asked for the links after the HTML's in, or it would find none (the credits' are replaced as the language changes).
+  expect(seen).toEqual(['a in <a href="/">A</a> | <a href="/">B</a>']);
+  for (const link of links) {
+    expect(link).toMatchObject({ target: '_blank', rel: 'noopener noreferrer' });
+    expect(link.children).toHaveLength(1);
+  }
+});
+
 /** The page's own sources, read as text, as about.test.ts reads main.ts: it builds the page as it loads, so no test can import it to see what it makes. */
 const web = new URL('.', import.meta.url);
 const sources = readdirSync(web).filter((file) => file.endsWith('.ts') && !file.endsWith('.test.ts'));
@@ -31,11 +58,15 @@ const read = (file: string) => readFileSync(new URL(file, web), 'utf8');
 
 test("opens no tab but through opensInNewTab(): no other file of the page writes the target that does, and none of main.ts's anchors is made without it", () => {
   expect(sources.filter((file) => read(file).includes('_blank'))).toEqual(['newTab.ts']);
-  // Credits' links are HTML, which showCredits() makes open in a new tab as it puts them in, below.
   expect(read('main.ts').match(/(?<!opensInNewTab\(\s*)el\('a'/g) ?? []).toEqual([]);
 });
 
-test("makes each link of the credits open in a new tab as they're put in, where they're HTML written with no target, in each of the three places they are", () => {
-  const showCredits = /^function showCredits\(\) \{\n[\s\S]*?^\}$/m.exec(read('main.ts'))?.[0] ?? '';
-  expect(showCredits).toMatch(/\[creditsText, creditsStrip, aboutCredits\][^;]*opensInNewTab\(/);
+test("writes no HTML but through putHtml(), which makes its links open in a new tab: the page's other HTML is the icons' SVG", () => {
+  const written = sources.flatMap((file) =>
+    read(file)
+      .split('\n')
+      .filter((line) => /innerHTML|outerHTML|insertAdjacentHTML/.test(line) && !/^\s*(\/\/|\*|\/\*)/.test(line))
+      .map((line) => `${file}: ${line.trim()}`),
+  );
+  expect(written.filter((line) => !line.startsWith('newTab.ts:') && !line.includes('ICONS['))).toEqual([]);
 });
