@@ -416,7 +416,7 @@ map.setStyle(`https://tiles.openfreemap.org/styles/${darkBasemap ? 'dark' : 'pos
       // beside its place's name. Convert it with the style spec's convertFilter() if one comes.
       if (layer['source-layer'] === 'place') placeLabels.set(layer.id, layer.filter as ExpressionFilterSpecification | undefined);
       // Positron's two layers of cities and the dark basemap's both say `class == city` in their filters.
-      if (layer['source-layer'] === 'place' && JSON.stringify(layer.filter).includes('["==",["get","class"],"city"]')) cityLabels.set(layer.id, layer);
+      if (layer['source-layer'] === 'place' && JSON.stringify(layer.filter)?.includes('["==",["get","class"],"city"]')) cityLabels.set(layer.id, layer);
       const text = JSON.stringify(layer.layout['text-field']);
       if (!text?.includes('"name_en"')) continue;
       const own = JSON.parse(text.replaceAll('"name_en"', '"name"'));
