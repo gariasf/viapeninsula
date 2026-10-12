@@ -10,10 +10,10 @@ Onze de Setembre's board at 390x844 (2x), in English, on a slow 3G link: headles
 
 ## The deployed site, after the merge (12 Oct 2026, 15:00 CEST, unthrottled)
 
-Headless Chrome for Testing, the live site at `assets/index-B7dsOFrv.js` (byte for byte the `vite build` of the merged tree b1509dae) and the real CDN, the analytics beacon blocked. The legend's counts are nonzero and the console and `pageerror` have nothing but the basemap's own warnings.
+Headless Chrome for Testing, the live site at `assets/index-B7dsOFrv.js` (byte for byte the `vite build` of the merged tree b1509dae) and the real CDN, the analytics beacon blocked. The legend's counts are nonzero; there is no `pageerror`, and the console has the basemap's own style-filter warnings, the GL driver's notes and the blocked beacon's failed load.
 
 | file | what it shows |
 |---|---|
 | `594-live-onze-de-setembre-390x844.png` | Onze de Setembre's board by its link at 390x844: L9N and L10N named from 1.5 s (161 px, the label alone), its rows at 3.0 s (353 px). Legend 166 live, 31 scheduled. |
 | `594-live-onze-de-setembre-1280x800.png` | the same at 1280x800: pills at 1.1 s (147 px), 10 rows at 2.1 s (616 px). |
-| `529-live-martutene-390x844.png` | #529: Martutene (`#station=adif:11509`), a place no Trip of 12 Oct calls at (C1's service is cut between Brinkola and Zumarragako): its board names C1 from 3.9 s and, from 6.1 s, the next day's rows, "Doesn't stop here" within the Closure. |
+| `529-live-martutene-390x844.png` | #529: Martutene (`#station=adif:11509`), a place no Trip of 12 Oct calls at (by the live files, with the page's own `linesOnBoard()`): its board names C1 from 3.9 s and, from 6.1 s, the next day's rows, struck through as "Doesn't stop here" within a Closure of C1 (five Alerts). |
