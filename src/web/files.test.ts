@@ -29,7 +29,7 @@ function answering(headers = 0) {
       }),
   );
   const text = new TextEncoder();
-  return { send: (part: string) => body?.enqueue(text.encode(part)), end: () => body?.close() };
+  return { send: (part: string) => body?.enqueue(text.encode(part)), end: () => body?.close(), reset: (error: Error) => body?.error(error) };
 }
 
 /** What a request has come to so far: its file, the reason it failed, or nothing yet. */
@@ -105,4 +105,37 @@ test("a request's own signal ends it as it did, which the snapshot's and Alerts'
   own.abort(new Error('ten seconds'));
   await vi.advanceTimersByTimeAsync(0);
   expect(file.failed).toBe('ten seconds');
+});
+
+test('a response that is not ok fails with its status, whatever its body says, and leaves no timer running', async () => {
+  vi.stubGlobal('fetch', async () => new Response('{"trips":[]}', { status: 503 }));
+  const file = outcome(getJson('https://live.test/trips.json', { stall: STALL }));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(file.failed).toBe('https://live.test/trips.json: HTTP 503');
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+test('no timer is left running once a file has come, or its body has failed, or it has been cut', async () => {
+  const came = answering();
+  const first = outcome(getJson('https://live.test/track.json', { stall: STALL }));
+  came.send('{"stations":[]}');
+  came.end();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(first).toEqual({ came: { stations: [] } });
+  expect(vi.getTimerCount()).toBe(0);
+
+  const reset = answering();
+  const second = outcome(getJson('https://live.test/trips.json', { stall: STALL }));
+  reset.send('{"trips":[');
+  await vi.advanceTimersByTimeAsync(5_000);
+  reset.reset(new Error('connection reset'));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(second.failed).toBe('connection reset');
+  expect(vi.getTimerCount()).toBe(0);
+
+  answering();
+  const third = outcome(getJson('https://live.test/trips.json', { stall: STALL }));
+  await vi.advanceTimersByTimeAsync(STALL);
+  expect(third.failed).toBe('https://live.test/trips.json: no bytes for 20 s');
+  expect(vi.getTimerCount()).toBe(0);
 });
