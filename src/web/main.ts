@@ -2047,13 +2047,18 @@ function showCentring() {
 
 // MapLibre zooms a double-click and a double-tap about the point they're at, and has no `around:
 // 'center'` for them, as it has for the wheel and a pinch (showCentring()). While the map pans with the
-// Train, the ease its handlers start for them is about the middle instead, so that the Train stays there (#432).
+// Train, the ease its handlers start for them is about the Train instead, which the middle is, so that it
+// stays there (#432). Not about where the map's middle is: the map stands while a second tap may come
+// (holding()), and a click may come as the map eases onto a Train, so the Train may have gone off it by then.
 // ponytail: wraps MapLibre's easeTo(), which every `map.easeTo()` of the app's goes through now, telling its
 // handlers' ease by what they pass (tapZooms()). Where a release changes that, the zoom is about the point
 // again, as it was, and centreOn() jumps at its end: look at a double-click's zoom after an upgrade. Have the
 // handlers take `around` instead if they grow the option.
 const easeTo = map.easeTo.bind(map);
-map.easeTo = (options, eventData) => easeTo(centring && tapZooms(options, eventData) ? { ...options, around: undefined } : options, eventData);
+map.easeTo = (options, eventData) => {
+  const at = centring ? following?.at : undefined;
+  return easeTo(at && tapZooms(options, eventData) ? { ...options, around: undefined, center: at } : options, eventData);
+};
 
 /** Takes the Train the map follows back, easing onto it, and the map pans with it again (#325). */
 function centre() {
