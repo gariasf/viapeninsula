@@ -15,7 +15,7 @@ import { firstLook, forgetJoined, regionLoader, regionsNeeded } from './regions.
 import { linesAt, popupRoom } from './tap.ts';
 import { alongside, callsIn, namedTwice, nameOffset, nameSort, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
 import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
-import { atMostEvery, drifted, letsGo, pointersDown } from './centre.ts';
+import { atMostEvery, drifted, letsGo, pointersDown, tapZooms } from './centre.ts';
 import { keepView, lastView, markOf, openingView, toggledPitch } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { darkInk, INK, lettering } from './colour.ts';
@@ -509,7 +509,7 @@ const wide = matchMedia('(min-width: 640px)');
 const lessMotion = matchMedia('(prefers-reduced-motion: reduce)');
 /** The Train the viewer's hand took the map off, as followKey() names it, which the map pans with no more (#325). */
 let released: string | undefined;
-/** Whether the wheel and a pinch zoom about the middle now, as the map pans with the Train (showCentring()). */
+/** Whether the wheel, a pinch and a double-click or a double-tap zoom about the middle now, as the map pans with the Train (showCentring(), the easeTo() wrapped below it). */
 let centring = false;
 /** The pointers down on the map, which hold it where it is as a move of it does (holding(), #581). */
 const pressed = pointersDown();
@@ -2023,8 +2023,9 @@ for (const type of ['dragstart', 'movestart'] as const) {
 // first move and its lift can come in one frame (a flick, or a frame that takes long), and MapLibre applies
 // the move only once the frame loop has run, so a lift seen at once leaves that frame's centreOn() free to
 // jump, which drops the move it has not applied yet and the drag with it.
-map.getCanvasContainer().addEventListener('pointerdown', (e) => pressed.press(e.pointerId, performance.now()));
-for (const type of ['pointerup', 'pointercancel'] as const) addEventListener(type, (e) => requestAnimationFrame(() => pressed.lift(e.pointerId)), true);
+map.getCanvasContainer().addEventListener('pointerdown', (e) => pressed.press(e.pointerId, performance.now(), e.pointerType === 'touch'));
+addEventListener('pointerup', (e) => requestAnimationFrame(() => pressed.lift(e.pointerId, performance.now())), true);
+addEventListener('pointercancel', (e) => requestAnimationFrame(() => pressed.lift(e.pointerId)), true);
 /** Shows the Centre button while the map has let go, and has the wheel and a pinch zoom about the middle while it pans with the Train, where the Train is (#325). */
 function showCentring() {
   centreButton.hidden = lessMotion.matches || !letGo();
@@ -2037,6 +2038,21 @@ function showCentring() {
   }
 }
 
+// MapLibre zooms a double-click and a double-tap about the point they're at, and has no `around:
+// 'center'` for them, as it has for the wheel and a pinch (showCentring()). While the map pans with the
+// Train, the ease its handlers start for them is about the Train instead, which the middle is, so that it
+// stays there (#432). Not about where the map's middle is: the map stands while a second tap may come
+// (holding()), and a click may come as the map eases onto a Train, so the Train may have gone off it by then.
+// ponytail: wraps MapLibre's easeTo(), which every `map.easeTo()` of the app's goes through now, telling its
+// handlers' ease by what they pass (tapZooms()). Where a release changes that, the zoom is about the point
+// again, as it was, and centreOn() jumps at its end: look at a double-click's zoom after an upgrade. Have the
+// handlers take `around` instead if they grow the option.
+const easeTo = map.easeTo.bind(map);
+map.easeTo = (options, eventData) => {
+  const at = centring ? following?.at : undefined;
+  return easeTo(at && tapZooms(options, eventData) ? { ...options, around: undefined, center: at } : options, eventData);
+};
+
 /** Takes the Train the map follows back, easing onto it, and the map pans with it again (#325). */
 function centre() {
   released = undefined;
@@ -2047,7 +2063,8 @@ function centre() {
 /**
  * Whether the map is held where it is: it moves, which a jumpTo() or an easeTo() of the app's would stop,
  * or a pointer is down on it, whose drag they would end before it began, MapLibre having seen the press
- * but not yet a move past its click tolerance (#581).
+ * but not yet a move past its click tolerance (#581), or a tap has just lifted, whose second a jump would
+ * make a first again (#432).
  */
 function holding() {
   return map.isMoving() || pressed.holds(performance.now());
