@@ -144,7 +144,8 @@ export function daysAsTheyCome(days: DayFiles[], bundleOf: (day: DayFiles) => Pr
     days.map((day, i) => [i, bundleOf(day).then((bundle) => void came.set(day, bundle), (reason: unknown) => void lost.push([day, reason])).then(() => i)]),
   );
   return (async function* () {
-    let last: { parts: Bundle[]; bundle?: Bundle } = { parts: [] };
+    // What the map has of these days to begin with, the bundles it kept, so that a failure that comes first is nothing new.
+    let last: { parts: Bundle[]; bundle?: Bundle } = { parts: days.flatMap((day) => kept.get(day.date) ?? []) };
     for (let complete = false; !complete; ) {
       waiting.delete(await Promise.race(waiting.values()));
       // Every day has come or failed to: days that came in the one turn are one step.

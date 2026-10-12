@@ -236,6 +236,19 @@ test("shows a day's new bundle in place of the one the map had of it as it comes
   expect(first.value?.byDate.get(DAY)).toBe(hadDay);
 });
 
+test("is no step where a day fails first with the map's bundles of the days kept, which come on as they were until a day comes (#593)", async () => {
+  const [files, hadDay, hadNext] = [coming(DAY, NEXT), bundleOf(DAY, 'old'), bundleOf(NEXT, 'oldn')];
+  const steps = daysAsTheyCome(files.days, files.bundleOf, new Map([[DAY, hadDay], [NEXT, hadNext]]));
+  files.fail(NEXT, 'HTTP 503');
+  const step = steps.next();
+  // Nothing new: the failed day's bundle the map had is what it still has, so no step re-joins them with none of the days come.
+  await new Promise((resolve) => setTimeout(resolve));
+  files.come(bundleOf(DAY, 'd2'));
+  const { value } = await step;
+  expect([tripsOf(value?.bundle), value?.complete, value?.came.map((d) => d.date)]).toEqual([['d2'], true, [DAY]]);
+  expect((await steps.next()).done).toBe(true);
+});
+
 test("is the bundle of the step before it where the look's last step has the same days, so that the map has nothing to lay out again (#593)", async () => {
   // Three days, as a board with none left after midnight needs: the first two come, one after the other, and the third fails.
   const [LAST] = ['2026-10-13'];
