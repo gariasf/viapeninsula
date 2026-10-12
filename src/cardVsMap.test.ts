@@ -171,6 +171,16 @@ describe('differences', () => {
     expect(differences(moment(140, 2000, { standing: true }))).toMatchObject({ countsTo: 'B leaves' });
   });
 
+  it('has no countdown for a Train standing at its Trip’s last Station, whose time is when it arrived, though the engine has it leave a dwell later (#607)', () => {
+    // C is the last Station, due at 260 s, and the Train stays on the map until 290 s.
+    const dwelt = [...calls.slice(0, 2), { station: 'c', key: 'C', arrival: 260, departure: 290, dist: 4000 }];
+    const standing = differences(moment(270, 4000, { standing: true, calls: dwelt, near: [{ key: 'C', metres: 0 }] }));
+    expect(standing).toMatchObject({ says: { at: 'standing', key: 'C' }, countdown: false, countsTo: 'C arrives', expected: 260_000 });
+    // On its way in it counts down to its arrival, and at B, before its last Station, to when it leaves.
+    expect(differences(moment(250, 3800, { calls: dwelt }))).toMatchObject({ countdown: true, countsTo: 'C arrives', reads: { n: 10, unit: 'seconds' } });
+    expect(differences(moment(140, 2000, { standing: true, calls: dwelt, near: [{ key: 'B', metres: 0 }] }))).toMatchObject({ countdown: true, countsTo: 'B leaves', reads: { n: 20, unit: 'seconds' } });
+  });
+
   it('says whether the drawn Train is at its next Station without standing there, the last of its way in', () => {
     expect(differences(moment(125, 1980, { near: [{ key: 'B', metres: 20 }] }))).toMatchObject({ atNext: true, reads: { n: 5, unit: 'seconds' } });
     expect(differences(moment(140, 2000, { standing: true, near: [{ key: 'B', metres: 0 }] }))).toMatchObject({ atNext: false });
@@ -252,5 +262,43 @@ describe('the runner', () => {
     expect(all.seconds).toBeGreaterThan(80);
     expect(all['w.arriving']).toBeGreaterThan(20);
     expect(all['w.flaps.other'] ?? 0).toBe(0);
+  }, 60_000);
+
+  // A – B – C a kilometre apart along a line of latitude, for the two tests below: a metro Line's Trip from A at 10:00:00 to C at 10:03:30, with a dwell of 30 s at C, which is its last Station.
+  const [lat, day] = [41.4, '2026-10-07'];
+  const lon = (metres: number) => 2.15 + metres / (DEGREE * Math.cos((lat * Math.PI) / 180));
+  const noon = Date.parse(`${day}T00:00:00+02:00`);
+  const line: Bundle = {
+    serviceDay: day,
+    noonMinus12h: noon,
+    networks: [{ id: 'test', name: 'Test', profile: { acceleration: 1.3, braking: 1.3, topSpeed: 80 / 3.6, dwell: 30 }, runningSide: 'right', colour: '#000', pillZoom: 12, credit: { text: '', url: '' } }],
+    lines: [{ id: 'L3', network: 'test', name: 'L3', colour: '#000', shapes: ['s'], kind: 'metro' }],
+    stations: [['a', 0], ['b', 1000], ['c', 2000]].map(([id, metres]) => ({ id: String(id), name: String(id), lon: lon(Number(metres)), lat })),
+    shapes: [{ id: 's', coords: [[lon(0), lat], [lon(2000), lat]], dist: [0, 2000] }],
+    strokes: [],
+    rails: [],
+    slots: [],
+    tracks: [],
+    trips: [{ id: 't', line: 'L3', shape: 's', headsign: 'C', calls: [{ station: 'a', arrival: 36000, departure: 36000, dist: 0 }, { station: 'b', arrival: 36090, departure: 36120, dist: 1000 }, { station: 'c', arrival: 36210, departure: 36210, dist: 2000 }] }],
+  };
+  /** A snapshot a second `s` after 10:00:00, with live data's figure for the Trip's Delay where it gives one: no position, so the Train stays Scheduled by it. */
+  const read = (s: number, delay?: number): Received => {
+    const at = noon + (36_000 + s) * 1000;
+    const feed = { lastSuccess: at, lastAttempt: at, status: 'ok' as const, every: 20_000 };
+    return { at, snapshot: { generated: at, feeds: { test: feed }, reports: delay === undefined ? [] : [{ trip: 't', at, delay }] } };
+  };
+
+  it('has no countdown for the seconds a Train stands at its Trip’s last Station, which it counted down in until its dwell was out, and counts how often it comes to stand there (#607)', () => {
+    // It reaches C, its last Station, at 10:03:30, and stays 30 s.
+    const all = counted(13, { bundle: line, received: [read(20), read(250)] }).test ?? {};
+    expect(all['s.last.passages']).toBe(1);
+    expect(all['s.last']).toBeGreaterThanOrEqual(30);
+    expect(all['s.last']).toBeLessThanOrEqual(31);
+    expect(all['s.reads.none']).toBe(all['s.last']);
+    // The card counted down to the dwell's end there: seconds, and now once, or a few times.
+    expect((all['s.last.was.seconds'] ?? 0) + (all['s.last.was.now'] ?? 0)).toBe(all['s.last']);
+    expect(all['s.last.was.seconds']).toBeGreaterThanOrEqual(29);
+    // None of those seconds is one of a countdown's steps, and a Train's last Station isn't one it turns back at.
+    expect(all['s.last.loop'] ?? 0).toBe(0);
   }, 60_000);
 });

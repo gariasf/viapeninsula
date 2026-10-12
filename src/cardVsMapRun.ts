@@ -34,6 +34,11 @@
 // `.leaving` the seconds the card names its Station with a place it could pass nearer, and `w.flaps.passingReturns`, `.afterPassing` and
 // `.other` which words come back within 10 s: a place it passes coming back, the words before it after it, and any other, as #455
 // counted them.
+//
+// At its Trip's last Station the followed Train's card has no countdown (#607): `s.reads.none` is those seconds, `s.last` the Train-seconds a Train
+// stands there (the same), `s.last.passages` how many times one comes to stand at its last Station, `s.last.was.seconds` and `.now` what the card
+// read there before, counting down to the dwell's end, `s.last.loop` of them the seconds at a Station its Trip calls at earlier too, as a Line that
+// turns back does, and `s.last.loopMid` the seconds a Train stands at such a Station at that earlier call, where it still counts down to when it leaves.
 
 import { rmSync } from 'node:fs';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
@@ -43,7 +48,7 @@ import { pathToFileURL } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 import { DEGREE, pixelMetres, places, type Bundle, type Place, type Trip } from './bundle.ts';
 import { AT, differences, type Moment, type Near } from './cardVsMap.ts';
-import { passedPlace } from './web/cards.ts';
+import { countdownTo, passedPlace } from './web/cards.ts';
 import type { Received } from './engine.ts';
 import { NETWORKS } from './networks.ts';
 import { ARROW_GAP, boxOf, FOLLOWED_TEXT, outlineOf, pillReach } from './web/pill.ts';
@@ -153,6 +158,8 @@ for (const dir of process.argv.slice(2)) {
   // The time and Station each Train's countdown counted to in the last second, to count the steps its Delay gives it (#456).
   let counting = new Map<string, { countsTo: string; expected: number }>();
   let stalled = new Map<string, number>();
+  // Which Trains stood at their Trip's last Station in the last second.
+  let lasting = new Set<string>();
   let heard = 0;
   for (let at = t0; at <= t1; at += 1000) {
     while (received[heard] && (received[heard]?.at ?? Infinity) <= at) heard++;
@@ -161,6 +168,7 @@ for (const dir of process.argv.slice(2)) {
     const stalling = new Map<string, number>();
     const said = new Map<string, string[]>();
     const counted = new Map<string, { countsTo: string; expected: number }>();
+    const lastingNow = new Set<string>();
     for (const trip of candidates) {
       const o = of(trip);
       const { train } = o ?? {};
@@ -281,8 +289,8 @@ for (const dir of process.argv.slice(2)) {
       // what it reads (`s.reads`), that it reads now with the Train far only by the Delay (`s.nowFar`, `s.nowByMinute`), what it reads where the
       // minute-reading card said now with the Train far (`b.nowFar.reads`, and the seconds it read: `b.nowFar.n`: a time 59 s and a part out within
       // one clock minute reads a minute), and what it reads with the Train drawn at its Station (`s.atNext`).
-      const inSeconds = d.reads.unit === 'seconds';
-      add(!inSeconds ? 's.reads.minutes' : d.reads.n ? 's.reads.seconds' : 's.reads.now');
+      const inSeconds = d.countdown && d.reads.unit === 'seconds';
+      add(!d.countdown ? 's.reads.none' : !inSeconds ? 's.reads.minutes' : d.reads.n ? 's.reads.seconds' : 's.reads.now');
       if (d.countdownNowFar) add('s.nowFar');
       if (d.countdownNowFar && d.expected > m.at) add('s.nowByMinute');
       if (d.nowFar) add(!inSeconds ? 'b.nowFar.reads.minutes' : d.reads.n ? 'b.nowFar.reads.seconds' : 'b.nowFar.reads.now');
@@ -302,6 +310,22 @@ for (const dir of process.argv.slice(2)) {
         const step = d.expected - prior.expected;
         if (Math.abs(step) > 2_000) add(step > 0 ? 's.steps.later2' : 's.steps.earlier2');
         if (Math.abs(step) > 10_000) add(step > 0 ? 's.steps.later10' : 's.steps.earlier10');
+      }
+      // At its Trip's last Station the card has no countdown (#607): how long, how often, and what it counted down to there before.
+      if (!d.countdown) {
+        lastingNow.add(trip.id);
+        const stood = m.calls.find((c) => c.departure >= m.time);
+        const was = stood && countdownTo(m.noon + (stood.departure + m.delay) * 1000, m.at);
+        // Whether its Trip calls at that Station earlier too, as a Line that turns back does.
+        const loop = !!stood && made.calls.slice(0, -1).some((c) => c.station === stood.station);
+        add('s.last');
+        add(was?.n ? 's.last.was.seconds' : 's.last.was.now');
+        if (!lasting.has(trip.id)) add('s.last.passages');
+        if (loop) add('s.last.loop');
+      } else if (m.standing) {
+        // Standing at a Station its Trip ends at, but on an earlier call: it counts down to when it leaves, as ever.
+        const stood = m.calls.find((c) => c.departure >= m.time);
+        if (stood && stood.station === made.calls.at(-1)?.station) add('s.last.loopMid');
       }
       if (d.nowByMinute) add('3.nowByMinute');
       if (d.nowByDelay) add('5.nowByDelay');
@@ -339,6 +363,7 @@ for (const dir of process.argv.slice(2)) {
     saying = said;
     counting = counted;
     stalled = stalling;
+    lasting = lastingNow;
   }
   console.error(`${dir}: ${Math.round((t1 - t0) / 1000)} s`);
 }
