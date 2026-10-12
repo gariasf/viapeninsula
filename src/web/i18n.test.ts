@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { createExpression, latest, type ExpressionSpecification, type Feature, type StylePropertySpecification } from '@maplibre/maplibre-gl-style-spec';
 import { afterEach, expect, test, vi } from 'vitest';
 import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, earlierStations, followDeparture, LANGUAGES, leavesAt, leavingStation, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, notRunning, passingStation, pickLanguage, t, toGo, trainCounts, trainsRunHere, unlocated } from './i18n.ts';
@@ -398,7 +399,7 @@ test("says where a followed Train is passing a Station without stopping, in each
   expect(passingStation('Sants', 'es')).toBe('Pasando por Sants');
   expect(passingStation('Sants', 'eu')).toBe('Sants geltokitik igarotzen');
   expect(passingStation('Sants', 'gl')).toBe('Pasando por Sants');
-  // A name goes in as it's published, as the other words have it.
+  // L' stays as the name has it: "per l'" is written so already (#606).
   expect(passingStation("L'Hospitalet de Llobregat", 'ca')).toBe("Passant per L'Hospitalet de Llobregat");
 });
 
@@ -438,4 +439,152 @@ test("says what a departure's button follows, where a Trip still to come leaves,
   expect(backToTrain('Manresa', 'es')).toBe('Volver al tren hacia Manresa');
   expect(backToTrain('Manresa', 'eu')).toBe('Itzuli Manresa aldeko trenera');
   expect(backToTrain('Manresa', 'gl')).toBe('Volver ao tren cara a Manresa');
+});
+
+// Real names, as a dry run of the build on the feeds of 9–11 Oct 2026 has them, for a headsign too, which Renfe's and
+// TRAM's timetables don't have and the build gives a Trip as its last Station's: Rodalies', FGC's, the Metro's and
+// TRAM's, Cercanías Madrid's, Asturias' and Ferrol's, and from Renfe's long-distance timetable, which the map doesn't
+// draw yet (#262), 'O Porriño', 'As Neves' and 'Os Peares'.
+
+test("writes a Station's name in Catalan after a, de and per as Catalan does: El and Els run into the word before it, and de takes d' before a vowel or an h (#606)", () => {
+  // a: El and Els contract, and nothing else does, as a never elides.
+  expect(arrivingAt('El Prat de Llobregat', 'ca')).toBe('Arribant al Prat de Llobregat');
+  expect(arrivingAt('El Masnou', 'ca')).toBe('Arribant al Masnou');
+  expect(arrivingAt('Els Monjos', 'ca')).toBe('Arribant als Monjos');
+  expect(arrivingAt('Arenys de Mar', 'ca')).toBe('Arribant a Arenys de Mar');
+  expect(arrivingAt('Hostalric', 'ca')).toBe('Arribant a Hostalric');
+  // de: del and dels, and d' before a vowel or an h, accented or not.
+  expect(leavingStation('El Prat de Llobregat', 'ca')).toBe('Sortint del Prat de Llobregat');
+  expect(leavingStation('El Masnou', 'ca')).toBe('Sortint del Masnou');
+  expect(leavingStation('Els Monjos', 'ca')).toBe('Sortint dels Monjos');
+  expect(leavingStation('Arenys de Mar', 'ca')).toBe("Sortint d'Arenys de Mar");
+  expect(leavingStation('Hostalric', 'ca')).toBe("Sortint d'Hostalric");
+  expect(leavingStation('Igualada', 'ca')).toBe("Sortint d'Igualada");
+  expect(leavingStation('Àger', 'ca')).toBe("Sortint d'Àger");
+  expect(leavingStation('Hospital de Bellvitge', 'ca')).toBe("Sortint d'Hospital de Bellvitge");
+  expect(leavingStation('Barcelona-Sants', 'ca')).toBe('Sortint de Barcelona-Sants');
+  // per: pel and pels, and never an elision.
+  expect(passingStation('El Prat de Llobregat', 'ca')).toBe('Passant pel Prat de Llobregat');
+  expect(passingStation('Els Monjos', 'ca')).toBe('Passant pels Monjos');
+  expect(passingStation('Arenys de Mar', 'ca')).toBe('Passant per Arenys de Mar');
+  expect(passingStation('Hostalric', 'ca')).toBe('Passant per Hostalric');
+  // A name with a bar in it goes the same.
+  expect(leavingStation('El Maresme | Fòrum', 'ca')).toBe('Sortint del Maresme | Fòrum');
+});
+
+test("writes La, Les and L' as they stand in Catalan, as the ticket has them: \"a la\", \"de la\" and \"a l'\" are written so already (#606)", () => {
+  for (const name of ['La Garriga', 'La Pobla de Segur', 'Les Borges Blanques', 'Les Corts', "L'Hospitalet de Llobregat", "L'Aldea-Amposta-Tortosa", "L'Arboç"]) {
+    expect(arrivingAt(name, 'ca')).toBe(`Arribant a ${name}`);
+    expect(leavingStation(name, 'ca')).toBe(`Sortint de ${name}`);
+    expect(passingStation(name, 'ca')).toBe(`Passant per ${name}`);
+  }
+});
+
+test("elides El before a vowel or an h in Catalan as l', where the name is a Spanish one: \"a l'Escorial\" (#606)", () => {
+  expect(arrivingAt('El Escorial', 'ca')).toBe("Arribant a l'Escorial");
+  expect(leavingStation('El Escorial', 'ca')).toBe("Sortint de l'Escorial");
+  expect(passingStation('El Escorial', 'ca')).toBe("Passant per l'Escorial");
+  expect(leavingStation('El Entrego', 'ca')).toBe("Sortint de l'Entrego");
+  expect(arrivingAt('El Estrecho', 'ca')).toBe("Arribant a l'Estrecho");
+  expect(passingStation('El Higuerón', 'ca')).toBe("Passant per l'Higuerón");
+  // El before a consonant is Catalan's el too, whatever the name's language.
+  expect(arrivingAt('El Barcenal', 'ca')).toBe('Arribant al Barcenal');
+  // Los and Las aren't Catalan's, so they stay as the name has them, and a vowel after de elides as ever.
+  expect(arrivingAt('Las Rozas', 'ca')).toBe('Arribant a Las Rozas');
+  expect(leavingStation('Los Nietos', 'ca')).toBe('Sortint de Los Nietos');
+  expect(leavingStation('Aranjuez', 'ca')).toBe("Sortint d'Aranjuez");
+});
+
+test("writes a Station's name in Galician after a, de and por as Galician does: A, O, As and Os run into the word before it (#606)", () => {
+  expect(arrivingAt('A Coruña', 'gl')).toBe('Chegando á Coruña');
+  expect(arrivingAt('A Cuqueira', 'gl')).toBe('Chegando á Cuqueira');
+  expect(arrivingAt('O Porriño', 'gl')).toBe('Chegando ao Porriño');
+  expect(arrivingAt('O Ponto', 'gl')).toBe('Chegando ao Ponto');
+  expect(arrivingAt('As Neves', 'gl')).toBe('Chegando ás Neves');
+  expect(arrivingAt('Os Peares', 'gl')).toBe('Chegando aos Peares');
+  expect(leavingStation('A Coruña', 'gl')).toBe('Saíndo da Coruña');
+  expect(leavingStation('O Porriño', 'gl')).toBe('Saíndo do Porriño');
+  expect(leavingStation('As Neves', 'gl')).toBe('Saíndo das Neves');
+  expect(leavingStation('Os Peares', 'gl')).toBe('Saíndo dos Peares');
+  expect(passingStation('A Cuqueira', 'gl')).toBe('Pasando pola Cuqueira');
+  expect(passingStation('O Ponto', 'gl')).toBe('Pasando polo Ponto');
+  expect(passingStation('As Neves', 'gl')).toBe('Pasando polas Neves');
+  expect(passingStation('Os Peares', 'gl')).toBe('Pasando polos Peares');
+  // No article, no change, and Galician doesn't elide de: "de Ourense", "de Arteixo".
+  expect(arrivingAt('Ferrol', 'gl')).toBe('Chegando a Ferrol');
+  expect(leavingStation('Ferrol', 'gl')).toBe('Saíndo de Ferrol');
+  expect(leavingStation('Ortigueira', 'gl')).toBe('Saíndo de Ortigueira');
+  expect(passingStation('Ferrol', 'gl')).toBe('Pasando por Ferrol');
+  // Another language's articles aren't Galician's.
+  expect(leavingStation('El Prat de Llobregat', 'gl')).toBe('Saíndo de El Prat de Llobregat');
+  expect(arrivingAt('Els Monjos', 'gl')).toBe('Chegando a Els Monjos');
+  expect(passingStation('La Garriga', 'gl')).toBe('Pasando por La Garriga');
+});
+
+test("leaves a name as it's published in Spanish, Basque and English, as the RAE has a capital article that's part of a name in Spanish: \"a El Prat\" (#606)", () => {
+  for (const name of ['El Prat de Llobregat', 'Els Monjos', 'A Coruña', 'O Porriño', 'Arenys de Mar', 'Hostalric', 'El Escorial']) {
+    expect(arrivingAt(name, 'es')).toBe(`Llegando a ${name}`);
+    expect(leavingStation(name, 'es')).toBe(`Saliendo de ${name}`);
+    expect(passingStation(name, 'es')).toBe(`Pasando por ${name}`);
+    expect(arrivingAt(name, 'eu')).toBe(`${name} geltokira iristen`);
+    expect(leavingStation(name, 'eu')).toBe(`${name} geltokitik irteten`);
+    expect(passingStation(name, 'eu')).toBe(`${name} geltokitik igarotzen`);
+    expect(arrivingAt(name, 'en')).toBe(`Arriving at ${name}`);
+    expect(leavingStation(name, 'en')).toBe(`Leaving ${name}`);
+    expect(passingStation(name, 'en')).toBe(`Passing ${name}`);
+  }
+});
+
+test("writes a Galician name in a Catalan sentence by its first letter, which is a vowel: \"a A Coruña\" and \"d'A Coruña\" (#606)", () => {
+  expect(arrivingAt('A Coruña', 'ca')).toBe('Arribant a A Coruña');
+  expect(leavingStation('A Coruña', 'ca')).toBe("Sortint d'A Coruña");
+  expect(leavingStation('O Porriño', 'ca')).toBe("Sortint d'O Porriño");
+  expect(passingStation('As Neves', 'ca')).toBe('Passant per As Neves');
+});
+
+test("writes a headsign, a place or a Station's name after a preposition the same in the other sentences that have one: Follow, Leaves, Back and the Stations to come (#606)", () => {
+  // cap a, from a button's label that follows a departure, and the Back to a Train.
+  expect(followDeparture('R2', 'El Prat Aeroport', '9:33', 'ca')).toBe('Segueix el tren R2 cap al Prat Aeroport, 9:33');
+  expect(followDeparture('R4', 'Els Monjos', '9:33', 'ca')).toBe('Segueix el tren R4 cap als Monjos, 9:33');
+  expect(followDeparture('C8', 'El Escorial', '9:33', 'ca')).toBe("Segueix el tren C8 cap a l'Escorial, 9:33");
+  expect(followDeparture('L1', 'Hospital de Bellvitge', '9:33', 'ca')).toBe('Segueix el tren L1 cap a Hospital de Bellvitge, 9:33');
+  expect(followDeparture('C1', 'A Coruña', '09:33', 'gl')).toBe('Seguir o tren C1 cara á Coruña, 09:33');
+  expect(followDeparture('C1', 'O Porriño', '09:33', 'gl')).toBe('Seguir o tren C1 cara ao Porriño, 09:33');
+  expect(followDeparture('R2', 'El Prat Aeroport', '9:33', 'es')).toBe('Seguir el tren R2 hacia El Prat Aeroport, 9:33');
+  expect(followDeparture('R2', 'El Prat Aeroport', '09:33', 'eu')).toBe('Jarraitu R2 trena, El Prat Aeroport aldera, 09:33');
+  expect(followDeparture('R2', 'El Prat Aeroport', '9:33 AM', 'en')).toBe('Follow the R2 train to El Prat Aeroport, 9:33 AM');
+  expect(backToTrain('El Prat Aeroport', 'ca')).toBe('Torna al tren cap al Prat Aeroport');
+  expect(backToTrain('Arenys de Mar', 'ca')).toBe('Torna al tren cap a Arenys de Mar');
+  expect(backToTrain('A Coruña', 'gl')).toBe('Volver ao tren cara á Coruña');
+  expect(backToTrain('El Prat Aeroport', 'es')).toBe('Volver al tren hacia El Prat Aeroport');
+  // de, from where a Trip still to come leaves.
+  expect(leavesAt('El Masnou', '9:33', 'ca')).toBe('Surt del Masnou a les 9:33');
+  expect(leavesAt('Els Monjos', '9:33', 'ca')).toBe('Surt dels Monjos a les 9:33');
+  expect(leavesAt('Arenys de Mar', '9:33', 'ca')).toBe("Surt d'Arenys de Mar a les 9:33");
+  expect(leavesAt('A Coruña', '09:33', 'gl')).toBe('Sae da Coruña ás 09:33');
+  expect(leavesAt('O Porriño', '09:33', 'gl')).toBe('Sae do Porriño ás 09:33');
+  expect(leavesAt('El Masnou', '9:33', 'es')).toBe('Sale de El Masnou a las 9:33');
+  expect(leavesAt('El Masnou', '09:33', 'eu')).toBe('El Masnou geltokitik irtengo da, 09:33');
+  // a, from Back to a place's board.
+  expect(backTo('El Masnou', 'ca')).toBe('Torna al Masnou');
+  expect(backTo('Els Monjos', 'ca')).toBe('Torna als Monjos');
+  expect(backTo('Arenys de Mar', 'ca')).toBe('Torna a Arenys de Mar');
+  expect(backTo('A Coruña', 'gl')).toBe('Volver á Coruña');
+  expect(backTo('O Porriño', 'gl')).toBe('Volver ao Porriño');
+  expect(backTo('El Masnou', 'es')).toBe('Volver a El Masnou');
+  // fins a, atop a peeking Train's strip: where its last Station is, which Galician's "ata" doesn't contract with.
+  expect(moreStations(22, 'El Prat Aeroport', '9:33', 'ca')).toBe('22 estacions més, fins al Prat Aeroport (9:33)');
+  expect(moreStations(1, 'El Escorial', '9:33', 'ca')).toBe("1 estació més, fins a l'Escorial (9:33)");
+  expect(moreStations(22, 'Els Monjos', '9:33', 'ca')).toBe('22 estacions més, fins als Monjos (9:33)');
+  expect(moreStations(22, 'A Coruña', '09:33', 'gl')).toBe('22 estacións máis, ata A Coruña (09:33)');
+  expect(moreStations(22, 'El Prat Aeroport', '9:33', 'es')).toBe('22 estaciones más, hasta El Prat Aeroport (9:33)');
+});
+
+test("writes Back to Nearby with its title as it stands in each language, as it's no Station's name (#606)", () => {
+  for (const lang of Object.keys(LANGUAGES) as Language[]) expect(backTo(t('nearby', lang), lang)).toBe(t('backTo', lang).replace('{place}', t('nearby', lang)));
+});
+
+test("puts no Station's name, place or headsign into a sentence in main.ts, where it would go in as published: each goes in through i18n.ts's functions (#606)", () => {
+  const main = readFileSync(new URL('./main.ts', import.meta.url), 'utf8');
+  expect(main.match(/\{(station|place|headsign)\}/g) ?? []).toEqual([]);
 });
