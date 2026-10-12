@@ -69,7 +69,7 @@ export function numbered(trips: Trip[], query: string): Trip[] {
 }
 
 /** How many of the Trips it finds by Train number Search shows: it says how many more there are. */
-export const SHOWN = 6;
+const SHOWN = 6;
 
 /** A section of what Search shows for a query: the places it finds Stations in, or the Trips it finds by Train number that it shows, and how many more it found. */
 export type Section = { places: { place: Found; alike: boolean }[] } | { trains: TripNow[]; more: number };
@@ -80,19 +80,19 @@ export type Section = { places: { place: Found; alike: boolean }[] } | { trains:
  * finds nothing. Lines come first once Search finds them, with a Line's screen (#473).
  */
 export function results(query: string, found: Found[], trains: TripNow[]): Section[] {
-  const [places, listed] = [findPlaces(found, query), trains.toSorted(trainOrder)];
-  return [...(places.length ? [{ places }] : []), ...(listed.length ? [{ trains: listed.slice(0, SHOWN), more: Math.max(0, listed.length - SHOWN) }] : [])];
+  const [stations, listed] = [findPlaces(found, query), trains.toSorted(trainOrder)];
+  return [...(stations.length ? [{ places: stations }] : []), ...(listed.length ? [{ trains: listed.slice(0, SHOWN), more: Math.max(0, listed.length - SHOWN) }] : [])];
 }
 
-/** Where a Trip's Train is in its day, as its row says it: running, on the map or within a closed Closure that hides Trains; still to leave its first Station; Cancelled; or ended. */
-export function stateOf(now: TripNow): 'running' | 'leaving' | 'cancelled' | 'ended' {
+/** Where a Trip's Train is in its day, as its row says it, in the order Search lists them: running, on the map or within a closed Closure that hides Trains; still to leave its first Station; Cancelled; or ended. */
+const STATES = ['running', 'leaving', 'cancelled', 'ended'] as const;
+function stateOf(now: TripNow): (typeof STATES)[number] {
   if ('train' in now) return 'running';
   if ('coming' in now) return now.coming.within ? 'running' : 'leaving';
   return 'cancelled' in now ? 'cancelled' : 'ended';
 }
 
-/** The order of Search's Train rows: those running, then those still to leave, Cancelled and ended, each by its Train number, then by when it leaves, as one number can be two days' Trips. */
-const STATES = ['running', 'leaving', 'cancelled', 'ended'];
+/** The order of Search's Train rows: by where their Trains are (STATES), then by Train number, then by when they leave, as one number can be two days' Trips. */
 function trainOrder(a: TripNow, b: TripNow): number {
   return STATES.indexOf(stateOf(a)) - STATES.indexOf(stateOf(b)) || Number(a.trip.number) - Number(b.trip.number) || (a.trip.calls[0]?.departure ?? 0) - (b.trip.calls[0]?.departure ?? 0);
 }
