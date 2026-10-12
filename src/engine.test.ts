@@ -854,7 +854,7 @@ test("a followed Train easing towards where live data has it is expected at its 
   expect(where(R2S, at('22:12:10'), received)).toBe(150987);
 });
 
-test("a followed Train's times never step as a snapshot arrives: the Delay it's drawn at, so the time it's expected at, eases by up to 1.5 s a second, whether live data has it later or earlier (#610)", () => {
+test("a followed Train's times never step as a snapshot arrives: the Delay it's drawn at, so the time it's expected at, eases as the Train does, 1.5 s a second to one 30 s earlier and a second a second to one 30 s later (#610)", () => {
   // Half a minute late until a snapshot at 22:00:00 has it on time, when it runs on at 2.5 times its cruising speed until it is, 20 s on; or on time, and then half a minute late,
   // when it holds where it is, for the half minute. A Train drawn more than a minute or a kilometre from where a snapshot has it jumps there instead, and its times with it.
   const [earlier, later] = [[late(R2S, 30, at('21:59:40')), late(R2S, 0, at('22:00:00'))], [late(R2S, 0, at('21:59:40')), late(R2S, 30, at('22:00:00'))]];
