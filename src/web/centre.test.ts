@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { atMostEvery, drifted, letsGo } from './centre.ts';
+import { atMostEvery, drifted, letsGo, pointersDown } from './centre.ts';
 
 test('a Train a quarter pixel or more off the middle has the map jump to it, and one nearer holds it still', () => {
   expect(drifted(0, 0)).toBe(false);
@@ -23,6 +23,41 @@ test('the arrow keys let go, and the keys that zoom, turn and tilt, and a turn b
   expect(key('+')).toBe(false);
   expect(letsGo({ type: 'movestart', originalEvent: {} })).toBe(false);
   expect(letsGo({ type: 'movestart' })).toBe(false);
+});
+
+test('a pointer down on the map holds it from its press to its lift or its cancel, and two fingers hold it till both are up', () => {
+  const down = pointersDown();
+  expect(down.holds(0)).toBe(false);
+  down.press(7, 100);
+  expect(down.holds(100)).toBe(true);
+  expect(down.holds(900)).toBe(true);
+  down.press(8, 950);
+  down.lift(7);
+  expect(down.holds(1000)).toBe(true);
+  down.lift(8);
+  expect(down.holds(1050)).toBe(false);
+  // A lift of a pointer that was never down, or twice, holds nothing and takes nothing: one down on the map stays.
+  down.press(10, 1060);
+  down.lift(8);
+  down.lift(9);
+  expect(down.holds(1100)).toBe(true);
+  down.lift(10);
+  expect(down.holds(1150)).toBe(false);
+});
+
+test('a press holds it for 3 s at most, so that a lift that never came does not hold it for good', () => {
+  const down = pointersDown();
+  down.press(1, 0);
+  expect(down.holds(2999)).toBe(true);
+  expect(down.holds(3000)).toBe(false);
+  // A press since holds it from its own moment, as the one before it does not.
+  down.press(2, 10_000);
+  expect(down.holds(12_999)).toBe(true);
+  expect(down.holds(13_000)).toBe(false);
+  // A mouse is always pointer 1, so a press after one whose lift never came is the same ID: it holds from its own moment too.
+  down.press(1, 20_000);
+  expect(down.holds(22_999)).toBe(true);
+  expect(down.holds(23_000)).toBe(false);
 });
 
 beforeEach(() => vi.useFakeTimers());

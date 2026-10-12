@@ -15,7 +15,7 @@ import { firstLook, forgetJoined, regionLoader, regionsNeeded } from './regions.
 import { linesAt, popupRoom } from './tap.ts';
 import { alongside, callsIn, namedTwice, nameOffset, nameSort, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
 import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
-import { atMostEvery, drifted, letsGo } from './centre.ts';
+import { atMostEvery, drifted, letsGo, pointersDown } from './centre.ts';
 import { keepView, lastView, markOf, openingView, toggledPitch } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { darkInk, INK, lettering } from './colour.ts';
@@ -511,6 +511,8 @@ const lessMotion = matchMedia('(prefers-reduced-motion: reduce)');
 let released: string | undefined;
 /** Whether the wheel and a pinch zoom about the middle now, as the map pans with the Train (showCentring()). */
 let centring = false;
+/** The pointers down on the map, which hold it where it is as a move of it does (holding(), #581). */
+const pressed = pointersDown();
 /** Whether the sheet is pulled up on a phone, rather than peeking. Each opening starts afresh (openPanel()). */
 let pulledUp = false;
 /** Whether a finger is dragging the sheet, which shows all it has meanwhile. */
@@ -2017,6 +2019,12 @@ for (const type of ['dragstart', 'movestart'] as const) {
     if (following && !lessMotion.matches && letsGo(e)) released = followKey();
   });
 }
+// A press on the map is seen before MapLibre sees it, and a lift anywhere after it, a frame later: a drag's
+// first move and its lift can come in one frame (a flick, or a frame that takes long), and MapLibre applies
+// the move only once the frame loop has run, so a lift seen at once leaves that frame's centreOn() free to
+// jump, which drops the move it has not applied yet and the drag with it.
+map.getCanvasContainer().addEventListener('pointerdown', (e) => pressed.press(e.pointerId, performance.now()));
+for (const type of ['pointerup', 'pointercancel'] as const) addEventListener(type, (e) => requestAnimationFrame(() => pressed.lift(e.pointerId)), true);
 /** Shows the Centre button while the map has let go, and has the wheel and a pinch zoom about the middle while it pans with the Train, where the Train is (#325). */
 function showCentring() {
   centreButton.hidden = lessMotion.matches || !letGo();
@@ -2037,12 +2045,21 @@ function centre() {
 }
 
 /**
+ * Whether the map is held where it is: it moves, which a jumpTo() or an easeTo() of the app's would stop,
+ * or a pointer is down on it, whose drag they would end before it began, MapLibre having seen the press
+ * but not yet a move past its click tolerance (#581).
+ */
+function holding() {
+  return map.isMoving() || pressed.holds(performance.now());
+}
+
+/**
  * Jumps the map to the Train it follows, in the middle of the map beside the panel, once it's a quarter
- * pixel off it, at the viewer's zoom and bearing (#325). Not while the map moves, as jumpTo() would stop
- * it, so it never fights the viewer's hand or an ease.
+ * pixel off it, at the viewer's zoom and bearing (#325). Not while the map is held (holding()), so it
+ * never fights the viewer's hand or an ease.
  */
 function centreOn(at: Point) {
-  if (map.isMoving()) return;
+  if (holding()) return;
   const [from, to] = [map.project(map.getCenter()), map.project(at)];
   if (drifted(to.x - from.x, to.y - from.y)) map.jumpTo({ center: at });
 }
@@ -2050,10 +2067,10 @@ function centreOn(at: Point) {
 /**
  * Brings the Train the map follows back into view where it's about to leave it, or the viewer has
  * moved the map off it: where it's outside the middle 60% of the map beside the panel. Not while the
- * map moves, so it never fights the viewer's hand.
+ * map is held (holding()), so it never fights the viewer's hand.
  */
 function keepInView(at: Point) {
-  if (map.isMoving()) return;
+  if (holding()) return;
   const { x, y } = map.project(at);
   const { clientWidth: width, clientHeight: height } = map.getContainer();
   const padding = panelPadding();

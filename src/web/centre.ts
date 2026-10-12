@@ -25,6 +25,31 @@ export function letsGo({ type, originalEvent: e }: Moved): boolean {
 }
 
 /**
+ * How long a pointer down on the map holds it still at most, in ms: a drag in the making moves within a
+ * moment, and a lift that never came must not hold it for good.
+ * ponytail: the one thing that ends a hold but its lift or its cancel. A press held still for longer and
+ * then dragged loses its drag to the map's jump, as it did, and a pointer whose lift never came stays in
+ * the map, holding nothing, till its ID is pressed again. Lift every pointer on `contextmenu`, `blur` and
+ * a hidden tab too if a lost lift is seen to hold the map, or a slow press to lose its drag.
+ */
+const PRESSED = 3000;
+
+/**
+ * The pointers down on the map, which hold it where it is (#581). The jump that pans the map with a
+ * Train ends the press MapLibre has seen but not yet a move of, so the drag never starts. Each pointer
+ * holds it from its press to its lift, or its cancel, or PRESSED, whichever comes first: a `pointerup`
+ * can fail to come, as the context menu or a pointer let go out of the window may have it.
+ */
+export function pointersDown() {
+  const down = new Map<number, number>();
+  return {
+    press: (id: number, now: number) => void down.set(id, now),
+    lift: (id: number) => void down.delete(id),
+    holds: (now: number) => [...down.values()].some((at) => now - at < PRESSED),
+  };
+}
+
+/**
  * Runs `run` at once, and then no more often than every `ms`: calls in between make it run once more
  * when the time's up, so that the last one is never lost.
  */
