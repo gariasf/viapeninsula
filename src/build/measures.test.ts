@@ -93,6 +93,23 @@ test('measures a stroke as drawn from where its first piece that is drawn begins
   expect(covered([[0, 2000, 1500, 500], [2000, 2300, 0, 300, 1], [2300, 4000, 0, 1700]])).toBe(0);
 });
 
+test("measures a stroke that follows one with no cut as drawn to where its own cut ends it, and one cut before one with none as drawn to the end of the second, a stroke having no `cut` where no band cuts it (#540)", () => {
+  // R2 along 4 km of R11's track in two strokes: sideBySide() gives a stroke a `cut` only where some band cuts it, so Madrid's C4a
+  // has one with none, and one after it cut at its end, on its Stretch.
+  const cut = (start: number, end: number): Pick<Stroke, 'cut'> => ({ cut: BANDS.flatMap((_, band) => (band < GRAPH_BAND ? [] : [[start, end] as [number, number]])) });
+  const drawn = (...strokes: Stroke[]) => measures({ shapes: [east('a', 4000), east('b', 4000)], strokes: [stroke('R11', 'b', 0, 4000, 0), ...strokes] }).covered[10];
+  // None, then 500 m cut off at its end: drawn from 0 to 3500 m, not to 4000.
+  expect(drawn(stroke('R2', 'a', 0, 2000, 0), { ...stroke('R2', 'a', 2000, 4000, 0), ...cut(0, 500) })).toBeCloseTo(3500, -2);
+  // 300 m cut off at its start, then none: drawn from 300 m to 4000.
+  expect(drawn({ ...stroke('R2', 'a', 0, 2000, 0), ...cut(300, 0) }, stroke('R2', 'a', 2000, 4000, 0))).toBeCloseTo(3700, -2);
+  // 400 m cut off at the end of the first, then none: the joined stroke ends where the second does, 4000 m, not at its cut's 3600.
+  expect(drawn({ ...stroke('R2', 'a', 0, 2000, 0), ...cut(0, 400) }, stroke('R2', 'a', 2000, 4000, 0))).toBeCloseTo(4000, -2);
+  // A first piece with none that the second's cut is longer than, 400 m of 300: not the whole of it cut off.
+  expect(drawn(stroke('R2', 'a', 0, 300, 0), { ...stroke('R2', 'a', 300, 4000, 0), ...cut(0, 400) })).toBeCloseTo(3600, -2);
+  // None either side is as drawn.
+  expect(drawn(stroke('R2', 'a', 0, 2000, 0), stroke('R2', 'a', 2000, 4000, 0))).toBeCloseTo(4000, -2);
+});
+
 test('counts steps, stubs, swaps and short joins', () => {
   const found = breaks(
     [
