@@ -1608,7 +1608,7 @@ test("an FGC report whose Trip ended more than 30 minutes before it is dropped, 
   expect(train(R2S, at('23:30:10'), [near(R2S, 'Barcelona Estació de França', 2400, at('23:30:00'))])).toMatchObject({ live: true });
 });
 
-test('an FGC report whose Trip ended more than 30 minutes before it is kept where it puts the Train further along the Trip than its report before, as a Unit running late, and dropped where the Train stands', () => {
+test('an FGC report whose Trip ended more than 30 minutes before it is kept where it puts the Train more than 200 m further along the Trip than its report before, the way the Trip runs, as a Unit running late, and dropped where the Train stands or goes back', () => {
   // RL1's 15:52 from Lleida to Balaguer on Wednesday 7 October 2026, as the daily build had it, on a
   // track straight from Station to Station, under a made-up trip_id for each of three Units.
   const calls: Row[] = [
@@ -1620,8 +1620,16 @@ test('an FGC report whose Trip ended more than 30 minutes before it is kept wher
     ['fgc:VF', '16:12:55', '16:13:00', 22043, 0.805247, 41.755094], // Vallfogona de Balaguer
     ['fgc:BG', '16:18:00', '16:18:00', 26025, 0.814761, 41.789215], // Balaguer
   ];
-  const units = ['running', 'parked', 'standing'];
-  const lleida = bundleOf('2026-10-07', { id: 'fgc', name: 'FGC', profile: { ...PROFILE, topSpeed: 120 / 3.6 } }, Object.fromEntries(units.map((unit) => [`fgc:624ddab200727612a612|${unit}`, { line: 'fgc:RL1', calls }])));
+  // Made up: a Trip back from Balaguer on the same track, as RL4's Trips both ways share one shape, for
+  // two more Units.
+  const fromBalaguer: Row[] = [
+    ['fgc:BG', '15:52:00', '15:52:00', 26025, 0.814761, 41.789215], // Balaguer
+    ['fgc:VF', '15:57:00', '15:57:05', 22043, 0.805247, 41.755094], // Vallfogona de Balaguer
+    ['fgc:RM', '16:01:00', '16:01:30', 16585, 0.764899, 41.717644], // Térmens
+    ['fgc:VB', '16:06:00', '16:06:30', 11745, 0.727903, 41.687347], // Vilanova de la Barca
+  ];
+  const units = ['running', 'parked', 'standing', 'creeping', 'backing'];
+  const lleida = bundleOf('2026-10-07', { id: 'fgc', name: 'FGC', profile: { ...PROFILE, topSpeed: 120 / 3.6 } }, Object.fromEntries(units.map((unit, i) => [`fgc:624ddab200727612a612|${unit}`, { line: 'fgc:RL1', calls: i < 3 ? calls : fromBalaguer }])));
   const gpsAt = (unit: string, dist: number) => {
     const [lon, lat] = pointAt(lleida.shapes.find((s) => s.id.endsWith(unit)) as Shape, dist);
     return { lon, lat };
@@ -1630,10 +1638,13 @@ test('an FGC report whose Trip ended more than 30 minutes before it is kept wher
   // (#487): FGC updates Geotren every 2 minutes, and each snapshot, written every 20 s, has what it
   // last said. The first Unit runs on along the Trip, as RL1's did at the timetable's pace, 100
   // minutes late. The second stands where its GPS puts it, short of Balaguer, and the third near
-  // Balaguer, as Montserrat's rack Unit stood near Montserrat all day.
+  // Balaguer, as Montserrat's rack Unit stood near Montserrat all day. On the Trip back from Balaguer,
+  // the fourth creeps 150 m on, within a Station's reach, and then 250 m on, near Vallfogona; the
+  // fifth's GPS goes 1 km back along it. FGC's feed sends the last update's reports unchanged until
+  // 17:56:20.
   const updates = ['17:46:00', '17:48:00', '17:50:00'].map((time) => Date.parse(`2026-10-07T${time}+02:00`));
   const running = [13472, 15641, 16378];
-  const received: Received[] = Array.from({ length: 17 }, (_, i) => {
+  const received: Received[] = Array.from({ length: 31 }, (_, i) => {
     const written = Date.parse('2026-10-07T17:46:20+02:00') + i * 20_000;
     const update = updates.findLastIndex((u) => u < written);
     const reported = updates[update] ?? NaN;
@@ -1645,6 +1656,8 @@ test('an FGC report whose Trip ended more than 30 minutes before it is kept wher
           { trip: 'fgc:624ddab200727612a612|running', at: reported, position: gpsAt('running', running[update] ?? NaN) },
           { trip: 'fgc:624ddab200727612a612|parked', at: reported, position: gpsAt('parked', 25695) },
           { trip: 'fgc:624ddab200727612a612|standing', at: reported, position: { near: 'fgc:BG' } },
+          { trip: 'fgc:624ddab200727612a612|creeping', at: reported, position: [gpsAt('creeping', 22443), gpsAt('creeping', 22293), { near: 'fgc:VF' }][update] },
+          { trip: 'fgc:624ddab200727612a612|backing', at: reported, position: gpsAt('backing', update ? 21000 : 20000) },
         ],
       },
       at: written,
@@ -1655,8 +1668,12 @@ test('an FGC report whose Trip ended more than 30 minutes before it is kept wher
   expect(drawn('17:47:50')).toEqual([]);
   // From FGC's next update, the running Unit's report puts it 2.2 km further along its Trip, and it's
   // drawn Live, in each snapshot that has the report, as in the next update's. The two standing are
-  // where their reports before had them, and aren't drawn.
-  for (const time of ['17:48:30', '17:49:50', '17:50:30', '17:51:40']) expect(drawn(time)).toEqual([['running', true]]);
+  // where their reports before had them, the creeping one is within MARGIN of its report before, and
+  // the fifth is back along its Trip: none of them is drawn.
+  for (const time of ['17:48:30', '17:49:50']) expect(drawn(time)).toEqual([['running', true]]);
+  // At the update after, the creeping Unit is near Vallfogona, 250 m on, and drawn Live too. Both stay
+  // Live as long as FGC's feed keeps sending their reports, as any Train does.
+  for (const time of ['17:50:30', '17:51:40', '17:56:30']) expect(drawn(time)).toEqual([['running', true], ['creeping', true]]);
 });
 
 test("a Train Renfe pins to a Station isn't held there: Renfe's pinned Stations are stale", () => {
