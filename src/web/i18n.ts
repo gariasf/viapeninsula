@@ -404,13 +404,11 @@ const elides = (name: string): boolean => /^h?(?![iu][aeiou])[aeiou]/i.test(name
 /**
  * `text` with `name`, a Station's name, a place's or a headsign, where its `slot` is, in `lang`: as it's
  * published, except that Catalan and Galician write the word before it as one with its article, which
- * the name has as a capital (#606). Catalan a, de and per take El and Els as al, del, pel, als, dels and
- * pels; and de elides to d' before any name starting with a vowel or an h, "d'Arenys de Mar". "Fins a"
- * and "cap a" end in a. El before a vowel or an h is a Spanish name's, as Catalan writes L' there, and a
- * name of another language that starts with an article keeps it and its capital, with no contraction and
- * de elided before it: "a El Escorial", "d'El Escorial", "d'A Coruña" (the IEC's Ortografia catalana,
- * 4.1.2g and 4.2.2c). Galician a, de and por take A, O, As and Os as á, ao, ás, aos, da, do, das, dos,
- * pola, polo, polas and polos, "cara a" ending in a, and "ata" taking none, as "ata A Coruña". La, Les
+ * the name has as a capital (CONTRACTED), and Catalan elides de before a vowel or an h, "d'Arenys de Mar"
+ * (#606). "Fins a", "cap a" and "cara a" end in a, and Galician's "ata" takes no contraction. El before a
+ * vowel or an h is a Spanish name's, as Catalan writes L' there, and a name of another language that
+ * starts with an article keeps it and its capital, with no contraction and de elided before it: "a El
+ * Escorial", "d'El Escorial", "d'A Coruña" (the IEC's Ortografia catalana, 4.1.2g and 4.2.2c). La, Les
  * and L' are left as the name has them, as the ticket has them, though the IEC writes a Catalan name's
  * article in lower case; Spanish, Basque and English go by the name as published, as the RAE has it for
  * a capital article that's part of the name.
