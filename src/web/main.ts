@@ -1819,9 +1819,14 @@ function showLegend() {
   );
 }
 
-/** Counts the Trains on the map for the legend, every one and not only those in view, Live and Scheduled. */
+/**
+ * Counts the Trains on the map for the legend, every one and not only those in view, Live and Scheduled.
+ * Not none while another day's Trips are still to come, which could have some: the legend keeps to its words
+ * until they have, as a board's and Nearby's "none" do (#593).
+ */
 function showCount(features: GeoJSON.Feature[]) {
   countShown = performance.now();
+  if (daysComing && !features.length) return;
   const live = features.filter((f) => f.properties?.live).length;
   counts = [live, features.length - live];
   showLegend();
@@ -2061,8 +2066,9 @@ function openLink(ring = true) {
   const place = station && [...shownPlaces.values()].find((p) => p.stations.includes(station));
   // A Station or a Train waits for its regions, which load meanwhile, wherever the map is (#266), and a
   // Station for the file below zoom 7 to say which those are. A Train too for its Trip, while days are still
-  // to come, as the map stops following a Train that isn't on it (#593).
-  const tripComing = !station && !!train && daysComing && !tripOnMap(train);
+  // to come, as the map stops following a Train that isn't on it (#593); and one named with no day, which is
+  // the last day's, for that day, as follow() binds it to the day the map has last.
+  const tripComing = !station && !!train && daysComing && (!/^\d{4}-\d{2}-\d{2}\//.test(train) || !tripOnMap(train));
   linkWaits = !place && (!!station || !!train) && !(come({ station, train }, joinedRegions) && !tripComing);
   if (linkWaits) want();
   else if (place) {
@@ -3365,7 +3371,8 @@ async function neededDays(): Promise<{ track: Promise<Track | undefined>; arriva
       if (complete) {
         tripsFailed = load.failed();
         failedRetried &&= tripsFailed;
-        // Without today's bundle there's nothing to draw; without another day's, the map does without it until next time.
+        // Without today's bundle the days that came are on the map already, as they came, and the look ends here, to be
+        // looked for again; without another day's, the map does without it until next time.
         for (const [day, reason] of lost) if (day === today) throw reason;
         if (lost.length) console.warn(...lost.map(([, reason]) => reason));
         shown = load.failed() || lost.length ? '' : keys.join();
