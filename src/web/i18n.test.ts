@@ -490,15 +490,17 @@ test("writes La, Les and L' as they stand in Catalan, as the ticket has them: \"
   }
 });
 
-test("elides El before a vowel or an h in Catalan as l', where the name is a Spanish one: \"a l'Escorial\" (#606)", () => {
-  expect(arrivingAt('El Escorial', 'ca')).toBe("Arribant a l'Escorial");
-  expect(leavingStation('El Escorial', 'ca')).toBe("Sortint de l'Escorial");
-  expect(passingStation('El Escorial', 'ca')).toBe("Passant per l'Escorial");
-  expect(leavingStation('El Entrego', 'ca')).toBe("Sortint de l'Entrego");
-  expect(arrivingAt('El Estrecho', 'ca')).toBe("Arribant a l'Estrecho");
-  expect(passingStation('El Higuerón', 'ca')).toBe("Passant per l'Higuerón");
-  // El before a consonant is Catalan's el too, whatever the name's language.
+test("leaves El before a vowel or an h as the name has it in Catalan, where it's a Spanish name's, with de elided before it: \"a El Escorial\", \"d'El Escorial\" (#606)", () => {
+  expect(arrivingAt('El Escorial', 'ca')).toBe('Arribant a El Escorial');
+  expect(leavingStation('El Escorial', 'ca')).toBe("Sortint d'El Escorial");
+  expect(passingStation('El Escorial', 'ca')).toBe('Passant per El Escorial');
+  expect(leavingStation('El Entrego', 'ca')).toBe("Sortint d'El Entrego");
+  expect(arrivingAt('El Estrecho', 'ca')).toBe('Arribant a El Estrecho');
+  expect(passingStation('El Higuerón', 'ca')).toBe('Passant per El Higuerón');
+  // El before a consonant is contracted as Catalan's el is, whatever the name's language.
   expect(arrivingAt('El Barcenal', 'ca')).toBe('Arribant al Barcenal');
+  // Els takes its contraction before a vowel too, as the plural article isn't elided (a municipality's name, not a Station's of the bundle).
+  expect(arrivingAt('Els Alamús', 'ca')).toBe('Arribant als Alamús');
   // Los and Las aren't Catalan's, so they stay as the name has them, and a vowel after de elides as ever.
   expect(arrivingAt('Las Rozas', 'ca')).toBe('Arribant a Las Rozas');
   expect(leavingStation('Los Nietos', 'ca')).toBe('Sortint de Los Nietos');
@@ -556,7 +558,7 @@ test("writes a headsign, a place or a Station's name after a preposition the sam
   // cap a, from a button's label that follows a departure, and the Back to a Train.
   expect(followDeparture('R2', 'El Prat Aeroport', '9:33', 'ca')).toBe('Segueix el tren R2 cap al Prat Aeroport, 9:33');
   expect(followDeparture('R4', 'Els Monjos', '9:33', 'ca')).toBe('Segueix el tren R4 cap als Monjos, 9:33');
-  expect(followDeparture('C8', 'El Escorial', '9:33', 'ca')).toBe("Segueix el tren C8 cap a l'Escorial, 9:33");
+  expect(followDeparture('C8', 'El Escorial', '9:33', 'ca')).toBe('Segueix el tren C8 cap a El Escorial, 9:33');
   expect(followDeparture('L1', 'Hospital de Bellvitge', '9:33', 'ca')).toBe('Segueix el tren L1 cap a Hospital de Bellvitge, 9:33');
   expect(followDeparture('C1', 'A Coruña', '09:33', 'gl')).toBe('Seguir o tren C1 cara á Coruña, 09:33');
   expect(followDeparture('C1', 'O Porriño', '09:33', 'gl')).toBe('Seguir o tren C1 cara ao Porriño, 09:33');
@@ -584,7 +586,7 @@ test("writes a headsign, a place or a Station's name after a preposition the sam
   expect(backTo('El Masnou', 'es')).toBe('Volver a El Masnou');
   // fins a, atop a peeking Train's strip: where its last Station is, which Galician's "ata" doesn't contract with.
   expect(moreStations(22, 'El Prat Aeroport', '9:33', 'ca')).toBe('22 estacions més, fins al Prat Aeroport (9:33)');
-  expect(moreStations(1, 'El Escorial', '9:33', 'ca')).toBe("1 estació més, fins a l'Escorial (9:33)");
+  expect(moreStations(1, 'El Escorial', '9:33', 'ca')).toBe('1 estació més, fins a El Escorial (9:33)');
   expect(moreStations(22, 'Els Monjos', '9:33', 'ca')).toBe('22 estacions més, fins als Monjos (9:33)');
   expect(moreStations(22, 'A Coruña', '09:33', 'gl')).toBe('22 estacións máis, ata A Coruña (09:33)');
   expect(moreStations(22, 'El Prat Aeroport', '9:33', 'es')).toBe('22 estaciones más, hasta El Prat Aeroport (9:33)');
