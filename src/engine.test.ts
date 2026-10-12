@@ -1549,7 +1549,7 @@ test('a followed Train shows the type of Unit it runs as, where its operator rep
   expect(trainAt(RACK, moment, RACK_RECEIVED, 'fgc:625cdae21f726b1bb950|652dc7e703')?.unitType).toBeUndefined();
 });
 
-test("an FGC report whose Trip ended more than 30 minutes before it is dropped, as Geotren names rack Trips that ended hours ago, but another Network's is kept", () => {
+test("an FGC report whose Trip ended more than 30 minutes before it is dropped unless it shows its Train moving on, as Geotren names rack Trips that ended hours ago, but another Network's is kept", () => {
   // Montserrat's rack Trips that a snapshot read at 13:46 on Sunday 4 October 2026 names, and the two
   // its timetable had running then, 652dc7e006 and 652dc7e007, as the daily build had them on Tuesday
   // 6 October, which runs them at Sunday's times (#232). Montserrat (MM) is at the top of the line,
@@ -2802,30 +2802,31 @@ test("counts each Network's jumps over 45 minutes of live data as the map receiv
   // report before: drawn Live from 15:58:12, by its report of 15:56, 2.9 km on from its first, which has
   // none before it, it jumps back 16.7 km at 16:02:16, by its report of 16:00, 3.2 km on from its report
   // at Lleida, which, 17.9 km back from the one before it, no Unit could have run to, and forward 815 m
-  // at 16:22:13, Live 2,638 s, 61 fewer than before #232. Rodalies' fell by two forward and 204 Live seconds with #565,
-  // which takes a GPS fix no report of the Train in the 2 minutes before could have run to as no position, at
-  // its Line's top speed and 5% over, and 300 m, and a GPS Delay that was over 10 minutes from Renfe's
-  // figure in its report as none until a report agrees with it: 53 fixes of 42 Trains here, 1.3 to 116
-  // km from the Train's last, in 19 to 100 s. Seven Trains lose 20 to 61 s of Live, 222 in all, where
-  // such a fix, as R1 25752's at 16:00:26, 3.9 km on in 20 s and held for four reports before Renfe
-  // pinned it, was what last placed them and no longer keeps them Live through the three updates after
-  // it, and R4 77550 gains 18. Five jumps are gone, forward R2N 25438's at 16:00:34, R4 77988's at
-  // 16:26:16 and R4 77640's at 16:28:58, and back R16 18131's at 16:17:50 and R2S 25543's at 16:21:33,
-  // each of a Train that went by a GPS Delay Renfe's figure was over 10 minutes from, and goes by the
-  // figure now. Three come: R7 77843 jumps forward at 16:15:29, as its fix at 16:11:06, 1,254 m in 20 s,
-  // no longer confirms the one after it, so that what it carries through its pins isn't a Delay that
-  // counted and the next fix moves it at once; R4 77638 jumps back at 16:30:20 and R4 77742 forward at
-  // 16:33:02, a minute or more after a fix like those, where the Train that goes by Renfe's figure is
-  // put where its GPS has it. Eighteen more, of 15 Trains, come 20 s later, a snapshot, R4 77742's as a
-  // jump back, not forward. It rose by eight with #485, which holds a Train Renfe has pinned to one
-  // Station for 10 minutes there: 12 come and four go. Ten of those that come are the snap back to the
-  // Station as the 10 minutes pass, at 16:07:02 for the four Trains Renfe pins from the first snapshot
-  // (R16 18129, R11 15870, R2S 28368 and R4 77642), which a map opened then can't know it has pinned for
-  // longer, and from 16:12 to 16:41 for R1 25639, R2S 25541 and 28369, R15 15013, RL4 33526 and R3 77334,
-  // each a Train drawn on by 0.7 to 9.1 km from where Renfe has had it for 10 minutes. R16 18129's second
-  // snap back, at 16:33:23, comes after a gap of 13 minutes in Renfe's reports for it, which starts the
-  // 10 again, and RL4 33526's forward jump at 16:40:08, as its pin ends. The four that go are folds the
-  // Trains no longer need: R4 77642's at 16:09:44 and 16:13:27, R16 18129's at 16:35:24 and 16:40:08.
+  // at 16:22:13, Live 2,638 s, 61 fewer than before #232. Rodalies' fell by two forward and 204 Live
+  // seconds with #565, which takes a GPS fix no report of the Train in the 2 minutes before could have
+  // run to as no position, at its Line's top speed and 5% over, and 300 m, and a GPS Delay that was
+  // over 10 minutes from Renfe's figure in its report as none until a report agrees with it: 53 fixes
+  // of 42 Trains here, 1.3 to 116 km from the Train's last, in 19 to 100 s. Seven Trains lose 20 to
+  // 61 s of Live, 222 in all, where such a fix, as R1 25752's at 16:00:26, 3.9 km on in 20 s and held
+  // for four reports before Renfe pinned it, was what last placed them and no longer keeps them Live
+  // through the three updates after it, and R4 77550 gains 18. Five jumps are gone, forward R2N 25438's
+  // at 16:00:34, R4 77988's at 16:26:16 and R4 77640's at 16:28:58, and back R16 18131's at 16:17:50
+  // and R2S 25543's at 16:21:33, each of a Train that went by a GPS Delay Renfe's figure was over
+  // 10 minutes from, and goes by the figure now. Three come: R7 77843 jumps forward at 16:15:29, as its
+  // fix at 16:11:06, 1,254 m in 20 s, no longer confirms the one after it, so that what it carries
+  // through its pins isn't a Delay that counted and the next fix moves it at once; R4 77638 jumps back
+  // at 16:30:20 and R4 77742 forward at 16:33:02, a minute or more after a fix like those, where the
+  // Train that goes by Renfe's figure is put where its GPS has it. Eighteen more, of 15 Trains, come
+  // 20 s later, a snapshot, R4 77742's as a jump back, not forward. It rose by eight with #485, which
+  // holds a Train Renfe has pinned to one Station for 10 minutes there: 12 come and four go. Ten of
+  // those that come are the snap back to the Station as the 10 minutes pass, at 16:07:02 for the four
+  // Trains Renfe pins from the first snapshot (R16 18129, R11 15870, R2S 28368 and R4 77642), which a
+  // map opened then can't know it has pinned for longer, and from 16:12 to 16:41 for R1 25639,
+  // R2S 25541 and 28369, R15 15013, RL4 33526 and R3 77334, each a Train drawn on by 0.7 to 9.1 km from
+  // where Renfe has had it for 10 minutes. R16 18129's second snap back, at 16:33:23, comes after a gap
+  // of 13 minutes in Renfe's reports for it, which starts the 10 again, and RL4 33526's forward jump at
+  // 16:40:08, as its pin ends. The four that go are folds the Trains no longer need: R4 77642's at
+  // 16:09:44 and 16:13:27, R16 18129's at 16:35:24 and 16:40:08.
   expect(jumps(RECORDED.bundle, RECORDED.received)).toEqual({
     rodalies: { forward: 66, back: 129, liveSeconds: 151935 },
     fgc: { forward: 25, back: 51, liveSeconds: 148573 },

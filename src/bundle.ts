@@ -365,8 +365,8 @@ export interface LiveTraits {
   /**
    * It names Trips long after they ended, as Geotren does Montserrat's rack Trains (#232): a report
    * whose Trip ended more than the engine's ENDED before it is dropped, as one that matches no Trip is,
-   * unless it puts the Train further along the Trip than the Trip's report before it did, as a Train
-   * running late (#487).
+   * unless it puts the Train more than the engine's MARGIN further along the Trip than the Trip's report
+   * before it did, as a Train running late (#487).
    */
   lingers?: true;
   /**

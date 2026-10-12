@@ -1142,16 +1142,21 @@ const canRun = (trip: Trip, next: NonNullable<Report['expected']>, reported: num
  * Trips that had ended 38 minutes to 5 hours before, standing near their Stations, and their Trains
  * were drawn Live, up to 5½ hours late, beside the two running (#232). A Train that moves along its
  * Trip is one running late, however late, as RL1's 15:52 from Lleida was on 7 October, which Geotren
- * named from 17:46 to 17:58, 88 to 100 minutes after it ended, as its Unit ran 12.2 km on along it at
- * the timetable's pace (#487).
+ * named from 17:46 to 18:02, 88 to 104 minutes after it ended, as its Unit ran 12.2 km on along it at
+ * the timetable's pace to Balaguer by 17:58 (#487).
  * ponytail: by the timetable and the Trip's report before. A report with none before it, as a Unit's
  * first, on a map just opened, or after a snapshot that lacked it, is dropped until the next of its
- * feed's updates shows the Train moving: up to 2 minutes, FGC's. A Unit running on along an ended Trip
- * is taken for its Train, as no other RL1 Trip was due where RL1's Unit ran: one named by an ended Trip
- * while it ran a later Trip of its Line the same way would be drawn twice, Scheduled on the later Trip
- * and Live on the ended one, that late. Check that no Trip of the Line is due there too if that shows.
- * And a report whose Trip ended less than this before it is kept, as Geotren's naming 652dc7e000 was
- * at 13:46, 11 minutes after it ended.
+ * feed's updates shows the Train moving: up to 2 minutes, FGC's, or 5 while the fetcher slows it. A
+ * Unit seen moving whose reports then have it standing for longer than an update, as at a crossing
+ * loop, is drawn running on along its Trip on its last Delay meanwhile, and back once a report has it
+ * moving again: 8 km on and 5 km back for 6 minutes standing, made up, though in October's recordings
+ * a late Unit stood so only where its Trip ends. Keep a Trip's reports from when it's seen moving until
+ * it arrives if that shows. A Unit running on along an ended Trip is taken for its Train, as no other
+ * RL1 Trip was due where RL1's Unit ran: one named by an ended Trip while it ran a later Trip of its
+ * Line the same way would be drawn twice, Scheduled on the later Trip and Live on the ended one, that
+ * late. Check that no Trip of the Line is due there too if that shows. And a report whose Trip ended
+ * less than this before it is kept, as Geotren's naming 652dc7e000 was at 13:46, 11 minutes after it
+ * ended.
  */
 const ENDED = 30 * 60;
 
@@ -1160,8 +1165,8 @@ const ENDED = 30 * 60;
  * by more than MARGIN, a Station's reach: by its GPS or TRAM's distance, or at the Station it's near.
  * One standing hasn't: near the same Station, or at the same GPS, as Geotren repeats a standing Unit's
  * to the decimal. Of FGC's reports in October's ten recordings that came after another of their
- * Trip's, about 2 minutes on, 748 had the Train where it was, 76 further on within MARGIN, as coming
- * into or leaving a Station, and 3,943 further on than that (#487).
+ * Trip's, about 2 minutes on, 866 had the Train where it was, 83 further on within MARGIN, as coming
+ * into or leaving a Station, and 4,054 further on than that (#487).
  */
 function movedOn(trip: Trip, shape: Shape | undefined, earlier: Report, report: Report): boolean {
   const along = ({ position }: Report) => (!position || 'next' in position ? NaN : 'near' in position ? (trip.calls.find((c) => c.station === position.near)?.dist ?? NaN) : shape ? placedBy(trip.calls, shape, position)[0] : NaN);
