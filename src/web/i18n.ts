@@ -257,7 +257,7 @@ const STRINGS = {
   },
   // The button under Nearby's message that asks the browser again where the viewer is.
   tryAgain: { ca: 'Torna-ho a provar', es: 'Volver a intentarlo', eu: 'Saiatu berriro', gl: 'Tentar de novo', en: 'Try again' },
-  // The button that tilts the map, pressed while it's tilted (#326).
+  // The button that tilts the map, pressed from half the tilt up (#326, #440).
   tilt: { ca: 'Inclina el mapa', es: 'Inclinar el mapa', eu: 'Okertu mapa', gl: 'Inclinar o mapa', en: 'Tilt the map' },
   // The button that follows a random Train, under Tilt and Centre.
   followRandom: { ca: "Segueix un tren a l'atzar", es: 'Seguir un tren al azar', eu: 'Jarraitu ausazko tren bati', gl: 'Seguir un tren ao chou', en: 'Follow a random train' },
