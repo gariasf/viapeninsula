@@ -324,7 +324,8 @@ for (let zoom = Math.min(...TIERS.map((tier) => tier.nameZoom)); zoom <= NAME_ZO
  * Below this zoom, the basemap's cities' labels are placed before the Lines' names, which give way where one
  * falls on a city's: below zoom 12 a city's name is the only name of a place outside Catalonia, and a Line is
  * told by its colour where its name goes. The map's own layers are above the basemap's, so MapLibre places
- * their names first. From this zoom the cities' labels are the basemap's, under the Lines' names (#525).
+ * their names first. From this zoom the cities' labels are the basemap's, under the Lines' names. The zoom is
+ * the ticket's (#525).
  */
 const CITY_ZOOM = 10;
 
@@ -416,6 +417,8 @@ map.setStyle(`https://tiles.openfreemap.org/styles/${darkBasemap ? 'dark' : 'pos
       // beside its place's name. Convert it with the style spec's convertFilter() if one comes.
       if (layer['source-layer'] === 'place') placeLabels.set(layer.id, layer.filter as ExpressionFilterSpecification | undefined);
       // Positron's two layers of cities and the dark basemap's both say `class == city` in their filters.
+      // ponytail: finds them by the text of that filter as both write it. A basemap that wrote it another way would leave no
+      // copy, and the Lines' names placed first as they were. Walk the expression if one does.
       if (layer['source-layer'] === 'place' && JSON.stringify(layer.filter)?.includes('["==",["get","class"],"city"]')) cityLabels.set(layer.id, layer);
       const text = JSON.stringify(layer.layout['text-field']);
       if (!text?.includes('"name_en"')) continue;
@@ -1063,8 +1066,9 @@ map.addLayer({
 // under it is then placed after it, collides with it, and isn't drawn.
 for (const layer of cityLabels.values()) {
   const over = `${layer.id}-over`;
+  // With the filter show() has put on the original by now, as it ran above, and the original's own kept in placeLabels for it to do the same again.
   map.addLayer({ ...structuredClone(layer), id: over, minzoom: Math.max(layer.minzoom ?? 0, linesZoom), maxzoom: Math.min(layer.maxzoom ?? CITY_ZOOM, CITY_ZOOM), filter: map.getFilter(layer.id) ?? undefined }, 'stations');
-  // Where a place is named after its town, the town's label goes (#121): from here on, both.
+  // Where a place is named after its town, the town's label goes (#121), the copy's too: show() adds its filter to both from here on.
   placeLabels.set(over, layer.filter as ExpressionFilterSpecification | undefined);
 }
 // The point a link names, as a build report's do, ringed 40 px across in the colour of the places'
