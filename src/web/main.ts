@@ -1,6 +1,6 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
-import type { BackgroundLayerSpecification, ExpressionFilterSpecification, ExpressionSpecification, FontFacesSpecification, LineLayerSpecification, ProjectionSpecification } from '@maplibre/maplibre-gl-style-spec';
+import type { BackgroundLayerSpecification, ExpressionFilterSpecification, ExpressionSpecification, FontFacesSpecification, LineLayerSpecification, ProjectionSpecification, SymbolLayerSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { MapLibreMap, Popup, setWorkerUrl, type GeoJSONSource, type LngLat } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import nunitoSans from '@fontsource/nunito-sans/files/nunito-sans-latin-400-normal.woff2?url';
@@ -320,6 +320,15 @@ const NAME_ZOOM_MAX = 18;
 const NAME_ZOOMS: number[] = [];
 for (let zoom = Math.min(...TIERS.map((tier) => tier.nameZoom)); zoom <= NAME_ZOOM_MAX; zoom++) NAME_ZOOMS.push(zoom);
 
+/**
+ * Below this zoom, the basemap's cities' labels are placed before the Lines' names, which give way where one
+ * falls on a city's: below zoom 12 a city's name is the only name of a place outside Catalonia, and a Line is
+ * told by its colour where its name goes. The map's own layers are above the basemap's, so MapLibre places
+ * their names first. From this zoom the cities' labels are the basemap's, under the Lines' names. The zoom is
+ * the ticket's (#525).
+ */
+const CITY_ZOOM = 10;
+
 /** How many metres wide a pixel is at a zoom, at the equator: MapLibre's tiles are 512 px. */
 const pixelMetres = (zoom: number) => (2 * Math.PI * EARTH) / (512 * 2 ** zoom);
 
@@ -380,6 +389,8 @@ map.on('moveend', atMostEvery(1000, keepShownView));
 document.addEventListener('visibilitychange', () => document.hidden && keepShownView());
 /** The basemap's place labels, by their layers' IDs, with the filters it gives them, which show() adds to. */
 const placeLabels = new Map<string, ExpressionFilterSpecification | undefined>();
+/** The basemap's layers of cities' labels, as its style gives them, which are drawn again over the Lines' names below CITY_ZOOM (#525). */
+const cityLabels = new Map<string, SymbolLayerSpecification>();
 // OpenFreeMap's positron, or its dark basemap where the system's setting is dark.
 map.setStyle(`https://tiles.openfreemap.org/styles/${darkBasemap ? 'dark' : 'positron'}`, {
   transformStyle: (_, style) => {
@@ -405,6 +416,10 @@ map.setStyle(`https://tiles.openfreemap.org/styles/${darkBasemap ? 'dark' : 'pos
       // show() can add to. MapLibre would refuse a legacy one's with ours, and that label would stay
       // beside its place's name. Convert it with the style spec's convertFilter() if one comes.
       if (layer['source-layer'] === 'place') placeLabels.set(layer.id, layer.filter as ExpressionFilterSpecification | undefined);
+      // Positron's two layers of cities and the dark basemap's both say `class == city` in their filters.
+      // ponytail: finds them by the text of that filter as both write it. A basemap that wrote it another way would leave no
+      // copy, and the Lines' names placed first as they were. Walk the expression if one does.
+      if (layer['source-layer'] === 'place' && JSON.stringify(layer.filter)?.includes('["==",["get","class"],"city"]')) cityLabels.set(layer.id, layer);
       const text = JSON.stringify(layer.layout['text-field']);
       if (!text?.includes('"name_en"')) continue;
       const own = JSON.parse(text.replaceAll('"name_en"', '"name"'));
@@ -1046,6 +1061,16 @@ map.addLayer({
   },
   paint: { 'text-color': nameColour, 'text-halo-color': halo, 'text-halo-width': NAME_HALO },
 });
+// A city's name is drawn once more over the Lines' names and under their Stations' dots and Trains, and so placed
+// after the Stations' names and before the Lines' (CITY_ZOOM), from where the Lines begin: the basemap's own label
+// under it is then placed after it, collides with it, and isn't drawn.
+for (const layer of cityLabels.values()) {
+  const over = `${layer.id}-over`;
+  // With the filter show() has put on the original by now, as it ran above, and the original's own kept in placeLabels for it to do the same again.
+  map.addLayer({ ...structuredClone(layer), id: over, minzoom: Math.max(layer.minzoom ?? 0, linesZoom), maxzoom: Math.min(layer.maxzoom ?? CITY_ZOOM, CITY_ZOOM), filter: map.getFilter(layer.id) ?? undefined }, 'stations');
+  // Where a place is named after its town, the town's label goes (#121), the copy's too: show() adds its filter to both from here on.
+  placeLabels.set(over, layer.filter as ExpressionFilterSpecification | undefined);
+}
 // The point a link names, as a build report's do, ringed 40 px across in the colour of the places'
 // names: over the Lines, their names and the places' and Trains' dots, and under the places' names
 // and the Trains' pills (#254).
