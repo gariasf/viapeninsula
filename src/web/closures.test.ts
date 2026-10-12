@@ -224,21 +224,22 @@ test("reads TRAM's \"Servei alternatiu entre X i Y\" as closed, its \"Estació d
 });
 
 /** TRAM's Stations in the fixture as the build names them now: by its config, which spells out the eight its timetables shorten (#571). */
-const tramNow = (): { id: string; name: string; networks: string[] }[] => stationsOf('tram').map((s) => ({ ...s, name: TRAM.stationNames?.[s.id]?.name ?? s.name }));
+const TRAM_NOW = stationsOf('tram').map((s) => ({ ...s, name: TRAM.stationNames?.[s.id]?.name ?? s.name }));
 
 test("reads TRAM's \"Servei alternatiu entre Estació de Sant Adrià i Parc del Besòs\" against the Station the build names \"Estació de Sant Adrià\" as it did against \"Estació St.Adrià\" (#571)", () => {
   // sc-286, as in the test above, with the name the build gives tram:ST-229 now.
-  expect(tramNow().find((s) => s.id === 'tram:ST-229')?.name).toBe('Estació de Sant Adrià');
-  expect(stretchesIn(said('sc-286'), tramNow())).toEqual([{ stations: ['tram:ST-229', 'tram:ST-213'], says: 'closed' }]);
+  expect(TRAM_NOW.find((s) => s.id === 'tram:ST-229')?.name).toBe('Estació de Sant Adrià');
+  expect(stretchesIn(said('sc-286'), TRAM_NOW)).toEqual([{ stations: ['tram:ST-229', 'tram:ST-213'], says: 'closed' }]);
   // And the same stretches, in each of TRAM's three Alerts of 9 Oct, under the names the build gave then and gives now.
   for (const id of ['sc-279', 'sc-286', 'sc-287']) {
-    expect(stretchesIn(said(id), tramNow()), id).toEqual(stretchesIn(said(id), stationsOf('tram')));
+    expect(stretchesIn(said(id), TRAM_NOW), id).toEqual(stretchesIn(said(id), stationsOf('tram')));
   }
 });
 
-test("finds each of the eight Stations TRAM's config spells out as TRAM's words spell it, as the first end of a stretch and as the second (#571)", () => {
-  // As TRAM's site writes them: its lines page's descriptions (Fontsanta | Fatjó, Llevant | Les Planes), its Alerts (sc-286's
-  // "Estació de Sant Adrià", sc-287's "Sant Feliu | Consell Comarcal") and its note of 10 Oct's works ("Llevant-Les Planes", "Ciutadella | Vila Olímpica").
+test("finds each of the eight Stations TRAM's config spells out as its own words and the bar's or a hyphen's variants spell it, as the first end of a stretch and as the second (#571)", () => {
+  // Each as the diagram of its Line writes it, which is the config's, and where TRAM's words have it otherwise: its Alerts' (sc-286's
+  // "Estació de Sant Adrià", sc-287's "Sant Feliu | Consell Comarcal") and its note of 10 Oct's works ("Llevant-Les Planes"). The
+  // other hyphens and bars without spaces are made up here, as variants a reader of its notes could meet.
   const spelling: Record<string, string[]> = {
     'tram:ST-178': ['Zona Universitària'],
     'tram:ST-193': ['Fontsanta | Fatjó'],

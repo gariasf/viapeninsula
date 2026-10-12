@@ -237,7 +237,7 @@ export const FGC: NetworkConfig = {
   },
 };
 
-/** TRAM's lines page, whose diagrams of each Line's stops spell its Stations as TRAM does. */
+/** TRAM's lines page, whose diagrams of each Line's Stations spell them as TRAM does. */
 const TRAM_LINES = 'https://www.tram.cat/ca/linies-i-horaris';
 
 export const TRAM: NetworkConfig = {
@@ -271,11 +271,13 @@ export const TRAM: NetworkConfig = {
   live: { delay: 'operator', near: 'pinned' },
   lines: { kind: 'tram' },
   // TRAM's timetables shorten eight Stations' names (seen 12 October 2026): its own site writes them out,
-  // in its lines page's diagrams of each Line's stops and the words under them, as the Metro's names for
-  // the same places are, Ciutadella | Vila Olímpica and Zona Universitària (#571). T2's end it writes three
-  // ways: Llevant - Les Planes in its diagram and the Line's name, Llevant | Les Planes in its description
-  // and Llevant-Les Planes in its note of the works of 10 October. The bar's is the one the other seven
-  // have, and the Alerts' reader finds it whole in the description's and the note's (stretchesIn()).
+  // in its lines page's diagrams of each Line's Stations and, for some, the words under them, as the
+  // Metro's names for the same places are, Ciutadella | Vila Olímpica and Zona Universitària (#571).
+  // T2's end it writes four ways: Llevant - Les Planes in its diagram and the Line's name, Llevant | Les
+  // Planes in its description, Llevant-Les Planes in its note of the works of 10 October and Llevant –
+  // Les Planes in its Alert sc-287 of 9 October. The bar's is the one the five others that have a bar
+  // have, and the Alerts' reader finds it whole as either end of a stretch in the description's and the
+  // note's, and as its second end in the diagram's and the Alert's (stretchesIn()).
   stationNames: {
     'tram:ST-178': { name: 'Zona Universitària', source: TRAM_LINES },
     'tram:ST-193': { name: 'Fontsanta | Fatjó', source: TRAM_LINES },

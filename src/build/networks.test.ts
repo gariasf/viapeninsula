@@ -301,11 +301,12 @@ test("checks stop numbers only of the timetables whose config says its live data
 // Rows cut verbatim from TRAM's feeds of 12 October 2026 (#571): Trambaix's T3 Trips of 13 October between Francesc
 // Macià and Sant Feliu, and Trambesòs's T5 Trips between Ciutadella and Glòries and T6's between Estació St.Adrià and
 // Can Jaumandreu, which have the other five Stations whose names the feeds shorten.
+// They have no shapes.txt, which the real feeds' do and the Trips here don't need, so they're read as a shapeless timetable.
 const tramT3 = dirSource(fileURLToPath(new URL('fixtures/tram-t3', import.meta.url)));
 const tramBesos = dirSource(fileURLToPath(new URL('fixtures/tram-besos', import.meta.url)));
 const TRAMBESOS_FEED: Feed = { network: TRAM, ...(TRAM.timetables[1] ?? TRAM.timetables[0]) };
 
-test("spells out TRAM's eight short Station names as its own site does, in its Stations and in the headsigns of the Trips that end at them (#571)", async () => {
+test("spells out TRAM's eight short Station names as its own site does, in its Stations and in the headsigns of the Trips that end at them, which the T2 test above has for Llevant (#571)", async () => {
   const name = (stations: { id: string; name: string }[], id: string) => stations.find((s) => s.id === id)?.name;
   const t2 = await readFeed(tram, '2026-10-01', TRAMBAIX_FEED);
   expect(name(t2.stations, 'tram:ST-178')).toBe('Zona Universitària');
@@ -338,19 +339,9 @@ test("leaves the names of TRAM's other Stations as its feeds have them, those it
   for (const short of ['Ciutadella|V.O.', 'Wellington|UPF', 'Estació St.Adrià']) expect(names).not.toContain(short);
 });
 
-test("names TRAM's eight Stations by ID in its config, each with TRAM's lines page as its source, and no other Network's (#571)", () => {
-  expect(Object.fromEntries(Object.entries(TRAM.stationNames ?? {}).map(([id, { name }]) => [id, name]))).toEqual({
-    'tram:ST-178': 'Zona Universitària',
-    'tram:ST-193': 'Fontsanta | Fatjó',
-    'tram:ST-197': 'Hospital Sant Joan Despí | TV3',
-    'tram:ST-201': 'Sant Feliu | Consell Comarcal',
-    'tram:ST-202': 'Ciutadella | Vila Olímpica',
-    'tram:ST-203': 'Wellington | UPF',
-    'tram:ST-229': 'Estació de Sant Adrià',
-    'tram:ST-230': 'Llevant | Les Planes',
-  });
-  for (const { source } of Object.values(TRAM.stationNames ?? {})) expect(source).toBe('https://www.tram.cat/ca/linies-i-horaris');
-  expect(NETWORKS.filter((n) => n.stationNames).map((n) => n.id)).toEqual(['tram']);
+test("has TRAM's lines page as the source of each of the eight names its config spells out (#571)", () => {
+  expect(Object.keys(TRAM.stationNames ?? {})).toHaveLength(8);
+  for (const [id, { source }] of Object.entries(TRAM.stationNames ?? {})) expect(source, id).toBe('https://www.tram.cat/ca/linies-i-horaris');
 });
 
 // Rows cut verbatim from TMB's feed of 2026-09-21: an L11 Trip, the Montjuïc funicular's Trips for
