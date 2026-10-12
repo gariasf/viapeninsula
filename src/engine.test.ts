@@ -3212,6 +3212,16 @@ test("after midnight the map keeps the previous day's Closures, their times move
   expect(joinDays([FRIDAY, saturday]).closures).toEqual([closure(18_000, 82_800)]);
 });
 
+test("days of one track join on its own arrays, so that the map draws nothing again at the join, and days of two builds join in full (#722)", () => {
+  // As the days of one build are (ADR-0014): one track for both, each day's Trips on it.
+  const friday = { ...SATURDAY, serviceDay: FRIDAY.serviceDay, noonMinus12h: FRIDAY.noonMinus12h, trips: FRIDAY.trips };
+  const joined = joinDays([friday, SATURDAY]);
+  for (const key of ['networks', 'lines', 'stations', 'shapes', 'strokes', 'rails', 'slots', 'tracks'] as const) expect(joined[key]).toBe(SATURDAY[key]);
+  expect(joined.trips.map((t) => t.id)).toEqual(FRIDAY_NIGHT.trips.map((t) => t.id));
+  expect(FRIDAY_NIGHT.stations).not.toBe(SATURDAY.stations);
+  expect(FRIDAY_NIGHT.stations.map((s) => s.id)).toEqual(SATURDAY.stations.map((s) => s.id));
+});
+
 test("near midnight, the next day's Trains passing within the hour are nearby", () => {
   const moment = Date.parse('2026-09-25T23:10:00+02:00');
   const badalona: Point = [2.24892096, 41.4458838];

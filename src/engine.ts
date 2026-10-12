@@ -707,7 +707,8 @@ const onTrack = (shape: Shape, dist: number | undefined): dist is number => dist
  * still running from the day before and the new day's first Trains are on the map together. The
  * earlier days' Trips run on it too, their IDs led by their service day, as in `2026-09-25/<id>`: an
  * operator can give one day's Trip the same ID as the next's. Networks, Lines, Stations and track are
- * the last day's, and the earlier days' where it has none of them. The engine goes over a bundle it
+ * the last day's, and the earlier days' where it has none of them: the last day's own arrays where the days
+ * share one track. The engine goes over a bundle it
  * hasn't seen before from scratch, so join the days once for as long as they're the ones shown.
  * ponytail: an earlier day's Trips run on the last day's track where both have a shape of that ID,
  * which is the same track unless the operator redrew it between the two builds.
@@ -716,7 +717,10 @@ export function joinDays(days: Bundle[]): Bundle {
   const latest = days.at(-1);
   if (!latest) throw new Error('No service day to show');
   if (days.length === 1) return latest;
-  const each = <T extends { id: string }>(of: (day: Bundle) => T[]) => [...new Map(days.flatMap(of).map((x) => [x.id, x])).values()];
+  // The last day's own array where every day's is it, as the days of one build share one track (ADR-0014): then show()
+  // sees the track it has drawn and puts the Trips on it, rather than laying the map out again at the join (#722).
+  const each = <T extends { id: string }>(of: (day: Bundle) => T[]) =>
+    days.every((day) => of(day) === of(latest)) ? of(latest) : [...new Map(days.flatMap(of).map((x) => [x.id, x])).values()];
   // How far a day's clock is behind the last day's, in seconds: a day, or on the nights the clocks change, an hour more or less.
   const behind = (day: Bundle) => (latest.noonMinus12h - day.noonMinus12h) / 1000;
   return {
