@@ -1,6 +1,7 @@
 import { execFileSync, spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { createReadStream, existsSync } from 'node:fs';
-import { writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -22,15 +23,37 @@ const underway = new Map<string, Promise<Buffer>>();
  * Downloads the GTFS zip of the timetable whose IDs start with `prefix` to zipFile(prefix), to read
  * from there. A try that fails or takes longer than `limit` is tried once more, `again` later.
  * Timetables downloading one URL at once share its download, tried with the first one's `limit` and
- * `again`, as every Cercanías núcleo shares Renfe's one file, and each is told why it failed.
+ * `again`, as every Cercanías núcleo shares Renfe's one file, and each is told why it failed. With a
+ * `cache`, a URL whose file is kept there is read from it, not downloaded, and one that's downloaded
+ * is kept there, as a dry run keeps the day's feeds (#730).
  */
-export async function download(url: string, prefix: string, { limit, again } = TRY): Promise<void> {
+export async function download(url: string, prefix: string, { limit = TRY.limit, again = TRY.again, cache }: { limit?: number; again?: number; cache?: string } = {}): Promise<void> {
   let zip = underway.get(url);
   if (!zip) {
-    zip = downloaded(url, limit, again).finally(() => underway.delete(url));
+    zip = (cache ? cached(url, cache, () => downloaded(url, limit, again)) : downloaded(url, limit, again)).finally(() => underway.delete(url));
     underway.set(url, zip);
   }
   await writeFile(zipFile(prefix), await zip);
+}
+
+/**
+ * A URL's file from `dir`, where it's kept, or else got and kept there, named by a hash of the URL,
+ * as its query string can hold a secret. It's written whole before it takes its name, so that a
+ * build that reads the cache at the same time never reads part of it.
+ */
+async function cached(url: string, dir: string, get: () => Promise<Buffer>): Promise<Buffer> {
+  const file = join(dir, `${createHash('sha256').update(url).digest('hex').slice(0, 16)}.zip`);
+  const kept = await readFile(file).catch(() => undefined);
+  if (kept) {
+    // Never print a query string: TMB's holds its key.
+    console.log(`${url.split('?')[0]}: from the feed cache, ${file}`);
+    return kept;
+  }
+  const zip = await get();
+  await mkdir(dir, { recursive: true });
+  await writeFile(`${file}.${process.pid}`, zip);
+  await rename(`${file}.${process.pid}`, file);
+  return zip;
 }
 
 /** A URL's file, as download() tries it. */
