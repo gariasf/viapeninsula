@@ -311,3 +311,25 @@ test("names each region's Networks and where it lies in the manifest, and puts e
   // Where that file can't be read, the build fails, rather than lose the region's track below zoom 7.
   await expect(zoomedOut(manifest, built, () => Promise.reject(new Error('HTTP 503')))).rejects.toThrow('HTTP 503');
 });
+
+test("names each region's Stations in the file below zoom 7, with the places their operators group them in and their Lines, in the order of their IDs there, and every region's Lines, by name, colour, kind and Network, which Search finds a Station by and names its Lines with (#471)", async () => {
+  const entry = (region: string) => ({ date: '2026-10-12', track: `days/track-${region}-old.json`, trips: `days/2026-10-12-${region}.json`, from: 1, to: 2 });
+  const manifest = { regions: [{ id: 'catalonia', days: [entry('catalonia')] }, { id: 'cercanias-madrid', days: [entry('cercanias-madrid')] }] };
+  // Catalonia's second Station in a place of its operator's, as a Metro station of several Lines is (ADR-0005).
+  const catalonia = regionTrack('rodalies', [0, 5000], 0);
+  catalonia.stations = catalonia.stations.map((s, i) => ({ ...s, lines: ['rodalies:C1'], ...(i && { place: 'tmb:P.6660327' }) }));
+  // Madrid's build failed: its Stations come from its last track file, whose second names no Lines, as a track built before #392.
+  const madrid = regionTrack('cercanias-madrid', [1000, 4000], 1000);
+  madrid.stations = madrid.stations.map((s, i) => (i ? s : { ...s, lines: ['cercanias-madrid:C1'] }));
+  const { file } = await zoomedOut(manifest, new Map([['catalonia', catalonia]]), async () => madrid);
+  expect(file.stations).toEqual({ catalonia: ['adif:rodalies-1', 'adif:rodalies-2'], 'cercanias-madrid': ['adif:cercanias-madrid-1', 'adif:cercanias-madrid-2'] });
+  expect(file.names).toEqual({
+    catalonia: [{ name: 'rodalies 1', lines: ['rodalies:C1'] }, { name: 'rodalies 2', place: 'tmb:P.6660327', lines: ['rodalies:C1'] }],
+    'cercanias-madrid': [{ name: 'cercanias-madrid 1', lines: ['cercanias-madrid:C1'] }, { name: 'cercanias-madrid 2' }],
+  });
+  // Neither a Line's shapes nor its profile.
+  expect(file.lines).toEqual([
+    { id: 'rodalies:C1', network: 'rodalies', name: 'C1', colour: '#800', kind: 'commuter' },
+    { id: 'cercanias-madrid:C1', network: 'cercanias-madrid', name: 'C1', colour: '#1600', kind: 'commuter' },
+  ]);
+});
