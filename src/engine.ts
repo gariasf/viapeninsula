@@ -18,7 +18,8 @@ export interface Train {
   /**
    * Whether its Network's live data is available but hasn't reported it lately: it has no live data,
    * and may not be running. Not where that live data names Blocks but none on its Line, as on L9, nor
-   * where it names none of its Line's Trips, as FGC's names none of FV's (#489).
+   * on a Line its Network's live traits list as one it names none of the Trips of (`unnamed`), as
+   * FGC's list FV (#489).
    */
   unreported: boolean;
   /** The Station it stands at, while it stands at one: from when it comes in there until it leaves. */
