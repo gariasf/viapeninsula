@@ -46,7 +46,7 @@ Every ticket runs `npm run check`, `npx vitest run --dir src` and the review. Th
 
 - **Wait on notifications.** Run a long job in the background and act when it reports. A `sleep` or `until` loop is a turn that re-reads the whole context on every poll.
 - **Ship agents merge and stop.** The coordinating session checks the deploy and the live site once per wave of merges. It also closes the tickets whose last box is a live check.
-- **Share one main baseline for dry runs** per build tree and date (milestone 0 builds it), rather than rebuilding main to compare against.
+- **Share one main baseline for dry runs** per build tree and date, rather than rebuilding main to compare against: `npm run -s baseline` prints its out/, and `--region <id>` builds only the regions a change touches (README, #730).
 - **Keep big outputs out of context.**
   - Aggregate with scripts, and read big files by offset and limit.
   - Keep an agent's report to 250 words, and put the rest in files.
