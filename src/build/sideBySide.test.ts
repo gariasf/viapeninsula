@@ -553,7 +553,13 @@ test("takes L1's and R4's stroke along the 36 m Stretch at Auditori/Teatre Nacio
   // that for a hidden stroke a Line only touches, coming and going at one end, and passed it by: no curve
   // named it, and its stroke was drawn at every zoom from 10 to 14, along a curve that goes by it (363 m
   // at zoom 13, across 2 Stretches and the 89 m).
-  const { lines, shapes } = JSON.parse(readFileSync(new URL('fixtures/auditori.json', import.meta.url), 'utf8')) as Pick<Track, 'lines' | 'shapes'>;
+  const fixture = JSON.parse(readFileSync(new URL('fixtures/auditori.json', import.meta.url), 'utf8')) as Pick<Track, 'lines' | 'shapes'>;
+  // L1's southbound shape is run back too, the same points the other way round, as the rails give a Line's way back
+  // where both its directions share a track: its steps go the other way over the Stretch, and make the same curve.
+  const run = fixture.shapes.find((s) => s.id === 'metro:1.1.100.2');
+  const back: Shape = { ...run, id: 'metro:1.1.100.2:back', coords: run?.coords.toReversed() ?? [], dist: (run?.dist ?? []).map((d) => (run?.dist.at(-1) ?? 0) - d).toReversed() };
+  const lines = fixture.lines.map((l) => (l.id === 'metro:L1' ? { ...l, shapes: [...l.shapes, back.id] } : l));
+  const shapes = [...fixture.shapes, back];
   const { strokes, centrelines } = await sideBySide(lines, shapes);
   const short = centrelines.find((c) => /^stretch:\d+$/.test(c.id) && c.dist.at(-1) === 36)?.id;
   expect(short).toBeDefined();
@@ -584,6 +590,47 @@ test("takes L1's and R4's stroke along the 36 m Stretch at Auditori/Teatre Nacio
     expect(near(p, before)).toBeLessThan(near(p, after));
     expect(near(q, after)).toBeLessThan(near(q, before));
   }
+});
+
+test("leaves the bands below zoom 10 on graphs of their own as they were where a shape goes over a Stretch of one piece, so that L1's and R4's stroke on Auditori/Teatre Nacional's 36 m is still drawn there (#599)", async () => {
+  // Which way a shape goes over a Stretch of one piece is only known on the graph every band from zoom 10 up
+  // shares: taking the stroke in below moves the nodes' rooms, and on Catalonia's graph of zoom 9 a Stretch of
+  // 1.76 km that R1, R4 and L1 share stops being absorbed and the 7 curves beside it get a hairpin each. Under a
+  // third of a pixel there: widen it only with a look at why, as graphed()'s ponytail note says.
+  const { lines, shapes } = JSON.parse(readFileSync(new URL('fixtures/auditori.json', import.meta.url), 'utf8')) as Pick<Track, 'lines' | 'shapes'>;
+  const { strokes, centrelines } = await sideBySide(lines, shapes);
+  const below = BANDS.slice(0, GRAPH_BAND).map((zoom, band) => {
+    const short = centrelines.find((c) => new RegExp(`^${STRETCH}${zoom}-\\d+$`).test(c.id) && c.dist.at(-1) === 36)?.id;
+    return ['metro:L1', 'rodalies:R4'].map((name) => {
+      const stroke = strokes.find((s) => s.line === name && s.band === band && s.shape === short);
+      const named = strokes.filter((s) => s.line === name && s.band === band && s.across?.some(([id]) => id === short));
+      // Metres of the stroke not drawn, and curves that go along it.
+      return [short !== undefined, stroke ? cutIn(stroke, band).reduce((sum, d) => sum + d, 0) : NaN, named.length];
+    });
+  });
+  expect(below).toEqual(BANDS.slice(0, GRAPH_BAND).map(() => [[true, 0, 0], [true, 0, 0]]));
+});
+
+test("draws a Line's curve across a node once, where one of its shapes goes by a Stretch of one piece and its other doesn't, as Cádiz's T1 does by 37 m at its junction with C1 (#599)", async () => {
+  // C1 and T1 on 12 Oct 2026 (fixtures/cadiz.json). T1's shape from Cádiz goes by a Stretch of one piece, 37 m,
+  // beside the trunk it leaves, and its other shape doesn't. With the way it goes over that piece known, the way
+  // through it is a way across the node of its own, and its curve has the very same points as the other's: one
+  // wiggle counted twice, at zoom 10 and 12. The stroke stays drawn, as it was, beside the curve.
+  const { lines, shapes } = JSON.parse(readFileSync(new URL('fixtures/cadiz.json', import.meta.url), 'utf8')) as Pick<Track, 'lines' | 'shapes'>;
+  const { strokes, centrelines } = await sideBySide(lines, shapes);
+  const byId = new Map([...shapes, ...centrelines].map((c) => [c.id, c]));
+  const short = centrelines.find((c) => /^stretch:\d+$/.test(c.id) && c.dist.at(-1) === 37)?.id;
+  expect(short).toBeDefined();
+  const stub = strokes.find((s) => s.line === 'cercanias-cadiz:T1' && s.band === undefined && s.shape === short);
+  expect(stub).toBeDefined();
+  // Per zoom from 10 up: curves of T1 with the same points as another's, those that go along the Stretch, and metres of its stroke not drawn.
+  const each = BANDS.flatMap((_, band) => {
+    if (band < GRAPH_BAND || !stub) return [];
+    const curves = strokes.filter((s) => s.line === 'cercanias-cadiz:T1' && s.band === band && s.shape.startsWith(LINK));
+    const points = curves.map((s) => JSON.stringify(byId.get(s.shape)?.coords));
+    return [[band, curves.length - new Set(points).size, curves.filter((s) => s.across?.some(([id]) => id === short)).length, cutIn(stub, band).reduce((sum, d) => sum + d, 0)]];
+  });
+  expect(each).toEqual(BANDS.flatMap((_, band) => (band < GRAPH_BAND ? [] : [[band, 0, 0, 0]])));
 });
 
 test("takes C3, C4 and C5 across the node by Madrid-Atocha without hooking back, where the stroke a node hides runs on past their next Stretch's start (#311)", async () => {
@@ -684,8 +731,8 @@ test('comes in and goes out of a Stretch of one piece at the ends its first and 
 test('leaves a Line the one way across a node where it has two between the same strokes that differ by a hidden stroke of one piece, the one without it (#599)', () => {
   // A Line's way across a node from stroke a to stroke b, and one through a stroke of one piece; another's, through a stroke of its own.
   const stroke = (name: string): Stroke => ({ line: 'R2', shape: name, from: 0, to: 100, side: 0 });
-  const [a, short, b, other] = [stroke('a'), stroke('short'), stroke('b'), stroke('other')];
-  const id = new Map([[a, 0], [short, 1], [b, 2], [other, 3]]);
+  const [a, short, b, other, long, longer] = [stroke('a'), stroke('short'), stroke('b'), stroke('other'), stroke('long'), stroke('longer')];
+  const id = new Map([[a, 0], [short, 1], [b, 2], [other, 3], [long, 4], [longer, 5]]);
   const [first, last] = [{ stroke: a, end: 1 as const }, { stroke: b, end: 0 as const }];
   const direct = [first, last];
   const through = [first, { stroke: short, end: 0 as const }, last];
@@ -698,6 +745,9 @@ test('leaves a Line the one way across a node where it has two between the same 
   expect(notTwice([through, direct, round], isShort, id)).toEqual([direct, round]);
   // Where there's none without it, it stays: the Line goes through it alone.
   expect(notTwice([through], isShort, id)).toEqual([through]);
+  // Through two other strokes, found in either order or way round, it's the same way: the one without the stroke of one piece stays.
+  const [two, twoBack] = [[first, { stroke: long, end: 0 as const }, { stroke: short, end: 0 as const }, { stroke: longer, end: 0 as const }, last], [{ stroke: b, end: 0 as const }, { stroke: longer, end: 1 as const }, { stroke: long, end: 1 as const }, { stroke: a, end: 1 as const }]];
+  expect(notTwice([two, twoBack], isShort, id)).toEqual([twoBack]);
 });
 
 test('leaves out a shape\'s track round a node only where it follows the Stretch it left along one centreline, left it beyond REACH from its end and doesn\'t come back onto it (#353)', () => {
