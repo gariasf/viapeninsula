@@ -61,7 +61,7 @@ A length of track, or of tracks too close together to tell apart zoomed out, tha
 _Avoid_: Bundle (that's the data the map loads), corridor, edge
 
 **Shape**:
-The track a Trip's Train runs along: points in order, each with its distance along it, which is what a Call's distance is measured on. Many Trips share one. The daily build makes it from the shape its feed gives, traced along OpenStreetMap's rails (ADR-0004), or, where a Trip doesn't fit that or its timetable has none, as Renfe's long-distance one hasn't, from the Trip's own Stations, traced the same way (#280, #259). The track file stores it as Pieces (ADR-0015).
+The track a Trip's Train runs along: points in order, each with its distance along it, which is what a Call's distance is measured on. Many Trips share one. The daily build makes it from the shape its feed gives, traced along OpenStreetMap's rails (ADR-0004), or, where a Trip doesn't fit that or its timetable has none, as Renfe's long-distance one hasn't, from the Trip's own Stations, traced the same way (#280, #259). The track file stores it as Pieces (ADR-0015). Not a Stretch, which is track a set of Lines share on the map (ADR-0006).
 _Avoid_: Route, path
 
 **Piece**:
