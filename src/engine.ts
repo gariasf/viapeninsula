@@ -737,7 +737,7 @@ interface Heard {
 interface GpsDelay {
   delay: number;
   got: number;
-  /** Where it was over GATE from the figure Renfe gave in the report that gave it, not the latest, which delayBy() puts aside. */
+  /** Where it was over GATE from the figure Renfe gave in the report that gave it, as delayOf() reads it, not the latest, which delayBy() puts aside. */
   far?: true;
 }
 
@@ -834,7 +834,8 @@ function hear(before: Heard | undefined, report: Report, got: number, from: Rece
   const { delay, measured } = ownDelay(taken);
   if (!measured) return { ...heard, delay: figure, gps, counted };
   const agrees = follows(gps) && Math.abs(delay - gps.delay) <= CONFIRM;
-  const far = report.delay !== undefined && Math.abs(delay - report.delay) > GATE;
+  // Against the figure as delayOf() reads it: a day back where it's more than 12 hours off (#566).
+  const far = report.delay !== undefined && Math.abs(delay - figure) > GATE;
   return { ...heard, delay: figure, gps: { delay, got, ...(far && { far }) }, counted: agrees ? { delay, got } : counted };
 }
 

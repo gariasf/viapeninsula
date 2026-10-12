@@ -2858,6 +2858,10 @@ test("a report 2 minutes after midnight naming the next day's Trip of a Train nu
   const pinned = [near(SATURDAY_25601, 'Montgat', -86_100, moment)];
   expect(trainsAt(THROUGH, moment + 10_000, pinned)).toMatchObject([{ trip: { id: friday }, live: true, dist: trainsAt(THROUGH, moment + 10_000 - 300_000)[0]?.dist }]);
   expect(trainAt(THROUGH, moment + 10_000, pinned, friday)?.delay).toBe(300);
+  // GPS no report before it supported goes where it's within 10 minutes of Renfe's figure (#565), taken a
+  // day back: 6 minutes late, by its GPS, against the figure's 5.
+  const sixLate = [through(SATURDAY_25601, moment, 360, -86_100)];
+  expect(trainAt(THROUGH, moment + 10_000, sixLate, friday)?.delay).toBeCloseTo(360, 3);
 });
 
 test("a report naming the next day's Trip of a Train number with a Delay of its own, as Renfe's first after midnight can be, is about the day before's Trip of that number all the same (#566)", () => {
