@@ -691,10 +691,10 @@ let lookedOnce = false;
  * be had, rather than showing its label alone for good, as it does while they're on their way (#379). Up
  * here, as neededDays() sets it, and first runs before the module is past its top-level await. A file
  * that stalls fails as one that errs does, once no bytes have come for STALL (getJson(), #595).
- * ponytail: one flag and one wait for every region loaded, so a board with none left, of a region that came,
- * has its label alone while another region's Trips are on their way, and a region new to the map, asked for
- * after a look that failed, says that none can be had while its Trips come, as Nearby does where its
- * viewer's regions are new (#592). Keep both by the board's own regions (come()) if that shows.
+ * ponytail: one flag and one wait for every region loaded or needed, so a board with none left, of a region
+ * that came, has its label alone while another region's Trips are on their way, and a region new to the map,
+ * asked for after a look that failed, says that none can be had while its Trips come, as Nearby does where
+ * its viewer's regions are new (#592). Keep both by the board's own regions (come()) if that shows.
  */
 let tripsFailed = false;
 /**
@@ -2794,9 +2794,9 @@ function alertRow({ lines: named, header, description, from, by }: CardAlert, by
  * have come (servedBy(), #594); the Alerts on its Stations and on those Lines, folded away (#342); then
  * its next departures from each of its Stations, each with when it's expected to leave, its Train's pill,
  * where it's headed and its status. Peeking, the next PEEK of them, and how many more. Until the Trips of
- * the regions the map has loaded have come, only its label, as Nearby's heading stands alone (boardList(),
- * #379), and with none left today, until the next day's, which it asks for once its own regions' have
- * come, have (#597, #596).
+ * the regions the map has loaded or needs have come, as it needs long distance's from its first look (#739), only
+ * its label, as Nearby's heading stands alone (boardList(), #379), and with none left today, until the next
+ * day's, which it asks for once its own regions' have come, have (#597, #596).
  */
 function boardPanel(id: string, up: boolean): Panel | undefined {
   const place = shownPlaces.get(id);
@@ -2804,7 +2804,7 @@ function boardPanel(id: string, up: boolean): Panel | undefined {
   const now = Date.now();
   const mapNow = mapTime(now, received);
   const departures = bundle ? boardAt(bundle, now, received, place.stations, hidingClosures) : [];
-  const trips = tripsState(loaded, shownRegions, tripsFailed);
+  const trips = tripsState(loaded, manifest ? neededRegions(manifest) : [], shownRegions, tripsFailed);
   // With none left today, the next day's first are to come; refreshDays() runs again within a minute if it's busy now.
   // Only once the Trips of its own regions have come (#597): before that it has none because they haven't. Where
   // they failed, the map looks again for the failed files alone, at once, as the ask for the next day did without
@@ -2818,10 +2818,10 @@ function boardPanel(id: string, up: boolean): Panel | undefined {
     if (ask) refreshDays();
   }
   const shown = up ? departures : departures.slice(0, PEEK);
-  // Neither rows nor "none" while the Trips of a region the map has loaded are on their way, as the bundle has the others' already
-  // (#266): it can't tell that none are to come, and says that only once they've come or a file has failed to. Nor while the
-  // next day's, which a board with none left asks for, are on their way (#596): the map is looking and they're not on it yet,
-  // as the last day of its bundle is the day after today once they are.
+  // Neither rows nor "none" while the Trips of a region the map has loaded or needs are on their way, as the bundle has the
+  // others' already (#266): it can't tell that none are to come, and says that only once they've come or a file has failed to.
+  // Nor while the next day's, which a board with none left asks for, are on their way (#596): the map is looking and they're
+  // not on it yet, as the last day of its bundle is the day after today once they are.
   // ponytail: a next day the manifest doesn't name, where a build has left the map without one, is looked for by
   // no look, so a board that asked has its label alone for the second or so each minute's look takes. Go by the
   // manifest's days if that shows.
