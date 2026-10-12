@@ -2392,14 +2392,14 @@ test("an FGC Train of the Vallvidrera funicular, none of whose Trips Geotren nam
   // stretches of their runs then, as the daily build had them, each on a track straight from Station to Station.
   const saturday = bundleOf('2026-10-10', { id: 'fgc', name: 'FGC', profile: { ...PROFILE, topSpeed: 120 / 3.6 } }, {
     'fgc:684bdae702747664bd|782dc1e101': {
-      line: 'FV',
+      line: 'fgc:FV',
       calls: [
         ['fgc:VR', '13:28:00', '13:28:00', 0, 2.111263, 41.409328], // Vallvidrera Inferior
         ['fgc:VS', '13:31:00', '13:31:00', 685, 2.1058163381683, 41.414111713828], // Vallvidrera Superior
       ],
     },
     'fgc:6c4bdae702747644e61684|6a2dc7e00b': {
-      line: 'S1',
+      line: 'fgc:S1',
       calls: [
         ['fgc:TR', '13:25:30', '13:26:00', 29288, 2.007525272, 41.55974631], // Terrassa - Rambla
         ['fgc:VP', '13:28:30', '13:29:00', 30864, 2.0190489, 41.5633063], // Vallparadís Universitat
@@ -2407,7 +2407,7 @@ test("an FGC Train of the Vallvidrera funicular, none of whose Trips Geotren nam
       ],
     },
     'fgc:6c4bdae702747644e61684|6a2dc7e703': {
-      line: 'S1',
+      line: 'fgc:S1',
       calls: [
         ['fgc:VD', '13:26:30', '13:27:00', 13750, 2.06831203, 41.45784156], // Valldoreix
         ['fgc:SC', '13:29:00', '13:30:00', 15184, 2.078203288, 41.46791038], // Sant Cugat Centre
@@ -2415,6 +2415,8 @@ test("an FGC Train of the Vallvidrera funicular, none of whose Trips Geotren nam
       ],
     },
   });
+  // Each Line by its ID and its name, as the daily build has them: FGC's live traits name FV by its name.
+  for (const line of saturday.lines) line.name = line.id.slice('fgc:'.length);
   // Made up: FGC's feed works, and Geotren names one of the S1's Trains, standing at Terrassa - Rambla
   // at 13:27:00, a minute late.
   const written = Date.parse('2026-10-10T13:27:40+02:00');
@@ -2427,12 +2429,12 @@ test("an FGC Train of the Vallvidrera funicular, none of whose Trips Geotren nam
     at: written,
   }];
   expect(trainsAt(saturday, Date.parse('2026-10-10T13:29:30+02:00'), received).map((t) => [t.trip.line, t.live, t.unreported])).toEqual([
-    ['FV', false, false],
-    ['S1', true, false],
-    ['S1', false, true],
+    ['fgc:FV', false, false],
+    ['fgc:S1', true, false],
+    ['fgc:S1', false, true],
   ]);
-  // Nor is it on Vallvidrera Inferior's board as it's about to leave.
-  expect(board(['fgc:VR'], Date.parse('2026-10-10T13:27:50+02:00'), received, saturday)).toMatchObject([{ trip: { line: 'FV' }, live: false, unreported: false }]);
+  // Nor is it marked so on Vallvidrera Inferior's board as it's about to leave.
+  expect(board(['fgc:VR'], Date.parse('2026-10-10T13:27:50+02:00'), received, saturday)).toMatchObject([{ trip: { line: 'fgc:FV' }, live: false, unreported: false }]);
 });
 
 test('a Block that turns back at the end of its Line runs the Trip back from there', () => {
