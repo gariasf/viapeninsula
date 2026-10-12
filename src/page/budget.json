@@ -1,0 +1,14 @@
+[
+  { "check": "A join: longest gap, ms (S2's is long distance's, S6)", "metric": "joinMaxGap", "scenarios": ["S2", "S3", "S4", "S7"], "desktop": 100, "phone": 300 },
+  { "check": "A join: frozen ms (gaps over 50 ms, summed)", "metric": "joinFrozen", "scenarios": ["S2", "S3", "S4", "S7"], "desktop": 150, "phone": 600 },
+  { "check": "A zoom or pan step with no join: longest gap, ms", "metric": "stepMaxGap", "scenarios": ["S3", "S4"], "desktop": 34, "phone": 100 },
+  { "check": "Cold load: the first Lines, ms", "metric": "firstLines", "scenarios": ["S2"], "desktop": 600, "phone": 1500 },
+  { "check": "Cold load: the first Trains, ms", "metric": "firstTrains", "scenarios": ["S2"], "desktop": 1000, "phone": 2500 },
+  { "check": "Cold load: longest gap after the first Lines, ms", "metric": "gapAfterLines", "scenarios": ["S2"], "desktop": 100, "phone": 300 },
+  { "check": "At rest: main thread, ms/s", "metric": "restMainMsPerS", "scenarios": ["S5bcn"], "desktop": 100, "phone": 400 },
+  { "check": "At rest: MapLibre's redraws beyond the Trains' draws, /s", "metric": "restExtraRedrawsPerS", "scenarios": ["S5bcn"], "desktop": 2, "phone": 2 },
+  { "check": "Following a Train: main thread, ms/s", "metric": "followMainMsPerS", "scenarios": ["S8"], "desktop": 400, "phone": 700 },
+  { "check": "Following a Train: fps", "metric": "followFps", "scenarios": ["S8"], "desktop": 110, "phone": 55, "atLeast": true },
+  { "check": "JS heap, every region loaded, MB", "metric": "heapMB", "scenarios": ["S3"], "desktop": 500, "phone": 300 },
+  { "check": "Workers busy in a cold load's first 15 s, ms", "metric": "workerFirst15s", "scenarios": ["S2"], "desktop": 1500, "phone": null }
+]

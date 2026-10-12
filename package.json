@@ -17,7 +17,9 @@
     "cors": "wrangler r2 bucket cors set viapeninsula-live --file r2-cors.json --force",
     "record": "node src/record.ts",
     "card-vs-map": "node src/cardVsMapRun.ts",
-    "snippet": "node src/build/snippet.ts"
+    "snippet": "node src/build/snippet.ts",
+    "page": "node src/page/page.ts",
+    "perf": "node src/page/perf.ts"
   },
   "dependencies": {
     "@fontsource/nunito-sans": "^5.3.0",
@@ -30,6 +32,7 @@
     "@maplibre/maplibre-gl-style-spec": "^26.4.4",
     "@types/node": "^26.6.2",
     "highs": "^1.15.3",
+    "playwright-core": "1.60.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.0",
     "vitest": "^5.0.1",
