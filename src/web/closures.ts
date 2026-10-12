@@ -252,9 +252,10 @@ export function closuresAt(
 /** What the words before a stretch say of it: closed, down to a single track, or running. */
 export type Says = 'closed' | 'single' | 'running';
 
-/** The words that say what a stretch is, before it in its clause, or anywhere in one that would go on after a comma with the clause before it: Renfe's Spanish, and TRAM's Catalan and English (#341, #396). */
+/** The words that say what a stretch is, before it in its clause, or anywhere in one that would go on after a comma with the clause before it: Renfe's Spanish, and TRAM's Catalan and English (#341, #396, #552). */
 const SAYING: [words: string, says: Says][] = [
   ['servicio alternativo por carretera', 'closed'],
+  ['servicio alternativo por autobus', 'closed'],
   ['plan alternativo de transporte por carretera', 'closed'],
   ['no presta servicio', 'closed'],
   ['interrumpida', 'closed'],

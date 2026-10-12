@@ -3,6 +3,7 @@ import { gunzipSync } from 'node:zlib';
 import { expect, test } from 'vitest';
 import { ALERTS_START, readAlerts } from '../fetcher/alerts.ts';
 import { APART, atZoom, BANDS, beside, DEGREE, inBand, onStroke, pixelMetres, zones, type Alert, type Alerts, type Bundle, type Line, type Shape, type Stroke } from '../bundle.ts';
+import { parseLine } from '../build/gtfs.ts';
 import { sideBySide } from '../build/sideBySide.ts';
 import { joinDays } from '../engine.ts';
 import { inNameOrder } from './cards.ts';
@@ -51,18 +52,20 @@ test('reads a single track, and leaves a stretch whose Station is none of the Li
   expect(stretchesIn(text, R2)).toEqual([{ stations: ['adif:71600', 'adif:71603'], says: 'single' }]);
 });
 
+/** Made up, on Rodalies' Stations: some with their names cut or joined otherwise than the bundle has them. */
+const MADE_UP = [
+  ...R1,
+  { id: 'adif:79009', name: 'Barcelona-El Clot' },
+  { id: 'adif:78802', name: 'Fabra i Puig' },
+  { id: 'adif:71700', name: 'Vilanova i la Geltrú' },
+  { id: 'adif:71701', name: 'Sitges' },
+  { id: 'adif:77102', name: 'La Garriga' },
+];
+
 test("matches a name within a Station's name, where it's within one Station's only, and a Station's name with a joining word in it", () => {
-  // Made up, on Rodalies' Stations.
-  const stations = [
-    ...R1,
-    { id: 'adif:79009', name: 'Barcelona-El Clot' },
-    { id: 'adif:78806', name: 'Fabra i Puig' },
-    { id: 'adif:71700', name: 'Vilanova i la Geltrú' },
-    { id: 'adif:71701', name: 'Sitges' },
-    { id: 'adif:77106', name: 'La Garriga' },
-  ];
+  const stations = MADE_UP;
   expect(stretchesIn('Servicio alternativo por carretera entre Blanes y Maçanet.', stations)).toEqual([{ stations: ['adif:79606', 'adif:79200'], says: 'closed' }]);
-  expect(stretchesIn('Circulación interrumpida entre Fabra i Puig y El Clot.', stations)).toEqual([{ stations: ['adif:78806', 'adif:79009'], says: 'closed' }]);
+  expect(stretchesIn('Circulación interrumpida entre Fabra i Puig y El Clot.', stations)).toEqual([{ stations: ['adif:78802', 'adif:79009'], says: 'closed' }]);
   expect(stretchesIn('Circulación por vía única entre Vilanova i la Geltrú e Sitges.', stations)).toEqual([{ stations: ['adif:71700', 'adif:71701'], says: 'single' }]);
   // "la" is within two of their names, and too short to tell.
   expect(stretchesIn('Servicio alternativo por carretera entre Blanes y la estación.', stations)).toEqual([]);
@@ -219,10 +222,15 @@ test("reads TRAM's \"Servei alternatiu entre X i Y\" as closed, its \"Estació d
   expect(stretchesIn(said('sc-286'), stationsOf('tram'))).toEqual([{ stations: ['tram:ST-229', 'tram:ST-213'], says: 'closed' }]);
 });
 
-test("matches a Station's name without or with link words its Alert has or hasn't, as Adif's \"València-La Font de Sant Lluís\" is Renfe's \"Valencia Font de Sant Lluis\" (#396)", () => {
-  // AVISO_512648, Valencia's C3, with "por carretera" for its "por autobús", which isn't among the words read.
-  const text = 'Servicio alternativo por carretera entre las estaciones de Valencia Font de Sant Lluis y Valencia Sant Isidre por obras de mejora en la infraestructura.';
-  expect(stretchesIn(text, stationsOf('cercanias-valencia'))).toEqual([{ stations: ['adif:65002', 'adif:66212'], says: 'closed' }]);
+test("matches a Station's name without or with link words its Alert has or hasn't, as Adif's \"València-La Font de Sant Lluís\" is Renfe's \"Valencia Font de Sant Lluis\", and reads \"servicio alternativo por autobús\" as closed (#396, #552)", () => {
+  // AVISO_512648, Valencia's C3, since 10 Sep 2026: "#LÍNEA C3. SERVICIO ALTERNATIVO POR AUTOBÚS entre las estaciones de
+  // Valencia Font de Sant Lluis y Valencia Sant Isidre por obras de mejora en la infraestructura desde el 13 de septiembre."
+  expect(stretchesIn(said('AVISO_512648'), stationsOf('cercanias-valencia'))).toEqual([{ stations: ['adif:65002', 'adif:66212'], says: 'closed' }]);
+  // Its other two words for buses name no stretch: C3's and C5's "SERVICIO POR AUTOBÚS: Plan alternativo de transporte por carretera".
+  for (const id of ['AVISO_442947', 'AVISO_470390']) {
+    expect(said(id)).toContain('SERVICIO POR AUTOBÚS');
+    expect(stretchesIn(said(id), stationsOf('cercanias-valencia'))).toEqual([]);
+  }
 });
 
 test("reads no stretch in words that name none: Renfe's bare \"Sin servicio ferroviario\", TRAM's \"no donarà servei\", and the streets of Bilbao's Alert (#396)", () => {
@@ -283,7 +291,7 @@ const DAY = {
       { id: 'adif:77102', name: 'La Garriga' },
       { id: 'adif:77200', name: 'Ripoll' },
       { id: 'adif:77309', name: 'Puigcerdà' },
-      { id: 'adif:78806', name: 'Fabra i Puig' },
+      { id: 'adif:78802', name: 'Barcelona Fabra i Puig' },
       { id: 'adif:73100', name: 'La Plana-Picamoixons' },
       { id: 'adif:73003', name: 'Les Borges Blanques' },
     ].map((s) => ({ ...s, networks: ['rodalies'] })),
@@ -297,6 +305,36 @@ const DAY = {
     { id: 'tmb:1.130', name: 'Glòries', networks: ['metro'] },
   ],
 };
+
+/**
+ * Each Station's name by ID as the bundle has it: those of 10 Oct's bundle that the Alerts' words could name
+ * (NIGHT_STATIONS), and Renfe's own rows in the build's fixtures, which the bundle takes its names from.
+ */
+const BUNDLE_NAMES = new Map<string, string>([
+  ...NIGHT_STATIONS.map((s) => [s.id, s.name] as [string, string]),
+  ...['rodalies', 'rodalies-buses'].flatMap((dir) =>
+    readFileSync(new URL(`../build/fixtures/${dir}/stops.txt`, import.meta.url), 'utf8')
+      .split('\n')
+      .slice(1)
+      .filter((row) => row.trim())
+      .map((row): [string, string] => {
+        const [id = '', name = ''] = parseLine(row);
+        return [`adif:${id}`, name];
+      }),
+  ),
+]);
+
+test("gives each Station of DAY, R1's among them, the ID and the name the bundle has, and each made-up one an ID whose name has its own within it, so that a test that copies a wrong ID fails here (#554)", () => {
+  // Names only are read, so a wrong ID passes the tests that expect it back, and only this tells it. Neither
+  // of those two sources has Tordera (adif:79607) or the Metro's Glòries, which the bundle has as tmb:1.130:
+  // the Stations of either list that they lack are those two, so that a third fails here.
+  const given = DAY.stations;
+  expect([...new Set([...given, ...MADE_UP].filter((s) => !BUNDLE_NAMES.has(s.id)).map((s) => s.id))]).toEqual(['adif:79607', 'tmb:1.130']);
+  for (const s of given) expect([s.id, s.name]).toEqual([s.id, BUNDLE_NAMES.get(s.id) ?? s.name]);
+  // A made-up name is the bundle's cut, or joined otherwise: its words are within the bundle's name.
+  const plain = (name: string) => name.toLowerCase().replace(/-/g, ' ');
+  for (const s of MADE_UP) expect([s.id, plain(BUNDLE_NAMES.get(s.id) ?? s.name)]).toEqual([s.id, expect.stringContaining(plain(s.name))]);
+});
 
 /** One of TRAM's service days in the fixture, with DAY's Lines and Stations, as a page that has loaded only that day has it. */
 function tramDay(date: string) {
@@ -568,7 +606,7 @@ test("an Alert about one Train, or for the Trains to or from a place, makes no C
   }
 });
 
-test("on 9 Oct at 23:20, the file whole, Spain's 68 Renfe Alerts and TRAM's 3, gives the Closures it gave but TRAM's T1–T3, whose trams still ran across theirs that night, and T6's sc-286, which none of T6's ran within the hour of, and San Sebastián's C1 twice, and none of Sevilla's C3, C5, Bilbao's streets or elsewhere (#396, #397)", () => {
+test("on 9 Oct at 23:20, the file whole, Spain's 68 Renfe Alerts and TRAM's 3, gives the Closures it gave but TRAM's T1–T3, whose trams still ran across theirs that night, and T6's sc-286, which none of T6's ran within the hour of, and San Sebastián's C1 twice, and Valencia's C3 once, and none of Sevilla's C3, C5, Bilbao's streets or elsewhere (#396, #397, #552)", () => {
   const day = { noonMinus12h: Date.parse('2026-10-09T00:00:00+02:00'), closures: [], lines: NIGHT_LINES, stations: NIGHT_STATIONS, trips: TRAM_TRIPS['2026-10-09']?.trips ?? [] };
   const name = new Map(NIGHT_STATIONS.map((s) => [s.id, s.name]));
   const shown = closuresAt(NIGHT, day, Date.parse('2026-10-09T23:20:11+02:00'));
@@ -584,6 +622,8 @@ test("on 9 Oct at 23:20, the file whole, Spain's 68 Renfe Alerts and TRAM's 3, g
     // T5's and T6's from Glòries to Can Jaumandreu, which none of their Trips runs, as before: T5's run to 00:26, within the hour, though T6's last was at 22:35.
     'tram:T5 closed Glòries – Can Jaumandreu (sc-279)',
     'tram:T6 closed Glòries – Can Jaumandreu (sc-279)',
+    // New: "SERVICIO ALTERNATIVO POR AUTOBÚS entre las estaciones de Valencia Font de Sant Lluis y Valencia Sant Isidre", since 10 Sep (#552).
+    'cercanias-valencia:C3 closed València-La Font de Sant Lluís – València-Sant Isidre (AVISO_512648)',
     // New: "se encuentra interrumpida la circulación entre las estaciones de Irun y Hernani", of 14 Aug, which the timetable has too (#340).
     'cercanias-san-sebastian:C1 closed Irun – Hernani (INFO_507703)',
   ]);
