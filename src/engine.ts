@@ -799,7 +799,11 @@ const SLACK = 300;
  * had the Train and 3 at neither (#485).
  * ponytail: one length for every Line and núcleo, and a Train unreported for FOLLOWS starts it again.
  * Give the fetcher the first time it named the Station (`since`), so that a Train pinned before the map
- * opened is held at once, and not from 10 minutes after, if that matters.
+ * opened is held at once, and not from 10 minutes after, if that matters. Nor can it tell Renfe's
+ * INCOMING_AT from STOPPED_AT, so a Train named as coming in to a Station for the whole run in is held at
+ * it before it has got there: 25 of the 410 Train-minutes it moves in #233's four recordings, as RL4
+ * 33526's 6.5 minutes of 25 September 2026. Keep `currentStatus` in the report, once a Record has it,
+ * and go by that if that matters.
  */
 const LONG_PIN = 10 * 60_000;
 
