@@ -1096,6 +1096,10 @@ const namedOf = new WeakMap<Bundle, Map<string, Trip[]>>();
 /**
  * A bundle's Trips by their IDs as their operators name them, those of one ID on each of the days joined,
  * and each by the IDs of the Trips it was made one with (`joined`, #467) too.
+ * ponytail: two reports in one snapshot that name a Train by two of its IDs are both about its Trip, and
+ * the later in the snapshot is the one it has (reportsByTrip()). Renfe's Cercanías files list a Train by
+ * the one Trip it runs (10 Oct 2026's recording of 33527: R4's ID to Rajadell, RL4's from there); prefer
+ * the report that has a position if one ever lists both.
  */
 export function namedIn(bundle: Bundle): Map<string, Trip[]> {
   const known = namedOf.get(bundle) ?? new Map<string, Trip[]>();
