@@ -164,7 +164,7 @@ body {
   outline: none;
 }
 
-/* The tilt button while the map is tilted: inverted, and its plane filled, which a forced-colours theme keeps (#326). */
+/* The tilt button while it reads pressed, from half the tilt up (#440): inverted, and its plane filled, which a forced-colours theme keeps (#326). */
 .fab.tilt[aria-pressed='true'] {
   background: var(--ink);
   color: var(--card);

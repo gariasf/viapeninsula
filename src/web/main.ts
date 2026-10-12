@@ -16,7 +16,7 @@ import { linesAt, popupRoom } from './tap.ts';
 import { alongside, callsIn, namedTwice, nameOffset, nameSort, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
 import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
 import { atMostEvery, drifted, letsGo, outsideMiddle, pointersDown, tapZooms } from './centre.ts';
-import { keepView, lastView, markOf, openingView, toggledPitch } from './view.ts';
+import { keepView, lastView, markOf, openingView, tiltPressed, toggledPitch } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { darkInk, INK, lettering } from './colour.ts';
 import { ago, boardAsks, boardList, cardAlerts, countdownTo, due, inNameOrder, linesOnBoard, linkedWords, minutesTo, nearbyRows, nextOnItsWay, passedPlace, progress, tripsState, untilTick, whereabouts, type CardAlert, type Whereabouts } from './cards.ts';
@@ -487,9 +487,10 @@ const panel = el('section', { className: 'sheet', hidden: true });
 const followRandomButton = el('button', { type: 'button', className: 'card fab', disabled: true, onclick: followRandom }, icon('die'));
 // The Centre button over it, shown while the map has let go of the Train it follows (#325).
 const centreButton = el('button', { type: 'button', className: 'card fab', hidden: true, onclick: centre }, icon('centre'));
-// The tilt button over them: it eases the map's pitch between flat and tilted, pressed while it's tilted
-// (#326). Another easing that starts meanwhile, a panel's padding, stops it short, so it's started again
-// (a few times at most) unless the viewer tilts it themselves.
+// The tilt button over them: it eases the map's pitch between flat and tilted, pressed from half the tilt
+// up, so that a slight tilt by touch reads flat and the press tilts it (#326, #440). Another easing that
+// starts meanwhile, a panel's padding, stops it short, so it's started again (a few times at most) unless
+// the viewer tilts it themselves.
 let tiltTo: number | undefined;
 /** How many times more the tilt is started again. */
 let tiltTries = 0;
@@ -505,7 +506,7 @@ const tiltButton = el(
   },
   icon('tilt'),
 );
-const showTilt = () => tiltButton.setAttribute('aria-pressed', String(map.getPitch() > 0));
+const showTilt = () => tiltButton.setAttribute('aria-pressed', String(tiltPressed(map.getPitch())));
 map.on('pitch', showTilt);
 map.on('pitchstart', (e) => e.originalEvent && (tiltTo = undefined));
 map.on('moveend', () => {

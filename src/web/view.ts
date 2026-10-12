@@ -8,8 +8,14 @@ export type View = { center: Point; zoom: number; bearing: number; pitch: number
 /** How far the map tilts, in degrees, on a first visit and when the tilt button tilts it (#326). */
 export const TILT = 45;
 
-/** The pitch the tilt button eases the map to from `pitch`: flat where it's tilted at all, and tilted where it's flat. */
-export const toggledPitch = (pitch: number) => (pitch > 0 ? 0 : TILT);
+/**
+ * Whether the tilt button reads pressed at `pitch`: from half the tilt up, where the tilt is the nearer of
+ * the two it eases between, so that a map a touch has tilted by a degree or two still reads flat (#440).
+ */
+export const tiltPressed = (pitch: number) => pitch >= TILT / 2;
+
+/** The pitch the tilt button eases the map to from `pitch`: flat where it reads pressed, and tilted where it doesn't. */
+export const toggledPitch = (pitch: number) => (tiltPressed(pitch) ? 0 : TILT);
 
 /** Barcelona, with the rest of Catalonia a zoom away, tilted as a first visit opens it. */
 const BARCELONA: View = { center: [2.17, 41.39], zoom: 11, bearing: 0, pitch: TILT };
