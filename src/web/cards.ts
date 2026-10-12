@@ -276,6 +276,16 @@ export function linesOnBoard(trips: Trip[], place: { stations: string[]; lines?:
   return order.filter((line) => calling.has(line) || (timetable.has(line) && alerted.has(line)));
 }
 
+/**
+ * The ID a Trip that a link names, `<service day>/<Trip>` as `follow()` takes it, has among the Trips of days
+ * joined (joinDays()) whose last day is `serviceDay`: led by its day, but for the last day's, whose Trips go by
+ * their own IDs. A bare ID is the last day's.
+ */
+export function linkedTrip(link: string, serviceDay: string | undefined): string {
+  const [, day, trip] = /^(\d{4}-\d{2}-\d{2})\/(.*)$/.exec(link) ?? [];
+  return day && trip && day !== serviceDay ? link : (trip ?? link);
+}
+
 /** Whose words each feed's Alerts are, by its ID in alerts.json. */
 const OPERATORS: Record<string, string> = { renfe: 'Renfe', tram: 'TRAM' };
 

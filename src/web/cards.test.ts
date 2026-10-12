@@ -4,7 +4,7 @@ import { expect, test } from 'vitest';
 import { DEGREE, type Alert, type AlertFeed, type Alerts, type Bundle, type Call, type Line, type Trip } from '../bundle.ts';
 import type { Pass } from '../engine.ts';
 import { ALERTS_START, readAlerts } from '../fetcher/alerts.ts';
-import { ago, boardAsks, boardList, cardAlerts, countdownTo, due, inNameOrder, linesCallingAt, linesOnBoard, linkedWords, minutesTo, nearbyRows, nextOnItsWay, passedPlace, progress, tripsState, untilTick, whereabouts, type Part } from './cards.ts';
+import { ago, boardAsks, boardList, cardAlerts, countdownTo, due, inNameOrder, linesCallingAt, linesOnBoard, linkedTrip, linkedWords, minutesTo, nearbyRows, nextOnItsWay, passedPlace, progress, tripsState, untilTick, whereabouts, type Part } from './cards.ts';
 
 /** A time of day in Barcelona on Wednesday 7 Oct 2026, in summer time, in ms since 1970. */
 const at = (hours: number, minutes: number, seconds = 0) => Date.UTC(2026, 9, 7, hours - 2, minutes, seconds);
@@ -534,6 +534,18 @@ test("a followed Train's card has its Line's Alerts, and a board those naming it
   // Sants, where R2 and R4 call: an Alert on both of them shows once.
   expect(cardAlerts(ALERTS, { lines: ['rodalies:R2', 'rodalies:R4'], stations: ['adif:71801', 'tmb:1.326'] }, 'en', NOW).alerts.map((a) => a.id)).toEqual(['AVISO_518352', 'INFO_SANTS', 'AVISO_518298']);
   expect(cardAlerts(ALERTS, { lines: ['rodalies:R8'], stations: ['adif:79400'] }, 'en', NOW).alerts).toEqual([]);
+});
+
+test("a link's Trip is the ID it has among the days joined: led by its day but for the last day's, and a bare ID is the last day's (#593)", () => {
+  const link = '2026-10-10/metro:1.1.11781651';
+  // Joined with the 11th, the 10th's Trips are led by their day, as joinDays() has them.
+  expect(linkedTrip(link, '2026-10-11')).toBe(link);
+  // The 10th alone, or last, its own IDs.
+  expect(linkedTrip(link, '2026-10-10')).toBe('metro:1.1.11781651');
+  // No days on the map yet: the link as it is, which no Trip has.
+  expect(linkedTrip(link, undefined)).toBe(link);
+  // A link without a day, as follow() takes one, is a Trip of the last day.
+  expect(linkedTrip('metro:1.1.11781651', '2026-10-11')).toBe('metro:1.1.11781651');
 });
 
 test("a board also names a Line of its Stations' timetable that no Trip of calls that day, where there's an Alert on it, and no other (#392)", () => {

@@ -7,11 +7,11 @@ import nunitoSans from '@fontsource/nunito-sans/files/nunito-sans-latin-400-norm
 import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-normal.woff2?url';
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
 import { along, APART, atZoom, BANDS, bandZooms, coveredIn, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, profiled, zones, type Zone, daysNeeded, daysOf, DEGREE, EARTH, joinTracks, LIVE_URL, madridDate, networkTracks, places, type Alerts, type Bundle, type Credit, type Call, type DayFiles, type Place, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH, type ZoomedOut } from '../bundle.ts';
-import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, tripsAt, unavailable, type Coming, type Departure, type Followed, type Received, type Train, type TripNow } from '../engine.ts';
+import { boardAt, comingAt, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, tripsAt, unavailable, type Coming, type Departure, type Followed, type Received, type Train, type TripNow } from '../engine.ts';
 import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, earlierStations, followDeparture, language, LANGUAGES, leavesAt, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, setLanguage, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { getJson, STALL } from './files.ts';
-import { firstLook, forgetJoined, regionLoader, regionsNeeded } from './regions.ts';
+import { daysAsTheyCome, firstLook, forgetJoined, regionLoader, regionsCame, regionsNeeded } from './regions.ts';
 import { linesAt, popupRoom } from './tap.ts';
 import { alongside, callsIn, namedTwice, nameOffset, nameSort, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
 import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
@@ -19,7 +19,7 @@ import { atMostEvery, drifted, letsGo, outsideMiddle, pointersDown, tapZooms } f
 import { keepView, lastView, markOf, openingView, tiltPressed, toggledPitch } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { darkInk, INK, lettering } from './colour.ts';
-import { ago, boardAsks, boardList, cardAlerts, countdownTo, due, inNameOrder, linesOnBoard, linkedWords, minutesTo, nearbyRows, nextOnItsWay, passedPlace, progress, tripsState, untilTick, whereabouts, type CardAlert, type Whereabouts } from './cards.ts';
+import { ago, boardAsks, boardList, cardAlerts, countdownTo, due, inNameOrder, linesOnBoard, linkedTrip, linkedWords, minutesTo, nearbyRows, nextOnItsWay, passedPlace, progress, tripsState, untilTick, whereabouts, type CardAlert, type Whereabouts } from './cards.ts';
 import { ARROW_GAP, boxOf, FOLLOWED_TEXT, LINE_HEIGHT, OUTLINE_SIZES, outlineOf, PILL_EDGE, PILL_PADDING, PILL_TEXT, pillReach, type Outline } from './pill.ts';
 import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, tappedRows, type Shown } from './closures.ts';
 import { currentTab, type Tab } from './tabs.ts';
@@ -713,8 +713,18 @@ let shownStations: Track['stations'] | undefined;
  * needs if a long session's memory shows.
  */
 const loaded = new Set<string>();
-/** Which of them the days on the map have, once their files have come: a link waits for its own, and Nearby says no Train passes only once the viewer's have come. */
+/** Which of them every day the map needs has, once their files have come: Nearby says no Train passes only once the viewer's have come, and a board that none can be had only once its own. */
 let shownRegions = new Set<string>();
+/**
+ * Which of them the days on the map have, as each day's files come and join the others' (#593): a link
+ * waits for its own, so that it opens with the first day's Trips, not once the last day's have come.
+ * `shownRegions` where every day has.
+ */
+let joinedRegions = new Set<string>();
+/** Whether the map shows some of the days its last look is for, with the others' Trips still to come (#593). */
+let daysComing = false;
+/** The bundle each service day on the map is, by its date, which the map keeps for a day while the files it's looking for again come (daysAsTheyCome()). */
+let shownDays = new Map<string, Bundle>();
 /** The file below zoom 7 (ZoomedOut) as the map last got it, and the key of the one it has or is getting, which the manifest names. */
 let [zoomedOut, zoomedOutKey]: [ZoomedOut | undefined, string | undefined] = [undefined, undefined];
 /** The places Search finds Stations in, every region's, and the Lines it names at them, by their IDs, from the file below zoom 7, once it has come (#471). */
@@ -829,10 +839,11 @@ map.addSource('stations', { type: 'geojson', data: { type: 'FeatureCollection', 
 map.addSource('station-names', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 // Today's Lines and Stations are drawn as soon as its track comes, before the Trips, which are most of the bundle.
 // Where no region's track comes, as where the one region in view fails to, the map opens without, and the next
-// look fetches it again.
-// The second, for long distance's region (firstLook()), once what the first brought is on screen.
-void Promise.resolve(needed?.days.then(async (days) => showDays(days, await needed.regions), (error: unknown) => console.error(error))).finally(() => onScreen(looked));
+// look fetches it again. The days that have come are shown from there on, once the module is through: a day can
+// have come before today's track has (#593), and showing it needs what's declared below. The second look, for
+// long distance's region (firstLook()), once what the first brought is on screen.
 show((await needed?.track) ?? joinTracks([]));
+void Promise.resolve(needed && showArrivals(needed.arrivals)).catch((error: unknown) => console.error(error)).finally(() => onScreen(looked));
 // Around midnight the days the map needs change, and each day's build names three more.
 setInterval(refreshDays, 60_000);
 
@@ -1280,14 +1291,15 @@ addEventListener('hashchange', () => openLink());
  * the Networks credited and named in the banner (showZoomedOut()), where they've changed, and once
  * their Trips have come, moves their Trains.
  */
-function show(days: Track | Bundle) {
+function show(days: Track | Bundle, tripsOnly = false) {
   if ('trips' in days) {
     bundle = days;
     calls = callsIn(days.trips);
   }
   // A day's Trips come after its track, which is drawn already, unless the days joined bring more than one:
-  // the names' ranks by calls come with them.
-  if (days.stations === shownStations) {
+  // the names' ranks by calls come with them. And the Trips of the days that have come, before the others' (#593),
+  // go on the track the map has, which the track of another day, built earlier, is not drawn over.
+  if (days.stations === shownStations || (tripsOnly && shownStations)) {
     if ('trips' in days && !namesDue) showNames();
     return drawClosures();
   }
@@ -2043,8 +2055,10 @@ function openLink(ring = true) {
   const [station, train] = [link.get('station'), link.get('train')];
   const place = station && [...shownPlaces.values()].find((p) => p.stations.includes(station));
   // A Station or a Train waits for its regions, which load meanwhile, wherever the map is (#266), and a
-  // Station for the file below zoom 7 to say which those are.
-  linkWaits = !place && (!!station || !!train) && !come({ station, train });
+  // Station for the file below zoom 7 to say which those are. A Train too for its Trip, while days are still
+  // to come, as the map stops following a Train that isn't on it (#593).
+  const tripComing = !station && !!train && daysComing && !tripOnMap(train);
+  linkWaits = !place && (!!station || !!train) && !(come({ station, train }, joinedRegions) && !tripComing);
   if (linkWaits) want();
   else if (place) {
     const keyboard = panel.contains(document.activeElement);
@@ -2096,6 +2110,12 @@ function followKey(): string | undefined {
 function followedId(): string | undefined {
   if (!following || !bundle) return undefined;
   return following.day === bundle.serviceDay ? following.trip : `${following.day}/${following.trip}`;
+}
+
+/** Whether the days on the map have the Trip a link names, by its service day and its ID as its operator names it (linkedTrip()). */
+function tripOnMap(link: string): boolean {
+  const id = linkedTrip(link, bundle?.serviceDay);
+  return !!bundle?.trips.some((trip) => trip.id === id);
 }
 
 /** Whether the map has let go of the Train it follows, which a drag or an arrow key does, so that it's no more kept in the middle (#325). */
@@ -3285,19 +3305,21 @@ function creditOf({ text, url, licence, updated }: Credit): string {
 
 /**
  * The service days the map needs now, by the map's time (mapTime(), daysNeeded()), joined, where
- * they aren't the ones it shows. A day's bundle is its regions' (ADR-0014), those the map loads
- * (`loaded`, #266), joined (joinTracks()), and a day with none of them isn't loaded, as where the map
- * opens zoomed out. A region whose file fails to come is left out of its day, and a day whose bundle
- * fails to come is left out; they're fetched again next time.
- * Today's track comes on its own first, so the map can draw it before the Trips come, or none where no
- * region's came, as the days then fail with why. Notes today's Networks with no Trips, every region's,
+ * they aren't the ones it shows: as each day's files come, the days that have, so that the map has the
+ * first day's Trips when they come and the others' join as theirs do (daysAsTheyCome(), #593). A day's
+ * bundle is its regions' (ADR-0014), those the map loads (`loaded`, #266), joined (joinTracks()), and a
+ * day with none of them isn't loaded, as where the map opens zoomed out. A region whose file fails to
+ * come is left out of its day, and a day whose bundle fails to come is left out; they're fetched again
+ * next time. Today's track comes on its own first, so the map can draw it before the Trips come, or none
+ * where no region's came, as the days then fail with why, and their Trips go on it as they come, until
+ * every day's have, which are joined as they are. Notes today's Networks with no Trips, every region's,
  * which the banner names.
  * ponytail: the map's time is the device's until a snapshot corrects it, and the days follow a
  * correction only at the next refreshDays(), so for up to a minute after one, a device whose clock is
  * hours off can have the wrong days, and no Trains. Refresh them from poll() as a snapshot moves the
  * map's date, if that shows.
  */
-async function neededDays(): Promise<{ track: Promise<Track | undefined>; days: Promise<Bundle>; regions: Promise<string[]> } | undefined> {
+async function neededDays(): Promise<{ track: Promise<Track | undefined>; arrivals: AsyncGenerator<Arrival> } | undefined> {
   try {
     // Not the first, which the page's top-level await needs: one cut there would stop the page, as a failed one does (#595).
     manifest = await getJson<Manifest>(`${LIVE_URL}/manifest.json`, { stall: manifest && STALL });
@@ -3328,24 +3350,33 @@ async function neededDays(): Promise<{ track: Promise<Track | undefined>; days: 
   };
   // A region whose file fails to come is left out of its day, and fetched again next time.
   const load = regionLoader(get, joinedTracks);
-  const joined = (async () => {
-    const got = await Promise.allSettled(days.map(load.bundleOf));
-    // Without today's bundle there's nothing to draw; without another day's, the map does without it until next time.
-    const lost = got.flatMap((g, i) => (g.status === 'rejected' ? [[days[i], g.reason] as const] : []));
-    tripsFailed = load.failed();
-    failedRetried &&= tripsFailed;
-    for (const [day, reason] of lost) if (day === today) throw reason;
-    if (lost.length) console.warn(...lost.map(([, reason]) => reason));
-    shown = load.failed() || lost.length ? '' : keys.join();
-    return joinDays(got.flatMap((g) => (g.status === 'fulfilled' ? [g.value] : [])));
+  const cameOf = (done: DayFiles[]) => regionsCame(loaded, days, done, (file) => fetched.has(file));
+  // Every day's files are asked for at once, as they were, whenever the first step is read.
+  const steps = daysAsTheyCome(days, load.bundleOf, shownDays);
+  const arrivals = (async function* () {
+    for await (const { bundle, came, lost, byDate, complete } of steps) {
+      if (complete) {
+        tripsFailed = load.failed();
+        failedRetried &&= tripsFailed;
+        // Without today's bundle there's nothing to draw; without another day's, the map does without it until next time.
+        for (const [day, reason] of lost) if (day === today) throw reason;
+        if (lost.length) console.warn(...lost.map(([, reason]) => reason));
+        shown = load.failed() || lost.length ? '' : keys.join();
+      }
+      if (!bundle) throw new Error('No service day to show');
+      shownDays = byDate;
+      yield { days: bundle, regions: cameOf(complete ? days : came), complete };
+    }
   })();
-  // The regions loaded whose files for these days have all come: one whose file failed has to come at a later look.
-  const came = joined.then(
-    () => [...loaded].filter((id) => days.every((d) => d.regions.every((r) => r.id !== id || (fetched.has(r.track) && fetched.has(r.trips))))),
-    () => [],
-  );
   // Settled at once, as the map's first look awaits it only once the map has loaded.
-  return { track: (today ? load.trackOf(today).then((t) => t.track) : joined).catch(() => undefined), days: joined, regions: came };
+  return { track: today ? load.trackOf(today).then((t) => t.track, () => undefined) : Promise.resolve(undefined), arrivals };
+}
+
+/** What a look for the days the map needs found as its files came: the days that had joined (daysAsTheyCome()), the regions with their Trips in them, and whether that's every day. */
+interface Arrival {
+  days: Bundle;
+  regions: string[];
+  complete: boolean;
 }
 
 /**
@@ -3362,7 +3393,7 @@ async function refreshDays() {
     if (needed) {
       const track = await needed.track;
       if (track) show(track);
-      showDays(await needed.days, await needed.regions);
+      await showArrivals(needed.arrivals);
     }
   } catch (error) {
     console.warn(error);
@@ -3373,7 +3404,7 @@ async function refreshDays() {
 
 /** Ends a look for the days the map needs, and looks again where one was asked for meanwhile. */
 function looked() {
-  looking = false;
+  [looking, daysComing] = [false, false];
   if (!lookAgain) return;
   lookAgain = false;
   refreshDays();
@@ -3400,10 +3431,22 @@ function onScreen(then: () => void) {
   map.on('render', check);
 }
 
-/** Shows days that have come, with the regions whose files have (neededDays()), and opens a link that waited for them. */
-function showDays(days: Bundle, regions: string[]) {
-  show(days);
-  shownRegions = new Set(regions);
+/** Shows each step of a look as it comes: the days that have, as the map's first day comes and the others join (neededDays(), #593). */
+async function showArrivals(arrivals: AsyncIterable<Arrival>) {
+  for await (const { days, regions, complete } of arrivals) showDays(days, regions, complete);
+}
+
+/**
+ * Shows days that have come, with the regions whose files have (neededDays()), and opens a link that waited
+ * for them. `complete` where every day the look is for has: the regions then are those whose Trips are all in,
+ * which a board's and Nearby's saying that none can be had wait for, as another day's could add some.
+ */
+function showDays(days: Bundle, regions: string[], complete = true) {
+  // Before every day has come, their Trips go on the track the map has.
+  show(days, !complete);
+  daysComing = !complete;
+  joinedRegions = new Set(regions);
+  if (complete) shownRegions = joinedRegions;
   openWaitingLink();
 }
 
@@ -3429,9 +3472,9 @@ function want() {
  * (regionsNeeded()): a Station's once the file below zoom 7 has said which they are, where the
  * manifest names one.
  */
-function come(needs: { station?: string | null; train?: string | null; nearby?: { at: Point; metres: number } }): boolean {
+function come(needs: { station?: string | null; train?: string | null; nearby?: { at: Point; metres: number } }, regions = shownRegions): boolean {
   if (needs.station && !zoomedOut && manifest?.zoomedOut) return false;
-  return regionsNeeded(manifest?.regions ?? [], undefined, { ...needs, stations: zoomedOut?.stations }).every((id) => shownRegions.has(id));
+  return regionsNeeded(manifest?.regions ?? [], undefined, { ...needs, stations: zoomedOut?.stations }).every((id) => regions.has(id));
 }
 
 /** Opens the page's link where it waited for its regions (openLink()), or a Search row's Station (openStation()), as the viewer hasn't opened another panel meanwhile (openPanel()), nor closed it (closePanel()). */
