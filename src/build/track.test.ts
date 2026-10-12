@@ -4,7 +4,7 @@ import { pointAt, type Point, type Shape, type Station } from '../bundle.ts';
 import { CERCANIAS_ASTURIAS, CERCANIAS_MADRID, CERCANIAS_SANTANDER, CERCANIAS_SEVILLA, CERCANIAS_VALENCIA, RODALIES, type Gauges, type NetworkConfig } from '../networks.ts';
 import { ownRails } from './networks.ts';
 import type { OsmWay } from './osm.ts';
-import { collect, type Found } from './report.ts';
+import { collect, diff, type Found } from './report.ts';
 import type { Snippet } from './snippet.ts';
 import { eachWay, fine, metres as between, nearest, onOwnTrack, railGraphs, railsBeside, stationsOf, traceOwn, traceRuns, traceShapes, withLines } from './track.ts';
 import { placeDays, placeTrips, unserved, type FeedTrip } from './trips.ts';
@@ -1154,6 +1154,21 @@ test("reports no branch the Trip to Platja i Grau de Gandia's trace serves, wher
   // With no Trip to it, both are reported.
   const alone = placedFrom('valencia-c1', CERCANIAS_VALENCIA, []);
   expect(unserved(alone.branches, alone.days, alone.runs)).toHaveLength(2);
+});
+
+test("shows the branches a Trip's trace comes to serve as gone from the next report, and the report as it was where none does (#601)", () => {
+  // The spots the build reports of Santander C3's branches, with no Trip that calls there, and with the Trip from Heras.
+  const spots = (trips: FeedTrip[]) => {
+    const { branches, days, runs } = placedFrom('santander-c3', CERCANIAS_SANTANDER, trips);
+    const report = collect();
+    for (const f of unserved(branches, days, runs)) report.add({ ...f, network: 'cercanias-santander' });
+    return report.spots();
+  };
+  const [before, after] = [spots([]), spots([c3ToHoz])];
+  expect(before.map((s) => s.key)).toEqual(['branch cercanias-santander:C3 adif:05672 adif:05673', 'branch cercanias-santander:C3 adif:05675']);
+  expect(after).toEqual([]);
+  expect(diff(before, after)).toContain('0 new, 2 gone, 0 changed');
+  expect(diff(before, spots([]))).toBe('Nothing in the build report is new, gone or changed since the last build.');
 });
 
 /**

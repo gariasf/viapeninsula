@@ -150,8 +150,8 @@ export function placeRuns(
  * that calls at one is traced through its own Stations (placeDays()), so the Station is on a trace its Line
  * has. A branch is served where every Station of it is called at by a Trip of its Line placed on such a
  * trace (`traces`, the shapes placeDays() gives) on the days placed (#601): nothing on the map is missing
- * there any more, though the feed's shape still lacks it, which is Renfe's to fix. The others are still to
- * do, and a Line's Trips may call there on another day.
+ * there any more, though the feed's shape still lacks it, which is Renfe's to fix. The others are still
+ * missing from the map wherever their Line's Trips call.
  */
 export function unserved(branches: Found[], days: Trip[][], traces: Shape[]): Found[] {
   const own = new Set(traces.map((s) => s.id));
