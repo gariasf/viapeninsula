@@ -3,9 +3,9 @@ import { expect, test } from 'vitest';
 import { opensInNewTab } from './newTab.ts';
 
 /**
- * An anchor as far as opensInNewTab() touches one, and the span it makes: Node has no DOM to make a link in
- * (nor jsdom to give it one), and main.ts, which builds the page as it loads, can't be imported. What it
- * sets are reflected attributes in a browser, which the page's check in one reads (#585).
+ * An anchor as far as opensInNewTab() touches one, and the span it makes: Node has no DOM to make a link in,
+ * nor jsdom to give it one, and main.ts, which builds the page as it loads, can't be imported. What it sets
+ * are attributes a real anchor reflects, which #585's check in a browser reads off the page.
  */
 function anchor() {
   const link = {
@@ -29,7 +29,7 @@ const web = new URL('.', import.meta.url);
 const sources = readdirSync(web).filter((file) => file.endsWith('.ts') && !file.endsWith('.test.ts'));
 const read = (file: string) => readFileSync(new URL(file, web), 'utf8');
 
-test('opens no tab but through opensInNewTab(): no other file of the page writes the target that does, and none of main.ts\'s anchors is made without it', () => {
+test("opens no tab but through opensInNewTab(): no other file of the page writes the target that does, and none of main.ts's anchors is made without it", () => {
   expect(sources.filter((file) => read(file).includes('_blank'))).toEqual(['newTab.ts']);
   // Credits' links are HTML, which showCredits() makes open in a new tab as it puts them in, below.
   expect(read('main.ts').match(/(?<!opensInNewTab\(\s*)el\('a'/g) ?? []).toEqual([]);
