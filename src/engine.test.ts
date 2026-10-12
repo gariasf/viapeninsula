@@ -4,7 +4,7 @@ import { expect, test } from 'vitest';
 import { beside, DEGREE, places, pointAt, type Bundle, type Network, type Point, type Report, type Shape, type Snapshot, type Trip } from './bundle.ts';
 import { noonMinus12h } from './build/gtfs.ts';
 import { stationsOf } from './build/track.ts';
-import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, unavailable, type Received, type ShownClosure } from './engine.ts';
+import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, tripsAt, unavailable, type Received, type ShownClosure } from './engine.ts';
 import { jumps } from './jumps.ts';
 import { NETWORKS } from './networks.ts';
 import { countdownTo, minutesTo, passedPlace, whereabouts } from './web/cards.ts';
@@ -764,6 +764,26 @@ test("a Trip that hasn't come onto the map yet is still to come: all its Station
   expect(followed(R2S, at('21:29:30'))).toBeDefined();
   expect(coming(at('23:00:00'))).toBeUndefined();
   expect(comingAt(BUNDLE, at('21:00:00'), [], 'nowhere')).toBeUndefined();
+});
+
+test("says of many Trips at once where each one's Train is in its day, as Search's rows say it: running, as the follow panel has it, still to leave, as a Trip still to come, Cancelled, or ended, and when it reached its last Station, in the order asked (#471)", () => {
+  const R1 = 'rodalies:5165J25601R1';
+  const trip = (id: string) => BUNDLE.trips.find((t) => t.id === id) as Trip;
+  // At 21:28 the R7 has left Montcada-Bifurcació, the R2S is still to leave Sant Vicenç de Calders at 21:30, the
+  // R1 reached El Masnou at 06:26 this morning, and Renfe has said the R2N won't run.
+  const received: Received[] = [{ snapshot: { ...written(at('21:27:40')), reports: [{ trip: R2N, at: at('21:27:30'), cancelled: true }] }, at: at('21:27:45') }];
+  const now = at('21:28:00');
+  expect(tripsAt(BUNDLE, now, received, [R2S, R1, R7, R2N].map(trip))).toEqual([
+    { trip: trip(R2S), coming: comingAt(BUNDLE, now, received, R2S) },
+    { trip: trip(R1), ended: at('06:26:00') },
+    { trip: trip(R7), train: trainAt(BUNDLE, now, received, R7) },
+    { trip: trip(R2N), cancelled: true },
+  ]);
+  const [leaving, running] = tripsAt(BUNDLE, now, received, [trip(R2S), trip(R7)]);
+  expect(leaving && 'coming' in leaving && leaving.coming.upcoming[0]).toMatchObject({ station: 'Sant Vicenç de Calders', departure: at('21:30:00') });
+  expect(running && 'train' in running && running.train.upcoming[0]?.station).toBe('Montcada i Reixac-Manresa');
+  // It ends as late as live data last had it: 2 minutes late by Renfe's trip updates at 22:40, at Estació de França at 22:53.
+  expect(tripsAt(BUNDLE, at('23:00:00'), [late(R2S, 120, at('22:40:00'))], [trip(R2S)])).toEqual([{ trip: trip(R2S), ended: at('22:53:00') }]);
 });
 
 test("a followed Train running late is expected at each Station as late as it's drawn, and gets there then", () => {
