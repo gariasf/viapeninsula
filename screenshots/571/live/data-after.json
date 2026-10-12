@@ -1,0 +1,62 @@
+{
+ "label": "after",
+ "at": "2026-10-12T09:29:52.382Z",
+ "trackFile": "days/track-catalonia-0b8aafa08ce0.json",
+ "names": {
+  "tram:ST-178": "Zona Universitària",
+  "tram:ST-193": "Fontsanta | Fatjó",
+  "tram:ST-197": "Hospital Sant Joan Despí | TV3",
+  "tram:ST-201": "Sant Feliu | Consell Comarcal",
+  "tram:ST-230": "Llevant | Les Planes",
+  "tram:ST-202": "Ciutadella | Vila Olímpica",
+  "tram:ST-203": "Wellington | UPF",
+  "tram:ST-229": "Estació de Sant Adrià"
+ },
+ "days": {
+  "2026-10-11": {
+   "file": "days/2026-10-11-catalonia-7112101270e5.json",
+   "tramShort": {
+    "Sant Feliu|C.C.": 65,
+    "Ciutadella|V.O.": 73,
+    "Estació St.Adrià": 128,
+    "Llevant-L.Planes": 64
+   },
+   "tramLong": {
+    "Zona Universitària": 328
+   }
+  },
+  "2026-10-12": {
+   "file": "days/2026-10-12-catalonia-f9e251be570c.json",
+   "tramShort": {},
+   "tramLong": {
+    "Zona Universitària": 280,
+    "Sant Feliu | Consell Comarcal": 61,
+    "Ciutadella | Vila Olímpica": 69,
+    "Estació de Sant Adrià": 124,
+    "Llevant | Les Planes": 60
+   }
+  },
+  "2026-10-13": {
+   "file": "days/2026-10-13-catalonia-40d6249db730.json",
+   "tramShort": {},
+   "tramLong": {
+    "Zona Universitària": 384,
+    "Sant Feliu | Consell Comarcal": 77,
+    "Ciutadella | Vila Olímpica": 122,
+    "Estació de Sant Adrià": 168,
+    "Llevant | Les Planes": 77
+   }
+  },
+  "2026-10-14": {
+   "file": "days/2026-10-14-catalonia-18a09d31bcbe.json",
+   "tramShort": {},
+   "tramLong": {
+    "Zona Universitària": 384,
+    "Sant Feliu | Consell Comarcal": 77,
+    "Ciutadella | Vila Olímpica": 122,
+    "Estació de Sant Adrià": 150,
+    "Llevant | Les Planes": 77
+   }
+  }
+ }
+}

@@ -1,0 +1,65 @@
+{
+ "label": "before",
+ "at": "2026-10-12T09:00:05.327Z",
+ "trackFile": "days/track-catalonia-69a0406e9de6.json",
+ "names": {
+  "tram:ST-178": "Z.Universitària",
+  "tram:ST-193": "Fontsanta|Fatjó",
+  "tram:ST-197": "Hospital SJD|TV3",
+  "tram:ST-201": "Sant Feliu|C.C.",
+  "tram:ST-230": "Llevant-L.Planes",
+  "tram:ST-202": "Ciutadella|V.O.",
+  "tram:ST-203": "Wellington|UPF",
+  "tram:ST-229": "Estació St.Adrià"
+ },
+ "days": {
+  "2026-10-11": {
+   "file": "days/2026-10-11-catalonia-7112101270e5.json",
+   "tramShort": {
+    "Sant Feliu|C.C.": 65,
+    "Ciutadella|V.O.": 73,
+    "Estació St.Adrià": 128,
+    "Llevant-L.Planes": 64
+   },
+   "tramLong": {
+    "Zona Universitària": 328
+   }
+  },
+  "2026-10-12": {
+   "file": "days/2026-10-12-catalonia-641cf3244bc8.json",
+   "tramShort": {
+    "Sant Feliu|C.C.": 61,
+    "Ciutadella|V.O.": 69,
+    "Estació St.Adrià": 124,
+    "Llevant-L.Planes": 60
+   },
+   "tramLong": {
+    "Zona Universitària": 280
+   }
+  },
+  "2026-10-13": {
+   "file": "days/2026-10-13-catalonia-c45fa593cdfa.json",
+   "tramShort": {
+    "Sant Feliu|C.C.": 77,
+    "Ciutadella|V.O.": 122,
+    "Estació St.Adrià": 168,
+    "Llevant-L.Planes": 77
+   },
+   "tramLong": {
+    "Zona Universitària": 384
+   }
+  },
+  "2026-10-14": {
+   "file": "days/2026-10-14-catalonia-2b58ea56d74b.json",
+   "tramShort": {
+    "Sant Feliu|C.C.": 77,
+    "Ciutadella|V.O.": 122,
+    "Estació St.Adrià": 150,
+    "Llevant-L.Planes": 77
+   },
+   "tramLong": {
+    "Zona Universitària": 384
+   }
+  }
+ }
+}

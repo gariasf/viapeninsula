@@ -1,0 +1,86 @@
+{
+ "tram-ciutadella-board-390": {
+  "at": "2026-10-12T09:41:02.627Z",
+  "title": "Ciutadella | Vila Olímpica",
+  "rows": [
+   "11:5211 minT5, ProgramatGlòries",
+   "12:0625 minT5, ProgramatGlòries",
+   "12:2241 minT5, ProgramatGlòries"
+  ],
+  "errors": [
+   "error: Failed to load resource: net::ERR_FAILED"
+  ],
+  "failedRequests": [
+   "static.cloudflareinsights.com/beacon.min.js/v4bc70e2c01a94c73b74392e4234840661791215815920 net::ERR_FAILED"
+  ]
+ },
+ "tram-ciutadella-board-1280": {
+  "at": "2026-10-12T09:41:10.256Z",
+  "title": "Ciutadella | Vila Olímpica",
+  "rows": [
+   "11:5211 minT5, ProgramatGlòries",
+   "12:0625 minT5, ProgramatGlòries",
+   "12:2241 minT5, ProgramatGlòries",
+   "12:3554 minT5, ProgramatGlòries",
+   "12:52T5, ProgramatGlòries",
+   "13:05T5, ProgramatGlòries"
+  ],
+  "errors": [
+   "error: Failed to load resource: net::ERR_FAILED"
+  ],
+  "failedRequests": [
+   "static.cloudflareinsights.com/beacon.min.js/v4bc70e2c01a94c73b74392e4234840661791215815920 net::ERR_FAILED"
+  ]
+ },
+ "tram-sant-adria-board-390": {
+  "at": "2026-10-12T09:41:16.818Z",
+  "title": "Estació de Sant Adrià",
+  "rows": [
+   "11:509 minT4, ProgramatVerdaguer",
+   "12:0019 minT4, ProgramatVerdaguer",
+   "12:0423 minT6, ProgramatCan Jaumandreu"
+  ],
+  "errors": [
+   "error: Failed to load resource: net::ERR_FAILED"
+  ],
+  "failedRequests": [
+   "static.cloudflareinsights.com/beacon.min.js/v4bc70e2c01a94c73b74392e4234840661791215815920 net::ERR_FAILED"
+  ]
+ },
+ "tram-sant-adria-board-1280": {
+  "at": "2026-10-12T09:41:23.043Z",
+  "title": "Estació de Sant Adrià",
+  "rows": [
+   "11:509 minT4, ProgramatVerdaguer",
+   "12:0019 minT4, ProgramatVerdaguer",
+   "12:0423 minT6, ProgramatCan Jaumandreu",
+   "12:1029 minT4, ProgramatVerdaguer",
+   "12:2039 minT4, ProgramatVerdaguer",
+   "12:3049 minT4, ProgramatVerdaguer"
+  ],
+  "errors": [
+   "error: Failed to load resource: net::ERR_FAILED"
+  ],
+  "failedRequests": [
+   "static.cloudflareinsights.com/beacon.min.js/v4bc70e2c01a94c73b74392e4234840661791215815920 net::ERR_FAILED"
+  ]
+ },
+ "tram-llevant-board-1280": {
+  "at": "2026-10-12T09:41:30.346Z",
+  "title": "Llevant | Les Planes",
+  "rows": [
+   "11:476 minT2, ProgramatMontesa",
+   "12:0322 minT2, ProgramatMontesa",
+   "12:1938 minT2, ProgramatMontesa",
+   "12:3554 minT2, ProgramatMontesa",
+   "12:51T2, ProgramatMontesa",
+   "13:07T2, ProgramatMontesa"
+  ],
+  "errors": [
+   "error: Failed to load resource: net::ERR_FAILED"
+  ],
+  "failedRequests": [
+   "static.cloudflareinsights.com/beacon.min.js/v4bc70e2c01a94c73b74392e4234840661791215815920 net::ERR_FAILED"
+  ]
+ }
+}
