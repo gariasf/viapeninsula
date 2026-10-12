@@ -682,6 +682,10 @@ test("takes C10 across the node south-east of Madrid-Atocha without hooking back
   const { strokes, centrelines } = await sideBySide(lines, shapes);
   const found = measures({ shapes: [...shapes, ...centrelines], strokes, lines });
   expect(BANDS.map((zoom, band) => (band >= GRAPH_BAND ? found.hairpins[zoom] : 0))).toEqual(BANDS.map(() => 0));
+  // Both of its ways across the node at zoom 10 to 12, one along the Stretch and one through the next, are kept:
+  // notTwice() drops a way only for the stroke of one piece it goes through where another goes without it (#599).
+  const ways = [3, 4, 5].map((band) => strokes.filter((s) => s.line === 'cercanias-madrid:C10' && s.band === band && s.shape.startsWith(LINK)).length);
+  expect(ways).toEqual([2, 2, 2]);
 });
 
 test("closes a loop Line across the node it began at, where its last piece touches the Stretch it started on, as Sevilla's C4 does at Santa Justa (#353)", async () => {
