@@ -430,8 +430,12 @@ body {
   font-size: 12px;
 }
 
-/* The links in the credits and About, and in an Alert's words (#391): in the colour of the words round them, so that their underline tells them apart, and with the focus ring every link has above. */
+/*
+ * The links in the credits and About, and in an Alert's words (#391): in the colour of the words round them, so that their underline tells them apart, and with the focus ring every link has above.
+ * Relative, as the box the word that says they open a tab sits in (opensInNewTab(), #585): that word is out of the flow, and kept to the sheet or the dialog, it stays where its link was as the body scrolls and, for a link below the fold, lies past the dialog's end, which is overflow for it to scroll.
+ */
 :is(.credits-text, .credits-strip, .about, .alerts) a {
+  position: relative;
   color: inherit;
   text-underline-offset: 2px;
 }
