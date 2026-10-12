@@ -509,7 +509,7 @@ const wide = matchMedia('(min-width: 640px)');
 const lessMotion = matchMedia('(prefers-reduced-motion: reduce)');
 /** The Train the viewer's hand took the map off, as followKey() names it, which the map pans with no more (#325). */
 let released: string | undefined;
-/** Whether the wheel and a pinch zoom about the middle now, as the map pans with the Train (showCentring()). */
+/** Whether the wheel, a pinch and a double-click or a double-tap zoom about the middle now, as the map pans with the Train (showCentring(), the easeTo() wrapped below it). */
 let centring = false;
 /** The pointers down on the map, which hold it where it is as a move of it does (holding(), #581). */
 const pressed = pointersDown();
@@ -2048,8 +2048,10 @@ function showCentring() {
 // MapLibre zooms a double-click and a double-tap about the point they're at, and has no `around:
 // 'center'` for them, as it has for the wheel and a pinch (showCentring()). While the map pans with the
 // Train, the ease its handlers start for them is about the middle instead, so that the Train stays there (#432).
-// ponytail: MapLibre's easeTo(), told by its options (tapZooms()). Have its handlers take `around` instead
-// if they grow the option.
+// ponytail: wraps MapLibre's easeTo(), which every `map.easeTo()` of the app's goes through now, telling its
+// handlers' ease by what they pass (tapZooms()). Where a release changes that, the zoom is about the point
+// again, as it was, and centreOn() jumps at its end: look at a double-click's zoom after an upgrade. Have the
+// handlers take `around` instead if they grow the option.
 const easeTo = map.easeTo.bind(map);
 map.easeTo = (options, eventData) => easeTo(centring && tapZooms(options, eventData) ? { ...options, around: undefined } : options, eventData);
 

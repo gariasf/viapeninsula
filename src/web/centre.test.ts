@@ -31,10 +31,11 @@ test("MapLibre's zoom for a double-click or a double-tap is told from the ease t
   expect(tapZooms(zoom, { originalEvent: { type: 'dblclick' } })).toBe(true);
   // A double-tap and a two-finger tap, from the touch that ends the second tap.
   expect(tapZooms(zoom, { originalEvent: { type: 'touchend' } })).toBe(true);
-  // The ease that goes on from a pinch ends in its touchend too, and as the wheel's does, keeps its gesture's around.
+  // The ease that goes on from a pinch ends in its touchend too, and keeps its gesture's around: it's marked noMoveStart.
   expect(tapZooms({ ...zoom, noMoveStart: true }, { originalEvent: { type: 'touchend' } })).toBe(false);
   expect(tapZooms(zoom, { originalEvent: { type: 'wheel' } })).toBe(false);
   // The app's own eases give no event, and a zoom with no `around` is about the middle already.
+  expect(tapZooms(zoom)).toBe(false);
   expect(tapZooms({ zoom: 13 })).toBe(false);
   expect(tapZooms({ zoom: 15 }, { originalEvent: { type: 'dblclick' } })).toBe(false);
   // An ease about a point that doesn't zoom, as a turn or a tilt about it, is not a zoom to take it from.
