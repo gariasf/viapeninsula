@@ -227,8 +227,8 @@ test("a board's Trips are on their way while a region the map needs isn't loaded
   expect(tripsState(['catalonia', 'long-distance'], ['catalonia', 'long-distance'], new Set(['catalonia', 'long-distance']), false)).toBe('came');
   // A region loaded and no longer needed, as Madrid's once the view is back at Barcelona, is still waited for: a board opened at Atocha by a tap has it as its own.
   expect(tripsState(['catalonia', 'cercanias-madrid'], ['catalonia'], new Set(['catalonia']), false)).toBe('coming');
-  // A look that had a file fail: none can be had meanwhile, as for a region loaded, not its label for good.
-  expect(tripsState(['catalonia'], ['catalonia', 'long-distance'], new Set(), true)).toBe('failed');
+  // Madrid's, needed as it comes into view after a look that lost today's files, isn't loaded until the next: none can be had meanwhile, as where a region loaded hasn't come, not its label for good.
+  expect(tripsState(['catalonia'], ['catalonia', 'cercanias-madrid'], new Set(['catalonia']), true)).toBe('failed');
 });
 
 /** A Trip's calls, at Stations these many metres along its shape. */

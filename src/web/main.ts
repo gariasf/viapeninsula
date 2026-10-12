@@ -2794,8 +2794,8 @@ function alertRow({ lines: named, header, description, from, by }: CardAlert, by
  * have come (servedBy(), #594); the Alerts on its Stations and on those Lines, folded away (#342); then
  * its next departures from each of its Stations, each with when it's expected to leave, its Train's pill,
  * where it's headed and its status. Peeking, the next PEEK of them, and how many more. Until the Trips of
- * the regions the map has loaded or needs have come, as long distance's from its first look (#739), only its
- * label, as Nearby's heading stands alone (boardList(), #379), and with none left today, until the next
+ * the regions the map has loaded or needs have come, as it needs long distance's from its first look (#739), only
+ * its label, as Nearby's heading stands alone (boardList(), #379), and with none left today, until the next
  * day's, which it asks for once its own regions' have come, have (#597, #596).
  */
 function boardPanel(id: string, up: boolean): Panel | undefined {
