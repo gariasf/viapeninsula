@@ -2856,6 +2856,8 @@ function searchPanel(): Panel {
   field.oninput = () => search(field.value);
   field.setAttribute('aria-label', t('searchLabel'));
   field.setAttribute('autocomplete', 'off');
+  // Names of Stations, which a phone's keyboard would otherwise correct to words it knows as a space follows them.
+  field.setAttribute('autocorrect', 'off');
   field.setAttribute('enterkeyhint', 'search');
   const clearField = () => {
     const shown = panel.querySelector<HTMLInputElement>('.search-field');
