@@ -737,7 +737,7 @@ interface Heard {
 interface GpsDelay {
   delay: number;
   got: number;
-  /** Where it was over GATE from the figure Renfe gave in the report that gave it, not the latest, which delayBy() puts aside. */
+  /** Where it was over GATE from the figure Renfe gave in the report that gave it, as delayOf() reads it, not the latest, which delayBy() puts aside. */
   far?: true;
 }
 
@@ -834,7 +834,8 @@ function hear(before: Heard | undefined, report: Report, got: number, from: Rece
   const { delay, measured } = ownDelay(taken);
   if (!measured) return { ...heard, delay: figure, gps, counted };
   const agrees = follows(gps) && Math.abs(delay - gps.delay) <= CONFIRM;
-  const far = report.delay !== undefined && Math.abs(delay - report.delay) > GATE;
+  // Against the figure as delayOf() reads it: a day back where it's more than 12 hours off (#566).
+  const far = report.delay !== undefined && Math.abs(delay - figure) > GATE;
   return { ...heard, delay: figure, gps: { delay, got, ...(far && { far }) }, counted: agrees ? { delay, got } : counted };
 }
 
@@ -1094,6 +1095,9 @@ const canRun = (trip: Trip, next: NonNullable<Report['expected']>, reported: num
  */
 const ENDED = 30 * 60;
 
+/** A day, in seconds. */
+const DAY = 86_400;
+
 /**
  * A snapshot's reports by the Trip each is about, the Trip each of the Metro's Blocks runs, and those they can't keep, given
  * the snapshot before it the first time a replay comes to it (`matched`). TMB's timetable names no
@@ -1110,7 +1114,10 @@ const ENDED = 30 * 60;
  * report naming a Trip that runs on more than one of the days joined is about the one whose
  * timetable runs nearest when it was reported, and so is one naming a Train number, as Renfe's
  * long-distance ones do, of the Trips with that number in any Network, but for one a report naming
- * it has: its Network's own feed goes first (#261). A report that matches no Trip is dropped, and so is one
+ * it has: its Network's own feed goes first (#261). One naming a Trip whose timetable runs more than 12
+ * hours from when it was reported, as Renfe names a Train running through midnight by the next day's
+ * Trip from 00:00, is about its Line's Trip of that Train number, on the days joined, that runs nearest
+ * then (#566). A report that matches no Trip is dropped, and so is one
  * whose Trip ended more than ENDED before it, where its Network's live data lingers on Trips that
  * ended, as FGC's does (#232).
  */
@@ -1129,7 +1136,8 @@ function reportsByTrip(bundle: Bundle, snapshot: Snapshot, lines: Map<string, Ne
     const end = report.line && report.trip?.split('|')[1];
     const candidates = end ? bundle.trips.filter((t) => t.line === report.line && t.id.endsWith(`|${end}`)) : report.trip ? (named.get(report.trip) ?? []) : (numbered.get(report.number ?? '') ?? []);
     const reported = (report.at - bundle.noonMinus12h) / 1000;
-    const trip = closest(candidates, reported);
+    const nearest = closest(candidates, reported);
+    const trip = nearest?.number && apart(nearest, reported) > DAY / 2 ? closest((numbered.get(nearest.number) ?? []).filter((t) => t.line === nearest.line), reported) : nearest;
     const lingering = trip && lines.get(trip.line)?.live?.lingers && reported - (trip.calls.at(-1)?.departure ?? Infinity) > ENDED;
     // A Train its Network's own feed reports by its Trip goes by that report, not one naming its Train number.
     const taken = trip && report.number && reports.get(trip.id)?.trip;
@@ -1165,11 +1173,13 @@ function reportsByTrip(bundle: Bundle, snapshot: Snapshot, lines: Map<string, Ne
   return decided;
 }
 
-/** Of the Trips of one ID on the days joined, the one whose timetable runs nearest a time, in seconds into the service day. */
+/** Of some Trips, as those of one ID on the days joined, the one whose timetable runs nearest a time, in seconds into the service day. */
 function closest(trips: Trip[], time: number): Trip | undefined {
-  const off = ({ calls }: Trip) => Math.max(0, (calls[0]?.arrival ?? Infinity) - time, time - (calls.at(-1)?.departure ?? -Infinity));
-  return trips.reduce<Trip | undefined>((best, trip) => (!best || off(trip) < off(best) ? trip : best), undefined);
+  return trips.reduce<Trip | undefined>((best, trip) => (!best || apart(trip, time) < apart(best, time) ? trip : best), undefined);
 }
+
+/** How far a time, in seconds into the service day, is from when a Trip's timetable runs, from its first Station to its last: none while it does. */
+const apart = ({ calls }: Trip, time: number) => Math.max(0, (calls[0]?.arrival ?? Infinity) - time, time - (calls.at(-1)?.departure ?? -Infinity));
 
 /**
  * Where in its timetable a Train is drawn at a moment, both in seconds into the service day, by its
@@ -1303,6 +1313,12 @@ function delayOf(trip: Trip, calls: Call[], shape: Shape, { profile, live }: Net
   if (known?.trip === trip) return known;
   const [reported, { position }] = [(report.at - noonMinus12h) / 1000, report];
   let delay = report.delay ?? expectedDelay(trip, position && 'next' in position ? position.next : report.expected, noonMinus12h) ?? 0;
+  // More than 12 hours off, it's a day off: from about 23:35, Renfe's figure for a Train running through
+  // midnight is its Delay less a day, as on 6 October 2026 C4b 20520's −86,040 s at 23:59:50, 6 minutes
+  // late, and an R2S's −77,520 s, 2 h 28 min late (#566).
+  // ponytail: a day of 24 hours, so on a night the clocks change, if Renfe's day is then 23 or 25, it's
+  // an hour off. Take the day from the days joined if that shows.
+  if (Math.abs(delay) > DAY / 2) delay -= Math.sign(delay) * DAY;
   if (position && 'next' in position) {
     // It's no further back than the Station before the one it comes to next, however long it's held
     // short of that, as at the end of its Line. Short of its Trip's first Station, standing there as it
