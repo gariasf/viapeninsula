@@ -381,6 +381,19 @@ export const liveUnavailable = (network: string, lang = language()): string => S
 export const moreStations = (n: number, headsign: string, time: string, lang = language()): string =>
   counting(n, 'oneMoreStation', 'moreStations', lang).replace('{headsign}', headsign).replace('{time}', time);
 
+/** A departure's button, naming what it follows (#322): its Line, where it's headed and when, in `lang`, or else the language the interface speaks now. */
+export const followDeparture = (line: string, headsign: string, time: string, lang = language()): string =>
+  STRINGS.followDeparture[lang].replace('{line}', line).replace('{headsign}', headsign).replace('{time}', time);
+
+/** Where a Trip still to come leaves, from which Station and when, in `lang`, or else the language the interface speaks now. */
+export const leavesAt = (station: string, time: string, lang = language()): string => STRINGS.leavesAt[lang].replace('{station}', station).replace('{time}', time);
+
+/** Back, to a place whose board it was opened from, in `lang`, or else the language the interface speaks now. */
+export const backTo = (place: string, lang = language()): string => STRINGS.backTo[lang].replace('{place}', place);
+
+/** Back, to the Train it was opened from, by where it's headed, in `lang`, or else the language the interface speaks now. */
+export const backToTrain = (headsign: string, lang = language()): string => STRINGS.backToTrain[lang].replace('{headsign}', headsign);
+
 /** How many Stations a followed Train has already left, `n`, atop its strip: while they're folded away, or hiding them once they're `shown`, in `lang`, or else the language the interface speaks now. */
 export const earlierStations = (n: number, shown: boolean, lang = language()): string =>
   shown ? counting(n, 'oneHideEarlierStation', 'hideEarlierStations', lang) : counting(n, 'oneEarlierStation', 'earlierStations', lang);

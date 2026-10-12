@@ -1,6 +1,6 @@
 import { createExpression, latest, type ExpressionSpecification, type Feature, type StylePropertySpecification } from '@maplibre/maplibre-gl-style-spec';
 import { afterEach, expect, test, vi } from 'vitest';
-import { alertCount, alertsChanged, arrivingAt, basemapLabel, betweenStations, busesReplace, earlierStations, LANGUAGES, leavingStation, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, notRunning, passingStation, pickLanguage, t, toGo, trainCounts, trainsRunHere, unlocated } from './i18n.ts';
+import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, earlierStations, followDeparture, LANGUAGES, leavesAt, leavingStation, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, notRunning, passingStation, pickLanguage, t, toGo, trainCounts, trainsRunHere, unlocated } from './i18n.ts';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -415,4 +415,27 @@ test("labels a followed Train's next Station by whether it's arriving there or s
   expect([t('nextStation', 'es'), t('nextStationArriving', 'es'), t('nextStationStanding', 'es'), t('leaves', 'es')]).toEqual(['Próxima estación', 'Llegando a', 'En la estación', 'sale']);
   expect([t('nextStation', 'eu'), t('nextStationArriving', 'eu'), t('nextStationStanding', 'eu'), t('leaves', 'eu')]).toEqual(['Hurrengo geltokia', 'Iristen', 'Geltokian', 'irteera']);
   expect([t('nextStation', 'gl'), t('nextStationArriving', 'gl'), t('nextStationStanding', 'gl'), t('leaves', 'gl')]).toEqual(['Próxima estación', 'Chegando a', 'Na estación', 'sae']);
+});
+
+test("says what a departure's button follows, where a Trip still to come leaves, and where Back goes, in each language (#322)", () => {
+  expect(followDeparture('R4', 'Manresa', '9:33', 'en')).toBe('Follow the R4 train to Manresa, 9:33');
+  expect(followDeparture('R4', 'Manresa', '9:33', 'ca')).toBe('Segueix el tren R4 cap a Manresa, 9:33');
+  expect(followDeparture('R4', 'Manresa', '9:33', 'es')).toBe('Seguir el tren R4 hacia Manresa, 9:33');
+  expect(followDeparture('R4', 'Manresa', '09:33', 'eu')).toBe('Jarraitu R4 trena, Manresa aldera, 09:33');
+  expect(followDeparture('R4', 'Manresa', '09:33', 'gl')).toBe('Seguir o tren R4 cara a Manresa, 09:33');
+  expect(leavesAt('Sants', '9:33', 'en')).toBe('Leaves Sants at 9:33');
+  expect(leavesAt('Sants', '9:33', 'ca')).toBe('Surt de Sants a les 9:33');
+  expect(leavesAt('Sants', '9:33', 'es')).toBe('Sale de Sants a las 9:33');
+  expect(leavesAt('Sants', '09:33', 'eu')).toBe('Sants geltokitik irtengo da, 09:33');
+  expect(leavesAt('Sants', '09:33', 'gl')).toBe('Sae de Sants ás 09:33');
+  expect(backTo('Sants', 'en')).toBe('Back to Sants');
+  expect(backTo('Sants', 'ca')).toBe('Torna a Sants');
+  expect(backTo('Sants', 'es')).toBe('Volver a Sants');
+  expect(backTo('Sants', 'eu')).toBe('Itzuli: Sants');
+  expect(backTo('Sants', 'gl')).toBe('Volver a Sants');
+  expect(backToTrain('Manresa', 'en')).toBe('Back to the train to Manresa');
+  expect(backToTrain('Manresa', 'ca')).toBe('Torna al tren cap a Manresa');
+  expect(backToTrain('Manresa', 'es')).toBe('Volver al tren hacia Manresa');
+  expect(backToTrain('Manresa', 'eu')).toBe('Itzuli Manresa aldeko trenera');
+  expect(backToTrain('Manresa', 'gl')).toBe('Volver ao tren cara a Manresa');
 });
