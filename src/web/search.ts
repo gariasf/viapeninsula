@@ -1,6 +1,6 @@
 // Search (#471): the places it finds Stations in, from the file below zoom 7, which every view loads, and
-// the Trips it finds by Train number, of the regions the map has loaded; and in which order it lists them.
-// Pure, with nothing from the page, so that Node tests it.
+// the Trips it finds by Train number, of the regions the map has loaded; in which order it lists them; and where its
+// sheet goes over the on-screen keyboard. Pure, with nothing from the page, so that Node tests it.
 
 import { places, type Place, type Station, type Trip, type ZoomedOut } from '../bundle.ts';
 import type { TripNow } from '../engine.ts';

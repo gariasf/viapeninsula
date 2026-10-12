@@ -603,7 +603,7 @@ let emptyBoard: string | undefined;
 let nearMe: Point | Unlocated | undefined;
 /** Whether the panel shows Search, its tab's sheet (#470). */
 let searching = false;
-/** What's typed in Search's field (#471): kept only while its sheet is open, which starts afresh, and never put in the link (ADR-0011). */
+/** What's typed in Search's field (#471), which starts afresh each time Search opens: never stored, nor put in the link (ADR-0011). */
 let query = '';
 /** How many times Nearby has asked the browser where the viewer is, so that only the last ask's answer shows (locate()). */
 let asks = 0;
@@ -1856,7 +1856,7 @@ function here(): NonNullable<typeof back> | undefined {
   return nearMe && typeof nearMe !== 'string' ? { to: 'nearby', near: nearMe, up, scroll } : undefined;
 }
 
-/** Opens another panel from this one, by a departure or a Station, which has a Back to this one (#322). */
+/** Opens another panel from this one, by a departure, a Station or a Search row, which has a Back to this one, but to Search, which here() doesn't name (#322, #471). */
 function openFrom(open: () => void, at?: Point) {
   const [was, keyboard] = [here(), panel.contains(document.activeElement)];
   open();
@@ -2019,7 +2019,7 @@ function openLink(ring = true) {
   else if (place) {
     const keyboard = panel.contains(document.activeElement);
     showBoard(place.id);
-    // The keyboard's focus, where it was on the Search row that opened the board (#471), to its title, as the row has gone.
+    // The keyboard's focus, where it was in the panel, as on the Search row that opened the board (#471), to its title, as what it was on has gone.
     if (keyboard) focusTitle();
     // ponytail: eased before the board's departures come on a page just opened, so on a phone the
     // Station then sits just above the board, not mid-way above it; ease again as they come if that
@@ -3375,7 +3375,9 @@ function showDays(days: Bundle, regions: string[]) {
 
 /**
  * The regions the map needs now (regionsNeeded(), #266): those in view, those every view loads, the
- * page's link's, as it was opened or pasted, and those round the viewer, where Nearby has found them.
+ * page's link's, as it was opened or pasted, or as the last Search row that opened a Station's board made it (#471),
+ * and those round the viewer, where Nearby has found them. A link's region stays needed till the link changes,
+ * after its board has closed too.
  */
 function neededRegions({ regions = [] }: Manifest): string[] {
   const link = new URLSearchParams(openedLink.slice(1));
@@ -3398,7 +3400,7 @@ function come(needs: { station?: string | null; train?: string | null; nearby?: 
   return regionsNeeded(manifest?.regions ?? [], undefined, { ...needs, stations: zoomedOut?.stations }).every((id) => shownRegions.has(id));
 }
 
-/** Opens the page's link where it waited for its regions (openLink()), as the viewer hasn't opened another Train, board or Nearby meanwhile (openPanel()). */
+/** Opens the page's link where it waited for its regions (openLink()), or a Search row's Station (openStation()), as the viewer hasn't opened another panel meanwhile (openPanel()), nor closed it (closePanel()). */
 function openWaitingLink() {
   if (linkWaits) openLink(false);
 }
