@@ -642,8 +642,9 @@ let lookAgain = false;
  */
 let tripsFailed = false;
 /**
- * Whether a board with none left, whose own regions' Trips failed, has had the map look again at once for
- * them, for the look that had a file fail (boardPanel(), #597): the next look is the minute's.
+ * Whether the map has looked again at once, for what failed, for the run of looks that have had a file
+ * fail (boardPanel(), #597): a board with none left, whose own regions' Trips failed, has it do so once,
+ * and the looks after it are the minute's, until one has no file fail.
  */
 let failedRetried = false;
 /** The Stations of the track on the map, which come with its Lines. */
@@ -2558,8 +2559,9 @@ function boardPanel(id: string, up: boolean): Panel | undefined {
   const trips = tripsState(loaded, shownRegions, tripsFailed);
   // With none left today, the next day's first are to come; refreshDays() runs again within a minute if it's busy now.
   // Only once the Trips of its own regions have come (#597): before that it has none because they haven't. Where
-  // they failed, the next day's would be fetched with their retry, whose look waits for every file, so the map looks
-  // again for the failed ones alone, at once, and once for each look that had a file fail: the next is the minute's.
+  // they failed, the map looks again for the failed files alone, at once, as the ask for the next day did without
+  // meaning to, whose look waits for every file of the next day's too: once for a run of looks that have had a file
+  // fail (failedRetried), and then by the minute's.
   const date = madridDate(new Date(mapNow));
   if (bundle && !departures.length) {
     const own = place.stations.every((station) => come({ station }));
