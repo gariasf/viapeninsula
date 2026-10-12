@@ -50,6 +50,15 @@ export interface NetworkConfig extends Omit<Network, 'credit'> {
    */
   stations?: Record<string, { lon: number; lat: number; source: string }>;
   /**
+   * The Stations whose names its timetables shorten, by ID, as TRAM's write Ciutadella | Vila Olímpica as
+   * "Ciutadella|V.O." (#571), with the name as its operator's own site spells them, and the page that
+   * does. The daily build lists those it applies. It's the Station's name wherever the build gives one,
+   * a Trip's headsign too, where its timetable has none and it's headed for its last Station. A
+   * Station two Networks list is one Station, as the first of them has it (stationsOf()), so it goes
+   * in each Network that lists it.
+   */
+  stationNames?: Record<string, { name: string; source: string }>;
+  /**
    * Stations beyond it, by ID, where its operator files under one of its Lines a train that runs on
    * into another Network, as Renfe files FEVE's Bilbao–León train under Cercanías Bilbao's C4 (#368). A
    * Trip that calls at one of them isn't the Network's: it's left out, with the Stations and track only
@@ -228,6 +237,9 @@ export const FGC: NetworkConfig = {
   },
 };
 
+/** TRAM's lines page, whose diagrams of each Line's Stations spell them as TRAM does. */
+const TRAM_LINES = 'https://www.tram.cat/ca/linies-i-horaris';
+
 export const TRAM: NetworkConfig = {
   id: 'tram',
   region: 'catalonia',
@@ -258,6 +270,24 @@ export const TRAM: NetworkConfig = {
   // way (#42).
   live: { delay: 'operator', near: 'pinned' },
   lines: { kind: 'tram' },
+  // TRAM's timetables shorten eight Stations' names (seen 12 October 2026): its own site writes them out,
+  // in its lines page's diagrams of each Line's Stations and, for some, the words under them, as the
+  // Metro's names for the same places are, Ciutadella | Vila Olímpica and Zona Universitària (#571).
+  // T2's end it writes four ways: Llevant - Les Planes in its diagram and the Line's name, Llevant | Les
+  // Planes in its description, Llevant-Les Planes in its note of the works of 10 October and Llevant –
+  // Les Planes in its Alert sc-287 of 9 October. The bar's is the one the five others that have a bar
+  // have, and the Alerts' reader finds it whole as either end of a stretch in the description's and the
+  // note's, and as its second end in the diagram's and the Alert's (stretchesIn()).
+  stationNames: {
+    'tram:ST-178': { name: 'Zona Universitària', source: TRAM_LINES },
+    'tram:ST-193': { name: 'Fontsanta | Fatjó', source: TRAM_LINES },
+    'tram:ST-197': { name: 'Hospital Sant Joan Despí | TV3', source: TRAM_LINES },
+    'tram:ST-201': { name: 'Sant Feliu | Consell Comarcal', source: TRAM_LINES },
+    'tram:ST-202': { name: 'Ciutadella | Vila Olímpica', source: TRAM_LINES },
+    'tram:ST-203': { name: 'Wellington | UPF', source: TRAM_LINES },
+    'tram:ST-229': { name: 'Estació de Sant Adrià', source: TRAM_LINES },
+    'tram:ST-230': { name: 'Llevant | Les Planes', source: TRAM_LINES },
+  },
 };
 
 export const METRO: NetworkConfig = {

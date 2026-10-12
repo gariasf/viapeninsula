@@ -1,0 +1,5 @@
+route_id,service_id,trip_id,block_id,shape_id
+5,1987,1987_0295,LTGV1,5
+5,1987,1987_0296,LTGV1,6
+6,1987,1987_0407,LTGV2,9
+6,1987,1987_0408,LTGV2,10

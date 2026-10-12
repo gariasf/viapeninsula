@@ -285,9 +285,9 @@ const AND = ['y', 'e', 'i', 'and'];
 /**
  * A text's words, as they're matched: in lower case, without accents or punctuation, but for a dash between
  * spaces, a word of its own, and "St" as "Sant".
- * ponytail: only "St", the one abbreviation a Station's name has in the bundle (TRAM's "Estació St.Adrià", FGC's
- * "St. Llorenç de Montgai"); "Sta." or another goes in with the name that has it. A full stop ends a sentence before
- * its words are made, so a name's "St." is read as "Sant" and an Alert's own isn't.
+ * ponytail: only "St", the one abbreviation a Station's name has in the bundle (FGC's "St. Llorenç de Montgai", and
+ * TRAM's "Estació St.Adrià" till its config spelt it out, #571); "Sta." or another goes in with the name that has it.
+ * A full stop ends a sentence before its words are made, so a name's "St." is read as "Sant" and an Alert's own isn't.
  */
 const wordsOf = (text: string): string[] =>
   [...text.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').matchAll(/[\p{L}\p{N}]+|(?<!\S)[-–](?!\S)/gu)].map(([word]) => (word === '–' ? '-' : word === 'st' ? 'sant' : word));
@@ -320,9 +320,9 @@ function aboutSomeTrains(text: string): boolean {
 }
 
 /**
- * The words a Station's name can have in one spelling and not in another: "de", as TRAM's "Estació St.Adrià"
- * is "Estació de Sant Adrià" in its Alerts, and "la", as Adif's "València-La Font de Sant Lluís" is "Valencia
- * Font de Sant Lluis" in Renfe's (#396).
+ * The words a Station's name can have in one spelling and not in another: "de", as TRAM's timetable's "Estació
+ * St.Adrià" was "Estació de Sant Adrià" in its Alerts, which its config now spells (#571), and "la", as Adif's
+ * "València-La Font de Sant Lluís" is "Valencia Font de Sant Lluis" in Renfe's (#396).
  * ponytail: the two that 9 Oct's file needs, as each is one more way for two Stations to read alike: "del",
  * "el", "les", "els", "las" and "los" change no reading in any file we have. Another goes in with the file that has it.
  */

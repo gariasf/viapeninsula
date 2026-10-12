@@ -266,8 +266,8 @@ test("keeps TRAM's T2, which its feed files as rail rather than tram, and heads 
   expect(lines.map(({ id, colour }) => ({ id, colour }))).toEqual([{ id: 'tram:T2', colour: '#80FF80' }]);
   const [trip] = trips;
   expect([trip?.id, trip?.shape]).toEqual(['tram:TBX:2555_0194', 'tram:TBX:1']);
-  // TRAM's feed has no headsigns.
-  expect(trip?.headsign).toBe('Llevant-L.Planes');
+  // TRAM's feed has no headsigns, and the Station's name is as TRAM's site spells it, not as its feed shortens it (#571).
+  expect(trip?.headsign).toBe('Llevant | Les Planes');
   // Each platform is a stop of its own, such as A_FRMC for platform A at Francesc Macià.
   expect(trip?.calls[0]).toEqual({ station: 'tram:ST-172', arrival: 17760, departure: 17760 });
   expect(stations).toHaveLength(24);
@@ -296,6 +296,52 @@ test("reports a TRAM Trip whose stop numbers don't run 1…n, with its Line, and
 test("checks stop numbers only of the timetables whose config says its live data names a stop by one, TRAM's two, as FGC's feed has 632 Trips whose numbers skip one and the Metro's 342 that start after 1 (10 Oct 2026)", async () => {
   expect(NETWORKS.flatMap((n) => n.timetables.filter((t) => t.stopNumbers).map((t) => t.prefix))).toEqual(['tram:TBX', 'tram:TBS']);
   expect((await readFeed(skipping, '2026-10-01', { ...TRAMBAIX_FEED, stopNumbers: undefined })).found).toEqual([]);
+});
+
+// Rows cut verbatim from TRAM's feeds of 12 October 2026 (#571): Trambaix's T3 Trips of 13 October between Francesc
+// Macià and Sant Feliu, and Trambesòs's T5 Trips between Ciutadella and Glòries and T6's between Estació St.Adrià and
+// Can Jaumandreu, which have the other five Stations whose names the feeds shorten.
+// They have no shapes.txt, which the real feeds' do and the Trips here don't need, so they're read as a shapeless timetable.
+const tramT3 = dirSource(fileURLToPath(new URL('fixtures/tram-t3', import.meta.url)));
+const tramBesos = dirSource(fileURLToPath(new URL('fixtures/tram-besos', import.meta.url)));
+const TRAMBESOS_FEED: Feed = { network: TRAM, ...(TRAM.timetables[1] ?? TRAM.timetables[0]) };
+
+test("spells out TRAM's eight short Station names as its own site does, in its Stations and in the headsigns of the Trips that end at them, which the T2 test above has for Llevant (#571)", async () => {
+  const name = (stations: { id: string; name: string }[], id: string) => stations.find((s) => s.id === id)?.name;
+  const t2 = await readFeed(tram, '2026-10-01', TRAMBAIX_FEED);
+  expect(name(t2.stations, 'tram:ST-178')).toBe('Zona Universitària');
+  expect(name(t2.stations, 'tram:ST-193')).toBe('Fontsanta | Fatjó');
+  expect(name(t2.stations, 'tram:ST-230')).toBe('Llevant | Les Planes');
+  const t3 = await readFeed(tramT3, '2026-10-13', { ...TRAMBAIX_FEED, shapeless: true });
+  expect(name(t3.stations, 'tram:ST-197')).toBe('Hospital Sant Joan Despí | TV3');
+  expect(name(t3.stations, 'tram:ST-201')).toBe('Sant Feliu | Consell Comarcal');
+  expect(t3.trips.map((t) => [t.id, t.headsign])).toEqual([
+    ['tram:TBX:2555_0362', 'Sant Feliu | Consell Comarcal'],
+    ['tram:TBX:2555_0363', 'Francesc Macià'],
+  ]);
+  const besos = await readFeed(tramBesos, '2026-10-13', { ...TRAMBESOS_FEED, shapeless: true });
+  expect(name(besos.stations, 'tram:ST-202')).toBe('Ciutadella | Vila Olímpica');
+  expect(name(besos.stations, 'tram:ST-203')).toBe('Wellington | UPF');
+  expect(name(besos.stations, 'tram:ST-229')).toBe('Estació de Sant Adrià');
+  expect(besos.trips.map((t) => [t.id, t.headsign])).toEqual([
+    ['tram:TBS:1987_0295', 'Glòries'],
+    ['tram:TBS:1987_0296', 'Ciutadella | Vila Olímpica'],
+    ['tram:TBS:1987_0407', 'Estació de Sant Adrià'],
+    ['tram:TBS:1987_0408', 'Can Jaumandreu'],
+  ]);
+});
+
+test("leaves the names of TRAM's other Stations as its feeds have them, those its config doesn't spell out, which aren't shortened (#571)", async () => {
+  const { stations } = await readFeed(tramBesos, '2026-10-13', { ...TRAMBESOS_FEED, shapeless: true });
+  const names = stations.map((s) => s.name);
+  expect(names).toEqual(expect.arrayContaining(['Marina', 'Auditori/Teatre Nacional', 'Glòries', 'Can Jaumandreu', 'Parc del Besòs']));
+  // Not the shortened names, which no Station has now.
+  for (const short of ['Ciutadella|V.O.', 'Wellington|UPF', 'Estació St.Adrià']) expect(names).not.toContain(short);
+});
+
+test("has TRAM's lines page as the source of each of the eight names its config spells out (#571)", () => {
+  expect(Object.keys(TRAM.stationNames ?? {})).toHaveLength(8);
+  for (const [id, { source }] of Object.entries(TRAM.stationNames ?? {})) expect(source, id).toBe('https://www.tram.cat/ca/linies-i-horaris');
 });
 
 // Rows cut verbatim from TMB's feed of 2026-09-21: an L11 Trip, the Montjuïc funicular's Trips for

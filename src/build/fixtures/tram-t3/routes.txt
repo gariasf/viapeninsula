@@ -1,0 +1,2 @@
+route_id,route_short_name,route_long_name,route_desc,route_type,route_url,route_color,route_text_color,agency_id
+3,"T3","Sant Feliu|Consell Comarcal-Francesc Macià","Description of Route",0,http://www.tram.cat/linies-i-horaris/linea-t3/,0074E8,FFFFFF,1
