@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { getJson, STALL } from './files.ts';
+import { getJson, lookAgainSoon, STALL } from './files.ts';
 
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => {
@@ -125,9 +125,9 @@ test('a request that is never answered fails as STALL goes by', async () => {
   expect(file.failed).toBe('https://live.test/manifest.json: no bytes for 20 s');
 });
 
-test("a request given no stall waits as long as the browser does, as the page's first manifest, which its top-level await needs, does", async () => {
+test('a request given no stall waits as long as the browser does, or its own signal says', async () => {
   const server = answering();
-  const file = outcome(getJson('https://live.test/manifest.json'));
+  const file = outcome(getJson('https://live.test/alerts.json'));
   await vi.advanceTimersByTimeAsync(10 * STALL);
   server.send('{"days":[]}');
   server.end();
@@ -176,4 +176,24 @@ test('no timer is left running once a file has come, or its body has failed, or 
   await vi.advanceTimersByTimeAsync(STALL);
   expect(third.failed).toBe('https://live.test/trips.json: no bytes for 20 s');
   expect(vi.getTimerCount()).toBe(0);
+});
+
+test("a look that had a file fail is followed by one look 5 to 10 s later, and then by the minute's only, for as long as the file keeps failing (#657)", () => {
+  // Each look's end: whether it had a file fail, and in how many ms the map looks again, where it does before the minute's.
+  let retried = false;
+  const end = (failed: boolean, random = 0.5) => {
+    const next = lookAgainSoon(failed, retried, () => random);
+    retried = next.retried;
+    return next.in;
+  };
+  expect(end(false)).toBeUndefined();
+  expect(end(true, 0)).toBe(5000);
+  // The look 5 to 10 s on fails too, and the minute's after it: no more till a look has none fail.
+  expect(end(true)).toBeUndefined();
+  expect(end(true)).toBeUndefined();
+  expect(end(false)).toBeUndefined();
+  // A failure after a look with none is a new run, with its look again, spread over the 5 s so that the pages open in an outage don't all ask at once.
+  expect(end(true, 0.999)).toBeCloseTo(9995);
+  expect(end(false)).toBeUndefined();
+  expect(end(true, 0.5)).toBe(7500);
 });

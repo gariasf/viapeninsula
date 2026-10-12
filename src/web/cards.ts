@@ -108,11 +108,11 @@ export function tripsState(loaded: Iterable<string>, needed: Iterable<string>, c
 /**
  * What a board's list of next departures is, where it has `departures` of them: their rows; or where it
  * has none, that none can be had, once the day's Trips have come, or have failed to, as the map tries
- * them again each minute; or, while they're on their way, nothing under its label, as under Nearby's
- * heading (#324): that none are to come is what it would say of Trips it hasn't got, and then fill in (#379).
- * The same while the next day's, which a board with none left today asks for, are on their way (`next`,
- * #596), but not where a file has failed, which the map looks for again each minute: the board says that
- * none can be had meanwhile, and doesn't go back to its label for each try.
+ * them again soon and then each minute (#657); or, while they're on their way, nothing under its label,
+ * as under Nearby's heading (#324): that none are to come is what it would say of Trips it hasn't got, and
+ * then fill in (#379). The same while the next day's, which a board with none left today asks for, are on
+ * their way (`next`, #596), but not where a file has failed, which the map looks for again soon and then
+ * each minute: the board says that none can be had meanwhile, and doesn't go back to its label for each try.
  */
 export function boardList(trips: TripsState, departures: number, next = false): 'rows' | 'none' | 'label' {
   if (departures) return 'rows';
@@ -120,15 +120,12 @@ export function boardList(trips: TripsState, departures: number, next = false): 
 }
 
 /**
- * What a board with none left today asks the map for (#597): the next day's Trips, once the Trips of its
- * own regions have come (`own`) and it hasn't asked today (`asked`); or, where they haven't and the last
- * look had a file fail, a look again at once for the files that failed (`again`), as that look would wait
- * for every file of the next day's, once for a run of looks that have had a file fail (`retried`) and then
- * by the minute's. Nothing while its own regions' Trips are on their way: it has none because they haven't come.
+ * Whether a board with none left today asks the map for the next day's Trips (#597): once the Trips of its
+ * own regions have come (`own`), and once a day (`asked`). Not while they're on their way, as it has none
+ * because they haven't come, nor where they failed, which the map looks for again soon (#657).
  */
-export function boardAsks(own: boolean, trips: TripsState, asked: boolean, retried: boolean): 'next' | 'again' | undefined {
-  if (own) return asked ? undefined : 'next';
-  return trips === 'failed' && !retried ? 'again' : undefined;
+export function boardAsks(own: boolean, asked: boolean): boolean {
+  return own && !asked;
 }
 
 /**
