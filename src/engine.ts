@@ -104,8 +104,9 @@ export interface Followed extends Train {
   delay?: number;
   /**
    * The Stations it has still to leave as it's drawn, the one it stands at first, and when it's
-   * expected to arrive at and leave each, in ms since 1970, running its Delay late, or held or waiting
-   * for its Block at its first Station after that has it leave, as late as it's held.
+   * expected to arrive at and leave each, in ms since 1970, running the Delay it's drawn at late: the
+   * one live data gave, which it eases to as the Train does, so that no snapshot steps them (#610), or
+   * while it's held or waiting for its Block at its first Station after that has it leave, as late as it's held.
    */
   upcoming: Upcoming[];
   /** How long ago live data last placed it, in ms, as of when its operator reported it there: none where the snapshots kept don't. */
@@ -121,9 +122,9 @@ export function trainAt(bundle: Bundle, at: number, received: Received[], id: st
   const trip = bundle.trips.find((t) => t.id === id);
   const on = trip && onMap(bundle, at, received, closures).of(trip);
   if (!on?.train) return undefined;
-  const { train, now, time, timeAt, calls, profile, said, network, delay } = on;
-  // When it's expected at a moment of its timetable, running its Delay late.
-  const expected = (seconds: number) => bundle.noonMinus12h + (seconds + delay) * 1000;
+  const { train, now, time, timeAt, calls, profile, said, network, delay, drawnDelay } = on;
+  // When it's expected at a moment of its timetable, running the Delay it's drawn at late, which eases to live data's as the Train does (#610).
+  const expected = (seconds: number) => bundle.noonMinus12h + (seconds + drawnDelay) * 1000;
   // How far along its shape it's drawn at a moment, in seconds into the service day.
   const drawn = (moment: number) => place(calls, profile, timeAt(moment)) ?? train.dist;
   // Which of its Stations lie within a closed Closure that hides Trains, which it doesn't stop at (#420).
@@ -325,6 +326,13 @@ interface OnMap {
    * data hasn't shifted runs as late as it's drawn, waiting for its Block or catching up after (#125).
    */
   delay: number;
+  /**
+   * How late it's drawn, in seconds: `now - time`, which eases to `delay` over EASE where live data has a new one, as the Train
+   * does, and is as late as it's held where it's held at its first Station past when live data has it leave. A followed Train's
+   * times run it, so that its countdown eases with the Train and doesn't step as a snapshot arrives (#610); boards and Nearby run
+   * `delay`, as live data gave it.
+   */
+  drawnDelay: number;
   calls: Call[];
   network: Network;
   profile: SpeedProfile;
@@ -424,7 +432,7 @@ function onMap(bundle: Bundle, at: number, received: Received[], closures: reado
     const waits = !nested && block && first && time < (dwelt[0]?.arrival ?? -Infinity) && !ranBy(block).some((t) => t !== trip && t.calls.at(-1)?.station === first.station && of(t, true)?.train);
     const calls = waits ? dwelt.map((c, i) => (i ? c : { ...c, arrival: time })) : dwelt;
     const cancelled = cancels || (!!cut && !cut.trip);
-    const off = { trip: asRun, cancelled, skips: cut?.skips ?? [], closed: closedOn.get(trip.line), now, time, timeAt, delay, calls, network, profile, ease, said, live };
+    const off = { trip: asRun, cancelled, skips: cut?.skips ?? [], closed: closedOn.get(trip.line), now, time, timeAt, delay, drawnDelay: now - time, calls, network, profile, ease, said, live };
     if (cancelled) return off;
     // Most Trips aren't on the map at any one moment, whatever their dwell: skip those first.
     if (!first || !last || (!waits && time < first.arrival - profile.dwell) || time > last.departure + profile.dwell) return off;

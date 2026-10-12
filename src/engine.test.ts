@@ -839,13 +839,46 @@ test("a followed Train standing at its Trip's last Station is expected there whe
   expect(card(at('09:08:10'), R11)).toMatchObject({ standsAt: 'Portbou', upcoming: [{ arrival: at('09:08:00'), departure: at('09:08:30') }], due: { at: at('09:08:00'), countdown: false } });
 });
 
-test("a followed Train easing towards where live data has it runs as late as live data says, and is expected at its Stations that late", () => {
-  // The R2S runs on time until a snapshot at 22:00:00 has it 10 s late, and slows down until it is.
+test("a followed Train easing towards where live data has it is expected at its Stations as late as it's drawn, which eases to live data's Delay as the Train does and is that late once it has, where it's drawn to be (#610)", () => {
+  // The R2S runs on time until a snapshot at 22:00:00 has it 10 s late, and slows down to half its speed until it is, 20 s on.
   const received = [late(R2S, 0, at('21:59:40')), late(R2S, 10, at('22:00:00'))];
-  const easing = followed(R2S, at('22:00:05'), received);
-  expect(easing?.delay).toBe(10);
-  expect(easing?.upcoming[0]).toMatchObject({ station: 'Castelldefels', arrival: at('22:12:10') });
+  const next = (s: number) => followed(R2S, at('22:00:00', s), received)?.upcoming[0];
+  // Still on time as the snapshot arrives, and a second later each two seconds, to 10 s late 20 s on and after.
+  for (const s of [0, 1, 2, 5, 10, 15, 20]) {
+    expect(next(s)).toMatchObject({ station: 'Castelldefels' });
+    expect(next(s)?.arrival).toBeCloseTo(at('22:12:00', s / 2), 0);
+  }
+  expect(next(30)).toMatchObject({ station: 'Castelldefels', arrival: at('22:12:10') });
+  // The Delay it has, which its chip shows, is live data's, from the snapshot on.
+  expect(followed(R2S, at('22:00:05'), received)?.delay).toBe(10);
   expect(where(R2S, at('22:12:10'), received)).toBe(150987);
+});
+
+test("a followed Train's times never step as a snapshot arrives: the Delay it's drawn at, so the time it's expected at, eases by up to 1.5 s a second, whether live data has it later or earlier (#610)", () => {
+  // Half a minute late until a snapshot at 22:00:00 has it on time, when it runs on at 2.5 times its cruising speed until it is, 20 s on; or on time, and then half a minute late,
+  // when it holds where it is, for the half minute. A Train drawn more than a minute or a kilometre from where a snapshot has it jumps there instead, and its times with it.
+  const [earlier, later] = [[late(R2S, 30, at('21:59:40')), late(R2S, 0, at('22:00:00'))], [late(R2S, 0, at('21:59:40')), late(R2S, 30, at('22:00:00'))]];
+  // From the second before the snapshot, to the end of its easing and a few seconds on.
+  const arrivals = (received: Received[]) => Array.from({ length: 62 }, (_, s) => followed(R2S, at('21:59:59', s), received)?.upcoming[0]?.arrival ?? NaN);
+  const steps = (received: Received[]) => arrivals(received).slice(1).map((a, i) => a - (arrivals(received)[i] ?? NaN));
+  // It catches up at 1.5 s a second, and it waits at a second a second: no second is a step.
+  expect(Math.min(...steps(earlier))).toBeCloseTo(-1_500, 0);
+  expect(Math.max(...steps(earlier))).toBeLessThanOrEqual(1e-6);
+  expect(Math.max(...steps(later))).toBeCloseTo(1_000, 0);
+  expect(Math.min(...steps(later))).toBeGreaterThanOrEqual(0);
+  // From the second before the snapshot to the end of its easing it has gone the whole half minute, either way, and it's there at the end.
+  expect(arrivals(earlier)[0]).toBeCloseTo(at('22:12:30'), 0);
+  expect(arrivals(earlier)[61]).toBeCloseTo(at('22:12:00'), 0);
+  expect(arrivals(later)[0]).toBeCloseTo(at('22:12:00'), 0);
+  expect(arrivals(later)[61]).toBeCloseTo(at('22:12:30'), 0);
+});
+
+test("a board's row and Nearby's keep the Delay live data gave, as it arrives, while the followed Train's times ease to it (#610)", () => {
+  const received = [late(R2S, 0, at('21:59:40')), late(R2S, 10, at('22:00:00'))];
+  // 5 s after the snapshot the Train is drawn 2.5 s late, and its Delay is 10 s: Castelldefels' board has it leave at 22:13:00 and 10 s.
+  expect(followed(R2S, at('22:00:05'), received)?.upcoming[0]?.departure).toBeCloseTo(at('22:13:02.5'), 0);
+  expect(board(['Castelldefels'], at('22:00:05'), received)).toMatchObject([{ trip: { id: R2S }, departure: at('22:13:10'), delay: 10 }]);
+  expect(board(['Castelldefels'], at('22:00:00'), received)).toMatchObject([{ departure: at('22:13:10') }]);
 });
 
 test('a followed Train that live data shows stopped between Stations, held there, runs at no speed', () => {
