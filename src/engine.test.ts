@@ -3168,7 +3168,7 @@ const RAINS: { bundle: Bundle; received: Received[] } = JSON.parse(gunzipSync(re
 function drawnWhereNotRun(received: Received[]) {
   const { bundle } = RAINS;
   const said = new Map<string, { stations: Set<string>; since: number }>();
-  for (const { trip, stations, since } of RAINS.received.flatMap((r) => r.snapshot.skipped ?? [])) {
+  for (const { trip = '', stations, since } of RAINS.received.flatMap((r) => r.snapshot.skipped ?? [])) {
     const before = said.get(trip);
     said.set(trip, { stations: new Set([...(before?.stations ?? []), ...stations]), since: Math.min(before?.since ?? Infinity, since) });
   }

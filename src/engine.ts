@@ -521,17 +521,22 @@ const cutsOf = new WeakMap<Snapshot, { bundle: Bundle; cuts: Map<string, Cut> }>
 /**
  * Where a snapshot says Trains won't stop at some Stations, each Trip as its Train runs it, by the
  * Trip's ID: the Trip of the ID the snapshot names on the days joined whose timetable runs nearest
- * when its operator first said so.
+ * when its operator first said so, or for Stations it names by a Train number, the Trip of that
+ * number, in any Network, that runs nearest then (#426). A Trip its own Network's feed has said so of
+ * goes by that, first, as a report does (#261).
  */
 function cutsIn(bundle: Bundle, snapshot: Snapshot | undefined): Map<string, Cut> {
   if (!snapshot?.skipped?.length) return NO_CUTS;
   const known = cutsOf.get(snapshot);
   if (known?.bundle === bundle) return known.cuts;
-  const [names, named, cuts] = [new Map(bundle.stations.map((s) => [s.id, s.name])), namedIn(bundle), new Map<string, Cut>()];
-  for (const skipped of snapshot.skipped) {
-    const trip = closest(named.get(skipped.trip) ?? [], (skipped.since - bundle.noonMinus12h) / 1000);
-    const cut = trip && cutTrip(trip, skipped, bundle.noonMinus12h, names);
-    if (trip && cut) cuts.set(trip.id, cut);
+  const [names, named, numbered, cuts, own] = [new Map(bundle.stations.map((s) => [s.id, s.name])), namedIn(bundle), numberedIn(bundle), new Map<string, Cut>(), new Set<string>()];
+  // Those by Trip first.
+  for (const skipped of snapshot.skipped.toSorted((a, b) => Number(a.trip === undefined) - Number(b.trip === undefined))) {
+    const trip = closest((skipped.trip !== undefined ? named.get(skipped.trip) : numbered.get(skipped.number ?? '')) ?? [], (skipped.since - bundle.noonMinus12h) / 1000);
+    if (!trip || (skipped.trip === undefined && own.has(trip.id))) continue;
+    if (skipped.trip !== undefined) own.add(trip.id);
+    const cut = cutTrip(trip, skipped, bundle.noonMinus12h, names);
+    if (cut) cuts.set(trip.id, cut);
   }
   cutsOf.set(snapshot, { bundle, cuts });
   return cuts;

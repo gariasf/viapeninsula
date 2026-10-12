@@ -46,7 +46,7 @@ interface LiveAdapter<Source extends LiveSource, Answers, Own = undefined> {
   /** Whether the adapter holds the source back from the run at a moment, though its `every` makes it due, given its freshness after this run. */
   held?(given: Given<Source, Own> & { last: Freshness | undefined; at: number }): boolean;
   /** The Stations its Trips won't stop at, as the snapshot carries them, from what it keeps: Renfe's (#346). */
-  skipped?(own: Own | undefined): Skipped[];
+  skipped?(own: Own | undefined, source: Source): Skipped[];
 }
 
 /** A source of one format. */
@@ -186,7 +186,7 @@ export function step(state: State, responses: Responses, now: number, sources = 
     // Due once the runs since it was last fetched add up to how often it's fetched, unless its adapter holds it back.
     if (onTime(waited, freshness?.every ?? source.every) && !adapter.held?.({ source, own, last: freshness, at: now + EVERY })) due.push(id);
   }
-  const skipped = sources.flatMap((s) => adapterOf(s).skipped?.(next.own[s.id]) ?? []);
+  const skipped = sources.flatMap((s) => adapterOf(s).skipped?.(next.own[s.id], s) ?? []);
   return { snapshot: { generated: now, feeds, reports: sources.flatMap((s) => next.reports[s.id] ?? []), ...(skipped.length ? { skipped } : {}) }, state: next, due, missed };
 }
 
@@ -267,9 +267,10 @@ export interface RenfeResponses {
 
 /**
  * What Renfe's adapter keeps from one run to the next: each Trip's skipped Stations, by the Trip as
- * the bundle names it, when Renfe first said so of any, and when it last listed the Trip, in ms since 1970 (#346).
+ * the bundle names it, or for a source whose files name Train numbers, by the number (#426), when
+ * Renfe first said so of any, and when it last listed the Trip, in ms since 1970 (#346).
  */
-type RenfeOwn = Record<string, Omit<Skipped, 'trip'> & { listed: number }>;
+type RenfeOwn = Record<string, Omit<Skipped, 'trip' | 'number'> & { listed: number }>;
 
 /**
  * How long Renfe's adapter keeps a Trip's skipped Stations after Renfe last listed the Trip, in ms.
@@ -301,7 +302,7 @@ const renfe: LiveAdapter<SourceOf<'renfe'>, RenfeResponses, RenfeOwn> = {
       },
     };
   },
-  skipped: (own) => Object.entries(own ?? {}).map(([trip, { stations, since }]) => ({ trip, stations, since })),
+  skipped: (own, source) => Object.entries(own ?? {}).map(([key, { stations, since }]) => ({ ...(source.numbers ? { number: key } : { trip: key }), stations, since })),
 };
 
 /** GTFS-RT as Renfe's JSON has it, with times in seconds since 1970: the parts the step reads. */
@@ -383,7 +384,7 @@ function renfeTrip(source: LiveSource, tripId: string | undefined): string | und
  * (skippedIn()); or why they can't be read, as where Renfe answers with JSON that isn't its feed,
  * such as `{}`. The step tries them in reports(), so that their failing fails Renfe's try alone.
  */
-function renfeTripUpdates(source: LiveSource, updates: Fetched, kept: RenfeOwn | undefined, now: number): { trips: GtfsRt; skipped: RenfeOwn } | { error: unknown } {
+function renfeTripUpdates(source: SourceOf<'renfe'>, updates: Fetched, kept: RenfeOwn | undefined, now: number): { trips: GtfsRt; skipped: RenfeOwn } | { error: unknown } {
   try {
     const trips = json<GtfsRt>('trip_updates', updates);
     return { trips, skipped: skippedIn(source, trips, kept, now) };
@@ -398,22 +399,32 @@ function renfeTripUpdates(source: LiveSource, updates: Fetched, kept: RenfeOwn |
  * timetable hasn't left yet, so one it no longer lists stays skipped, and it lists a Trip only until
  * its Train has ended its run, so a Trip it no longer lists keeps them for KEEP_SKIPPED. A Station it
  * lists again, not SKIPPED, is no longer skipped, as C4b's from Las Margaritas to Parla were on 7
- * October 2026, each as its Train ran on to it after all.
+ * October 2026, each as its Train ran on to it after all. A source whose files name Train numbers
+ * lists a Train once for each part of its run, each listing the Stations its timetable hasn't left
+ * yet, so its are kept by the number: the union over its parts (#426).
  */
-function skippedIn(source: LiveSource, updates: GtfsRt, kept: RenfeOwn = {}, now: number): RenfeOwn {
+function skippedIn(source: SourceOf<'renfe'>, updates: GtfsRt, kept: RenfeOwn = {}, now: number): RenfeOwn {
   const skipped = Object.fromEntries(Object.entries(kept).filter(([, { listed }]) => now - listed < KEEP_SKIPPED));
   const at = ms(updates.header.timestamp);
+  // What each Trip, or Train number, lists now, SKIPPED and at all.
+  const lists = new Map<string, { skips: Set<string>; listed: Set<string> }>();
   for (const { tripUpdate: update } of updates.entity ?? []) {
-    const trip = renfeTrip(source, update?.trip?.tripId);
-    if (!trip) continue;
-    const stops = update?.stopTimeUpdate ?? [];
-    const station = (stop: (typeof stops)[number]) => `adif:${stop.stopId?.trim()}`;
-    // Renfe lists the Station a Train is due at next once more, not SKIPPED, though it skips it.
-    const [skips, listed] = [new Set(stops.filter((s) => s.scheduleRelationship === 'SKIPPED').map(station)), new Set(stops.map(station))];
-    const before = skipped[trip];
-    const stations = [...(before?.stations.filter((s) => !listed.has(s)) ?? []), ...skips];
-    if (stations.length) skipped[trip] = { stations, since: before?.since ?? at, listed: at };
-    else delete skipped[trip];
+    const key = source.numbers ? update?.trip?.tripId?.trim().slice(0, 5) : renfeTrip(source, update?.trip?.tripId);
+    if (!key) continue;
+    const list = lists.get(key) ?? { skips: new Set<string>(), listed: new Set<string>() };
+    lists.set(key, list);
+    for (const stop of update?.stopTimeUpdate ?? []) {
+      const station = `adif:${stop.stopId?.trim()}`;
+      // Renfe lists the Station a Train is due at next once more, not SKIPPED, though it skips it.
+      if (stop.scheduleRelationship === 'SKIPPED') list.skips.add(station);
+      list.listed.add(station);
+    }
+  }
+  for (const [key, { skips, listed }] of lists) {
+    const before = skipped[key];
+    const stations = [...new Set([...(before?.stations.filter((s) => !listed.has(s)) ?? []), ...skips])];
+    if (stations.length) skipped[key] = { stations, since: before?.since ?? at, listed: at };
+    else delete skipped[key];
   }
   return skipped;
 }

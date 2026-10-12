@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { expect, test } from 'vitest';
 import { DEGREE, type Bundle, type LineProfile, type LiveTraits, type Network, type Report, type SpeedProfile } from './bundle.ts';
-import { trainsAt, unavailable, type Received } from './engine.ts';
+import { trainAt, trainsAt, unavailable, type Received } from './engine.ts';
 import { jumps } from './jumps.ts';
 import { AVE_LARGA_DISTANCIA, MEDIA_DISTANCIA_AVANT, type NetworkConfig } from './networks.ts';
 
@@ -463,3 +463,40 @@ test("Renfe's long-distance live data, which names each Train by its number, is 
   const quiet = REPLAY.received.map((r, i) => (i < 16 ? r : { ...r, snapshot: { ...r.snapshot, reports: r.snapshot.reports.filter((x) => !ave.has(x.number)) } }));
   expect(changes(replayed(), quiet)).toEqual([['13:54:31', ['ave-larga-distancia']]]);
 }, 60_000);
+
+// Renfe's Cercanías and long-distance files as #261 recorded them from 13:47:33 to 13:59:43 on 10 October
+// 2026, stepped through the fetcher, cut to Intercity 01460's and R17 15062's reports and skipped
+// Stations (#426). Each of 01460's three parts lists Alicante/Alacant-Terminal to València-Estació del
+// Nord SKIPPED, and 15062's Barcelona-Sants to Estació de França; Renfe's Cercanías files list only
+// 15062's next Station, Vilanova i la Geltrú, none SKIPPED, and drop it from 13:58:19. The bundle has
+// 15062's R17 Trip of that day, and 01460's whole run, Cartagena to València, as Renfe's long-distance
+// timetable of 12 October has it, along a track straight from Station to Station: the build leaves it
+// out, finding no path along the rails from Elche/Elx-Parc to Alicante.
+const SKIPPED: { bundle: Bundle; received: Received[] } = JSON.parse(gunzipSync(readFileSync(new URL('fixtures/replay-2026-10-10-skipped-by-number.json.gz', import.meta.url))).toString());
+const [IC_01460, R17_15062] = ['ave-larga-distancia:0146012026-10-10', 'rodalies:5181S15062R17'];
+/** A Trip's Train as the follow panel has it at a moment, given the snapshots received by then. */
+const panel = (trip: string, moment: number, received = SKIPPED.received) => trainAt(SKIPPED.bundle, moment, received.filter((r) => r.at <= moment), trip);
+/** The snapshots received, without the skipped Stations they carry, as before #426. */
+const unskipped = SKIPPED.received.map((r) => ({ ...r, snapshot: { ...r.snapshot, skipped: undefined } }));
+
+test("a Train whose Trip Renfe's long-distance feed says, by its Train number, won't stop at its last Stations is cut short there, as Intercity 01460 at Elche/Elx-Parc (#426)", () => {
+  // Headed for Elche/Elx-Parc, where its Trip now ends, Live, 11 minutes late.
+  const coming = panel(IC_01460, at('13:59:43'));
+  expect(coming).toMatchObject({ live: true, trip: { headsign: 'Elche/Elx-Parc' } });
+  expect(coming?.trip.calls.at(-1)?.station).toBe('adif:62103');
+  // Off the map once it has come in there, where before it ran on, Scheduled, to Alicante and València.
+  expect(panel(IC_01460, at('14:04:00'))).toBeUndefined();
+  expect(panel(IC_01460, at('14:04:00'), unskipped)?.trip.headsign).toBe('València-Estació del Nord');
+  expect(panel(IC_01460, at('14:30:00'), unskipped)).toBeDefined();
+});
+
+test("a Train whose own Cercanías feed says it won't stop at some Stations goes by that first, and otherwise by what Renfe's long-distance feed says of its Train number, as R17 15062 (#426, #261)", () => {
+  // Renfe's Cercanías files say 15062 skips none: by the long-distance feed, it's cut short at Vilanova i la Geltrú.
+  expect(panel(R17_15062, at('13:59:43'))?.trip.headsign).toBe('Vilanova i la Geltrú');
+  expect(panel(R17_15062, at('13:59:43'), unskipped)?.trip.headsign).toBe('Barcelona Estació de França');
+  // Made up: where its Cercanías files say it skips only Estació de França, it runs to Passeig de Gràcia.
+  const own = SKIPPED.received.map((r) => ({ ...r, snapshot: { ...r.snapshot, skipped: [{ trip: R17_15062, stations: ['adif:79400'], since: r.snapshot.skipped?.[0]?.since ?? r.at }, ...(r.snapshot.skipped ?? [])] } }));
+  expect(panel(R17_15062, at('13:59:43'), own)?.trip.headsign).toBe('Barcelona-Passeig de Gràcia');
+  // And Intercity 01460, which no Cercanías file names, is cut short as before.
+  expect(panel(IC_01460, at('13:59:43'), own)?.trip.headsign).toBe('Elche/Elx-Parc');
+});

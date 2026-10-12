@@ -479,6 +479,29 @@ test("fetches Renfe's long-distance feeds every other run, whose headers advance
   expect(ldRun().snapshot.feeds).toEqual({ 'ave-larga-distancia': fine, 'media-distancia-avant': fine });
 });
 
+/** Intercity 01460's Stations from Alicante/Alacant-Terminal to València-Estació del Nord, which each of its three parts lists SKIPPED, cut short at Elche/Elx-Parc. */
+const IC_01460_SKIPS = ['60911', '60905', '60902', '64100', '65000'].map((code) => `adif:${code}`);
+
+test("carries Renfe's long-distance skipped Stations by Train number, the union over the number's parts, kept as a Trip's are (#426)", () => {
+  const { snapshot, state } = ldRun();
+  expect(snapshot.skipped?.toSorted((a, b) => (a.number ?? '').localeCompare(b.number ?? ''))).toEqual([
+    { number: '01460', stations: IC_01460_SKIPS, since: LD_WRITTEN },
+    // R17 15062, cut short at Vilanova i la Geltrú: Barcelona-Sants, Passeig de Gràcia and Estació de França.
+    { number: '15062', stations: ['adif:71801', 'adif:71802', 'adif:79400'], since: LD_WRITTEN },
+  ]);
+  // Made up: each part lists only some, as where its timetable has left the rest. The number has them all.
+  const feed = JSON.parse(LONG_DISTANCE.updates.body);
+  const parts = feed.entity.filter((e: { tripUpdate: { trip: { tripId: string }; stopTimeUpdate?: unknown[] } }) => e.tripUpdate.trip.tripId.startsWith('01460') && e.tripUpdate.stopTimeUpdate);
+  expect(parts).toHaveLength(3);
+  for (const [i, { tripUpdate }] of parts.entries()) tripUpdate.stopTimeUpdate = tripUpdate.stopTimeUpdate.filter((_: unknown, j: number) => j === 0 || j % 3 === i);
+  const parted = ldRun({ ...LONG_DISTANCE, updates: { status: 200, body: JSON.stringify(feed) } });
+  expect(new Set(parted.snapshot.skipped?.find((s) => s.number === '01460')?.stations)).toEqual(new Set(IC_01460_SKIPS));
+  // As a Trip's: kept once Renfe no longer lists the number, until 3 hours after it last did.
+  const gone = (after: number) => step(state, { 'renfe-long-distance': renfeAt(LD_WRITTEN + after, { ...LONG_DISTANCE, updates: { status: 200, body: JSON.stringify({ ...feed, entity: [] }, null, 2) } }) }, SATURDAY + after);
+  expect(gone(3 * 3_600_000 - 20_000).snapshot.skipped?.map((s) => s.number).sort()).toEqual(['01460', '15062']);
+  expect(gone(3 * 3_600_000).snapshot.skipped).toBeUndefined();
+});
+
 // FGC's live data as recorded at 10:31 on Friday 25 September 2026: Geotren's positions, which FGC
 // last updated at 10:30:11, the trip-updates file FGC wrote at 10:30:03, and where that file is.
 const fgcRecorded = (file: string) => readFileSync(new URL(`fixtures/fgc/${file}`, import.meta.url));
