@@ -7,7 +7,7 @@ import type { OsmWay } from './osm.ts';
 import { collect, type Found } from './report.ts';
 import type { Snippet } from './snippet.ts';
 import { eachWay, fine, metres as between, nearest, onOwnTrack, railGraphs, railsBeside, stationsOf, traceOwn, traceRuns, traceShapes, withLines } from './track.ts';
-import { placeDays, placeTrips, type FeedTrip } from './trips.ts';
+import { placeDays, placeTrips, unserved, type FeedTrip } from './trips.ts';
 
 // A small railway, drawn in metres east (x) and north (y) of a point near Manresa.
 const M = (6_371_008.8 * Math.PI) / 180; // metres in a degree of latitude
@@ -1028,14 +1028,15 @@ function placedFrom(file: string, network: NetworkConfig, trips: FeedTrip[]) {
   const [log, found]: [string[], Found[]] = [[], []];
   const owned = ownRails(rails, network);
   const graphs = railGraphs(shapes, stations, owned, network.runningSide);
-  const traced = traceShapes(shapes, stations, owned, network.runningSide, () => {}, () => {}, graphs);
+  const [branches, tracing]: [Found[], string[]] = [[], []];
+  const traced = traceShapes(shapes, stations, owned, network.runningSide, (line) => tracing.push(line), (f) => f.kind === 'branch' && branches.push(f), graphs);
   const topSpeed = () => network.profile.topSpeed;
   const alone: string[] = [];
   placeTrips(trips, traced, stations, topSpeed, (line) => alone.push(line));
   const placed = placeDays([trips], traced, stations, topSpeed, (unfit) => traceOwn(unfit, shapes, stations, graphs, (line) => log.push(line), (f) => found.push(f)), (line) => log.push(line), (f) => found.push(f));
   const [trip] = placed.days[0] ?? [];
   const speeds = (trip?.calls ?? []).slice(1).map((c, i) => Math.round(((c.dist - (trip?.calls[i]?.dist ?? 0)) / (c.arrival - (trip?.calls[i]?.departure ?? 0))) * 3.6));
-  return { alone, log, found, traced, trip, speeds, runs: placed.shapes, stations };
+  return { alone, log, found, traced, trip, speeds, runs: placed.shapes, stations, branches, tracing, days: placed.days };
 }
 
 /** A Trip's calls as Renfe's timetable of 10 October 2026 gives them, "station arrival departure" in seconds into the day. */
@@ -1076,20 +1077,23 @@ test("runs C2's CIVIS Trips from Chamartín by Fuente de la Mora to San Fernando
   expect(Math.max(...apart(before))).toBeGreaterThan(1000);
 });
 
+/** Train 71851 of Tuesday 13 October 2026 from Heras to Hoz de Anero, on its way to Gibaja, which calls at three Stations Renfe's shape of C3 lacks. */
+const c3ToHoz = renfe(
+  'cercanias-santander:6284M71851C3',
+  'cercanias-santander:C3',
+  'Gibaja',
+  'cercanias-santander:62_C3:back',
+  ['adif:05661', 30420, 30420],
+  ['adif:05663', 30780, 30780],
+  ['adif:05672', 30900, 30900],
+  ['adif:05673', 31020, 31020],
+  ['adif:05675', 31380, 31440],
+);
+
 test("runs a C3 Trip through Puente Agüero, Villaverde de Pontones and Hoz de Anero, which Renfe's shape, Santander–Liérganes, lacks, on a trace of its own through its Stations, on FEVE's metre gauge", () => {
   // Train 71851 of Tuesday 13 October 2026 from Heras to Hoz de Anero, on its way to Gibaja: `npm run snippet --
   // "trip cercanias-santander:C3 off adif:05672" santander-c3 4.5`, from the rails downloaded on 9 October.
-  const trip = renfe(
-    'cercanias-santander:6284M71851C3',
-    'cercanias-santander:C3',
-    'Gibaja',
-    'cercanias-santander:62_C3:back',
-    ['adif:05661', 30420, 30420],
-    ['adif:05663', 30780, 30780],
-    ['adif:05672', 30900, 30900],
-    ['adif:05673', 31020, 31020],
-    ['adif:05675', 31380, 31440],
-  );
+  const trip = c3ToHoz;
   const { alone, trip: placed, runs, speeds, log, found } = placedFrom('santander-c3', CERCANIAS_SANTANDER, [trip]);
   expect(alone).toEqual(['cercanias-santander:6284M71851C3 is left out: Puente Agüero is 1.6 km off its track']);
   expect(runs.map((s) => [s.id, Math.round((s.dist.at(-1) ?? 0) / 100)])).toEqual([['cercanias-santander:C3:1', 91]]);
@@ -1110,6 +1114,46 @@ test("runs a C1 Trip to Platja i Grau de Gandia on a trace through its Stations,
   expect(placed?.calls.map((c) => Math.round(c.dist / 100))).toEqual([0, 84]);
   expect(speeds).toEqual([36]);
   expect(log).toEqual(["cercanias-valencia:C1:1: Xeraco → Platja i Grau de Gandia, 8.4 km long, 1.39× the straight line through its 2 Stations"]);
+});
+
+test("reports no branch whose Stations a Trip's trace of its own serves, as Santander C3's Puente Agüero and Villaverde de Pontones and Hoz de Anero are by the Trip from Heras, though the trace logs it leaves them out (#601)", () => {
+  const { branches, days, runs, tracing } = placedFrom('santander-c3', CERCANIAS_SANTANDER, [c3ToHoz]);
+  // The trace of the feed's shape leaves out two runs of Stations, each on both its shapes, and the Trip's trace calls at all three Stations.
+  const names = (found: Found[]) => found.map((b) => (b.stations ?? []).map((s) => s.name).sort().join(' + ')).sort();
+  expect(names(branches)).toEqual(['Hoz de Anero', 'Hoz de Anero', 'Puente Agüero + Villaverde de Pontones', 'Puente Agüero + Villaverde de Pontones']);
+  expect(unserved(branches, days, runs)).toEqual([]);
+  // Which the shape's trace logs all the same.
+  expect(tracing).toContain("cercanias-santander:62_C3:back leaves out Puente Agüero: it lies off the feed's shape, on a branch");
+  expect(tracing.filter((line) => line.endsWith('on a branch'))).toHaveLength(6);
+});
+
+test("reports a branch where no Trip runs a trace through its Stations on the days placed, as Santander C3's with no Trip at all, and where a trace serves only some of a run's, as the Trip to Puente Agüero's doesn't Villaverde de Pontones (#601)", () => {
+  expect(placedFrom('santander-c3', CERCANIAS_SANTANDER, []).branches).toHaveLength(4);
+  const none = placedFrom('santander-c3', CERCANIAS_SANTANDER, []);
+  expect(unserved(none.branches, none.days, none.runs)).toEqual(none.branches);
+  // As far as Puente Agüero, one Station of the run of two, and not Hoz de Anero.
+  const short = { ...c3ToHoz, id: 'cercanias-santander:6284M71851C3short', calls: c3ToHoz.calls.slice(0, 3) };
+  const some = placedFrom('santander-c3', CERCANIAS_SANTANDER, [short]);
+  expect(some.runs.map((s) => s.id)).toEqual(['cercanias-santander:C3:1']);
+  // Both of its shapes' spots of the two runs, a run's Stations in the order its shape has them.
+  const names = (found: Found[]) => found.map((b) => (b.stations ?? []).map((s) => s.name).sort().join(' + ')).sort();
+  expect(names(unserved(some.branches, some.days, some.runs))).toEqual(['Hoz de Anero', 'Hoz de Anero', 'Puente Agüero + Villaverde de Pontones', 'Puente Agüero + Villaverde de Pontones']);
+});
+
+test("reports no branch of another Line though a trace serves the same Stations: Santander's C3 trace doesn't serve a branch of C1's (#601)", () => {
+  const { branches, days, runs } = placedFrom('santander-c3', CERCANIAS_SANTANDER, [c3ToHoz]);
+  const other = branches.map((b) => ({ ...b, line: 'cercanias-santander:C2' }));
+  expect(unserved(other, days, runs)).toEqual(other);
+});
+
+test("reports no branch the Trip to Platja i Grau de Gandia's trace serves, where C1's shape ends at Gandia and the Station is 1.7 km off it (#601)", () => {
+  const trip = renfe('cercanias-valencia:4084M24291C1', 'cercanias-valencia:C1', 'Platja i Grau de Gandia', 'cercanias-valencia:40_C1:back', ['adif:69107', 28080, 28080], ['adif:69111', 28920, 28920]);
+  const { branches, days, runs } = placedFrom('valencia-c1', CERCANIAS_VALENCIA, [trip]);
+  expect(branches.map((b) => b.stations?.map((s) => s.name))).toEqual([['Platja i Grau de Gandia'], ['Platja i Grau de Gandia']]);
+  expect(unserved(branches, days, runs)).toEqual([]);
+  // With no Trip to it, both are reported.
+  const alone = placedFrom('valencia-c1', CERCANIAS_VALENCIA, []);
+  expect(unserved(alone.branches, alone.days, alone.runs)).toHaveLength(2);
 });
 
 /**

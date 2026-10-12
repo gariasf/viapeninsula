@@ -145,6 +145,27 @@ export function placeRuns(
 }
 
 /**
+ * The branches of `branches` that no Trip's trace serves. A branch is a run of Stations that a shape's
+ * trace left out because they lie off the feed's shape (traceShapes()'s spots of kind `branch`), and a Trip
+ * that calls at one is traced through its own Stations (placeDays()), so the Station is on a trace its Line
+ * has. A branch is served where every Station of it is called at by a Trip of its Line placed on such a
+ * trace (`traces`, the shapes placeDays() gives) on the days placed (#601): nothing on the map is missing
+ * there any more, though the feed's shape still lacks it, which is Renfe's to fix. The others are still to
+ * do, and a Line's Trips may call there on another day.
+ */
+export function unserved(branches: Found[], days: Trip[][], traces: Shape[]): Found[] {
+  const own = new Set(traces.map((s) => s.id));
+  const calledAt = new Map<string, Set<string>>(); // the Stations each Line's Trips on a trace of their own call at
+  for (const trip of days.flat()) {
+    if (!own.has(trip.shape)) continue;
+    const stations = calledAt.get(trip.line) ?? new Set<string>();
+    for (const call of trip.calls) stations.add(call.station);
+    calledAt.set(trip.line, stations);
+  }
+  return branches.filter((b) => !b.stations?.length || !b.stations.every((s) => calledAt.get(b.line ?? '')?.has(s.id)));
+}
+
+/**
  * Each Trip placed on its shape's track, or why it can't be, in the order they came. `onward` is for a
  * trace made through the Trips' own Stations (placeDays()), which they run from its start to its end.
  */

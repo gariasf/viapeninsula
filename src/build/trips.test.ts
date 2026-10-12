@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
-import type { Shape, Station } from '../bundle.ts';
+import type { Shape, Station, Trip } from '../bundle.ts';
 import { collect, type Found } from './report.ts';
-import { placeDays, placeRuns, placeTrips, type FeedTrip } from './trips.ts';
+import { placeDays, placeRuns, placeTrips, unserved, type FeedTrip } from './trips.ts';
 
 // Track drawn in metres east (x) and north (y) of a point near L'Aldea.
 const M = (6_371_008.8 * Math.PI) / 180; // metres in a degree of latitude
@@ -316,4 +316,28 @@ test("leaves out and reports on its day a Trip of a timetable with no shapes tha
   expect(shapes.map((s) => s.id)).toEqual(['AVE:1']);
   expect(log).toEqual(['quick is left out: it would run Sants → Gràcia at 180 km/h along its track']);
   expect(found).toMatchObject([{ kind: 'trip', why: 'fast', trip: 'quick', line: 'AVE', stations: [{ id: 'Sants' }, { id: 'Gràcia' }], text: log, day: 1 }]);
+});
+
+// The branches the trace of a shape leaves out, which a Trip's trace of its own through its Stations serves (#601).
+
+test("keeps a branch reported unless every Station of it is called at by a Trip of its Line placed on a trace of its own, on any of the days, and none that's on the feed's shape or of another Line", () => {
+  const spot = (line: string, ...ids: string[]): Found => ({ kind: 'branch', line, shape: `${line}:shape`, stations: ids.map((id) => station(id, 0, 0)), text: [''] });
+  const placedOn = (id: string, line: string, shape: string, stations: string): Trip => ({
+    id,
+    line,
+    shape,
+    headsign: '',
+    calls: stations.split(' ').map((s, i) => ({ station: s, arrival: i * 600, departure: i * 600 + 60, dist: i * 1000 })),
+  });
+  const traces = [shape('C3:1', [0, 0], [10000, 0]), shape('C1:1', [0, 0], [10000, 0])];
+  const days = [
+    // On a trace of its own, calling at A and B, on the first day, and at C and D on the second.
+    [placedOn('one', 'C3', 'C3:1', 'A B')],
+    [placedOn('two', 'C3', 'C3:1', 'C D')],
+    // On the feed's shape, whose Stations a trace of a Trip's own doesn't make served, and on another Line's trace.
+    [placedOn('feed', 'C3', 'C3', 'E F'), placedOn('other', 'C1', 'C1:1', 'G H')],
+  ];
+  const [served, apart, some, feed, other, none] = [spot('C3', 'A', 'B'), spot('C3', 'A', 'B', 'X'), spot('C3', 'C'), spot('C3', 'E', 'F'), spot('C3', 'G'), { ...spot('C3'), stations: [] }];
+  // A and B by the first Trip, C by the second's, on another day; X by none; E and F only by a Trip on the feed's shape; G only by another Line's; and a branch with no Station is none's.
+  expect(unserved([served, apart, some, feed, other, none], days, traces)).toEqual([apart, feed, other, none]);
 });
