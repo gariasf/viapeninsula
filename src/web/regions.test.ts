@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import type { DayFiles, DayTrips, ManifestRegion, Point, Shape, Track, Trip } from '../bundle.ts';
 import { metres } from '../build/track.ts';
 import { encodeTrack } from '../pieces.ts';
-import { forgetJoined, regionLoader, regionsNeeded } from './regions.ts';
+import { firstLook, forgetJoined, regionLoader, regionsNeeded } from './regions.ts';
 
 /** A region's track of one Line and one Station, named for it. */
 const track = (id: string): Track => ({
@@ -142,7 +142,7 @@ test('loads a region within half a view of the view, so that a pan comes onto it
   expect(regionsNeeded(REGIONS, { bounds: phone([-4.35, 40.41]), zoom: 12 })).toEqual([]);
 });
 
-test("below zoom 7 loads no region for the view, as the file below zoom 7 draws every region's track there, but one with no extent at every view, as long distance's will be, and every region of a manifest from before #266", () => {
+test("below zoom 7 loads no region for the view, as the file below zoom 7 draws every region's track there, but one with no extent at every view, as long distance's is, and every region of a manifest from before #266", () => {
   // Spain at zoom 6.
   const spain: [Point, Point] = [[-9.5, 35.5], [4.5, 44]];
   expect(regionsNeeded(REGIONS, { bounds: spain, zoom: 6.9 })).toEqual([]);
@@ -170,4 +170,13 @@ test('loads the region of the Train a link names, by the Network its Trip leads 
   // Zoomed out, or with no view, those alone.
   expect(regionsNeeded(REGIONS, { bounds: phone(BARCELONA), zoom: 6 }, { train: 'cercanias-madrid:4021C' })).toEqual(['cercanias-madrid']);
   expect(regionsNeeded(REGIONS, undefined, { train: 'cercanias-madrid:4021C' })).toEqual(['cercanias-madrid']);
+});
+
+test("loads a region with no extent, as long distance's, which every view needs and whose track file is larger than any view's own, only at the map's second look, so that it holds back neither the first Lines in view nor, zoomed out, the Network tracks (#262)", () => {
+  const everywhere = [...REGIONS, { id: 'long-distance', networks: ['ave-larga-distancia'] }];
+  expect(firstLook(everywhere, ['catalonia', 'long-distance'])).toEqual(['catalonia']);
+  // Zoomed out, where no region is in view, none.
+  expect(firstLook(everywhere, ['long-distance'])).toEqual([]);
+  // Nor any of a manifest that names no extents, as one before #266, whose regions all come at the second.
+  expect(firstLook(REGIONS.map(({ id }) => ({ id })), ['catalonia', 'cercanias-madrid'])).toEqual([]);
 });

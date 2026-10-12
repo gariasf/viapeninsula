@@ -6,12 +6,12 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import nunitoSans from '@fontsource/nunito-sans/files/nunito-sans-latin-400-normal.woff2?url';
 import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-normal.woff2?url';
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
-import { along, APART, atZoom, BANDS, bandZooms, coveredIn, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, zones, type Zone, daysNeeded, daysOf, DEGREE, EARTH, joinTracks, LIVE_URL, madridDate, networkTracks, places, type Alerts, type Bundle, type Credit, type Call, type DayFiles, type Place, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH, type ZoomedOut } from '../bundle.ts';
+import { along, APART, atZoom, BANDS, bandZooms, coveredIn, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, profiled, zones, type Zone, daysNeeded, daysOf, DEGREE, EARTH, joinTracks, LIVE_URL, madridDate, networkTracks, places, type Alerts, type Bundle, type Credit, type Call, type DayFiles, type Place, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH, type ZoomedOut } from '../bundle.ts';
 import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, unavailable, type Coming, type Departure, type Followed, type Received, type Train } from '../engine.ts';
 import { alertCount, alertsChanged, arrivingAt, basemapLabel, betweenStations, busesReplace, earlierStations, language, LANGUAGES, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, notRunning, passingStation, setLanguage, t, toGo, trainCounts, trainsRunHere, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { getJson, STALL } from './files.ts';
-import { forgetJoined, regionLoader, regionsNeeded } from './regions.ts';
+import { firstLook, forgetJoined, regionLoader, regionsNeeded } from './regions.ts';
 import { linesAt, popupRoom } from './tap.ts';
 import { alongside, callsIn, namedTwice, nameOffset, nameSort, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
 import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
@@ -77,6 +77,8 @@ const OUTLINES: Record<Outline | 'arrow', { w: number; h: number; across?: numbe
   round: { ...OUTLINE_SIZES.round, outside: roundedSquare(7.5, 6.5) },
   // Its ends 5 px long, to a point 2 px across.
   pointed: { ...OUTLINE_SIZES.pointed, outside: (x, y) => Math.max(Math.abs(y) - 7.5, Math.abs(x) - 6, 0.7926 * (Math.abs(x) - 6) + 0.6097 * (Math.abs(y) - 1)) },
+  // Its ends cut slanting the same way, 6 px across its height, leaning forward as italics do.
+  slanted: { ...OUTLINE_SIZES.slanted, outside: (x, y) => Math.max(Math.abs(y) - 7.5, (Math.abs(x + 0.4 * y) - 4.5) / Math.hypot(1, 0.4)) },
   // A square with corners rounded 3 px, which a name of two letters leaves nearly square, like the Metro's and TRAM's Line badges.
   badge: { ...OUTLINE_SIZES.badge, outside: roundedSquare(7.5, 3) },
   // Its tip 4.5 px ahead of its middle, and its base 2.25 px behind and 6 px across.
@@ -116,7 +118,7 @@ const [NEARBY, SOON] = [1500, 60 * 60_000];
 const LATE = 60 * 60_000;
 /**
  * How often Trains move, in ms. As often as the fastest of them moves a quarter of a pixel, which
- * nobody sees in between (quarterPixel()): about 12 times a second at zoom 12, and every frame zoomed
+ * nobody sees in between (quarterPixel()): about 23 times a second at zoom 12, as AVE's 300 km/h asks, and every frame zoomed
  * right in. Every frame while the map zooms or turns, which moves them beside their Lines and turns
  * their arrows, or follows a Train. Once the map has stood for MOVED, while the viewer is likely still
  * looking closely, no more often than every IDLE_EVERY, about 30 times a second, which leaves a phone
@@ -170,7 +172,7 @@ const CLOSURE_COATS: { kind: Shown['kind']; colour: 'line' | 'casing'; width: nu
  */
 const FADE = 0.5;
 // Below the first band's zoom, Lines side by side can't be read: each Network's track is drawn once
-// instead, in its colour, and no Trains (#190).
+// instead, in its colour (#190), and only long distance's Trains, as dots (ADR-0010, #262).
 const linesZoom = BANDS[0] ?? 7;
 /**
  * Zoomed out, where it draws each Network's track once and no Lines, the map is a globe, and it
@@ -321,6 +323,8 @@ const byZoom = (stops: [zoom: number, px: number][], value: (px: number, zoom: n
 
 /** Whether a Train is drawn as a dot, zoomed out from its Line's pill zoom (pillOf()), or as a pill. */
 const [AS_DOT, AS_PILL]: [ExpressionSpecification, ExpressionSpecification] = [['<', ['zoom'], ['get', 'pillZoom']], ['>=', ['zoom'], ['get', 'pillZoom']]];
+/** Whether a Train is drawn at all: from the zoom its Line's Trains are drawn from (pillOf()). */
+const DRAWN: ExpressionSpecification = ['>=', ['zoom'], ['get', 'dotZoom']];
 
 /** An expression that takes one value for a Live Train and another for a Scheduled one. */
 const byLive = (live: string | number | ExpressionSpecification, scheduled: string | number | ExpressionSpecification): ExpressionSpecification => [
@@ -613,6 +617,10 @@ let liftClosures = () => {};
 let lines = new Map<string, Line>();
 /** How each Line's Trains are drawn as pills, by the Line's ID. */
 let pills = new Map<string, Pill>();
+/** The top speed of the fastest Line of the days on the map, AVE's 300 km/h with long distance's, in m/s, which quarterPixel() goes by: worked out as they come, not each frame. */
+let fastest = 0;
+/** The days shown whose places' names are still to be put beside their tracks, a frame after their Lines are drawn (show()). */
+let namesDue: Track | Bundle | undefined;
 /** The cards' colour, style.css's --card, which a Scheduled Train's pill letters its Line's colour against (pill()). */
 const cardColour = hex(getComputedStyle(document.documentElement).getPropertyValue('--card').trim() || '#fff');
 /** The Lines the last place whose board the panel showed names, for the days on the map and the Alerts then (servedBy()). */
@@ -629,6 +637,8 @@ const joinedTracks = new Map<string, Track>();
 let [shown, looking] = ['', false];
 /** Whether the map is to look for the days it needs again once it has, as a look was asked for meanwhile, as when the map comes onto a region. */
 let lookAgain = false;
+/** Whether the map has looked for the days it needs yet: a region with no extent, long distance's, comes at its second look (firstLook()). */
+let lookedOnce = false;
 /**
  * Whether the last look for the days the map needs had a region's file fail to come, which the map looks
  * for again each minute (refreshDays()): a board whose regions' Trips haven't come then says that none can
@@ -773,7 +783,8 @@ map.addSource('station-names', { type: 'geojson', data: { type: 'FeatureCollecti
 // Today's Lines and Stations are drawn as soon as its track comes, before the Trips, which are most of the bundle.
 // Where no region's track comes, as where the one region in view fails to, the map opens without, and the next
 // look fetches it again.
-void Promise.resolve(needed?.days.then(async (days) => showDays(days, await needed.regions), (error: unknown) => console.error(error))).finally(looked);
+// The second, for long distance's region (firstLook()), once what the first brought is on screen.
+void Promise.resolve(needed?.days.then(async (days) => showDays(days, await needed.regions), (error: unknown) => console.error(error))).finally(() => onScreen(looked));
 show((await needed?.track) ?? joinTracks([]));
 // Around midnight the days the map needs change, and each day's build names three more.
 setInterval(refreshDays, 60_000);
@@ -945,13 +956,13 @@ const dotAt = (zoom: number, followed: boolean) => atZoom(TRAIN_DOT.map(([z, px,
 /** A Train's dot's radius, in px, as an expression (TRAIN_DOT). */
 const trainDot: ExpressionSpecification = ['interpolate', ['linear'], ['zoom'], ...TRAIN_DOT.flatMap(([zoom, px, followed]): (number | ExpressionSpecification)[] => [zoom, ['case', ['get', 'followed'], followed, px]])];
 // Zoomed out, Trains are dots over the Stations they stand at, under the Stations' names.
+// Below linesZoom, only long distance's (`dotZoom`, pillOf()).
 map.addSource('trains', { type: 'geojson', data: trains() });
 map.addLayer({
   id: 'trains',
   type: 'circle',
   source: 'trains',
-  minzoom: linesZoom,
-  filter: AS_DOT,
+  filter: ['all', DRAWN, AS_DOT],
   // A Live Train is filled with its Line's colour; a Scheduled one is only ringed with it.
   layout: { 'circle-sort-key': ['case', ['get', 'followed'], 1, 0] },
   // The Train the map follows is drawn larger, over the rest.
@@ -975,8 +986,7 @@ map.addLayer(
     id: 'train-halos',
     type: 'circle',
     source: 'trains',
-    minzoom: linesZoom,
-    filter: ['get', 'live'],
+    filter: ['all', DRAWN, ['get', 'live']],
     paint: { 'circle-radius': ['get', 'haloRadius'], 'circle-color': ['get', 'colour'], 'circle-blur': HALO_BLUR, 'circle-opacity': HALO_OPACITY, 'circle-pitch-scale': 'viewport' },
   },
   'line-names',
@@ -1179,13 +1189,13 @@ requestAnimationFrame(function move(now) {
   // The panel's times and ages change by the second, a followed Train's countdown as each second of it ends.
   if ((following || boardPlace || nearMe) && performance.now() - panelShown > panelDue) showPanel();
   // Which Networks the banner names changes as Trains and the view move, and the banner with it.
-  // Zoomed out, where no Trains are drawn, none of them is in view.
+  // Zoomed out, only those drawn there, long distance's, can be in view (#247).
   // ponytail: in view by the map's bounds, which on a turned or tilted map take in some of the map
   // around the view too, as followRandom()'s do. Test where each Train and stretch of track is on
   // screen, as keepInView() does, if a banner for a Network just out of view ever shows.
   if (now - bannerChecked > 1000) {
     bannerChecked = now;
-    const drawnTrains = map.getZoom() < linesZoom ? [] : drawing.features.map((f) => ({ network: f.properties?.network, at: f.geometry.coordinates as Point }));
+    const drawnTrains = drawing.features.filter((f) => map.getZoom() >= f.properties?.dotZoom).map((f) => ({ network: f.properties?.network, at: f.geometry.coordinates as Point }));
     const followedNetwork = drawing.features.find((f) => f.properties?.followed)?.properties?.network;
     const named = bannerNetworks({ unavailable: unavailable(bundle, Date.now(), received), noTrips: noTripsIds }, { trains: drawnTrains, followedNetwork, tracks: shownTracks }, map.getBounds().toArray());
     if (JSON.stringify(named) !== JSON.stringify(bannerIds)) {
@@ -1219,7 +1229,7 @@ function show(days: Track | Bundle) {
   // A day's Trips come after its track, which is drawn already, unless the days joined bring more than one:
   // the names' ranks by calls come with them.
   if (days.stations === shownStations) {
-    if ('trips' in days) showNames();
+    if ('trips' in days && !namesDue) showNames();
     return drawClosures();
   }
   shownStations = days.stations;
@@ -1237,6 +1247,12 @@ function show(days: Track | Bundle) {
   // A track built before #241 names no kinds of service and no pill zooms: its Trains are round pills from zoom 10.
   const pillZoom = new Map(days.networks.map((n) => [n.id, n.pillZoom]));
   pills = new Map(days.lines.map((l) => [l.id, pillOf(l, pillZoom.get(l.network) ?? 10)]));
+  const networks = new Map(days.networks.map((n) => [n.id, n]));
+  // None where the days have no Lines, as where the map opens zoomed out before long distance's region has come:
+  // then quarterPixel() is endless, and Trains move as seldom as IDLE_MOST lets them.
+  fastest = Math.max(0, ...days.lines.map((l) => profiled(networks.get(l.network), l)?.profile.topSpeed ?? 0));
+  // Lines drawn already, as at the map's second look: the new ones go to MapLibre by URL (handOver()).
+  const again = shownStrokes.length > 0;
   shownStrokes = days.strokes;
   // Zoomed in, on its own rails, a Line's bends are rounded (#203).
   const drawn = (strokes: Stroke[], round = false): GeoJSON.FeatureCollection => ({
@@ -1282,8 +1298,8 @@ function show(days: Track | Bundle) {
       return [{ type: 'Feature', properties, geometry: { type: 'LineString', coordinates: round ? rounded(coordinates) : coordinates } }];
     }),
   });
-  map.getSource<GeoJSONSource>('lines')?.setData(drawn(days.strokes));
-  map.getSource<GeoJSONSource>('rails')?.setData(drawn(days.rails, true));
+  handOver('lines', drawn(days.strokes), again);
+  handOver('rails', drawn(days.rails, true), again);
   showZoomedOut(zoomedOut ?? { networks: days.networks, tracks: networkTracks(days) });
   const tiered = [...shownPlaces.values()].map((p) => {
     const tier = TIERS.find((t) => t.places.includes(p.id));
@@ -1297,16 +1313,44 @@ function show(days: Track | Bundle) {
     type: 'FeatureCollection',
     features: tiered.map(({ id, larger, lon, lat }) => ({ type: 'Feature', properties: { id, larger }, geometry: { type: 'Point', coordinates: [lon, lat] } })),
   });
-  // Names go beside the track, not the stretches' centrelines, clear of the Trains on their Lines' strokes along those.
-  const [track, centrelines] = [days.shapes.filter((s) => !s.id.startsWith(STRETCH)), days.shapes.filter((s) => s.id.startsWith(STRETCH))];
-  const spots = alongside(track, (days.slots ?? []).filter((s) => s.band === undefined), (line) => placing.keep.get(line) ?? 1, days.lines, new Map(centrelines.map((c) => [c.id, c])));
-  // A track built before #243 names no Station's Networks: its names go beside the nearest track of any.
-  names = tiered.map(({ id, name, networks, nameZoom, tier, stations, larger, style, lon, lat }) => {
-    const rows = nameLines(name, style);
-    return { id, dot: [lon, lat], sides: spots([lon, lat], networks), name: rows.join('\n'), size: [Math.max(...rows.map((row) => placeWidth(row, style))), rows.length * LINE_HEIGHT * style.size], nameZoom, tier, stations, larger, style };
-  });
-  showNames();
   drawClosures();
+  // The places' names a frame later, once the Lines are drawn: for a large track, as long distance's joined with the
+  // view's own at the map's second look, putting them beside their tracks takes about as long as making the Lines, and
+  // in one task with those the page drew no frame for 2 s at Barcelona at zoom 12 (#262).
+  namesDue = days;
+  requestAnimationFrame(() =>
+    setTimeout(() => {
+      if (namesDue !== days) return;
+      namesDue = undefined;
+      // Names go beside the track, not the stretches' centrelines, clear of the Trains on their Lines' strokes along those.
+      const [track, centrelines] = [days.shapes.filter((s) => !s.id.startsWith(STRETCH)), days.shapes.filter((s) => s.id.startsWith(STRETCH))];
+      const spots = alongside(track, (days.slots ?? []).filter((s) => s.band === undefined), (line) => placing.keep.get(line) ?? 1, days.lines, new Map(centrelines.map((c) => [c.id, c])));
+      // A track built before #243 names no Station's Networks: its names go beside the nearest track of any.
+      names = tiered.map(({ id, name, networks, nameZoom, tier, stations, larger, style, lon, lat }) => {
+        const rows = nameLines(name, style);
+        return { id, dot: [lon, lat], sides: spots([lon, lat], networks), name: rows.join('\n'), size: [Math.max(...rows.map((row) => placeWidth(row, style))), rows.length * LINE_HEIGHT * style.size], nameZoom, tier, stations, larger, style };
+      });
+      showNames();
+    }),
+  );
+}
+
+/**
+ * Hands GeoJSON to MapLibre: where Lines are drawn already, as the URL of its JSON, which MapLibre's worker fetches and
+ * parses while the page goes on drawing frames with the Lines it has, rather than as the object, which handing over
+ * copies on the page's thread: long distance's Lines joined with the view's own at the map's second look, 45,175
+ * features, took 0.5 s to copy at Barcelona at zoom 12 (#262). With the names a frame later (show()), the page's longest
+ * gap between frames there went from 2.0 s to 0.8 s, 7.9 s to 3.4 s with the CPU slowed 4×, though long distance's
+ * Trains come 1.2 s later (4.5 s), as its worker reads JSON slower than a copy. The first Lines go as the object, which
+ * MapLibre draws sooner.
+ * ponytail: the URL is let go of a minute on, by when the worker has read it. Let go of it on MapLibre's `data` event if a
+ * worker ever takes longer.
+ */
+function handOver(id: string, data: GeoJSON.FeatureCollection, byUrl: boolean) {
+  if (!byUrl) return void map.getSource<GeoJSONSource>(id)?.setData(data);
+  const url = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' }));
+  map.getSource<GeoJSONSource>(id)?.setData(url);
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 /**
@@ -1444,6 +1488,7 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
           outline: pill?.outline,
           dark: pill?.dark,
           pillZoom: pill?.zoom,
+          dotZoom: pill?.dotZoom ?? linesZoom,
           reach: box && reach(box, heading - bearing),
           // Its halo's radius: HALO_DOT times its dot's, or from its Line's pill zoom, out to the corners of its pill's box and HALO_BEYOND beyond.
           haloRadius: pill && box && zoom >= pill.zoom ? Math.hypot(...box) + HALO_BEYOND : HALO_DOT * dotAt(zoom, trip.id === followed),
@@ -1545,9 +1590,8 @@ function nameLines(name: string, style: NameStyle): string[] {
   return lines;
 }
 
-/** How long the fastest Train, at its Network's top speed, takes to move a quarter of a pixel where the map is, in ms. */
+/** How long the fastest Train, at its Line's top speed, takes to move a quarter of a pixel where the map is, in ms. */
 function quarterPixel(): number {
-  const fastest = Math.max(...credited.map((n) => n.profile.topSpeed));
   const pixel = pixelMetres(map.getZoom()) * Math.cos((map.getCenter().lat * Math.PI) / 180);
   return (1000 * pixel) / 4 / fastest;
 }
@@ -1564,6 +1608,8 @@ interface Pill {
   /** What its Line's colour letters its name in, rings its Scheduled Trains and colours its Trains' arrows in: on the dark basemap, lettering(). */
   lettering: string;
   zoom: number;
+  /** The zoom its Trains are drawn from, as dots: a long-distance Line's at every zoom, as ADR-0010 has AVE y Larga Distancia's (#262), and every other's from linesZoom, where the Lines are. */
+  dotZoom: number;
   box: [number, number];
   followedBox: [number, number];
 }
@@ -1572,7 +1618,7 @@ interface Pill {
 function pillOf({ name, colour, kind }: Line, zoom: number): Pill {
   const outline = outlineOf(kind);
   const width = textWidth(name, `bold ${PILL_TEXT}px ${TYPEFACE}`);
-  return { name, outline, dark: darkInk(colour), lettering: darkBasemap ? lettering(colour, paper) : colour, zoom, box: boxOf(outline, width, PILL_TEXT), followedBox: boxOf(outline, width, FOLLOWED_TEXT) };
+  return { name, outline, dark: darkInk(colour), lettering: darkBasemap ? lettering(colour, paper) : colour, zoom, dotZoom: kind === 'long-distance' ? 0 : linesZoom, box: boxOf(outline, width, PILL_TEXT), followedBox: boxOf(outline, width, FOLLOWED_TEXT) };
 }
 
 /** How wide a place's name, or a line of it, is, in px, in its style. */
@@ -2852,13 +2898,14 @@ function showBanner() {
 
 /**
  * Fills the About dialog, in the viewer's language, as it opens: in a machine-translated language, that
- * it is (#327); what the map shows and that its positions are estimates; Reading the map, with the pills
+ * it is (#327); what the map shows and that its positions are estimates, and that Iryo's Trains aren't
+ * on it, as Iryo publishes nothing (ADR-0010); Reading the map, with the pills
  * a Train is drawn as, Live and Scheduled, and its outlines, drawn with the first of the map's Lines of
  * each kind of outline; the credits showCredits() lists there; the code and its licence; and privacy.
  */
 function showAbout() {
   const machineTranslated = MACHINE_TRANSLATED[language()];
-  const [round, pointed, badge] = (['round', 'pointed', 'badge'] as const).map((outline) => [...pills].find(([, p]) => p.outline === outline)?.[0]);
+  const [round, pointed, slanted, badge] = (['round', 'pointed', 'slanted', 'badge'] as const).map((outline) => [...pills].find(([, p]) => p.outline === outline)?.[0]);
   // On a phone, About's handle closes it, as dragging it down does: a pointer's, as its close button is the keyboard's.
   const aboutHandle = el('button', { type: 'button', className: 'handle', tabIndex: -1, onclick: () => about.close() }, el('span'));
   aboutHandle.setAttribute('aria-hidden', 'true');
@@ -2874,6 +2921,7 @@ function showAbout() {
       { className: 'sheet-body' },
       ...(machineTranslated ? [el('p', { className: 'subtitle' }, ...linked(machineTranslated, 'GitHub', 'https://github.com/gariasf/viapeninsula/issues'))] : []),
       el('p', { textContent: t('estimates') }),
+      el('p', { textContent: t('noIryo') }),
       el('h3', { className: 'label', textContent: t('readingTheMap') }),
       el(
         'ul',
@@ -2881,7 +2929,7 @@ function showAbout() {
         el('li', {}, round ? pill(round) : '', el('span', {}, el('b', { textContent: t('live') }), `: ${t('liveMeans')}`)),
         el('li', {}, round ? pill(round, { live: false }) : '', el('span', {}, el('b', { textContent: t('scheduled') }), `: ${t('scheduledMeans')}`)),
       ),
-      el('p', { className: 'shapes' }, ...[round, pointed, badge].flatMap((line) => (line ? [pill(line)] : []))),
+      el('p', { className: 'shapes' }, ...[round, pointed, slanted, badge].flatMap((line) => (line ? [pill(line)] : []))),
       el('p', { textContent: t('outlines') }),
       el('h3', { className: 'label', textContent: t('credits') }),
       aboutCredits,
@@ -2959,7 +3007,10 @@ async function neededDays(): Promise<{ track: Promise<Track | undefined>; days: 
     console.warn(error);
   }
   getZoomedOut(manifest);
-  for (const id of neededRegions(manifest)) loaded.add(id);
+  const wanted = neededRegions(manifest);
+  for (const id of lookedOnce ? wanted : firstLook(manifest.regions ?? [], wanted)) loaded.add(id);
+  if (!lookedOnce && wanted.some((id) => !loaded.has(id))) lookAgain = true;
+  lookedOnce = true;
   // The next day's first Trains come SOON before they're on the map, so they're among the nearby Trains.
   const needed = daysNeeded(daysOf(manifest), mapTime(Date.now(), received), { early: SOON, late: LATE, emptyBoard });
   if (!needed) throw new Error('The manifest names no service day');
@@ -3027,6 +3078,27 @@ function looked() {
   if (!lookAgain) return;
   lookAgain = false;
   refreshDays();
+}
+
+/**
+ * Calls `then` once what the map has is on screen: the file below zoom 7, where the manifest names one, the tiles of the
+ * Lines and the Network tracks, and any of the days' Trains in view, by what MapLibre renders; or after 5 s at most, as
+ * where none is in view. The map's second look brings long distance's region (firstLook()), whose 1.5 MB track is read
+ * and drawn on the page's one thread, which would hold back drawing the first's for seconds: its file came before
+ * MapLibre had drawn them (#262).
+ */
+function onScreen(then: () => void) {
+  const done = () => {
+    map.off('render', check);
+    clearTimeout(cap);
+    then();
+  };
+  const check = () => {
+    const trains = !bundle || map.queryRenderedFeatures({ layers: ['trains', 'train-pills'] }).length > 0;
+    if ((zoomedOut || !manifest?.zoomedOut) && trains && ['lines', 'tracks'].every((id) => map.isSourceLoaded(id))) done();
+  };
+  const cap = setTimeout(done, 5000);
+  map.on('render', check);
 }
 
 /** Shows days that have come, with the regions whose files have (neededDays()), and opens a link that waited for them. */

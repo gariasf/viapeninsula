@@ -375,6 +375,12 @@ export interface LiveTraits {
    * (JUMP_TIME), so 60 or more is that time rule alone.
    */
   snap?: number;
+  /**
+   * It names each Train by its Train number alone, as Renfe's long-distance live data does (#261): a
+   * report by number is its feed's for this Network's Trips, which keeps its live data available
+   * (#124), where of another Network's Trip, as of an R15 of Rodalies', it says nothing of that one's feed.
+   */
+  numbers?: true;
 }
 
 /** How a Network's Trains run between Stations, in metres and seconds. */
@@ -396,8 +402,7 @@ export interface Line {
   kind: Kind;
   /**
    * How its Trains run where that isn't as its Network's do, as AVE's are quicker than Alvia's: only what differs (#260), profiled().
-   * ponytail: the engine and jumps() go by it. placeTrips()'s speed check (#259) and quarterPixel() (#262) still go by the
-   * Network's top speed, as no Line on the map has a profile of its own; go by the Line's when long distance reaches them.
+   * The engine, jumps(), placeTrips()'s speed check and the page's quarterPixel() go by it (#262).
    */
   profile?: LineProfile;
 }

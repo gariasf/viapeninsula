@@ -792,7 +792,7 @@ async function c2Trip(network: NetworkConfig) {
   const { stations, shapes, trips } = await readFeed(asturias, '2026-10-10', { network, ...network.timetables[0] });
   const left: string[] = [];
   const traced = traceShapes(shapes, stations, ownRails(langreo, network), network.runningSide, () => {});
-  const placed = placeTrips(trips, traced, stations, network.profile.topSpeed, (l) => left.push(l));
+  const placed = placeTrips(trips, traced, stations, () => network.profile.topSpeed, (l) => left.push(l));
   return { stations, placed, left };
 }
 
@@ -821,7 +821,7 @@ async function c1Trip(network: NetworkConfig) {
   const { stations, shapes, trips } = await readFeed(santander, '2026-10-10', { network, ...network.timetables[0] });
   const left: string[] = [];
   const traced = traceShapes(shapes, stations, ownRails(maliano, network), network.runningSide, () => {});
-  const placed = placeTrips(trips, traced, stations, network.profile.topSpeed, (l) => left.push(l));
+  const placed = placeTrips(trips, traced, stations, () => network.profile.topSpeed, (l) => left.push(l));
   const maliaño = stations.find((s) => s.id === 'adif:14220');
   const trace = traced.find((s) => s.id === placed[0]?.shape);
   const off = maliaño && trace ? nearest(trace.coords, [maliaño.lon, maliaño.lat]).metres : NaN;

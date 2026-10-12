@@ -17,11 +17,13 @@ export interface OsmWay {
 }
 
 /**
- * Geofabrik's extracts that hold the rails the Lines run on: Spain's, and those of the French
- * regions along Catalonia's border, as Spain's reaches only a little way into France.
- * ponytail: the regions today's Lines reach; Portugal and Aquitaine come with the Lines that cross there (ADR-0009).
+ * Geofabrik's extracts that hold the rails the Lines run on: Spain's, those of the French regions
+ * along Catalonia's border, as Spain's reaches only a little way into France, and Portugal's, which
+ * Trencelta's Trains are traced into as far as Valença do Minho, 1.2 km beyond the bridge Spain's
+ * reaches (#262), before they're cut at the border.
+ * ponytail: the regions today's Lines reach; Aquitaine comes with the Lines that cross there (ADR-0009).
  */
-const EXTRACTS = ['europe/spain', 'europe/france/languedoc-roussillon', 'europe/france/midi-pyrenees'];
+const EXTRACTS = ['europe/spain', 'europe/france/languedoc-roussillon', 'europe/france/midi-pyrenees', 'europe/portugal'];
 
 /** How long all of EXTRACTS may take to download: Spain's 1.5 GB took 4 min on a home line, and the daily job has an hour. */
 const DOWNLOAD = 20 * 60_000;

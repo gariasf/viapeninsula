@@ -10,7 +10,7 @@ LOOM, which ADR-0006 follows, builds its line graph once and draws it at each zo
 - **One order for every band from zoom 10 up.** The Stretches' order (#162) stays the same at each zoom, so Lines don't swap as the map zooms; crossings that were on an absorbed Stretch happen inside its node.
 - **A band for each whole zoom, from zoom 7 to 14.** A band's curves, smoothed centrelines and absorbed nodes are written only where they differ from the next band's.
 - **Below zoom 10, Stretches are built for each band.** Tracks within about one line width of each other at the band's zoom, running alongside, take one Stretch, so that they aren't drawn over each other; each such graph has its order of its own. From zoom 10 up the graph is today's.
-- **Below zoom 7, each Network's track is drawn once,** in its colour, along the zoom 7 band's centrelines, with no Lines side by side and no Trains.
+- **Below zoom 7, each Network's track is drawn once,** in its colour, along the zoom 7 band's centrelines, with no Lines side by side and no Trains but long distance's, as dots (ADR-0010, #262).
 
 ## Considered Options
 

@@ -23,7 +23,7 @@ import { createHash } from 'node:crypto';
 import { appendFile, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { brotliCompressSync, constants } from 'node:zlib';
-import { addDays, LIVE_URL, madridDate, type Manifest, type Network } from '../bundle.ts';
+import { addDays, LIVE_URL, madridDate, profiled, type Manifest, type Network } from '../bundle.ts';
 import { LONG_DISTANCE, NETWORKS, regionsOf, type NetworkConfig, type Timetable } from '../networks.ts';
 import { decodeTrack, type TrackFile } from '../pieces.ts';
 import { download, feedStart, type Source } from './gtfs.ts';
@@ -35,7 +35,7 @@ import { osm } from './osm.ts';
 import { buildRegion, buildRegions, sharedStretches, zoomedOut } from './regions.ts';
 import { railGraphs, railsBeside, traceOwn, traceRuns, traceShapes, withLines } from './track.ts';
 import { collect, comment, diff, type Found, type Spot } from './report.ts';
-import { closuresOf, placeDays } from './trips.ts';
+import { closuresOf, placeDays, placeRuns, type FeedTrip } from './trips.ts';
 
 const BUCKET = 'viapeninsula-live';
 
@@ -43,9 +43,9 @@ const today = madridDate(new Date());
 const DAYS = [0, 1, 2].map((n) => addDays(today, n));
 const report = collect();
 // Every Network's timetables, downloaded at once, and why they couldn't be, where one couldn't: that
-// doesn't stop the others, and its Network's are read from their copy (readTimetables()). Renfe's
-// long-distance timetable's too, whose Networks aren't on the map yet (#258).
-const longDistance = Promise.all(LONG_DISTANCE.map(downloaded));
+// doesn't stop the others, and its Network's are read from their copy (readTimetables()). And those of
+// Renfe's long-distance timetable's Networks that aren't on the map yet, Media Distancia y Avant (#263).
+const longDistance = Promise.all(LONG_DISTANCE.filter((n) => !NETWORKS.some((m) => m.id === n.id)).map(downloaded));
 const downloads = await Promise.all(NETWORKS.map(downloaded));
 // The rails of every kind any Network runs on, the nodes where Trains change gauge on them, and Spain's border.
 const { rails, changers, border } = await osm(RAILWAYS);
@@ -70,8 +70,14 @@ const results = await buildRegions(
       dates: DAYS,
       async network({ network, failed }) {
         const read = await readTimetables(network, failed, readDays, report.add);
-        for (const [i, parts] of read.days.entries()) listed[i]?.push(...parts.map((p) => p.listed));
-        return build(network, read);
+        // Built before its own Train numbers are listed: one whose timetable has no shapes leaves to a
+        // Network before it only the Trains that one lists (unlisted()). Listed even where its build fails, as
+        // its region's last files still draw its Trains.
+        try {
+          return build(network, read);
+        } finally {
+          for (const [i, parts] of read.days.entries()) listed[i]?.push(...parts.map((p) => p.listed));
+        }
       },
       write,
       log: console.warn,
@@ -90,30 +96,19 @@ const logged = `Lines drawn: ${summary(drawn)}`;
 console.log(logged);
 for (const found of reported(drawn, logged)) report.add(found);
 
-// Renfe's long-distance Trains, each one Trip made from the parts its timetable lists it in, less those
+// Media Distancia y Avant's Trains, each one Trip made from the parts its timetable lists it in, less those
 // a Network on the map lists too, are counted and traced, each run of them along the rails of its Line's
-// gauge to Spain's border (#259), but not drawn till #262 and #263, so only the route names no Network
-// takes go in the report yet (#401), as the Trips under them are left out unseen: what their traces
-// find is logged, as the calls their Trains drop are (#403). A long-distance timetable that can't be
-// read, nor its copy, as before a build has kept one, is logged, and stops nothing else.
-// Each Network reads its own copy of the file, so both find the route names neither takes: the report
-// joins them, and each line is logged once.
-const named = new Set<string>();
-const once = (line: string) => {
-  if (!named.has(line)) console.log(line);
-  named.add(line);
-};
+// gauge to Spain's border (#259), but not drawn till #263, so only the route names neither of Renfe's
+// long-distance Networks takes go in the report from them (#401), as the Trips under them are left out
+// unseen: what their traces find is logged, as the calls their Trains drop are (#403). A long-distance
+// timetable that can't be read, nor its copy, as before a build has kept one, is logged, and stops
+// nothing else.
 for (const { network, failed } of await longDistance) {
   try {
-    const read = async (feeds: (Feed & { gtfs: Source })[]) => ({ ...(await readDays(feeds)), routes: (await Promise.all(feeds.map((f) => untaken(f.gtfs, once)))).flat() });
+    const read = async (feeds: (Feed & { gtfs: Source })[]) => ({ ...(await readDays(feeds)), routes: (await Promise.all(feeds.map((f) => untaken(f.gtfs)))).flat() });
     const { days, routes } = await readTimetables(network, failed, read, () => {});
     for (const found of routes) report.add(found);
-    const trains = days.map((parts, i) => {
-      const trips = parts.flatMap((p) => p.trips);
-      const kept = unlisted(trips, listed[i] ?? []);
-      console.log(`${network.name}'s Trains on ${DAYS[i]}: ${kept.length}, and ${trips.length - kept.length} left to the Networks on the map that list them too`);
-      return kept;
-    });
+    const trains = unlistedTrains(network, days);
     const stations = (days[0] ?? []).flatMap((p) => p.stations);
     const traced = traceRuns(toBorder(border, stations, trains), stations, rails, changers, network.runningSide, console.log, () => {});
     const each = traced.days.map((trips, i) => `${trips.length} of its ${trains[i]?.length} Trains on ${DAYS[i]}`);
@@ -189,9 +184,11 @@ async function readDays(feeds: (Feed & { gtfs: Source })[]) {
  * where its terms ask the map to show it: its Lines, Stations and track traced along
  * OpenStreetMap's rails of its own kind (ADR-0004), which are those of every day in its timetables,
  * and its Trips on each of DAYS, none where its timetable has none (dayTrips()), all within Spain:
- * its Trips are placed on their whole track, which is then cut at the border. And the Closures its
- * replacement buses make on each of DAYS (closuresOf()). What its tracing and placing log goes into
- * the report too, with the OpenStreetMap ways its Stations are on; so does what its timetables find
+ * its Trips are placed on their whole track, which is then cut at the border. Where its timetable has
+ * no shapes, as Renfe's long-distance one, its track is the traces of its Trips' runs on DAYS, each
+ * along the rails of its Line's gauges, and its Stations are those its Trips call at (#259, #262). And
+ * the Closures its replacement buses make on each of DAYS (closuresOf()). What its tracing and placing
+ * log goes into the report too, with the OpenStreetMap ways its Stations are on; so does what its timetables find
  * wrong with their own Trips on each of DAYS, as a TRAM Trip's stop numbers (readFeed(), #406).
  */
 function build(config: NetworkConfig, { published, days }: Awaited<ReturnType<typeof readDays>>) {
@@ -213,20 +210,46 @@ function build(config: NetworkConfig, { published, days }: Awaited<ReturnType<ty
   const graphs = railGraphs(feeds, stations, own, network.runningSide);
   const shapes = traceShapes(feeds, stations, own, network.runningSide, console.log, found, graphs);
   const cropped = crop(border, stations, shapes, days.map((day) => day.flatMap((p) => p.trips)));
-  // A Trip that doesn't fit its feed's shape runs on a trace through its own Stations, which its Line has too (#280).
-  const placed = placeDays(cropped.days, shapes, stations, network.profile.topSpeed, (unfit) => traceOwn(unfit, feeds, stations, graphs, console.log, found), console.log, found);
+  // Each Line's top speed, its own where its profile has one, as AVE's 300 km/h (#260), or its Network's.
+  const speeds = new Map(lines.map((l) => [l.id, profiled(network, l)?.profile.topSpeed ?? profile.topSpeed]));
+  const topSpeed = (line: string) => speeds.get(line) ?? profile.topSpeed;
+  // A timetable with no shapes, as Renfe's long-distance one, has each run of its Trips, but for the Trains a
+  // Network before it lists too, traced through their Stations instead, cut at Spain's border with the first call
+  // beyond it, and its Trips placed on their runs' traces (#259, #262). A Trip of a timetable with shapes that
+  // doesn't fit its feed's shape runs on a trace through its own Stations, which its Line has too (#280).
+  const shapeless = config.timetables.every((t) => t.shapeless);
+  const placed = shapeless
+    ? placeRuns(traceRuns(toBorder(border, stations, unlistedTrains(config, days)), stations, rails, changers, runningSide, console.log, found), stations, topSpeed, console.log, found)
+    : placeDays(cropped.days, shapes, stations, topSpeed, (unfit) => traceOwn(unfit, feeds, stations, graphs, console.log, found), console.log, found);
   const traces = crop(border, stations, placed.shapes, []).shapes;
   const lineOf = new Map(placed.days.flat().map((t) => [t.shape, t.line]));
   const closures = days.map((day, i) => closuresOf(day.flatMap((p) => p.buses), day.flatMap((p) => p.trips), feeds, cropped.stations, console.log, (f) => found({ ...f, day: i })));
+  // A timetable with no shapes has as its Stations those its Trips call at: the traces they're placed on are all its track.
+  const calledAt = placed.days.flat().map((t) => ({ line: t.line, stations: t.calls.map((c) => c.station) }));
+  const served = new Set(calledAt.flatMap((t) => t.stations));
   return {
     network,
     lines: lines.map((l) => ({ ...l, shapes: [...l.shapes, ...traces.filter((s) => lineOf.get(s.id) === l.id).map((s) => s.id)] })),
-    stations: withLines(cropped.stations, feeds),
+    stations: shapeless ? withLines(cropped.stations.filter((s) => served.has(s.id)), calledAt) : withLines(cropped.stations, feeds),
     shapes: [...cropped.shapes, ...traces],
     trips: placed.days,
     closures,
     left: parts.flatMap((p) => p.left),
   };
+}
+
+/**
+ * Each day's Trips of a Network of Renfe's long-distance timetable, each a Train made one Trip from its
+ * parts, less those a Network built before it lists too, which are that one's (unlisted(), #258): how many
+ * of each it logs.
+ */
+function unlistedTrains(network: Pick<NetworkConfig, 'name'>, days: { trips: FeedTrip[] }[][]): FeedTrip[][] {
+  return days.map((parts, i) => {
+    const trips = parts.flatMap((p) => p.trips);
+    const kept = unlisted(trips, listed[i] ?? []);
+    console.log(`${network.name}'s Trains on ${DAYS[i]}: ${kept.length}, and ${trips.length - kept.length} left to the Networks on the map that list them too`);
+    return kept;
+  });
 }
 
 /** A file the last build published, or none where there's none, or where it can't be read, which is logged. */

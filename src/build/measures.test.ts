@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import { BANDS, cutIn, GRAPH_BAND, LINK, STRETCH, type Line, type Shape, type Stroke, type Track } from '../bundle.ts';
-import { breaks, measures, reported, summary, type Measures } from './measures.ts';
+import { breaks, measures, offTrack, reported, summary, type Measures } from './measures.ts';
 import { collect } from './report.ts';
 import { room, sideBySide, type Front } from './sideBySide.ts';
 
@@ -392,6 +392,19 @@ test('measures metres of curve drawn further off its own track than at its ends,
   expect(inside(40)[10]).toBe(0);
   expect(inside(0)).toEqual(none);
   expect(inside(400, [])).toEqual(none);
+});
+
+test("finds how far a point is from a Line's own track as looking at each of its segments would, where its nearest segment lies in the last of its segments and a box round the first lies nearer (#262)", () => {
+  // A track that spirals in 50 times round the points, from 5 km out to 100 m, 100 points a turn.
+  const track = Array.from({ length: 5001 }, (_, k): [number, number] => [(5000 - 0.98 * k) * Math.cos(k * 0.0628), (5000 - 0.98 * k) * Math.sin(k * 0.0628)]);
+  const each = ([x, y]: [number, number]) =>
+    Math.min(...track.slice(1).map(([bx, by], k) => {
+      const [ax, ay] = track[k] ?? [0, 0];
+      const t = Math.max(0, Math.min(1, ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / ((bx - ax) ** 2 + (by - ay) ** 2)));
+      return Math.hypot(ax + t * (bx - ax) - x, ay + t * (by - ay) - y);
+    }));
+  const off = offTrack(track);
+  for (const p of [[0, 0], [30, 20], [-40, 70], [2500, 0], [6000, 6000]] as [number, number][]) expect(off(p)).toBeCloseTo(each(p), 6);
 });
 
 test('reports the measures as one spot with each of their numbers, in metres, and a spot for each of the largest nodes, each with its line of the log', () => {

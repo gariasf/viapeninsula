@@ -409,6 +409,7 @@ function nodes(strokes: Stroke[], shapes: Shape[], lines: Line[]): Pick<Measures
   const byId = new Map(shapes.map((s) => [s.id, s]));
   const flat = ([lon, lat]: Point): [x: number, y: number] => [lon * KX, lat * DEGREE];
   const own = new Map(lines.map((l) => [l.id, l.shapes.flatMap((id) => byId.get(id)?.coords.map(flat) ?? [])]));
+  const offOwn = new Map([...own].map(([id, track]) => [id, offTrack(track)]));
   const found: Pick<Measures, 'kinks' | 'weaves' | 'inside' | 'largest'> = { kinks: {}, weaves: {}, inside: {}, largest: {} };
   for (const [band, zoom] of BANDS.entries()) {
     const width = atZoom(APART, zoom) * pixelMetres(zoom, LATITUDE);
@@ -488,32 +489,55 @@ function nodes(strokes: Stroke[], shapes: Shape[], lines: Line[]): Pick<Measures
       return turns && s.to - s.from + ROUNDING < ends.reduce((sum, k) => sum + (roomOf.get(k) ?? 0), 0);
     }).length;
 
-    // ponytail: each look at a curve against every segment of its Line's track, about a second for the
-    // map; a grid as in faithful() if it grows.
-    const off = (line: [number, number][], p: [number, number]) => {
-      let best = Infinity;
-      for (const [k, b] of line.entries()) {
-        const a = line[k - 1] ?? b;
-        const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
-        const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)));
-        best = Math.min(best, Math.hypot(a[0] + t * dx - p[0], a[1] + t * dy - p[1]));
-      }
-      return best;
-    };
     found.inside[zoom] = 0;
     for (const c of curves) {
-      const [shape, track] = [byId.get(c.shape), own.get(c.line)];
-      if (!shape || !track?.length) continue;
+      const [shape, off] = [byId.get(c.shape), offOwn.get(c.line)];
+      if (!shape || !own.get(c.line)?.length || !off) continue;
       const drawnAt = pieces(c);
       const at = (d: number) => {
         const piece = drawnAt.find((p) => d <= p.to) ?? drawnAt.at(-1) ?? c;
-        return off(track, flat(beside(shape, d, piece.side * width)));
+        return off(flat(beside(shape, d, piece.side * width)));
       };
       const ends = Math.max(at(c.from), at(c.to));
       for (let d = c.from + LOOK / 2; d < c.to; d += LOOK) if (at(d) - ends > width / 2) found.inside[zoom] += Math.min(LOOK, c.to - d + LOOK / 2);
     }
   }
   return found;
+}
+
+/** How many of a track's segments offTrack() looks at as one run, by the box their points lie in. */
+const RUN = 128;
+
+/**
+ * How far points are from a track, through its points in turn: from the nearest of its segments, looked
+ * for first in the run of RUN of them whose box is nearest, then in each other run whose box is no
+ * further off than the nearest segment found yet, give or take a millimetre's rounding. So it's the
+ * nearest that looking at every segment finds, quickly on a track as long as long distance's AVE's,
+ * 342,148 points, whose curves nodes() looks at every LOOK (#262).
+ * ponytail: every run's box at each point, 2,700 of them for AVE; runs of runs if a track grows tenfold.
+ */
+export function offTrack(track: [number, number][]): (p: [number, number]) => number {
+  const runs = Array.from({ length: Math.ceil(track.length / RUN) }, (_, j) => {
+    const points = track.slice(Math.max(0, j * RUN - 1), (j + 1) * RUN);
+    return [Math.min(...points.map((q) => q[0])), Math.min(...points.map((q) => q[1])), Math.max(...points.map((q) => q[0])), Math.max(...points.map((q) => q[1]))];
+  });
+  return (p) => {
+    let best = Infinity;
+    const look = (j: number) => {
+      for (let k = j * RUN; k < Math.min(track.length, (j + 1) * RUN); k++) {
+        const b = track[k] ?? p;
+        const a = track[k - 1] ?? b;
+        const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
+        const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)));
+        best = Math.min(best, Math.hypot(a[0] + t * dx - p[0], a[1] + t * dy - p[1]));
+      }
+    };
+    const far = runs.map(([w = 0, s = 0, e = 0, n = 0]) => Math.hypot(Math.max(0, w - p[0], p[0] - e), Math.max(0, s - p[1], p[1] - n)));
+    const nearest = far.indexOf(Math.min(...far));
+    if (nearest >= 0) look(nearest);
+    for (const [j, d] of far.entries()) if (j !== nearest && d <= best + 0.001) look(j);
+    return best;
+  };
 }
 
 /**

@@ -22,10 +22,14 @@ test('a pill reaches above and below its Train as far as its Line\'s name is hig
   expect(boxOf('round', width('R1'), 10)[1]).toBeCloseTo(7.5, 5);
 });
 
-test('Lines are outlined by their kinds of service, and a kind the map has none for is round', () => {
-  expect(OUTLINES_OF).toMatchObject({ commuter: 'round', regional: 'pointed', metro: 'badge', tram: 'badge' });
-  expect(OUTLINES_OF['long-distance']).toBeUndefined();
-  expect(['commuter', 'regional', 'metro', 'tram', 'long-distance'].map((kind) => outlineOf(kind as Kind))).toEqual(['round', 'pointed', 'badge', 'badge', 'round']);
+test("Lines are outlined by their kinds of service, long distance's slanted at both ends, and those of a track that names no kinds are round", () => {
+  expect(OUTLINES_OF).toEqual({ commuter: 'round', regional: 'pointed', 'long-distance': 'slanted', metro: 'badge', tram: 'badge', rack: 'badge', funicular: 'badge' });
+  expect(['commuter', 'regional', 'long-distance', 'metro', undefined].map((kind) => outlineOf(kind as Kind))).toEqual(['round', 'pointed', 'slanted', 'badge', 'round']);
+});
+
+test("a long-distance pill is 2 px wider than a regional one with the same name, its slanted ends a pixel longer than a pointed one's, and as high", () => {
+  expect(boxOf('slanted', width('AVE'), FOLLOWED_TEXT)[0]).toBeCloseTo(boxOf('pointed', width('AVE'), FOLLOWED_TEXT)[0] + 1, 5);
+  expect(boxOf('slanted', width('AVE'), FOLLOWED_TEXT)[1]).toBe(boxOf('pointed', width('AVE'), FOLLOWED_TEXT)[1]);
 });
 
 test("the followed pill's reach along its track is 130 m at zoom 13 for a regional Line's name of three letters, and follows the zoom", () => {

@@ -132,22 +132,33 @@ test('labels the button that follows a random Train in each language', () => {
   expect(t('followRandom', 'gl')).toBe('Seguir un tren ao chou');
 });
 
-test("says in About what a Train's outline says of its Line's kind of service, in each language", () => {
+test("says in About what a Train's outline says of its Line's kind of service, long distance's slanted, in each language", () => {
   expect(t('outlines', 'ca')).toBe(
-    'Amb el mapa ampliat, cada tren és una etiqueta amb el nom de la seva línia, i la seva forma indica el tipus de servei: arrodonida per a les línies de rodalia i les suburbanes, acabada en punta als dos extrems per a les regionals, i quadrada amb les cantonades arrodonides per a les del metro de TMB, del TRAM, del tren-tramvia de Cadis, del cremallera i dels funiculars.',
+    'Amb el mapa ampliat, cada tren és una etiqueta amb el nom de la seva línia, i la seva forma indica el tipus de servei: arrodonida per a les línies de rodalia i les suburbanes, acabada en punta als dos extrems per a les regionals, tallada en diagonal als dos extrems per a les de llarga distància, i quadrada amb les cantonades arrodonides per a les del metro de TMB, del TRAM, del tren-tramvia de Cadis, del cremallera i dels funiculars.',
   );
   expect(t('outlines', 'es')).toBe(
-    'Con el mapa ampliado, cada tren es una etiqueta con el nombre de su línea, y su forma indica el tipo de servicio: redondeada para las líneas de cercanías y las suburbanas, acabada en punta por ambos extremos para las regionales, y cuadrada con las esquinas redondeadas para las del metro de TMB, del TRAM, del tren-tranvía de Cádiz, del cremallera y de los funiculares.',
+    'Con el mapa ampliado, cada tren es una etiqueta con el nombre de su línea, y su forma indica el tipo de servicio: redondeada para las líneas de cercanías y las suburbanas, acabada en punta por ambos extremos para las regionales, cortada en diagonal por ambos extremos para las de larga distancia, y cuadrada con las esquinas redondeadas para las del metro de TMB, del TRAM, del tren-tranvía de Cádiz, del cremallera y de los funiculares.',
   );
   expect(t('outlines', 'en')).toBe(
-    "Zoomed in, each train is a label with its line's name, shaped by the line's kind of service: rounded for commuter and suburban lines, pointed at both ends for regional lines, and a rounded square for the lines of TMB's metro, TRAM, Cádiz's tram-train, the rack railway and the funiculars.",
+    "Zoomed in, each train is a label with its line's name, shaped by the line's kind of service: rounded for commuter and suburban lines, pointed at both ends for regional lines, slanted at both ends for long-distance lines, and a rounded square for the lines of TMB's metro, TRAM, Cádiz's tram-train, the rack railway and the funiculars.",
   );
   expect(t('outlines', 'eu')).toBe(
-    'Mapa handituta, tren bakoitza bere linearen izena daraman etiketa bat da, eta haren formak zerbitzu mota adierazten du: biribildua aldiriko eta hiri-inguruko lineetan, bi muturretan puntaduna eskualdeko lineetan, eta izkina biribilduko karratua TMBren metroko, TRAMeko, Cadizko tren-tranbiako, kremailerako eta funikularretako lineetan.',
+    'Mapa handituta, tren bakoitza bere linearen izena daraman etiketa bat da, eta haren formak zerbitzu mota adierazten du: biribildua aldiriko eta hiri-inguruko lineetan, bi muturretan puntaduna eskualdeko lineetan, bi muturretan zeiharka moztua distantzia luzeko lineetan, eta izkina biribilduko karratua TMBren metroko, TRAMeko, Cadizko tren-tranbiako, kremailerako eta funikularretako lineetan.',
   );
   expect(t('outlines', 'gl')).toBe(
-    'Co mapa ampliado, cada tren é unha etiqueta co nome da súa liña, e a súa forma indica o tipo de servizo: arredondada para as liñas de proximidade e as suburbanas, rematada en punta polos dous extremos para as rexionais, e cadrada coas esquinas arredondadas para as do metro de TMB, do TRAM, do tren-tranvía de Cádiz, do tren de cremalleira e dos funiculares.',
+    'Co mapa ampliado, cada tren é unha etiqueta co nome da súa liña, e a súa forma indica o tipo de servizo: arredondada para as liñas de proximidade e as suburbanas, rematada en punta polos dous extremos para as rexionais, cortada en diagonal polos dous extremos para as de longa distancia, e cadrada coas esquinas arredondadas para as do metro de TMB, do TRAM, do tren-tranvía de Cádiz, do tren de cremalleira e dos funiculares.',
   );
+});
+
+test("says in About that the map shows Renfe's AVE and long-distance trains, and that Iryo's aren't on it as Iryo publishes nothing, in each language (ADR-0010)", () => {
+  expect(t('estimates', 'en')).toBe(
+    "Via Península shows Catalonia's trains, metros and trams, Renfe's Cercanías trains in the rest of Spain, and Renfe's AVE and long-distance trains, as they run. Their positions are estimates derived from the operators' data, built from timetables and live data.",
+  );
+  expect(t('noIryo', 'ca')).toBe('Iryo no publica cap dada dels seus trens, de manera que no surten al mapa.');
+  expect(t('noIryo', 'es')).toBe('Iryo no publica ningún dato de sus trenes, así que no aparecen en el mapa.');
+  expect(t('noIryo', 'en')).toBe("Iryo publishes no data on its trains, so they aren't on the map.");
+  expect(t('noIryo', 'eu')).toBe('Iryok ez du bere trenei buruzko daturik argitaratzen, eta, beraz, ez dira mapan agertzen.');
+  expect(t('noIryo', 'gl')).toBe('Iryo non publica ningún dato dos seus trens, así que non aparecen no mapa.');
 });
 
 test("says in About's Privacy that visits are counted, naming Cloudflare Web Analytics once in each language for its link", () => {
