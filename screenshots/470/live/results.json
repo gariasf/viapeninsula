@@ -1,0 +1,268 @@
+{
+ "390": {
+  "assets": [
+   "/assets/index-BFTLqag9.js",
+   "/beacon.min.js/v4bc70e2c01a94c73b74392e4234840661791215815920",
+   "/assets/index-Df-xVlkN.css"
+  ],
+  "nav": {
+   "box": [
+    8,
+    772,
+    382,
+    836
+   ],
+   "label": "Main",
+   "tabs": [
+    "Search",
+    "Nearby"
+   ]
+  },
+  "terrassa": {
+   "labels": [
+    "Stations"
+   ],
+   "rows": [
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa EstR4",
+     "h": 56
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa Estació del Nord · RodaliesR4",
+     "h": 56
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa  Estació del nord · FGCS1",
+     "h": 56
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa Nacions UnidesS1",
+     "h": 56
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa - RamblaS1",
+     "h": 56
+    }
+   ],
+   "more": null,
+   "empty": null,
+   "hash": "#map=12.5/41.385/2.17",
+   "sheet": [
+    8,
+    241,
+    382,
+    764
+   ]
+  },
+  "n774": {
+   "labels": [
+    "Train numbers"
+   ],
+   "rows": [
+    {
+     "tag": "BUTTON",
+     "text": "R4, Live77424 to ManresaLive · next Montcada i Reixac-Santa Maria, 1:24 PM+28 min28 min late",
+     "h": 66.6
+    },
+    {
+     "tag": "BUTTON",
+     "text": "R4, Scheduled77426 to Terrassa Estació del NordScheduled · next Montcada i Reixac-Manresa, 1:22 PMno live data",
+     "h": 86.1
+    },
+    {
+     "tag": "BUTTON",
+     "text": "R4, Live77428 to ManresaLive · next L'Hospitalet de Llobregat, 1:22 PM+3 min3 min late",
+     "h": 66.6
+    },
+    {
+     "tag": "BUTTON",
+     "text": "R4, Scheduled77430 to Terrassa Estació del NordScheduled · next Castellbisbal, 1:24 PMno live data",
+     "h": 86.1
+    },
+    {
+     "tag": "BUTTON",
+     "text": "R4, Scheduled77432 to ManresaScheduled · next Vilafranca del Penedès, 1:23 PMno live data",
+     "h": 66.6
+    },
+    {
+     "tag": "BUTTON",
+     "text": "R4, Scheduled77434 to Terrassa Estació del NordLeaves Vilafranca del Penedès at 1:53 PM",
+     "h": 86.1
+    }
+   ],
+   "more": "27 more with a number starting 774",
+   "empty": null,
+   "hash": "#map=12.5/41.385/2.17",
+   "sheet": [
+    8,
+    241,
+    382,
+    764
+   ]
+  },
+  "stationRow": "Terrassa EstR4",
+  "boardIn": 48,
+  "board": {
+   "title": "Terrassa EstR4",
+   "hash": "#map=13/41.56753/2.03964&station=adif:78710",
+   "rows": 5
+  },
+  "trainRow": "R4, Live77424 to ManresaLive · next Montcada i Reixac-Santa Maria, 1:24 PM+28 min28 min late",
+  "followed": {
+   "hash": "#map=13/41.48406/2.1791&train=2026-10-12/rodalies:5183L77424R4",
+   "title": "R4, Live Manresa",
+   "next": "Next stationMontcada i Reixac-Santa Maria1:24PM+28 min28 min latein 2 min",
+   "at": "1:24PM",
+   "focused": "title"
+  }
+ },
+ "1280": {
+  "assets": [
+   "/assets/index-BFTLqag9.js",
+   "/beacon.min.js/v4bc70e2c01a94c73b74392e4234840661791215815920",
+   "/assets/index-Df-xVlkN.css"
+  ],
+  "nav": {
+   "box": [
+    8,
+    64,
+    84,
+    204
+   ],
+   "label": "Main",
+   "tabs": [
+    "Search",
+    "Nearby"
+   ]
+  },
+  "terrassa": {
+   "labels": [
+    "Stations"
+   ],
+   "rows": [
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa EstR4",
+     "h": 56
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa Estació del Nord · RodaliesR4",
+     "h": 56
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa  Estació del nord · FGCS1",
+     "h": 56
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa Nacions UnidesS1",
+     "h": 56
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa - RamblaS1",
+     "h": 56
+    }
+   ],
+   "more": null,
+   "empty": null,
+   "hash": "#map=12.5/41.385/2.17",
+   "sheet": [
+    92,
+    399,
+    472,
+    792
+   ]
+  },
+  "n774": {
+   "labels": [
+    "Train numbers"
+   ],
+   "rows": [
+    {
+     "tag": "BUTTON",
+     "text": "R4, Live77424 to ManresaLive · next Cerdanyola del Vallès, 1:24 PM+25 min25 min late",
+     "h": 66.6
+    },
+    {
+     "tag": "BUTTON",
+     "text": "R4, Scheduled77426 to Terrassa Estació del NordScheduled · next Montcada i Reixac-Manresa, 1:22 PMno live data",
+     "h": 86.1
+    },
+    {
+     "tag": "BUTTON",
+     "text": "R4, Live77428 to ManresaLive · next L'Hospitalet de Llobregat, 1:22 PM+3 min3 min late",
+     "h": 66.6
+    },
+    {
+     "tag": "BUTTON",
+     "text": "R4, Scheduled77430 to Terrassa Estació del NordScheduled · next Castellbisbal, 1:24 PMno live data",
+     "h": 86.1
+    },
+    {
+     "tag": "BUTTON",
+     "text": "R4, Scheduled77432 to ManresaScheduled · next Vilafranca del Penedès, 1:23 PMno live data",
+     "h": 66.6
+    },
+    {
+     "tag": "BUTTON",
+     "text": "R4, Scheduled77434 to Terrassa Estació del NordLeaves Vilafranca del Penedès at 1:53 PM",
+     "h": 56
+    }
+   ],
+   "more": "27 more with a number starting 774",
+   "empty": null,
+   "hash": "#map=12.5/41.385/2.17",
+   "sheet": [
+    92,
+    223,
+    472,
+    792
+   ]
+  },
+  "stationRow": "Terrassa EstR4",
+  "boardIn": 126,
+  "board": {
+   "title": "Terrassa EstR4",
+   "hash": "#map=13/41.56753/2.03964&station=adif:78710",
+   "rows": 12
+  },
+  "trainRow": "R4, Live77424 to ManresaLive · next Cerdanyola del Vallès, 1:24 PM+25 min25 min late",
+  "followed": {
+   "hash": "#map=13/41.48201/2.16212&train=2026-10-12/rodalies:5183L77424R4",
+   "title": "R4, Live Manresa",
+   "next": "Next stationCerdanyola del Vallès1:24PM+25 min25 min latein 2 min",
+   "at": "1:24PM",
+   "focused": "title"
+  }
+ },
+ "started": "2026-10-12T11:21:53.555Z",
+ "errors": [
+  "console 390x844: Failed to load resource: net::ERR_CONNECTION_REFUSED",
+  "console 1280x800: Failed to load resource: net::ERR_CONNECTION_REFUSED"
+ ],
+ "zoomedOut": [
+  {
+   "tag": "390x844",
+   "file": "zoomed-out-a4c29e1bb4b0.json",
+   "status": 200,
+   "encoding": "br",
+   "onWire": 66450
+  },
+  {
+   "tag": "1280x800",
+   "file": "zoomed-out-a4c29e1bb4b0.json",
+   "status": 200,
+   "encoding": "br",
+   "onWire": 66494
+  }
+ ],
+ "ended": "2026-10-12T11:22:35.769Z"
+}
