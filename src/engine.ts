@@ -106,8 +106,9 @@ export interface Followed extends Train {
    * The Stations it has still to leave as it's drawn, the one it stands at first, and when it's
    * expected to arrive at and leave each, in ms since 1970, running the Delay it's drawn at late: the
    * one live data gave, which it eases to as the Train does, so that no snapshot steps them (#610). But
-   * held at its first Station it runs the one live data gave, or as late as it's held after that has it
-   * leave, as does one waiting for its Block there (#107).
+   * held, at its first Station until its operator's report has it leave, or where Renfe's have pinned it,
+   * it runs the one live data gave, or as late as it's held after that has it leave, as does one waiting
+   * for its Block (#107, #485).
    */
   upcoming: Upcoming[];
   /** How long ago live data last placed it, in ms, as of when its operator reported it there: none where the snapshots kept don't. */
@@ -330,9 +331,10 @@ interface OnMap {
   /**
    * How late a followed Train's times run, in seconds: how late it's drawn, `now - time`, which eases to `delay` as the Train does
    * where live data has a new one, so that its countdown eases with the Train and doesn't step as a snapshot arrives (#610). But
-   * for one held at its first Station, which is drawn standing there at its timetable's time while its operator's report has it
-   * leave later, it's `delay`: it's expected to leave when the report has it, as a board has it, and `now - time` there only says now (#107).
-   * Boards and Nearby run `delay`, as live data gave it, for every Train.
+   * for one that's held (`ease.hold`) it's `delay`: a Train held at its first Station is drawn standing there at its timetable's
+   * time while its operator's report has it leave later, as TMB's does a Metro Train (#107) and Renfe's can a late one, and it's
+   * expected to leave when the report has it, as a board has it, where `now - time` only says now; and one of Renfe's pinned at a
+   * Station for 10 minutes is as late as it has stood there (#485). Boards and Nearby run `delay`, as live data gave it, for every Train.
    */
   drawnDelay: number;
   calls: Call[];
