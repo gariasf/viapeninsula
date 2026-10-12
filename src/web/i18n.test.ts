@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { createExpression, latest, type ExpressionSpecification, type Feature, type StylePropertySpecification } from '@maplibre/maplibre-gl-style-spec';
 import { afterEach, expect, test, vi } from 'vitest';
-import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, earlierStations, followDeparture, LANGUAGES, leavesAt, leavingStation, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, notRunning, passingStation, pickLanguage, t, toGo, trainCounts, trainsRunHere, unlocated } from './i18n.ts';
+import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, earlierStations, followDeparture, LANGUAGES, leavesAt, leavingStation, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, pickLanguage, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated } from './i18n.ts';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -148,9 +148,9 @@ test("says what Search found nothing for, how many more Train numbers it found t
     t('nothingFound', lang).replace('{query}', 'xyz'),
     moreNumbers(27, '774', lang),
     moreNumbers(1, '774', lang),
-    t('trainTo', lang).replace('{number}', '77428').replace('{headsign}', 'Manresa'),
-    t('nextAt', lang).replace('{station}', 'Manresa').replace('{time}', '15:16'),
-    t('leavesAt', lang).replace('{station}', 'Barcelona-Sants').replace('{time}', '15:16'),
+    trainTo('77428', 'Manresa', lang),
+    nextAt('Manresa', '15:16', lang),
+    leavesAt('Barcelona-Sants', '15:16', lang),
     t('endedAt', lang).replace('{time}', '15:16'),
   ];
   expect(rows('ca')).toEqual(["No s'ha trobat res per a «xyz».", '27 més amb un número que comença per 774', '1 més amb un número que comença per 774', '77428 cap a Manresa', 'propera: Manresa, 15:16', 'Surt de Barcelona-Sants a les 15:16', 'Ha acabat a les 15:16']);
@@ -158,6 +158,16 @@ test("says what Search found nothing for, how many more Train numbers it found t
   expect(rows('en')).toEqual(['Nothing found for “xyz”.', '27 more with a number starting 774', '1 more with a number starting 774', '77428 to Manresa', 'next Manresa, 15:16', 'Leaves Barcelona-Sants at 15:16', 'Ended at 15:16']);
   expect(rows('eu')).toEqual(['Ez da ezer aurkitu «xyz» bilaketarako.', 'Beste 27, 774 hasierako zenbakiarekin', 'Beste bat, 774 hasierako zenbakiarekin', '77428, Manresa aldera', 'hurrengoa: Manresa, 15:16', 'Barcelona-Sants geltokitik irtengo da, 15:16', 'Amaitu da: 15:16']);
   expect(rows('gl')).toEqual(['Non se atopou nada para «xyz».', '27 máis cun número que comeza por 774', '1 máis cun número que comeza por 774', '77428 cara a Manresa', 'próxima: Manresa, 15:16', 'Sae de Barcelona-Sants ás 15:16', 'Rematou ás 15:16']);
+});
+
+test("puts where a Train number's row is headed and its next Station into the row's words as a board's rows do, with the article of a name contracted, elided or in lower case as each language writes it after the word before it (#471, #606)", () => {
+  expect(trainTo('77428', 'El Prat de Llobregat', 'ca')).toBe('77428 cap al Prat de Llobregat');
+  expect(trainTo('77428', "L'Hospitalet de Llobregat", 'ca')).toBe("77428 cap a l'Hospitalet de Llobregat");
+  expect(trainTo('77428', 'A Coruña', 'gl')).toBe('77428 cara á Coruña');
+  expect(trainTo('77428', 'El Escorial', 'es')).toBe('77428 hacia El Escorial');
+  expect(trainTo('77428', 'El Prat de Llobregat', 'en')).toBe('77428 to El Prat de Llobregat');
+  expect(nextAt('La Garriga', '9:33', 'ca')).toBe('propera: la Garriga, 9:33');
+  expect(nextAt('La Garriga', '9:33', 'es')).toBe('próxima: La Garriga, 9:33');
 });
 
 test('labels the button that follows a random Train in each language', () => {

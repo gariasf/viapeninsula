@@ -8,7 +8,7 @@ import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
 import { along, APART, atZoom, BANDS, bandZooms, coveredIn, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, profiled, zones, type Zone, daysNeeded, daysOf, DEGREE, EARTH, joinTracks, LIVE_URL, madridDate, networkTracks, places, type Alerts, type Bundle, type Credit, type Call, type DayFiles, type Place, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH, type ZoomedOut } from '../bundle.ts';
 import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, tripsAt, unavailable, type Coming, type Departure, type Followed, type Received, type Train, type TripNow } from '../engine.ts';
-import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, earlierStations, followDeparture, language, LANGUAGES, leavesAt, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, notRunning, passingStation, setLanguage, t, toGo, trainCounts, trainsRunHere, unlocated, type Language, type Unlocated } from './i18n.ts';
+import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, earlierStations, followDeparture, language, LANGUAGES, leavesAt, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, setLanguage, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { getJson, STALL } from './files.ts';
 import { firstLook, forgetJoined, regionLoader, regionsNeeded } from './regions.ts';
@@ -2945,7 +2945,7 @@ function trainResult(now: TripNow): HTMLElement {
   const row = (live: boolean, follows: boolean, under: (Node | string)[], end: Node[] = []) => {
     const cells = [
       el('span', { className: 'lead' }, pill(trip.line, { live, train: follows })),
-      el('span', { className: 'what' }, el('span', { className: 'what-title', textContent: t('trainTo').replace('{number}', trip.number ?? '').replace('{headsign}', trip.headsign) }), el('span', { className: 'what-under' }, ...under)),
+      el('span', { className: 'what' }, el('span', { className: 'what-title', textContent: trainTo(trip.number ?? '', trip.headsign) }), el('span', { className: 'what-under' }, ...under)),
       el('span', { className: 'end' }, ...end, ...(follows ? [icon('right')] : [])),
     ];
     return follows ? el('button', { type: 'button', className: 'result', onclick: () => openFrom(() => follow(trip.id)) }, ...cells) : el('div', { className: 'result' }, ...cells);
@@ -2955,14 +2955,14 @@ function trainResult(now: TripNow): HTMLElement {
   const { upcoming, delay, live } = 'train' in now ? now.train : now.coming;
   if ('coming' in now && !now.coming.within) {
     const first = upcoming[0];
-    return row(live, true, [first ? t('leavesAt').replace('{station}', stationName(first.station)).replace('{time}', clock().format(first.departure)) : ''], [status({ delay, live })]);
+    return row(live, true, [first ? leavesAt(stationName(first.station), clock().format(first.departure)) : ''], [status({ delay, live })]);
   }
   const next = upcoming.find((c) => !c.skipped);
   const standing = 'train' in now && !!now.train.standsAt && next === upcoming[0];
   // Its pill says it to a screen reader already.
   const said = el('span', { textContent: `${t(live ? 'live' : 'scheduled')} · ` });
   said.setAttribute('aria-hidden', 'true');
-  const where = next ? t('nextAt').replace('{station}', stationName(next.station)).replace('{time}', clock().format(due(next, standing))) : '';
+  const where = next ? nextAt(stationName(next.station), clock().format(due(next, standing))) : '';
   return row(live, true, [said, where], [status({ delay, live, unreported: 'train' in now && now.train.unreported })]);
 }
 

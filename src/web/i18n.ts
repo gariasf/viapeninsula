@@ -474,6 +474,12 @@ export const followDeparture = (line: string, headsign: string, time: string, la
 /** Where a Trip still to come leaves, from which Station and when, in `lang`, or else the language the interface speaks now. */
 export const leavesAt = (station: string, time: string, lang = language()): string => named(STRINGS.leavesAt[lang], '{station}', station, lang).replace('{time}', time);
 
+/** A Train number's row in Search (#471): its number and where its Train is headed, in `lang`, or else the language the interface speaks now. */
+export const trainTo = (number: string, headsign: string, lang = language()): string => named(STRINGS.trainTo[lang].replace('{number}', number), '{headsign}', headsign, lang);
+
+/** Under a Train number's row in Search, the next Station its Train stops at and when it's due there (#471), in `lang`, or else the language the interface speaks now. */
+export const nextAt = (station: string, time: string, lang = language()): string => named(STRINGS.nextAt[lang], '{station}', station, lang).replace('{time}', time);
+
 /** Back, to a place whose board it was opened from, or to Nearby by its title, which no article of a name starts, in `lang`, or else the language the interface speaks now. */
 export const backTo = (place: string, lang = language()): string => named(STRINGS.backTo[lang], '{place}', place, lang);
 
