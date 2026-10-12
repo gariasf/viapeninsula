@@ -370,6 +370,12 @@ export interface LiveTraits {
    */
   lingers?: true;
   /**
+   * The Lines it names none of the Trips of, by their names, as Geotren names none of FV's, the
+   * Vallvidrera funicular's (#489): their Trains have no live data, and aren't left out of it, as the
+   * Metro's L9's aren't, which TMB publishes no predictions for.
+   */
+  unnamed?: string[];
+  /**
    * Its positions come with no time of their own, as Renfe's long-distance ones, which the feed's
    * header time stands for, and a kilometre is 12 seconds at 300 km/h: a Train is drawn off where they
    * have it by up to this many seconds at its Line's top speed before it jumps there rather than

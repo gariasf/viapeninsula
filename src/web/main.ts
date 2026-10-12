@@ -2699,8 +2699,8 @@ function followButton(trip: Trip, at: number, cells: Node[]) {
 
 /**
  * What a row says at its end, and the followed Train beside its next time: its Delay as a chip, or
- * no live data, for a Scheduled Train whose Network has live data, or on time, for a Live one;
- * nothing for a Metro Train, which has no Delay to show.
+ * no live data, for a Scheduled Train its Network's live data leaves out (Train.unreported), or on
+ * time, for a Live one; nothing for a Metro Train, which has no Delay to show.
  */
 function status({ delay, live, unreported = false }: { delay?: number; live: boolean; unreported?: boolean }) {
   return delayChip(delay) ?? el('span', { className: 'status soft', textContent: unreported ? t('noLiveTrain') : live && delay !== undefined ? t('onTime') : '' });

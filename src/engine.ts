@@ -17,7 +17,9 @@ export interface Train {
   live: boolean;
   /**
    * Whether its Network's live data is available but hasn't reported it lately: it has no live data,
-   * and may not be running. Not where that live data names Blocks but none on its Line, as on L9.
+   * and may not be running. Not where that live data names Blocks but none on its Line, as on L9, nor
+   * on a Line its Network's live traits list as one it names none of the Trips of (`unnamed`), as
+   * FGC's list FV (#489).
    */
   unreported: boolean;
   /** The Station it stands at, while it stands at one: from when it comes in there until it leaves. */
@@ -373,6 +375,12 @@ function onMap(bundle: Bundle, at: number, received: Received[], closures: reado
   // data without being left out of it.
   const blockLines = new Set(received.flatMap((r) => linesByBlock(r.snapshot)));
   const blockNetworks = new Set([...blockLines].map((line) => lines.get(line)?.id));
+  // The Lines whose Network's live data names none of their Trips, as Geotren names none of FV's
+  // (#489): their Trains have no live data without being left out of it either.
+  // ponytail: by configuration, so were Geotren to start naming FV's Trips, one it then left out would
+  // still not be marked. Go by whether the snapshots kept name any of the Line's Trips, as the Metro's
+  // go by their Blocks, if a feed does.
+  const unnamed = new Set(bundle.lines.flatMap((l) => (networks.get(l.network)?.live?.unnamed?.includes(l.name) ? [l.id] : [])));
   // The Trips live data last had each of the Metro's Blocks run, by blockOf(): worked out only once a Block waits at the end of its Line.
   let blocks: Map<string, Trip[]> | undefined;
   const ranBy = (block: NonNullable<Report['block']>) => {
@@ -423,7 +431,7 @@ function onMap(bundle: Bundle, at: number, received: Received[], closures: reado
     const dist = place(calls, profile, time);
     if (!onTrack(shape, dist)) return off;
     const [lon, lat] = pointAt(shape, dist);
-    const unreported = available.has(network.id) && !recent(said, upTo) && (!blockNetworks.has(network.id) || blockLines.has(trip.line));
+    const unreported = available.has(network.id) && !recent(said, upTo) && (!blockNetworks.has(network.id) || blockLines.has(trip.line)) && !unnamed.has(trip.line);
     // The first Station it has still to leave, where it has come in there already.
     const next = calls.findIndex((c) => toLeave(c, time));
     const call = calls[next];
