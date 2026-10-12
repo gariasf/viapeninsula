@@ -223,6 +223,35 @@ test("is one step for days whose files come in the same turn, and the last for a
   expect([tripsOf(last.value?.bundle), last.value?.complete, last.value?.bundle]).toEqual([['n1'], true, first.value?.bundle]);
 });
 
+test("shows a day's new bundle in place of the one the map had of it as it comes, and the bundle the map had of a day still to come until then (#593)", async () => {
+  // A look for a region new to the map: both days' files asked for again, and both days on the map already.
+  const [files, hadDay, hadNext] = [coming(DAY, NEXT), bundleOf(DAY, 'old'), bundleOf(NEXT, 'oldn')];
+  const steps = daysAsTheyCome(files.days, files.bundleOf, new Map([[DAY, hadDay], [NEXT, hadNext]]));
+  files.come(bundleOf(NEXT, 'n1'));
+  const first = await steps.next();
+  // The later day's new Trips, which are what the look is for, not the Trips it had of the day: only the other's are kept.
+  expect(tripsOf(first.value?.bundle)).toEqual([`${DAY}/old`, 'n1']);
+  expect(first.value?.byDate.get(NEXT)).not.toBe(hadNext);
+  expect(first.value?.byDate.get(DAY)).toBe(hadDay);
+});
+
+test("is the bundle of the step before it where the look's last step has the same days, so that the map has nothing to lay out again (#593)", async () => {
+  // Three days, as a board with none left after midnight needs: the first two come, one after the other, and the third fails.
+  const [LAST] = ['2026-10-13'];
+  const files = coming(DAY, NEXT, LAST);
+  const steps = daysAsTheyCome(files.days, files.bundleOf);
+  files.come(bundleOf(DAY, 'd1'));
+  expect(tripsOf((await steps.next()).value?.bundle)).toEqual(['d1']);
+  files.come(bundleOf(NEXT, 'n1'));
+  const joined = await steps.next();
+  expect(tripsOf(joined.value?.bundle)).toEqual([`${DAY}/d1`, 'n1']);
+  files.fail(LAST, 'HTTP 503');
+  const last = await steps.next();
+  expect([last.value?.complete, last.value?.lost.length]).toEqual([true, 1]);
+  // The same object, not another joined from the same parts: the map lays a bundle out again when its Stations aren't the ones it drew.
+  expect(last.value?.bundle).toBe(joined.value?.bundle);
+});
+
 /** A day's files for these regions, named as the manifest names them, with none for the day where a region is left out. */
 const filesFor = (date: string, ...ids: string[]): DayFiles => ({ date, from: 0, to: 1, regions: ids.map((id) => ({ id, track: `${id}.track`, trips: `${id}.${date}.trips` })) });
 
