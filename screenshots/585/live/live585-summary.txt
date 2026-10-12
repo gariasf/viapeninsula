@@ -1,0 +1,43 @@
+
+== wide: title="Via Península" html lang=ca origin=http://localhost:5343 anchors on the page at the map: 18
+   steps (ms): {"load":2789,"credits":3151,"creditsHoverFocus":453,"about":3214,"languages":5984,"alerts":4397,"alertsSpanish":11596}
+ok   wide: the credits' links (ca): target, rel, word, lang, word last, position relative | {"n":9,"blank":9,"rel":9,"word":9,"wordLang":9,"last":9,"relative":9,"boxes":"[1,1]"}
+ok   wide: the map's anchors, strip and © text both (ca) | {"n":18,"blank":18,"rel":18,"word":18,"wordLang":18,"last":18,"relative":18,"boxes":"[0,0]|[1,1]"}
+ok   wide: credits' accessible names end with the word (ca) | 9 links, first "OpenFreeMap (s'obre en una pestanya nova)"
+ok   wide: About's links (ca) | {"n":12,"blank":12,"rel":12,"word":12,"wordLang":12,"last":12,"relative":12,"boxes":"[1,1]"}
+ok   wide: About's accessible names (ca) | 12 links
+ok   wide: dialog.about scrollHeight equals clientHeight, opened | {"scrollTop":0,"scrollHeight":748,"clientHeight":748,"scrollWidth":436,"clientWidth":436}
+ok   wide: dialog.about scrollHeight equals clientHeight, body scrolled to its end | {"scrollTop":0,"scrollHeight":748,"clientHeight":748,"scrollWidth":436,"clientWidth":436}
+ok   wide: scrollIntoView() on the last link moves the dialog by 0 | {"dialogScrollTop":0,"bodyScrollTop":96}
+ok   wide: ca: words "(s'obre en una pestanya nova)" on every link, names, no scroll | strip 9/9/9; strip AX 9; about 12/12/12/12, AX 12, dialog 748/748, poke 0
+ok   wide: es: words "(se abre en una pestaña nueva)" on every link, names, no scroll | strip 9/9/9; strip AX 9; about 12/12/12/12, AX 12, dialog 748/748, poke 0
+ok   wide: eu: words "(fitxa berri batean irekitzen da)" on every link, names, no scroll | strip 9/9/9; strip AX 9; about 13/13/13/13, AX 13, dialog 748/748, poke 0
+ok   wide: gl: words "(ábrese nunha lapela nova)" on every link, names, no scroll | strip 9/9/9; strip AX 9; about 13/13/13/13, AX 13, dialog 748/748, poke 0
+ok   wide: en: words "(opens in a new tab)" on every link, names, no scroll | strip 9/9/9; strip AX 9; about 12/12/12/12, AX 12, dialog 748/748, poke 0
+ok   wide: an Alert's addresses on the CDN's alerts.json as it is (ca) | {"n":1,"blank":1,"rel":1,"word":1,"wordLang":1,"last":1,"relative":1,"boxes":"[1,1]"}
+ok   wide: Alerts' words with a Spanish-only Alert, interface es | https://www.tram.cat/avisos|round=es|word-lang=es; https://tram.cat/es/prensa/2|round=es|word-lang=es
+ok   wide: Alerts' words with a Spanish-only Alert, interface eu | https://www.tram.cat/avisos|round=es|word-lang=eu; https://tram.cat/ca/premsa/2|round=ca|word-lang=eu
+ok   wide: Alerts' words with a Spanish-only Alert, interface gl | https://www.tram.cat/avisos|round=es|word-lang=gl; https://tram.cat/ca/premsa/2|round=ca|word-lang=gl
+ok   wide: Alerts' words with a Spanish-only Alert, interface en | https://www.tram.cat/avisos|round=es|word-lang=en; https://tram.cat/en/press/22|round=en|word-lang=en
+ok   wide: Alerts' words with a Spanish-only Alert, interface ca | https://www.tram.cat/avisos|round=es|word-lang=ca; https://tram.cat/ca/premsa/2|round=ca|word-lang=ca
+ok   wide: no page error, nothing in the console but the basemap's shield-layer filter warnings | 5 messages, 0 other
+
+== phone: title="Via Península" html lang=ca origin=http://localhost:5343 anchors on the page at the map: 18
+   steps (ms): {"load":1756,"credits":3151,"creditsHoverFocus":254,"about":2725,"languages":6071,"alerts":4946}
+ok   phone: the credits' links (ca): target, rel, word, lang, word last, position relative | {"n":9,"blank":9,"rel":9,"word":9,"wordLang":9,"last":9,"relative":9,"boxes":"[1,1]"}
+ok   phone: the map's anchors, strip and © text both (ca) | {"n":18,"blank":18,"rel":18,"word":18,"wordLang":18,"last":18,"relative":18,"boxes":"[1,1]|[0,0]"}
+ok   phone: credits' accessible names end with the word (ca) | 9 links, first "OpenFreeMap (s'obre en una pestanya nova)"
+ok   phone: About's links (ca) | {"n":12,"blank":12,"rel":12,"word":12,"wordLang":12,"last":12,"relative":12,"boxes":"[1,1]"}
+ok   phone: About's accessible names (ca) | 12 links
+ok   phone: dialog.about scrollHeight equals clientHeight, opened | {"scrollTop":0,"scrollHeight":776,"clientHeight":776,"scrollWidth":370,"clientWidth":370}
+ok   phone: dialog.about scrollHeight equals clientHeight, body scrolled to its end | {"scrollTop":0,"scrollHeight":776,"clientHeight":776,"scrollWidth":370,"clientWidth":370}
+ok   phone: scrollIntoView() on the last link moves the dialog by 0 | {"dialogScrollTop":0,"bodyScrollTop":189}
+ok   phone: ca: words "(s'obre en una pestanya nova)" on every link, names, no scroll | about 12/12/12/12, AX 12, dialog 776/776, poke 0
+ok   phone: es: words "(se abre en una pestaña nueva)" on every link, names, no scroll | about 12/12/12/12, AX 12, dialog 776/776, poke 0
+ok   phone: eu: words "(fitxa berri batean irekitzen da)" on every link, names, no scroll | about 13/13/13/13, AX 13, dialog 776/776, poke 0
+ok   phone: gl: words "(ábrese nunha lapela nova)" on every link, names, no scroll | about 13/13/13/13, AX 13, dialog 776/776, poke 0
+ok   phone: en: words "(opens in a new tab)" on every link, names, no scroll | about 12/12/12/12, AX 12, dialog 776/776, poke 0
+ok   phone: an Alert's addresses on the CDN's alerts.json as it is (ca) | {"n":1,"blank":1,"rel":1,"word":1,"wordLang":1,"last":1,"relative":1,"boxes":"[1,1]"}
+ok   phone: no page error, nothing in the console but the basemap's shield-layer filter warnings | 3 messages, 0 other
+
+35 of 35 checks ok

@@ -1,0 +1,5565 @@
+{
+ "meta": {
+  "waitedSeconds": 45,
+  "started": "2026-10-12T13:47:20.266Z",
+  "browser": "148.0.7778.96",
+  "tree": "/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/8122b9eb-8622-416f-91a1-5564913ce6ab/scratchpad/wt-585",
+  "heldSeconds": 51
+ },
+ "wide": {
+  "problems": [
+   "warning: [.WebGL-0x11c00505a00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+   "warning: [.WebGL-0x11c00505a00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
+   "warning: layers[highway-shield-non-us].filter[1]: Expected value to be of type number, but found null instead. Falling back to false.",
+   "warning: layers[highway-shield-us-interstate].filter[1]: Expected value to be of type number, but found null instead. Falling back to false.",
+   "warning: layers[road_shield_us].filter[1]: Expected value to be of type number, but found null instead. Falling back to false."
+  ],
+  "steps": {
+   "load": 2789,
+   "credits": 3151,
+   "creditsHoverFocus": 453,
+   "about": 3214,
+   "languages": 5984,
+   "alerts": 4397,
+   "alertsSpanish": 11596
+  },
+  "languages": {
+   "ca": {
+    "strip": [
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "OpenFreeMap",
+      "href": "https://openfreemap.org",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "© OpenMapTiles",
+      "href": "https://www.openmaptiles.org/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "© Els col·laboradors de l'OpenStreetMap",
+      "href": "https://www.openstreetmap.org/copyright",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "Renfe",
+      "href": "https://data.renfe.com/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "CC BY 4.0",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "FGC",
+      "href": "https://dadesobertes.fgc.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "CC BY 4.0",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "Powered by TRAM Barcelona",
+      "href": "https://www.tram.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "TMB",
+      "href": "https://www.tmb.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     }
+    ],
+    "stripAx": [
+     "OpenFreeMap (s'obre en una pestanya nova)",
+     "© OpenMapTiles (s'obre en una pestanya nova)",
+     "© Els col·laboradors de l'OpenStreetMap (s'obre en una pestanya nova)",
+     "Renfe (s'obre en una pestanya nova)",
+     "CC BY 4.0 (s'obre en una pestanya nova)",
+     "FGC (s'obre en una pestanya nova)",
+     "CC BY 4.0 (s'obre en una pestanya nova)",
+     "Powered by TRAM Barcelona (s'obre en una pestanya nova)",
+     "TMB (s'obre en una pestanya nova)"
+    ],
+    "about": [
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "OpenFreeMap",
+      "href": "https://openfreemap.org",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "© OpenMapTiles",
+      "href": "https://www.openmaptiles.org/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "© Els col·laboradors de l'OpenStreetMap",
+      "href": "https://www.openstreetmap.org/copyright",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "Renfe",
+      "href": "https://data.renfe.com/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "CC BY 4.0",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "FGC",
+      "href": "https://dadesobertes.fgc.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "CC BY 4.0",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "Powered by TRAM Barcelona",
+      "href": "https://www.tram.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "TMB",
+      "href": "https://www.tmb.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "github.com/gariasf/viapeninsula",
+      "href": "https://github.com/gariasf/viapeninsula",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "AGPL-3.0",
+      "href": "https://www.gnu.org/licenses/agpl-3.0.html",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "Cloudflare Web Analytics",
+      "href": "https://developers.cloudflare.com/web-analytics/data-metrics/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     }
+    ],
+    "aboutAx": [
+     "github.com/gariasf/viapeninsula (s'obre en una pestanya nova)",
+     "AGPL-3.0 (s'obre en una pestanya nova)",
+     "Cloudflare Web Analytics (s'obre en una pestanya nova)",
+     "OpenFreeMap (s'obre en una pestanya nova)",
+     "© OpenMapTiles (s'obre en una pestanya nova)",
+     "© Els col·laboradors de l'OpenStreetMap (s'obre en una pestanya nova)",
+     "Renfe (s'obre en una pestanya nova)",
+     "CC BY 4.0 (s'obre en una pestanya nova)",
+     "FGC (s'obre en una pestanya nova)",
+     "CC BY 4.0 (s'obre en una pestanya nova)",
+     "Powered by TRAM Barcelona (s'obre en una pestanya nova)",
+     "TMB (s'obre en una pestanya nova)"
+    ],
+    "aboutMetrics": {
+     "dialog": {
+      "scrollTop": 0,
+      "scrollHeight": 748,
+      "clientHeight": 748,
+      "scrollWidth": 436,
+      "clientWidth": 436
+     },
+     "body": {
+      "scrollTop": 0,
+      "scrollHeight": 784,
+      "clientHeight": 688
+     }
+    },
+    "aboutPoke": {
+     "dialogScrollTop": 0,
+     "bodyScrollTop": 96
+    }
+   },
+   "es": {
+    "strip": [
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "OpenFreeMap",
+      "href": "https://openfreemap.org",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "© OpenMapTiles",
+      "href": "https://www.openmaptiles.org/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "© Colaboradores de OpenStreetMap",
+      "href": "https://www.openstreetmap.org/copyright",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "Renfe",
+      "href": "https://data.renfe.com/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "CC BY 4.0",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "FGC",
+      "href": "https://dadesobertes.fgc.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "CC BY 4.0",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "Powered by TRAM Barcelona",
+      "href": "https://www.tram.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "TMB",
+      "href": "https://www.tmb.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     }
+    ],
+    "stripAx": [
+     "OpenFreeMap (se abre en una pestaña nueva)",
+     "© OpenMapTiles (se abre en una pestaña nueva)",
+     "© Colaboradores de OpenStreetMap (se abre en una pestaña nueva)",
+     "Renfe (se abre en una pestaña nueva)",
+     "CC BY 4.0 (se abre en una pestaña nueva)",
+     "FGC (se abre en una pestaña nueva)",
+     "CC BY 4.0 (se abre en una pestaña nueva)",
+     "Powered by TRAM Barcelona (se abre en una pestaña nueva)",
+     "TMB (se abre en una pestaña nueva)"
+    ],
+    "about": [
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "OpenFreeMap",
+      "href": "https://openfreemap.org",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "© OpenMapTiles",
+      "href": "https://www.openmaptiles.org/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "© Colaboradores de OpenStreetMap",
+      "href": "https://www.openstreetmap.org/copyright",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "Renfe",
+      "href": "https://data.renfe.com/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "CC BY 4.0",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "FGC",
+      "href": "https://dadesobertes.fgc.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "CC BY 4.0",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "Powered by TRAM Barcelona",
+      "href": "https://www.tram.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "TMB",
+      "href": "https://www.tmb.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "github.com/gariasf/viapeninsula",
+      "href": "https://github.com/gariasf/viapeninsula",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "AGPL-3.0",
+      "href": "https://www.gnu.org/licenses/agpl-3.0.html",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "Cloudflare Web Analytics",
+      "href": "https://developers.cloudflare.com/web-analytics/data-metrics/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     }
+    ],
+    "aboutAx": [
+     "github.com/gariasf/viapeninsula (se abre en una pestaña nueva)",
+     "AGPL-3.0 (se abre en una pestaña nueva)",
+     "Cloudflare Web Analytics (se abre en una pestaña nueva)",
+     "OpenFreeMap (se abre en una pestaña nueva)",
+     "© OpenMapTiles (se abre en una pestaña nueva)",
+     "© Colaboradores de OpenStreetMap (se abre en una pestaña nueva)",
+     "Renfe (se abre en una pestaña nueva)",
+     "CC BY 4.0 (se abre en una pestaña nueva)",
+     "FGC (se abre en una pestaña nueva)",
+     "CC BY 4.0 (se abre en una pestaña nueva)",
+     "Powered by TRAM Barcelona (se abre en una pestaña nueva)",
+     "TMB (se abre en una pestaña nueva)"
+    ],
+    "aboutMetrics": {
+     "dialog": {
+      "scrollTop": 0,
+      "scrollHeight": 748,
+      "clientHeight": 748,
+      "scrollWidth": 436,
+      "clientWidth": 436
+     },
+     "body": {
+      "scrollTop": 0,
+      "scrollHeight": 824,
+      "clientHeight": 688
+     }
+    },
+    "aboutPoke": {
+     "dialogScrollTop": 0,
+     "bodyScrollTop": 136
+    }
+   },
+   "eu": {
+    "strip": [
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "OpenFreeMap",
+      "href": "https://openfreemap.org",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "© OpenMapTiles",
+      "href": "https://www.openmaptiles.org/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "© OpenStreetMap laguntzaileak",
+      "href": "https://www.openstreetmap.org/copyright",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "Renfe",
+      "href": "https://data.renfe.com/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "CC BY 4.0",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "FGC",
+      "href": "https://dadesobertes.fgc.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "CC BY 4.0",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "Powered by TRAM Barcelona",
+      "href": "https://www.tram.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "TMB",
+      "href": "https://www.tmb.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     }
+    ],
+    "stripAx": [
+     "OpenFreeMap (fitxa berri batean irekitzen da)",
+     "© OpenMapTiles (fitxa berri batean irekitzen da)",
+     "© OpenStreetMap laguntzaileak (fitxa berri batean irekitzen da)",
+     "Renfe (fitxa berri batean irekitzen da)",
+     "CC BY 4.0 (fitxa berri batean irekitzen da)",
+     "FGC (fitxa berri batean irekitzen da)",
+     "CC BY 4.0 (fitxa berri batean irekitzen da)",
+     "Powered by TRAM Barcelona (fitxa berri batean irekitzen da)",
+     "TMB (fitxa berri batean irekitzen da)"
+    ],
+    "about": [
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "GitHub",
+      "href": "https://github.com/gariasf/viapeninsula/issues",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "OpenFreeMap",
+      "href": "https://openfreemap.org",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "© OpenMapTiles",
+      "href": "https://www.openmaptiles.org/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "© OpenStreetMap laguntzaileak",
+      "href": "https://www.openstreetmap.org/copyright",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "Renfe",
+      "href": "https://data.renfe.com/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "CC BY 4.0",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "FGC",
+      "href": "https://dadesobertes.fgc.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "CC BY 4.0",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "Powered by TRAM Barcelona",
+      "href": "https://www.tram.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "TMB",
+      "href": "https://www.tmb.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "github.com/gariasf/viapeninsula",
+      "href": "https://github.com/gariasf/viapeninsula",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "AGPL-3.0",
+      "href": "https://www.gnu.org/licenses/agpl-3.0.html",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "Cloudflare Web Analytics",
+      "href": "https://developers.cloudflare.com/web-analytics/data-metrics/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     }
+    ],
+    "aboutAx": [
+     "GitHub (fitxa berri batean irekitzen da)",
+     "github.com/gariasf/viapeninsula (fitxa berri batean irekitzen da)",
+     "AGPL-3.0 (fitxa berri batean irekitzen da)",
+     "Cloudflare Web Analytics (fitxa berri batean irekitzen da)",
+     "OpenFreeMap (fitxa berri batean irekitzen da)",
+     "© OpenMapTiles (fitxa berri batean irekitzen da)",
+     "© OpenStreetMap laguntzaileak (fitxa berri batean irekitzen da)",
+     "Renfe (fitxa berri batean irekitzen da)",
+     "CC BY 4.0 (fitxa berri batean irekitzen da)",
+     "FGC (fitxa berri batean irekitzen da)",
+     "CC BY 4.0 (fitxa berri batean irekitzen da)",
+     "Powered by TRAM Barcelona (fitxa berri batean irekitzen da)",
+     "TMB (fitxa berri batean irekitzen da)"
+    ],
+    "aboutMetrics": {
+     "dialog": {
+      "scrollTop": 0,
+      "scrollHeight": 748,
+      "clientHeight": 748,
+      "scrollWidth": 436,
+      "clientWidth": 436
+     },
+     "body": {
+      "scrollTop": 0,
+      "scrollHeight": 905,
+      "clientHeight": 688
+     }
+    },
+    "aboutPoke": {
+     "dialogScrollTop": 0,
+     "bodyScrollTop": 217
+    },
+    "aboutAria": "- dialog \"Mapa honi buruz\":\n  - banner:\n    - heading \"Mapa honi buruz\" [level=2]\n    - button \"Itxi\"\n  - paragraph:\n    - text: Euskarazko testuak itzulpen automatikoz eginak dira, eta hiztun batek ez ditu oraindik berrikusi. Zuzendu beharreko zerbait ikusten baduzu, jakinarazi iezaguzu\n    - link \"GitHub (fitxa berri batean irekitzen da)\":\n      - /url: https://github.com/gariasf/viapeninsula/issues\n    - text: \"-en.\"\n  - paragraph: Via Penínsulak Kataluniako trenak, metroak eta tranbiak erakusten ditu, baita Renferen Cercanías trenak ere Espainiako gainerako lekuetan, eta Renferen AVE eta distantzia luzeko trenak, dabiltzan bitartean. Posizioak operadoreen datuetatik ateratako zenbatespenak dira, ordutegietatik eta denbora errealeko datuetatik kalkulatuak.\n  - paragraph: Iryok ez du bere trenei buruzko daturik argitaratzen, eta, beraz, ez dira mapan agertzen.\n  - heading \"Nola irakurri mapa\" [level=3]\n  - list:\n    - listitem: \"R1 Zuzenean: denbora errealeko datuek baieztatutako posizioa\"\n    - listitem: \"R1 Programatuta: ordutegiaren araberako posizioa\"\n  - paragraph: R1 R11 Alvia MM\n  - paragraph: \"Mapa handituta, tren bakoitza bere linearen izena daraman etiketa bat da, eta haren formak zerbitzu mota adierazten du: biribildua aldiriko eta hiri-inguruko lineetan, bi muturretan puntaduna eskualdeko lineetan, bi muturretan zeiharka moztua distantzia luzeko lineetan, eta izkina biribilduko karratua TMBren metroko, TRAMeko, Cadizko tren-tranbiako, kremailerako eta funikularretako lineetan.\"\n  - heading \"Kredituak\" [level=3]\n  - list:\n    - listitem:\n      - link \"OpenFreeMap (fitxa berri batean irekitzen da)\":\n        - /url: https://openfreemap.org\n      - link \"© OpenMapTiles (fitxa berri batean irekitzen da)\":\n        - /url: https://www.openmaptiles.org/\n      - link \"© OpenStreetMap laguntzaileak (fitxa berri batean irekitzen da)\":\n        - /url: https://www.openstreetmap.org/copyright\n    - listitem:\n      - link \"Renfe (fitxa berri batean irekitzen da)\":\n        - /url: https://data.renfe.com/\n      - text: \",\"\n      - link \"CC BY 4.0 (fitxa berri batean irekitzen da)\":\n        - /url: https://creativecommons.org/licenses/by/4.0/\n    - listitem:\n      - link \"FGC (fitxa berri batean irekitzen da)\":\n        - /url: https://dadesobertes.fgc.cat/\n      - text: \",\"\n      - link \"CC BY 4.0 (fitxa berri batean irekitzen da)\":\n        - /url: https://creativecommons.org/licenses/by/4.0/\n    - listitem:\n      - link \"Powered by TRAM Barcelona (fitxa berri batean irekitzen da)\":\n        - /url: https://www.tram.cat/\n      - text: \", azken eguneratzea: 12 oct 2026\"\n    - listitem:\n      - link \"TMB (fitxa berri batean irekitzen da)\":\n        - /url: https://www.tmb.cat/\n      - text: \", azken eguneratzea: 6 oct 2026\"\n  - heading \"Iturburu-kodea\" [level=3]\n  - paragraph:\n    - link \"github.com/gariasf/viapeninsula (fitxa berri batean irekitzen da)\":\n      - /url: https://github.com/gariasf/viapeninsula\n    - text: \",\"\n    - link \"AGPL-3.0 (fitxa berri batean irekitzen da)\":\n      - /url: https://www.gnu.org/licenses/agpl-3.0.html\n  - heading \"Pribatutasuna\" [level=3]\n  - paragraph: \"Webgune honek ez du cookierik erabiltzen: zure gailuan, aukeratzen duzun hizkuntza eta mapa uzten duzun lekua baino ez ditu gordetzen.\"\n  - paragraph:\n    - text: Bisitak\n    - link \"Cloudflare Web Analytics (fitxa berri batean irekitzen da)\":\n      - /url: https://developers.cloudflare.com/web-analytics/data-metrics/\n    - text: bidez zenbatzen dira, eta tresna horrek ez du cookierik erabiltzen, ezta ezer gordetzen ere zure gailuan."
+   },
+   "gl": {
+    "strip": [
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "OpenFreeMap",
+      "href": "https://openfreemap.org",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "© OpenMapTiles",
+      "href": "https://www.openmaptiles.org/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "© Colaboradores do OpenStreetMap",
+      "href": "https://www.openstreetmap.org/copyright",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "Renfe",
+      "href": "https://data.renfe.com/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "CC BY 4.0",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "FGC",
+      "href": "https://dadesobertes.fgc.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "CC BY 4.0",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "Powered by TRAM Barcelona",
+      "href": "https://www.tram.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "TMB",
+      "href": "https://www.tmb.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     }
+    ],
+    "stripAx": [
+     "OpenFreeMap (ábrese nunha lapela nova)",
+     "© OpenMapTiles (ábrese nunha lapela nova)",
+     "© Colaboradores do OpenStreetMap (ábrese nunha lapela nova)",
+     "Renfe (ábrese nunha lapela nova)",
+     "CC BY 4.0 (ábrese nunha lapela nova)",
+     "FGC (ábrese nunha lapela nova)",
+     "CC BY 4.0 (ábrese nunha lapela nova)",
+     "Powered by TRAM Barcelona (ábrese nunha lapela nova)",
+     "TMB (ábrese nunha lapela nova)"
+    ],
+    "about": [
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "GitHub",
+      "href": "https://github.com/gariasf/viapeninsula/issues",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "OpenFreeMap",
+      "href": "https://openfreemap.org",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "© OpenMapTiles",
+      "href": "https://www.openmaptiles.org/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "© Colaboradores do OpenStreetMap",
+      "href": "https://www.openstreetmap.org/copyright",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "Renfe",
+      "href": "https://data.renfe.com/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "CC BY 4.0",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "FGC",
+      "href": "https://dadesobertes.fgc.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "CC BY 4.0",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "Powered by TRAM Barcelona",
+      "href": "https://www.tram.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "TMB",
+      "href": "https://www.tmb.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "github.com/gariasf/viapeninsula",
+      "href": "https://github.com/gariasf/viapeninsula",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "AGPL-3.0",
+      "href": "https://www.gnu.org/licenses/agpl-3.0.html",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "Cloudflare Web Analytics",
+      "href": "https://developers.cloudflare.com/web-analytics/data-metrics/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     }
+    ],
+    "aboutAx": [
+     "GitHub (ábrese nunha lapela nova)",
+     "github.com/gariasf/viapeninsula (ábrese nunha lapela nova)",
+     "AGPL-3.0 (ábrese nunha lapela nova)",
+     "Cloudflare Web Analytics (ábrese nunha lapela nova)",
+     "OpenFreeMap (ábrese nunha lapela nova)",
+     "© OpenMapTiles (ábrese nunha lapela nova)",
+     "© Colaboradores do OpenStreetMap (ábrese nunha lapela nova)",
+     "Renfe (ábrese nunha lapela nova)",
+     "CC BY 4.0 (ábrese nunha lapela nova)",
+     "FGC (ábrese nunha lapela nova)",
+     "CC BY 4.0 (ábrese nunha lapela nova)",
+     "Powered by TRAM Barcelona (ábrese nunha lapela nova)",
+     "TMB (ábrese nunha lapela nova)"
+    ],
+    "aboutMetrics": {
+     "dialog": {
+      "scrollTop": 0,
+      "scrollHeight": 748,
+      "clientHeight": 748,
+      "scrollWidth": 436,
+      "clientWidth": 436
+     },
+     "body": {
+      "scrollTop": 0,
+      "scrollHeight": 825,
+      "clientHeight": 688
+     }
+    },
+    "aboutPoke": {
+     "dialogScrollTop": 0,
+     "bodyScrollTop": 137
+    },
+    "aboutAria": "- dialog \"Sobre este mapa\":\n  - banner:\n    - heading \"Sobre este mapa\" [level=2]\n    - button \"Pechar\"\n  - paragraph:\n    - text: Os textos en galego son unha tradución automática, e aínda non os revisou ningún falante. Se ves algo que corrixir, avísanos en\n    - link \"GitHub (ábrese nunha lapela nova)\":\n      - /url: https://github.com/gariasf/viapeninsula/issues\n    - text: .\n  - paragraph: Via Península amosa os trens, metros e tranvías de Cataluña, os trens de Cercanías de Renfe no resto de España, e os trens AVE e de longa distancia de Renfe, mentres circulan. As posicións son estimacións derivadas dos datos dos operadores, calculadas a partir dos horarios e dos datos en tempo real.\n  - paragraph: Iryo non publica ningún dato dos seus trens, así que non aparecen no mapa.\n  - heading \"Como ler o mapa\" [level=3]\n  - list:\n    - listitem: \"R1 En directo: posición confirmada por datos en tempo real\"\n    - listitem: \"R1 Programado: posición segundo o horario\"\n  - paragraph: R1 R11 Alvia MM\n  - paragraph: \"Co mapa ampliado, cada tren é unha etiqueta co nome da súa liña, e a súa forma indica o tipo de servizo: arredondada para as liñas de proximidade e as suburbanas, rematada en punta polos dous extremos para as rexionais, cortada en diagonal polos dous extremos para as de longa distancia, e cadrada coas esquinas arredondadas para as do metro de TMB, do TRAM, do tren-tranvía de Cádiz, do tren de cremalleira e dos funiculares.\"\n  - heading \"Créditos\" [level=3]\n  - list:\n    - listitem:\n      - link \"OpenFreeMap (ábrese nunha lapela nova)\":\n        - /url: https://openfreemap.org\n      - link \"© OpenMapTiles (ábrese nunha lapela nova)\":\n        - /url: https://www.openmaptiles.org/\n      - link \"© Colaboradores do OpenStreetMap (ábrese nunha lapela nova)\":\n        - /url: https://www.openstreetmap.org/copyright\n    - listitem:\n      - link \"Renfe (ábrese nunha lapela nova)\":\n        - /url: https://data.renfe.com/\n      - text: \",\"\n      - link \"CC BY 4.0 (ábrese nunha lapela nova)\":\n        - /url: https://creativecommons.org/licenses/by/4.0/\n    - listitem:\n      - link \"FGC (ábrese nunha lapela nova)\":\n        - /url: https://dadesobertes.fgc.cat/\n      - text: \",\"\n      - link \"CC BY 4.0 (ábrese nunha lapela nova)\":\n        - /url: https://creativecommons.org/licenses/by/4.0/\n    - listitem:\n      - link \"Powered by TRAM Barcelona (ábrese nunha lapela nova)\":\n        - /url: https://www.tram.cat/\n      - text: \", actualizado o 12 oct 2026\"\n    - listitem:\n      - link \"TMB (ábrese nunha lapela nova)\":\n        - /url: https://www.tmb.cat/\n      - text: \", actualizado o 6 oct 2026\"\n  - heading \"Código fonte\" [level=3]\n  - paragraph:\n    - link \"github.com/gariasf/viapeninsula (ábrese nunha lapela nova)\":\n      - /url: https://github.com/gariasf/viapeninsula\n    - text: \",\"\n    - link \"AGPL-3.0 (ábrese nunha lapela nova)\":\n      - /url: https://www.gnu.org/licenses/agpl-3.0.html\n  - heading \"Privacidade\" [level=3]\n  - paragraph: \"Esta web non usa cookies: só garda no teu dispositivo o idioma que escollas e o lugar onde deixes o mapa.\"\n  - paragraph:\n    - text: As visitas cóntanse con\n    - link \"Cloudflare Web Analytics (ábrese nunha lapela nova)\":\n      - /url: https://developers.cloudflare.com/web-analytics/data-metrics/\n    - text: \", que non usa cookies nin garda nada no teu dispositivo.\""
+   },
+   "en": {
+    "strip": [
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "OpenFreeMap",
+      "href": "https://openfreemap.org",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "© OpenMapTiles",
+      "href": "https://www.openmaptiles.org/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "© OpenStreetMap contributors",
+      "href": "https://www.openstreetmap.org/copyright",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "Renfe",
+      "href": "https://data.renfe.com/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "CC BY 4.0",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "FGC",
+      "href": "https://dadesobertes.fgc.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "CC BY 4.0",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "Powered by TRAM Barcelona",
+      "href": "https://www.tram.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "credits-strip",
+      "text": "TMB",
+      "href": "https://www.tmb.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     }
+    ],
+    "stripAx": [
+     "OpenFreeMap (opens in a new tab)",
+     "© OpenMapTiles (opens in a new tab)",
+     "© OpenStreetMap contributors (opens in a new tab)",
+     "Renfe (opens in a new tab)",
+     "CC BY 4.0 (opens in a new tab)",
+     "FGC (opens in a new tab)",
+     "CC BY 4.0 (opens in a new tab)",
+     "Powered by TRAM Barcelona (opens in a new tab)",
+     "TMB (opens in a new tab)"
+    ],
+    "about": [
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "OpenFreeMap",
+      "href": "https://openfreemap.org",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "© OpenMapTiles",
+      "href": "https://www.openmaptiles.org/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "© OpenStreetMap contributors",
+      "href": "https://www.openstreetmap.org/copyright",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "Renfe",
+      "href": "https://data.renfe.com/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "CC BY 4.0",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "FGC",
+      "href": "https://dadesobertes.fgc.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "CC BY 4.0",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "Powered by TRAM Barcelona",
+      "href": "https://www.tram.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "TMB",
+      "href": "https://www.tmb.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "github.com/gariasf/viapeninsula",
+      "href": "https://github.com/gariasf/viapeninsula",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "AGPL-3.0",
+      "href": "https://www.gnu.org/licenses/agpl-3.0.html",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "Cloudflare Web Analytics",
+      "href": "https://developers.cloudflare.com/web-analytics/data-metrics/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     }
+    ],
+    "aboutAx": [
+     "github.com/gariasf/viapeninsula (opens in a new tab)",
+     "AGPL-3.0 (opens in a new tab)",
+     "Cloudflare Web Analytics (opens in a new tab)",
+     "OpenFreeMap (opens in a new tab)",
+     "© OpenMapTiles (opens in a new tab)",
+     "© OpenStreetMap contributors (opens in a new tab)",
+     "Renfe (opens in a new tab)",
+     "CC BY 4.0 (opens in a new tab)",
+     "FGC (opens in a new tab)",
+     "CC BY 4.0 (opens in a new tab)",
+     "Powered by TRAM Barcelona (opens in a new tab)",
+     "TMB (opens in a new tab)"
+    ],
+    "aboutMetrics": {
+     "dialog": {
+      "scrollTop": 0,
+      "scrollHeight": 748,
+      "clientHeight": 748,
+      "scrollWidth": 436,
+      "clientWidth": 436
+     },
+     "body": {
+      "scrollTop": 0,
+      "scrollHeight": 702,
+      "clientHeight": 688
+     }
+    },
+    "aboutPoke": {
+     "dialogScrollTop": 0,
+     "bodyScrollTop": 14
+    }
+   }
+  },
+  "alertLanguages": {
+   "es": [
+    {
+     "text": "https://www.tram.cat/avisos",
+     "hidden": " (se abre en una pestaña nueva)",
+     "hiddenLang": "es",
+     "round": "es",
+     "rel": "noopener noreferrer",
+     "target": "_blank"
+    },
+    {
+     "text": "https://tram.cat/es/prensa/2296",
+     "hidden": " (se abre en una pestaña nueva)",
+     "hiddenLang": "es",
+     "round": "es",
+     "rel": "noopener noreferrer",
+     "target": "_blank"
+    }
+   ],
+   "eu": [
+    {
+     "text": "https://www.tram.cat/avisos",
+     "hidden": " (fitxa berri batean irekitzen da)",
+     "hiddenLang": "eu",
+     "round": "es",
+     "rel": "noopener noreferrer",
+     "target": "_blank"
+    },
+    {
+     "text": "https://tram.cat/ca/premsa/2295",
+     "hidden": " (fitxa berri batean irekitzen da)",
+     "hiddenLang": "eu",
+     "round": "ca",
+     "rel": "noopener noreferrer",
+     "target": "_blank"
+    }
+   ],
+   "gl": [
+    {
+     "text": "https://www.tram.cat/avisos",
+     "hidden": " (ábrese nunha lapela nova)",
+     "hiddenLang": "gl",
+     "round": "es",
+     "rel": "noopener noreferrer",
+     "target": "_blank"
+    },
+    {
+     "text": "https://tram.cat/ca/premsa/2295",
+     "hidden": " (ábrese nunha lapela nova)",
+     "hiddenLang": "gl",
+     "round": "ca",
+     "rel": "noopener noreferrer",
+     "target": "_blank"
+    }
+   ],
+   "en": [
+    {
+     "text": "https://www.tram.cat/avisos",
+     "hidden": " (opens in a new tab)",
+     "hiddenLang": "en",
+     "round": "es",
+     "rel": "noopener noreferrer",
+     "target": "_blank"
+    },
+    {
+     "text": "https://tram.cat/en/press/2297",
+     "hidden": " (opens in a new tab)",
+     "hiddenLang": "en",
+     "round": "en",
+     "rel": "noopener noreferrer",
+     "target": "_blank"
+    }
+   ],
+   "ca": [
+    {
+     "text": "https://www.tram.cat/avisos",
+     "hidden": " (s'obre en una pestanya nova)",
+     "hiddenLang": "ca",
+     "round": "es",
+     "rel": "noopener noreferrer",
+     "target": "_blank"
+    },
+    {
+     "text": "https://tram.cat/ca/premsa/2295",
+     "hidden": " (s'obre en una pestanya nova)",
+     "hiddenLang": "ca",
+     "round": "ca",
+     "rel": "noopener noreferrer",
+     "target": "_blank"
+    }
+   ]
+  },
+  "title": "Via Península",
+  "lang": "ca",
+  "url": "http://localhost:5343",
+  "pageAnchors": 18,
+  "mapLinks": [
+   {
+    "tag": "A",
+    "in": "credits-text",
+    "text": "OpenFreeMap",
+    "href": "https://openfreemap.org",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     0,
+     0
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": false
+   },
+   {
+    "tag": "A",
+    "in": "credits-text",
+    "text": "© OpenMapTiles",
+    "href": "https://www.openmaptiles.org/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     0,
+     0
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": false
+   },
+   {
+    "tag": "A",
+    "in": "credits-text",
+    "text": "© Els col·laboradors de l'OpenStreetMap",
+    "href": "https://www.openstreetmap.org/copyright",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     0,
+     0
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": false
+   },
+   {
+    "tag": "A",
+    "in": "credits-text",
+    "text": "Renfe",
+    "href": "https://data.renfe.com/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     0,
+     0
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": false
+   },
+   {
+    "tag": "A",
+    "in": "credits-text",
+    "text": "CC BY 4.0",
+    "href": "https://creativecommons.org/licenses/by/4.0/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     0,
+     0
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": false
+   },
+   {
+    "tag": "A",
+    "in": "credits-text",
+    "text": "FGC",
+    "href": "https://dadesobertes.fgc.cat/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     0,
+     0
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": false
+   },
+   {
+    "tag": "A",
+    "in": "credits-text",
+    "text": "CC BY 4.0",
+    "href": "https://creativecommons.org/licenses/by/4.0/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     0,
+     0
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": false
+   },
+   {
+    "tag": "A",
+    "in": "credits-text",
+    "text": "Powered by TRAM Barcelona",
+    "href": "https://www.tram.cat/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     0,
+     0
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": false
+   },
+   {
+    "tag": "A",
+    "in": "credits-text",
+    "text": "TMB",
+    "href": "https://www.tmb.cat/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     0,
+     0
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": false
+   },
+   {
+    "tag": "A",
+    "in": "credits-strip",
+    "text": "OpenFreeMap",
+    "href": "https://openfreemap.org",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "credits-strip",
+    "text": "© OpenMapTiles",
+    "href": "https://www.openmaptiles.org/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "credits-strip",
+    "text": "© Els col·laboradors de l'OpenStreetMap",
+    "href": "https://www.openstreetmap.org/copyright",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "credits-strip",
+    "text": "Renfe",
+    "href": "https://data.renfe.com/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "credits-strip",
+    "text": "CC BY 4.0",
+    "href": "https://creativecommons.org/licenses/by/4.0/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "credits-strip",
+    "text": "FGC",
+    "href": "https://dadesobertes.fgc.cat/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "credits-strip",
+    "text": "CC BY 4.0",
+    "href": "https://creativecommons.org/licenses/by/4.0/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "credits-strip",
+    "text": "Powered by TRAM Barcelona",
+    "href": "https://www.tram.cat/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "credits-strip",
+    "text": "TMB",
+    "href": "https://www.tmb.cat/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   }
+  ],
+  "mapAx": [
+   "OpenFreeMap (s'obre en una pestanya nova)",
+   "© OpenMapTiles (s'obre en una pestanya nova)",
+   "© Els col·laboradors de l'OpenStreetMap (s'obre en una pestanya nova)",
+   "Renfe (s'obre en una pestanya nova)",
+   "CC BY 4.0 (s'obre en una pestanya nova)",
+   "FGC (s'obre en una pestanya nova)",
+   "CC BY 4.0 (s'obre en una pestanya nova)",
+   "Powered by TRAM Barcelona (s'obre en una pestanya nova)",
+   "TMB (s'obre en una pestanya nova)"
+  ],
+  "creditsAria": "- link \"OpenFreeMap (s'obre en una pestanya nova)\":\n  - /url: https://openfreemap.org\n- link \"© OpenMapTiles (s'obre en una pestanya nova)\":\n  - /url: https://www.openmaptiles.org/\n- link \"© Els col·laboradors de l'OpenStreetMap (s'obre en una pestanya nova)\":\n  - /url: https://www.openstreetmap.org/copyright\n- text: \"|\"\n- link \"Renfe (s'obre en una pestanya nova)\":\n  - /url: https://data.renfe.com/\n- text: \",\"\n- link \"CC BY 4.0 (s'obre en una pestanya nova)\":\n  - /url: https://creativecommons.org/licenses/by/4.0/\n- text: \"|\"\n- link \"FGC (s'obre en una pestanya nova)\":\n  - /url: https://dadesobertes.fgc.cat/\n- text: \",\"\n- link \"CC BY 4.0 (s'obre en una pestanya nova)\":\n  - /url: https://creativecommons.org/licenses/by/4.0/\n- text: \"|\"\n- link \"Powered by TRAM Barcelona (s'obre en una pestanya nova)\":\n  - /url: https://www.tram.cat/\n- text: \", actualitzat el 12 d’oct. 2026 |\"\n- link \"TMB (s'obre en una pestanya nova)\":\n  - /url: https://www.tmb.cat/\n- text: \", actualitzat el 6 d’oct. 2026\"",
+  "tabsToCredits": 8,
+  "aboutOpened": {
+   "dialog": {
+    "scrollTop": 0,
+    "scrollHeight": 748,
+    "clientHeight": 748,
+    "scrollWidth": 436,
+    "clientWidth": 436
+   },
+   "body": {
+    "scrollTop": 0,
+    "scrollHeight": 784,
+    "clientHeight": 688
+   }
+  },
+  "aboutAtEnd": {
+   "dialog": {
+    "scrollTop": 0,
+    "scrollHeight": 748,
+    "clientHeight": 748,
+    "scrollWidth": 436,
+    "clientWidth": 436
+   },
+   "body": {
+    "scrollTop": 96,
+    "scrollHeight": 784,
+    "clientHeight": 688
+   }
+  },
+  "aboutLinks": [
+   {
+    "tag": "A",
+    "in": "about",
+    "text": "OpenFreeMap",
+    "href": "https://openfreemap.org",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "about",
+    "text": "© OpenMapTiles",
+    "href": "https://www.openmaptiles.org/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "about",
+    "text": "© Els col·laboradors de l'OpenStreetMap",
+    "href": "https://www.openstreetmap.org/copyright",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "about",
+    "text": "Renfe",
+    "href": "https://data.renfe.com/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "about",
+    "text": "CC BY 4.0",
+    "href": "https://creativecommons.org/licenses/by/4.0/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "about",
+    "text": "FGC",
+    "href": "https://dadesobertes.fgc.cat/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "about",
+    "text": "CC BY 4.0",
+    "href": "https://creativecommons.org/licenses/by/4.0/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "about",
+    "text": "Powered by TRAM Barcelona",
+    "href": "https://www.tram.cat/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "about",
+    "text": "TMB",
+    "href": "https://www.tmb.cat/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "about",
+    "text": "github.com/gariasf/viapeninsula",
+    "href": "https://github.com/gariasf/viapeninsula",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "about",
+    "text": "AGPL-3.0",
+    "href": "https://www.gnu.org/licenses/agpl-3.0.html",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "about",
+    "text": "Cloudflare Web Analytics",
+    "href": "https://developers.cloudflare.com/web-analytics/data-metrics/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   }
+  ],
+  "aboutAx": [
+   "github.com/gariasf/viapeninsula (s'obre en una pestanya nova)",
+   "AGPL-3.0 (s'obre en una pestanya nova)",
+   "Cloudflare Web Analytics (s'obre en una pestanya nova)",
+   "OpenFreeMap (s'obre en una pestanya nova)",
+   "© OpenMapTiles (s'obre en una pestanya nova)",
+   "© Els col·laboradors de l'OpenStreetMap (s'obre en una pestanya nova)",
+   "Renfe (s'obre en una pestanya nova)",
+   "CC BY 4.0 (s'obre en una pestanya nova)",
+   "FGC (s'obre en una pestanya nova)",
+   "CC BY 4.0 (s'obre en una pestanya nova)",
+   "Powered by TRAM Barcelona (s'obre en una pestanya nova)",
+   "TMB (s'obre en una pestanya nova)"
+  ],
+  "aboutAria": "- dialog \"Quant a aquest mapa\":\n  - banner:\n    - heading \"Quant a aquest mapa\" [level=2]\n    - button \"Tanca\"\n  - paragraph: Via Península mostra els trens, metros i tramvies de Catalunya, els trens de Cercanías de Renfe a la resta d'Espanya, i els trens AVE i de llarga distància de Renfe, mentre circulen. Les posicions són estimacions derivades de les dades dels operadors, calculades a partir dels horaris i de les dades en temps real.\n  - paragraph: Iryo no publica cap dada dels seus trens, de manera que no surten al mapa.\n  - heading \"Com llegir el mapa\" [level=3]\n  - list:\n    - listitem: \"R1 En directe: posició confirmada per dades en temps real\"\n    - listitem: \"R1 Programat: posició segons l'horari\"\n  - paragraph: R1 R11 Alvia MM\n  - paragraph: \"Amb el mapa ampliat, cada tren és una etiqueta amb el nom de la seva línia, i la seva forma indica el tipus de servei: arrodonida per a les línies de rodalia i les suburbanes, acabada en punta als dos extrems per a les regionals, tallada en diagonal als dos extrems per a les de llarga distància, i quadrada amb les cantonades arrodonides per a les del metro de TMB, del TRAM, del tren-tramvia de Cadis, del cremallera i dels funiculars.\"\n  - heading \"Crèdits\" [level=3]\n  - list:\n    - listitem:\n      - link \"OpenFreeMap (s'obre en una pestanya nova)\":\n        - /url: https://openfreemap.org\n      - link \"© OpenMapTiles (s'obre en una pestanya nova)\":\n        - /url: https://www.openmaptiles.org/\n      - link \"© Els col·laboradors de l'OpenStreetMap (s'obre en una pestanya nova)\":\n        - /url: https://www.openstreetmap.org/copyright\n    - listitem:\n      - link \"Renfe (s'obre en una pestanya nova)\":\n        - /url: https://data.renfe.com/\n      - text: \",\"\n      - link \"CC BY 4.0 (s'obre en una pestanya nova)\":\n        - /url: https://creativecommons.org/licenses/by/4.0/\n    - listitem:\n      - link \"FGC (s'obre en una pestanya nova)\":\n        - /url: https://dadesobertes.fgc.cat/\n      - text: \",\"\n      - link \"CC BY 4.0 (s'obre en una pestanya nova)\":\n        - /url: https://creativecommons.org/licenses/by/4.0/\n    - listitem:\n      - link \"Powered by TRAM Barcelona (s'obre en una pestanya nova)\":\n        - /url: https://www.tram.cat/\n      - text: \", actualitzat el 12 d’oct. 2026\"\n    - listitem:\n      - link \"TMB (s'obre en una pestanya nova)\":\n        - /url: https://www.tmb.cat/\n      - text: \", actualitzat el 6 d’oct. 2026\"\n  - heading \"Codi font\" [level=3]\n  - paragraph:\n    - link \"github.com/gariasf/viapeninsula (s'obre en una pestanya nova)\":\n      - /url: https://github.com/gariasf/viapeninsula\n    - text: \",\"\n    - link \"AGPL-3.0 (s'obre en una pestanya nova)\":\n      - /url: https://www.gnu.org/licenses/agpl-3.0.html\n  - heading \"Privadesa\" [level=3]\n  - paragraph: \"Aquest web no fa servir galetes: només desa al teu dispositiu l'idioma que triïs i el lloc on deixis el mapa.\"\n  - paragraph:\n    - text: Les visites es compten amb\n    - link \"Cloudflare Web Analytics (s'obre en una pestanya nova)\":\n      - /url: https://developers.cloudflare.com/web-analytics/data-metrics/\n    - text: \", que no fa servir galetes ni desa res al teu dispositiu.\"",
+  "aboutPoke": {
+   "dialogScrollTop": 0,
+   "bodyScrollTop": 96
+  },
+  "alertLinks": [
+   {
+    "tag": "A",
+    "in": "alerts",
+    "text": "https://tram.cat/ca/premsa/2295",
+    "href": "https://tram.cat/ca/premsa/2295",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   }
+  ],
+  "alertsAria": "- button \"1 avís\" [expanded]\n- list:\n  - listitem:\n    - text: T1 T2 T3\n    - strong: T1, T2 i T3 Tall Francesc Macià – Montesa\n    - paragraph:\n      - text: Els dies 10, 11 i 12 d’octubre, per obres de renovació de via, sense servei entre Francesc Macià i Montesa. Durant l’afectació, s’habilitarà un servei alternatiu d’autobús.\n      - link \"https://tram.cat/ca/premsa/2295 (s'obre en una pestanya nova)\":\n        - /url: https://tram.cat/ca/premsa/2295\n    - paragraph: Des del 10 d’oct. 2026, 3:05 · TRAM"
+ },
+ "phone": {
+  "problems": [
+   "warning: layers[highway-shield-non-us].filter[1]: Expected value to be of type number, but found null instead. Falling back to false.",
+   "warning: layers[highway-shield-us-interstate].filter[1]: Expected value to be of type number, but found null instead. Falling back to false.",
+   "warning: layers[road_shield_us].filter[1]: Expected value to be of type number, but found null instead. Falling back to false."
+  ],
+  "steps": {
+   "load": 1756,
+   "credits": 3151,
+   "creditsHoverFocus": 254,
+   "about": 2725,
+   "languages": 6071,
+   "alerts": 4946
+  },
+  "languages": {
+   "ca": {
+    "about": [
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "OpenFreeMap",
+      "href": "https://openfreemap.org",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "© OpenMapTiles",
+      "href": "https://www.openmaptiles.org/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "© Els col·laboradors de l'OpenStreetMap",
+      "href": "https://www.openstreetmap.org/copyright",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "Renfe",
+      "href": "https://data.renfe.com/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "CC BY 4.0",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "FGC",
+      "href": "https://dadesobertes.fgc.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "CC BY 4.0",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "Powered by TRAM Barcelona",
+      "href": "https://www.tram.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "TMB",
+      "href": "https://www.tmb.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "github.com/gariasf/viapeninsula",
+      "href": "https://github.com/gariasf/viapeninsula",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "AGPL-3.0",
+      "href": "https://www.gnu.org/licenses/agpl-3.0.html",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "Cloudflare Web Analytics",
+      "href": "https://developers.cloudflare.com/web-analytics/data-metrics/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (s'obre en una pestanya nova)",
+      "hiddenLang": "ca",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "ca",
+      "shown": true
+     }
+    ],
+    "aboutAx": [
+     "github.com/gariasf/viapeninsula (s'obre en una pestanya nova)",
+     "AGPL-3.0 (s'obre en una pestanya nova)",
+     "Cloudflare Web Analytics (s'obre en una pestanya nova)",
+     "OpenFreeMap (s'obre en una pestanya nova)",
+     "© OpenMapTiles (s'obre en una pestanya nova)",
+     "© Els col·laboradors de l'OpenStreetMap (s'obre en una pestanya nova)",
+     "Renfe (s'obre en una pestanya nova)",
+     "CC BY 4.0 (s'obre en una pestanya nova)",
+     "FGC (s'obre en una pestanya nova)",
+     "CC BY 4.0 (s'obre en una pestanya nova)",
+     "Powered by TRAM Barcelona (s'obre en una pestanya nova)",
+     "TMB (s'obre en una pestanya nova)"
+    ],
+    "aboutMetrics": {
+     "dialog": {
+      "scrollTop": 0,
+      "scrollHeight": 776,
+      "clientHeight": 776,
+      "scrollWidth": 370,
+      "clientWidth": 370
+     },
+     "body": {
+      "scrollTop": 0,
+      "scrollHeight": 885,
+      "clientHeight": 696
+     }
+    },
+    "aboutPoke": {
+     "dialogScrollTop": 0,
+     "bodyScrollTop": 189
+    }
+   },
+   "es": {
+    "about": [
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "OpenFreeMap",
+      "href": "https://openfreemap.org",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "© OpenMapTiles",
+      "href": "https://www.openmaptiles.org/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "© Colaboradores de OpenStreetMap",
+      "href": "https://www.openstreetmap.org/copyright",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "Renfe",
+      "href": "https://data.renfe.com/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "CC BY 4.0",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "FGC",
+      "href": "https://dadesobertes.fgc.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "CC BY 4.0",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "Powered by TRAM Barcelona",
+      "href": "https://www.tram.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "TMB",
+      "href": "https://www.tmb.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "github.com/gariasf/viapeninsula",
+      "href": "https://github.com/gariasf/viapeninsula",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "AGPL-3.0",
+      "href": "https://www.gnu.org/licenses/agpl-3.0.html",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "Cloudflare Web Analytics",
+      "href": "https://developers.cloudflare.com/web-analytics/data-metrics/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (se abre en una pestaña nueva)",
+      "hiddenLang": "es",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "es",
+      "shown": true
+     }
+    ],
+    "aboutAx": [
+     "github.com/gariasf/viapeninsula (se abre en una pestaña nueva)",
+     "AGPL-3.0 (se abre en una pestaña nueva)",
+     "Cloudflare Web Analytics (se abre en una pestaña nueva)",
+     "OpenFreeMap (se abre en una pestaña nueva)",
+     "© OpenMapTiles (se abre en una pestaña nueva)",
+     "© Colaboradores de OpenStreetMap (se abre en una pestaña nueva)",
+     "Renfe (se abre en una pestaña nueva)",
+     "CC BY 4.0 (se abre en una pestaña nueva)",
+     "FGC (se abre en una pestaña nueva)",
+     "CC BY 4.0 (se abre en una pestaña nueva)",
+     "Powered by TRAM Barcelona (se abre en una pestaña nueva)",
+     "TMB (se abre en una pestaña nueva)"
+    ],
+    "aboutMetrics": {
+     "dialog": {
+      "scrollTop": 0,
+      "scrollHeight": 776,
+      "clientHeight": 776,
+      "scrollWidth": 370,
+      "clientWidth": 370
+     },
+     "body": {
+      "scrollTop": 0,
+      "scrollHeight": 905,
+      "clientHeight": 696
+     }
+    },
+    "aboutPoke": {
+     "dialogScrollTop": 0,
+     "bodyScrollTop": 209
+    }
+   },
+   "eu": {
+    "about": [
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "GitHub",
+      "href": "https://github.com/gariasf/viapeninsula/issues",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "OpenFreeMap",
+      "href": "https://openfreemap.org",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "© OpenMapTiles",
+      "href": "https://www.openmaptiles.org/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "© OpenStreetMap laguntzaileak",
+      "href": "https://www.openstreetmap.org/copyright",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "Renfe",
+      "href": "https://data.renfe.com/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "CC BY 4.0",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "FGC",
+      "href": "https://dadesobertes.fgc.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "CC BY 4.0",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "Powered by TRAM Barcelona",
+      "href": "https://www.tram.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "TMB",
+      "href": "https://www.tmb.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "github.com/gariasf/viapeninsula",
+      "href": "https://github.com/gariasf/viapeninsula",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "AGPL-3.0",
+      "href": "https://www.gnu.org/licenses/agpl-3.0.html",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "Cloudflare Web Analytics",
+      "href": "https://developers.cloudflare.com/web-analytics/data-metrics/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (fitxa berri batean irekitzen da)",
+      "hiddenLang": "eu",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "eu",
+      "shown": true
+     }
+    ],
+    "aboutAx": [
+     "GitHub (fitxa berri batean irekitzen da)",
+     "github.com/gariasf/viapeninsula (fitxa berri batean irekitzen da)",
+     "AGPL-3.0 (fitxa berri batean irekitzen da)",
+     "Cloudflare Web Analytics (fitxa berri batean irekitzen da)",
+     "OpenFreeMap (fitxa berri batean irekitzen da)",
+     "© OpenMapTiles (fitxa berri batean irekitzen da)",
+     "© OpenStreetMap laguntzaileak (fitxa berri batean irekitzen da)",
+     "Renfe (fitxa berri batean irekitzen da)",
+     "CC BY 4.0 (fitxa berri batean irekitzen da)",
+     "FGC (fitxa berri batean irekitzen da)",
+     "CC BY 4.0 (fitxa berri batean irekitzen da)",
+     "Powered by TRAM Barcelona (fitxa berri batean irekitzen da)",
+     "TMB (fitxa berri batean irekitzen da)"
+    ],
+    "aboutMetrics": {
+     "dialog": {
+      "scrollTop": 0,
+      "scrollHeight": 776,
+      "clientHeight": 776,
+      "scrollWidth": 370,
+      "clientWidth": 370
+     },
+     "body": {
+      "scrollTop": 0,
+      "scrollHeight": 986,
+      "clientHeight": 696
+     }
+    },
+    "aboutPoke": {
+     "dialogScrollTop": 0,
+     "bodyScrollTop": 290
+    },
+    "aboutAria": "- dialog \"Mapa honi buruz\":\n  - banner:\n    - heading \"Mapa honi buruz\" [level=2]\n    - button \"Itxi\"\n  - paragraph:\n    - text: Euskarazko testuak itzulpen automatikoz eginak dira, eta hiztun batek ez ditu oraindik berrikusi. Zuzendu beharreko zerbait ikusten baduzu, jakinarazi iezaguzu\n    - link \"GitHub (fitxa berri batean irekitzen da)\":\n      - /url: https://github.com/gariasf/viapeninsula/issues\n    - text: \"-en.\"\n  - paragraph: Via Penínsulak Kataluniako trenak, metroak eta tranbiak erakusten ditu, baita Renferen Cercanías trenak ere Espainiako gainerako lekuetan, eta Renferen AVE eta distantzia luzeko trenak, dabiltzan bitartean. Posizioak operadoreen datuetatik ateratako zenbatespenak dira, ordutegietatik eta denbora errealeko datuetatik kalkulatuak.\n  - paragraph: Iryok ez du bere trenei buruzko daturik argitaratzen, eta, beraz, ez dira mapan agertzen.\n  - heading \"Nola irakurri mapa\" [level=3]\n  - list:\n    - listitem: \"R1 Zuzenean: denbora errealeko datuek baieztatutako posizioa\"\n    - listitem: \"R1 Programatuta: ordutegiaren araberako posizioa\"\n  - paragraph: R1 R11 Alvia MM\n  - paragraph: \"Mapa handituta, tren bakoitza bere linearen izena daraman etiketa bat da, eta haren formak zerbitzu mota adierazten du: biribildua aldiriko eta hiri-inguruko lineetan, bi muturretan puntaduna eskualdeko lineetan, bi muturretan zeiharka moztua distantzia luzeko lineetan, eta izkina biribilduko karratua TMBren metroko, TRAMeko, Cadizko tren-tranbiako, kremailerako eta funikularretako lineetan.\"\n  - heading \"Kredituak\" [level=3]\n  - list:\n    - listitem:\n      - link \"OpenFreeMap (fitxa berri batean irekitzen da)\":\n        - /url: https://openfreemap.org\n      - link \"© OpenMapTiles (fitxa berri batean irekitzen da)\":\n        - /url: https://www.openmaptiles.org/\n      - link \"© OpenStreetMap laguntzaileak (fitxa berri batean irekitzen da)\":\n        - /url: https://www.openstreetmap.org/copyright\n    - listitem:\n      - link \"Renfe (fitxa berri batean irekitzen da)\":\n        - /url: https://data.renfe.com/\n      - text: \",\"\n      - link \"CC BY 4.0 (fitxa berri batean irekitzen da)\":\n        - /url: https://creativecommons.org/licenses/by/4.0/\n    - listitem:\n      - link \"FGC (fitxa berri batean irekitzen da)\":\n        - /url: https://dadesobertes.fgc.cat/\n      - text: \",\"\n      - link \"CC BY 4.0 (fitxa berri batean irekitzen da)\":\n        - /url: https://creativecommons.org/licenses/by/4.0/\n    - listitem:\n      - link \"Powered by TRAM Barcelona (fitxa berri batean irekitzen da)\":\n        - /url: https://www.tram.cat/\n      - text: \", azken eguneratzea: 12 oct 2026\"\n    - listitem:\n      - link \"TMB (fitxa berri batean irekitzen da)\":\n        - /url: https://www.tmb.cat/\n      - text: \", azken eguneratzea: 6 oct 2026\"\n  - heading \"Iturburu-kodea\" [level=3]\n  - paragraph:\n    - link \"github.com/gariasf/viapeninsula (fitxa berri batean irekitzen da)\":\n      - /url: https://github.com/gariasf/viapeninsula\n    - text: \",\"\n    - link \"AGPL-3.0 (fitxa berri batean irekitzen da)\":\n      - /url: https://www.gnu.org/licenses/agpl-3.0.html\n  - heading \"Pribatutasuna\" [level=3]\n  - paragraph: \"Webgune honek ez du cookierik erabiltzen: zure gailuan, aukeratzen duzun hizkuntza eta mapa uzten duzun lekua baino ez ditu gordetzen.\"\n  - paragraph:\n    - text: Bisitak\n    - link \"Cloudflare Web Analytics (fitxa berri batean irekitzen da)\":\n      - /url: https://developers.cloudflare.com/web-analytics/data-metrics/\n    - text: bidez zenbatzen dira, eta tresna horrek ez du cookierik erabiltzen, ezta ezer gordetzen ere zure gailuan."
+   },
+   "gl": {
+    "about": [
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "GitHub",
+      "href": "https://github.com/gariasf/viapeninsula/issues",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "OpenFreeMap",
+      "href": "https://openfreemap.org",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "© OpenMapTiles",
+      "href": "https://www.openmaptiles.org/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "© Colaboradores do OpenStreetMap",
+      "href": "https://www.openstreetmap.org/copyright",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "Renfe",
+      "href": "https://data.renfe.com/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "CC BY 4.0",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "FGC",
+      "href": "https://dadesobertes.fgc.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "CC BY 4.0",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "Powered by TRAM Barcelona",
+      "href": "https://www.tram.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "TMB",
+      "href": "https://www.tmb.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "github.com/gariasf/viapeninsula",
+      "href": "https://github.com/gariasf/viapeninsula",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "AGPL-3.0",
+      "href": "https://www.gnu.org/licenses/agpl-3.0.html",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "Cloudflare Web Analytics",
+      "href": "https://developers.cloudflare.com/web-analytics/data-metrics/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (ábrese nunha lapela nova)",
+      "hiddenLang": "gl",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "gl",
+      "shown": true
+     }
+    ],
+    "aboutAx": [
+     "GitHub (ábrese nunha lapela nova)",
+     "github.com/gariasf/viapeninsula (ábrese nunha lapela nova)",
+     "AGPL-3.0 (ábrese nunha lapela nova)",
+     "Cloudflare Web Analytics (ábrese nunha lapela nova)",
+     "OpenFreeMap (ábrese nunha lapela nova)",
+     "© OpenMapTiles (ábrese nunha lapela nova)",
+     "© Colaboradores do OpenStreetMap (ábrese nunha lapela nova)",
+     "Renfe (ábrese nunha lapela nova)",
+     "CC BY 4.0 (ábrese nunha lapela nova)",
+     "FGC (ábrese nunha lapela nova)",
+     "CC BY 4.0 (ábrese nunha lapela nova)",
+     "Powered by TRAM Barcelona (ábrese nunha lapela nova)",
+     "TMB (ábrese nunha lapela nova)"
+    ],
+    "aboutMetrics": {
+     "dialog": {
+      "scrollTop": 0,
+      "scrollHeight": 776,
+      "clientHeight": 776,
+      "scrollWidth": 370,
+      "clientWidth": 370
+     },
+     "body": {
+      "scrollTop": 0,
+      "scrollHeight": 946,
+      "clientHeight": 696
+     }
+    },
+    "aboutPoke": {
+     "dialogScrollTop": 0,
+     "bodyScrollTop": 250
+    },
+    "aboutAria": "- dialog \"Sobre este mapa\":\n  - banner:\n    - heading \"Sobre este mapa\" [level=2]\n    - button \"Pechar\"\n  - paragraph:\n    - text: Os textos en galego son unha tradución automática, e aínda non os revisou ningún falante. Se ves algo que corrixir, avísanos en\n    - link \"GitHub (ábrese nunha lapela nova)\":\n      - /url: https://github.com/gariasf/viapeninsula/issues\n    - text: .\n  - paragraph: Via Península amosa os trens, metros e tranvías de Cataluña, os trens de Cercanías de Renfe no resto de España, e os trens AVE e de longa distancia de Renfe, mentres circulan. As posicións son estimacións derivadas dos datos dos operadores, calculadas a partir dos horarios e dos datos en tempo real.\n  - paragraph: Iryo non publica ningún dato dos seus trens, así que non aparecen no mapa.\n  - heading \"Como ler o mapa\" [level=3]\n  - list:\n    - listitem: \"R1 En directo: posición confirmada por datos en tempo real\"\n    - listitem: \"R1 Programado: posición segundo o horario\"\n  - paragraph: R1 R11 Alvia MM\n  - paragraph: \"Co mapa ampliado, cada tren é unha etiqueta co nome da súa liña, e a súa forma indica o tipo de servizo: arredondada para as liñas de proximidade e as suburbanas, rematada en punta polos dous extremos para as rexionais, cortada en diagonal polos dous extremos para as de longa distancia, e cadrada coas esquinas arredondadas para as do metro de TMB, do TRAM, do tren-tranvía de Cádiz, do tren de cremalleira e dos funiculares.\"\n  - heading \"Créditos\" [level=3]\n  - list:\n    - listitem:\n      - link \"OpenFreeMap (ábrese nunha lapela nova)\":\n        - /url: https://openfreemap.org\n      - link \"© OpenMapTiles (ábrese nunha lapela nova)\":\n        - /url: https://www.openmaptiles.org/\n      - link \"© Colaboradores do OpenStreetMap (ábrese nunha lapela nova)\":\n        - /url: https://www.openstreetmap.org/copyright\n    - listitem:\n      - link \"Renfe (ábrese nunha lapela nova)\":\n        - /url: https://data.renfe.com/\n      - text: \",\"\n      - link \"CC BY 4.0 (ábrese nunha lapela nova)\":\n        - /url: https://creativecommons.org/licenses/by/4.0/\n    - listitem:\n      - link \"FGC (ábrese nunha lapela nova)\":\n        - /url: https://dadesobertes.fgc.cat/\n      - text: \",\"\n      - link \"CC BY 4.0 (ábrese nunha lapela nova)\":\n        - /url: https://creativecommons.org/licenses/by/4.0/\n    - listitem:\n      - link \"Powered by TRAM Barcelona (ábrese nunha lapela nova)\":\n        - /url: https://www.tram.cat/\n      - text: \", actualizado o 12 oct 2026\"\n    - listitem:\n      - link \"TMB (ábrese nunha lapela nova)\":\n        - /url: https://www.tmb.cat/\n      - text: \", actualizado o 6 oct 2026\"\n  - heading \"Código fonte\" [level=3]\n  - paragraph:\n    - link \"github.com/gariasf/viapeninsula (ábrese nunha lapela nova)\":\n      - /url: https://github.com/gariasf/viapeninsula\n    - text: \",\"\n    - link \"AGPL-3.0 (ábrese nunha lapela nova)\":\n      - /url: https://www.gnu.org/licenses/agpl-3.0.html\n  - heading \"Privacidade\" [level=3]\n  - paragraph: \"Esta web non usa cookies: só garda no teu dispositivo o idioma que escollas e o lugar onde deixes o mapa.\"\n  - paragraph:\n    - text: As visitas cóntanse con\n    - link \"Cloudflare Web Analytics (ábrese nunha lapela nova)\":\n      - /url: https://developers.cloudflare.com/web-analytics/data-metrics/\n    - text: \", que non usa cookies nin garda nada no teu dispositivo.\""
+   },
+   "en": {
+    "about": [
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "OpenFreeMap",
+      "href": "https://openfreemap.org",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "© OpenMapTiles",
+      "href": "https://www.openmaptiles.org/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "© OpenStreetMap contributors",
+      "href": "https://www.openstreetmap.org/copyright",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "Renfe",
+      "href": "https://data.renfe.com/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "CC BY 4.0",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "FGC",
+      "href": "https://dadesobertes.fgc.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "CC BY 4.0",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "Powered by TRAM Barcelona",
+      "href": "https://www.tram.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "TMB",
+      "href": "https://www.tmb.cat/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "github.com/gariasf/viapeninsula",
+      "href": "https://github.com/gariasf/viapeninsula",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "AGPL-3.0",
+      "href": "https://www.gnu.org/licenses/agpl-3.0.html",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     },
+     {
+      "tag": "A",
+      "in": "about",
+      "text": "Cloudflare Web Analytics",
+      "href": "https://developers.cloudflare.com/web-analytics/data-metrics/",
+      "target": "_blank",
+      "rel": "noopener noreferrer",
+      "position": "relative",
+      "hidden": " (opens in a new tab)",
+      "hiddenLang": "en",
+      "hiddenClass": "sr-only",
+      "hiddenBox": [
+       1,
+       1
+      ],
+      "hiddenClip": "inset(50%)",
+      "hiddenPosition": "absolute",
+      "hiddenIsLast": true,
+      "round": "en",
+      "shown": true
+     }
+    ],
+    "aboutAx": [
+     "github.com/gariasf/viapeninsula (opens in a new tab)",
+     "AGPL-3.0 (opens in a new tab)",
+     "Cloudflare Web Analytics (opens in a new tab)",
+     "OpenFreeMap (opens in a new tab)",
+     "© OpenMapTiles (opens in a new tab)",
+     "© OpenStreetMap contributors (opens in a new tab)",
+     "Renfe (opens in a new tab)",
+     "CC BY 4.0 (opens in a new tab)",
+     "FGC (opens in a new tab)",
+     "CC BY 4.0 (opens in a new tab)",
+     "Powered by TRAM Barcelona (opens in a new tab)",
+     "TMB (opens in a new tab)"
+    ],
+    "aboutMetrics": {
+     "dialog": {
+      "scrollTop": 0,
+      "scrollHeight": 776,
+      "clientHeight": 776,
+      "scrollWidth": 370,
+      "clientWidth": 370
+     },
+     "body": {
+      "scrollTop": 0,
+      "scrollHeight": 804,
+      "clientHeight": 696
+     }
+    },
+    "aboutPoke": {
+     "dialogScrollTop": 0,
+     "bodyScrollTop": 108
+    }
+   }
+  },
+  "alertLanguages": {},
+  "title": "Via Península",
+  "lang": "ca",
+  "url": "http://localhost:5343",
+  "pageAnchors": 18,
+  "mapLinks": [
+   {
+    "tag": "A",
+    "in": "credits-text",
+    "text": "OpenFreeMap",
+    "href": "https://openfreemap.org",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "credits-text",
+    "text": "© OpenMapTiles",
+    "href": "https://www.openmaptiles.org/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "credits-text",
+    "text": "© Els col·laboradors de l'OpenStreetMap",
+    "href": "https://www.openstreetmap.org/copyright",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "credits-text",
+    "text": "Renfe",
+    "href": "https://data.renfe.com/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "credits-text",
+    "text": "CC BY 4.0",
+    "href": "https://creativecommons.org/licenses/by/4.0/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "credits-text",
+    "text": "FGC",
+    "href": "https://dadesobertes.fgc.cat/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "credits-text",
+    "text": "CC BY 4.0",
+    "href": "https://creativecommons.org/licenses/by/4.0/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "credits-text",
+    "text": "Powered by TRAM Barcelona",
+    "href": "https://www.tram.cat/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "credits-text",
+    "text": "TMB",
+    "href": "https://www.tmb.cat/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "credits-strip",
+    "text": "OpenFreeMap",
+    "href": "https://openfreemap.org",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     0,
+     0
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": false
+   },
+   {
+    "tag": "A",
+    "in": "credits-strip",
+    "text": "© OpenMapTiles",
+    "href": "https://www.openmaptiles.org/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     0,
+     0
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": false
+   },
+   {
+    "tag": "A",
+    "in": "credits-strip",
+    "text": "© Els col·laboradors de l'OpenStreetMap",
+    "href": "https://www.openstreetmap.org/copyright",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     0,
+     0
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": false
+   },
+   {
+    "tag": "A",
+    "in": "credits-strip",
+    "text": "Renfe",
+    "href": "https://data.renfe.com/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     0,
+     0
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": false
+   },
+   {
+    "tag": "A",
+    "in": "credits-strip",
+    "text": "CC BY 4.0",
+    "href": "https://creativecommons.org/licenses/by/4.0/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     0,
+     0
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": false
+   },
+   {
+    "tag": "A",
+    "in": "credits-strip",
+    "text": "FGC",
+    "href": "https://dadesobertes.fgc.cat/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     0,
+     0
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": false
+   },
+   {
+    "tag": "A",
+    "in": "credits-strip",
+    "text": "CC BY 4.0",
+    "href": "https://creativecommons.org/licenses/by/4.0/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     0,
+     0
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": false
+   },
+   {
+    "tag": "A",
+    "in": "credits-strip",
+    "text": "Powered by TRAM Barcelona",
+    "href": "https://www.tram.cat/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     0,
+     0
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": false
+   },
+   {
+    "tag": "A",
+    "in": "credits-strip",
+    "text": "TMB",
+    "href": "https://www.tmb.cat/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     0,
+     0
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": false
+   }
+  ],
+  "mapAx": [
+   "OpenFreeMap (s'obre en una pestanya nova)",
+   "© OpenMapTiles (s'obre en una pestanya nova)",
+   "© Els col·laboradors de l'OpenStreetMap (s'obre en una pestanya nova)",
+   "Renfe (s'obre en una pestanya nova)",
+   "CC BY 4.0 (s'obre en una pestanya nova)",
+   "FGC (s'obre en una pestanya nova)",
+   "CC BY 4.0 (s'obre en una pestanya nova)",
+   "Powered by TRAM Barcelona (s'obre en una pestanya nova)",
+   "TMB (s'obre en una pestanya nova)"
+  ],
+  "creditsAria": "- link \"OpenFreeMap (s'obre en una pestanya nova)\":\n  - /url: https://openfreemap.org\n- link \"© OpenMapTiles (s'obre en una pestanya nova)\":\n  - /url: https://www.openmaptiles.org/\n- link \"© Els col·laboradors de l'OpenStreetMap (s'obre en una pestanya nova)\":\n  - /url: https://www.openstreetmap.org/copyright\n- text: \"|\"\n- link \"Renfe (s'obre en una pestanya nova)\":\n  - /url: https://data.renfe.com/\n- text: \",\"\n- link \"CC BY 4.0 (s'obre en una pestanya nova)\":\n  - /url: https://creativecommons.org/licenses/by/4.0/\n- text: \"|\"\n- link \"FGC (s'obre en una pestanya nova)\":\n  - /url: https://dadesobertes.fgc.cat/\n- text: \",\"\n- link \"CC BY 4.0 (s'obre en una pestanya nova)\":\n  - /url: https://creativecommons.org/licenses/by/4.0/\n- text: \"|\"\n- link \"Powered by TRAM Barcelona (s'obre en una pestanya nova)\":\n  - /url: https://www.tram.cat/\n- text: \", actualitzat el 12 d’oct. 2026 |\"\n- link \"TMB (s'obre en una pestanya nova)\":\n  - /url: https://www.tmb.cat/\n- text: \", actualitzat el 6 d’oct. 2026\"",
+  "tabsToCredits": 2,
+  "aboutOpened": {
+   "dialog": {
+    "scrollTop": 0,
+    "scrollHeight": 776,
+    "clientHeight": 776,
+    "scrollWidth": 370,
+    "clientWidth": 370
+   },
+   "body": {
+    "scrollTop": 0,
+    "scrollHeight": 885,
+    "clientHeight": 696
+   }
+  },
+  "aboutAtEnd": {
+   "dialog": {
+    "scrollTop": 0,
+    "scrollHeight": 776,
+    "clientHeight": 776,
+    "scrollWidth": 370,
+    "clientWidth": 370
+   },
+   "body": {
+    "scrollTop": 189,
+    "scrollHeight": 885,
+    "clientHeight": 696
+   }
+  },
+  "aboutLinks": [
+   {
+    "tag": "A",
+    "in": "about",
+    "text": "OpenFreeMap",
+    "href": "https://openfreemap.org",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "about",
+    "text": "© OpenMapTiles",
+    "href": "https://www.openmaptiles.org/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "about",
+    "text": "© Els col·laboradors de l'OpenStreetMap",
+    "href": "https://www.openstreetmap.org/copyright",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "about",
+    "text": "Renfe",
+    "href": "https://data.renfe.com/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "about",
+    "text": "CC BY 4.0",
+    "href": "https://creativecommons.org/licenses/by/4.0/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "about",
+    "text": "FGC",
+    "href": "https://dadesobertes.fgc.cat/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "about",
+    "text": "CC BY 4.0",
+    "href": "https://creativecommons.org/licenses/by/4.0/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "about",
+    "text": "Powered by TRAM Barcelona",
+    "href": "https://www.tram.cat/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "about",
+    "text": "TMB",
+    "href": "https://www.tmb.cat/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "about",
+    "text": "github.com/gariasf/viapeninsula",
+    "href": "https://github.com/gariasf/viapeninsula",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "about",
+    "text": "AGPL-3.0",
+    "href": "https://www.gnu.org/licenses/agpl-3.0.html",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   },
+   {
+    "tag": "A",
+    "in": "about",
+    "text": "Cloudflare Web Analytics",
+    "href": "https://developers.cloudflare.com/web-analytics/data-metrics/",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   }
+  ],
+  "aboutAx": [
+   "github.com/gariasf/viapeninsula (s'obre en una pestanya nova)",
+   "AGPL-3.0 (s'obre en una pestanya nova)",
+   "Cloudflare Web Analytics (s'obre en una pestanya nova)",
+   "OpenFreeMap (s'obre en una pestanya nova)",
+   "© OpenMapTiles (s'obre en una pestanya nova)",
+   "© Els col·laboradors de l'OpenStreetMap (s'obre en una pestanya nova)",
+   "Renfe (s'obre en una pestanya nova)",
+   "CC BY 4.0 (s'obre en una pestanya nova)",
+   "FGC (s'obre en una pestanya nova)",
+   "CC BY 4.0 (s'obre en una pestanya nova)",
+   "Powered by TRAM Barcelona (s'obre en una pestanya nova)",
+   "TMB (s'obre en una pestanya nova)"
+  ],
+  "aboutAria": "- dialog \"Quant a aquest mapa\":\n  - banner:\n    - heading \"Quant a aquest mapa\" [level=2]\n    - button \"Tanca\"\n  - paragraph: Via Península mostra els trens, metros i tramvies de Catalunya, els trens de Cercanías de Renfe a la resta d'Espanya, i els trens AVE i de llarga distància de Renfe, mentre circulen. Les posicions són estimacions derivades de les dades dels operadors, calculades a partir dels horaris i de les dades en temps real.\n  - paragraph: Iryo no publica cap dada dels seus trens, de manera que no surten al mapa.\n  - heading \"Com llegir el mapa\" [level=3]\n  - list:\n    - listitem: \"R1 En directe: posició confirmada per dades en temps real\"\n    - listitem: \"R1 Programat: posició segons l'horari\"\n  - paragraph: R1 R11 Alvia MM\n  - paragraph: \"Amb el mapa ampliat, cada tren és una etiqueta amb el nom de la seva línia, i la seva forma indica el tipus de servei: arrodonida per a les línies de rodalia i les suburbanes, acabada en punta als dos extrems per a les regionals, tallada en diagonal als dos extrems per a les de llarga distància, i quadrada amb les cantonades arrodonides per a les del metro de TMB, del TRAM, del tren-tramvia de Cadis, del cremallera i dels funiculars.\"\n  - heading \"Crèdits\" [level=3]\n  - list:\n    - listitem:\n      - link \"OpenFreeMap (s'obre en una pestanya nova)\":\n        - /url: https://openfreemap.org\n      - link \"© OpenMapTiles (s'obre en una pestanya nova)\":\n        - /url: https://www.openmaptiles.org/\n      - link \"© Els col·laboradors de l'OpenStreetMap (s'obre en una pestanya nova)\":\n        - /url: https://www.openstreetmap.org/copyright\n    - listitem:\n      - link \"Renfe (s'obre en una pestanya nova)\":\n        - /url: https://data.renfe.com/\n      - text: \",\"\n      - link \"CC BY 4.0 (s'obre en una pestanya nova)\":\n        - /url: https://creativecommons.org/licenses/by/4.0/\n    - listitem:\n      - link \"FGC (s'obre en una pestanya nova)\":\n        - /url: https://dadesobertes.fgc.cat/\n      - text: \",\"\n      - link \"CC BY 4.0 (s'obre en una pestanya nova)\":\n        - /url: https://creativecommons.org/licenses/by/4.0/\n    - listitem:\n      - link \"Powered by TRAM Barcelona (s'obre en una pestanya nova)\":\n        - /url: https://www.tram.cat/\n      - text: \", actualitzat el 12 d’oct. 2026\"\n    - listitem:\n      - link \"TMB (s'obre en una pestanya nova)\":\n        - /url: https://www.tmb.cat/\n      - text: \", actualitzat el 6 d’oct. 2026\"\n  - heading \"Codi font\" [level=3]\n  - paragraph:\n    - link \"github.com/gariasf/viapeninsula (s'obre en una pestanya nova)\":\n      - /url: https://github.com/gariasf/viapeninsula\n    - text: \",\"\n    - link \"AGPL-3.0 (s'obre en una pestanya nova)\":\n      - /url: https://www.gnu.org/licenses/agpl-3.0.html\n  - heading \"Privadesa\" [level=3]\n  - paragraph: \"Aquest web no fa servir galetes: només desa al teu dispositiu l'idioma que triïs i el lloc on deixis el mapa.\"\n  - paragraph:\n    - text: Les visites es compten amb\n    - link \"Cloudflare Web Analytics (s'obre en una pestanya nova)\":\n      - /url: https://developers.cloudflare.com/web-analytics/data-metrics/\n    - text: \", que no fa servir galetes ni desa res al teu dispositiu.\"",
+  "aboutPoke": {
+   "dialogScrollTop": 0,
+   "bodyScrollTop": 189
+  },
+  "alertLinks": [
+   {
+    "tag": "A",
+    "in": "alerts",
+    "text": "https://tram.cat/ca/premsa/2295",
+    "href": "https://tram.cat/ca/premsa/2295",
+    "target": "_blank",
+    "rel": "noopener noreferrer",
+    "position": "relative",
+    "hidden": " (s'obre en una pestanya nova)",
+    "hiddenLang": "ca",
+    "hiddenClass": "sr-only",
+    "hiddenBox": [
+     1,
+     1
+    ],
+    "hiddenClip": "inset(50%)",
+    "hiddenPosition": "absolute",
+    "hiddenIsLast": true,
+    "round": "ca",
+    "shown": true
+   }
+  ],
+  "alertsAria": "- button \"1 avís\" [expanded]\n- list:\n  - listitem:\n    - text: T1 T2 T3\n    - strong: T1, T2 i T3 Tall Francesc Macià – Montesa\n    - paragraph:\n      - text: Els dies 10, 11 i 12 d’octubre, per obres de renovació de via, sense servei entre Francesc Macià i Montesa. Durant l’afectació, s’habilitarà un servei alternatiu d’autobús.\n      - link \"https://tram.cat/ca/premsa/2295 (s'obre en una pestanya nova)\":\n        - /url: https://tram.cat/ca/premsa/2295\n    - paragraph: Des del 10 d’oct. 2026, 3:05 · TRAM"
+ }
+}
