@@ -769,9 +769,9 @@ function near(line: [number, number][], p: [number, number]): number {
  */
 export function across(at: Map<Stroke, [Leg[], Leg[]]>, hidden: (s: Stroke) => boolean, id: Map<Stroke, number>): Leg[][] {
   const found = new Map<string, Leg[]>();
-  // A way's legs as numbers, each its stroke's number and then its end, which the way is kept by as numbers:
-  // as strings, "12.0 9.1" sorts before "9.1 12.0", and which end a curve is made from would go by how many
-  // strokes come before them (#448).
+  // A way's legs as numbers, each its stroke's number doubled and its end added, which the way is kept by, from
+  // the end whose numbers come first: as strings of the stroke numbers and ends, "12.0 9.1" sorts before "9.1 12.0",
+  // and which end a curve is made from would go by how many strokes come before it (#448).
   const numbers = (legs: Leg[]) => legs.map((l) => (id.get(l.stroke) ?? 0) * 2 + l.end);
   // With the hidden strokes passed by on the way, so as not to go back and forth between two.
   const go = (legs: Leg[], next: Leg, passed = new Set<Stroke>()) => {
