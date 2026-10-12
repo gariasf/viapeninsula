@@ -2,9 +2,9 @@ import { featureFilter, type Feature, type ICanonicalTileID } from '@maplibre/ma
 import { assert, expect, test, vi } from 'vitest';
 import { stationsOf } from '../build/track.ts';
 import { DEGREE, places, type Place, type Point, type Shape, type Slot, type Station, type Stroke } from '../bundle.ts';
-import { alongside, callsIn, CAP, namedTwice, nameOffset, nameSort, nearestSide, underName, type Side, type Spot } from './names.ts';
+import { alongside, callsIn, CAP, DOT_COST, namedTwice, nameOffset, nameSort, nearestSide, underName, type Side, type Spot } from './names.ts';
 
-// Made up, on the equator, where a degree is DEGREE metres both ways.
+// Made up, on the equator, where a degree is DEGREE metres both ways, but for the one test of #501's cells.
 /** The point so many metres east and north of 0°, 0°. */
 const at = (east: number, north: number): Point => [east / DEGREE, north / DEGREE];
 /** A track through these points, in metres east and north of 0°, 0°. */
@@ -35,7 +35,7 @@ const drawn = (tracks: Shape[]): Slot[] => own(tracks.map((t) => ({ line: t.id, 
 
 /**
  * alongside(), then the side nearestSide() takes for a name 100×20 px that goes 10 px out from its
- * spot, where a px is so many metres, off any track crossing its own that lies under it.
+ * spot, where a px is so many metres, off any track crossing its own and any other place's dot that lies under it.
  */
 function placed(...args: Parameters<typeof alongside>) {
   const spots = alongside(...args);
@@ -79,7 +79,7 @@ test('turned, it goes beside its track as the track lies on screen', () => {
 
 test('with no track within 200 m of its dot, it goes above the dot', () => {
   const far = track('far', [300, -500], [300, 500]);
-  expect(first([far], [], right)(at(0, 0))(0)).toEqual({ from: at(0, 0), anchor: 'bottom', normal: [0, -1], dot: 0, lines: [], crossing: [], widest: 0, bearing: 0 });
+  expect(first([far], [], right)(at(0, 0))(0)).toEqual({ from: at(0, 0), anchor: 'bottom', normal: [0, -1], dot: 0, lines: [], crossing: [], neighbours: [], widest: 0, bearing: 0 });
   expect(first([far], [], right)(at(150, 0))(0).anchor).toBe('left');
 });
 
@@ -190,6 +190,78 @@ test("a crossing track counts within as many px of a name as it's given, and whe
   // A line width east of it, 6 px out, it lies under the name only within 6 px of it.
   expect(underName(northOfR(1), 10, [100, 20], 1, 3, 5)).toBe(0);
   expect(underName(northOfR(1), 10, [100, 20], 1, 3, 6)).toBe(1);
+});
+
+test("where another place's dot lies under its name on the side nearest its dot, it takes the other side, a dot costing it more than a few Lines (#501)", () => {
+  // Its own track runs east to west through the dot, and the name goes above it, 10 to 30 m north and 50 either way
+  // at a metre a px. Another place's dot lies 40 m east and 20 m north of it, in that box.
+  const own = track('own', [-500, 0], [500, 0]);
+  expect(placed([own], [], right)(at(0, 0))(0).anchor).toBe('bottom');
+  const place = placed([own], [], right, [], new Map(), [at(40, 20)])(at(0, 0));
+  expect(place(0).anchor).toBe('top');
+  expect(rounded(place(0).normal)).toEqual([0, 1]);
+  // Upside down, north is down on screen, so the name above it on screen is south of its track, clear of the dot.
+  expect(place(180).anchor).toBe('bottom');
+  // A dot as far from the box as its own dot is, and a few px more, leaves it above.
+  expect(placed([own], [], right, [], new Map(), [at(40, 45)])(at(0, 0))(0).anchor).toBe('bottom');
+  expect(placed([own], [], right, [], new Map(), [at(80, 20)])(at(0, 0))(0).anchor).toBe('bottom');
+  // And where one lies under it on each side, it goes as it would.
+  expect(placed([own], [], right, [], new Map(), [at(40, 20), at(-40, -20)])(at(0, 0))(0).anchor).toBe('bottom');
+});
+
+test("it goes under as many Lines as a dot costs it, and no more, to clear another place's dot (#501)", () => {
+  // The dot lies under the name above its own track; spurs of the track, each a Line, go south under the one below.
+  const own = track('own', [-500, 0], [500, 0]);
+  const spurs = (n: number) => Array.from({ length: n }, (_, i) => track(`spur${i}`, [-45 + (90 * i) / n, -5], [-45 + (90 * i) / n, -200]));
+  const goes = (n: number) => {
+    const tracks = [own, ...spurs(n)];
+    return placed(tracks, drawn(tracks), right, [], new Map(), [at(40, 20)])(at(0, 0))(0).anchor;
+  };
+  expect(goes(1)).toBe('top');
+  expect(goes(DOT_COST - 1)).toBe('top');
+  expect(goes(DOT_COST + 1)).toBe('bottom');
+});
+
+test("another place's dot costs a name less the further it lies from its box, nothing as far as its own dot, and its own never does (#501)", () => {
+  // The name goes above its own track, from 10 to 30 px north, and 50 either way: its own dot is 10 px below it.
+  const own = track('own', [-500, 0], [500, 0]);
+  const cost = (...dots: Point[]) => underName(alongside([own], [], right, [], new Map(), dots)(at(0, 0))(0)[0]?.clear ?? assert.fail('no side'), 10, [100, 20], 1, 0, 0);
+  // Inside the box, it costs the most.
+  expect(cost(at(40, 20))).toBe(DOT_COST);
+  // Beyond its end by half of 13 px, its own dot's distance and a few more, it costs half.
+  expect(cost(at(56.5, 20))).toBeCloseTo(DOT_COST / 2);
+  // As far as that and more, nothing; and each dot counts.
+  expect(cost(at(70, 20))).toBe(0);
+  expect(cost(at(40, 20), at(-40, 20))).toBe(2 * DOT_COST);
+  // Due north and due east of its own dot count as any other, and past a corner it's the distance to the corner that counts.
+  expect(cost(at(0, 20))).toBe(DOT_COST);
+  expect(cost(at(40, 0))).toBeCloseTo((DOT_COST * 3) / 13);
+  expect(cost(at(54, 7))).toBeCloseTo(DOT_COST * (1 - 5 / 13));
+  // The place's own dot, which the list of every place's holds, is under no name of its own.
+  expect(cost(at(0, 0))).toBe(0);
+});
+
+test("its own dot's distance is from the dot, not from the track the name is measured from, where the track passes beyond the dot (#501)", () => {
+  // The track runs 20 m north of the dot, so the name above it is measured from the track, 20 m beyond the dot (`dot`),
+  // and `far` is 30 px, from the dot: its near edge 30 m north of it, 100 m wide and 20 m tall.
+  const place = alongside([track('own', [-500, 20], [500, 20])], [], right)(at(0, 0));
+  const spot = place(0)[0]?.clear ?? assert.fail('no side');
+  expect(spot.dot).toBeCloseTo(20);
+  const cost = (...dots: Point[]) => underName({ ...spot, neighbours: dots.map((d) => [d[0] * DEGREE, d[1] * DEGREE]) }, 30, [100, 20], 1, 0, 0);
+  // Its own dot is 30 px from the box, so 3 px more is where a dot costs nothing: 33 px from the box's end.
+  expect(cost(at(83, 40))).toBe(0);
+  expect(cost(at(70, 40))).toBeCloseTo(DOT_COST * (1 - 20 / 33));
+});
+
+test("another place's dot is found away from 0°, 0° too, where a cell of the track is not as many metres east to west as north to south (#501)", () => {
+  const [lon, lat] = [2.1, 41.4];
+  const [east, north] = [DEGREE * Math.cos((lat * Math.PI) / 180), DEGREE];
+  const own: Shape = { id: 'own', coords: [[lon - 0.01, lat], [lon + 0.01, lat]], dist: [0, 0.02 * east] };
+  const neighbour: Point = [lon + 40 / east, lat + 20 / north];
+  // And one in the corner of the cells looked in, 3.4 km off, which is further than REACH and not kept.
+  const far: Point = [lon + 2400 / east, lat + 2400 / north];
+  const spot = alongside([own], [], right, [], new Map(), [[lon, lat], neighbour, far])([lon, lat])(0)[0]?.clear ?? assert.fail('no side');
+  expect(spot.neighbours.map((m) => m.map((v) => Math.round(v)))).toEqual([[40, 20]]);
 });
 
 test('where the dot lies the other side of its track, it goes from the track', () => {
@@ -325,7 +397,7 @@ test("near its dot, it goes from the dot or its nearest track, clear of only tha
 test(`it takes the side where it's clear nearest its dot, and past ${CAP} px on both, the nearest clear of its own track's Lines`, () => {
   /** A side whose spots lie so many px from the dot, as `far` measures them by their `dot`. */
   const side = (anchor: Spot['anchor'], clear: number, near: number): Side => {
-    const spot = (px: number): Spot => ({ from: [0, 0], anchor, normal: [0, 1], dot: px, lines: [], crossing: [], widest: 0, bearing: 0 });
+    const spot = (px: number): Spot => ({ from: [0, 0], anchor, normal: [0, 1], dot: px, lines: [], crossing: [], neighbours: [], widest: 0, bearing: 0 });
     return { clear: spot(clear), near: spot(near) };
   };
   const pick = (...sides: Side[]) => {

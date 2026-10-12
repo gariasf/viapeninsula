@@ -1,6 +1,7 @@
 // Where each place's name goes: beside its own Networks' track nearest its dot, clear of the Trains
-// running along it, on the side where that's nearest the dot (#120, #143, #147), which of the
-// basemap's labels it says again (#121), and which of two that collide is placed first (#372).
+// running along it and of other places' dots, on the side where that's nearest the dot (#120, #143,
+// #147, #501), which of the basemap's labels it says again (#121), and which of two that collide is
+// placed first (#372).
 import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { closestOnSegment, DEGREE, direction, pointAt, slotAt, type Line, type Place, type Point, type Shape, type Slot } from '../bundle.ts';
 import { simplify } from '../build/offset.ts';
@@ -24,21 +25,32 @@ const LEVEL = 1e-6;
 /** How near a place's dot a track passes, in metres, to be its track at all. */
 const NEAR = 200;
 /**
- * How far from a place's dot a track crossing its own can lie under its name, in metres: zoomed out to
- * 12, where a px is some 15 m in Catalonia, beyond its furthest corner (#154).
+ * How far from a place's dot a track crossing its own, or another place's dot, can lie under its name, in
+ * metres: zoomed out to 12, where a px is some 15 m in Catalonia, beyond its furthest corner (#154, #501).
  */
 const REACH = 2500;
 /** How far a track crossing a place's own may be taken as straight, in metres, to find whether it lies under its name. */
 const STRAIGHT = 3;
 /**
- * The side of the cells tracks are filed in to find those near a place, in degrees: over 400 m east to
- * west anywhere in Spain, so the cells round a place's hold every track within NEAR of it.
+ * The side of the cells tracks and places' dots are filed in to find those near a place, in degrees: over
+ * 400 m east to west anywhere in Spain, so the cells round a place's hold every track within NEAR of it.
  */
 const CELL = 0.005;
 /** How near a place a basemap label with its name is, in metres, to name the same place (#121). */
 const TWICE = 2000;
 /** The classes of the basemap's place labels that a place's name can say again: its towns', from cities to villages, and suburbs'. */
 const TOWNS = ['city', 'town', 'village', 'suburb'];
+/**
+ * What another place's dot costs a name, in Lines it could lie under instead, where the dot is at its box: it
+ * reads as that place's, and hides it. The further the dot lies from the box, the less it costs, down to
+ * nothing as far from it as the name's own dot lies and DOT_MARGIN more (#501). As dear as one Line it decides
+ * almost nothing, as both sides of a name in a city's core lie over dots and Lines; at 20, on #372's sweep in the
+ * browser, the dots under names go from 38 to 26 at zoom 12 and from 12 to 6 at 13, at the price of names over
+ * more Lines (a third more at zoom 12).
+ */
+export const DOT_COST = 20;
+/** How many px further from its box than its own dot another place's dot is, at the least, for it to cost a name nothing. */
+const DOT_MARGIN = 3;
 
 /** Where a place's name goes, beside its own Networks' track nearest its dot, as railisland's do (#120, #143). */
 export interface Spot {
@@ -72,6 +84,11 @@ export interface Spot {
    * its right, as it runs from `a` to `b`, nearest the dot first, `d` metres from it at their nearest.
    */
   crossing: { lines: string[]; a: [east: number, north: number]; b: [east: number, north: number]; side: number; d: number }[];
+  /**
+   * The dots of the other places within REACH of its dot, in metres east and north of it, which its name
+   * should lie clear of, or it reads as that place's and hides it (#501).
+   */
+  neighbours: [east: number, north: number][];
   /** The most line widths either side of any of them its Lines are drawn out to. */
   widest: number;
   /** The map's bearing, in degrees clockwise from north, that the spot is for. */
@@ -91,9 +108,9 @@ export interface Side {
 /**
  * Where each place's name goes, for a track's shapes, where its Lines' Trains go along them zoomed out
  * (`Slot`), the side each Line's Trains keep to, 1 right and -1 left, the Lines' Networks and shapes,
- * and the centrelines the Trains go along: given a place's dot and the Networks it serves, its own
- * (Place's `networks`), which finds its tracks once, and then the map's bearing, in degrees clockwise
- * from north, as often as the map turns.
+ * and the centrelines the Trains go along, and every place's dot (`everyDot`): given a place's dot and the Networks
+ * it serves, its own (Place's `networks`), which finds its tracks and the dots of the others near it
+ * once, and then the map's bearing, in degrees clockwise from north, as often as the map turns.
  * ponytail: takes the Trains to be on the centrelines as they are, not as each zoom band smooths them,
  * up to a line width off. Take the band's if names over Trains show.
  */
@@ -103,6 +120,7 @@ export function alongside(
   keep: (line: string) => number,
   networks: Pick<Line, 'network' | 'shapes'>[] = [],
   centrelines = new Map<string, Shape>(),
+  everyDot: Point[] = [],
 ): (dot: Point, served?: string[]) => (bearing: number) => Side[] {
   // Each shape's segments, by the cells their bounding boxes cross.
   const cells = new Map<number, [shape: Shape, i: number][]>();
@@ -134,6 +152,14 @@ export function alongside(
         }
       }
     }
+  }
+  // Each place's dot, by its cell.
+  const dotCells = new Map<number, Point[]>();
+  for (const p of everyDot) {
+    const key = cell(Math.floor(p[0] / CELL), Math.floor(p[1] / CELL));
+    const list = dotCells.get(key);
+    if (list) list.push(p);
+    else dotCells.set(key, [p]);
   }
   const slotsOf = new Map<string, Slot[]>();
   for (const s of slots) slotsOf.set(s.shape, [...(slotsOf.get(s.shape) ?? []), s]);
@@ -173,7 +199,7 @@ export function alongside(
     // The tracks with Lines drawn along them, by their segments within REACH of the dot: those not
     // alongside its own, those alongside but its own, which a name near its dot can lie on, and where
     // its own or one alongside bends away from beside the dot, the rest of it, which can come back under the name.
-    // ponytail: zoomed out past 12, a name can reach further than REACH, and a track there isn't counted. Look further, by more cells, if names over them show.
+    // ponytail: zoomed out past 12, a name can reach further than REACH, and a track or another place's dot there isn't counted. Look further, by more cells, if names over them show.
     const [crossings, besides]: [Spot['crossing'], Spot['crossing']] = [[], []];
     // Which way each track alongside runs by the dot.
     const besideHeading = new Map(tracks.map((n) => [n.shape, n.heading]));
@@ -200,6 +226,16 @@ export function alongside(
         }
       }
     }
+    // The other places' dots within REACH of the dot: not the place's own, nor one at the same point.
+    const neighbours: Spot['neighbours'] = [];
+    for (let x = cx - wx; x <= cx + wx; x++) {
+      for (let y = cy - wy; y <= cy + wy; y++) {
+        for (const p of dotCells.get(cell(x, y)) ?? []) {
+          const [east, north] = local(p);
+          if ((east !== 0 || north !== 0) && Math.hypot(east, north) <= REACH) neighbours.push([east, north]);
+        }
+      }
+    }
     const byNearest = (list: Spot['crossing']) => list.sort((p, q) => p.d - q.d);
     const [nearCrossings, nearBesides] = [byNearest(crossings), byNearest([...crossings, ...besides])];
     // Each Line drawn along them there, the point on the line its stroke is drawn beside there, and
@@ -216,7 +252,7 @@ export function alongside(
     );
     return (bearing) => {
       if (!nearest) {
-        const spot: Spot = { from: dot, anchor: 'bottom', normal: [0, -1], dot: 0, lines: [], crossing: [], widest: 0, bearing };
+        const spot: Spot = { from: dot, anchor: 'bottom', normal: [0, -1], dot: 0, lines: [], crossing: [], neighbours, widest: 0, bearing };
         return [{ clear: spot, near: spot }];
       }
       // The track's right on screen, which lies within STEEP of across where the track runs within STEEP of up and down.
@@ -243,7 +279,7 @@ export function alongside(
             const along = { line, toward: (stroke ? side : widths) * (rx * normal[0] + ry * normal[1]), behind: out(from) - out(at) };
             return stroke ? { ...along, stroke: true as const } : along;
           });
-        return { from, anchor, normal, dot: out(from) - out(dot), lines: toward, crossing: stroke ? nearBesides : nearCrossings, widest, bearing };
+        return { from, anchor, normal, dot: out(from) - out(dot), lines: toward, crossing: stroke ? nearBesides : nearCrossings, neighbours, widest, bearing };
       };
       // Both, up first.
       return [up, down].map((side) => ({ clear: spot(side, tracks, false), near: spot(side, [nearest], true) }));
@@ -255,7 +291,8 @@ export function alongside(
  * Of the sides a name can go, the one where it's clear nearest its dot, its near edge `far` px from
  * the dot, and how far that is; or, further than CAP on every side, the nearest clear of only its own
  * track's Lines. Where two are as near, the first. Of those, only the sides with the fewest Lines on the
- * tracks crossing its own, or its own bending back, `under` the name (#143, #154). alongside() gives every place a side at least.
+ * tracks crossing its own, or its own bending back, and the least cost of other places' dots, `under` the
+ * name (#143, #154, #501). alongside() gives every place a side at least.
  * ponytail: past CAP a name can lie over the Trains on its own track and the Lines alongside it.
  * Clear them too where CAP allows, a side at a time, if names on them show.
  */
@@ -274,8 +311,9 @@ export function nearestSide(sides: Side[], far: (spot: Spot) => number, under: (
 
 /**
  * How many Lines on the tracks in its spot's `crossing` lie under a name `width`×`height` px, `far` px
- * out from its spot as nameOffset() puts it, where a px is `metresPerPx` metres and Lines are drawn
- * `apart` px apart: their strokes' middles within `gap` px of it (#154).
+ * out from its place's dot as nameOffset() puts it, where a px is `metresPerPx` metres and Lines are drawn
+ * `apart` px apart: their strokes' middles within `gap` px of it (#154); and what the dots of other
+ * places near it cost, in Lines, whatever `gap` is (DOT_COST, #501).
  */
 export function underName(spot: Spot, far: number, size: [number, number], metresPerPx: number, apart: number, gap: number): number {
   const [ox, oy] = nameOffset(spot, far, size);
@@ -295,7 +333,16 @@ export function underName(spot: Spot, far: number, size: [number, number], metre
     const [sx, sy] = [-(by - ay) * shift, (bx - ax) * shift];
     if (meets([ax + sx, ay + sy], [bx + sx, by + sy], [ox + x0 - gap, oy + y0 - gap, ox + x1 + gap, oy + y1 + gap])) for (const line of lines) under.add(line);
   }
-  return under.size;
+  // And each other place's dot, which makes the name read as that place's, as a stroke under it does as that Line's:
+  // as much as DOT_COST at the box, down to nothing as far from it as the name's own dot is (and DOT_MARGIN more).
+  const until = far + DOT_MARGIN;
+  let cost = 0;
+  for (const dot of spot.neighbours) {
+    const [x, y] = screen(dot);
+    const away = Math.hypot(Math.max(ox + x0 - x, 0, x - (ox + x1)), Math.max(oy + y0 - y, 0, y - (oy + y1)));
+    if (away < until) cost += DOT_COST * (1 - away / until);
+  }
+  return under.size + cost;
 }
 
 /**
