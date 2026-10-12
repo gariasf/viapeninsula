@@ -662,6 +662,15 @@ test("makes a Train of its Trip with the most calls where none of its Trips runs
 // at 21:30, and an R4 Trip of one call, at Manresa at 21:30.
 const rajadell = dirSource(fileURLToPath(new URL('fixtures/rodalies-rajadell', import.meta.url)));
 
+/** A feed's stop_times.txt with the rows `edit` changes, as a Train's Trips that don't quite meet would have them. */
+const edited = (source: Source, edit: (row: string) => string): Source => (file) => {
+  const lines = source(file);
+  if (file !== 'stop_times.txt' || !lines) return lines;
+  return (async function* () {
+    for await (const l of lines) yield edit(l);
+  })();
+};
+
 test("makes the Trips of one Train number that meet at a Station in the same minute one Trip, named by the Line of most of its run, as R4's 33527 from Manresa to Rajadell and RL4's on from there to Lleida-Pirineus are one RL4 Trip, and logs each join with its Train number and Station (#467)", async () => {
   const log: string[] = [];
   const { trips } = await readFeed(rajadell, '2026-10-13', RODALIES_FEED, (l) => log.push(l));
@@ -710,16 +719,24 @@ test("serves the Stations of a Trip made one from another's on the shape of the 
   expect(served('rodalies:51_RL4')).toEqual(expect.arrayContaining([manresa, rajadell_, 'adif:78400']));
   // The R4 Trip of one call at Manresa was the only Trip of its shape here: RL4's 33518 serves Manresa now.
   expect(served('rodalies:51_R4')).toEqual([]);
+  // And R4's Trip from Manresa to Rajadell, the one Trip that ran 51_R4_INV back, no longer has a way back of its own.
+  expect(shapes.map((s) => s.id).sort()).toEqual(['rodalies:51_R4', 'rodalies:51_R4_INV', 'rodalies:51_RL4', 'rodalies:51_RL4:back']);
 });
 
-/** A feed's stop_times.txt with the rows `edit` changes, as a Train's Trips that don't quite meet would have them. */
-const edited = (source: Source, edit: (row: string) => string): Source => (file) => {
-  const lines = source(file);
-  if (file !== 'stop_times.txt' || !lines) return lines;
-  return (async function* () {
-    for await (const l of lines) yield edit(l);
-  })();
-};
+test("serves a shape the same Stations on a day its Trains don't run, as it does on one they do, and joins none then (#467)", async () => {
+  const log: string[] = [];
+  const [on, off] = [await readFeed(rajadell, '2026-10-13', RODALIES_FEED, () => {}), await readFeed(rajadell, '2026-10-14', RODALIES_FEED, (l) => log.push(l))];
+  expect(off.trips).toEqual([]);
+  expect(log).toEqual([]);
+  expect(off.shapes).toEqual(on.shapes);
+});
+
+test("leaves a call where one Trip ends and the next starts in the same minute, arriving as the first does and leaving as the second does, at the minute they meet (#467)", async () => {
+  // 33527's RL4 Trip leaves Rajadell at 16:46:30, 30 s after its R4 Trip arrives.
+  const slow = edited(rajadell, (row) => (row.startsWith('5184M33527RL4,16:46:00,16:46:00,78506') ? row.replace('16:46:00,16:46:00', '16:46:30,16:46:30') : row));
+  const { trips } = await readFeed(slow, '2026-10-13', RODALIES_FEED, () => {});
+  expect(trips.find((t) => t.number === '33527')?.calls[1]).toEqual({ station: 'adif:78506', arrival: at('16:46'), departure: at('16:46') + 30 });
+});
 
 test("keeps a Train's Trips apart where they meet at a Station but not in the same minute, as 33527's R4 Trip, which ends at Rajadell at 16:46, and its RL4 Trip, which starts there at 16:47 (#467)", async () => {
   const late = edited(rajadell, (row) => (row.startsWith('5184M33527RL4,16:46:00,16:46:00,78506') ? row.replace('16:46:00,16:46:00', '16:47:00,16:47:00') : row));
