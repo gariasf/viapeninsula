@@ -23,7 +23,7 @@ import { boardAsks, boardList, cardAlerts, countdownTo, inNameOrder, linesOnBoar
 import { ARROW_GAP, boxOf, FOLLOWED_TEXT, LINE_HEIGHT, OUTLINE_SIZES, outlineOf, PILL_EDGE, PILL_PADDING, PILL_TEXT, pillReach, type Outline } from './pill.ts';
 import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, tappedRows, type Shown } from './closures.ts';
 import { currentTab, type Tab } from './tabs.ts';
-import { keyboardRise, numbered, numberQuery, results, searchPlaces, type Found } from './search.ts';
+import { keyboardRise, networkNames, numbered, numberQuery, results, searchPlaces, type Found } from './search.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
 setWorkerUrl(workerUrl);
@@ -2903,10 +2903,11 @@ function searchHints(): Node[] {
 
 /**
  * Search's Stations (#471): a row for each place it finds, with its name and its Lines' pills, and where another
- * it finds reads alike, its Networks' names, each a button that opens the place's board (openStation()).
+ * it finds reads alike, its Networks, by their short names where they have them (networkNames()), each a button
+ * that opens the place's board (openStation()).
  */
 function stationResults(found: { place: Found; alike: boolean }[]): Node[] {
-  const networks = new Map((zoomedOut?.networks ?? []).map((n) => [n.id, n.name]));
+  const networks = networkNames(zoomedOut?.networks ?? []);
   const row = ({ place, alike }: { place: Found; alike: boolean }) =>
     el(
       'button',

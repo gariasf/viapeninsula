@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import type { Kind, ManifestRegion, Point, Trip, ZoomedOut } from '../bundle.ts';
 import type { Coming, Followed, TripNow } from '../engine.ts';
 import { regionsNeeded } from './regions.ts';
-import { findPlaces, keyboardRise, numbered, results, searchPlaces } from './search.ts';
+import { findPlaces, keyboardRise, networkNames, numbered, results, searchPlaces } from './search.ts';
 
 /** Some Lines of 12 Oct 2026, as the file below zoom 7 lists them: their IDs, Networks, names and kinds of service. */
 const LINES: [id: string, kind: Kind][] = [
@@ -99,6 +99,19 @@ test("gives two places that read alike a row each, which names their Networks, i
     ['Terrassa Est', ['rodalies'], false],
     ['Terrassa Estació del Nord', ['rodalies'], true],
     ['Terrassa  Estació del nord', ['fgc'], true],
+  ]);
+});
+
+test("names a Network, where two places read alike, by the short name the file below zoom 7 gives it, and by its name where it gives none, as a Cercanías núcleo's or a file from before short names, as the maintainer picked (#471)", () => {
+  const networks = [
+    { id: 'rodalies', name: 'Rodalies de Catalunya', short: 'Rodalies' },
+    { id: 'fgc', name: 'Ferrocarrils de la Generalitat de Catalunya', short: 'FGC' },
+    { id: 'cercanias-valencia', name: 'Cercanías Valencia' },
+  ];
+  expect([...networkNames(networks)]).toEqual([
+    ['rodalies', 'Rodalies'],
+    ['fgc', 'FGC'],
+    ['cercanias-valencia', 'Cercanías Valencia'],
   ]);
 });
 
