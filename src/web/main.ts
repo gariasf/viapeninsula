@@ -2937,9 +2937,10 @@ function trainResults({ trains, more }: { trains: TripNow[]; more: number }): No
 /**
  * One of Search's Train rows (#471): its Line's pill, which tells a screen reader Live or Scheduled, as a
  * board's rows' do (#321), its number and where it's headed, and where its Train is now: Live or Scheduled, its
- * next Station it stops at and when it's due there, with its Delay at the row's end, as a board's; where and when
- * it leaves; Cancelled; or when it ended. One running, on the map or within a closed Closure that hides Trains,
- * or still to leave is a button that follows its Train (#322), and one Cancelled or ended follows nothing.
+ * next Station it stops at and when it's due there, as the follow panel says it (due(), #607), with its Delay at
+ * the row's end, as a board's; where and when it leaves; Cancelled; or when it ended. One running, on the map or
+ * within a closed Closure that hides Trains, or still to leave is a button that follows its Train (#322), and one
+ * Cancelled or ended follows nothing.
  */
 function trainResult(now: TripNow): HTMLElement {
   const { trip } = now;
@@ -2963,7 +2964,7 @@ function trainResult(now: TripNow): HTMLElement {
   // Its pill says it to a screen reader already.
   const said = el('span', { textContent: `${t(live ? 'live' : 'scheduled')} · ` });
   said.setAttribute('aria-hidden', 'true');
-  const where = next ? nextAt(stationName(next.station), clock().format(due(next, standing))) : '';
+  const where = next ? nextAt(stationName(next.station), clock().format(due(next, standing, next === upcoming.at(-1)).at)) : '';
   return row(live, true, [said, where], [status({ delay, live, unreported: 'train' in now && now.train.unreported })]);
 }
 
