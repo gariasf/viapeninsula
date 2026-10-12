@@ -185,6 +185,8 @@ describe('differences', () => {
     expect(d).toMatchObject({ expected: 130_000, reportedAt: 160_000, reads: { n: 20, unit: 'seconds' } });
     // At 2:05 it reads 5 s, and a board's row, by the report's 2:40, the minute alone: 0 minutes, with the Train 500 m short.
     expect(differences(moment(125, 1500, { at: 125_000, delay: 0, reported: 30 }))).toMatchObject({ readsNow: true, nowFar: true, nowByMinute: true, nowByDelay: false });
+    // With live data a minute on, a board's row, 3:10, is in the next minute at 2:05, 1 minute, where the card's own time, 2:10 and 5 s, is not.
+    expect(differences(moment(125, 1500, { at: 125_000, delay: 0, reported: 60 }))).toMatchObject({ readsNow: false, nowFar: false, reads: { n: 5, unit: 'seconds' } });
   });
 
   it('has no countdown for a Train standing at its Trip’s last Station, whose time is when it arrived, though the engine has it leave a dwell later (#607)', () => {
@@ -314,6 +316,14 @@ describe('the runner', () => {
     expect(all['s.vsData.earlier5']).toBeGreaterThan(5);
     expect(all['s.vsData.later5'] ?? 0).toBe(0);
     expect(all['s.vsData.stood']).toBeGreaterThan(5);
+  }, 60_000);
+
+  it('counts the seconds the card’s time is later than live data’s by more than 5 s, which a Train drawn behind where a report has it is while it catches up, with no step of its own (#610)', () => {
+    // 30 s late at 10:00:20, and on time at 10:00:50, 40 s from B: it's drawn 30 s behind where that has it, and runs faster, up to line speed, until it has caught up.
+    const all = counted(13, { bundle: line, received: [read(20, 30), read(50, 0), read(110)] }).test ?? {};
+    expect(all['s.vsData.later5']).toBeGreaterThan(5);
+    expect(all['s.vsData.earlier5'] ?? 0).toBe(0);
+    expect(all['s.steps.later2'] ?? 0).toBe(0);
   }, 60_000);
 
   it('counts the step of a Train standing at a Station apart, as its Delay is its timetable’s place at once where live data has it earlier, with nothing to ease (#610)', () => {

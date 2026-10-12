@@ -873,7 +873,7 @@ test("a followed Train's times never step as a snapshot arrives: the Delay it's 
   expect(arrivals(later)[61]).toBeCloseTo(at('22:12:30'), 0);
 });
 
-test("a board's row and Nearby's keep the Delay live data gave, as it arrives, while the followed Train's times ease to it (#610)", () => {
+test("a board's row keeps the Delay live data gave, as it arrives, while the followed Train's times ease to it (#610)", () => {
   const received = [late(R2S, 0, at('21:59:40')), late(R2S, 10, at('22:00:00'))];
   // 5 s after the snapshot the Train is drawn 2.5 s late, and its Delay is 10 s: Castelldefels' board has it leave at 22:13:00 and 10 s.
   expect(followed(R2S, at('22:00:05'), received)?.upcoming[0]?.departure).toBeCloseTo(at('22:13:02.5'), 0);
@@ -1104,6 +1104,16 @@ test('a Train running late passes near a point that much later, and a Cancelled 
   expect(late2?.at).toBeCloseTo(onTime + 120_000, -1);
   const cancelled: Snapshot = { ...written(at('21:59:40')), reports: [{ trip: R2S, at: at('21:59:40'), cancelled: true }] };
   expect(nearby(point, at('21:59:50'), [{ snapshot: cancelled, at: at('21:59:40') }])).toEqual([]);
+});
+
+test("a Train's pass near a point keeps the Delay live data gave, as it arrives, while the followed Train's times ease to it (#610)", () => {
+  const received = [late(R2S, 0, at('21:59:40')), late(R2S, 10, at('22:00:00'))];
+  const point = offTrack(MIDWAY, 1000);
+  const onTime = nearby(point, at('21:59:50'))[0]?.at ?? NaN;
+  // 5 s after the snapshot the Train is drawn 2.5 s late, and its Delay is 10 s: it passes 10 s late, as its board has it leave.
+  expect(followed(R2S, at('22:00:05'), received)?.upcoming[0]?.arrival).toBeCloseTo(at('22:12:02.5'), 0);
+  expect(nearby(point, at('22:00:05'), received)).toMatchObject([{ trip: { id: R2S }, delay: 10 }]);
+  expect(nearby(point, at('22:00:05'), received)[0]?.at).toBeCloseTo(onTime + 10_000, -1);
 });
 
 test('a Train already past its nearest point is listed once, for when its track comes back within the radius', () => {
