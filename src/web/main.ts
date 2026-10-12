@@ -1,6 +1,6 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
-import type { BackgroundLayerSpecification, ExpressionFilterSpecification, ExpressionSpecification, FontFacesSpecification, LineLayerSpecification, ProjectionSpecification, SymbolLayerSpecification } from '@maplibre/maplibre-gl-style-spec';
+import type { BackgroundLayerSpecification, ExpressionFilterSpecification, ExpressionSpecification, FontFacesSpecification, LineLayerSpecification, ProjectionSpecification, StyleSpecification, SymbolLayerSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { MapLibreMap, Popup, setWorkerUrl, type GeoJSONSource, type LngLat } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import nunitoSans from '@fontsource/nunito-sans/files/nunito-sans-latin-400-normal.woff2?url';
@@ -10,7 +10,7 @@ import { along, APART, atZoom, BANDS, bandZooms, coveredIn, cutIn, GRAPH_BAND, S
 import { boardAt, comingAt, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, tripsAt, unavailable, type Coming, type Departure, type Followed, type Received, type Train, type TripNow } from '../engine.ts';
 import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, earlierStations, followDeparture, language, LANGUAGES, leavesAt, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, setLanguage, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
-import { getJson, STALL } from './files.ts';
+import { getJson, lookAgainSoon, RETRY, STALL } from './files.ts';
 import { daysAsTheyCome, firstLook, forgetJoined, regionLoader, regionsCame, regionsNeeded } from './regions.ts';
 import { linesAt, popupRoom } from './tap.ts';
 import { alongside, callsIn, namedTwice, nameOffset, nameSort, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
@@ -123,6 +123,8 @@ const SLOP = 6;
 const measuring = document.createElement('canvas').getContext('2d');
 /** How many times the map looks for live data, never getting any, before it says live data is unavailable. */
 const EMPTY_POLLS = 3;
+/** How many times a look tries the manifest while the map has none, as on the page's first, RETRY apart (neededDays(), #658). */
+const MANIFEST_TRIES = 3;
 /** How near the viewer, in metres, and how soon, in ms, a Train passes to be one of their nearby Trains. The panel's strings say so too. */
 const [NEARBY, SOON] = [1500, 60 * 60_000];
 /** How long after a service day's last Train is due off the map the map keeps its bundle, for Trains running late, in ms. */
@@ -392,8 +394,13 @@ document.addEventListener('visibilitychange', () => document.hidden && keepShown
 const placeLabels = new Map<string, ExpressionFilterSpecification | undefined>();
 /** The basemap's layers of cities' labels, as its style gives them, which are drawn again over the Lines' names below CITY_ZOOM (#525). */
 const cityLabels = new Map<string, SymbolLayerSpecification>();
-// OpenFreeMap's positron, or its dark basemap where the system's setting is dark.
-map.setStyle(`https://tiles.openfreemap.org/styles/${darkBasemap ? 'dark' : 'positron'}`, {
+// OpenFreeMap's positron, or its dark basemap where the system's setting is dark, fetched here rather than by
+// MapLibre: the page waits for it (map.once('load')), so one that fails to come, or stalls, as where OpenFreeMap
+// answers with an error a moment, is asked for again, RETRY on, until it comes (#658). MapLibre itself, given another
+// style with transformStyle, waits for the one that failed to load first, which is for good.
+const basemap = `https://tiles.openfreemap.org/styles/${darkBasemap ? 'dark' : 'positron'}`;
+/** Sets the basemap's style, as it came. */
+const setBasemap = (basemapStyle: StyleSpecification) => map.setStyle(basemapStyle, {
   transformStyle: (_, style) => {
     style['font-faces'] = FONT_FACES;
     // A globe zoomed out (PROJECTION), with MapLibre's atmosphere round it, which fades as the globe
@@ -429,6 +436,16 @@ map.setStyle(`https://tiles.openfreemap.org/styles/${darkBasemap ? 'dark' : 'pos
     return style;
   },
 });
+void (async () => {
+  for (;;) {
+    try {
+      return setBasemap(await getJson<StyleSpecification>(basemap, { stall: STALL }));
+    } catch (error) {
+      console.warn(error);
+      await new Promise((resolve) => setTimeout(resolve, RETRY));
+    }
+  }
+})();
 const styleLoaded = map.once('style.load');
 /**
  * Round the globe the map is transparent, and the page shows through, as space (style.css), which both
@@ -671,10 +688,15 @@ let namesDue: Track | Bundle | undefined;
 const cardColour = hex(getComputedStyle(document.documentElement).getPropertyValue('--card').trim() || '#fff');
 /** The Lines the last place whose board the panel showed names, for the days on the map then (servedBy()). */
 let served: { place?: Place; days?: Bundle; lines: string[] } = { lines: [] };
-showLanguage();
-
 /** The manifest as the map last got it. */
 let manifest: Manifest | undefined;
+/**
+ * Whether the last try of the manifest failed, or stalled: a look that had it fail is followed by another
+ * soon (looked(), #657), and the banner says, while the map has none, that the timetable is on its way
+ * (showBanner(), #658). Up here, as showLanguage() shows the banner.
+ */
+let manifestFailed = false;
+showLanguage();
 /** Each file of the service days' bundles the map has fetched, or is fetching: their track and Trips. */
 const fetched = new Map<string, Promise<unknown>>();
 /** Each set of regions' tracks joined, by the files it's from, so that looking again where one came again or failed again draws nothing again. */
@@ -687,8 +709,8 @@ let lookAgain = false;
 let lookedOnce = false;
 /**
  * Whether the last look for the days the map needs had a region's file fail to come, which the map looks
- * for again each minute (refreshDays()): a board whose regions' Trips haven't come then says that none can
- * be had, rather than showing its label alone for good, as it does while they're on their way (#379). Up
+ * for again once 5 to 10 s on and then each minute (looked(), #657): a board whose regions' Trips haven't
+ * come then says that none can be had, rather than showing its label alone for good, as it does while they're on their way (#379). Up
  * here, as neededDays() sets it, and first runs before the module is past its top-level await. A file
  * that stalls fails as one that errs does, once no bytes have come for STALL (getJson(), #595).
  * ponytail: one flag and one wait for every region loaded or needed, so a board with none left, of a region
@@ -698,9 +720,8 @@ let lookedOnce = false;
  */
 let tripsFailed = false;
 /**
- * Whether the map has looked again at once, for what failed, for the run of looks that have had a file
- * fail (boardPanel(), #597): a board with none left, whose own regions' Trips failed, has it do so once,
- * and the looks after it are the minute's, until one has no file fail.
+ * Whether the map has looked again soon, for what failed, for the run of looks that have had a file fail
+ * (looked(), #657): once, and the looks after it are the minute's, until one has no file fail.
  */
 let failedRetried = false;
 /** The Stations of the track on the map, which come with its Lines. */
@@ -754,7 +775,9 @@ looking = true;
 // And the regions it needs as the map moves, from the start, as the map can be moved while it opens: a look
 // asked for meanwhile follows the first (#266).
 map.on('moveend', want);
-const [needed] = await Promise.all([neededDays(), map.once('load'), typefaceLoaded]);
+// A first look that fails, as where every try of the manifest has, leaves the map with no days, which the looks after it
+// look for (looked(), #658): the page goes on, and doesn't stop here for good.
+const [needed] = await Promise.all([neededDays().catch((error: unknown) => void console.warn(error)), map.once('load'), typefaceLoaded]);
 /**
  * The basemap's paper, its background's colour: what the Lines are cased in on positron, and on the
  * dark basemap what their colours are lettered against (lettering()).
@@ -2807,15 +2830,11 @@ function boardPanel(id: string, up: boolean): Panel | undefined {
   const trips = tripsState(loaded, manifest ? neededRegions(manifest) : [], shownRegions, tripsFailed);
   // With none left today, the next day's first are to come; refreshDays() runs again within a minute if it's busy now.
   // Only once the Trips of its own regions have come (#597): before that it has none because they haven't. Where
-  // they failed, the map looks again for the failed files alone, at once, as the ask for the next day did without
-  // meaning to, whose look waits for every file of the next day's too: once for a run of looks that have had a file
-  // fail (failedRetried), and then by the minute's.
+  // they failed, the map looks again for them soon, as it does for every file that fails (looked(), #657).
   const date = madridDate(new Date(mapNow));
-  if (bundle && !departures.length) {
-    const ask = boardAsks(place.stations.every((station) => come({ station })), trips, emptyBoard === date, failedRetried);
-    if (ask === 'next') emptyBoard = date;
-    if (ask === 'again') failedRetried = true;
-    if (ask) refreshDays();
+  if (bundle && !departures.length && boardAsks(place.stations.every((station) => come({ station })), emptyBoard === date)) {
+    emptyBoard = date;
+    refreshDays();
   }
   const shown = up ? departures : departures.slice(0, PEEK);
   // Neither rows nor "none" while the Trips of a region the map has loaded or needs are on their way, as the bundle has the
@@ -3067,8 +3086,8 @@ function nearbyPanel(near: Point | Unlocated, up: boolean): Panel {
   // Where no Train passes, saying so is what a try found too, so the status says it, for a screen reader to
   // hear; but only once the Trips of the regions round the viewer have come (#266), which can be after the
   // viewer is found, as the map can't tell before: at once where no region is, though the map has loaded none.
-  // Or the last look had a file fail, which the map looks for again each minute, as a board says that none can
-  // be had then (#592), not its heading alone for as long as they fail.
+  // Or the last look had a file fail, which the map looks for again soon and then each minute, as a board says
+  // that none can be had then (#592), not its heading alone for as long as they fail.
   // ponytail: a screen reader hears the status again whenever a refresh empties the list, and maybe its
   // heading alone as the list fills; keep the status to what the try found if that's too chatty.
   if (!rows.length) {
@@ -3223,6 +3242,7 @@ function clock(day = false) {
 function showBanner() {
   const neverLive = !received.length && emptyPolls >= EMPTY_POLLS;
   const rows: (Node | string)[][] = [
+    ...(!manifest && manifestFailed ? [[t('timetableComing')]] : []),
     ...(neverLive ? [[t('noLive')]] : credited.filter((n) => bannerIds.unavailable.includes(n.id)).map((n) => bold(liveUnavailable(n.name), n.name))),
     ...credited.filter((n) => bannerIds.noTrips.includes(n.id)).map((n) => [el('b', { textContent: n.name }), `: ${t('noTimetable')}`]),
   ];
@@ -3338,12 +3358,24 @@ function creditOf({ text, url, licence, updated }: Credit): string {
  * map's date, if that shows.
  */
 async function neededDays(): Promise<{ track: Promise<Track | undefined>; arrivals: AsyncGenerator<Arrival> } | undefined> {
-  try {
-    // Not the first, which the page's top-level await needs: one cut there would stop the page, as a failed one does (#595).
-    manifest = await getJson<Manifest>(`${LIVE_URL}/manifest.json`, { stall: manifest && STALL });
-  } catch (error) {
-    if (!manifest) throw error;
-    console.warn(error);
+  // Until the map has one, it's tried MANIFEST_TRIES times, RETRY apart, as the banner says that the timetable is on
+  // its way, and then by the looks after (#658); once it has one, a manifest that fails leaves it with the last.
+  for (let tries = 1; ; tries++) {
+    try {
+      manifest = await getJson<Manifest>(`${LIVE_URL}/manifest.json`, { stall: STALL });
+      if (manifestFailed) {
+        manifestFailed = false;
+        showBanner();
+      }
+      break;
+    } catch (error) {
+      manifestFailed = true;
+      if (!manifest) showBanner();
+      if (!manifest && tries === MANIFEST_TRIES) throw error;
+      console.warn(error);
+      if (manifest) break;
+      await new Promise((resolve) => setTimeout(resolve, RETRY));
+    }
   }
   getZoomedOut(manifest);
   const wanted = neededRegions(manifest);
@@ -3378,7 +3410,6 @@ async function neededDays(): Promise<{ track: Promise<Track | undefined>; arriva
     for await (const { bundle: joined, came, lost, byDate, complete } of steps) {
       if (complete) {
         tripsFailed = load.failed();
-        failedRetried &&= tripsFailed;
         // Without today's bundle the days that came are on the map already, as they came, and the look ends here, to be
         // looked for again; without another day's, the map does without it until next time.
         for (const [day, reason] of lost) if (day === today) throw reason;
@@ -3424,9 +3455,15 @@ async function refreshDays() {
   }
 }
 
-/** Ends a look for the days the map needs, and looks again where one was asked for meanwhile. */
+/**
+ * Ends a look for the days the map needs, and looks again where one was asked for meanwhile; and, where it had
+ * a file fail, once more 5 to 10 s on, for every viewer, before the minute's look takes over (#657).
+ */
 function looked() {
   [looking, daysComing] = [false, false];
+  const soon = lookAgainSoon(tripsFailed || manifestFailed, failedRetried);
+  failedRetried = soon.retried;
+  if (soon.in !== undefined) setTimeout(refreshDays, soon.in);
   if (!lookAgain) return;
   lookAgain = false;
   refreshDays();

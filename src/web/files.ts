@@ -6,6 +6,20 @@
  */
 export const STALL = 20_000;
 
+/** How long the map waits before it looks again for what failed, in ms, at least (lookAgainSoon()), and between the tries of the page's first manifest (#658). */
+export const RETRY = 5000;
+
+/**
+ * Whether the map looks again soon as a look ends, and in how many ms (`in`), which it does once, RETRY to
+ * twice that on, after a look that had a file fail or stall, for every viewer, for a run of looks that have
+ * (`retried`), and the minute's look takes over from there until one has none fail (#657). Spread over those
+ * 5 s by `random`, so that the pages open during an outage don't all ask at once.
+ */
+export function lookAgainSoon(failed: boolean, retried: boolean, random = Math.random): { in?: number; retried: boolean } {
+  if (!failed) return { retried: false };
+  return retried ? { retried } : { in: RETRY * (1 + random()), retried: true };
+}
+
 /**
  * Fetches a file of JSON. Where `stall` is given, it fails once that many ms go by with no bytes of it
  * coming, from the request on, so a file that keeps coming isn't cut and one that stalls fails as any

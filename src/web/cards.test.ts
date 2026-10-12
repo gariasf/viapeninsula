@@ -178,22 +178,12 @@ test("a board with none left today is its label alone while the next day's Trips
   expect(boardList('came', 1, true)).toBe('rows');
 });
 
-test("a board with none left asks for the next day's Trips once its own regions' have come, once a day, and not while they're on their way (#597)", () => {
+test("a board with none left asks for the next day's Trips once its own regions' have come, once a day, and not while they're on their way or where they failed (#597, #657)", () => {
   // Its own regions' Trips have come: the next day's, and not again the same day.
-  expect(boardAsks(true, 'came', false, false)).toBe('next');
-  expect(boardAsks(true, 'came', true, false)).toBeUndefined();
-  // Another region's Trips having failed is no reason to wait for them: its own have come.
-  expect(boardAsks(true, 'failed', false, false)).toBe('next');
-  // Its own still on their way: it has none because they haven't come, whatever the map is looking for.
-  expect(boardAsks(false, 'coming', false, false)).toBeUndefined();
-});
-
-test("a board with none left whose own regions' Trips failed has the map look again at once for those, once for a run of looks that have had a file fail, and not for the next day (#597)", () => {
-  expect(boardAsks(false, 'failed', false, false)).toBe('again');
-  // Not again for the retry that fails too, nor for the looks after it, which are the minute's.
-  expect(boardAsks(false, 'failed', false, true)).toBeUndefined();
-  // Whether it asked for the next day today isn't what retries them.
-  expect(boardAsks(false, 'failed', true, false)).toBe('again');
+  expect(boardAsks(true, false)).toBe(true);
+  expect(boardAsks(true, true)).toBe(false);
+  // Its own still on their way, or failed, which the map looks for again soon itself: it has none because they haven't come.
+  expect(boardAsks(false, false)).toBe(false);
 });
 
 test("the next day's Trips that a board asked for are on their way while the map is looking and the last day of its bundle isn't past today (#596)", () => {

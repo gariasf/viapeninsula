@@ -64,6 +64,8 @@ const STRINGS = {
     gl: 'Datos en tempo real non dispoñibles, posicións segundo o horario',
     en: 'Live data unavailable, positions from the timetable',
   },
+  // The banner, while the page's first manifest has failed and is asked for again, so the map has no Lines and no Trains yet (#658).
+  timetableComing: { ca: "Carregant l'horari…", es: 'Cargando el horario…', eu: 'Ordutegia kargatzen…', gl: 'Cargando o horario…', en: 'Loading the timetable…' },
   // The follow panel. {n} is a number of minutes, or of seconds where a string says so, and {ago} how long ago, as ago() words it.
   // A departure's button, naming what it follows (#322); where a Trip still to come leaves; and Back, to a place or to Nearby, or to the Train it was opened from.
   followDeparture: { ca: 'Segueix el tren {line} cap a {headsign}, {time}', es: 'Seguir el tren {line} hacia {headsign}, {time}', eu: 'Jarraitu {line} trena, {headsign} aldera, {time}', gl: 'Seguir o tren {line} cara a {headsign}, {time}', en: 'Follow the {line} train to {headsign}, {time}' },
