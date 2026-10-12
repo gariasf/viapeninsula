@@ -416,7 +416,7 @@ const elides = (name: string): boolean => /^h?(?![iu][aeiou])[aeiou]/i.test(name
  * a capital article that's part of the name.
  * ponytail: an h that's aspirated, a loanword's, elides too, as no Station's name has one; and a Spanish
  * name's El before a consonant contracts as Catalan's does, "al Berrón", where the IEC keeps it, "a El
- * Berrón", as a name has no language here but the one it's written in.
+ * Berrón", as a name has no language here but the one it's written in: its Network's would tell them apart.
  */
 const named = (text: string, slot: '{station}' | '{place}' | '{headsign}', name: string, lang: Language): string => {
   const [before = '', after = ''] = text.split(slot);
