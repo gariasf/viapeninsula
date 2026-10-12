@@ -7,7 +7,7 @@ import { parseLine } from '../build/gtfs.ts';
 import { sideBySide } from '../build/sideBySide.ts';
 import { TRAM } from '../networks.ts';
 import { joinDays } from '../engine.ts';
-import { inNameOrder } from './cards.ts';
+import { cardAlerts, inNameOrder } from './cards.ts';
 import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, stretchesIn, tappedRows, type Shown } from './closures.ts';
 
 /** Some of Rodalies' and TRAM's Stations, as the bundle names them. */
@@ -709,6 +709,9 @@ test("a feed's Closures hide no Trains once its file has stood unchanged for ove
   // They're still shown, and so their Alerts still listed, with the file's age, on the cards (#390).
   expect(shown.map((c) => `${c.line} ${c.stations.map((id) => name.get(id)).join(' – ')}`)).toEqual(expect.arrayContaining(['rodalies:R1 Blanes – Maçanet-Massanes', 'rodalies:R3 Ripoll – Puigcerdà', 'cercanias-san-sebastian:C1 Brinkola – Zumarraga']));
   expect(hiding(shown, [], new Map(), at, alerts)).toEqual([]);
+  const r1 = cardAlerts(alerts, { lines: ['rodalies:R1'], stations: [] }, 'es', at);
+  expect(r1.alerts.map((a) => a.id)).toContain('AVISO_518348');
+  expect(r1.changed).toEqual([{ by: 'Renfe', at: changed }]);
   expect(hiding(shown, [], new Map(), changed + 49 * 3_600_000, alerts)).toEqual([]);
   expect(hiding(shown, [], new Map(), changed + 47 * 3_600_000, alerts)).toEqual(shown);
   // A file that doesn't say when it changed, as one kept before #390, hides them as before.
