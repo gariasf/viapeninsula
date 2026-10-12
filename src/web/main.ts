@@ -3360,8 +3360,10 @@ async function neededDays(): Promise<{ track: Promise<Track | undefined>; arriva
   if (!keys.length || keys.join() === shown) return undefined;
   for (const key of fetched.keys()) if (!keys.includes(key)) fetched.delete(key);
   forgetJoined(joinedTracks, keys);
+  // A file of the look fails once no bytes of any of them have come for STALL, not of its own: one asked behind others waits its turn while theirs come (getJson(), #721).
+  const progress = { at: 0 };
   const get = <T>(key: string) => {
-    const file = fetched.get(key) ?? getJson<T>(`${LIVE_URL}/${key}`, { stall: STALL });
+    const file = fetched.get(key) ?? getJson<T>(`${LIVE_URL}/${key}`, { stall: STALL, progress });
     fetched.set(key, file);
     file.catch(() => fetched.delete(key));
     return file as Promise<T>;
