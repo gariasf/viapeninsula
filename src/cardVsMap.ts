@@ -122,7 +122,7 @@ export interface Differences {
   /**
    * Cause 5: the Delay live data gave, which a board's rows run, against how late the Train is drawn, in seconds: positive where the Train is
    * drawn ahead of its Delay. It was the card's time for its next Station against when the drawn Train gets there until #610, when the card began
-   * to run the Delay the Train is drawn at, which eases to live data's, so that its own is none, but for a Train held or let out (#610).
+   * to run the Delay the Train is drawn at, which eases to live data's, so that the card's own is none (#610).
    */
   timeOff: number;
   /** Cause 6: the Train's last report pins it to a Station, and it's drawn more than FAR from that Station along its Trip, short of it or already past it. */

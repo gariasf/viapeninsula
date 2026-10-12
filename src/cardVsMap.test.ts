@@ -203,8 +203,8 @@ describe('differences', () => {
     expect(differences(moment(80, 1000))).toMatchObject({ atNext: false });
   });
 
-  it('gives how far the card’s time is from the drawn Train’s, positive where the Train is drawn ahead of its Delay', () => {
-    // Card: B at 130 + 90 s late; drawn: 20 s behind its timetable at 100 s, so at B at 150 s.
+  it('gives how far the Delay live data gave is from how late the Train is drawn, positive where the Train is drawn ahead of it', () => {
+    // Live data's Delay has B at 130 + 90 s; drawn: 20 s behind its timetable at 100 s, so at B at 150 s.
     expect(differences(moment(80, 1000, { now: 100, at: 100_000, delay: 90 }))?.timeOff).toBeCloseTo(70);
   });
 
