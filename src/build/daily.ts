@@ -201,6 +201,10 @@ function build(config: NetworkConfig, { published, days }: Awaited<ReturnType<ty
     const station = stations.find((s) => s.id === stationId);
     console.log(station ? `${name} puts ${station.name} (${stationId}) at ${lat}, ${lon}: ${source}` : `${name}'s timetables have no Station ${stationId}, so its override of where it is isn't applied`);
   }
+  // The Stations it names as its config spells them, rather than as its timetables do (readFeed(), #571).
+  for (const [stationId, { name: spelt, source }] of Object.entries(config.stationNames ?? {})) {
+    console.log(stations.some((s) => s.id === stationId) ? `${name} spells ${stationId} as ${spelt}: ${source}` : `${name}'s timetables have no Station ${stationId}, so its spelling of its name isn't applied`);
+  }
   const own = ownRails(rails, config);
   const near = railsBeside(own, stations);
   const found = (f: Found) => report.add({ ...f, network: id, ways: [...new Set(f.stations?.flatMap((s) => near.get(s.id)?.map((c) => c.way.id) ?? []))] });

@@ -37,7 +37,7 @@ export function ownRails(rails: OsmWay[], network: Pick<NetworkConfig, 'rails'>)
 }
 
 /** One of a Network's timetables, to read as that Network's. */
-export type Feed = Timetable & { network: Pick<NetworkConfig, 'id' | 'name' | 'lines' | 'stations' | 'beyond'> };
+export type Feed = Timetable & { network: Pick<NetworkConfig, 'id' | 'name' | 'lines' | 'stations' | 'stationNames' | 'beyond'> };
 
 // ponytail: today's Networks' timetables and rails, by the names networks.test.ts imports, kept so it
 // runs unchanged (#240); they can go once it reads src/networks.ts.
@@ -215,7 +215,8 @@ export async function readFeed(
     // Where the Network's config says it is (#367), or else its timetable's points (#259), if its timetable puts it elsewhere.
     const at = network.stations?.[key];
     const [lon, lat] = at ? [at.lon, at.lat] : (feed.points?.[s.stop_id] ?? [Number(s.stop_lon), Number(s.stop_lat)]);
-    stations.set(key, { id: key, name: s.stop_name, lon, lat, ...(place && { place }) });
+    // And as its config spells its name (#571), where its timetable shortens it.
+    stations.set(key, { id: key, name: network.stationNames?.[key]?.name ?? s.stop_name, lon, lat, ...(place && { place }) });
   }
 
   // Renfe's long-distance timetable has no shapes, and its Trips name none.
