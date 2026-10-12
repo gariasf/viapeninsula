@@ -7,7 +7,7 @@ import { parseLine } from '../build/gtfs.ts';
 import { sideBySide } from '../build/sideBySide.ts';
 import { TRAM } from '../networks.ts';
 import { joinDays } from '../engine.ts';
-import { inNameOrder } from './cards.ts';
+import { cardAlerts, inNameOrder } from './cards.ts';
 import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, stretchesIn, tappedRows, type Shown } from './closures.ts';
 
 /** Some of Rodalies' and TRAM's Stations, as the bundle names them. */
@@ -677,11 +677,11 @@ test("a Closure an Alert closes hides Trains until a Live Train of its Line is s
   const lines = (closures: Shown[]) => closures.map((c) => c.line);
   // On 10 Oct at noon, as T1–T3's Closure is in force then (#397).
   const shown = closuresAt(ALERTS, WORKS, NOON);
-  expect(hiding(shown, [], lifted, 0)).toEqual(shown);
+  expect(hiding(shown, [], lifted, 0, {})).toEqual(shown);
   // A T2 tram seen within Francesc Macià – Montesa lifts T2's, and not T1's or T3's there.
-  expect(lines(hiding(shown, shown.filter((c) => c.line === 'tram:T2'), lifted, 1000))).toEqual(['rodalies:R3', 'rodalies:R1', 'rodalies:R2', 'tram:T3', 'tram:T1', 'tram:T5', 'tram:T6']);
+  expect(lines(hiding(shown, shown.filter((c) => c.line === 'tram:T2'), lifted, 1000, {}))).toEqual(['rodalies:R3', 'rodalies:R1', 'rodalies:R2', 'tram:T3', 'tram:T1', 'tram:T5', 'tram:T6']);
   // It stays lifted once the tram has gone, as alerts.json is read again, its Alert unchanged.
-  expect(lines(hiding(closuresAt(ALERTS, WORKS, NOON), [], lifted, 2000))).not.toContain('tram:T2');
+  expect(lines(hiding(closuresAt(ALERTS, WORKS, NOON), [], lifted, 2000, {}))).not.toContain('tram:T2');
   // But not once TRAM changes sc-280's period or its words, as by 10 October it had moved its start
   // from 1 October to the works' first day, nor where a new Alert closes that part of T2.
   const tram = (alerts: Alert[]): Alerts => ({ ...ALERTS, tram: { status: 'ok', alerts } });
@@ -692,11 +692,33 @@ test("a Closure an Alert closes hides Trains until a Live Train of its Line is s
     [{ ...sc280, description: sc280.description.map((w) => ({ ...w, text: `${w.text} (2)` })) }, ...others],
     [{ ...sc280, id: 'sc-290', from: READ }, sc280, ...others],
   ]) {
-    expect(lines(hiding(closuresAt(tram(alerts), WORKS, NOON), [], lifted, 3000))).toContain('tram:T2');
+    expect(lines(hiding(closuresAt(tram(alerts), WORKS, NOON), [], lifted, 3000, {}))).toContain('tram:T2');
   }
   // The timetable's own, which no Trip of its day runs through, is never lifted.
   const timetable = closuresAt({}, { ...DAY, closures: [{ line: 'rodalies:R13', stations: ['adif:73003', 'adif:73100'], from: 0, to: 86400, kind: 'buses' }] }, READ);
-  expect(hiding(timetable, timetable, lifted, 4000)).toEqual(timetable);
+  expect(hiding(timetable, timetable, lifted, 4000, {})).toEqual(timetable);
+});
+
+test("a feed's Closures hide no Trains once its file has stood unchanged for over 48 h, as Renfe's of 7 Oct on 12 Oct, R1's, R3's and C1's, and at 47 h they do (#735)", () => {
+  // Renfe's file as the fetcher had it on 12 Oct: last changed 7 Oct at 07:32:51 UTC, its 68 Alerts those of 9 Oct's file.
+  const changed = 1791358371000;
+  const alerts: Alerts = { renfe: { ...(NIGHT.renfe as Alerts[string]), changed } };
+  const at = Date.parse('2026-10-12T12:00:00+02:00');
+  const shown = closuresAt(alerts, { noonMinus12h: Date.parse('2026-10-12T00:00:00+02:00'), closures: [], lines: NIGHT_LINES, stations: NIGHT_STATIONS, trips: [] }, at);
+  const name = new Map(NIGHT_STATIONS.map((s) => [s.id, s.name]));
+  // They're still shown, and so their Alerts still listed, with the file's age, on the cards (#390).
+  expect(shown.map((c) => `${c.line} ${c.stations.map((id) => name.get(id)).join(' – ')}`)).toEqual(expect.arrayContaining(['rodalies:R1 Blanes – Maçanet-Massanes', 'rodalies:R3 Ripoll – Puigcerdà', 'cercanias-san-sebastian:C1 Brinkola – Zumarraga']));
+  expect(hiding(shown, [], new Map(), at, alerts)).toEqual([]);
+  const r1 = cardAlerts(alerts, { lines: ['rodalies:R1'], stations: [] }, 'es', at);
+  expect(r1.alerts.map((a) => a.id)).toContain('AVISO_518348');
+  expect(r1.changed).toEqual([{ by: 'Renfe', at: changed }]);
+  expect(hiding(shown, [], new Map(), changed + 49 * 3_600_000, alerts)).toEqual([]);
+  expect(hiding(shown, [], new Map(), changed + 47 * 3_600_000, alerts)).toEqual(shown);
+  // A file that doesn't say when it changed, as one kept before #390, hides them as before.
+  expect(hiding(shown, [], new Map(), at, NIGHT)).toEqual(shown);
+  // The timetable's own never stand.
+  const timetable = closuresAt({}, { ...DAY, closures: [{ line: 'rodalies:R13', stations: ['adif:73003', 'adif:73100'], from: 0, to: 86400, kind: 'buses' }] }, READ);
+  expect(hiding(timetable, [], new Map(), at, alerts)).toEqual(timetable);
 });
 
 test('a lifted Closure says since when, the first time a Train was seen within it, and an unlifted one or the timetable\'s nothing (#422)', () => {
@@ -704,13 +726,13 @@ test('a lifted Closure says since when, the first time a Train was seen within i
   const shown = closuresAt(ALERTS, WORKS, NOON);
   const [t2] = shown.filter((c) => c.line === 'tram:T2');
   const t1 = shown.find((c) => c.line === 'tram:T1') as Shown;
-  hiding(shown, [t2 as Shown], lifted, 1000);
+  hiding(shown, [t2 as Shown], lifted, 1000, {});
   // Seen again later, it keeps the first time.
-  hiding(shown, [t2 as Shown], lifted, 5000);
+  hiding(shown, [t2 as Shown], lifted, 5000, {});
   expect(liftedSince(t2 as Shown, lifted)).toBe(1000);
   expect(liftedSince(t1, lifted)).toBeUndefined();
   const timetable = closuresAt({}, { ...DAY, closures: [{ line: 'rodalies:R13', stations: ['adif:73003', 'adif:73100'], from: 0, to: 86400, kind: 'buses' }] }, READ);
-  hiding(timetable, timetable, lifted, 6000);
+  hiding(timetable, timetable, lifted, 6000, {});
   expect(liftedSince(timetable[0] as Shown, lifted)).toBeUndefined();
   // Not once its Alert has changed.
   expect(liftedSince({ ...(t2 as Shown), alert: { ...(t2 as Shown).alert as NonNullable<Shown['alert']>, said: 'changed' } }, lifted)).toBeUndefined();

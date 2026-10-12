@@ -131,15 +131,24 @@ export function tappedRows(shown: Shown[], keys: string[], order: string[]): Tap
 const liftKey = (c: Shown) => `${closureKey(c)} ${c.alert?.feed} ${c.alert?.id} ${c.alert?.said}`;
 
 /**
+ * How long a feed's Alerts file can stand unchanged before its Closures stop hiding Trains, in ms: 48 h.
+ * Renfe's stood from 7 Oct 2026, 07:32 UTC, for days, its 7 Oct incidents still closing R1, R3 and C1,
+ * where Trains ran again (#735). Its Alerts are still listed, with the file's age (#390).
+ */
+const STOOD = 48 * 3_600_000;
+
+/**
  * The Closures among those shown that hide their Lines' Trains (#345): all but those an Alert closes
  * that a Live Train of their Line has been seen within since that Alert last changed, its period,
  * effect or words, as `lifted` remembers them, which this adds those `seen` to (seenWithin()), with
- * the time `at` (ms since 1970) they were first seen (liftedSince(), #422). The timetable's, which no
+ * the time `at` (ms since 1970) they were first seen (liftedSince(), #422), and those of a feed whose
+ * file, as `alerts` has it, last changed over STOOD before `at` (#735). The timetable's, which no
  * Trip of their day runs through, are never lifted.
  */
-export function hiding(shown: Shown[], seen: readonly Shown[], lifted: Map<string, number>, at: number): Shown[] {
+export function hiding(shown: Shown[], seen: readonly Shown[], lifted: Map<string, number>, at: number, alerts: Alerts): Shown[] {
   for (const c of seen) if (c.alert && !lifted.has(liftKey(c))) lifted.set(liftKey(c), at);
-  return shown.filter((c) => !c.alert || !lifted.has(liftKey(c)));
+  const stood = (feed: string) => at - (alerts[feed]?.changed ?? at) > STOOD;
+  return shown.filter((c) => !c.alert || !(lifted.has(liftKey(c)) || stood(c.alert.feed)));
 }
 
 /** When a Live Train of a Closure's Line was first seen within it, as `lifted` has it (ms since 1970), where its Alert hasn't changed since; none where it isn't lifted. */
