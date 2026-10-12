@@ -1,0 +1,4 @@
+stop_id,stop_name,stop_lat,stop_lon,wheelchair_boarding                                                                                               
+78505,Aguilar de Segarra,41.7389170,1.62372000,2                                                                                                      
+78506,Rajadell,41.7331590,1.69627500,2                                                                                                                
+78600,Manresa,41.7203921,1.82648564,1                                                                                                                 

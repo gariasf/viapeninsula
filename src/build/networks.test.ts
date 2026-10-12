@@ -1114,6 +1114,49 @@ test("puts Maliaño on Adif's track, where C1 runs, with Cercanías Santander's 
   }
 });
 
+// Rows cut verbatim from Renfe's Cercanías feed of 2026-10-10: RL4's Trip 5181S33518RL4 of Saturday 10 October,
+// from Lleida to Terrassa Estació del Nord, at its calls at Aguilar de Segarra, Rajadell and Manresa, and its
+// shape's points within 11 km of Rajadell. And, as the build had them on 9 October, the rails there:
+// `npm run snippet -- 41.7331590,1.6962750 rajadell 11`.
+const rl4 = dirSource(fileURLToPath(new URL('fixtures/rodalies-rajadell-dot', import.meta.url)));
+const { rails: rajadellRails } = JSON.parse(readFileSync(new URL('fixtures/osm/rajadell.json', import.meta.url), 'utf8')) as Snippet;
+
+/** The Trip, read from Renfe's rows for a Network as it's configured, traced along the rails and placed, and how far from its trace Rajadell is, in metres. */
+async function rl4Trip(network: NetworkConfig) {
+  const { stations, shapes, trips } = await readFeed(rl4, '2026-10-10', { network, ...network.timetables[0] });
+  const left: string[] = [];
+  const traced = traceShapes(shapes, stations, ownRails(rajadellRails, network), network.runningSide, () => {});
+  const placed = placeTrips(trips, traced, stations, () => network.profile.topSpeed, (l) => left.push(l));
+  const station = stations.find((s) => s.id === 'adif:78506');
+  const trace = traced.find((s) => s.id === placed[0]?.shape);
+  const off = station && trace ? nearest(trace.coords, [station.lon, station.lat]).metres : NaN;
+  return { stations, traced, placed, left, off };
+}
+
+test("puts Rajadell on Adif's track, where RL4 runs, with Rodalies' config having it at OpenStreetMap's station node for it, 0.21 km from where Renfe's timetable has it, 66 m from the track (#495)", async () => {
+  const published = await rl4Trip({ ...RODALIES, stations: undefined });
+  expect(published.placed.map((t) => t.id)).toEqual(['rodalies:5181S33518RL4']);
+  expect(published.left).toEqual([]);
+  expect(published.off).toBeGreaterThan(60);
+  expect(published.off).toBeLessThan(70);
+
+  const configured = await rl4Trip(RODALIES);
+  expect(configured.placed.map((t) => t.id)).toEqual(['rodalies:5181S33518RL4']);
+  expect(configured.left).toEqual([]);
+  // The station node is 7.6 m beside the track; its stop position, node 1708904561, is on it.
+  expect(configured.off).toBeLessThan(10);
+  // It moves Rajadell, of the three Stations the Trip calls at, and no other, and RL4's trace is the line it was.
+  const moved = configured.stations.filter((s, i) => s.lon !== published.stations[i]?.lon || s.lat !== published.stations[i]?.lat);
+  expect(moved.map((s) => s.id)).toEqual(['adif:78506']);
+  const apart = (a: Point[], b: Point[]) => Math.max(...a.map((p) => nearest(b, p).metres));
+  expect(published.traced.map((s) => s.id)).toEqual(['rodalies:51_RL4:back']);
+  for (const [i, shape] of published.traced.entries()) {
+    const other = configured.traced[i]?.coords ?? [];
+    expect(apart(shape.coords, other)).toBeLessThan(0.1);
+    expect(apart(other, shape.coords)).toBeLessThan(0.1);
+  }
+});
+
 test("gives each shape of a Network of two gauges the rails its Line runs on, as Cercanías Asturias' C2 runs on Adif's Iberian gauge, to be traced on those alone, and its Trips none, as they're placed on their shapes (#366)", async () => {
   const { shapes, trips } = await readFeed(asturias, '2026-10-10', { network: CERCANIAS_ASTURIAS, ...CERCANIAS_ASTURIAS.timetables[0] });
   expect(shapes.map((s) => [s.id, s.gauges])).toEqual([['cercanias-asturias:20_C2:back', { railway: ['rail'], gauges: ['1668'] }]]);
