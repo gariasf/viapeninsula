@@ -337,7 +337,7 @@ test("keeps a branch reported unless every Station of it is called at by a Trip 
     // On the feed's shape, whose Stations a trace of a Trip's own doesn't make served, and on another Line's trace.
     [placedOn('feed', 'C3', 'C3', 'E F'), placedOn('other', 'C1', 'C1:1', 'G H')],
   ];
-  const [served, apart, some, feed, other, none] = [spot('C3', 'A', 'B'), spot('C3', 'A', 'B', 'X'), spot('C3', 'C'), spot('C3', 'E', 'F'), spot('C3', 'G'), { ...spot('C3'), stations: [] }];
-  // A and B by the first Trip, C by the second's, on another day; X by none; E and F only by a Trip on the feed's shape; G only by another Line's; and a branch with no Station is none's.
-  expect(unserved([served, apart, some, feed, other, none], days, traces)).toEqual([apart, feed, other, none]);
+  const [served, apart, some, split, feed, other, none] = [spot('C3', 'A', 'B'), spot('C3', 'A', 'B', 'X'), spot('C3', 'C'), spot('C3', 'B', 'C'), spot('C3', 'E', 'F'), spot('C3', 'G'), { ...spot('C3'), stations: [] }];
+  // A and B by the first Trip, C by the second's, on another day, and B with C by the two, though no Trip calls at both; X by none; E and F only by a Trip on the feed's shape; G only by another Line's; and a branch with no Station is none's.
+  expect(unserved([served, apart, some, split, feed, other, none], days, traces)).toEqual([apart, feed, other, none]);
 });
