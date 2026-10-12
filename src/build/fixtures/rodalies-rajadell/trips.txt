@@ -1,0 +1,6 @@
+route_id,service_id,trip_id,trip_headsign,wheelchair_accessible,block_id,shape_id                                                                     
+51T0019R4,5184M,5184M33518R4,       ,2,5184M33518,51_R4                                                                                               
+51T0020R4,5184M,5184M33527R4,       ,2,5184M33527,51_R4_INV                                                                                           
+51T0020R4,5184M,5184M77500R4,       ,1,5184M77500,51_R4_INV                                                                                           
+51T0047RL4,5184M,5184M33527RL4 ,     ,2,5184M33527,51_RL4                                                                                             
+51T0048RL4,5184M,5184M33518RL4 ,     ,2,5184M33518,51_RL4                                                                                             

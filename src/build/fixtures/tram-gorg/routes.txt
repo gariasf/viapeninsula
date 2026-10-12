@@ -1,0 +1,2 @@
+route_id,route_short_name,route_long_name,route_desc,route_type,route_url,route_color,route_text_color,agency_id
+5,"T5","Glòries-Gorg","Glòries-Gorg",0,http://www.tram.cat/linies-i-horaris/linea-t5/,FF0080,FFFFFF,2

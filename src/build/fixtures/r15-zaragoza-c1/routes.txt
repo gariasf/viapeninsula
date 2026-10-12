@@ -1,0 +1,3 @@
+route_id,route_short_name,route_long_name,route_type,route_color,route_text_color                                                                     
+51T0163R15 ,R15 ,                                        -Mora la Nova                            ,2,978571,FFFFFF                                    
+70T0001C1  ,C1  ,Casetas                                 -Miraflores                              ,2,D90724,FFFFFF                                    

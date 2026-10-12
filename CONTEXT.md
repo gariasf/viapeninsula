@@ -11,7 +11,7 @@ One passenger Trip being run on one service day, in any rail mode: heavy rail, m
 _Avoid_: Vehicle, service, run, circulation
 
 **Trip**:
-A timetable entry: the ordered Calls and their times that a Train runs. Where a timetable lists one Train in parts, a Trip for each part of its run that it sells, as Renfe's long-distance timetable does, the parts make one Trip.
+A timetable entry: the ordered Calls and their times that a Train runs. Where a timetable lists one Train in parts, a Trip for each part of its run that it sells, as Renfe's long-distance timetable does, the parts make one Trip. So do a Network's Trips of one Train number that meet at one Station in the same minute, as Rodalies' R4 Trip of 33527 from Manresa to Rajadell and its RL4 Trip on from there do: one Trip, named by the Line of most of its run, RL4. Trips of one number that don't meet so, or that are in two Networks, stay apart.
 _Avoid_: Service, schedule
 
 **Call**:

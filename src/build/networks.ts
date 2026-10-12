@@ -87,12 +87,14 @@ export async function untaken(gtfs: Source, log = console.log): Promise<Found[]>
  * feed, and its Trips and replacement buses on one service day (YYYY-MM-DD). Renfe lists the buses
  * it runs in its Trains' place as Trips of bus routes named as their Line's routes are, as R3's: a
  * bus route named as none of them, as TMB's city buses are, is no Line's. Where the feed lists a Train
- * in parts, they're made one Trip, and the calls that fit none are logged (joinParts()). Where its live
- * data names a stop by its number in its Trip (`stopNumbers`), a Trip whose numbers don't run 1…n is
- * logged and given in `found`, for the report (#406): it's read all the same. A Trip that calls at a
- * Station its Network's config has beyond it isn't the Network's (`beyond`, #368): it's left out as
- * though the feed hadn't it, with its Train number, its shape where no other Trip runs it and the
- * Stations only it calls at, and each of the day's is logged and given back as `left`.
+ * in parts, they're made one Trip, and the calls that fit none are logged (joinParts()); where it lists
+ * one as Trips that meet at a Station in the same minute, they're made one too, and each join is
+ * logged (meeting(), #467). Where its live data names a stop by its number in its Trip (`stopNumbers`),
+ * a Trip whose numbers don't run 1…n is logged and given in `found`, for the report (#406): it's read
+ * all the same. A Trip that calls at a Station its Network's config has beyond it isn't the Network's
+ * (`beyond`, #368): it's left out as though the feed hadn't it, with its Train number, its shape where
+ * no other Trip runs it and the Stations only it calls at, and each of the day's is logged and given
+ * back as `left`.
  */
 export async function readFeed(
   gtfs: Source,
@@ -141,6 +143,7 @@ export async function readFeed(
   const shapeOf = new Map<string, string>(); // each Trip's shape, on any day
   const gaugesOf = new Map<string, Gauges>(); // each shape's rails, its Trips' route's, where they're given (#366)
   const numbers = new Map<string, string>(); // each Trip's Train number, on any day
+  const sameDay = new Map<string, string[]>(); // each service day's Trips of a Train number, which can meet (meeting(), #467)
   const lines = new Map<string, { colour: string; shapes: Set<string> }>();
   const dayTrips = new Map<string, Omit<FeedTrip, 'calls'> & { calls: (FeedTrip['calls'][number] & { seq: number })[] }>();
   const dayBuses = new Map<string, Omit<FeedBus, 'calls'> & { calls: { seq: number; stop: string; arrival: number; departure: number }[] }>();
@@ -166,6 +169,7 @@ export async function readFeed(
     lines.set(route.name, line);
     const number = pattern && (feed.shortNames ? t.trip_short_name : t.trip_id.slice(t.service_id.length)).match(pattern)?.[0];
     if (number) numbers.set(t.trip_id, number);
+    if (number && !feed.parts) sameDay.set(`${t.service_id} ${number}`, [...(sameDay.get(`${t.service_id} ${number}`) ?? []), t.trip_id]);
     if (!services.has(t.service_id)) continue;
     const trip = { id: `${prefix}:${t.trip_id}`, line: `${network.id}:${route.name}`, shape: `${prefix}:${t.shape_id}`, headsign: t.trip_headsign };
     // Only a Trip with no shape takes its Line's rails, to trace its run along (traceRuns()): one with a
@@ -173,6 +177,9 @@ export async function readFeed(
     dayTrips.set(t.trip_id, { ...trip, ...(number && { number }), ...(route.gauges && feed.shapeless && { gauges: route.gauges }), calls: [] });
   }
 
+  // The calls of the Trips that share a Train number that service day wait for meeting() to say which of them are one, to be served on one shape.
+  const held = new Map<string, { seq: number; stop: string; station: string; arrival: number; departure: number }[]>();
+  for (const ids of sameDay.values()) if (ids.length > 1) for (const id of ids) held.set(id, []);
   const served = new Map<string, Set<string>>(); // the Stations each shape's Trips serve
   const everyDay = new Map<string, Set<string>>(); // the Stations each Train number calls at, on any day
   const ends = new Map<string, { first: [seq: number, station: string]; last: [seq: number, station: string] }>(); // each Trip's, on any day
@@ -181,19 +188,17 @@ export async function readFeed(
     const shape = shapeOf.get(s.trip_id);
     if (shape === undefined) continue;
     const [seq, at] = [Number(s.stop_sequence), station(s.stop_id)];
-    served.set(shape, (served.get(shape) ?? new Set()).add(at));
+    const call = { seq, station: at, arrival: seconds(s.arrival_time), departure: seconds(s.departure_time) };
+    const waiting = held.get(s.trip_id);
+    if (waiting) waiting.push({ ...call, stop: s.stop_id });
+    else served.set(shape, (served.get(shape) ?? new Set()).add(at));
     const number = numbers.get(s.trip_id);
     if (number) everyDay.set(number, (everyDay.get(number) ?? new Set()).add(at));
     const end = ends.get(s.trip_id) ?? { first: [seq, at], last: [seq, at] };
     if (seq < end.first[0]) end.first = [seq, at];
     if (seq > end.last[0]) end.last = [seq, at];
     ends.set(s.trip_id, end);
-    dayTrips.get(s.trip_id)?.calls.push({
-      seq,
-      station: at,
-      arrival: seconds(s.arrival_time),
-      departure: seconds(s.departure_time),
-    });
+    dayTrips.get(s.trip_id)?.calls.push(call);
   }
 
   // A frequency-based Trip, like the Montjuïc funicular's, is a pattern its Trains repeat every
@@ -202,6 +207,39 @@ export async function readFeed(
   for await (const f of rows(gtfs, 'frequencies.txt', ['trip_id', 'start_time', 'end_time', 'headway_secs'], { optional: true })) {
     const period = { start: seconds(f.start_time), end: seconds(f.end_time), headway: Number(f.headway_secs) };
     if (dayTrips.has(f.trip_id)) repeats.set(f.trip_id, [...(repeats.get(f.trip_id) ?? []), period]);
+  }
+
+  // A Train's Trips that meet at a Station in the same minute are made one Trip (meeting(), #467): the one with
+  // most calls names it, by its ID, Line and shape, and it takes the others' IDs in, as live data names the Train
+  // by each while it runs that part. Its shape serves every Station of the run, and the shapes of the Trips it
+  // takes in, only those their other Trips call at.
+  for (const ids of sameDay.values()) {
+    if (ids.length < 2) continue;
+    const parts = ids.map((id) => ({ id, calls: (held.get(id) ?? []).toSorted((a, b) => a.seq - b.seq) }));
+    const into = new Map<string, string>(); // each Trip made one with another, by that Trip
+    for (const run of meeting(parts)) {
+      const main = joinOrder(run)[0];
+      if (!main) continue;
+      const calls = joinedCalls(run);
+      const entry = dayTrips.get(main.id);
+      const others = run.filter((t) => t !== main);
+      for (const t of others) {
+        into.set(t.id, main.id);
+        ends.delete(t.id);
+        if (!entry) continue;
+        // Where it meets the Trip before it, at its last call, or the one after it, at its first.
+        const before = run.indexOf(t) < run.indexOf(main);
+        const call = before ? t.calls.at(-1) : t.calls[0];
+        const [name, time] = [stationOf(call?.stop ?? '')?.stop_name ?? call?.station, (before ? call?.arrival : call?.departure) ?? 0];
+        log(`${entry.line} ${entry.number} joins its ${dayTrips.get(t.id)?.line} Trip at ${name} at ${clock(time).slice(0, 5)} on ${day}: the two meet there in the same minute`);
+        dayTrips.delete(t.id);
+      }
+      if (entry) dayTrips.set(main.id, { ...entry, calls: calls.map(({ stop: _, ...c }, i) => ({ ...c, seq: i + 1 })), joined: others.map((t) => `${prefix}:${t.id}`) });
+    }
+    for (const { id, calls } of parts) {
+      const shape = shapeOf.get(into.get(id) ?? id);
+      if (shape !== undefined) for (const c of calls) served.set(shape, (served.get(shape) ?? new Set()).add(c.station));
+    }
   }
 
   const all = new Set([...served.values()].flatMap((s) => [...s]));
@@ -322,11 +360,41 @@ const SAME_CALL = 120;
  * the file of 10 Oct 2026 it has 76 to 86% of the most. Set a floor if one ever would take a Train down
  * to its ends.
  */
-function joinOrder(each: FeedTrip[]): FeedTrip[] {
+function joinOrder<T extends Pick<FeedTrip, 'id' | 'calls'>>(each: T[]): T[] {
   const after = new Set(each.flatMap((t) => t.calls.slice(1).map((c) => c.station)));
   const before = new Set(each.flatMap((t) => t.calls.slice(0, -1).map((c) => c.station)));
-  const whole = (t: FeedTrip) => t.calls.length > 1 && !after.has(t.calls[0]?.station ?? '') && !before.has(t.calls.at(-1)?.station ?? '');
+  const whole = (t: T) => t.calls.length > 1 && !after.has(t.calls[0]?.station ?? '') && !before.has(t.calls.at(-1)?.station ?? '');
   return each.toSorted((a, b) => Number(whole(b)) - Number(whole(a)) || b.calls.length - a.calls.length || (a.id < b.id ? -1 : Number(a.id > b.id)));
+}
+
+/**
+ * The runs of Trips among a Train number's that meet: each Trip of a run starts at the Station the one before
+ * it ends at, and in the same minute that one arrives, as Rodalies' R4 Trip of 33527 from Manresa to Rajadell
+ * ends at 16:46 as its RL4 Trip on to Lleida-Pirineus starts, or as an R4 Trip of one call at Manresa at
+ * 21:30 starts as 33518's RL4 Trip from Lleida-Pirineus ends there (#467). Each run is in the order its Trips
+ * run, and one that no Trip meets isn't one.
+ */
+export function meeting<T extends Pick<FeedTrip, 'calls'>>(trips: T[]): T[][] {
+  const [start, end] = [(t: T) => t.calls[0]?.departure ?? 0, (t: T) => t.calls.at(-1)?.arrival ?? 0];
+  const runs: T[][] = [];
+  for (const trip of trips.toSorted((a, b) => start(a) - start(b) || end(a) - end(b))) {
+    const run = runs.find((r) => {
+      const [last, first] = [r.at(-1)?.calls.at(-1), trip.calls[0]];
+      return last && first && last.station === first.station && Math.floor(last.arrival / 60) === Math.floor(first.departure / 60);
+    });
+    if (run) run.push(trip);
+    else runs.push([trip]);
+  }
+  return runs.filter((r) => r.length > 1);
+}
+
+/** The calls of a run of Trips that meet (meeting()): the call each starts with is the one the one before ends with, which the Train leaves as it does. */
+function joinedCalls<C extends { departure: number }>(run: { calls: C[] }[]): C[] {
+  return run.reduce<C[]>((calls, { calls: own }) => {
+    const [first, ...rest] = own;
+    const last = calls.at(-1);
+    return last && first ? [...calls.slice(0, -1), { ...last, departure: first.departure }, ...rest] : [...calls, ...own];
+  }, []);
 }
 
 /**

@@ -6,9 +6,9 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, expect, test, vi } from 'vitest';
 import { places, type Point } from '../bundle.ts';
-import { AVE_LARGA_DISTANCIA, CERCANIAS_ASTURIAS, CERCANIAS_BILBAO, CERCANIAS_SANTANDER, MEDIA_DISTANCIA_AVANT, NETWORKS, RODALIES, TRAM, type NetworkConfig } from '../networks.ts';
+import { AVE_LARGA_DISTANCIA, CERCANIAS_ASTURIAS, CERCANIAS_BILBAO, CERCANIAS_SANTANDER, CERCANIAS_ZARAGOZA, MEDIA_DISTANCIA_AVANT, NETWORKS, RODALIES, TRAM, type NetworkConfig } from '../networks.ts';
 import { dirSource, rows, seconds, zipFile, zipSource, type Source } from './gtfs.ts';
-import { copyOf, FGC_FEED, joinParts, METRO_FEED, onFgcRails, onMetroRails, onRails, onRodaliesRails, ownRails, readFeed, readTimetables, RODALIES_FEED, TRAMBAIX_FEED, unlisted, untaken, type Feed } from './networks.ts';
+import { copyOf, FGC_FEED, joinParts, meeting, METRO_FEED, onFgcRails, onMetroRails, onRails, onRodaliesRails, ownRails, readFeed, readTimetables, RODALIES_FEED, TRAMBAIX_FEED, unlisted, untaken, type Feed } from './networks.ts';
 import type { Found } from './report.ts';
 import type { Snippet } from './snippet.ts';
 import { nearest, traceShapes } from './track.ts';
@@ -653,6 +653,198 @@ test("makes a Train of its Trip with the most calls where none of its Trips runs
   expect(joinParts([x, longer], new Map(), '2026-10-10', () => {}).map((t) => t.id)).toEqual(['z']);
   // A part of one call at a Station none of the others calls at starts and ends where none of them does, and runs nowhere.
   expect(joinParts([x, y, part('o', ['Q', '10:15'])], new Map(), '2026-10-10', () => {}).map((t) => t.id)).toEqual(['x']);
+});
+
+// Rows cut verbatim from Renfe's Cercanías feed of 2026-10-10: the Trips of Rodalies' Trains 33527 and 33518
+// that run on Tuesday 13 October, and 77500's, an R4 Trip of its own, with their routes, Stations and service,
+// and their shapes' points, every 25th. Renfe lists 33527 as an R4 Trip from Manresa to Rajadell, which ends at
+// 16:46 as its RL4 Trip on to Lleida-Pirineus starts, and 33518 as an RL4 Trip from Lleida-Pirineus to Manresa,
+// at 21:30, and an R4 Trip of one call, at Manresa at 21:30.
+const rajadell = dirSource(fileURLToPath(new URL('fixtures/rodalies-rajadell', import.meta.url)));
+
+/** A feed's stop_times.txt with the rows `edit` changes, as a Train's Trips that don't quite meet would have them. */
+const edited = (source: Source, edit: (row: string) => string): Source => (file) => {
+  const lines = source(file);
+  if (file !== 'stop_times.txt' || !lines) return lines;
+  return (async function* () {
+    for await (const l of lines) yield edit(l);
+  })();
+};
+
+test("makes the Trips of one Train number that meet at a Station in the same minute one Trip, named by the Line of most of its run, as R4's 33527 from Manresa to Rajadell and RL4's on from there to Lleida-Pirineus are one RL4 Trip, and logs each join with its Train number and Station (#467)", async () => {
+  const log: string[] = [];
+  const { trips } = await readFeed(rajadell, '2026-10-13', RODALIES_FEED, (l) => log.push(l));
+  const one = trips.filter((t) => t.number === '33527');
+  expect(one.map((t) => t.id)).toEqual(['rodalies:5184M33527RL4']);
+  expect(one[0]).toMatchObject({ line: 'rodalies:RL4', shape: 'rodalies:51_RL4', headsign: 'Lleida-Pirineus' });
+  // Manresa at 16:34, Rajadell once, at 16:46, and the 14 Stations on to Lleida-Pirineus at 18:34.
+  expect(one[0]?.calls).toHaveLength(16);
+  expect(one[0]?.calls[0]).toEqual({ station: 'adif:78600', arrival: at('16:34'), departure: at('16:34') });
+  expect(one[0]?.calls[1]).toEqual({ station: 'adif:78506', arrival: at('16:46'), departure: at('16:46') });
+  expect(one[0]?.calls.at(-1)).toEqual({ station: 'adif:78400', arrival: at('18:34'), departure: at('18:34') });
+  expect(log.filter((l) => l.includes(' 33527 '))).toEqual(['rodalies:RL4 33527 joins its rodalies:R4 Trip at Rajadell at 16:46 on 2026-10-13: the two meet there in the same minute']);
+});
+
+test("makes the R4 Trip of one call that Renfe lists beside an RL4 Train's last, as 33518's at Manresa at 21:30 beside its RL4 Trip from Lleida-Pirineus, one Trip with it, which the build left out for calling at fewer than two Stations (#467)", async () => {
+  const log: string[] = [];
+  const { trips } = await readFeed(rajadell, '2026-10-13', RODALIES_FEED, (l) => log.push(l));
+  const one = trips.filter((t) => t.number === '33518');
+  expect(one.map((t) => t.id)).toEqual(['rodalies:5184M33518RL4']);
+  expect(one[0]).toMatchObject({ line: 'rodalies:RL4', shape: 'rodalies:51_RL4:back', headsign: 'Manresa' });
+  expect(one[0]?.calls).toHaveLength(16);
+  expect(one[0]?.calls[0]).toEqual({ station: 'adif:78400', arrival: at('19:28'), departure: at('19:28') });
+  expect(one[0]?.calls.at(-1)).toEqual({ station: 'adif:78600', arrival: at('21:30'), departure: at('21:30') });
+  expect(log.filter((l) => l.includes(' 33518 '))).toEqual(['rodalies:RL4 33518 joins its rodalies:R4 Trip at Manresa at 21:30 on 2026-10-13: the two meet there in the same minute']);
+  // The R4 Trip of 77500, which meets no other, stays.
+  expect(trips.map((t) => t.id).sort()).toEqual(['rodalies:5184M33518RL4', 'rodalies:5184M33527RL4', 'rodalies:5184M77500R4']);
+});
+
+test("takes the IDs of the Trips a Trip is made one with, which live data names the Train by while it runs their part, and no Trip's that is made one with none (#467)", async () => {
+  const { trips } = await readFeed(rajadell, '2026-10-13', RODALIES_FEED, () => {});
+  const joined = new Map(trips.map((t) => [t.id, t.joined]));
+  expect(joined.get('rodalies:5184M33518RL4')).toEqual(['rodalies:5184M33518R4']);
+  expect(joined.get('rodalies:5184M33527RL4')).toEqual(['rodalies:5184M33527R4']);
+  expect(joined.get('rodalies:5184M77500R4')).toBeUndefined();
+  expect(trips.find((t) => t.id === 'rodalies:5184M77500R4')).not.toHaveProperty('joined');
+});
+
+test("serves the Stations of a Trip made one from another's on the shape of the Trip it's named by, and not on the shape of the Trip it takes in unless that shape's other Trips call there: R4's 33527 no longer has Rajadell on its shape, with RL4's 33527 from Manresa on to it, though R4's 77500 still has its own (#467)", async () => {
+  const { shapes } = await readFeed(rajadell, '2026-10-13', RODALIES_FEED, () => {});
+  const served = (id: string) => shapes.find((s) => s.id === id)?.stations.sort();
+  const [manresa, rajadell_] = ['adif:78600', 'adif:78506'];
+  // 33527's R4 Trip ran on R4's shape from Manresa to Rajadell: it has none of it left, but 77500's Stations.
+  expect(served('rodalies:51_R4_INV')).not.toContain(rajadell_);
+  expect(served('rodalies:51_R4_INV')).toContain('adif:78700');
+  // Every Station of the two RL4 Trips is RL4's, Manresa and Rajadell too.
+  expect(served('rodalies:51_RL4')).toEqual(expect.arrayContaining([manresa, rajadell_, 'adif:78400']));
+  // The R4 Trip of one call at Manresa was the only Trip of its shape here: RL4's 33518 serves Manresa now.
+  expect(served('rodalies:51_R4')).toEqual([]);
+  // And R4's Trip from Manresa to Rajadell, the one Trip that ran 51_R4_INV back, no longer has a way back of its own.
+  expect(shapes.map((s) => s.id).sort()).toEqual(['rodalies:51_R4', 'rodalies:51_R4_INV', 'rodalies:51_RL4', 'rodalies:51_RL4:back']);
+});
+
+test("leaves a shape no way back for a Trip it was made one from, as 33527's R4 Trip from Manresa to Rajadell was the only one to run R4's shape back where another runs it from Rajadell to Manresa (#467)", async () => {
+  // Made up: 77500 calls at Rajadell and then Manresa on R4's shape, which is the way its feed draws it from Rajadell on.
+  const forwards = edited(rajadell, (row) => (row.startsWith('5184M77500R4,07:00:00,07:00:00,78700') ? row.replace(',78700,', ',78506,') : row.startsWith('5184M77500R4,07:03:00,07:03:00,78710') ? row.replace(',78710,', ',78600,') : row));
+  const { shapes } = await readFeed(forwards, '2026-10-13', RODALIES_FEED, () => {});
+  const ids = shapes.map((s) => s.id);
+  expect(ids).toContain('rodalies:51_R4_INV');
+  expect(ids).not.toContain('rodalies:51_R4_INV:back');
+});
+
+test("leaves a long-distance Train's parts to joinParts() though they share a service day and meet in the same minute, as MD 18030's from Vilches to Linares-Baeza and on to Mengíbar would (#467)", async () => {
+  // Renfe gives each part a service_id of its own, so none shares a day with another: made so here.
+  const shared: Source = (file) => {
+    const lines = longDistance(file);
+    if (file !== 'trips.txt' || !lines) return lines;
+    return (async function* () {
+      for await (const l of lines) yield l.replace(/2026-10-092026-10-3118030[234]/, '2026-10-092026-10-31180301');
+    })();
+  };
+  const log: string[] = [];
+  const { trips } = await readFeed(shared, '2026-10-10', MD_FEED, (l) => log.push(l));
+  expect(log.filter((l) => l.includes(' joins its '))).toEqual([]);
+  expect(trips.find((t) => t.number === '18030')?.joined).toBeUndefined();
+});
+
+test("serves a shape the same Stations on a day its Trains don't run, as it does on one they do, and joins none then (#467)", async () => {
+  const log: string[] = [];
+  const [on, off] = [await readFeed(rajadell, '2026-10-13', RODALIES_FEED, () => {}), await readFeed(rajadell, '2026-10-14', RODALIES_FEED, (l) => log.push(l))];
+  expect(off.trips).toEqual([]);
+  expect(log).toEqual([]);
+  expect(off.shapes).toEqual(on.shapes);
+});
+
+test("leaves a call where one Trip ends and the next starts in the same minute, arriving as the first does and leaving as the second does, at the minute they meet (#467)", async () => {
+  // 33527's RL4 Trip leaves Rajadell at 16:46:30, 30 s after its R4 Trip arrives.
+  const slow = edited(rajadell, (row) => (row.startsWith('5184M33527RL4,16:46:00,16:46:00,78506') ? row.replace('16:46:00,16:46:00', '16:46:30,16:46:30') : row));
+  const { trips } = await readFeed(slow, '2026-10-13', RODALIES_FEED, () => {});
+  expect(trips.find((t) => t.number === '33527')?.calls[1]).toEqual({ station: 'adif:78506', arrival: at('16:46'), departure: at('16:46') + 30 });
+});
+
+test("keeps a Train's Trips apart where they meet at a Station but not in the same minute, as 33527's R4 Trip, which ends at Rajadell at 16:46, and its RL4 Trip, which starts there at 16:47 (#467)", async () => {
+  const late = edited(rajadell, (row) => (row.startsWith('5184M33527RL4,16:46:00,16:46:00,78506') ? row.replace('16:46:00,16:46:00', '16:47:00,16:47:00') : row));
+  const log: string[] = [];
+  const { trips } = await readFeed(late, '2026-10-13', RODALIES_FEED, (l) => log.push(l));
+  expect(trips.filter((t) => t.number === '33527').map((t) => [t.id, t.calls.length])).toEqual([['rodalies:5184M33527R4', 2], ['rodalies:5184M33527RL4', 15]]);
+  expect(log.filter((l) => l.includes(' 33527 '))).toEqual([]);
+});
+
+test("keeps a Train's Trips apart where they end and start in the same minute at two Stations, as 33527's R4 Trip, were it to end at Aguilar de Segarra at 16:46 as its RL4 Trip starts at Rajadell (#467)", async () => {
+  const elsewhere = edited(rajadell, (row) => (row.startsWith('5184M33527R4,16:46:00,16:46:00,78506') ? row.replace(',78506,', ',78505,') : row));
+  const { trips } = await readFeed(elsewhere, '2026-10-13', RODALIES_FEED, () => {});
+  expect(trips.filter((t) => t.number === '33527').map((t) => [t.id, t.calls.length])).toEqual([['rodalies:5184M33527R4', 2], ['rodalies:5184M33527RL4', 15]]);
+});
+
+test("keeps the Trips of one Train number of two Networks apart, as R15's 30550, from Quinto to Barcelona Estació de França, and Zaragoza's C1, from Zaragoza Delicias to Miraflores, which each Network's timetable lists under its own, though they met at Quinto at 12:20 (#467)", async () => {
+  // Rows cut verbatim from Renfe's Cercanías feed of 2026-10-10: R15's Trip 30550 and C1's, on Tuesday 13 October.
+  const both = dirSource(fileURLToPath(new URL('fixtures/r15-zaragoza-c1', import.meta.url)));
+  const zaragoza: Feed = { network: CERCANIAS_ZARAGOZA, ...CERCANIAS_ZARAGOZA.timetables[0] };
+  const keeps = async (source: Source) => {
+    const r15 = (await readFeed(source, '2026-10-13', RODALIES_FEED, () => {})).trips;
+    const c1 = (await readFeed(source, '2026-10-13', zaragoza, () => {})).trips;
+    return [r15, c1].map((trips) => trips.map((t) => [t.id, t.line, t.number, t.calls.length, t.joined]));
+  };
+  const apart = [[['rodalies:5184M30550R15', 'rodalies:R15', '30550', 24, undefined]], [['cercanias-zaragoza:7084M30550C1', 'cercanias-zaragoza:C1', '30550', 4, undefined]]];
+  expect(await keeps(both)).toEqual(apart);
+  // C1's last call at Quinto, not Miraflores, at the minute R15's first is.
+  const meets = edited(both, (row) => (row.startsWith('7084M30550C1,11:57:00,11:57:00,71100') ? row.replace('11:57:00,11:57:00,71100', '12:20:00,12:20:00,71105') : row));
+  expect(await keeps(meets)).toEqual(apart);
+});
+
+// Rows cut verbatim from TRAM's Trambesòs feed, whose days run from 2026-10-10: T5's Trips 1987_0399, from Glòries to Gorg, and
+// 1987_0666, back from Gorg, on Tuesday 13 October, with their routes, Stations and service, and their shapes' points, every 20th.
+// A tram that gets to the end of the Line at 08:39:30 as another leaves it at 08:39:00 is two Trips, not one.
+const gorg = dirSource(fileURLToPath(new URL('fixtures/tram-gorg', import.meta.url)));
+
+test("keeps the Trips of a Network that publishes no Train numbers apart though one ends at a Station as another starts there in the same minute, as T5's 1987_0399 gets to Gorg at 08:39:30 and 1987_0666 leaves it at 08:39:00 (#467)", async () => {
+  const log: string[] = [];
+  const { trips } = await readFeed(gorg, '2026-10-13', { network: TRAM, ...(TRAM.timetables[1] ?? TRAM.timetables[0]) }, (l) => log.push(l));
+  expect(trips.map((t) => [t.id, t.calls.length, t.joined])).toEqual([['tram:TBS:1987_0399', 11, undefined], ['tram:TBS:1987_0666', 11, undefined]]);
+  expect(trips.map((t) => t.calls.at(-1)?.station)).toEqual(['tram:ST-219', 'tram:ST-208']);
+  expect(log.filter((l) => l.includes(' joins its '))).toEqual([]);
+});
+
+test("makes the same Trips of a day whatever order its timetable lists a Train's Trips that meet in, and logs the same joins (#467)", async () => {
+  const backwards: Source = (file) => {
+    const lines = rajadell(file);
+    if (!['trips.txt', 'stop_times.txt'].includes(file) || !lines) return lines;
+    return (async function* () {
+      const all: string[] = [];
+      for await (const l of lines) all.push(l);
+      yield* [all[0] ?? '', ...all.slice(1).reverse()];
+    })();
+  };
+  const read = async (source: Source) => {
+    const log: string[] = [];
+    const { trips, shapes } = await readFeed(source, '2026-10-13', RODALIES_FEED, (l) => log.push(l));
+    return { trips: trips.toSorted((a, b) => a.id.localeCompare(b.id)), shapes: shapes.map((s) => [s.id, s.stations.toSorted()]).sort(), log: log.toSorted() };
+  };
+  const forwards = await read(rajadell);
+  expect(forwards.log).toHaveLength(2);
+  expect(await read(backwards)).toEqual(forwards);
+});
+
+test("finds the runs of a Train's Trips that meet, each in the order its Trips run, whatever order they're given in, and none for a Trip that meets no other (#467)", () => {
+  const [a, b, c] = [part('a', ['A', '10:00'], ['B', '10:10']), part('b', ['B', '10:10'], ['C', '10:20']), part('c', ['C', '10:20'], ['D', '10:30'])];
+  const ids = (runs: FeedTrip[][]) => runs.map((run) => run.map((t) => t.id));
+  // Three Trips that each start where the one before ends make one run, and the Trip of another Station none.
+  const other = part('x', ['X', '10:15'], ['Y', '10:25']);
+  expect(ids(meeting([c, other, a, b]))).toEqual([['a', 'b', 'c']]);
+  expect(ids(meeting([b, a, other]))).toEqual([['a', 'b']]);
+  // A minute off, at the same Station, or the same minute at another, is no meeting.
+  expect(meeting([a, part('late', ['B', '10:11'], ['C', '10:20'])])).toEqual([]);
+  expect(meeting([a, part('else', ['E', '10:10'], ['C', '10:20'])])).toEqual([]);
+  // Seconds into one minute are one: the Train arrives at 10:10:00 and the next Trip leaves at 10:10:30.
+  const half = { ...b, calls: b.calls.map((call, i) => (i ? call : { ...call, arrival: at('10:10') + 30, departure: at('10:10') + 30 })) };
+  expect(ids(meeting([a, half]))).toEqual([['a', 'b']]);
+  // A Trip of one call, which starts and ends where it is, goes with the Trip that ends there in that minute, and after it.
+  const stub = part('s', ['B', '10:10']);
+  expect(ids(meeting([stub, a]))).toEqual([['a', 's']]);
+  // Of two Trips that start where one ends, in the same minute, the one that ends first goes with it, and the other none.
+  expect(ids(meeting([part('b2', ['B', '10:10'], ['C', '10:25']), a, b]))).toEqual([['a', 'b']]);
+  // And of two that end where one starts, in the same minute, the one that starts first.
+  expect(ids(meeting([b, part('a2', ['A2', '10:02'], ['B', '10:10']), a]))).toEqual([['a', 'b']]);
 });
 
 // Rows cut verbatim from Renfe's Cercanías feed of 2026-10-10: RT2's Train 15210 from Salou-Port

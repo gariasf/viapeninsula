@@ -1,0 +1,5 @@
+route_id,route_short_name,route_long_name,route_type,route_color,route_text_color                                                                     
+51T0019R4  ,R4  ,Sant Vicenc de Calders                  -Manresa                                 ,2,F7A30D,FFFFFF                                    
+51T0020R4  ,R4  ,Manresa                                 -Sant Vicenc de Calders                  ,2,F7A30D,FFFFFF                                    
+51T0047RL4 ,RL4 ,Terrassa Estació del Nord               -Lleida                                  ,2,F7A30D,FFFFFF                                    
+51T0048RL4 ,RL4 ,Lleida                                  -Terrassa Estació del Nord               ,2,F7A30D,FFFFFF                                    
