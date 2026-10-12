@@ -1883,6 +1883,36 @@ test("a Train Renfe's long-distance live data cancels by its Train number is dra
   expect(boardAt(NUMBERED, at('21:49:30'), received, ['Sitges'])).toMatchObject([{ trip: { id: R2S }, departure: at('21:57:00'), cancelled: true, live: false }]);
 });
 
+test("a Train whose long-distance trip updates say only CANCELED before its Trip is due to set off is boarded as timetabled until then, as such an update says nothing of which run (#429)", () => {
+  // As FEVE's 71832 on 10 October 2026: from 13:47 Renfe's long-distance files had only a CANCELED trip
+  // update for it, with no stops and no position, and boards had Ferrol C1's Trip of that number, due
+  // out of Ortigueira at 20:28, cancelled; from 14:54 they had it running out of Oviedo, 2 minutes late,
+  // west of there. Made up: Renfe's long-distance files have only a CANCELED trip update for 25478 at
+  // 21:00, and at 21:25 they have it 2 minutes late, its GPS 30 km off its Trip's track, on another part
+  // of its run. The R2S is due out of Sant Vicenç de Calders at 21:30.
+  const cancelled = renfeRead(at('21:00:00'), [{ number: '25478', at: at('21:00:00'), cancelled: true }]);
+  const [lon, lat] = offTrack(MIDWAY, 30_000);
+  const running = renfeRead(at('21:25:00'), [{ number: '25478', at: at('21:25:00'), position: { lon, lat }, delay: 120 }]);
+  expect(boardAt(NUMBERED, at('21:00:10'), [cancelled], ['Sitges'])).toMatchObject([{ trip: { id: R2S }, departure: at('21:57:00'), delay: 0, cancelled: false, live: false }]);
+  // Then running, it's not cancelled either. Not what its Delay is: from GPS so far off its track, that's #442's.
+  expect(boardAt(NUMBERED, at('21:25:10'), [cancelled, running], ['Sitges'])).toMatchObject([{ trip: { id: R2S }, cancelled: false }]);
+});
+
+test("a Train whose long-distance trip updates say only CANCELED, with no position, as it's due to set off and after is Cancelled from then: off the map, and boards show it cancelled (#429)", () => {
+  // As Alvia 02366 on 10 October 2026, both its parts CANCELED from 13:47 to 15:00 and Renfe placing
+  // neither. Made up: Renfe's long-distance files have only a CANCELED trip update for 25478 at 21:29
+  // and at 21:30:20. The R2S is due out of Sant Vicenç de Calders at 21:30: until then it's drawn
+  // standing there, Scheduled, as any Train due out, and boarded as timetabled.
+  const cancels = (moment: number) => renfeRead(moment, [{ number: '25478', at: moment, cancelled: true }]);
+  const received = [cancels(at('21:29:00')), cancels(at('21:30:20'))];
+  expect(train(R2S, at('21:29:50'), received, NUMBERED)).toMatchObject({ live: false, dist: 110172 });
+  expect(boardAt(NUMBERED, at('21:29:50'), by(received, at('21:29:50')), ['Sitges'])).toMatchObject([{ trip: { id: R2S }, departure: at('21:57:00'), cancelled: false }]);
+  for (const moment of [at('21:30:00'), at('21:30:30')]) {
+    expect(train(R2S, moment, received, NUMBERED)).toBeUndefined();
+    expect(boardAt(NUMBERED, moment, by(received, moment), ['Sitges'])).toMatchObject([{ trip: { id: R2S }, departure: at('21:57:00'), cancelled: true, live: false }]);
+  }
+});
+
 test("Renfe's long-distance live data placing one of Rodalies' Trains by its Train number doesn't keep Rodalies' live data available while Renfe's Cercanías feeds have none of its Trains", () => {
   // Renfe's Cercanías GPS has the R2S between Castelldefels and Gavà at 22:14:00. Then Renfe's
   // Cercanías feeds have a header and no Trains, as on 28 September (#124), while its long-distance
