@@ -325,6 +325,21 @@ describe('the runner', () => {
     expect(all['s.steps.earlier2.jumped'] ?? 0).toBe(0);
   }, 60_000);
 
+  it('counts the step of a Train that itself jumped apart: a report that has it 45 s early moves it over a kilometre at once, which is the map’s jump, not the card’s step (#610)', () => {
+    // 8 km in 260 s at up to 160 km/h; at 10:03:30, 50 s from C, live data has it 45 s early: more than a kilometre ahead of where it's drawn, so it jumps there, 5 s from C.
+    const quick: Bundle = {
+      ...line,
+      networks: [{ ...(line.networks[0] as Bundle['networks'][number]), profile: { ...profile, topSpeed: 160 / 3.6 } }],
+      stations: [['a', 0], ['c', 8000]].map(([id, metres]) => ({ id: String(id), name: String(id), lon: lon(Number(metres)), lat })),
+      shapes: [{ id: 's', coords: [[lon(0), lat], [lon(8000), lat]], dist: [0, 8000] }],
+      trips: [{ id: 't', line: 'L3', shape: 's', headsign: 'C', calls: [{ station: 'a', arrival: 36000, departure: 36000, dist: 0 }, { station: 'c', arrival: 36260, departure: 36260, dist: 8000 }] }],
+    };
+    const all = counted(13, { bundle: quick, received: [read(20, 0), read(210, -45), read(240)] }).test ?? {};
+    expect(all['s.steps.earlier2']).toBe(1);
+    expect(all['s.steps.earlier2.jumped']).toBe(1);
+    expect(all['s.steps.earlier2.standing'] ?? 0).toBe(0);
+  }, 60_000);
+
   it('has no countdown for the seconds a Train stands at its Trip’s last Station, which it counted down in until its dwell was out, and counts how often it comes to stand there (#607)', () => {
     // It reaches C, its last Station, at 10:03:30, and stays 30 s.
     const all = counted(13, { bundle: line, received: [read(20), read(250)] }).test ?? {};
