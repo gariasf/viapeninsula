@@ -2759,7 +2759,8 @@ function closuresTapped(keys: string[]) {
  * An Alert on a card, as alertsOn() has it, after the Lines it's on as pills, `byLine`, where the card
  * has more than one, as a board can: Rodalies' words don't name theirs. Or a Closure the timetable's
  * buses make, in the interface's words, whose they are unsaid (#341). Each `http://` or `https://`
- * address in a title or in words is a link, opening in a new tab, in the words as they were (#391).
+ * address in a title or in words is a link, opening in a new tab and saying so to a screen reader
+ * (opensInNewTab()), in the words as they were (#391).
  */
 function alertRow({ lines: named, header, description, from, by }: CardAlert, byLine: boolean, ran: string[] = []) {
   // In an unknown language, lang="", where its feed doesn't say, rather than the viewer's. Each address in

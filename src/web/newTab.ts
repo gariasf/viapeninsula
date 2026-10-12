@@ -9,11 +9,14 @@ import { language, t, type Language } from './i18n.ts';
  * that the stylesheet hides from the eye (.sr-only). The word is in `lang`, or else the language the
  * interface speaks now, whatever language the words round the link are in, as an Alert's can be in its
  * feed's own (#391).
- * Every link that opens a tab is made here, as a test checks, so that they can't differ again (#585).
- * ponytail: the word sits between the link's last letter and what follows it, which the browser shapes
- * apart, so that what follows is laid out up to 0.11 px otherwise than it was, and the credits' strip
- * breaks its lines otherwise at 4 of the 601 widths between 160 and 760 px that #585's check tried.
- * An aria-label has no such effect, but it can't carry a language of its own for an Alert's words.
+ * Every link that opens a tab goes through here, or through putHtml(), as tests check, so that they
+ * can't differ again (#585).
+ * ponytail: the word is out of the flow, so the browser shapes the text on either side of it apart and
+ * the link's last letter isn't kerned with the character after it: in the credits' strip the pairs "C,"
+ * and "B," of FGC and TMB, 0.11 px at 12 px, which moves what follows on that line by as much and breaks
+ * the strip's lines otherwise at 4 of the 601 widths between 160 and 760 px (#585's check; none with
+ * font-kerning off). Ceiling: a font that kerns a link's end by more than a hair. An aria-label avoids
+ * it, but its word can't have a language of its own, as an Alert's in its feed's language needs (#391).
  */
 export function opensInNewTab(link: HTMLAnchorElement, lang: Language = language()): HTMLAnchorElement {
   link.target = '_blank';
