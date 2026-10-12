@@ -792,6 +792,19 @@ test("keeps the Trips of one Train number of two Networks apart, as R15's 30550,
   expect(await keeps(meets)).toEqual(apart);
 });
 
+// Rows cut verbatim from TRAM's Trambesòs feed, whose days run from 2026-10-10: T5's Trips 1987_0399, from Glòries to Gorg, and
+// 1987_0666, back from Gorg, on Tuesday 13 October, with their routes, Stations and service, and their shapes' points, every 20th.
+// A tram that gets to the end of the Line at 08:39:30 as another leaves it at 08:39:00 is two Trips, not one.
+const gorg = dirSource(fileURLToPath(new URL('fixtures/tram-gorg', import.meta.url)));
+
+test("keeps the Trips of a Network that publishes no Train numbers apart though one ends at a Station as another starts there in the same minute, as T5's 1987_0399 gets to Gorg at 08:39:30 and 1987_0666 leaves it at 08:39:00 (#467)", async () => {
+  const log: string[] = [];
+  const { trips } = await readFeed(gorg, '2026-10-13', { network: TRAM, ...(TRAM.timetables[1] ?? TRAM.timetables[0]) }, (l) => log.push(l));
+  expect(trips.map((t) => [t.id, t.calls.length, t.joined])).toEqual([['tram:TBS:1987_0399', 11, undefined], ['tram:TBS:1987_0666', 11, undefined]]);
+  expect(trips.map((t) => t.calls.at(-1)?.station)).toEqual(['tram:ST-219', 'tram:ST-208']);
+  expect(log.filter((l) => l.includes(' joins its '))).toEqual([]);
+});
+
 test("makes the same Trips of a day whatever order its timetable lists a Train's Trips that meet in, and logs the same joins (#467)", async () => {
   const backwards: Source = (file) => {
     const lines = rajadell(file);
@@ -830,6 +843,8 @@ test("finds the runs of a Train's Trips that meet, each in the order its Trips r
   expect(ids(meeting([stub, a]))).toEqual([['a', 's']]);
   // Of two Trips that start where one ends, in the same minute, the one that ends first goes with it, and the other none.
   expect(ids(meeting([part('b2', ['B', '10:10'], ['C', '10:25']), a, b]))).toEqual([['a', 'b']]);
+  // And of two that end where one starts, in the same minute, the one that starts first.
+  expect(ids(meeting([b, part('a2', ['A2', '10:02'], ['B', '10:10']), a]))).toEqual([['a', 'b']]);
 });
 
 // Rows cut verbatim from Renfe's Cercanías feed of 2026-10-10: RT2's Train 15210 from Salou-Port

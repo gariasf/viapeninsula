@@ -549,7 +549,7 @@ export interface Trip {
   /**
    * The IDs of the Trips of its Train that the build made one with it, where they met at a Station in the
    * same minute, as Rodalies' R4 Trip of 33527 meets its RL4 Trip at Rajadell (#467): the operator's live
-   * data names the Train by each of them while it runs that part, and by this Trip's ID on from there.
+   * data names the Train by the ID of the Trip it runs, so by each of these as it runs that part.
    */
   joined?: string[];
   calls: Call[];
