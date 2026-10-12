@@ -2024,14 +2024,7 @@ for (const type of ['dragstart', 'movestart'] as const) {
 // the move only once the frame loop has run, so a lift seen at once leaves that frame's centreOn() free to
 // jump, which drops the move it has not applied yet and the drag with it.
 map.getCanvasContainer().addEventListener('pointerdown', (e) => pressed.press(e.pointerId, performance.now(), e.pointerType === 'touch'));
-addEventListener(
-  'pointerup',
-  (e) => {
-    const now = performance.now();
-    requestAnimationFrame(() => pressed.lift(e.pointerId, now));
-  },
-  true,
-);
+addEventListener('pointerup', (e) => requestAnimationFrame(() => pressed.lift(e.pointerId, performance.now())), true);
 addEventListener('pointercancel', (e) => requestAnimationFrame(() => pressed.lift(e.pointerId)), true);
 /** Shows the Centre button while the map has let go, and has the wheel and a pinch zoom about the middle while it pans with the Train, where the Train is (#325). */
 function showCentring() {
