@@ -94,12 +94,15 @@ export function nearbyRows(passes: Pass[], now: number): NearbyRow[] {
 export type TripsState = 'coming' | 'came' | 'failed';
 
 /**
- * Where the Trips a board needs are, given the regions the map has loaded, those of them whose files have
- * come at the end of a look, and whether that look had a file fail: by the regions, not by the bundle, which
- * has the first regions' Trips before another's, as the map loads a region when it comes into view (#266).
+ * Where the Trips a board needs are, given the regions the map has loaded and those it needs, those of them
+ * whose files have come at the end of a look, and whether that look had a file fail: by the regions, not by
+ * the bundle, which has the first regions' Trips before another's, as the map loads a region when it comes
+ * into view (#266). A region the map needs is on its way before it's loaded, as long distance's is from the
+ * map's first look, which leaves it to the second (#262): a board with none left would otherwise say that
+ * none can be had in between (#739).
  */
-export function tripsState(loaded: Iterable<string>, came: ReadonlySet<string>, failed: boolean): TripsState {
-  return [...loaded].every((id) => came.has(id)) ? 'came' : failed ? 'failed' : 'coming';
+export function tripsState(loaded: Iterable<string>, needed: Iterable<string>, came: ReadonlySet<string>, failed: boolean): TripsState {
+  return [...loaded, ...needed].every((id) => came.has(id)) ? 'came' : failed ? 'failed' : 'coming';
 }
 
 /**
