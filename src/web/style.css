@@ -432,7 +432,7 @@ body {
 
 /*
  * The links in the credits and About, and in an Alert's words (#391): in the colour of the words round them, so that their underline tells them apart, and with the focus ring every link has above.
- * Relative, as the box the word that says they open a tab sits in (opensInNewTab(), #585): that word is out of the flow, and kept to the sheet or the dialog, it stays where its link was as the body scrolls and, for a link below the fold, lies past the dialog's end, which is overflow for it to scroll.
+ * Relative, so that the word that says they open a tab (opensInNewTab(), #585) belongs to its link: it is out of the flow, and belonging to the dialog or the sheet it stayed where its link was as the body scrolled, and for a link below the fold lay past the dialog's end, overflow for the dialog to scroll.
  */
 :is(.credits-text, .credits-strip, .about, .alerts) a {
   position: relative;
