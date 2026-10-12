@@ -26,3 +26,14 @@ Each `<name>-z<zoom>-<light|dark>-<main|branch>.jpg` is one page; `cmp/<name>-z<
 What to look at: whether the names that moved read better than they did (Abando and La Concordia at 15 are the ticket's case), and
 which went over more Lines (the last four rows). Numbers for each are in `picks.md` and the PR. Long distance's Lines (Intercity
 and Alvia names along the C1 and C4 tracks at Abando, AVE at Barcelona-Sants) are on these pages and weren't on the review's.
+
+## `live/`: the deployed site, after #716 and #717
+
+Taken on 12 Oct 2026 at 14:22–14:23 CEST by one headless Chrome (the cached headless shell, the Mac's GPU through ANGLE's Metal) on the site as served: `assets/index-D7Bvt27V.js`, byte for byte the `vite build` of origin/main 9a132845 (#501's merge is e55f2a39, #717's 9a132845), the real clock, the visit counter blocked, `en-GB`. `live/live.json` has what each page said: the pill's counts, the console and `pageerror`. No `pageerror`; the one console error on each page is the blocked counter's beacon (`net::ERR_FAILED`).
+
+| file | shows |
+|---|---|
+| `live/live-abando-z15-light.jpg` | Bilbao at zoom 15, 1280×800: **box 3, live.** "Bilbao la Concordia" is right of its own dot (below-right), clear of Abando's name, which is above-left of Abando's dot: two names, two rows, no longer one row over the two dots |
+| `live/live-abando-phone-z15-light.jpg` | the same at 390×844 (x2): the same |
+| `live/live-bilbao-z12-light.jpg` | Bilbao at zoom 12, 1280×800: San Mamés and Olabeaga are named; Abando's name (Bilbao-Intermod. Abando Indalecio Prieto) is right of its dot, over no other place's dot |
+| `live/live-bilbao-phone-z12-light.jpg` | the same at 390×844 (x2): San Mamés, Autonomía and Ametzola named, Olabeaga at the view's edge |

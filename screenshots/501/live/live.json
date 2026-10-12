@@ -1,0 +1,68 @@
+{
+ "taken": "2026-10-12T12:23:49.626Z",
+ "site": "https://viapeninsula.gariasf.com",
+ "results": [
+  {
+   "name": "abando",
+   "zoom": 15,
+   "lat": 43.2601304,
+   "lon": -2.9274,
+   "scheme": "light",
+   "file": "live-abando-z15-light.jpg",
+   "pill": "61 live 10 scheduled",
+   "seconds": 10,
+   "errors": [
+    "error: Failed to load resource: net::ERR_FAILED"
+   ],
+   "failed": []
+  },
+  {
+   "name": "abando-phone",
+   "zoom": 15,
+   "lat": 43.2601304,
+   "lon": -2.9274,
+   "scheme": "light",
+   "width": 390,
+   "height": 844,
+   "scale": 2,
+   "file": "live-abando-phone-z15-light.jpg",
+   "pill": "61 live 10 scheduled",
+   "seconds": 10,
+   "errors": [
+    "error: Failed to load resource: net::ERR_FAILED"
+   ],
+   "failed": []
+  },
+  {
+   "name": "bilbao",
+   "zoom": 12,
+   "lat": 43.2601304,
+   "lon": -2.9285592,
+   "scheme": "light",
+   "file": "live-bilbao-z12-light.jpg",
+   "pill": "60 live 10 scheduled",
+   "seconds": 10,
+   "errors": [
+    "error: Failed to load resource: net::ERR_FAILED"
+   ],
+   "failed": []
+  },
+  {
+   "name": "bilbao-phone",
+   "zoom": 12,
+   "lat": 43.2601304,
+   "lon": -2.9285592,
+   "scheme": "light",
+   "width": 390,
+   "height": 844,
+   "scale": 2,
+   "file": "live-bilbao-phone-z12-light.jpg",
+   "pill": "60 live 10 scheduled",
+   "seconds": 10,
+   "errors": [
+    "error: Failed to load resource: net::ERR_FAILED"
+   ],
+   "failed": []
+  }
+ ]
+}
