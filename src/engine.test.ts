@@ -500,6 +500,20 @@ test('a Train Live and moving runs as late as its GPS shows, whatever its operat
   }
 });
 
+test("takes a report that names a Trip the build made one with another's for that Trip, as Renfe names 33527 by its R4 Trip, which the build made one with its RL4 Trip, while the Train runs its first part (#467)", () => {
+  // Made up: the R2S's first part, as Renfe's own Trip of its own ID, which the bundle names in `joined`.
+  const first = 'rodalies:5165J25478R2S-first';
+  const [moment, dist] = [at('22:02:00'), 140000];
+  const [lon, lat] = pointAt(BUNDLE.shapes.find((s) => s.id === R2S) ?? { id: '', coords: [], dist: [] }, dist);
+  const received: Received[] = [{ snapshot: { ...written(moment), reports: [{ trip: first, at: moment, position: { lon, lat }, delay: 60 }] }, at: moment }];
+  const joined: Bundle = { ...BUNDLE, trips: BUNDLE.trips.map((t) => (t.id === R2S ? { ...t, joined: [first] } : t)) };
+  expect(train(R2S, moment + 10_000, received, joined)).toMatchObject({ live: true });
+  // A bundle that doesn't say so has no Trip of that ID, and the report is about none.
+  expect(train(R2S, moment + 10_000, received)).toMatchObject({ live: false });
+  // Its own ID still names it.
+  expect(train(R2S, moment + 10_000, [gps(R2S, dist, moment, 60)], joined)).toMatchObject({ live: true });
+});
+
 /** A snapshot saying a Trip's Train is running so many seconds late, as its operator has it, received as it's written. */
 const late = (trip: string, delay: number, moment: number): Received => ({
   snapshot: { ...written(moment), reports: [{ trip, at: moment, delay }] },

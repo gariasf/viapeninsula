@@ -1,0 +1,50 @@
+stop_id,stop_name,stop_lat,stop_lon,wheelchair_boarding                                                                                               
+71600,Sant Vicenç de Calders,41.1862102,1.52480358,1                                                                                                  
+71801,Barcelona-Sants,41.3798632,2.14101688,1                                                                                                         
+72201,El Vendrell,41.2210057,1.53790552,2                                                                                                             
+72202,L'Arboç,41.2734041,1.60051857,1                                                                                                                 
+72203,Els Monjos,41.3147135,1.65988402,1                                                                                                              
+72204,Vilafranca del Penedès,41.3448139,1.70320131,1                                                                                                  
+72205,La Granada,41.3709497,1.72507893,1                                                                                                              
+72206,Lavern-Subirats,41.3957338,1.76817358,1                                                                                                         
+72207,Sant Sadurní d'Anoia,41.4205181,1.79468769,2                                                                                                    
+72208,Gelida,41.4485405,1.86552988,2                                                                                                                  
+72209,Martorell Central,41.4792866,1.92533467,1                                                                                                       
+72210,Castellbisbal,41.4734152,1.96756971,1                                                                                                           
+72211,El Papiol,41.4353713,2.00257792,2                                                                                                               
+72300,Molins de Rei,41.4098958,2.02077275,2                                                                                                           
+72301,Sant Feliu de Llobregat,41.3830018,2.04791970,1                                                                                                 
+72302,Sant Joan Despí,41.3685805,2.06020835,1                                                                                                         
+72303,Cornellà,41.3575214,2.07054907,1                                                                                                                
+72305,L'Hospitalet de Llobregat,41.3642038,2.10091749,1                                                                                               
+78400,Lleida-Pirineus,41.6201300,0.63365328,1                                                                                                         
+78402,Bell-lloc d'Urgell,41.6316190,0.78154700,1                                                                                                      
+78403,Mollerussa,41.6317790,0.89677500,2                                                                                                              
+78404,Golmés,41.6359290,0.93086300,2                                                                                                                  
+78405,Castellnou de Seana,41.6374640,0.96773600,2                                                                                                     
+78406,Bellpuig,41.6325450,1.01299300,1                                                                                                                
+78407,Anglesola,41.6464480,1.07919200,2                                                                                                               
+78408,Tàrrega,41.6503870,1.13896300,1                                                                                                                 
+78500,Cervera,41.6736110,1.27477300,1                                                                                                                 
+78501,Sant Guim de Freixenet,41.6559240,1.42053000,2                                                                                                  
+78502,Sant Martí Sesgueioles,41.7012170,1.48620400,1                                                                                                  
+78503,Calaf,41.7303340,1.51509700,1                                                                                                                   
+78504,Seguers-Sant Pere Sallavinera,41.7479910,1.57416700,2                                                                                           
+78505,Aguilar de Segarra,41.7389170,1.62372000,2                                                                                                      
+78506,Rajadell,41.7331590,1.69627500,2                                                                                                                
+78600,Manresa,41.7203921,1.82648564,1                                                                                                                 
+78700,Terrassa Estació del Nord,41.5697825,2.01435428,1                                                                                               
+78703,Sabadell Sud,41.5287076,2.10539311,2                                                                                                            
+78704,Sabadell Centre,41.5464197,2.11560767,1                                                                                                         
+78705,Barberà del Vallès,41.5136598,2.11845269,1                                                                                                      
+78706,Cerdanyola del Vallès,41.4925608,2.14752164,1                                                                                                   
+78707,Montcada i Reixac-Santa Maria,41.4811409,2.16698683,1                                                                                           
+78708,Montcada i Reixac-Manresa,41.4839402,2.18540420,2                                                                                               
+78709,Sabadell Nord,41.5619773,2.09622844,1                                                                                                           
+78710,Terrassa Est,41.5675296,2.03963639,1                                                                                                            
+78800,Montcada-Bifurcació,41.4698402,2.18001578,2                                                                                                     
+78801,Barcelona Torre Baró -Vallbona,41.4609684,2.18102036,1                                                                                          
+78802,Barcelona Fabra i Puig,41.4303481,2.18332907,2                                                                                                  
+78804,Barcelona Arc de Triomf,41.3919048,2.18063916,1                                                                                                 
+78805,Barcelona Plaça de Catalunya,41.3879231,2.16970383,1                                                                                            
+78806,Barcelona La Sagrera-Meridiana,41.4218480,2.18711031,1                                                                                          
