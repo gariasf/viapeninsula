@@ -1126,7 +1126,7 @@ async function rl4Trip(network: NetworkConfig) {
   const { stations, shapes, trips } = await readFeed(rl4, '2026-10-10', { network, ...network.timetables[0] });
   const left: string[] = [];
   const traced = traceShapes(shapes, stations, ownRails(rajadellRails, network), network.runningSide, () => {});
-  const placed = placeTrips(trips, traced, stations, network.profile.topSpeed, (l) => left.push(l));
+  const placed = placeTrips(trips, traced, stations, () => network.profile.topSpeed, (l) => left.push(l));
   const station = stations.find((s) => s.id === 'adif:78506');
   const trace = traced.find((s) => s.id === placed[0]?.shape);
   const off = station && trace ? nearest(trace.coords, [station.lon, station.lat]).metres : NaN;
