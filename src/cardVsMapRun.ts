@@ -39,6 +39,14 @@
 // stands there (the same), `s.last.passages` how many times one comes to stand at its last Station, `s.last.was.seconds` and `.now` what the card
 // read there before, counting down to the dwell's end, `s.last.loop` of them the seconds at a Station its Trip calls at earlier too, as a Line that
 // turns back does, and `s.last.loopMid` the seconds a Train stands at such a Station at that earlier call, where it still counts down to when it leaves.
+//
+// Its times run the Delay it's drawn at (`drawnDelay`, #610), which eases to live data's as the Train does, where a board's rows run the one live data
+// gave (`delay`): `s.vsData.*` count the card's time against the report's in the seconds a countdown is in seconds (`s.steps.of`): `later5` and
+// `earlier5` where the card's time is more than 5 s later or earlier than the report's, `nowEarly` and `nowEarly5` where it reads now while the
+// report's time hasn't come, or is more than 5 s on, `minute` where the clock minute they show differs, and `stood` where its number is the one it was
+// the second before; and `s.steps.later2.jumped` and `earlier2.jumped` the steps of more than 2 s in a second the Train itself moved by more than line
+// speed plus 5%, which are the map's jump, not the card's step, and `.standing` those of a Train standing at a Station (not jumped), whose Delay is its
+// timetable's place at once where live data has it earlier, as nothing is there to ease; what's left is a Train running, which catches up faster than 2 s a second.
 
 import { rmSync } from 'node:fs';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
@@ -66,6 +74,7 @@ interface OnMap {
   now: number;
   time: number;
   delay: number;
+  drawnDelay: number;
   calls: Trip['calls'];
   network: { id: string; profile: Moment['profile'] };
   profile: Moment['profile'];
@@ -156,9 +165,10 @@ for (const dir of process.argv.slice(2)) {
   // What each Train's card said in each of the last FLAP seconds, to count the words that come back.
   let saying = new Map<string, string[]>();
   // The time and Station each Train's countdown counted to in the last second, to count the steps its Delay gives it (#456).
-  let counting = new Map<string, { countsTo: string; expected: number }>();
+  let counting = new Map<string, { countsTo: string; expected: number; n: number }>();
   let stalled = new Map<string, number>();
-  // Which Trains stood at their Trip's last Station in the last second.
+  // Where each Train was drawn in the last second, Live or not, to say whether it moved by more than line speed in this one, and which Trains stood at their Trip's last Station in it.
+  let drawnWas = new Map<string, number>();
   let lasting = new Set<string>();
   let heard = 0;
   for (let at = t0; at <= t1; at += 1000) {
@@ -167,7 +177,8 @@ for (const dir of process.argv.slice(2)) {
     const now = new Map<string, number>();
     const stalling = new Map<string, number>();
     const said = new Map<string, string[]>();
-    const counted = new Map<string, { countsTo: string; expected: number }>();
+    const counted = new Map<string, { countsTo: string; expected: number; n: number }>();
+    const drawnNow = new Map<string, number>();
     const lastingNow = new Set<string>();
     for (const trip of candidates) {
       const o = of(trip);
@@ -204,7 +215,9 @@ for (const dir of process.argv.slice(2)) {
         noon: bundle.noonMinus12h,
         now: o.now,
         time: o.time,
-        delay: o.delay,
+        // The Delay the card's times run, the Train's as it's drawn (#610), and the one live data gave, which a board's rows run.
+        delay: o.drawnDelay,
+        reported: o.delay,
         dist: train.dist,
         calls,
         standing: !!train.standsAt,
@@ -219,7 +232,7 @@ for (const dir of process.argv.slice(2)) {
       if (!d) continue;
       // What the card would give were its Delay at least how far the Train is drawn behind its timetable, and were it that, which a countdown in seconds would follow.
       const lag = o.now - o.time;
-      const held = differences({ ...m, delay: Math.max(o.delay, lag) });
+      const held = differences({ ...m, delay: Math.max(o.delay, lag), reported: Math.max(o.delay, lag) });
       const counts = [row.all, ...(train.live ? [row.live] : [])];
       const add = (key: string, n = 1) => counts.forEach((c) => (c[key] = (c[key] ?? 0) + n));
       add('seconds');
@@ -302,15 +315,28 @@ for (const dir of process.argv.slice(2)) {
         if (inSeconds && d.reads.n > 10) add('s.atNext.over10');
         if (inSeconds && d.reads.n > 20) add('s.atNext.over20');
       }
-      // How steady its seconds are: the card's time for the same Station moved by a new Delay, by more than 2 s or 10 s, later or earlier.
+      // How steady its seconds are: the card's time for the same Station moved by a new Delay, by more than 2 s or 10 s, later or earlier, and where the Train itself jumped in that second.
       const prior = counting.get(trip.id);
-      counted.set(trip.id, { countsTo: d.countsTo, expected: d.expected });
+      counted.set(trip.id, { countsTo: d.countsTo, expected: d.expected, n: d.reads.n });
+      const [moved, drawnBefore] = [Math.abs(train.dist - (drawnWas.get(trip.id) ?? train.dist)), drawnWas.get(trip.id)];
+      const jumped = drawnBefore !== undefined && moved > o.network.profile.topSpeed * 1.05;
       if (inSeconds && prior?.countsTo === d.countsTo) {
         add('s.steps.of');
         const step = d.expected - prior.expected;
         if (Math.abs(step) > 2_000) add(step > 0 ? 's.steps.later2' : 's.steps.earlier2');
+        if (Math.abs(step) > 2_000 && jumped) add(step > 0 ? 's.steps.later2.jumped' : 's.steps.earlier2.jumped');
+        if (Math.abs(step) > 2_000 && !jumped && m.standing) add(step > 0 ? 's.steps.later2.standing' : 's.steps.earlier2.standing');
         if (Math.abs(step) > 10_000) add(step > 0 ? 's.steps.later10' : 's.steps.earlier10');
+        // The card's time against the one live data gave, which a board's rows have, and whether its number stood still (#610).
+        const off = d.expected - d.reportedAt;
+        if (off > 5_000) add('s.vsData.later5');
+        if (off < -5_000) add('s.vsData.earlier5');
+        if (d.reads.n === 0 && d.reportedAt > m.at) add('s.vsData.nowEarly');
+        if (d.reads.n === 0 && d.reportedAt - m.at > 5_000) add('s.vsData.nowEarly5');
+        if (Math.floor(d.expected / 60_000) !== Math.floor(d.reportedAt / 60_000)) add('s.vsData.minute');
+        if (d.reads.n > 0 && d.reads.n === prior.n) add('s.vsData.stood');
       }
+      drawnNow.set(trip.id, train.dist);
       // At its Trip's last Station the card has no countdown (#607): how long, how often, and what it counted down to there before.
       if (!d.countdown) {
         lastingNow.add(trip.id);
@@ -363,6 +389,7 @@ for (const dir of process.argv.slice(2)) {
     saying = said;
     counting = counted;
     stalled = stalling;
+    drawnWas = drawnNow;
     lasting = lastingNow;
   }
   console.error(`${dir}: ${Math.round((t1 - t0) / 1000)} s`);
