@@ -4,7 +4,7 @@ import { expect, test } from 'vitest';
 import { DEGREE, type Alert, type AlertFeed, type Alerts, type Bundle, type Call, type Line, type Trip } from '../bundle.ts';
 import type { Pass } from '../engine.ts';
 import { ALERTS_START, readAlerts } from '../fetcher/alerts.ts';
-import { boardAsks, boardList, cardAlerts, countdownTo, inNameOrder, linesCallingAt, linesOnBoard, linkedWords, minutesTo, nearbyRows, nextOnItsWay, passedPlace, progress, tripsState, untilTick, whereabouts, type Part } from './cards.ts';
+import { ago, boardAsks, boardList, cardAlerts, countdownTo, inNameOrder, linesCallingAt, linesOnBoard, linkedWords, minutesTo, nearbyRows, nextOnItsWay, passedPlace, progress, tripsState, untilTick, whereabouts, type Part } from './cards.ts';
 
 /** A time of day in Barcelona on Wednesday 7 Oct 2026, in summer time, in ms since 1970. */
 const at = (hours: number, minutes: number, seconds = 0) => Date.UTC(2026, 9, 7, hours - 2, minutes, seconds);
@@ -95,6 +95,16 @@ test("a countdown that reads now has no second to end, so its card is refreshed 
   expect(untilTick(NOW - 2 ** -12, NOW)).toBe(1_000);
   expect(countdownTo(NOW + 2 ** -12, NOW)).toEqual({ n: 0, unit: 'seconds' });
   expect(countdownTo(NOW + 0.4, NOW)).toEqual({ n: 0, unit: 'seconds' });
+});
+
+test("how long ago live data placed a Train is to the second under a minute and to the minute after, each number joined to its unit by a no-break space so that a line never ends between them (#612)", () => {
+  expect(ago(0)).toBe('0\u00A0s');
+  expect(ago(12_400)).toBe('12\u00A0s');
+  expect(ago(59_000)).toBe('59\u00A0s');
+  expect(ago(60_000)).toBe('1\u00A0min');
+  expect(ago(150_000)).toBe('3\u00A0min');
+  // A clock that's a little off can have it placed after it arrived: not a negative number.
+  expect(ago(-4_000)).toBe('0\u00A0s');
 });
 
 /** A Train passing nearby on a Line, headed somewhere, at a time of day, Live or Scheduled. */

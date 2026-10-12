@@ -176,36 +176,36 @@ test('says atop About, in Basque and in Galician alone, that their texts are mac
 });
 
 test("counts down to a Train in minutes on a board and in Nearby, or says it's now, in each language", () => {
-  expect(toGo(3, 'minutes', 'ca')).toBe('3 min');
-  expect(toGo(3, 'minutes', 'es')).toBe('3 min');
-  expect(toGo(3, 'minutes', 'en')).toBe('3 min');
+  expect(toGo(3, 'minutes', 'ca')).toBe('3\u00A0min');
+  expect(toGo(3, 'minutes', 'es')).toBe('3\u00A0min');
+  expect(toGo(3, 'minutes', 'en')).toBe('3\u00A0min');
   expect(toGo(0, 'minutes', 'ca')).toBe('ara');
   expect(toGo(0, 'minutes', 'es')).toBe('ahora');
   expect(toGo(0, 'minutes', 'en')).toBe('now');
-  expect(toGo(3, 'minutes', 'eu')).toBe('3 min');
-  expect(toGo(3, 'minutes', 'gl')).toBe('3 min');
+  expect(toGo(3, 'minutes', 'eu')).toBe('3\u00A0min');
+  expect(toGo(3, 'minutes', 'gl')).toBe('3\u00A0min');
   expect(toGo(0, 'minutes', 'eu')).toBe('orain');
   expect(toGo(0, 'minutes', 'gl')).toBe('agora');
 });
 
 test("counts down to a followed Train's next Station, or says it's now, in each language", () => {
-  expect(toGo(1, 'inMinutes', 'ca')).toBe("d'aquí a 1 min");
-  expect(toGo(1, 'inMinutes', 'es')).toBe('en 1 min');
-  expect(toGo(1, 'inMinutes', 'en')).toBe('in 1 min');
+  expect(toGo(1, 'inMinutes', 'ca')).toBe("d'aquí a 1\u00A0min");
+  expect(toGo(1, 'inMinutes', 'es')).toBe('en 1\u00A0min');
+  expect(toGo(1, 'inMinutes', 'en')).toBe('in 1\u00A0min');
   expect(toGo(0, 'inMinutes', 'en')).toBe('now');
-  expect(toGo(1, 'inMinutes', 'eu')).toBe('1 min barru');
-  expect(toGo(1, 'inMinutes', 'gl')).toBe('en 1 min');
+  expect(toGo(1, 'inMinutes', 'eu')).toBe('1\u00A0min barru');
+  expect(toGo(1, 'inMinutes', 'gl')).toBe('en 1\u00A0min');
 });
 
 test("counts down to a followed Train's next Station in seconds in its last minute, or says it's now, in each language (#456)", () => {
-  expect(toGo(40, 'inSeconds', 'ca')).toBe("d'aquí a 40 s");
-  expect(toGo(40, 'inSeconds', 'es')).toBe('en 40 s');
-  expect(toGo(40, 'inSeconds', 'en')).toBe('in 40 s');
-  expect(toGo(40, 'inSeconds', 'eu')).toBe('40 s barru');
-  expect(toGo(40, 'inSeconds', 'gl')).toBe('en 40 s');
+  expect(toGo(40, 'inSeconds', 'ca')).toBe("d'aquí a 40\u00A0s");
+  expect(toGo(40, 'inSeconds', 'es')).toBe('en 40\u00A0s');
+  expect(toGo(40, 'inSeconds', 'en')).toBe('in 40\u00A0s');
+  expect(toGo(40, 'inSeconds', 'eu')).toBe('40\u00A0s barru');
+  expect(toGo(40, 'inSeconds', 'gl')).toBe('en 40\u00A0s');
   // The unit is a symbol, which a count of one doesn't change.
-  expect(toGo(1, 'inSeconds', 'en')).toBe('in 1 s');
-  expect(toGo(1, 'inSeconds', 'ca')).toBe("d'aquí a 1 s");
+  expect(toGo(1, 'inSeconds', 'en')).toBe('in 1\u00A0s');
+  expect(toGo(1, 'inSeconds', 'ca')).toBe("d'aquí a 1\u00A0s");
   // Never "0 s": it's now, as the minutes' form says it.
   for (const lang of Object.keys(LANGUAGES) as Language[]) {
     expect(toGo(0, 'inSeconds', lang)).toBe(t('now', lang));
@@ -217,7 +217,18 @@ test("a followed Train's countdown in seconds is its minutes' form with s for mi
   for (const lang of Object.keys(LANGUAGES) as Language[]) {
     expect(toGo(59, 'inSeconds', lang).length).toBeLessThanOrEqual(toGo(59, 'inMinutes', lang).length);
     // And is the minutes' form with s for min, as the language writes that.
-    expect(toGo(59, 'inSeconds', lang)).toBe(toGo(59, 'inMinutes', lang).replace(' min', ' s'));
+    expect(toGo(59, 'inSeconds', lang)).toBe(toGo(59, 'inMinutes', lang).replace('\u00A0min', '\u00A0s'));
+  }
+});
+
+test("joins a number to its unit in every countdown with a no-break space in each language, so that a line of a card never ends between them: `in 40` and `s` (#612)", () => {
+  for (const lang of Object.keys(LANGUAGES) as Language[]) {
+    for (const phrase of ['minutes', 'inMinutes', 'inSeconds'] as const) {
+      const said = toGo(12, phrase, lang);
+      expect(said).toMatch(/12\u00A0(min|s)(?!\p{L})/u);
+      // No plain space is left between the number and the unit, though one stays before and after them.
+      expect(said).not.toMatch(/\d (min|s)(?!\p{L})/u);
+    }
   }
 });
 

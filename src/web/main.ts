@@ -19,7 +19,7 @@ import { atMostEvery, drifted, letsGo, outsideMiddle, pointersDown, tapZooms } f
 import { keepView, lastView, markOf, openingView, toggledPitch } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { darkInk, INK, lettering } from './colour.ts';
-import { boardAsks, boardList, cardAlerts, countdownTo, inNameOrder, linesOnBoard, linkedWords, minutesTo, nearbyRows, nextOnItsWay, passedPlace, progress, tripsState, untilTick, whereabouts, type CardAlert, type Whereabouts } from './cards.ts';
+import { ago, boardAsks, boardList, cardAlerts, countdownTo, inNameOrder, linesOnBoard, linkedWords, minutesTo, nearbyRows, nextOnItsWay, passedPlace, progress, tripsState, untilTick, whereabouts, type CardAlert, type Whereabouts } from './cards.ts';
 import { ARROW_GAP, boxOf, FOLLOWED_TEXT, LINE_HEIGHT, OUTLINE_SIZES, outlineOf, PILL_EDGE, PILL_PADDING, PILL_TEXT, pillReach, type Outline } from './pill.ts';
 import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, tappedRows, type Shown } from './closures.ts';
 
@@ -2934,11 +2934,6 @@ function kilometres(metres: number): string {
 /** Formats times of day as the viewer's language does, in Barcelona, after their day where `day` says. */
 function clock(day = false) {
   return new Intl.DateTimeFormat(locale(), { dateStyle: day ? 'medium' : undefined, timeStyle: 'short', timeZone: 'Europe/Madrid' });
-}
-
-/** How long a number of ms is, to the second under a minute and to the minute after. */
-function ago(ms: number): string {
-  return ms < 60_000 ? `${Math.max(0, Math.round(ms / 1000))} s` : `${Math.round(ms / 60_000)} min`;
 }
 
 /**

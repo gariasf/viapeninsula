@@ -1,4 +1,4 @@
-// What the cards work out from the days on the map and the engine's Trains: minutes to go, and a followed Train's countdown in seconds in its last minute (#456), Nearby's rows, how far along its Trip a followed Train is and where it is by how it's drawn, and the Station it passes without stopping (#455, #457), and a board's Lines (#321), and the order the cards name Lines in (#399); and from alerts.json, the Alerts each shows (#342).
+// What the cards work out from the days on the map and the engine's Trains: minutes to go, and a followed Train's countdown in seconds in its last minute (#456), how long ago live data placed it (#612), Nearby's rows, how far along its Trip a followed Train is and where it is by how it's drawn, and the Station it passes without stopping (#455, #457), and a board's Lines (#321), and the order the cards name Lines in (#399); and from alerts.json, the Alerts each shows (#342).
 // Pure, with nothing from the page, as the measure of the card against the map (src/cardVsMap.ts) runs whereabouts(), passedPlace() and countdownTo() under Node.
 import { DEGREE, type Alert, type Alerts, type Call, type Line, type Place, type Trip, type Words } from '../bundle.ts';
 import type { Pass } from '../engine.ts';
@@ -41,6 +41,15 @@ export function countdownTo(at: number, now: number): Countdown {
 export function untilTick(at: number, now: number): number {
   const left = Math.round(at - now);
   return left > 0 ? left % 1_000 || 1_000 : 1_000;
+}
+
+/**
+ * How long ago live data placed a Train, `ms` before: to the second under a minute and to the minute after, as
+ * `confirmed 12 s ago` and `last confirmed 3 min ago` say it. Its number and unit are joined by a no-break space
+ * (U+00A0), as toGo()'s are, so that a line of the status line never ends between them (#612).
+ */
+export function ago(ms: number): string {
+  return ms < 60_000 ? `${Math.max(0, Math.round(ms / 1000))}\u00A0s` : `${Math.round(ms / 60_000)}\u00A0min`;
 }
 
 /** How many passes Nearby counts down to in a row. */
