@@ -1,0 +1,489 @@
+{
+ "pick": {
+  "today": "2026-10-12",
+  "trip": "ave-larga-distancia:0330412026-10-11",
+  "number": "03304",
+  "headsign": "Madrid-Puerta de Atocha-Almudena Grandes",
+  "santsIn": -6,
+  "runningAves": 42
+ },
+ "spots": [
+  {
+   "spot": "1-z5-spain",
+   "size": "phone",
+   "hooked": true,
+   "ldAfterMs": 6675,
+   "zoom": 5,
+   "source": {
+    "ave-larga-distancia": 75
+   },
+   "ldLive": 59,
+   "drawn": 68,
+   "drawnLd": 68,
+   "drawnOtherBelow7": 0,
+   "ldLayers": [
+    "trains"
+   ],
+   "outlines": [
+    "slanted"
+   ],
+   "about": null,
+   "cardRenfe": 1,
+   "stripRenfe": 1,
+   "link": "#map=5/40.2/-3.7",
+   "clock": "2026-10-12T08:01:08.691Z",
+   "ours": [
+    "error: Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "warning: [.WebGL-0x11400503000]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+    "warning: [.WebGL-0x11400503000]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+    "warning: [.WebGL-0x11400503000]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+    "warning: [.WebGL-0x11400503000]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)"
+   ],
+   "errors": []
+  },
+  {
+   "spot": "2-z7-madrid",
+   "size": "phone",
+   "hooked": true,
+   "ldAfterMs": 9071,
+   "zoom": 7,
+   "source": {
+    "cercanias-madrid": 54,
+    "cercanias-asturias": 17,
+    "cercanias-sevilla": 8,
+    "cercanias-leon": 2,
+    "cercanias-bilbao": 14,
+    "cercanias-san-sebastian": 4,
+    "cercanias-santander": 8,
+    "ave-larga-distancia": 75
+   },
+   "ldLive": 59,
+   "drawn": 80,
+   "drawnLd": 26,
+   "ldLayers": [
+    "train-pills"
+   ],
+   "outlines": [
+    "slanted"
+   ],
+   "about": null,
+   "cardRenfe": 1,
+   "stripRenfe": 1,
+   "link": "#map=7/40.42/-3.7",
+   "clock": "2026-10-12T08:01:23.621Z",
+   "ours": [
+    "error: Failed to load resource: net::ERR_CONNECTION_REFUSED"
+   ],
+   "errors": []
+  },
+  {
+   "spot": "3-z10-atocha",
+   "size": "phone",
+   "hooked": true,
+   "ldAfterMs": 6019,
+   "zoom": 10,
+   "source": {
+    "cercanias-madrid": 52,
+    "ave-larga-distancia": 75
+   },
+   "ldLive": 59,
+   "drawn": 50,
+   "drawnLd": 8,
+   "ldLayers": [
+    "train-pills"
+   ],
+   "outlines": [
+    "slanted"
+   ],
+   "about": null,
+   "cardRenfe": 1,
+   "stripRenfe": 1,
+   "link": "#map=10/40.4066/-3.6893",
+   "clock": "2026-10-12T08:01:35.856Z",
+   "ours": [
+    "error: Failed to load resource: net::ERR_CONNECTION_REFUSED"
+   ],
+   "errors": []
+  },
+  {
+   "spot": "4-z13-sants-follow",
+   "size": "phone",
+   "hooked": true,
+   "ldAfterMs": 9949,
+   "zoom": 13,
+   "source": {
+    "rodalies": 69,
+    "fgc": 27,
+    "tram": 9,
+    "metro": 86,
+    "ave-larga-distancia": 75
+   },
+   "ldLive": 59,
+   "drawn": 4,
+   "drawnLd": 1,
+   "ldLayers": [
+    "train-pills-followed"
+   ],
+   "outlines": [
+    "slanted"
+   ],
+   "sheet": "AVE, Scheduled Madrid-Puerta de Atocha-Almudena GrandesScheduled · no live data · Estimated speed ~206 km/hNext stationCamp de Tarragona10:26AMin 25 minBarcelona-SantsMadrid-Puerta de Atocha-Almudena Grandes, 627.1 km0 alerts5 more stations",
+   "boardLdPills": [
+    "pill slanted scheduled:AVE, Scheduled"
+   ],
+   "about": null,
+   "cardRenfe": 1,
+   "stripRenfe": 1,
+   "link": "#map=13/41.40993/2.00944&train=2026-10-12/ave-larga-distancia:0330412026-10-11",
+   "clock": "2026-10-12T08:01:52.632Z",
+   "ours": [
+    "error: Failed to load resource: net::ERR_CONNECTION_REFUSED"
+   ],
+   "errors": []
+  },
+  {
+   "spot": "5-sants-board",
+   "size": "phone",
+   "hooked": true,
+   "ldAfterMs": 8693,
+   "zoom": 13,
+   "source": {
+    "rodalies": 69,
+    "fgc": 27,
+    "tram": 9,
+    "metro": 86,
+    "ave-larga-distancia": 75
+   },
+   "ldLive": 63,
+   "drawn": 23,
+   "drawnLd": 1,
+   "ldLayers": [
+    "train-pills"
+   ],
+   "outlines": [
+    "slanted"
+   ],
+   "sheet": "Barcelona-SantsR1R2R2NR2SR4R11R13R14R15R16R17AlviaAVEAVE IntEuromedIntercity6 alertsRenfe's alerts: last changed Oct 7, 2026, 9:32 AMR2Sin servicio ferroviario.From Oct 7, 2026, 9:02 AM · Renfe · CastellanoR1Circulación ferroviaria entre L'",
+   "boardLdPills": [
+    "pill slanted live small:Alvia",
+    "pill slanted live small:AVE",
+    "pill slanted live small:AVE Int",
+    "pill slanted live small:Euromed",
+    "pill slanted live small:Intercity"
+   ],
+   "about": null,
+   "cardRenfe": 1,
+   "stripRenfe": 1,
+   "link": "#map=13/41.3799/2.141&station=adif:71801",
+   "clock": "2026-10-12T08:02:10.562Z",
+   "ours": [
+    "error: Failed to load resource: net::ERR_CONNECTION_REFUSED"
+   ],
+   "errors": []
+  },
+  {
+   "spot": "1-z5-spain",
+   "size": "wide",
+   "hooked": true,
+   "ldAfterMs": 8500,
+   "zoom": 5,
+   "source": {
+    "ave-larga-distancia": 74
+   },
+   "ldLive": 61,
+   "drawn": 74,
+   "drawnLd": 74,
+   "drawnOtherBelow7": 0,
+   "ldLayers": [
+    "trains"
+   ],
+   "outlines": [
+    "slanted"
+   ],
+   "about": null,
+   "cardRenfe": 1,
+   "stripRenfe": 1,
+   "link": "#map=5/40.2/-3.7",
+   "clock": "2026-10-12T08:02:27.251Z",
+   "ours": [
+    "error: Failed to load resource: net::ERR_CONNECTION_REFUSED"
+   ],
+   "errors": []
+  },
+  {
+   "spot": "2-z7-madrid",
+   "size": "wide",
+   "hooked": true,
+   "ldAfterMs": 19930,
+   "zoom": 7,
+   "source": {
+    "rodalies": 68,
+    "fgc": 30,
+    "tram": 9,
+    "metro": 84,
+    "cercanias-madrid": 52,
+    "cercanias-asturias": 18,
+    "cercanias-sevilla": 7,
+    "cercanias-valencia": 14,
+    "cercanias-murcia-alicante": 3,
+    "cercanias-cartagena": 1,
+    "cercanias-leon": 2,
+    "cercanias-bilbao": 14,
+    "cercanias-san-sebastian": 4,
+    "cercanias-santander": 8,
+    "cercanias-zaragoza": 1,
+    "ave-larga-distancia": 74
+   },
+   "ldLive": 61,
+   "drawn": 105,
+   "drawnLd": 40,
+   "ldLayers": [
+    "train-pills"
+   ],
+   "outlines": [
+    "slanted"
+   ],
+   "about": null,
+   "cardRenfe": 1,
+   "stripRenfe": 1,
+   "link": "#map=7/40.42/-3.7",
+   "clock": "2026-10-12T08:02:54.471Z",
+   "ours": [
+    "error: Failed to load resource: net::ERR_CONNECTION_REFUSED"
+   ],
+   "errors": []
+  },
+  {
+   "spot": "3-z10-atocha",
+   "size": "wide",
+   "hooked": true,
+   "ldAfterMs": 7300,
+   "zoom": 10,
+   "source": {
+    "cercanias-madrid": 52,
+    "ave-larga-distancia": 74
+   },
+   "ldLive": 60,
+   "drawn": 57,
+   "drawnLd": 8,
+   "ldLayers": [
+    "train-pills"
+   ],
+   "outlines": [
+    "slanted"
+   ],
+   "about": null,
+   "cardRenfe": 1,
+   "stripRenfe": 1,
+   "link": "#map=10/40.4066/-3.6893",
+   "clock": "2026-10-12T08:03:08.811Z",
+   "ours": [
+    "error: Failed to load resource: net::ERR_CONNECTION_REFUSED"
+   ],
+   "errors": []
+  },
+  {
+   "spot": "4-z13-sants-follow",
+   "size": "wide",
+   "hooked": true,
+   "ldAfterMs": 12419,
+   "zoom": 13,
+   "source": {
+    "rodalies": 66,
+    "fgc": 32,
+    "tram": 9,
+    "metro": 84,
+    "ave-larga-distancia": 74
+   },
+   "ldLive": 60,
+   "drawn": 9,
+   "drawnLd": 1,
+   "ldLayers": [
+    "train-pills-followed"
+   ],
+   "outlines": [
+    "slanted"
+   ],
+   "sheet": "AVE, Live Madrid-Puerta de Atocha-Almudena GrandesLive · confirmed 56 s ago · Estimated speed ~206 km/hNext stationCamp de Tarragona10:30AM+5 min5 min latein 27 minBarcelona-SantsMadrid-Puerta de Atocha-Almudena Grandes, 627.1 km0 alerts1 e",
+   "boardLdPills": [
+    "pill slanted live:AVE, Live"
+   ],
+   "about": null,
+   "cardRenfe": 1,
+   "stripRenfe": 1,
+   "link": "#map=13/41.33184/2.06081&train=2026-10-12/ave-larga-distancia:0330412026-10-11",
+   "clock": "2026-10-12T08:03:31.758Z",
+   "ours": [
+    "error: Failed to load resource: net::ERR_CONNECTION_REFUSED"
+   ],
+   "errors": []
+  },
+  {
+   "spot": "5-sants-board",
+   "size": "wide",
+   "hooked": true,
+   "ldAfterMs": 20001,
+   "zoom": 13,
+   "source": {
+    "rodalies": 67,
+    "fgc": 32,
+    "tram": 9,
+    "metro": 87,
+    "ave-larga-distancia": 74
+   },
+   "ldLive": 61,
+   "drawn": 64,
+   "drawnLd": 0,
+   "ldLayers": [],
+   "outlines": [],
+   "sheet": "Barcelona-SantsR1R2R2NR2SR4R11R13R14R15R16R17AlviaAVEAVE IntEuromedIntercity6 alertsRenfe's alerts: last changed Oct 7, 2026, 9:32 AMR2Sin servicio ferroviario.From Oct 7, 2026, 9:02 AM · Renfe · CastellanoR1Circulación ferroviaria entre L'",
+   "boardLdPills": [
+    "pill slanted live small:Alvia",
+    "pill slanted live small:AVE",
+    "pill slanted live small:AVE Int",
+    "pill slanted live small:Euromed",
+    "pill slanted live small:Intercity"
+   ],
+   "about": null,
+   "cardRenfe": 1,
+   "stripRenfe": 1,
+   "link": "#map=13/41.3799/2.141&station=adif:71801",
+   "clock": "2026-10-12T08:04:04.154Z",
+   "ours": [
+    "error: Failed to load resource: net::ERR_CONNECTION_REFUSED"
+   ],
+   "errors": []
+  },
+  {
+   "spot": "about",
+   "size": "phone",
+   "hooked": true,
+   "ldAfterMs": 6591,
+   "zoom": 7,
+   "source": {
+    "cercanias-madrid": 54,
+    "cercanias-asturias": 18,
+    "cercanias-sevilla": 7,
+    "cercanias-leon": 2,
+    "cercanias-bilbao": 13,
+    "cercanias-san-sebastian": 5,
+    "cercanias-santander": 8,
+    "ave-larga-distancia": 74
+   },
+   "ldLive": 61,
+   "drawn": 83,
+   "drawnLd": 29,
+   "ldLayers": [
+    "train-pills"
+   ],
+   "outlines": [
+    "slanted"
+   ],
+   "about": {
+    "credits": [
+     "Renfe, CC BY 4.0"
+    ],
+    "shapes": [
+     "pill round live:C1",
+     "pill slanted live:Alvia"
+    ],
+    "outlines": "Zoomed in, each train is a label with its line's name, shaped by the line's kind of service: rounded for commuter and suburban lines, pointed at both ends for regional lines, slanted at both ends for long-distance lines, and a rounded square for the lines of TMB's metro, TRAM, Cádiz's tram-train, the rack railway and the funiculars.",
+    "ave": "Via Península shows Catalonia's trains, metros and trams, Renfe's Cercanías trains in the rest of Spain, and Renfe's AVE and long-distance trains, as they run. Their positions are estimates derived from the operators' data, built from timetables and live data.",
+    "iryo": "Iryo publishes no data on its trains, so they aren't on the map."
+   },
+   "cardRenfe": 1,
+   "stripRenfe": 1,
+   "link": "#map=7/40.42/-3.7",
+   "clock": "2026-10-12T08:04:18.061Z",
+   "ours": [
+    "error: Failed to load resource: net::ERR_CONNECTION_REFUSED"
+   ],
+   "errors": []
+  }
+ ],
+ "snapshot": {
+  "generated": "2026-10-12T08:04:08.089Z",
+  "feeds": {
+   "cercanias-madrid": {
+    "status": "ok",
+    "lastSuccess": "2026-10-12T08:04:08.089Z"
+   },
+   "cercanias-asturias": {
+    "status": "ok",
+    "lastSuccess": "2026-10-12T08:04:08.089Z"
+   },
+   "cercanias-sevilla": {
+    "status": "ok",
+    "lastSuccess": "2026-10-12T08:04:08.089Z"
+   },
+   "cercanias-cadiz": {
+    "status": "ok",
+    "lastSuccess": "2026-10-12T08:04:08.089Z"
+   },
+   "cercanias-malaga": {
+    "status": "ok",
+    "lastSuccess": "2026-10-12T08:04:08.089Z"
+   },
+   "cercanias-valencia": {
+    "status": "ok",
+    "lastSuccess": "2026-10-12T08:04:08.089Z"
+   },
+   "cercanias-murcia-alicante": {
+    "status": "ok",
+    "lastSuccess": "2026-10-12T08:04:08.089Z"
+   },
+   "cercanias-cartagena": {
+    "status": "ok",
+    "lastSuccess": "2026-10-12T08:04:08.089Z"
+   },
+   "cercanias-ferrol": {
+    "status": "ok",
+    "lastSuccess": "2026-10-12T08:04:08.089Z"
+   },
+   "cercanias-leon": {
+    "status": "ok",
+    "lastSuccess": "2026-10-12T08:04:08.089Z"
+   },
+   "rodalies": {
+    "status": "ok",
+    "lastSuccess": "2026-10-12T08:04:08.089Z"
+   },
+   "cercanias-bilbao": {
+    "status": "ok",
+    "lastSuccess": "2026-10-12T08:04:08.089Z"
+   },
+   "cercanias-san-sebastian": {
+    "status": "ok",
+    "lastSuccess": "2026-10-12T08:04:08.089Z"
+   },
+   "cercanias-santander": {
+    "status": "ok",
+    "lastSuccess": "2026-10-12T08:04:08.089Z"
+   },
+   "cercanias-zaragoza": {
+    "status": "ok",
+    "lastSuccess": "2026-10-12T08:04:08.089Z"
+   },
+   "ave-larga-distancia": {
+    "status": "ok",
+    "lastSuccess": "2026-10-12T08:04:08.089Z"
+   },
+   "media-distancia-avant": {
+    "status": "ok",
+    "lastSuccess": "2026-10-12T08:04:08.089Z"
+   },
+   "fgc": {
+    "status": "ok",
+    "lastSuccess": "2026-10-12T08:03:48.952Z"
+   },
+   "tram": {
+    "status": "ok",
+    "lastSuccess": "2026-10-12T08:04:08.089Z"
+   },
+   "metro": {
+    "status": "ok",
+    "lastSuccess": "2026-10-12T08:03:48.952Z"
+   }
+  }
+ }
+}
