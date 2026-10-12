@@ -1549,7 +1549,7 @@ test('a followed Train shows the type of Unit it runs as, where its operator rep
   expect(trainAt(RACK, moment, RACK_RECEIVED, 'fgc:625cdae21f726b1bb950|652dc7e703')?.unitType).toBeUndefined();
 });
 
-test("an FGC report whose Trip ended more than 30 minutes before it is dropped, as Geotren names rack Trips that ended hours ago, but another Network's is kept", () => {
+test("an FGC report whose Trip ended more than 30 minutes before it is dropped unless it shows its Train moving on, as Geotren names rack Trips that ended hours ago, but another Network's is kept", () => {
   // Montserrat's rack Trips that a snapshot read at 13:46 on Sunday 4 October 2026 names, and the two
   // its timetable had running then, 652dc7e006 and 652dc7e007, as the daily build had them on Tuesday
   // 6 October, which runs them at Sunday's times (#232). Montserrat (MM) is at the top of the line,
@@ -1606,6 +1606,74 @@ test("an FGC report whose Trip ended more than 30 minutes before it is dropped, 
   // Renfe's report of the R2S at Barcelona Estació de França at 23:30, 40 minutes late, 39 minutes
   // after its Trip ended, still has it Live.
   expect(train(R2S, at('23:30:10'), [near(R2S, 'Barcelona Estació de França', 2400, at('23:30:00'))])).toMatchObject({ live: true });
+});
+
+test('an FGC report whose Trip ended more than 30 minutes before it is kept where it puts the Train more than 200 m further along the Trip than its report before, the way the Trip runs, as a Unit running late, and dropped where the Train stands or goes back', () => {
+  // RL1's 15:52 from Lleida to Balaguer on Wednesday 7 October 2026, as the daily build had it, on a
+  // track straight from Station to Station, under a made-up trip_id for each of three Units.
+  const calls: Row[] = [
+    ['fgc:LE', '15:52:00', '15:52:00', 0, 0.633672, 41.620098], // Lleida
+    ['fgc:PG', '15:55:30', '15:55:35', 2125, 0.652806, 41.622808], // Polígon industrial del Segre
+    ['fgc:AT', '15:57:55', '15:58:00', 6662, 0.686458, 41.654738], // Alcoletge
+    ['fgc:VB', '16:03:30', '16:04:00', 11745, 0.727903, 41.687347], // Vilanova de la Barca
+    ['fgc:RM', '16:08:30', '16:09:00', 16585, 0.764899, 41.717644], // Térmens
+    ['fgc:VF', '16:12:55', '16:13:00', 22043, 0.805247, 41.755094], // Vallfogona de Balaguer
+    ['fgc:BG', '16:18:00', '16:18:00', 26025, 0.814761, 41.789215], // Balaguer
+  ];
+  // Made up: a Trip back from Balaguer on the same track, as RL4's Trips both ways share one shape, for
+  // two more Units.
+  const fromBalaguer: Row[] = [
+    ['fgc:BG', '15:52:00', '15:52:00', 26025, 0.814761, 41.789215], // Balaguer
+    ['fgc:VF', '15:57:00', '15:57:05', 22043, 0.805247, 41.755094], // Vallfogona de Balaguer
+    ['fgc:RM', '16:01:00', '16:01:30', 16585, 0.764899, 41.717644], // Térmens
+    ['fgc:VB', '16:06:00', '16:06:30', 11745, 0.727903, 41.687347], // Vilanova de la Barca
+  ];
+  const units = ['running', 'parked', 'standing', 'creeping', 'backing'];
+  const lleida = bundleOf('2026-10-07', { id: 'fgc', name: 'FGC', profile: { ...PROFILE, topSpeed: 120 / 3.6 } }, Object.fromEntries(units.map((unit, i) => [`fgc:624ddab200727612a612|${unit}`, { line: 'fgc:RL1', calls: i < 3 ? calls : fromBalaguer }])));
+  const gpsAt = (unit: string, dist: number) => {
+    const [lon, lat] = pointAt(lleida.shapes.find((s) => s.id.endsWith(unit)) as Shape, dist);
+    return { lon, lat };
+  };
+  // Made up, as Geotren named RL1's Unit on 7 October from 17:46, 88 minutes after its Trip ended
+  // (#487): FGC updates Geotren every 2 minutes, and each snapshot, written every 20 s, has what it
+  // last said. The first Unit runs on along the Trip, as RL1's did at the timetable's pace, 100
+  // minutes late. The second stands where its GPS puts it, short of Balaguer, and the third near
+  // Balaguer, as Montserrat's rack Unit stood near Montserrat all day. On the Trip back from Balaguer,
+  // the fourth creeps 150 m on, within a Station's reach, and then 250 m on, near Vallfogona; the
+  // fifth's GPS goes 1 km back along it. FGC's feed sends the last update's reports unchanged until
+  // 17:56:20.
+  const updates = ['17:46:00', '17:48:00', '17:50:00'].map((time) => Date.parse(`2026-10-07T${time}+02:00`));
+  const running = [13472, 15641, 16378];
+  const received: Received[] = Array.from({ length: 31 }, (_, i) => {
+    const written = Date.parse('2026-10-07T17:46:20+02:00') + i * 20_000;
+    const update = updates.findLastIndex((u) => u < written);
+    const reported = updates[update] ?? NaN;
+    return {
+      snapshot: {
+        generated: written,
+        feeds: { fgc: { lastSuccess: written, lastAttempt: written, status: 'ok', every: 120_000 } },
+        reports: [
+          { trip: 'fgc:624ddab200727612a612|running', at: reported, position: gpsAt('running', running[update] ?? NaN) },
+          { trip: 'fgc:624ddab200727612a612|parked', at: reported, position: gpsAt('parked', 25695) },
+          { trip: 'fgc:624ddab200727612a612|standing', at: reported, position: { near: 'fgc:BG' } },
+          { trip: 'fgc:624ddab200727612a612|creeping', at: reported, position: [gpsAt('creeping', 22443), gpsAt('creeping', 22293), { near: 'fgc:VF' }][update] },
+          { trip: 'fgc:624ddab200727612a612|backing', at: reported, position: gpsAt('backing', update ? 21000 : 20000) },
+        ],
+      },
+      at: written,
+    };
+  });
+  const drawn = (time: string) => trainsAt(lleida, Date.parse(`2026-10-07T${time}+02:00`), by(received, Date.parse(`2026-10-07T${time}+02:00`))).map((t) => [t.trip.id.split('|')[1], t.live]);
+  // Each Unit's first report has none before it to show that the Unit moves, and none is drawn.
+  expect(drawn('17:47:50')).toEqual([]);
+  // From FGC's next update, the running Unit's report puts it 2.2 km further along its Trip, and it's
+  // drawn Live, in each snapshot that has the report, as in the next update's. The two standing are
+  // where their reports before had them, the creeping one is within MARGIN of its report before, and
+  // the fifth is back along its Trip: none of them is drawn.
+  for (const time of ['17:48:30', '17:49:50']) expect(drawn(time)).toEqual([['running', true]]);
+  // At the update after, the creeping Unit is near Vallfogona, 250 m on, and drawn Live too. Both stay
+  // Live as long as FGC's feed keeps sending their reports, as any Train does.
+  for (const time of ['17:50:30', '17:51:40', '17:56:30']) expect(drawn(time)).toEqual([['running', true], ['creeping', true]]);
 });
 
 test("a Train Renfe pins to a Station isn't held there: Renfe's pinned Stations are stale", () => {
@@ -2707,7 +2775,7 @@ test('folding each snapshot into the last replay draws the Trains as replaying e
 }, 60_000);
 
 test("counts each Network's jumps over 45 minutes of live data as the map received it", () => {
-  // Per Train-minute, (forward + back) / (liveSeconds / 60): Rodalies 0.074, FGC 0.030, TRAM 0.0023,
+  // Per Train-minute, (forward + back) / (liveSeconds / 60): Rodalies 0.074, FGC 0.031, TRAM 0.0023,
   // the Metro 0.0028. They're the baseline the tickets that make Trains jump less, such as #39 and
   // #46, measure against: one that changes how often they jump changes these. The Metro's rose by 11
   // with #105: each is where a Train used to vanish or appear off its Trip's first Station, and now
@@ -2729,33 +2797,39 @@ test("counts each Network's jumps over 45 minutes of live data as the map receiv
   // de Segur at 15:14:30, for a Unit whose GPS runs from Lleida at 15:58 to past Balaguer by 16:38, at
   // its timetable's pace. Drawn Live all 45 minutes, from 16:00 about 2 h 15 min late, it jumped back
   // 18.7 km at 16:00:14, as its GPS went back to Lleida, and forward 815 m at 16:22:13. It may have been
-  // that Trip really running late (#233). Rodalies' fell by two forward and 204 Live seconds with #565,
-  // which takes a GPS fix no report of the Train in the 2 minutes before could have run to as no position, at
-  // its Line's top speed and 5% over, and 300 m, and a GPS Delay that was over 10 minutes from Renfe's
-  // figure in its report as none until a report agrees with it: 53 fixes of 42 Trains here, 1.3 to 116
-  // km from the Train's last, in 19 to 100 s. Seven Trains lose 20 to 61 s of Live, 222 in all, where
-  // such a fix, as R1 25752's at 16:00:26, 3.9 km on in 20 s and held for four reports before Renfe
-  // pinned it, was what last placed them and no longer keeps them Live through the three updates after
-  // it, and R4 77550 gains 18. Five jumps are gone, forward R2N 25438's at 16:00:34, R4 77988's at
-  // 16:26:16 and R4 77640's at 16:28:58, and back R16 18131's at 16:17:50 and R2S 25543's at 16:21:33,
-  // each of a Train that went by a GPS Delay Renfe's figure was over 10 minutes from, and goes by the
-  // figure now. Three come: R7 77843 jumps forward at 16:15:29, as its fix at 16:11:06, 1,254 m in 20 s,
-  // no longer confirms the one after it, so that what it carries through its pins isn't a Delay that
-  // counted and the next fix moves it at once; R4 77638 jumps back at 16:30:20 and R4 77742 forward at
-  // 16:33:02, a minute or more after a fix like those, where the Train that goes by Renfe's figure is
-  // put where its GPS has it. Eighteen more, of 15 Trains, come 20 s later, a snapshot, R4 77742's as a
-  // jump back, not forward. It rose by eight with #485, which holds a Train Renfe has pinned to one
-  // Station for 10 minutes there: 12 come and four go. Ten of those that come are the snap back to the
-  // Station as the 10 minutes pass, at 16:07:02 for the four Trains Renfe pins from the first snapshot
-  // (R16 18129, R11 15870, R2S 28368 and R4 77642), which a map opened then can't know it has pinned for
-  // longer, and from 16:12 to 16:41 for R1 25639, R2S 25541 and 28369, R15 15013, RL4 33526 and R3 77334,
-  // each a Train drawn on by 0.7 to 9.1 km from where Renfe has had it for 10 minutes. R16 18129's second
-  // snap back, at 16:33:23, comes after a gap of 13 minutes in Renfe's reports for it, which starts the
-  // 10 again, and RL4 33526's forward jump at 16:40:08, as its pin ends. The four that go are folds the
-  // Trains no longer need: R4 77642's at 16:09:44 and 16:13:27, R16 18129's at 16:35:24 and 16:40:08.
+  // that Trip really running late (#233), as RL1's 15:52 from Lleida was on 7 October, and both came back
+  // with #487, which keeps such a report where it puts the Train further along its Trip than the Trip's
+  // report before: drawn Live from 15:58:12, by its report of 15:56, 2.9 km on from its first, which has
+  // none before it, it jumps back 16.7 km at 16:02:16, by its report of 16:00, 3.2 km on from its report
+  // at Lleida, which, 17.9 km back from the one before it, no Unit could have run to, and forward 815 m
+  // at 16:22:13, Live 2,638 s, 61 fewer than before #232. Rodalies' fell by two forward and 204 Live
+  // seconds with #565, which takes a GPS fix no report of the Train in the 2 minutes before could have
+  // run to as no position, at its Line's top speed and 5% over, and 300 m, and a GPS Delay that was
+  // over 10 minutes from Renfe's figure in its report as none until a report agrees with it: 53 fixes
+  // of 42 Trains here, 1.3 to 116 km from the Train's last, in 19 to 100 s. Seven Trains lose 20 to
+  // 61 s of Live, 222 in all, where such a fix, as R1 25752's at 16:00:26, 3.9 km on in 20 s and held
+  // for four reports before Renfe pinned it, was what last placed them and no longer keeps them Live
+  // through the three updates after it, and R4 77550 gains 18. Five jumps are gone, forward R2N 25438's
+  // at 16:00:34, R4 77988's at 16:26:16 and R4 77640's at 16:28:58, and back R16 18131's at 16:17:50
+  // and R2S 25543's at 16:21:33, each of a Train that went by a GPS Delay Renfe's figure was over
+  // 10 minutes from, and goes by the figure now. Three come: R7 77843 jumps forward at 16:15:29, as its
+  // fix at 16:11:06, 1,254 m in 20 s, no longer confirms the one after it, so that what it carries
+  // through its pins isn't a Delay that counted and the next fix moves it at once; R4 77638 jumps back
+  // at 16:30:20 and R4 77742 forward at 16:33:02, a minute or more after a fix like those, where the
+  // Train that goes by Renfe's figure is put where its GPS has it. Eighteen more, of 15 Trains, come
+  // 20 s later, a snapshot, R4 77742's as a jump back, not forward. It rose by eight with #485, which
+  // holds a Train Renfe has pinned to one Station for 10 minutes there: 12 come and four go. Ten of
+  // those that come are the snap back to the Station as the 10 minutes pass, at 16:07:02 for the four
+  // Trains Renfe pins from the first snapshot (R16 18129, R11 15870, R2S 28368 and R4 77642), which a
+  // map opened then can't know it has pinned for longer, and from 16:12 to 16:41 for R1 25639,
+  // R2S 25541 and 28369, R15 15013, RL4 33526 and R3 77334, each a Train drawn on by 0.7 to 9.1 km from
+  // where Renfe has had it for 10 minutes. R16 18129's second snap back, at 16:33:23, comes after a gap
+  // of 13 minutes in Renfe's reports for it, which starts the 10 again, and RL4 33526's forward jump at
+  // 16:40:08, as its pin ends. The four that go are folds the Trains no longer need: R4 77642's at
+  // 16:09:44 and 16:13:27, R16 18129's at 16:35:24 and 16:40:08.
   expect(jumps(RECORDED.bundle, RECORDED.received)).toEqual({
     rodalies: { forward: 66, back: 129, liveSeconds: 151935 },
-    fgc: { forward: 24, back: 50, liveSeconds: 145935 },
+    fgc: { forward: 25, back: 51, liveSeconds: 148573 },
     tram: { forward: 3, back: 0, liveSeconds: 77809 },
     metro: { forward: 0, back: 14, liveSeconds: 304017 },
   });
