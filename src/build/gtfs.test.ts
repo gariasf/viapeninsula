@@ -1,4 +1,6 @@
-import { readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, expect, test, vi } from 'vitest';
 import { dirSource, download, feedStart, noonMinus12h, parseLine, rows, serviceIdsOn, zipFile, type Source } from './gtfs.ts';
@@ -136,4 +138,27 @@ test('tells each timetable sharing a URL why its download failed', async () => {
   expect(errors).toEqual([`Error: ${RENFE_CERCANIAS}: HTTP 503`, `Error: ${RENFE_CERCANIAS}: HTTP 503`]);
   // Tried twice, for both.
   expect(fetch).toHaveBeenCalledTimes(2);
+});
+
+test("keeps a download in a feed cache, which a later one reads it from without fetching, under a name that doesn't hold the URL's query string, where TMB's key goes (#730)", async () => {
+  const fetch = vi.fn(async () => new Response('the zip'));
+  vi.stubGlobal('fetch', fetch);
+  const cache = await mkdtemp(join(tmpdir(), 'feeds-'));
+  const prefix = `download-test-${process.pid}`;
+  const url = 'https://api.tmb.cat/v1/static/datasets/gtfs.zip?app_id=ID&app_key=KEY';
+  await download(url, prefix, { cache });
+  await download(url, prefix, { cache });
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(await readFile(zipFile(prefix), 'utf8')).toBe('the zip');
+  expect((await readdir(cache)).join()).not.toMatch(/KEY|ID/);
+  await rm(cache, { recursive: true });
+  await rm(zipFile(prefix));
+});
+
+test("doesn't keep a download that failed in the feed cache (#730)", async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 503 })));
+  const cache = await mkdtemp(join(tmpdir(), 'feeds-'));
+  await download(RENFE_CERCANIAS, `download-test-${process.pid}`, { limit: 1000, again: 0, cache }).catch(() => {});
+  expect(await readdir(cache)).toEqual([]);
+  await rm(cache, { recursive: true });
 });
