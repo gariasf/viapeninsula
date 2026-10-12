@@ -20,3 +20,19 @@ the Lines drawn are the track's:
 | `541-c8-pair-z14.jpg` | zoom 14: before (main), after (branch, a ring at the added 33 m), 1,132 pixels differ in the middle (95 at the ring) |
 | `541-c8-pair-z13.jpg` | zoom 13: the same, 1,027 pixels differ (66 at the ring) |
 | `541-c8-z14-main.png`, `541-c8-z14-branch.png`, `541-c8-z13-main.png`, `541-c8-z13-branch.png` | the tiles the pairs are made of |
+
+## The live site, after the deploy of 7c267e1 (#650)
+
+The same page (origin/main's `src/web` at 7c267e1, on a port of its own) reading the deployed bundle from the CDN instead of a dry run's:
+12 Oct 2026, at 04:02 and again at 08:50 CEST, with the same fixed clock (04:05), empty snapshot and alerts and the same 360 × 270 CSS px
+tile at 2× as above; the analytics beacon aborted, so it wasn't a visit. The live manifest names `track-cercanias-madrid-b902d58fdc3d.json`
+for 12, 13 and 14 Oct, where C8a's and C8b's first piece is 7,449–7,714 m (`track-cercanias-madrid-d1ff9b4e805d.json`, the previous build's,
+still has 7,482 for 11 Oct).
+
+| File | What it shows |
+|---|---|
+| `541-c8-z14-live.png`, `541-c8-z13-live.png` | the live site's tiles: byte for byte (SHA-256) the branch's tiles above and, both times, 0 pixels from the branch's render of the dry run; 1,132 (zoom 14) and 1,023 (zoom 13) pixels differ from main's in the middle 120 × 90 CSS px, 1,247 and 2,149 in the whole tile |
+| `541-live-c8-pair-z14.jpg`, `541-live-c8-pair-z13.jpg` | before (main's bundle), after (the live site, a ring at the added 33 m) and the pixels that differ in red, as the pairs above: 1,132 (95 at the ring) and 1,027 (66 at the ring) |
+
+Console and `pageerror` read on both runs: no `pageerror`, no `console.error`, no request that wasn't a 200 (6 requests to the CDN). The warnings
+are OpenFreeMap's own style's (`highway-shield` filters) and the headless GPU's "GPU stall due to ReadPixels".
