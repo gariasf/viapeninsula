@@ -1,0 +1,10 @@
+{
+  "before": {
+    "text": "0 live\n280 scheduled\n. About this map",
+    "errors": []
+  },
+  "after": {
+    "text": "0 live\n282 scheduled\n. About this map",
+    "errors": []
+  }
+}
