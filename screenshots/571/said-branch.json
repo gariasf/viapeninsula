@@ -1,0 +1,115 @@
+{
+ "ciutadella-board-390": {
+  "title": "Ciutadella | Vila Olímpica",
+  "rows": [
+   "4:59T5, ProgramatGlòries",
+   "5:29T5, ProgramatGlòries",
+   "6:03T5, ProgramatGlòries"
+  ],
+  "names": [
+   "Ciutadella | Vila Olímpica",
+   "Ciutadella | Vila Olímpica",
+   "Wellington | UPF"
+  ]
+ },
+ "sant-adria-board-390": {
+  "title": "Estació de Sant Adrià",
+  "rows": [
+   "5:00T4, ProgramatVerdaguer",
+   "5:30T4, ProgramatVerdaguer",
+   "6:00T4, ProgramatVerdaguer"
+  ],
+  "names": [
+   "Estació de Sant Adrià",
+   "Sant Adrià de Besòs",
+   "Sant Joan Baptista",
+   "Port Fòrum"
+  ]
+ },
+ "ciutadella-names-390": {
+  "title": null,
+  "rows": [],
+  "names": [
+   "Ciutadella | Vila Olímpica",
+   "Ciutadella | Vila Olímpica",
+   "Wellington | UPF"
+  ]
+ },
+ "sant-adria-names-390": {
+  "title": null,
+  "rows": [],
+  "names": [
+   "Estació de Sant Adrià",
+   "Sant Adrià de Besòs"
+  ]
+ },
+ "ciutadella-board-1280": {
+  "title": "Ciutadella | Vila Olímpica",
+  "rows": [
+   "4:59T5, ProgramatGlòries",
+   "5:29T5, ProgramatGlòries",
+   "6:03T5, ProgramatGlòries",
+   "6:33T5, ProgramatGlòries",
+   "7:04T5, ProgramatGlòries",
+   "7:21T5, ProgramatGlòries",
+   "7:34T5, ProgramatGlòries",
+   "7:50T5, ProgramatGlòries"
+  ],
+  "names": [
+   "Ciutadella | Vila Olímpica",
+   "Ciutadella | Vila Olímpica",
+   "Wellington | UPF",
+   "Barcelona Estació de França",
+   "Marina",
+   "Barceloneta",
+   "Arc de Triomf",
+   "Barcelona Arc de Triomf",
+   "Jaume I",
+   "Urquinaona"
+  ]
+ },
+ "sant-adria-board-1280": {
+  "title": "Estació de Sant Adrià",
+  "rows": [
+   "5:00T4, ProgramatVerdaguer",
+   "5:30T4, ProgramatVerdaguer",
+   "6:00T4, ProgramatVerdaguer",
+   "6:30T4, ProgramatVerdaguer",
+   "6:48T4, ProgramatVerdaguer",
+   "7:08T4, ProgramatVerdaguer",
+   "7:11T6, ProgramatCan Jaumandreu",
+   "7:28T4, ProgramatVerdaguer"
+  ],
+  "names": [
+   "Estació de Sant Adrià",
+   "Sant Adrià de Besòs",
+   "Sant Joan Baptista",
+   "Port Fòrum",
+   "La Catalana",
+   "Encants de Sant Adrià",
+   "La Mina",
+   "Parc del Besòs"
+  ]
+ },
+ "ciutadella-names-1280": {
+  "title": null,
+  "rows": [],
+  "names": [
+   "Ciutadella | Vila Olímpica",
+   "Ciutadella | Vila Olímpica",
+   "Wellington | UPF",
+   "Barcelona Estació de França",
+   "Arc de Triomf"
+  ]
+ },
+ "sant-adria-names-1280": {
+  "title": null,
+  "rows": [],
+  "names": [
+   "Estació de Sant Adrià",
+   "Sant Adrià de Besòs",
+   "Sant Joan Baptista",
+   "La Catalana"
+  ]
+ }
+}
