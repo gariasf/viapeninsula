@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import { markOf, openingView, TILT, tiltPressed, toggledPitch, type View } from './view.ts';
 
@@ -63,13 +64,20 @@ test('rings nothing where the link names no mark, or one that is not a latitude 
   for (const mark of malformed) expect(markOf(`#map=15/43.29878/-5.68332&mark=${mark}`)).toBeUndefined();
 });
 
-/** The pitches the tilt button's tests go by: flat, a touch's slight tilt, either side of half the tilt (22.5°), a tilt a hand makes, the tilt, and MapLibre's furthest. */
+/** The pitches the tilt button's tests go by: flat, a touch's slight tilt, 22.4° (just under half the tilt), 22.5° (half of it), a tilt a hand makes, the tilt, and MapLibre's furthest. */
 const PITCHES = [0, 2, 22.4, 22.5, 30, TILT, 60];
 
-test('the tilt button reads pressed from half the tilt up, so that a slight tilt by touch is not one', () => {
+test('the tilt button reads pressed from half the tilt up, so that a map a touch has tilted slightly still reads flat', () => {
   expect(PITCHES.map(tiltPressed)).toEqual([false, false, false, true, true, true, true]);
 });
 
-test('a press of the tilt button goes to the other of flat and the tilt than the one it reads: from below half the tilt to the tilt, and from half up to flat', () => {
+test('a press of the tilt button goes to the tilt from below half the tilt and to flat from half up, the other of the two than the one the button reads', () => {
   expect(PITCHES.map(toggledPitch)).toEqual([TILT, TILT, TILT, 0, 0, 0, 0]);
+});
+
+test("has the tilt button read its pressed state and take its press by view.ts's rule, not by a pitch of its own, so that what it reads and where a press goes can't disagree", () => {
+  // main.ts builds the whole page as it loads, so no test can import it: it's read as about.test.ts reads it.
+  const main = readFileSync(new URL('./main.ts', import.meta.url), 'utf8');
+  expect(main).toMatch(/setAttribute\('aria-pressed', String\(tiltPressed\(map\.getPitch\(\)\)\)\)/);
+  expect(main).toMatch(/tiltTo = toggledPitch\(map\.getPitch\(\)\)/);
 });
