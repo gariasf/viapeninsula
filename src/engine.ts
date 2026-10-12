@@ -1148,9 +1148,10 @@ const canRun = (trip: Trip, next: NonNullable<Report['expected']>, reported: num
  * first, on a map just opened, or after a snapshot that lacked it, is dropped until the next of its
  * feed's updates shows the Train moving: up to 2 minutes, FGC's. A Unit running on along an ended Trip
  * is taken for its Train, as no other RL1 Trip was due where RL1's Unit ran: one named by an ended Trip
- * while it ran a later Trip of its Line the same way would be drawn on both, the ended one as late as
- * that. Check that no Trip of the Line is due there too if that shows. And a report whose Trip ended
- * less than this before it is kept, as Geotren's naming 652dc7e000 was at 13:46, 11 minutes after it ended.
+ * while it ran a later Trip of its Line the same way would be drawn twice, Scheduled on the later Trip
+ * and Live on the ended one, that late. Check that no Trip of the Line is due there too if that shows.
+ * And a report whose Trip ended less than this before it is kept, as Geotren's naming 652dc7e000 was
+ * at 13:46, 11 minutes after it ended.
  */
 const ENDED = 30 * 60;
 
