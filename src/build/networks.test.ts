@@ -723,6 +723,30 @@ test("serves the Stations of a Trip made one from another's on the shape of the 
   expect(shapes.map((s) => s.id).sort()).toEqual(['rodalies:51_R4', 'rodalies:51_R4_INV', 'rodalies:51_RL4', 'rodalies:51_RL4:back']);
 });
 
+test("leaves a shape no way back for a Trip it was made one from, as 33527's R4 Trip from Manresa to Rajadell was the only one to run R4's shape back where another runs it from Rajadell to Manresa (#467)", async () => {
+  // Made up: 77500 calls at Rajadell and then Manresa on R4's shape, which is the way its feed draws it from Rajadell on.
+  const forwards = edited(rajadell, (row) => (row.startsWith('5184M77500R4,07:00:00,07:00:00,78700') ? row.replace(',78700,', ',78506,') : row.startsWith('5184M77500R4,07:03:00,07:03:00,78710') ? row.replace(',78710,', ',78600,') : row));
+  const { shapes } = await readFeed(forwards, '2026-10-13', RODALIES_FEED, () => {});
+  const ids = shapes.map((s) => s.id);
+  expect(ids).toContain('rodalies:51_R4_INV');
+  expect(ids).not.toContain('rodalies:51_R4_INV:back');
+});
+
+test("leaves a long-distance Train's parts to joinParts() though they share a service day and meet in the same minute, as MD 18030's from Vilches to Linares-Baeza and on to Mengíbar would (#467)", async () => {
+  // Renfe gives each part a service_id of its own, so none shares a day with another: made so here.
+  const shared: Source = (file) => {
+    const lines = longDistance(file);
+    if (file !== 'trips.txt' || !lines) return lines;
+    return (async function* () {
+      for await (const l of lines) yield l.replace(/2026-10-092026-10-3118030[234]/, '2026-10-092026-10-31180301');
+    })();
+  };
+  const log: string[] = [];
+  const { trips } = await readFeed(shared, '2026-10-10', MD_FEED, (l) => log.push(l));
+  expect(log.filter((l) => l.includes(' joins its '))).toEqual([]);
+  expect(trips.find((t) => t.number === '18030')?.joined).toBeUndefined();
+});
+
 test("serves a shape the same Stations on a day its Trains don't run, as it does on one they do, and joins none then (#467)", async () => {
   const log: string[] = [];
   const [on, off] = [await readFeed(rajadell, '2026-10-13', RODALIES_FEED, () => {}), await readFeed(rajadell, '2026-10-14', RODALIES_FEED, (l) => log.push(l))];

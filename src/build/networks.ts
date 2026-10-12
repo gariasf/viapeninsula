@@ -221,7 +221,6 @@ export async function readFeed(
       const main = joinOrder(run)[0];
       if (!main) continue;
       const calls = joinedCalls(run);
-      ends.set(main.id, { first: [1, calls[0]?.station ?? ''], last: [calls.length, calls.at(-1)?.station ?? ''] });
       const entry = dayTrips.get(main.id);
       const others = run.filter((t) => t !== main);
       for (const t of others) {
