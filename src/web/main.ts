@@ -10,6 +10,7 @@ import { along, APART, atZoom, BANDS, bandZooms, coveredIn, cutIn, GRAPH_BAND, S
 import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, unavailable, type Coming, type Departure, type Followed, type Received, type Train } from '../engine.ts';
 import { alertCount, alertsChanged, arrivingAt, basemapLabel, betweenStations, busesReplace, earlierStations, language, LANGUAGES, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, notRunning, passingStation, setLanguage, t, toGo, trainCounts, trainsRunHere, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
+import { getJson, STALL } from './files.ts';
 import { forgetJoined, regionLoader, regionsNeeded } from './regions.ts';
 import { linesAt, popupRoom } from './tap.ts';
 import { alongside, callsIn, namedTwice, nameOffset, nameSort, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
@@ -18,7 +19,7 @@ import { atMostEvery, drifted, letsGo } from './centre.ts';
 import { keepView, lastView, markOf, openingView, toggledPitch } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { darkInk, INK, lettering } from './colour.ts';
-import { boardList, cardAlerts, countdownTo, inNameOrder, linesOnBoard, linkedWords, minutesTo, nearbyRows, passedPlace, progress, tripsState, untilTick, whereabouts, type CardAlert, type Whereabouts } from './cards.ts';
+import { boardAsks, boardList, cardAlerts, countdownTo, inNameOrder, linesOnBoard, linkedWords, minutesTo, nearbyRows, nextOnItsWay, passedPlace, progress, tripsState, untilTick, whereabouts, type CardAlert, type Whereabouts } from './cards.ts';
 import { ARROW_GAP, boxOf, FOLLOWED_TEXT, LINE_HEIGHT, OUTLINE_SIZES, outlineOf, PILL_EDGE, PILL_PADDING, PILL_TEXT, pillReach, type Outline } from './pill.ts';
 import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, tappedRows, type Shown } from './closures.ts';
 
@@ -632,16 +633,20 @@ let lookAgain = false;
  * Whether the last look for the days the map needs had a region's file fail to come, which the map looks
  * for again each minute (refreshDays()): a board whose regions' Trips haven't come then says that none can
  * be had, rather than showing its label alone for good, as it does while they're on their way (#379). Up
- * here, as neededDays() sets it, and first runs before the module is past its top-level await.
- * ponytail: a request that stalls has failed no more than one that's slow, so its board keeps its label
- * alone until the browser gives the request up. Time the days' files out by their progress, not their
- * length, if that shows: a track takes seconds on a slow link.
+ * here, as neededDays() sets it, and first runs before the module is past its top-level await. A file
+ * that stalls fails as one that errs does, once no bytes have come for STALL (getJson(), #595).
  * ponytail: one flag and one wait for every region loaded, so a board with none left, of a region that came,
  * has its label alone while another region's Trips are on their way, and a region new to the map, asked for
- * after a look that failed, says that none can be had while its Trips come. Keep both by the board's own
- * regions (come()) if that shows.
+ * after a look that failed, says that none can be had while its Trips come, as Nearby does where its
+ * viewer's regions are new (#592). Keep both by the board's own regions (come()) if that shows.
  */
 let tripsFailed = false;
+/**
+ * Whether the map has looked again at once, for what failed, for the run of looks that have had a file
+ * fail (boardPanel(), #597): a board with none left, whose own regions' Trips failed, has it do so once,
+ * and the looks after it are the minute's, until one has no file fail.
+ */
+let failedRetried = false;
 /** The Stations of the track on the map, which come with its Lines. */
 let shownStations: Track['stations'] | undefined;
 /**
@@ -2542,7 +2547,8 @@ function alertRow({ lines: named, header, description, from, by }: CardAlert, by
  * those Lines, folded away (#342); then its next departures from each of its Stations, each with when
  * it's expected to leave, its Train's pill, where it's headed and its status. Peeking, the next PEEK
  * of them, and how many more. Until the Trips of the regions the map has loaded have come, only its
- * label, as Nearby's heading stands alone (boardList(), #379).
+ * label, as Nearby's heading stands alone (boardList(), #379), and with none left today, until the next
+ * day's, which it asks for once its own regions' have come, have (#597, #596).
  */
 function boardPanel(id: string, up: boolean): Panel | undefined {
   const place = shownPlaces.get(id);
@@ -2552,16 +2558,27 @@ function boardPanel(id: string, up: boolean): Panel | undefined {
   const departures = bundle ? boardAt(bundle, now, received, place.stations, hidingClosures) : [];
   const trips = tripsState(loaded, shownRegions, tripsFailed);
   // With none left today, the next day's first are to come; refreshDays() runs again within a minute if it's busy now.
-  // Not while its Trips are on their way, as it has none because they haven't come.
+  // Only once the Trips of its own regions have come (#597): before that it has none because they haven't. Where
+  // they failed, the map looks again for the failed files alone, at once, as the ask for the next day did without
+  // meaning to, whose look waits for every file of the next day's too: once for a run of looks that have had a file
+  // fail (failedRetried), and then by the minute's.
   const date = madridDate(new Date(mapNow));
-  if (bundle && trips !== 'coming' && !departures.length && emptyBoard !== date) {
-    emptyBoard = date;
-    refreshDays();
+  if (bundle && !departures.length) {
+    const ask = boardAsks(place.stations.every((station) => come({ station })), trips, emptyBoard === date, failedRetried);
+    if (ask === 'next') emptyBoard = date;
+    if (ask === 'again') failedRetried = true;
+    if (ask) refreshDays();
   }
   const shown = up ? departures : departures.slice(0, PEEK);
   // Neither rows nor "none" while the Trips of a region the map has loaded are on their way, as the bundle has the others' already
-  // (#266): it can't tell that none are to come, and says that only once they've come or a file has failed to.
-  const list = boardList(trips, departures.length);
+  // (#266): it can't tell that none are to come, and says that only once they've come or a file has failed to. Nor while the
+  // next day's, which a board with none left asks for, are on their way (#596): the map is looking and they're not on it yet,
+  // as the last day of its bundle is the day after today once they are.
+  // ponytail: a next day the manifest doesn't name, where a build has left the map without one, is looked for by
+  // no look, so a board that asked has its label alone for the second or so each minute's look takes. Go by the
+  // manifest's days if that shows.
+  const next = nextOnItsWay(looking, emptyBoard === date, bundle?.serviceDay, date);
+  const list = boardList(trips, departures.length, next);
   return {
     header: el(
       'header',
@@ -2666,10 +2683,12 @@ function nearbyPanel(near: Point | Unlocated, up: boolean): Panel {
   // Where no Train passes, saying so is what a try found too, so the status says it, for a screen reader to
   // hear; but only once the Trips of the regions round the viewer have come (#266), which can be after the
   // viewer is found, as the map can't tell before: at once where no region is, though the map has loaded none.
+  // Or the last look had a file fail, which the map looks for again each minute, as a board says that none can
+  // be had then (#592), not its heading alone for as long as they fail.
   // ponytail: a screen reader hears the status again whenever a refresh empties the list, and maybe its
   // heading alone as the list fills; keep the status to what the try found if that's too chatty.
   if (!rows.length) {
-    if (come({ nearby: { at: near, metres: NEARBY } })) said.append(el('p', { textContent: t('noneNearby') }));
+    if (come({ nearby: { at: near, metres: NEARBY } }) || tripsFailed) said.append(el('p', { textContent: t('noneNearby') }));
     return { header, body: [said] };
   }
   return {
@@ -2933,7 +2952,8 @@ function creditOf({ text, url, licence, updated }: Credit): string {
  */
 async function neededDays(): Promise<{ track: Promise<Track | undefined>; days: Promise<Bundle>; regions: Promise<string[]> } | undefined> {
   try {
-    manifest = await getJson<Manifest>(`${LIVE_URL}/manifest.json`);
+    // Not the first, which the page's top-level await needs: one cut there would stop the page, as a failed one does (#595).
+    manifest = await getJson<Manifest>(`${LIVE_URL}/manifest.json`, { stall: manifest && STALL });
   } catch (error) {
     if (!manifest) throw error;
     console.warn(error);
@@ -2951,7 +2971,7 @@ async function neededDays(): Promise<{ track: Promise<Track | undefined>; days: 
   for (const key of fetched.keys()) if (!keys.includes(key)) fetched.delete(key);
   forgetJoined(joinedTracks, keys);
   const get = <T>(key: string) => {
-    const file = fetched.get(key) ?? getJson<T>(`${LIVE_URL}/${key}`);
+    const file = fetched.get(key) ?? getJson<T>(`${LIVE_URL}/${key}`, { stall: STALL });
     fetched.set(key, file);
     file.catch(() => fetched.delete(key));
     return file as Promise<T>;
@@ -2963,6 +2983,7 @@ async function neededDays(): Promise<{ track: Promise<Track | undefined>; days: 
     // Without today's bundle there's nothing to draw; without another day's, the map does without it until next time.
     const lost = got.flatMap((g, i) => (g.status === 'rejected' ? [[days[i], g.reason] as const] : []));
     tripsFailed = load.failed();
+    failedRetried &&= tripsFailed;
     for (const [day, reason] of lost) if (day === today) throw reason;
     if (lost.length) console.warn(...lost.map(([, reason]) => reason));
     shown = load.failed() || lost.length ? '' : keys.join();
@@ -3053,7 +3074,7 @@ function openWaitingLink() {
 function getZoomedOut({ zoomedOut: key }: Manifest) {
   if (!key || key === zoomedOutKey) return;
   zoomedOutKey = key;
-  getJson<ZoomedOut>(`${LIVE_URL}/${key}`).then(
+  getJson<ZoomedOut>(`${LIVE_URL}/${key}`, { stall: STALL }).then(
     (file) => {
       if (zoomedOutKey !== key) return;
       zoomedOut = file;
@@ -3072,7 +3093,7 @@ async function poll() {
   let snapshot: Snapshot | undefined;
   try {
     // One that hangs gives up well before the next is due.
-    snapshot = await getJson<Snapshot>(`${LIVE_URL}/snapshot.json`, AbortSignal.timeout(10_000));
+    snapshot = await getJson<Snapshot>(`${LIVE_URL}/snapshot.json`, { signal: AbortSignal.timeout(10_000) });
   } catch (error) {
     // The map has nothing newer than its last snapshot, which the Trains keep to until the next comes.
     console.warn(error);
@@ -3091,16 +3112,10 @@ async function poll() {
 async function getAlerts() {
   if (document.hidden) return;
   try {
-    alerts = await getJson<Alerts>(`${LIVE_URL}/alerts.json`, AbortSignal.timeout(10_000));
+    alerts = await getJson<Alerts>(`${LIVE_URL}/alerts.json`, { signal: AbortSignal.timeout(10_000) });
   } catch (error) {
     console.warn(error);
   }
   // And a minute on, the Closures within their hours then.
   drawClosures();
-}
-
-async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
-  const res = await fetch(url, { signal });
-  if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
-  return (await res.json()) as T;
 }

@@ -86,10 +86,34 @@ export function tripsState(loaded: Iterable<string>, came: ReadonlySet<string>, 
  * has none, that none can be had, once the day's Trips have come, or have failed to, as the map tries
  * them again each minute; or, while they're on their way, nothing under its label, as under Nearby's
  * heading (#324): that none are to come is what it would say of Trips it hasn't got, and then fill in (#379).
+ * The same while the next day's, which a board with none left today asks for, are on their way (`next`,
+ * #596), but not where a file has failed, which the map looks for again each minute: the board says that
+ * none can be had meanwhile, and doesn't go back to its label for each try.
  */
-export function boardList(trips: TripsState, departures: number): 'rows' | 'none' | 'label' {
+export function boardList(trips: TripsState, departures: number, next = false): 'rows' | 'none' | 'label' {
   if (departures) return 'rows';
-  return trips === 'coming' ? 'label' : 'none';
+  return trips === 'coming' || (next && trips !== 'failed') ? 'label' : 'none';
+}
+
+/**
+ * What a board with none left today asks the map for (#597): the next day's Trips, once the Trips of its
+ * own regions have come (`own`) and it hasn't asked today (`asked`); or, where they haven't and the last
+ * look had a file fail, a look again at once for the files that failed (`again`), as that look would wait
+ * for every file of the next day's, once for a run of looks that have had a file fail (`retried`) and then
+ * by the minute's. Nothing while its own regions' Trips are on their way: it has none because they haven't come.
+ */
+export function boardAsks(own: boolean, trips: TripsState, asked: boolean, retried: boolean): 'next' | 'again' | undefined {
+  if (own) return asked ? undefined : 'next';
+  return trips === 'failed' && !retried ? 'again' : undefined;
+}
+
+/**
+ * Whether the next day's Trips, which a board with none left today asked for (`asked`), are on their way
+ * (#596): the map is looking for the days it needs, and the last day of its bundle, today's where it has
+ * none, isn't past `today` yet, as it is once they're on it.
+ */
+export function nextOnItsWay(looking: boolean, asked: boolean, lastDay: string | undefined, today: string): boolean {
+  return looking && asked && (lastDay ?? today) <= today;
 }
 
 /**
