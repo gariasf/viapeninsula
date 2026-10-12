@@ -2239,6 +2239,18 @@ test("through Renfe's long-distance feed failing, with its Cercanías one workin
   expect(trainAt(WITH_LD, at('22:33:00'), by(received, at('22:33:00')), R2S)?.delay).toBe(0);
 });
 
+test("a Train whose long-distance GPS holds for over 30 minutes, its feed working, is drawn as without those reports once its last GPS Delay has run out, never by Renfe's figure (#442)", () => {
+  // Renfe's long-distance GPS has the R2S 116 s late at 22:00, and at the same spot every 40 s after, where Renfe says 1,800.
+  const first = by25478(at('22:00:00'), 116, 1800);
+  const received = Array.from({ length: 60 }, (_, i) => renfeSince(at('22:00:00', i * 40), [{ ...first, at: at('22:00:00', i * 40) }], at('22:00:00', i * 40), at('22:00:00', i * 40)));
+  const alone = received.map((r, i) => (i === 0 ? r : { ...r, snapshot: { ...r.snapshot, reports: [] } }));
+  for (const moment of [at('22:01:00'), at('22:10:00'), at('22:29:50'), at('22:31:00'), at('22:39:00')]) {
+    const [held, without] = [train(R2S, moment, received, WITH_LD), train(R2S, moment, alone, WITH_LD)];
+    expect([held?.live, held?.dist]).toEqual([without?.live, without?.dist]);
+  }
+  expect(train(R2S, at('22:39:00'), received, WITH_LD)?.dist).toBeCloseTo(where(R2S, at('22:39:00')) ?? NaN, 3);
+});
+
 test("through Renfe's Cercanías feed failing, with its long-distance one working, a Train its long-distance reports place stays Live, as R16 18127 (#425)", () => {
   // Renfe's long-distance GPS has the R2S on time every 40 s from 22:00, its Cercanías feed failing from 21:59.
   const received = Array.from({ length: 12 }, (_, i) => {

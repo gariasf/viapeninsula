@@ -1089,8 +1089,11 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
       // A report by Train number whose GPS measures no Delay says nothing of a Trip of a Network whose own
       // live data doesn't name Trains by number, as of Rodalies' R15 17050, whose timetable runs 30 minutes
       // ahead of Renfe's long-distance one that Renfe's figure is against: its Train is drawn as without it,
-      // not Live by that figure, 20–25 km ahead of its GPS (#442). One that cancels it still does (#429).
-      const report = given?.number && !network.live?.numbers && !given.cancelled && !ownDelay(given).measured ? undefined : given;
+      // not Live by that figure, 20–25 km ahead of its GPS (#442). Nor does one whose GPS is the same as the
+      // report's before, which hear() takes as no position, and would give the Train Renfe's figure once
+      // its last GPS Delay has run out. One that cancels it still does (#429).
+      const foreign = given?.number && !network.live?.numbers && !given.cancelled;
+      const report = foreign && (!ownDelay(given).measured || (network.live?.delay === 'gps' && sameSpot(heard.get(id)?.report.position, given.position))) ? undefined : given;
       if (!report && !ease) continue;
       const [feed, first, second] = [feeds[network.id], calls[0], calls[1]];
       const was = isLive(heard.get(id), feeds, upTo);
