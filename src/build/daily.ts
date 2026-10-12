@@ -15,7 +15,7 @@
 // out/comment.md where a problem spot is new, which daily.yml posts on the standing "Build report"
 // issue.
 // `npm run daily` publishes; `npm run daily -- --dry-run` only writes the files to out/, and reads
-// the timetables from the feed cache, .cache/feeds/<today>, where they're kept from the first dry run
+// the timetables from the feed cache, the main checkout's .cache/feeds/<today>, where they're kept from the first dry run
 // of the day, so that every dry run of a day builds on the same feeds (#730).
 // `--dry-run --region <id>` builds only that region and writes only its files: none of the others',
 // nor the manifest, the file below zoom 7 or the report. A change whose effects cross regions, as long
@@ -27,7 +27,7 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { appendFile, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { brotliCompressSync, constants } from 'node:zlib';
 import { addDays, LIVE_URL, madridDate, profiled, type Manifest, type Network } from '../bundle.ts';
@@ -56,8 +56,9 @@ const listers = wanted.some((r) => r.networks.some((n) => n.timetables.every((t)
 const today = madridDate(new Date());
 const DAYS = [0, 1, 2].map((n) => addDays(today, n));
 const report = collect();
-// A dry run's feed cache: today's alone, as the feeds change from day to day.
-const FEEDS = join('.cache', 'feeds');
+// A dry run's feed cache: today's alone, as the feeds change from day to day, in the main checkout's
+// .cache/, which its worktrees share, so that their dry runs and main's baseline build on the same feeds.
+const FEEDS = join(dryRun ? dirname(execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8' }).trim()) : '', '.cache', 'feeds');
 if (dryRun) for (const day of await readdir(FEEDS).catch(() => [])) if (day !== today) await rm(join(FEEDS, day), { recursive: true, force: true });
 // Every Network's timetables, downloaded at once, and why they couldn't be, where one couldn't: that
 // doesn't stop the others, and its Network's are read from their copy (readTimetables()). And those of
@@ -78,7 +79,7 @@ const [lastManifest, lastReport] = await Promise.all([
 const listed = DAYS.map((): Map<string, Set<string>>[] => []);
 await mkdir('out/days', { recursive: true });
 // A Network that can't be read lists none, as in a full run, where its region fails.
-for (const { network, failed } of downloads.slice(0, listers.length)) await readTimetables(network, failed, readDays, () => {}).then(list, (error: unknown) => console.warn(`${network.name} isn't read: ${error instanceof Error ? error.message : error}`));
+for (const { network, failed } of downloads.slice(0, listers.length)) await readTimetables(network, failed, readDays, () => {}).then(addListed, (error: unknown) => console.warn(`${network.name} isn't read: ${error instanceof Error ? error.message : error}`));
 // Each region, one after another: its Networks read and built, its Lines drawn side by side, and its
 // files written. A region that fails keeps the files of its last build (buildRegions()).
 const results = await buildRegions(
@@ -95,7 +96,7 @@ const results = await buildRegions(
         try {
           return build(network, read);
         } finally {
-          list(read);
+          addListed(read);
         }
       },
       write,
@@ -274,7 +275,7 @@ function build(config: NetworkConfig, { published, days }: Awaited<ReturnType<ty
 }
 
 /** The Train numbers a Network's timetables list on each of DAYS, as long distance leaves those Trains to it (unlisted()). */
-function list(read: Awaited<ReturnType<typeof readDays>>) {
+function addListed(read: Awaited<ReturnType<typeof readDays>>) {
   for (const [i, parts] of read.days.entries()) listed[i]?.push(...parts.map((p) => p.listed));
 }
 

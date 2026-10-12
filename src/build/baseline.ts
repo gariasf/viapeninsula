@@ -10,7 +10,7 @@
 
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, renameSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
@@ -25,7 +25,8 @@ const key = `${day}-${createHash('sha256').update(trees.join()).digest('hex').sl
 // The main checkout's, which every worktree shares.
 const root = dirname(git('rev-parse', '--path-format=absolute', '--git-common-dir'));
 const baselines = join(root, '.cache', 'baselines');
-const [dir, lock] = [join(baselines, key), join(baselines, `${key}.lock`)];
+const dir = join(baselines, key);
+const lock = join(baselines, `${key}.lock`);
 const out = join(dir, 'out');
 
 mkdirSync(baselines, { recursive: true });
@@ -51,40 +52,51 @@ while (!existsSync(out)) {
 }
 console.log(out);
 
-/** Whether the run that holds the lock is alive: one that has only just taken it has yet to write its pid. */
+/**
+ * Whether the run that holds the lock is alive: one that has only just taken it has yet to write its
+ * pid, but one whose lock has had none for a minute died before it could.
+ * ponytail: a pid the system has given another process since keeps a dead run's lock alive; delete
+ * the lock by hand if a baseline waits on a run that isn't there.
+ */
 function building(): boolean {
   try {
     process.kill(Number(readFileSync(join(lock, 'pid'), 'utf8')), 0);
     return true;
   } catch (error) {
-    return (error as NodeJS.ErrnoException).code === 'ENOENT' && existsSync(lock);
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return false;
+    try {
+      return Date.now() - statSync(lock).mtimeMs < 60_000;
+    } catch {
+      return false;
+    }
   }
 }
 
 /** Builds the baseline: a dry run of origin/main in a worktree of its own, whose out/ is written into the baseline's folder. */
 function build() {
   for (const old of readdirSync(baselines)) if (!old.startsWith(day)) rmSync(join(baselines, old), { recursive: true, force: true });
-  console.warn(`Building main's baseline ${key} at ${commit?.slice(0, 8)}, logging to ${dir}.log`);
+  console.warn(`Building main's baseline ${key} at ${commit!.slice(0, 8)}, logging to ${dir}.log`);
   const tree = mkdtempSync(join(tmpdir(), 'baseline-'));
   const partial = join(dir, 'partial');
-  rmSync(dir, { recursive: true, force: true });
-  mkdirSync(partial, { recursive: true });
-  git('worktree', 'add', '-q', '--detach', tree, commit!);
-  const links = ['node_modules', '.cache'].map((name) => {
-    symlinkSync(join(root, name), join(tree, name));
-    return join(tree, name);
-  });
-  // out/ is the baseline's own folder, and the timetables' zips go in the worktree, not the system's
-  // temporary folder, where another dry run at the same time writes its own (zipFile()).
-  symlinkSync(partial, join(tree, 'out'));
-  mkdirSync(join(tree, 'tmp'));
   try {
+    rmSync(dir, { recursive: true, force: true });
+    mkdirSync(partial, { recursive: true });
+    git('worktree', 'add', '-q', '--detach', tree, commit!);
+    for (const name of ['node_modules', '.cache']) symlinkSync(join(root, name), join(tree, name));
+    // out/ is the baseline's own folder, and the timetables' zips go in the worktree, not the system's
+    // temporary folder, where another dry run at the same time writes its own (zipFile()).
+    symlinkSync(partial, join(tree, 'out'));
+    mkdirSync(join(tree, 'tmp'));
     const log = openSync(`${dir}.log`, 'w');
     const run = spawnSync(process.execPath, [`--env-file-if-exists=${join(root, '.env.local')}`, 'src/build/daily.ts', '--dry-run'], { cwd: tree, env: { ...process.env, TMPDIR: join(tree, 'tmp') }, stdio: ['ignore', log, log] });
+    closeSync(log);
     if (run.status !== 0) throw new Error(`main's dry run failed: see ${dir}.log`);
     renameSync(partial, out);
   } finally {
-    for (const link of [...links, join(tree, 'out')]) unlinkSync(link);
-    git('worktree', 'remove', '--force', tree);
+    // The links go first, so that removing the worktree never follows them into what they link.
+    for (const name of ['node_modules', '.cache', 'out']) rmSync(join(tree, name), { force: true });
+    if (existsSync(join(tree, '.git'))) git('worktree', 'remove', '--force', tree);
+    rmSync(tree, { recursive: true, force: true });
+    rmSync(partial, { recursive: true, force: true });
   }
 }
