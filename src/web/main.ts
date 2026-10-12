@@ -8,7 +8,7 @@ import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
 import { along, APART, atZoom, BANDS, bandZooms, coveredIn, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, profiled, zones, type Zone, daysNeeded, daysOf, DEGREE, EARTH, joinTracks, LIVE_URL, madridDate, networkTracks, places, type Alerts, type Bundle, type Credit, type Call, type DayFiles, type Place, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH, type ZoomedOut } from '../bundle.ts';
 import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, unavailable, type Coming, type Departure, type Followed, type Received, type Train } from '../engine.ts';
-import { alertCount, alertsChanged, arrivingAt, basemapLabel, betweenStations, busesReplace, earlierStations, language, LANGUAGES, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, notRunning, passingStation, setLanguage, t, toGo, trainCounts, trainsRunHere, unlocated, type Language, type Unlocated } from './i18n.ts';
+import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, earlierStations, followDeparture, language, LANGUAGES, leavesAt, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreStations, notRunning, passingStation, setLanguage, t, toGo, trainCounts, trainsRunHere, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { getJson, STALL } from './files.ts';
 import { firstLook, forgetJoined, regionLoader, regionsNeeded } from './regions.ts';
@@ -2265,7 +2265,7 @@ function followedPanel(up: boolean): Panel | undefined {
 function comingPanel({ trip, live, delay, upcoming, within }: Coming, up: boolean, now: number): Panel {
   const running = upcoming.filter((c) => !c.skipped);
   const [first, last] = [upcoming[0], running.at(-1)];
-  const leaves = first && t('leavesAt').replace('{station}', stationName(first.station)).replace('{time}', clock().format(first.departure));
+  const leaves = first && leavesAt(stationName(first.station), clock().format(first.departure));
   // The Closure's Stations in the order its Trip meets them, as they are where it calls at neither.
   const order = (station: string) => trip.calls.findIndex((c) => c.station === station);
   const [a = '', b = ''] = within?.stations.toSorted((x, y) => order(x) - order(y)).map(stationName) ?? [];
@@ -2288,7 +2288,7 @@ function backButton(): Node[] {
   if (!back) return [];
   const where = back.to === 'train' ? undefined : back.to === 'board' ? shownPlaces.get(back.place)?.name : t('nearby');
   if (back.to === 'train' ? !(bundle && (trainAt(bundle, Date.now(), received, back.day === bundle.serviceDay ? back.trip : `${back.day}/${back.trip}`, hidingClosures) || comingAt(bundle, Date.now(), received, back.day === bundle.serviceDay ? back.trip : `${back.day}/${back.trip}`, hidingClosures))) : !where) return [];
-  const label = back.to === 'train' ? t('backToTrain').replace('{headsign}', back.headsign) : t('backTo').replace('{place}', where ?? '');
+  const label = back.to === 'train' ? backToTrain(back.headsign) : backTo(where ?? '');
   return [el('button', { type: 'button', className: 'back', onclick: goBack }, icon('back'), el('span', { textContent: label }))];
 }
 
@@ -2672,7 +2672,7 @@ function departureRow({ trip, departure, delay, live, unreported, cancelled, ski
 
 /** A row that's a button following a Trip's Train, which a screen reader hears as its Line, where it's headed and when (#322): the cells that are its row, as it spreads them. */
 function followButton(trip: Trip, at: number, cells: Node[]) {
-  const label = t('followDeparture').replace('{line}', lines.get(trip.line)?.name ?? '').replace('{headsign}', trip.headsign).replace('{time}', clock().format(at));
+  const label = followDeparture(lines.get(trip.line)?.name ?? '', trip.headsign, clock().format(at));
   const button = el('button', { type: 'button', className: 'row', onclick: () => openFrom(() => follow(trip.id)) }, ...cells);
   // With what the row says at its end, its Delay or that it isn't stopping, which the label would drop.
   const says = cells.at(-1)?.textContent?.trim();

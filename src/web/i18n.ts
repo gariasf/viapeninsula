@@ -8,7 +8,9 @@ export type Language = keyof typeof LANGUAGES;
 
 /**
  * Every interface string, in each language. Names aren't here, as they read the same in every
- * language: Stations and Lines are shown as their operators publish them, and the credits name
+ * language: Stations and Lines are shown as their operators publish them, but for the word before a
+ * Station's name in Catalan and Galician, which runs into its article or elides before its vowel, and
+ * a Catalan name's La, Les or L' that goes in lower case after it (named(), #606), and the credits name
  * their sources as those sources do. The Basque and Galician are machine-translated, as About says
  * (MACHINE_TRANSLATED). Basque writes one in words, after its noun ("geltoki bat"), as Euskaltzaindia's
  * norm 203 has it.
@@ -377,9 +379,73 @@ export const toGo = (n: number, phrase: 'minutes' | 'inMinutes' | 'inSeconds', l
 /** The banner's short form, saying that a Network's live data is unavailable, by its name, in `lang`, or else the language the interface speaks now. */
 export const liveUnavailable = (network: string, lang = language()): string => STRINGS.liveUnavailable[lang].replace('{network}', network);
 
+/**
+ * What Catalan and Galician make of a preposition and the article a name starts with, by the article and
+ * then the preposition: Catalan's "al Prat" (El Prat), "als Monjos" (Els Monjos), "del", "dels", "pel" and
+ * "pels"; Galician's "á Coruña" (A Coruña), "ao Porriño" (O Porriño), "ás", "aos", "da", "do", "das",
+ * "dos", "pola", "polo", "polas" and "polos" (#606).
+ */
+const CONTRACTED: Partial<Record<Language, Record<string, Record<string, string>>>> = {
+  ca: { El: { a: 'al', de: 'del', per: 'pel' }, Els: { a: 'als', de: 'dels', per: 'pels' } },
+  gl: {
+    A: { a: 'á', de: 'da', por: 'pola' },
+    As: { a: 'ás', de: 'das', por: 'polas' },
+    O: { a: 'ao', de: 'do', por: 'polo' },
+    Os: { a: 'aos', de: 'dos', por: 'polos' },
+  },
+};
+
+/**
+ * Whether a name or the rest of one starts with a vowel or an h, which Catalan's de elides before:
+ * "d'Arenys de Mar", "d'Hostalric". Not an i or u that's a semivowel, before another vowel,
+ * with an h or not: "de Huelva", "de Ialta" (the IEC's Ortografia catalana, 4.1.2d).
+ */
+const elides = (name: string): boolean => /^h?(?![iu][aeiou])[aeiou]/i.test(name.normalize('NFD'));
+
+/**
+ * `text` with `name`, a Station's name, a place's or a headsign, where its `slot` is, in `lang`: as it's
+ * published, except that Catalan and Galician write the word before it as one with its article, which
+ * the name has as a capital (CONTRACTED), and Catalan elides de before a vowel or an h, "d'Arenys de Mar",
+ * and writes a name's La, Les and L' in lower case (#606). "Fins a", "cap a" and "cara a" end in a, and
+ * Galician's "ata" takes no contraction. El before a vowel or an h is a Spanish name's, as Catalan writes
+ * L' there, and a name of another language that starts with an article keeps it and its capital, with no
+ * contraction and de elided before it: "a El Escorial", "d'El Escorial", "d'A Coruña" (the IEC's
+ * Ortografia catalana, 4.1.2g and 4.2.2c). La, Les and L' go in lower case, "a la Garriga", "de les Borges
+ * Blanques", "per l'Hospitalet", as the IEC writes a Catalan name's article in a sentence (its Regles d'ús
+ * de les majúscules, 18.2); Galician, Spanish, Basque and English go by the name as published, as the RAE
+ * has it for a capital article that's part of the name.
+ * ponytail: an h that's aspirated, a loanword's, elides too, as no Station's name has one; and a Spanish
+ * name's El before a consonant contracts as Catalan's does, "al Berrón", and its La goes in lower case,
+ * "a la Garena", where the IEC keeps both as the name has them, "a El Berrón", "a La Garena", as a name
+ * has no language here but the one it's written in: its Network's would tell them apart (#673).
+ */
+const named = (text: string, slot: '{station}' | '{place}' | '{headsign}', name: string, lang: Language): string => {
+  const [before = '', after = ''] = text.split(slot);
+  const [, head = '', prep = ''] = /^(.*?)(\S+) $/s.exec(before) ?? [];
+  const [article = '', ...words] = name.split(' ');
+  const rest = words.join(' ');
+  const into = CONTRACTED[lang]?.[article]?.[prep];
+  if (into && !(article === 'El' && elides(rest))) return `${head}${into} ${rest}${after}`;
+  if (lang === 'ca' && prep === 'de' && elides(name)) return `${head}d'${name}${after}`;
+  return `${before}${lang === 'ca' ? name.replace(/^(?:La |Les |L')/, (lead) => lead.toLowerCase()) : name}${after}`;
+};
+
 /** How many Stations a followed Train has still to come after its next, `n`, to its last, where it's headed, and when it's due there, in `lang`, or else the language the interface speaks now. */
 export const moreStations = (n: number, headsign: string, time: string, lang = language()): string =>
-  counting(n, 'oneMoreStation', 'moreStations', lang).replace('{headsign}', headsign).replace('{time}', time);
+  named(counting(n, 'oneMoreStation', 'moreStations', lang), '{headsign}', headsign, lang).replace('{time}', time);
+
+/** A departure's button, naming what it follows (#322): its Line, where it's headed and when, in `lang`, or else the language the interface speaks now. */
+export const followDeparture = (line: string, headsign: string, time: string, lang = language()): string =>
+  named(STRINGS.followDeparture[lang].replace('{line}', line), '{headsign}', headsign, lang).replace('{time}', time);
+
+/** Where a Trip still to come leaves, from which Station and when, in `lang`, or else the language the interface speaks now. */
+export const leavesAt = (station: string, time: string, lang = language()): string => named(STRINGS.leavesAt[lang], '{station}', station, lang).replace('{time}', time);
+
+/** Back, to a place whose board it was opened from, or to Nearby by its title, which no article of a name starts, in `lang`, or else the language the interface speaks now. */
+export const backTo = (place: string, lang = language()): string => named(STRINGS.backTo[lang], '{place}', place, lang);
+
+/** Back, to the Train it was opened from, by where it's headed, in `lang`, or else the language the interface speaks now. */
+export const backToTrain = (headsign: string, lang = language()): string => named(STRINGS.backToTrain[lang], '{headsign}', headsign, lang);
 
 /** How many Stations a followed Train has already left, `n`, atop its strip: while they're folded away, or hiding them once they're `shown`, in `lang`, or else the language the interface speaks now. */
 export const earlierStations = (n: number, shown: boolean, lang = language()): string =>
@@ -413,16 +479,16 @@ export const notRunning = (a: string, b: string, lang = language()): string => t
 export const trainsRunHere = (line: string, time: string, lang = language()): string => STRINGS.trainsRunHere[lang].replace('{line}', line).replace('{time}', time);
 
 /** That a followed Train is arriving at a Station, by how it's drawn (#455), in `lang`, or else the language the interface speaks now. */
-export const arrivingAt = (station: string, lang = language()): string => STRINGS.arriving[lang].replace('{station}', station);
+export const arrivingAt = (station: string, lang = language()): string => named(STRINGS.arriving[lang], '{station}', station, lang);
 
 /** That a followed Train is leaving a Station, by how it's drawn (#455), in `lang`, or else the language the interface speaks now. */
-export const leavingStation = (station: string, lang = language()): string => STRINGS.leaving[lang].replace('{station}', station);
+export const leavingStation = (station: string, lang = language()): string => named(STRINGS.leaving[lang], '{station}', station, lang);
 
 /** That a followed Train is between two Stations, by how it's drawn (#455), in `lang`, or else the language the interface speaks now. */
 export const betweenStations = (a: string, b: string, lang = language()): string => twoStations('between', a, b, lang);
 
 /** That a followed Train is passing a Station without stopping, by how it's drawn (#457), in `lang`, or else the language the interface speaks now. */
-export const passingStation = (station: string, lang = language()): string => STRINGS.passing[lang].replace('{station}', station);
+export const passingStation = (station: string, lang = language()): string => named(STRINGS.passing[lang], '{station}', station, lang);
 
 /**
  * Why Nearby can't show the viewer's nearby Trains: the browser is finding where they are, as Nearby's
