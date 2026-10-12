@@ -392,7 +392,7 @@ interface Visit {
   last: number;
   length: number;
   steps: [from: number, to: number];
-  /** Which way its first step goes along the centreline and which way its last does: 1 towards its end, -1 towards its start, 0 across it. */
+  /** Which way its first step goes along the centreline and which way its last does: 1 towards its end, -1 towards its start, 0 across it, or where visits() isn't given the way each piece runs. */
   ways: [first: number, last: number];
 }
 
@@ -416,7 +416,7 @@ function visits(shape: Step[], pieces: Piece[], drawer: number[], edgeOf: Map<nu
     const way = wayOn ? wayAlong(s, pieces, drawn, wayOn) : 0;
     const length = pieces[s.piece]?.length ?? 0;
     const v = found.at(-1);
-    if (v?.edge === edge) [v.last, v.length, v.steps[1], v.ways[1]] = [middle, v.length + length, i + 1, way || v.ways[1]];
+    if (v?.edge === edge) [v.last, v.length, v.steps[1], v.ways[1]] = [middle, v.length + length, i + 1, way];
     else found.push({ edge, first: middle, last: middle, length, steps: [i, i + 1], ways: [way, way] });
   }
   return found;
@@ -625,7 +625,7 @@ function curves(joins: Join[], found: Stretch[], onStretch: Map<string, Stroke[]
     };
     let made: ReturnType<typeof across> = [];
     for (;;) {
-      made = notTwice(across(at, hidden, id), (s) => hidden(s) && found[edgeOf.get(s) ?? -1]?.steps.length === 1, id);
+      made = notTwice(across(at, hidden, id), (s) => found[edgeOf.get(s) ?? -1]?.steps.length === 1, id);
       // The most each Line crossing a node changes side, or moves over, at each front, and the node's room there.
       const change = new Map<string, number>();
       const curved = new Set<string>(); // each stroke end a curve takes over at, `<stroke> <end>`
@@ -826,16 +826,16 @@ export function across(at: Map<Stroke, [Leg[], Leg[]]>, hidden: (s: Stroke) => b
 }
 
 /**
- * Each Line's ways across the nodes, less those through a hidden stroke of one piece (`short`) where the Line
- * has another between the same two strokes without it. That stroke is a piece of the Line's other track, and
- * a curve of its own would draw the same line again, as Cádiz's T1 does by a 37 m Stretch at its junction (#599).
+ * Each Line's ways across the nodes, less those through a hidden stroke of one piece (`onePiece`) where the
+ * Line has another between the same two strokes without it. That stroke is a piece of the Line's other track,
+ * and a curve of its own would draw the same line again, as Cádiz's T1 does by a 37 m Stretch at its junction (#599).
  */
-export function notTwice(ways: Leg[][], short: (s: Stroke) => boolean, id: Map<Stroke, number>): Leg[][] {
-  // A way's Line, the stroke ends it goes between, and the strokes between them but those of one piece, whichever way round it goes.
+export function notTwice(ways: Leg[][], onePiece: (s: Stroke) => boolean, id: Map<Stroke, number>): Leg[][] {
+  // The stroke ends a way goes between, and the strokes between them but those of one piece, whichever way round it goes.
   const key = (legs: Leg[]) => {
     const ends = [legs[0], legs.at(-1)].map((l) => `${l && id.get(l.stroke)}.${l?.end}`).sort();
-    const between = legs.slice(1, -1).filter((l) => !short(l.stroke)).map((l) => id.get(l.stroke)).sort();
-    return `${legs[0]?.stroke.line} ${ends} ${between}`;
+    const between = legs.slice(1, -1).filter((l) => !onePiece(l.stroke)).map((l) => id.get(l.stroke)).sort();
+    return `${ends} ${between}`;
   };
   const fewest = new Map<string, number>();
   for (const legs of ways) {
@@ -980,7 +980,7 @@ function graph(edges: Stretch[], walked: { line: number; visits: Visit[] }[], by
     for (let i = visits.length - 1; i >= 0; i--) {
       const [v, w] = [visits[i], visits[i + 1]];
       if (v && v.length < SHORT) visits.splice(i, 1);
-      else if (v && w && v.edge === w.edge) visits.splice(i, 2, { ...v, last: w.last, length: v.length + w.length, ways: [v.ways[0], w.ways[1]] });
+      else if (v && w && v.edge === w.edge) visits.splice(i, 2, { ...v, last: w.last, length: v.length + w.length });
     }
     for (const [i, v] of visits.entries()) {
       const w = visits[i + 1];
@@ -1033,7 +1033,7 @@ export function end({ edge, first, last, ways }: Visit, edges: Stretch[], into: 
   // Along a Stretch of one piece, which has no first and last, it comes in at the end its first step goes
   // from and goes out at the end its last goes to, not at the nearer one both times (#599).
   const way = ways[into ? 0 : 1];
-  if (first === last && steps.length === 1 && way) return way > 0 !== into ? 1 : 0;
+  if (steps.length === 1 && way) return way > 0 !== into ? 1 : 0;
   if (first === last) return last - from > to - last ? 1 : 0; // the nearer
   return last > first !== into ? 1 : 0;
 }
