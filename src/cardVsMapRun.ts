@@ -175,7 +175,7 @@ for (const dir of process.argv.slice(2)) {
       const px = pixelMetres(Math.max(zoom, pillZoom), train.lat);
       const arrowReach = half + ARROW_GAP * px;
       // How near a Station it's drawn for its dot to be at it: AT px at the zoom its pill is drawn at, as its reach is, so that the count says the same at every zoom (#608).
-      const at = AT * px;
+      const atReach = AT * px;
       // As the operator runs it: its calls as `o.calls` has them, one for one (cutTrip(), #346).
       const made = o.trip;
       const kx = DEGREE * Math.cos((train.lat * Math.PI) / 180);
@@ -200,9 +200,9 @@ for (const dir of process.argv.slice(2)) {
         dist: train.dist,
         calls,
         standing: !!train.standsAt,
-        // The places within the arrow's reach, and within `at` if that is more, which it's not while AT is the arrow's gap's 7 px: near holds all that is counted from it.
-        near: nearTo(train.lon, train.lat, Math.max(at, arrowReach)),
-        reach: { pill: half, arrow: arrowReach, at },
+        // The places within the arrow's reach, and within `reach.at` if that is more, which it's not while AT is the arrow's gap's 7 px: near holds all that is counted from it.
+        near: nearTo(train.lon, train.lat, Math.max(atReach, arrowReach)),
+        reach: { pill: half, arrow: arrowReach, at: atReach },
         ...(hit && { passed: { key: keyOf.get(hit.place.stations[0] ?? '') ?? hit.place.id, metres: hit.away } }),
         profile: o.profile,
         ...(pinned && { pin: { dist: pinned.dist, call: made.calls.indexOf(pinned) } }),
