@@ -2113,6 +2113,9 @@ function easeIn(at: Point) {
  * it in the middle, not trailing it by what it goes meanwhile: 68 px at zoom 17 and 136 px at 18 for a
  * Train at 110 km/h, where a phone's middle 60% reaches only 117 px each way, so that an ease to where
  * it was would be followed by another, and another (#586). `at` where the engine has none.
+ * ponytail: where it's drawn at, not spread aside with its group as followedAt() has it (#129), so a Train
+ * standing in a spread group ends the ease a few px off, which centreOn() jumps. Carry `following.at`'s
+ * offset over as followedAt() does if that shows.
  */
 function ahead(at: Point): Point {
   const train = bundle && trainAt(bundle, Date.now() + EASE_IN, received, followedId() ?? '', hidingClosures);

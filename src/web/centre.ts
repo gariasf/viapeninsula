@@ -1,10 +1,10 @@
-// A followed Train held in the middle of the map (#325): when it's off the middle, and what the viewer
-// does that lets the map go.
+// A followed Train held in the middle of the map (#325): when it's off the middle and how far, what the
+// viewer does that lets the map go, and what of theirs holds it still (#581) or zooms it about the middle (#432).
 
-/** How far off the middle a Train is, in px, before the map jumps to it: a quarter of a pixel, as quarterPixel() has Trains move. */
+/** How far off the middle a Train is, in px, before the map goes to it, by a jump or, far off, an ease (outsideMiddle()): a quarter of a pixel, as quarterPixel() has Trains move. */
 const DRIFT = 0.25;
 
-/** Whether a Train `dx` and `dy` px off the middle is far enough for the map to jump to it. */
+/** Whether a Train `dx` and `dy` px off the middle is far enough for the map to go to it. */
 export const drifted = (dx: number, dy: number) => Math.hypot(dx, dy) >= DRIFT;
 
 /**

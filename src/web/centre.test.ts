@@ -59,6 +59,9 @@ test("a Train is outside the middle 60% of the map beside the panel once it's in
   expect(outsideMiddle({ x: 300, y: 521 }, size, strips)).toBe(true);
   // Far off the screen, as a Train that comes out of a Closure 14 km away at zoom 13 is.
   expect(outsideMiddle({ x: 2000, y: -1500 }, size, card)).toBe(true);
+  // And off it on one axis alone: the other being in the middle.
+  expect(outsideMiddle({ x: 2000, y: 300 }, size, card)).toBe(true);
+  expect(outsideMiddle({ x: 700, y: -1500 }, size, card)).toBe(true);
 });
 
 test("MapLibre's zoom for a double-click or a double-tap is told from the ease that carries a gesture on, and from the app's own", () => {
