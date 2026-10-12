@@ -1615,6 +1615,144 @@ test("a Train Renfe pins to a Station isn't held there: Renfe's pinned Stations 
   expect(where(R2N, at('21:39:40'), [{ snapshot, at: at('21:39:35') }])).toBeCloseTo(where(R2N, at('21:39:40')) ?? NaN, 3);
 });
 
+/** Snapshots, written and received every 20 s from one moment to another, in which Renfe has a Trip's Train pinned to a Station, running so many seconds late. */
+const pinnedAt = (trip: string, station: string, delay: number, from: number, to: number): Received[] =>
+  Array.from({ length: Math.floor((to - from) / 20_000) + 1 }, (_, i) => near(trip, station, delay, from + i * 20_000));
+
+test("a Train Renfe has pinned to one Station for 10 minutes or more is held there, drawn at it from then, as FGC's standing Trains are, until a report has it elsewhere", () => {
+  // Made up: Renfe's GPS has the R2S 30 s late between Sitges and Castelldefels at 22:00:00, and then
+  // pins it to Sitges, which its timetable has it leave at 21:57, every 20 s until 22:15. For the
+  // first 10 minutes it runs on 30 s late, 13 km past Sitges, as a pin that may be short is no word
+  // against its GPS (#8). From 22:10:20, as Renfe has named it there for 10 minutes, it's at Sitges.
+  const received = [gps(R2S, where(R2S, at('21:59:30')) ?? NaN, at('22:00:00')), ...pinnedAt(R2S, 'Sitges', 30, at('22:00:20'), at('22:15:00'))];
+  expect(where(R2S, at('22:10:10'), received)).toBeCloseTo(where(R2S, at('22:09:40')) ?? NaN, 3);
+  expect(where(R2S, at('22:10:10'), received)).toBeGreaterThan(135376 + 10_000);
+  for (const s of [0, 10, 20, 30, 60, 120, 240]) expect(where(R2S, at('22:10:20', s), received)).toBe(135376);
+  expect(train(R2S, at('22:12:00'), received)).toMatchObject({ live: true, standsAt: 'Sitges' });
+});
+
+test("a Train Renfe has pinned to a Station its Delay has it short of for 10 minutes or more is drawn at it from then, on before its timetable has it come in: its Delay is never so large that the timetable has it elsewhere", () => {
+  // Made up: 30 s late between Sitges and Castelldefels at 22:00:00 by GPS, and pinned to Castelldefels,
+  // which its timetable has it reach at 22:12, from 22:00:20 to 22:15. At 22:10:10 it's still 2.3 km short
+  // of it, and from 22:10:20 it's at it, 1 minute 40 s early by the timetable, and stands there.
+  const received = [gps(R2S, where(R2S, at('21:59:30')) ?? NaN, at('22:00:00')), ...pinnedAt(R2S, 'Castelldefels', 30, at('22:00:20'), at('22:15:00'))];
+  expect(where(R2S, at('22:10:10'), received)).toBeCloseTo(where(R2S, at('22:09:40')) ?? NaN, 3);
+  expect(where(R2S, at('22:10:10'), received)).toBeLessThan(150987 - 1000);
+  for (const s of [0, 10, 30, 120]) expect(where(R2S, at('22:10:20', s), received)).toBe(150987);
+});
+
+test("a Train Renfe has pinned to a Station for 10 minutes or more is as late as it has stood, in its follow panel and on its Station's board", () => {
+  // The same, at 22:12:00: it's leaving Sitges now, 15 minutes late, and so is its board's row, where
+  // Renfe's own figure says 30 s.
+  const received = [gps(R2S, where(R2S, at('21:59:30')) ?? NaN, at('22:00:00')), ...pinnedAt(R2S, 'Sitges', 30, at('22:00:20'), at('22:15:00'))];
+  const now = at('22:12:00');
+  expect(trainAt(BUNDLE, now, by(received, now), R2S)?.delay).toBeCloseTo(15 * 60, 0);
+  const [row] = boardAt(BUNDLE, now, by(received, now), ['Sitges']);
+  expect(row).toMatchObject({ trip: { id: R2S }, live: true });
+  expect(row?.departure).toBeCloseTo(now, -3);
+});
+
+test("the 10 minutes a Train Renfe pins to a Station is held for start at the first report that names it there: another Station, or Renfe's GPS, starts them again", () => {
+  // Made up: 30 s late by GPS at 22:00:00, then pinned to Sitges until 22:07:00 and to Castelldefels
+  // until 22:14:00, 7 minutes each. It runs on 30 s late, past Castelldefels, which its timetable has
+  // it leave at 22:13.
+  const received = [gps(R2S, where(R2S, at('21:59:30')) ?? NaN, at('22:00:00')), ...pinnedAt(R2S, 'Sitges', 30, at('22:00:20'), at('22:07:00')), ...pinnedAt(R2S, 'Castelldefels', 30, at('22:07:20'), at('22:14:00'))];
+  expect(where(R2S, at('22:13:50'), received)).toBeCloseTo(where(R2S, at('22:13:20')) ?? NaN, 3);
+  expect(where(R2S, at('22:13:50'), received)).toBeGreaterThan(150987 + 100);
+  // And its GPS, between two pins to Sitges of 7 minutes each, 30 s late: it's where its GPS has it.
+  const between = [
+    gps(R2S, where(R2S, at('21:59:30')) ?? NaN, at('22:00:00')),
+    ...pinnedAt(R2S, 'Sitges', 30, at('22:00:20'), at('22:07:00')),
+    ...[20, 40].map((s) => gps(R2S, where(R2S, at('22:07:00', s - 30)) ?? NaN, at('22:07:00', s))),
+    ...pinnedAt(R2S, 'Sitges', 30, at('22:07:40'), at('22:14:00')),
+  ];
+  expect(where(R2S, at('22:13:50'), between)).toBeCloseTo(where(R2S, at('22:13:20')) ?? NaN, 3);
+});
+
+test("a Train Renfe has pinned to one Station for 10 minutes is held there, though a report or two between gives it no position: only another Station or its GPS has it elsewhere", () => {
+  // Made up: pinned to Sitges to 22:06:00, 30 s late by Renfe's own figure and no position until
+  // 22:08:00, and pinned to Sitges again to 22:15:00, as Renfe names it when it has a position.
+  const received = [
+    gps(R2S, where(R2S, at('21:59:30')) ?? NaN, at('22:00:00')),
+    ...pinnedAt(R2S, 'Sitges', 30, at('22:00:20'), at('22:06:00')),
+    ...[0, 20, 40, 60, 80, 100].map((s) => late(R2S, 30, at('22:06:20', s))),
+    ...pinnedAt(R2S, 'Sitges', 30, at('22:08:20'), at('22:15:00')),
+  ];
+  for (const s of [0, 20, 60, 120]) expect(where(R2S, at('22:10:20', s), received)).toBe(135376);
+});
+
+test("a Train Renfe has no report of for 2 minutes or more isn't held for the pin before it: the 10 minutes start again", () => {
+  // Made up: pinned to Sitges to 22:05:00, left out of Renfe's feeds from 22:05:20 to 22:08:00, and
+  // pinned to Sitges again from 22:08:20 to 22:15:00. It's held from 22:18:20, not 22:10:20.
+  const gap = [gps(R2S, where(R2S, at('21:59:30')) ?? NaN, at('22:00:00')), ...pinnedAt(R2S, 'Sitges', 30, at('22:00:20'), at('22:05:00')), ...leftOut(at('22:05:20'), at('22:08:00')), ...pinnedAt(R2S, 'Sitges', 30, at('22:08:20'), at('22:15:00'))];
+  expect(where(R2S, at('22:12:00'), gap)).toBeCloseTo(where(R2S, at('22:11:30')) ?? NaN, 3);
+  // A gap of a minute or less isn't one.
+  const short = [gps(R2S, where(R2S, at('21:59:30')) ?? NaN, at('22:00:00')), ...pinnedAt(R2S, 'Sitges', 30, at('22:00:20'), at('22:05:00')), ...leftOut(at('22:05:20'), at('22:05:40')), ...pinnedAt(R2S, 'Sitges', 30, at('22:06:00'), at('22:15:00'))];
+  expect(where(R2S, at('22:12:00'), short)).toBe(135376);
+});
+
+test("a Train Renfe has pinned to a Station for 10 minutes that gives GPS on from it is where its GPS has it, not held: the pin was stale", () => {
+  // Made up: pinned to Sitges from 22:00:20 to 22:11:40, held there from 22:10:20, and then its GPS
+  // has it 30 s late, 15 km on, at 22:12:00. It's at Sitges at 22:11:50 and where its GPS has it from
+  // 22:12:00, a jump of 15 km, as for the 7 of 27 pins that a GPS fix found the Train past, where the
+  // map had it (#485).
+  const received = [
+    gps(R2S, where(R2S, at('21:59:30')) ?? NaN, at('22:00:00')),
+    ...pinnedAt(R2S, 'Sitges', 30, at('22:00:20'), at('22:11:40')),
+    gps(R2S, where(R2S, at('22:11:30')) ?? NaN, at('22:12:00')),
+  ];
+  expect(where(R2S, at('22:11:50'), received)).toBe(135376);
+  expect(where(R2S, at('22:12:30'), received)).toBeCloseTo(where(R2S, at('22:12:00')) ?? NaN, 3);
+});
+
+test("a Train Renfe pins to its Trip's first Station for 10 minutes or more is held there only from leaving: it's off the map until its timetable has it come in", () => {
+  // Made up: the R2N, which its timetable has leave Granollers Centre at 21:29, pinned there from 21:10
+  // to 21:50 with no Delay. It isn't drawn before 21:28:30, as before, though it has been pinned there
+  // for 18 minutes, and then it doesn't leave.
+  const received = pinnedAt(R2N, 'Granollers Centre', 0, at('21:10:00'), at('21:50:00'));
+  expect(where(R2N, at('21:25:00'), received)).toBeUndefined();
+  for (const moment of [at('21:28:40'), at('21:29:30'), at('21:35:00'), at('21:45:00')]) expect(where(R2N, moment, received)).toBe(40546);
+  // Pinned there from 21:25 on, it leaves at 21:29 as its timetable has it, and is back at Granollers
+  // Centre at 21:35, when Renfe has named it there for 10 minutes.
+  const later = pinnedAt(R2N, 'Granollers Centre', 0, at('21:25:00'), at('21:50:00'));
+  expect(where(R2N, at('21:34:30'), later)).toBeGreaterThan(40546 + 5000);
+  for (const moment of [at('21:35:10'), at('21:45:00')]) expect(where(R2N, moment, later)).toBe(40546);
+});
+
+test("a Train Renfe pins to its Trip's last Station for 10 minutes or more isn't held there: it has ended its run, and leaves the map as its timetable has it", () => {
+  // Made up: the R2S, on time, pinned to Barcelona Estació de França, where its timetable has it
+  // arrive at 22:51, from 22:40 to 23:10. It's off the map at 22:55, as a Train that has run its Trip.
+  const received = pinnedAt(R2S, 'Barcelona Estació de França', 0, at('22:40:00'), at('23:10:00'));
+  expect(where(R2S, at('22:51:15'), received)).toBe(177289);
+  expect(where(R2S, at('22:55:00'), received)).toBeUndefined();
+});
+
+test("a Train Renfe pins for 10 minutes to the first Station its Trip runs from, with the Stations before it skipped, is held there only from leaving, and to the last it runs to isn't held", () => {
+  // Made up, as Renfe pinned its R4s to Barcelona-Sants in the rains of 7 October 2026 and started them
+  // there: the R2S skips Sant Vicenç de Calders to Cubelles, and is pinned to Vilanova i la Geltrú, the
+  // first it stops at, from 21:20. It isn't drawn before 21:49:30, as when it isn't pinned, though
+  // Renfe has had it there for 20 minutes by 21:40, and from then it doesn't leave.
+  const starts = skipping(R2S, TO_VILANOVA, at('21:20:00'), pinnedAt(R2S, 'Vilanova i la Geltrú', 0, at('21:20:00'), at('22:10:00')));
+  for (const moment of [at('21:40:00'), at('21:49:29')]) expect(where(R2S, moment, starts)).toBeUndefined();
+  for (const moment of [at('21:49:30'), at('21:55:00'), at('22:05:00')]) expect(where(R2S, moment, starts)).toBe(128092);
+  // Cut short at Barcelona-Sants, which it skips Passeig de Gràcia and Estació de França after, and
+  // pinned there from 22:20 to 23:00, it has ended its run at 22:34, and leaves the map.
+  const ends = skipping(R2S, PAST_SANTS, at('21:30:00'), pinnedAt(R2S, 'Barcelona-Sants', 0, at('22:20:00'), at('23:00:00')));
+  expect(where(R2S, at('22:34:10'), ends)).toBe(169891);
+  expect(where(R2S, at('22:45:00'), ends)).toBeUndefined();
+});
+
+test("a TRAM Train named at one stop for 10 minutes or more isn't held there either: TRAM's pins are the stop a Train is at or has just left (#42)", () => {
+  // Made up: TRAM has the T2 82 s early, 62 s gone from Cornellà Centre, as in the test above, every
+  // 20 s for the 12 minutes before 11:44:50. It's drawn where TRAM's Delay has it all along.
+  const report: Report = { trip: T2, at: TRAM_LIVE.generated, position: { near: 'tram:ST-191' }, delay: -82 };
+  const received: Received[] = Array.from({ length: 37 }, (_, i) => {
+    const generated = TRAM_LIVE.generated - (36 - i) * 20_000;
+    return { snapshot: { ...TRAM_LIVE, generated, feeds: { tram: { lastSuccess: generated, lastAttempt: generated, status: 'ok', every: 20_000 } }, reports: [{ ...report, at: generated }] }, at: generated };
+  });
+  expect(tram(T2, received)?.dist).toBeCloseTo(tram(T2, [], 82)?.dist ?? NaN, 3);
+});
+
 test("a Train Renfe pins to a Station, or gives no position for, carries on from its last GPS Delay, whatever Renfe's own figure says", () => {
   // Made up: Renfe's GPS has the R2S 30 s late between Sitges and Castelldefels at 22:00:00. Then
   // Renfe pins it to Castelldefels, 3 and then 4 minutes late by its own figure, and then gives it no
@@ -1625,8 +1763,10 @@ test("a Train Renfe pins to a Station, or gives no position for, carries on from
 
 test("a Train Renfe pins to a Station runs as late as Renfe's own figure says once its last GPS Delay is 30 minutes old", () => {
   // Made up: Renfe's GPS has the R2S 30 s late between Sitges and Castelldefels at 22:00:00, and
-  // from then on Renfe pins it to Barcelona-Sants, 2 minutes late by its own figure.
-  const pinned = Array.from({ length: 93 }, (_, i) => near(R2S, 'Barcelona-Sants', 120, at('22:00:20', i * 20)));
+  // from then on Renfe pins it to the next Station, 2 minutes late by its own figure, a new one every
+  // 6 minutes, as a pin of 10 minutes or more holds a Train there (#485).
+  const stations = ['Castelldefels', 'Gavà', 'Viladecans', 'Barcelona-Sants', 'Barcelona-Passeig de Gràcia'];
+  const pinned = Array.from({ length: 93 }, (_, i) => near(R2S, stations[Math.floor(i / 18)] ?? '', 120, at('22:00:20', i * 20)));
   const received = [gps(R2S, where(R2S, at('21:59:30')) ?? NaN, at('22:00:00')), ...pinned];
   expect(where(R2S, at('22:29:50'), received)).toBeCloseTo(where(R2S, at('22:29:20')) ?? NaN, 3);
   expect(where(R2S, at('22:30:30'), received)).toBeCloseTo(where(R2S, at('22:28:30')) ?? NaN, 3);
@@ -2599,9 +2739,17 @@ test("counts each Network's jumps over 45 minutes of live data as the map receiv
   // counted and the next fix moves it at once; R4 77638 jumps back at 16:30:20 and R4 77742 forward at
   // 16:33:02, a minute or more after a fix like those, where the Train that goes by Renfe's figure is
   // put where its GPS has it. Eighteen more, of 15 Trains, come 20 s later, a snapshot, R4 77742's as a
-  // jump back, not forward.
+  // jump back, not forward. It rose by eight with #485, which holds a Train Renfe has pinned to one
+  // Station for 10 minutes there: 12 come and four go. Ten of those that come are the snap back to the
+  // Station as the 10 minutes pass, at 16:07:02 for the four Trains Renfe pins from the first snapshot
+  // (R16 18129, R11 15870, R2S 28368 and R4 77642), which a map opened then can't know it has pinned for
+  // longer, and from 16:12 to 16:41 for R1 25639, R2S 25541 and 28369, R15 15013, RL4 33526 and R3 77334,
+  // each a Train drawn on by 0.7 to 9.1 km from where Renfe has had it for 10 minutes. R16 18129's second
+  // snap back, at 16:33:23, comes after a gap of 13 minutes in Renfe's reports for it, which starts the
+  // 10 again, and RL4 33526's forward jump at 16:40:08, as its pin ends. The four that go are folds the
+  // Trains no longer need: R4 77642's at 16:09:44 and 16:13:27, R16 18129's at 16:35:24 and 16:40:08.
   expect(jumps(RECORDED.bundle, RECORDED.received)).toEqual({
-    rodalies: { forward: 64, back: 123, liveSeconds: 151935 },
+    rodalies: { forward: 66, back: 129, liveSeconds: 151935 },
     fgc: { forward: 24, back: 50, liveSeconds: 145935 },
     tram: { forward: 3, back: 0, liveSeconds: 77809 },
     metro: { forward: 0, back: 14, liveSeconds: 304017 },
@@ -2692,10 +2840,13 @@ function drawnWhereNotRun(received: Received[]) {
 }
 
 test("over 45 minutes of the rains of 7 October 2026, Trains are drawn where their Trips don't run only where Renfe took back Stations it had said they'd skip", () => {
-  // Without the skipped Stations, as before #346: 105 Train-minutes Live, 68.8 Scheduled. The 78 board
-  // rows at 13:45 are more than the 64 the triage counted on the whole bundle: with only these 16
-  // Trips, each board's ten rows are all theirs.
-  expect(drawnWhereNotRun(RAINS.received.map((r) => ({ ...r, snapshot: { ...r.snapshot, skipped: undefined } })))).toEqual({ live: 6300, scheduled: 4130, stopping: 78, notStopping: 0 });
+  // Without the skipped Stations, as before #346: 105 Train-minutes Live, 68.8 Scheduled, and 85 Live
+  // with #485, which holds R4 `5178X77534`, which Renfe pins to Barcelona-Sants from 13:15, at it from
+  // 13:25: 30 of its minutes drawn on its way there, past the Stations it won't stop at, are 10. The 78
+  // board rows at 13:45 are more than the 64 the triage counted on the whole bundle: with only these 16
+  // Trips, each board's ten rows are all theirs, and 73 now, as it and C10 `1078X21335`, which Renfe
+  // pins to Pozuelo from 13:34, are past five Stations they were still to leave.
+  expect(drawnWhereNotRun(RAINS.received.map((r) => ({ ...r, snapshot: { ...r.snapshot, skipped: undefined } })))).toEqual({ live: 5100, scheduled: 4130, stopping: 73, notStopping: 0 });
   // With them, 17.3 and 1.3 Train-minutes, nearly all where Renfe took back Stations it had said a Train
   // would skip as it ran on to them, as its GPS showed: C4b's to Parla from 13:30 (12.3 Live), C4a's to
   // Villaverde Bajo at 13:41 (2), and C10's to El Barrial at 13:32 (2 and 1.3). The rest, 1 Live, is
