@@ -682,7 +682,7 @@ let lines = new Map<string, Line>();
 let pills = new Map<string, Pill>();
 /** The top speed of the fastest Line of the days on the map, AVE's 300 km/h with long distance's, in m/s, which quarterPixel() goes by: worked out as they come, not each frame. */
 let fastest = 0;
-/** The days shown whose places' names are still to be put beside their tracks, a frame after their Lines are drawn (show()). */
+/** The days shown whose places' names, and where Lines were drawn already their Lines, are still to be handed to MapLibre a frame on (show()). */
 let namesDue: Track | Bundle | undefined;
 /** The cards' colour, style.css's --card, which a Scheduled Train's pill letters its Line's colour against (pill()). */
 const cardColour = hex(getComputedStyle(document.documentElement).getPropertyValue('--card').trim() || '#fff');
@@ -1350,7 +1350,7 @@ function show(days: Track | Bundle, tripsOnly = false) {
   // None where the days have no Lines, as where the map opens zoomed out before long distance's region has come:
   // then quarterPixel() is endless, and Trains move as seldom as IDLE_MOST lets them.
   fastest = Math.max(0, ...days.lines.map((l) => profiled(networks.get(l.network), l)?.profile.topSpeed ?? 0));
-  // Lines drawn already, as at the map's second look: the new ones go to MapLibre by URL (handOver()).
+  // Lines drawn already, as at the map's second look: the new ones are handed over a frame later (below).
   const again = shownStrokes.length > 0;
   shownStrokes = days.strokes;
   // Zoomed in, on its own rails, a Line's bends are rounded (#203).
@@ -1397,8 +1397,16 @@ function show(days: Track | Bundle, tripsOnly = false) {
       return [{ type: 'Feature', properties, geometry: { type: 'LineString', coordinates: round ? rounded(coordinates) : coordinates } }];
     }),
   });
-  handOver('lines', drawn(days.strokes), again);
-  handOver('rails', drawn(days.rails, true), again);
+  // The Lines go to MapLibre as objects, never as a blob: URL, which it fetches, parses and copies on the page's thread
+  // and keeps a second copy of: 1.0 s a join at Barcelona at zoom 12 (#731). Handing an object over copies it on the
+  // page's thread too, 0.5 s for long distance's joined with the view's own, so where Lines are drawn already it's a
+  // frame after making them (below). The first Lines go at once, which onScreen() waits for.
+  const [strokes, rails] = [drawn(days.strokes), drawn(days.rails, true)];
+  const handOver = () => {
+    map.getSource<GeoJSONSource>('lines')?.setData(strokes);
+    map.getSource<GeoJSONSource>('rails')?.setData(rails);
+  };
+  if (!again) handOver();
   showZoomedOut(zoomedOut ?? { networks: days.networks, tracks: networkTracks(days) });
   const tiered = [...shownPlaces.values()].map((p) => {
     const tier = TIERS.find((t) => t.places.includes(p.id));
@@ -1413,45 +1421,32 @@ function show(days: Track | Bundle, tripsOnly = false) {
     features: tiered.map(({ id, larger, lon, lat }) => ({ type: 'Feature', properties: { id, larger }, geometry: { type: 'Point', coordinates: [lon, lat] } })),
   });
   drawClosures();
-  // The places' names a frame later, once the Lines are drawn: for a large track, as long distance's joined with the
-  // view's own at the map's second look, putting them beside their tracks takes about as long as making the Lines, and
-  // in one task with those the page drew no frame for 2 s at Barcelona at zoom 12 (#262).
+  // The places' names a frame after the Lines are handed over: for a large track, putting them beside their tracks
+  // takes about as long as making the Lines, and in one task with those the page drew no frame for 2 s at Barcelona at
+  // zoom 12 (#262).
   namesDue = days;
-  requestAnimationFrame(() =>
-    setTimeout(() => {
-      if (namesDue !== days) return;
-      namesDue = undefined;
-      // Names go beside the track, not the stretches' centrelines, clear of the Trains on their Lines' strokes along those,
-      // and of the other places' dots (#501).
-      const [track, centrelines] = [days.shapes.filter((s) => !s.id.startsWith(STRETCH)), days.shapes.filter((s) => s.id.startsWith(STRETCH))];
-      const dots = tiered.map(({ lon, lat }): Point => [lon, lat]);
-      const spots = alongside(track, (days.slots ?? []).filter((s) => s.band === undefined), (line) => placing.keep.get(line) ?? 1, days.lines, new Map(centrelines.map((c) => [c.id, c])), dots);
-      // A track built before #243 names no Station's Networks: its names go beside the nearest track of any.
-      names = tiered.map(({ id, name, networks, nameZoom, tier, stations, larger, style, lon, lat }) => {
-        const rows = nameLines(name, style);
-        return { id, dot: [lon, lat], sides: spots([lon, lat], networks), name: rows.join('\n'), size: [Math.max(...rows.map((row) => placeWidth(row, style))), rows.length * LINE_HEIGHT * style.size], nameZoom, tier, stations, larger, style };
-      });
-      showNames();
-    }),
-  );
-}
-
-/**
- * Hands GeoJSON to MapLibre: where Lines are drawn already, as the URL of its JSON, which MapLibre's worker fetches and
- * parses while the page goes on drawing frames with the Lines it has, rather than as the object, which handing over
- * copies on the page's thread: long distance's Lines joined with the view's own at the map's second look, 45,175
- * features, took 0.5 s to copy at Barcelona at zoom 12 (#262). With the names a frame later (show()), the page's longest
- * gap between frames there went from 2.0 s to 0.8 s, 7.9 s to 3.4 s with the CPU slowed 4×, though long distance's
- * Trains come 1.2 s later (4.5 s), as its worker reads JSON slower than a copy. The first Lines go as the object, which
- * MapLibre draws sooner.
- * ponytail: the URL is let go of a minute on, by when the worker has read it. Let go of it on MapLibre's `data` event if a
- * worker ever takes longer.
- */
-function handOver(id: string, data: GeoJSON.FeatureCollection, byUrl: boolean) {
-  if (!byUrl) return void map.getSource<GeoJSONSource>(id)?.setData(data);
-  const url = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' }));
-  map.getSource<GeoJSONSource>(id)?.setData(url);
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  // A frame on, unless other days are shown meanwhile, which hand over their own.
+  const later = (then: () => void) => requestAnimationFrame(() => setTimeout(() => namesDue === days && then()));
+  const putNames = () => {
+    namesDue = undefined;
+    // Names go beside the track, not the stretches' centrelines, clear of the Trains on their Lines' strokes along those,
+    // and of the other places' dots (#501).
+    const [track, centrelines] = [days.shapes.filter((s) => !s.id.startsWith(STRETCH)), days.shapes.filter((s) => s.id.startsWith(STRETCH))];
+    const dots = tiered.map(({ lon, lat }): Point => [lon, lat]);
+    const spots = alongside(track, (days.slots ?? []).filter((s) => s.band === undefined), (line) => placing.keep.get(line) ?? 1, days.lines, new Map(centrelines.map((c) => [c.id, c])), dots);
+    // A track built before #243 names no Station's Networks: its names go beside the nearest track of any.
+    names = tiered.map(({ id, name, networks, nameZoom, tier, stations, larger, style, lon, lat }) => {
+      const rows = nameLines(name, style);
+      return { id, dot: [lon, lat], sides: spots([lon, lat], networks), name: rows.join('\n'), size: [Math.max(...rows.map((row) => placeWidth(row, style))), rows.length * LINE_HEIGHT * style.size], nameZoom, tier, stations, larger, style };
+    });
+    showNames();
+  };
+  if (again) {
+    later(() => {
+      handOver();
+      later(putNames);
+    });
+  } else later(putNames);
 }
 
 /**
