@@ -1538,8 +1538,8 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
  * Puts each place's name beside its own Networks' track (alongside()) as the track lies on screen now, at each of
  * NAME_ZOOMS on the side nearestSide() takes, as far out from its dot as clearance() says, and off any track
  * crossing its own there and any other place's dot (underName()), and sorts them for where they collide (nameSort(), #372).
- * ponytail: tries a name under a crossing track at the zoom and the next, not in between, and as far
- * out at the next as at this one. Try more steps if a name lies across one mid-zoom.
+ * ponytail: tries a name under a crossing track, or by another place's dot, at the zoom and the next, not
+ * in between, and as far out at the next as at this one. Try more steps if a name lies across one mid-zoom.
  * ponytail: laid out flat, so on a tilted map a name sits a little nearer its track or further than
  * NAME_GAP. Work each normal out on screen with map.project() if that shows.
  */

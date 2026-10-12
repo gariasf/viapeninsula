@@ -4,7 +4,7 @@ import { stationsOf } from '../build/track.ts';
 import { DEGREE, places, type Place, type Point, type Shape, type Slot, type Station, type Stroke } from '../bundle.ts';
 import { alongside, callsIn, CAP, DOT_COST, namedTwice, nameOffset, nameSort, nearestSide, underName, type Side, type Spot } from './names.ts';
 
-// Made up, on the equator, where a degree is DEGREE metres both ways.
+// Made up, on the equator, where a degree is DEGREE metres both ways, but for the one test of #501's cells.
 /** The point so many metres east and north of 0°, 0°. */
 const at = (east: number, north: number): Point => [east / DEGREE, north / DEGREE];
 /** A track through these points, in metres east and north of 0°, 0°. */
@@ -35,7 +35,7 @@ const drawn = (tracks: Shape[]): Slot[] => own(tracks.map((t) => ({ line: t.id, 
 
 /**
  * alongside(), then the side nearestSide() takes for a name 100×20 px that goes 10 px out from its
- * spot, where a px is so many metres, off any track crossing its own that lies under it.
+ * spot, where a px is so many metres, off any track crossing its own and any other place's dot that lies under it.
  */
 function placed(...args: Parameters<typeof alongside>) {
   const spots = alongside(...args);

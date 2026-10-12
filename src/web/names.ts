@@ -25,15 +25,15 @@ const LEVEL = 1e-6;
 /** How near a place's dot a track passes, in metres, to be its track at all. */
 const NEAR = 200;
 /**
- * How far from a place's dot a track crossing its own can lie under its name, in metres: zoomed out to
- * 12, where a px is some 15 m in Catalonia, beyond its furthest corner (#154).
+ * How far from a place's dot a track crossing its own, or another place's dot, can lie under its name, in
+ * metres: zoomed out to 12, where a px is some 15 m in Catalonia, beyond its furthest corner (#154, #501).
  */
 const REACH = 2500;
 /** How far a track crossing a place's own may be taken as straight, in metres, to find whether it lies under its name. */
 const STRAIGHT = 3;
 /**
- * The side of the cells tracks are filed in to find those near a place, in degrees: over 400 m east to
- * west anywhere in Spain, so the cells round a place's hold every track within NEAR of it.
+ * The side of the cells tracks and places' dots are filed in to find those near a place, in degrees: over
+ * 400 m east to west anywhere in Spain, so the cells round a place's hold every track within NEAR of it.
  */
 const CELL = 0.005;
 /** How near a place a basemap label with its name is, in metres, to name the same place (#121). */
@@ -44,8 +44,9 @@ const TOWNS = ['city', 'town', 'village', 'suburb'];
  * What another place's dot costs a name, in Lines it could lie under instead, where the dot is at its box: it
  * reads as that place's, and hides it. The further the dot lies from the box, the less it costs, down to
  * nothing as far from it as the name's own dot lies and DOT_MARGIN more (#501). As dear as one Line it decides
- * almost nothing, as both sides of a name in a city's core lie over dots and Lines; 20 is what halves the
- * dots under names in #372's sweep, at the price of names over more Lines.
+ * almost nothing, as both sides of a name in a city's core lie over dots and Lines; at 20, on #372's sweep in the
+ * browser, the dots under names go from 38 to 26 at zoom 12 and from 12 to 6 at 13, at the price of names over
+ * more Lines (a third more at zoom 12).
  */
 export const DOT_COST = 20;
 /** How many px further from its box than its own dot another place's dot is, at the least, for it to cost a name nothing. */
@@ -310,7 +311,7 @@ export function nearestSide(sides: Side[], far: (spot: Spot) => number, under: (
 
 /**
  * How many Lines on the tracks in its spot's `crossing` lie under a name `width`×`height` px, `far` px
- * out from its spot as nameOffset() puts it, where a px is `metresPerPx` metres and Lines are drawn
+ * out from its place's dot as nameOffset() puts it, where a px is `metresPerPx` metres and Lines are drawn
  * `apart` px apart: their strokes' middles within `gap` px of it (#154); and what the dots of other
  * places near it cost, in Lines, whatever `gap` is (DOT_COST, #501).
  */
@@ -334,13 +335,12 @@ export function underName(spot: Spot, far: number, size: [number, number], metre
   }
   // And each other place's dot, which makes the name read as that place's, as a stroke under it does as that Line's:
   // as much as DOT_COST at the box, down to nothing as far from it as the name's own dot is (and DOT_MARGIN more).
-  const [bx0, bx1, by0, by1] = [ox + x0, ox + x1, oy + y0, oy + y1];
-  const own = far + DOT_MARGIN;
+  const until = far + DOT_MARGIN;
   let cost = 0;
   for (const dot of spot.neighbours) {
     const [x, y] = screen(dot);
-    const away = Math.hypot(Math.max(bx0 - x, 0, x - bx1), Math.max(by0 - y, 0, y - by1));
-    if (away < own) cost += DOT_COST * (1 - away / own);
+    const away = Math.hypot(Math.max(ox + x0 - x, 0, x - (ox + x1)), Math.max(oy + y0 - y, 0, y - (oy + y1)));
+    if (away < until) cost += DOT_COST * (1 - away / until);
   }
   return under.size + cost;
 }
