@@ -481,7 +481,7 @@ function together(found: Stretch[], onStretch: Map<string, Stroke[]>, joins: Joi
 }
 
 /** A Line's way across a node: the strokes it goes along, in order, each by its end it leaves at (the first) or comes in at (the rest). */
-type Leg = { stroke: Stroke; end: 0 | 1 };
+export type Leg = { stroke: Stroke; end: 0 | 1 };
 
 /**
  * The curves across the line graph's nodes (ADR-0007), in each zoom band. A node takes the room its
@@ -552,7 +552,7 @@ function curves(joins: Join[], found: Stretch[], onStretch: Map<string, Stroke[]
      * starts, the first looked for only up to the second, so that the chain doesn't turn back along it.
      * Where a hidden stroke runs on beside the next leg, past where that starts, as C4's does at
      * Madrid-Atocha, the chain would run to its end and back, and so would its curve (#311). Either end,
-     * as the legs are kept whichever way round sorts first (across()).
+     * as the legs are kept whichever way round has its strokes' numbers first (across()).
      */
     const spans = (legs: Leg[]): [on: number, off: number][] => {
       const spanned: [number, number][] = [];
@@ -767,9 +767,12 @@ function near(line: [number, number][], p: [number, number]): number {
  * inside a node starts or stops at the end of its hidden stroke there; one that only touches a hidden
  * stroke, coming and going at one end, passes it by.
  */
-function across(at: Map<Stroke, [Leg[], Leg[]]>, hidden: (s: Stroke) => boolean, id: Map<Stroke, number>): Leg[][] {
+export function across(at: Map<Stroke, [Leg[], Leg[]]>, hidden: (s: Stroke) => boolean, id: Map<Stroke, number>): Leg[][] {
   const found = new Map<string, Leg[]>();
-  const key = (legs: Leg[]) => legs.map((l) => `${id.get(l.stroke)}.${l.end}`).join(' ');
+  // A way's legs as numbers, each its stroke's number doubled and its end added, which the way is kept by, from
+  // the end whose numbers come first: as strings of the stroke numbers and ends, "12.0 9.1" sorts before "9.1 12.0",
+  // and which end a curve is made from would go by how many strokes come before it (#448).
+  const numbers = (legs: Leg[]) => legs.map((l) => (id.get(l.stroke) ?? 0) * 2 + l.end);
   // With the hidden strokes passed by on the way, so as not to go back and forth between two.
   const go = (legs: Leg[], next: Leg, passed = new Set<Stroke>()) => {
     const here = [...legs, next];
@@ -781,10 +784,15 @@ function across(at: Map<Stroke, [Leg[], Leg[]]>, hidden: (s: Stroke) => boolean,
       return;
     }
     if (!hidden(next.stroke) || !out.length) {
-      // Found from either end: kept once, the way its key sorts first.
+      // Found from either end: kept once, from the end whose numbers come first.
       const back = here.map((l, i) => (i && i < here.length - 1 ? { ...l, end: l.end ? 0 : 1 } : l)).toReversed() as Leg[];
-      const [k, b] = [key(here), key(back)];
-      if (!found.has(k) && !found.has(b)) found.set(k < b ? k : b, k < b ? here : back);
+      const [x, y] = [numbers(here), numbers(back)];
+      const [k, b] = [x.join(' '), y.join(' ')];
+      if (!found.has(k) && !found.has(b)) {
+        const i = x.findIndex((n, j) => n !== y[j]);
+        const first = i < 0 || (x[i] ?? 0) < (y[i] ?? 0);
+        found.set(first ? k : b, first ? here : back);
+      }
       return;
     }
     for (const leg of out) if (!here.some((l) => l.stroke === leg.stroke)) go(here, leg);

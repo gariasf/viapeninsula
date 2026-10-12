@@ -3,7 +3,7 @@ import { expect, test } from 'vitest';
 import { along, APART, atZoom, BANDS, beside, cutIn, DEGREE, drawnIn, GRAPH_BAND, inBand, LINK, onStroke, pieces, zones, pixelMetres, pointAt, SMOOTH, STRETCH, type Line, type Shape, type Stroke, type Track } from '../bundle.ts';
 import { measures } from './measures.ts';
 import { offset } from './offset.ts';
-import { crossing, KX, sharedTrack, sideBySide } from './sideBySide.ts';
+import { across, crossing, KX, sharedTrack, sideBySide, type Leg } from './sideBySide.ts';
 
 // Track drawn in metres east (x) and north (y) of a point in Barcelona.
 const M = (6_371_008.8 * Math.PI) / 180; // metres in a degree of latitude
@@ -647,6 +647,83 @@ test('leaves out the one piece a shape touches of the Stretch it goes on along, 
   // First or last of the shape, it's kept, as at the station a loop Line begins and ends at.
   expect(crossing([on, touch], found)).toEqual([on, touch]);
   expect(crossing([touch, on], found)).toEqual([touch, on]);
+});
+
+test("keeps a Line's way across a node from the end whose strokes' numbers come first as numbers, not as strings, so that it's the same end however many strokes are numbered before them (#448)", () => {
+  // One way, from the end of S onto the start of T, which across() finds from either. Numbered 9 and 12 its
+  // two ends' strings are "9.1 12.0" and "12.0 9.1", of which the second sorts first, though 9 comes before 12;
+  // numbered 1 and 2 they are "1.1 2.0" and "2.0 1.1", and the first sorts first.
+  const s: Stroke = { line: 'C3', shape: 'c0', from: 0, to: 500, side: 0 };
+  const t: Stroke = { line: 'C3', shape: 'c1', from: 0, to: 500, side: 0 };
+  const fromS: [Stroke, [Leg[], Leg[]]] = [s, [[], [{ stroke: t, end: 0 }]]];
+  const fromT: [Stroke, [Leg[], Leg[]]] = [t, [[{ stroke: s, end: 1 }], []]];
+  for (const [a, b] of [[1, 2], [4, 5], [9, 12], [90, 100], [12, 9], [5, 4], [100, 90]] as const) {
+    for (const at of [new Map([fromS, fromT]), new Map([fromT, fromS])]) {
+      const found = across(at, () => false, new Map([[s, a], [t, b]]));
+      expect(found).toHaveLength(1);
+      // It leaves the stroke numbered first, whichever it was found from.
+      expect(found[0]?.[0]?.stroke).toBe(a < b ? s : t);
+    }
+  }
+});
+
+test("keeps each of a node's ways where one stroke's end joins both ends of another, numbered either way round (#448)", () => {
+  // S's end joins T's start and T's end: two ways, which differ only in the end they come onto T at.
+  const s: Stroke = { line: 'C3', shape: 'c0', from: 0, to: 500, side: 0 };
+  const t: Stroke = { line: 'C3', shape: 'c1', from: 0, to: 500, side: 0 };
+  const at = new Map<Stroke, [Leg[], Leg[]]>([
+    [s, [[], [{ stroke: t, end: 0 }, { stroke: t, end: 1 }]]],
+    [t, [[{ stroke: s, end: 1 }], [{ stroke: s, end: 1 }]]],
+  ]);
+  for (const [a, b] of [[9, 12], [12, 9]] as const) {
+    const found = across(at, () => false, new Map([[s, a], [t, b]]));
+    const ways = found.map((legs) => legs.map((l) => `${l.stroke === s ? 'S' : 'T'}.${l.end}`).join(' ')).sort();
+    expect(ways).toEqual(a < b ? ['S.1 T.0', 'S.1 T.1'] : ['T.0 S.1', 'T.1 S.1']);
+  }
+});
+
+test("keeps a way round a stroke onto its own start from its end 0, and ways whose numbers would run together as one string apart (#448)", () => {
+  const stroke = (shape: string): Stroke => ({ line: 'C3', shape, from: 0, to: 500, side: 0 });
+  // A's end joins its own start: one way, found from either end, whose two legs are the one stroke. The end decides it, 0 first.
+  const loop = stroke('A');
+  const around = new Map<Stroke, [Leg[], Leg[]]>([[loop, [[{ stroke: loop, end: 1 }], [{ stroke: loop, end: 0 }]]]]);
+  expect(across(around, () => false, new Map([[loop, 9]])).map((legs) => legs.map((l) => l.end))).toEqual([[0, 1]]);
+  // Two ways in one node: A's end onto B's start, numbered 1 and 12, which are 3 and 24 doubled and ended, and C's start
+  // onto D's start, numbered 16 and 2, which are 32 and 4: "3 24" and "32 4", but "324" and "324" with the spaces left out.
+  const [a, b, c, d] = [stroke('A'), stroke('B'), stroke('C'), stroke('D')];
+  const at = new Map<Stroke, [Leg[], Leg[]]>([
+    [a, [[], [{ stroke: b, end: 0 }]]],
+    [b, [[{ stroke: a, end: 1 }], []]],
+    [c, [[{ stroke: d, end: 0 }], []]],
+    [d, [[{ stroke: c, end: 0 }], []]],
+  ]);
+  const found = across(at, () => false, new Map([[a, 1], [b, 12], [c, 16], [d, 2]]));
+  expect(found.map((legs) => legs.map((l) => `${l.stroke.shape}.${l.end}`).join(' ')).sort()).toEqual(['A.1 B.0', 'D.0 C.0']);
+});
+
+test("draws the curves of Lines just as they are when other Lines' strokes are numbered before theirs, each from the same end (#448)", async () => {
+  // Madrid-Atocha's Lines (fixtures/atocha.json) alone, and again after Tarragona's by the Francolí
+  // (fixtures/francoli.json), whose strokes then come first: Atocha's are numbered from 12 or 14 on, not from 0
+  // (65 strokes in each of its graphs alone, 77 or 79 with the Francolí's), so that as strings some of its
+  // ways come in another order than as numbers, where 9 has one digit and 12 two.
+  const read = (name: string) => JSON.parse(readFileSync(new URL(`fixtures/${name}.json`, import.meta.url), 'utf8')) as Pick<Track, 'lines' | 'shapes'>;
+  const [atocha, francoli] = [read('atocha'), read('francoli')];
+  const mine = new Set(atocha.lines.map((l) => l.id));
+  // Each stroke of those Lines as drawn, a centreline named by its points: its number depends on what comes before.
+  const drawn = async (lines: Line[], shapes: Shape[]) => {
+    const { strokes, centrelines } = await sideBySide(lines, shapes);
+    const byId = new Map(centrelines.map((c) => [c.id, c]));
+    const named = (id: string) => (id.startsWith(STRETCH) ? JSON.stringify(byId.get(id)?.coords) : id);
+    return strokes
+      .filter((s) => mine.has(s.line))
+      .map((s) => JSON.stringify({ ...s, shape: named(s.shape), ...(s.across && { across: s.across.map(([id, from, to]) => [named(id), from, to]) }) }))
+      .sort();
+  };
+  const alone = await drawn(atocha.lines, atocha.shapes);
+  const after = await drawn([...francoli.lines, ...atocha.lines], [...francoli.shapes, ...atocha.shapes]);
+  // There are curves to compare: across a node, on a centreline named by its points.
+  expect(alone.some((s) => (JSON.parse(s) as Stroke).across)).toBe(true);
+  expect(after).toEqual(alone);
 });
 
 test("draws the bands below zoom 10 on graphs of their own with every visit of each shape, as SHORT's metres are no measure of a line width there (#353)", async () => {
