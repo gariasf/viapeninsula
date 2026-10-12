@@ -19,7 +19,7 @@ import { atMostEvery, drifted, letsGo, outsideMiddle, pointersDown, tapZooms } f
 import { keepView, lastView, markOf, openingView, toggledPitch } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { darkInk, INK, lettering } from './colour.ts';
-import { boardAsks, boardList, cardAlerts, countdownTo, inNameOrder, linesOnBoard, linkedWords, minutesTo, nearbyRows, nextOnItsWay, passedPlace, progress, tripsState, untilTick, whereabouts, type CardAlert, type Whereabouts } from './cards.ts';
+import { ago, boardAsks, boardList, cardAlerts, countdownTo, due, inNameOrder, linesOnBoard, linkedWords, minutesTo, nearbyRows, nextOnItsWay, passedPlace, progress, tripsState, untilTick, whereabouts, type CardAlert, type Whereabouts } from './cards.ts';
 import { ARROW_GAP, boxOf, FOLLOWED_TEXT, LINE_HEIGHT, OUTLINE_SIZES, outlineOf, PILL_EDGE, PILL_PADDING, PILL_TEXT, pillReach, type Outline } from './pill.ts';
 import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, tappedRows, type Shown } from './closures.ts';
 
@@ -2300,8 +2300,10 @@ function followedPanel(up: boolean): Panel | undefined {
   else if (since !== undefined) status.push(t(live ? 'confirmed' : 'lastConfirmed').replace('{ago}', ago(since)));
   status.push(el('span', {}, el('span', { className: 'sr-only', textContent: `${t('speed')} ` }), `~${Math.round(speed * 3.6)} km/h`));
   if (unitType) status.push(`${t('unit')} ${unitType}`);
+  // Where it has no countdown, at its Trip's last Station, the panel waits on none either (#607).
+  const next = upcoming[0] && due(upcoming[0], !!train.standsAt, upcoming.length === 1);
   return {
-    changes: upcoming[0] && untilTick(due(upcoming[0], !!train.standsAt), mapNow),
+    changes: next?.countdown ? untilTick(next.at, mapNow) : undefined,
     header: el('header', {}, ...backButton(), el('h2', { className: 'title', tabIndex: -1 }, pill(trip.line, { live, train: true }), ` ${trip.headsign}`), closeButton(t('stopFollowing'))),
     body: [
       el('p', { className: 'meta status-line' }, el('span', { className: `dot ${live ? 'live' : 'scheduled'}` }), ...status.flatMap((part, i) => (i ? [' · ', part] : [part]))),
@@ -2354,22 +2356,18 @@ function backButton(): Node[] {
   return [el('button', { type: 'button', className: 'back', onclick: goBack }, icon('back'), el('span', { textContent: label }))];
 }
 
-/** When a followed Train's expected at a Station it has still to come to: at the one it stands at, when it leaves. */
-function due(call: Followed['upcoming'][number], standing: boolean): number {
-  return standing ? call.departure : call.arrival;
-}
-
 /**
  * A followed Train's next Station: its name, labelled as the Train is arriving at it or stands at it,
  * where `where` says so (#455); when the Train's expected there, with its status beside it, and the
  * time to it within the hour, in seconds in its last minute (followedCountdown(), #456). Standing,
  * that time is when it leaves, which it says unless that's its Trip's last Station, where the Train
- * doesn't leave. The first it stops at, not one within a closed Closure that hides Trains (#420).
+ * doesn't leave: there it's when it arrived, with no time to it (due(), #607). The first it stops at,
+ * not one within a closed Closure that hides Trains (#420).
  */
 function nextStation({ upcoming, standsAt, delay, live }: Pick<Followed, 'upcoming' | 'standsAt' | 'delay' | 'live'>, now: number, where?: Whereabouts<Call, Place>): Node[] {
   const next = upcoming.find((c) => !c.skipped);
   if (!next) return [];
-  const at = due(next, !!standsAt && next === upcoming[0]);
+  const { at, countdown } = due(next, !!standsAt && next === upcoming[0], next === upcoming.at(-1));
   const label = where?.at === 'arriving' ? 'nextStationArriving' : where?.at === 'standing' ? 'nextStationStanding' : 'nextStation';
   const leaves = where?.at === 'standing' && upcoming.length > 1 ? [el('span', { className: 'soft', textContent: t('leaves') })] : [];
   return [
@@ -2377,7 +2375,7 @@ function nextStation({ upcoming, standsAt, delay, live }: Pick<Followed, 'upcomi
       'div',
       { className: 'next-station' },
       el('div', {}, el('p', { className: 'label', textContent: t(label) }), stationLink(next.station, el('strong', { className: 'next-name', textContent: stationName(next.station) }))),
-      el('div', { className: 'next-when' }, el('span', { className: 'at' }, ...leaves, el('time', {}, ...timeOfDay(at)), status({ delay, live })), ...followedCountdown(at, now)),
+      el('div', { className: 'next-when' }, el('span', { className: 'at' }, ...leaves, el('time', {}, ...timeOfDay(at)), status({ delay, live })), ...(countdown ? followedCountdown(at, now) : [])),
     ),
   ];
 }
@@ -2476,7 +2474,7 @@ function strip({ trip, upcoming, standsAt }: Pick<Followed, 'trip' | 'upcoming' 
       const link = stationLink(call.station, stationName(call.station));
       // Not stopping, within a closed Closure that hides Trains, as a board's row says it (#345, #420).
       const says = call.skipped ? [' ', el('span', { className: 'status skipped', textContent: t('notStopping') })] : [];
-      return station(classes, timeOfDay(due(call, i === 0 && !!standsAt)), link, ...says);
+      return station(classes, timeOfDay(due(call, i === 0 && !!standsAt, i === upcoming.length - 1).at), link, ...says);
     }),
   );
   list.setAttribute('aria-label', t(past ? 'stations' : 'nextStations'));
@@ -2934,11 +2932,6 @@ function kilometres(metres: number): string {
 /** Formats times of day as the viewer's language does, in Barcelona, after their day where `day` says. */
 function clock(day = false) {
   return new Intl.DateTimeFormat(locale(), { dateStyle: day ? 'medium' : undefined, timeStyle: 'short', timeZone: 'Europe/Madrid' });
-}
-
-/** How long a number of ms is, to the second under a minute and to the minute after. */
-function ago(ms: number): string {
-  return ms < 60_000 ? `${Math.max(0, Math.round(ms / 1000))} s` : `${Math.round(ms / 60_000)} min`;
 }
 
 /**

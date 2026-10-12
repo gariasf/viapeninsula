@@ -7,7 +7,7 @@ import { stationsOf } from './build/track.ts';
 import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, unavailable, type Received, type ShownClosure } from './engine.ts';
 import { jumps } from './jumps.ts';
 import { NETWORKS } from './networks.ts';
-import { countdownTo, minutesTo, passedPlace, whereabouts } from './web/cards.ts';
+import { countdownTo, due, minutesTo, passedPlace, whereabouts } from './web/cards.ts';
 
 /** A speed profile like Rodalies', in metres and seconds, which the times below are worked out from. */
 const PROFILE = { acceleration: 1, braking: 1, topSpeed: 160 / 3.6, dwell: 30 };
@@ -818,13 +818,67 @@ test("a followed Train's countdown in seconds counts by the map's time to its ne
   }
 });
 
-test("a followed Train easing towards where live data has it runs as late as live data says, and is expected at its Stations that late", () => {
-  // The R2S runs on time until a snapshot at 22:00:00 has it 10 s late, and slows down until it is.
+test("a followed Train standing at its Trip's last Station is expected there when it arrived, running its Delay late, with no countdown to the dwell's end the engine makes up, and counted down to on its way in (#607)", () => {
+  // Made up: Renfe has the R2S a minute late on the way to Barcelona Estació de França, its last Station, due at 22:51:00: it's there from 22:52:00,
+  // and stays on the map to 22:52:30, as its profile's dwell has it, which is the `departure` the engine gives that call.
+  const received = [late(R2S, 60, at('22:50:00'))];
+  const card = (moment: number, trip = R2S, bundle = BUNDLE, got = received) => {
+    const f = followed(trip, moment, got, bundle);
+    return f && { ...f, due: due(f.upcoming[0] ?? { arrival: NaN, departure: NaN }, !!f.standsAt, f.upcoming.length === 1) };
+  };
+  const standing = card(at('22:52:10'));
+  expect(standing).toMatchObject({ standsAt: 'Barcelona Estació de França', upcoming: [{ station: 'Barcelona Estació de França', arrival: at('22:52:00'), departure: at('22:52:30') }] });
+  expect(standing?.due).toEqual({ at: at('22:52:00'), countdown: false });
+  // Before it gets there, as at any Station: its arrival, and a countdown to it.
+  expect(card(at('22:51:40'))).toMatchObject({ standsAt: undefined, due: { at: at('22:52:00'), countdown: true } });
+  // Standing at a Station before its last, it's expected when it leaves, as ever: Vilanova i la Geltrú, from 21:49:00 to 21:50:00.
+  expect(card(at('21:49:30'))).toMatchObject({ standsAt: 'Vilanova i la Geltrú', due: { at: at('21:50:00'), countdown: true } });
+  // Its last Station is the last of its calls, not the last Station it calls at: R11 calls at Portbou on its way to Cerbère and again on its way back.
+  const R11 = 'rodalies:5165J15900R11';
+  expect(card(at('08:51:30'), R11)).toMatchObject({ standsAt: 'Portbou', due: { at: at('08:52:00'), countdown: true } });
+  expect(card(at('09:08:10'), R11)).toMatchObject({ standsAt: 'Portbou', upcoming: [{ arrival: at('09:08:00'), departure: at('09:08:30') }], due: { at: at('09:08:00'), countdown: false } });
+});
+
+test("a followed Train easing towards where live data has it is expected at its Stations as late as it's drawn, which eases to live data's Delay as the Train does and is that late once it has, where it's drawn to be (#610)", () => {
+  // The R2S runs on time until a snapshot at 22:00:00 has it 10 s late, and slows down to half its speed until it is, 20 s on.
   const received = [late(R2S, 0, at('21:59:40')), late(R2S, 10, at('22:00:00'))];
-  const easing = followed(R2S, at('22:00:05'), received);
-  expect(easing?.delay).toBe(10);
-  expect(easing?.upcoming[0]).toMatchObject({ station: 'Castelldefels', arrival: at('22:12:10') });
+  const next = (s: number) => followed(R2S, at('22:00:00', s), received)?.upcoming[0];
+  // Still on time as the snapshot arrives, and a second later each two seconds, to 10 s late 20 s on and after.
+  for (const s of [0, 1, 2, 5, 10, 15, 20]) {
+    expect(next(s)).toMatchObject({ station: 'Castelldefels' });
+    expect(next(s)?.arrival).toBeCloseTo(at('22:12:00', s / 2), 0);
+  }
+  expect(next(30)).toMatchObject({ station: 'Castelldefels', arrival: at('22:12:10') });
+  // The Delay it has, which its chip shows, is live data's, from the snapshot on.
+  expect(followed(R2S, at('22:00:05'), received)?.delay).toBe(10);
   expect(where(R2S, at('22:12:10'), received)).toBe(150987);
+});
+
+test("a followed Train's times never step as a snapshot arrives: the Delay it's drawn at, so the time it's expected at, eases as the Train does, 1.5 s a second to one 30 s earlier and a second a second to one 30 s later (#610)", () => {
+  // Half a minute late until a snapshot at 22:00:00 has it on time, when it runs on at 2.5 times its cruising speed until it is, 20 s on; or on time, and then half a minute late,
+  // when it holds where it is, for the half minute. A Train drawn more than a minute or a kilometre from where a snapshot has it jumps there instead, and its times with it.
+  const [earlier, later] = [[late(R2S, 30, at('21:59:40')), late(R2S, 0, at('22:00:00'))], [late(R2S, 0, at('21:59:40')), late(R2S, 30, at('22:00:00'))]];
+  // From the second before the snapshot, to the end of its easing and a few seconds on.
+  const arrivals = (received: Received[]) => Array.from({ length: 62 }, (_, s) => followed(R2S, at('21:59:59', s), received)?.upcoming[0]?.arrival ?? NaN);
+  const steps = (received: Received[]) => arrivals(received).slice(1).map((a, i) => a - (arrivals(received)[i] ?? NaN));
+  // It catches up at 1.5 s a second, and it waits at a second a second: no second is a step.
+  expect(Math.min(...steps(earlier))).toBeCloseTo(-1_500, 0);
+  expect(Math.max(...steps(earlier))).toBeLessThanOrEqual(1e-6);
+  expect(Math.max(...steps(later))).toBeCloseTo(1_000, 0);
+  expect(Math.min(...steps(later))).toBeGreaterThanOrEqual(0);
+  // From the second before the snapshot to the end of its easing it has gone the whole half minute, either way, and it's there at the end.
+  expect(arrivals(earlier)[0]).toBeCloseTo(at('22:12:30'), 0);
+  expect(arrivals(earlier)[61]).toBeCloseTo(at('22:12:00'), 0);
+  expect(arrivals(later)[0]).toBeCloseTo(at('22:12:00'), 0);
+  expect(arrivals(later)[61]).toBeCloseTo(at('22:12:30'), 0);
+});
+
+test("a board's row keeps the Delay live data gave, as it arrives, while the followed Train's times ease to it (#610)", () => {
+  const received = [late(R2S, 0, at('21:59:40')), late(R2S, 10, at('22:00:00'))];
+  // 5 s after the snapshot the Train is drawn 2.5 s late, and its Delay is 10 s: Castelldefels' board has it leave at 22:13:00 and 10 s.
+  expect(followed(R2S, at('22:00:05'), received)?.upcoming[0]?.departure).toBeCloseTo(at('22:13:02.5'), 0);
+  expect(board(['Castelldefels'], at('22:00:05'), received)).toMatchObject([{ trip: { id: R2S }, departure: at('22:13:10'), delay: 10 }]);
+  expect(board(['Castelldefels'], at('22:00:00'), received)).toMatchObject([{ departure: at('22:13:10') }]);
 });
 
 test('a followed Train that live data shows stopped between Stations, held there, runs at no speed', () => {
@@ -1050,6 +1104,16 @@ test('a Train running late passes near a point that much later, and a Cancelled 
   expect(late2?.at).toBeCloseTo(onTime + 120_000, -1);
   const cancelled: Snapshot = { ...written(at('21:59:40')), reports: [{ trip: R2S, at: at('21:59:40'), cancelled: true }] };
   expect(nearby(point, at('21:59:50'), [{ snapshot: cancelled, at: at('21:59:40') }])).toEqual([]);
+});
+
+test("a Train's pass near a point keeps the Delay live data gave, as it arrives, while the followed Train's times ease to it (#610)", () => {
+  const received = [late(R2S, 0, at('21:59:40')), late(R2S, 10, at('22:00:00'))];
+  const point = offTrack(MIDWAY, 1000);
+  const onTime = nearby(point, at('21:59:50'))[0]?.at ?? NaN;
+  // 5 s after the snapshot the Train is drawn 2.5 s late, and its Delay is 10 s: it passes 10 s late, as its board has it leave.
+  expect(followed(R2S, at('22:00:05'), received)?.upcoming[0]?.arrival).toBeCloseTo(at('22:12:02.5'), 0);
+  expect(nearby(point, at('22:00:05'), received)).toMatchObject([{ trip: { id: R2S }, delay: 10 }]);
+  expect(nearby(point, at('22:00:05'), received)[0]?.at).toBeCloseTo(onTime + 10_000, -1);
 });
 
 test('a Train already past its nearest point is listed once, for when its track comes back within the radius', () => {
@@ -2783,6 +2847,18 @@ test('a followed Metro Train whose Block waits at the end of its Line stands at 
   const panel = followed(NEXT_OUT_OF_FONDO, Date.parse('2026-09-25T13:16:30+02:00'), TURNING_112, METRO);
   expect(panel).toMatchObject({ live: true, standsAt: 'tmb:1.140', speed: 0 });
   expect(panel?.upcoming[0]).toMatchObject({ station: 'tmb:1.140', departure: Date.parse('2026-09-25T13:17:13+02:00') });
+});
+
+test("a followed Metro Train held at its first Station is expected to leave when TMB's report has it leave, not now, as a board has it, though it's drawn standing there at its timetable's time (#610)", () => {
+  // Made up: at 13:17:20 TMB names Santa Coloma, 87 s on by the Trip's timetable, and expects 112 there at 13:19:00, 20 s late: 112 leaves Fondo at 13:17:33,
+  // and stays there, drawn at 13:17:13 of its timetable, until a report has it gone. The Delay it's drawn at, now - time, is 12 s at 13:17:25, not the 20 its times run.
+  const received = [outOfFondo('13:16:40', ['112', 'tmb:1.140', '13:17:13']), outOfFondo('13:17:20', ['112', 'tmb:1.139', '13:19:00'])];
+  const [moment, leaves] = [Date.parse('2026-09-25T13:17:25+02:00'), Date.parse('2026-09-25T13:17:33+02:00')];
+  expect(metro(NEXT_OUT_OF_FONDO, '13:17:25', received)).toMatchObject({ live: true, dist: 0 });
+  expect(followed(NEXT_OUT_OF_FONDO, moment, received, METRO)).toMatchObject({ standsAt: 'tmb:1.140', speed: 0, upcoming: [{ station: 'tmb:1.140', departure: leaves }, {}, {}] });
+  // Its countdown reads 8 s, where `now` would say it's leaving, and its board's row has it leave then too.
+  expect(countdownTo(leaves, mapTime(moment, by(received, moment)))).toEqual({ n: 8, unit: 'seconds' });
+  expect(board(['tmb:1.140'], moment, received, METRO)).toMatchObject([{ trip: { id: NEXT_OUT_OF_FONDO }, departure: leaves, live: true }]);
 });
 
 test('a Metro Train whose Block waits at the end of its Line passes near a point there now', () => {

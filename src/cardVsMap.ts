@@ -8,10 +8,12 @@
 // card's own, by whereabouts() (#455): where it says the Train is, by how far it's drawn from its
 // Stations, against how far the followed pill reaches, and the place it passes without stopping, if
 // it's on one (#457); and its countdown, by countdownTo() (#456), beside what the minute-reading
-// card, as a board's rows are, would have said.
+// card, as a board's rows are, would have said. Its times run the Delay the Train is drawn at (#610), which eases to
+// the one live data gave as the Train does, where a board's rows run the one live data gave, and it has none at its
+// Trip's last Station, where the Train stands arrived (#607).
 
 import type { Call, SpeedProfile } from './bundle.ts';
-import { countdownTo, minutesTo, whereabouts, type Countdown } from './web/cards.ts';
+import { countdownTo, due, minutesTo, whereabouts, type Countdown } from './web/cards.ts';
 
 /** How near a Station a Train is drawn, in px on the screen, for its dot to be at it: about 50 m at zoom 13, 12 m at zoom 15. */
 export const AT = 7;
@@ -36,8 +38,10 @@ export interface Moment {
   /** Seconds into the service day by the fetcher's clock, which the drawn Train runs by, and where in its timetable it's drawn, the same way. */
   now: number;
   time: number;
-  /** How late the card's times run, in seconds: Followed's `delay` or, for a Metro Train, the one it works from. */
+  /** How late the card's times run, in seconds: the Delay the Train is drawn at, which the engine's `drawnDelay` has and its `delay`, a Metro Train's too, does not (#610). */
   delay: number;
+  /** How late live data last gave it, in seconds, which a board's rows and Nearby's run (the engine's `delay`): the card's `delay` where none is given. */
+  reported?: number;
   /** How far along its shape it's drawn, in metres. */
   dist: number;
   /** Its Trip's calls as it makes them, with the key the card names each by, how far the Train is drawn from the dot of its Station's place, in metres, where `near` is not that, and how far that dot is from the Station (none: 0). */
@@ -86,7 +90,8 @@ export interface Differences {
   /**
    * What the minute-reading card, as a board's rows are (minutesTo()), reads `now` (0 minutes) for, and while the Train is more
    * than FAR from the Station it counts to, and how many seconds it has still to go there by the drawn Train: #352's column,
-   * kept as it was, for what the followed Train's card said until #456 and a board's rows still say.
+   * kept as it was, for what the followed Train's card said until #456 and a board's rows still say, by the Delay live data
+   * gave, as they do (#610).
    */
   readsNow: boolean;
   nowFar: boolean;
@@ -102,12 +107,23 @@ export interface Differences {
    */
   reads: Countdown;
   countdownNowFar: boolean;
-  /** The card's time for the Station it counts down to, with its Delay, in ms since 1970, and which Station and which of its times it counts to (`B arrives`, `B leaves`): to see its steps. */
+  /**
+   * The card's time for the Station it counts down to, with the Delay the Train is drawn at, in ms since 1970, and which Station and which of
+   * its times it counts to (`B arrives`, `B leaves`; where it stands at its Trip's last Station, `arrives`, as it's expected there when it arrived):
+   * to see its steps. And whether it counts down to it, which it doesn't at its Trip's last Station, where it has stood since its time (#607).
+   */
   expected: number;
   countsTo: string;
+  countdown: boolean;
+  /** The same time for the same Station by the Delay live data gave, as a board's row for it, or Nearby's, has it, in ms since 1970: where the card is later or earlier than live data (#610). */
+  reportedAt: number;
   /** The Train is drawn within `reach.at` of its next Station, and doesn't stand there: the last of its way in. */
   atNext: boolean;
-  /** Cause 5: the card's time for its next Station against when the drawn Train gets there, in seconds: positive where the Train is drawn ahead of its Delay. */
+  /**
+   * Cause 5: the Delay live data gave, which a board's rows run, against how late the Train is drawn, in seconds: positive where the Train is
+   * drawn ahead of its Delay. It was the card's time for its next Station against when the drawn Train gets there until #610, when the card began
+   * to run the Delay the Train is drawn at, which eases to live data's, so that the card's own is none (#610).
+   */
   timeOff: number;
   /** Cause 6: the Train's last report pins it to a Station, and it's drawn more than FAR from that Station along its Trip, short of it or already past it. */
   pinnedAway: 'short' | 'past' | undefined;
@@ -134,16 +150,21 @@ export function differences(m: Moment): Differences | undefined {
   const left = new Set(m.calls.slice(0, earlier).map((c) => c.key));
   const ahead = (n: Near) => !left.has(n.key) || upcoming.some((c) => c.key === n.key);
 
-  const due = m.standing ? next.departure : next.arrival;
-  const expected = m.noon + (due + m.delay) * 1000;
-  const reads0 = minutesTo(expected, m.at) === 0;
+  // Which of its times the card has for the Station: its arrival, or its departure where it stands there, but its arrival where it ends its Trip there (#607).
+  const { at: dueAt, countdown } = due(next, m.standing, upcoming.length === 1);
+  const reported = m.reported ?? m.delay;
+  const expected = m.noon + (dueAt + m.delay) * 1000;
+  const reportedAt = m.noon + (dueAt + reported) * 1000;
+  // The minute-reading card: a board's row, by the Delay live data gave, which departs a Station it stands at, as before.
+  const boardAt = m.noon + ((m.standing ? next.departure : next.arrival) + reported) * 1000;
+  const reads0 = minutesTo(boardAt, m.at) === 0;
   const gap = Math.abs(next.dist - m.dist);
   const far = !m.standing && gap > FAR;
   const nowFar = reads0 && far;
   const reads = countdownTo(expected, m.at);
   const atNext = !m.standing && m.near.some((n) => n.metres <= m.reach.at && n.key === next.key);
   // How long the drawn Train has to its timetable's time for the Station, in seconds: its own clock, whatever the card counts by.
-  const toGo = due - m.time;
+  const toGo = (m.standing ? next.departure : next.arrival) - m.time;
   // How far short of a Station the speed model has a Train braking at most: where `Arriving at B` would be true by braking, which the card doesn't go by (the pill's reach, #352's pick).
   const brake = m.profile.topSpeed ** 2 / (2 * m.profile.braking);
   const arrow = unnamed(m.reach.arrow, ahead);
@@ -160,15 +181,17 @@ export function differences(m: Moment): Differences | undefined {
     readsNow: reads0,
     nowFar,
     toGo,
-    nowByMinute: nowFar && expected > m.at,
-    nowByDelay: nowFar && expected <= m.at,
+    nowByMinute: nowFar && boardAt > m.at,
+    nowByDelay: nowFar && boardAt <= m.at,
     reads,
     countdownNowFar: reads.n === 0 && far,
     expected,
-    countsTo: `${next.key} ${m.standing ? 'leaves' : 'arrives'}`,
+    countsTo: `${next.key} ${m.standing && countdown ? 'leaves' : 'arrives'}`,
+    countdown,
+    reportedAt,
     atNext,
-    // The card's time is `due + delay`; the drawn Train is `now - time` behind its timetable, and gets there at `due + (now - time)`.
-    timeOff: m.delay - (m.now - m.time),
+    // The Delay live data gave less the Delay the drawn Train is at, `now - time`: a board's time for the Station, and the card's before #610, against the time the drawn Train gets there at, `due + (now - time)`.
+    timeOff: reported - (m.now - m.time),
     pinnedAway: m.pin && Math.abs(m.pin.dist - m.dist) > FAR ? (m.pin.call >= earlier ? 'short' : 'past') : undefined,
   };
 }

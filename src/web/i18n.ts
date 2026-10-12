@@ -97,10 +97,11 @@ const STRINGS = {
   leaving: { ca: 'Sortint de {station}', es: 'Saliendo de {station}', eu: '{station} geltokitik irteten', gl: 'Saíndo de {station}', en: 'Leaving {station}' },
   passing: { ca: 'Passant per {station}', es: 'Pasando por {station}', eu: '{station} geltokitik igarotzen', gl: 'Pasando por {station}', en: 'Passing {station}' },
   between: { ca: 'Entre {a} i {b}', es: 'Entre {a} y {b}', eu: '{a} eta {b} artean', gl: 'Entre {a} e {b}', en: 'Between {a} and {b}' },
-  // How long until a Train comes: under a time on a board or in Nearby, and under the followed Train's next Station's, which counts in seconds in its last minute (#456). Their units are symbols, min and s, which have no plural.
-  minutes: { ca: '{n} min', es: '{n} min', eu: '{n} min', gl: '{n} min', en: '{n} min' },
-  inMinutes: { ca: "d'aquí a {n} min", es: 'en {n} min', eu: '{n} min barru', gl: 'en {n} min', en: 'in {n} min' },
-  inSeconds: { ca: "d'aquí a {n} s", es: 'en {n} s', eu: '{n} s barru', gl: 'en {n} s', en: 'in {n} s' },
+  // How long until a Train comes: under a time on a board or in Nearby, and under the followed Train's next Station's, which counts in seconds in its last minute (#456). Their units are symbols, min and s, which have no plural,
+  // and a no-break space (U+00A0) joins each to its number, so that a line of a card's paragraph never ends between them (#612).
+  minutes: { ca: '{n}\u00A0min', es: '{n}\u00A0min', eu: '{n}\u00A0min', gl: '{n}\u00A0min', en: '{n}\u00A0min' },
+  inMinutes: { ca: "d'aquí a {n}\u00A0min", es: 'en {n}\u00A0min', eu: '{n}\u00A0min barru', gl: 'en {n}\u00A0min', en: 'in {n}\u00A0min' },
+  inSeconds: { ca: "d'aquí a {n}\u00A0s", es: 'en {n}\u00A0s', eu: '{n}\u00A0s barru', gl: 'en {n}\u00A0s', en: 'in {n}\u00A0s' },
   now: { ca: 'ara', es: 'ahora', eu: 'orain', gl: 'agora', en: 'now' },
   // At the foot of a peeking followed Train: how many Stations it has still to come after the next, and the last of them, where it's headed, and when it's due there.
   moreStations: {
