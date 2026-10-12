@@ -37,7 +37,7 @@ Every ticket runs `npm run check`, `npx vitest run --dir src` and the review. Th
   - One hardware page uses about 93% CPU, and three use 446% in all.
   - The headless shell (`chromium_headless_shell`) draws WebGL in software, at 737–839% CPU for one page.
 - **Open each page in its own browser context.** Pages that share a context crawl at 3–7 fps unless they're in front.
-- **Take a browser slot through the harness's waiter.** It has three slots, and a perf run takes all three. Until milestone 0's harness lands, take one lock and use at most one browser per session.
+- **Go through the page harness, `src/page/`** (README): `npm run page` for shots, `npm run perf` for perf, or a ticket's script that imports `launch()`, `openMap()` and `withSlots()`, rather than a script of its own. Its waiter has three slots, and a perf run takes all three.
 - **Compare before and after in one batch**, alternating the runs, and note the load average. After 15 minutes waiting for a slot, report the check as not run.
 - **Use the browsers already cached.** `npx playwright install` prunes that shared cache.
 - **When done**, close browsers, preview servers and Playwright MCP servers, and remove worktrees and scratch bundles.
