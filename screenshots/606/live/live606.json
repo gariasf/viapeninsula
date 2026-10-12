@@ -1,0 +1,63 @@
+{
+ "ca-masnou-board-1280": {
+  "at": "2026-10-12T09:01:13.235Z",
+  "rows": [
+   "Segueix el tren R1 cap a l'Hospitalet de Llobregat, 11:02, sense dades en temps real",
+   "Segueix el tren R1 cap a Blanes, 11:12, +16 min16 min de retard",
+   "Segueix el tren R1 cap a Mataró, 11:16, +4 min4 min de retard",
+   "Segueix el tren R1 cap a l'Hospitalet de Llobregat, 11:20, +3 min3 min de retard",
+   "Segueix el tren R1 cap a l'Hospitalet de Llobregat, 11:32, puntual",
+   "Segueix el tren R1 cap a Maçanet-Massanes, 11:39, +12 min12 min de retard",
+   "Segueix el tren R1 cap a Mataró, 11:42, puntual",
+   "Segueix el tren R1 cap a l'Hospitalet de Llobregat, 11:46, −1 min1 min d'avançament",
+   "Segueix el tren R1 cap a Blanes, 11:57",
+   "Segueix el tren R1 cap a l'Hospitalet de Llobregat, 12:02"
+  ],
+  "picked": "Segueix el tren R1 cap a l'Hospitalet de Llobregat, 11:02, sense dades en temps real",
+  "back": "Torna al Masnou",
+  "panel": "Torna al Masnou R1 , Programat L'Hospitalet de Llobregat Programat · sense dades en temps real · Velocitat estimada ~0 km/h A L'ESTACIÓ El Masnou surt 11:02 d'aquí a 38 s Mataró L'Hospitalet de Llobregat, 37,8 km 3 avisos 5 estacions anteriors 11:02 El Masnou 11:03 Montgat-Nord 11:05 Montgat 11:08 Badalona 11:11 Sant Adrià de Besòs 11:21 Barcelona El Clot 11:25 Barcelona Arc de Triomf 11:28 Barcelona Plaça de Catalunya 11:33 Barcelona-Sants 11:41 L'Hospitalet de Llobregat",
+  "errors": [
+   "error: Failed to load resource: net::ERR_FAILED"
+  ],
+  "failedRequests": [
+   "static.cloudflareinsights.com/beacon.min.js/v4bc70e2c01a94c73b74392e4234840661791215815920 net::ERR_FAILED"
+  ]
+ },
+ "ca-hospitalet-board-390": {
+  "at": "2026-10-12T09:01:23.103Z",
+  "rows": [
+   "Segueix el tren R1 cap a Mataró, 11:03, puntual",
+   "Segueix el tren R4 cap a Terrassa Estació del Nord, 11:07, +2 min2 min de retard",
+   "Segueix el tren R4 cap a Sant Vicenç de Calders, 11:08, +8 min8 min de retard"
+  ],
+  "picked": "Segueix el tren R1 cap a Mataró, 11:03, puntual",
+  "back": "Torna a l'Hospitalet de Llobregat",
+  "panel": "Torna a l'Hospitalet de Llobregat R1 , En directe Mataró Surt de l'Hospitalet de Llobregat a les 11:03 · d'aquí a 2 min PROPERA ESTACIÓ L'Hospitalet de Llobregat 11:03 puntual d'aquí a 2 min 3 avisos 14 estacions més, fins a Mataró (11:59)",
+  "errors": [
+   "error: Failed to load resource: net::ERR_FAILED"
+  ],
+  "failedRequests": [
+   "static.cloudflareinsights.com/beacon.min.js/v4bc70e2c01a94c73b74392e4234840661791215815920 net::ERR_FAILED"
+  ]
+ },
+ "gl-ponto-board-390": {
+  "at": "2026-10-12T09:01:34.638Z",
+  "rows": [
+   "Seguir o tren C1 cara a San Sadurniño, 13:55",
+   "Seguir o tren C1 cara a Ferrol, 14:37, +3 min3 min de atraso",
+   "Seguir o tren C1 cara a Ortigueira, 14:55"
+  ],
+  "picked": "Seguir o tren C1 cara a San Sadurniño, 13:55",
+  "back": "Volver ao Ponto",
+  "panel": "Volver ao Ponto C1 , Programado San Sadurniño Sae de Ferrol ás 13:45 PRÓXIMA ESTACIÓN Ferrol 13:45 11 estacións máis, ata San Sadurniño (14:10)",
+  "errors": [
+   "error: Failed to load resource: net::ERR_FAILED"
+  ],
+  "failedRequests": [
+   "static.cloudflareinsights.com/beacon.min.js/v4bc70e2c01a94c73b74392e4234840661791215815920 net::ERR_FAILED",
+   "tiles.openfreemap.org/planet/20261004_113936_pt/14/7818/5987.pbf net::ERR_ABORTED",
+   "tiles.openfreemap.org/planet/20261004_113936_pt/14/7817/5988.pbf net::ERR_ABORTED",
+   "tiles.openfreemap.org/planet/20261004_113936_pt/14/7818/5990.pbf net::ERR_ABORTED"
+  ]
+ }
+}

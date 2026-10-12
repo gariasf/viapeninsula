@@ -1,0 +1,30 @@
+{
+ "ca-masnou-arriving-z9": {
+  "zoom": 9,
+  "panel": "R1 , Programat L'Hospitalet de Llobregat Programat · Velocitat estimada ~25 km/h ARRIBANT A El Masnou 8:31 d'aquí a 30 s Arenys de Mar L'Hospitalet de Llobregat, 47,8 km 8 estacions anteriors ara Arribant al Masnou 8:31 El Masnou 8:33 Montgat-Nord 8:35 Montgat 8:38 Badalona 8:41 Sant Adrià de Besòs 8:51 Barcelona El Clot 8:55 Barcelona Arc de Triomf 8:58 Barcelona Plaça de Catalunya 9:03 Barcelona-Sants 9:11 L'Hospitalet de Llobregat",
+  "errors": [
+   "warning: TimeoutError: signal timed out"
+  ]
+ },
+ "ca-masnou-leaving-z9": {
+  "zoom": 9,
+  "panel": "R1 , Programat L'Hospitalet de Llobregat Programat · Velocitat estimada ~99 km/h PROPERA ESTACIÓ Montgat-Nord 8:33 d'aquí a 1 min Arenys de Mar L'Hospitalet de Llobregat, 47,8 km 9 estacions anteriors ara Sortint del Masnou 8:33 Montgat-Nord 8:35 Montgat 8:38 Badalona 8:41 Sant Adrià de Besòs 8:51 Barcelona El Clot 8:55 Barcelona Arc de Triomf 8:58 Barcelona Plaça de Catalunya 9:03 Barcelona-Sants 9:11 L'Hospitalet de Llobregat",
+  "errors": [
+   "warning: TimeoutError: signal timed out"
+  ]
+ },
+ "gl-ponto-arriving-z9": {
+  "zoom": 9,
+  "panel": "C1 , Programado San Sadurniño Programado · Velocidade estimada ~78 km/h CHEGANDO A O Ponto 7:34 en 29 s Ferrol San Sadurniño, 16,3 km 6 estacións anteriores agora Chegando ao Ponto 7:34 O Ponto 7:37 Xuvia 7:39 Ferrerías 7:43 Sedes 7:46 Pedroso de Narón 7:51 San Sadurniño",
+  "errors": [
+   "warning: TimeoutError: signal timed out"
+  ]
+ },
+ "gl-ponto-leaving-z9": {
+  "zoom": 9,
+  "panel": "C1 , Programado San Sadurniño Programado · Velocidade estimada ~48 km/h PRÓXIMA ESTACIÓN Xuvia 7:37 en 2 min Ferrol San Sadurniño, 16,3 km 7 estacións anteriores agora Saíndo do Ponto 7:37 Xuvia 7:39 Ferrerías 7:43 Sedes 7:46 Pedroso de Narón 7:51 San Sadurniño",
+  "errors": [
+   "warning: TimeoutError: signal timed out"
+  ]
+ }
+}

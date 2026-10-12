@@ -1,0 +1,96 @@
+{
+ "ca-granollers-board": {
+  "rows": [
+   "Segueix el tren R2N cap al Prat Aeroport, 4:59",
+   "Segueix el tren R2N cap al Prat Aeroport, 5:29",
+   "Segueix el tren R2N cap al Prat Aeroport, 5:59",
+   "Segueix el tren R2 cap a Maçanet-Massanes, 6:09",
+   "Segueix el tren R2 cap a Castelldefels, 6:14",
+   "Segueix el tren R2N cap al Prat Aeroport, 6:29",
+   "Segueix el tren R8 cap a Martorell Central, 6:32",
+   "Segueix el tren R2 cap a Sant Celoni, 6:38",
+   "Segueix el tren R2 cap a Castelldefels, 6:44",
+   "Segueix el tren R11 cap a Portbou, 6:48"
+  ],
+  "panel": "Torna a Granollers Centre R2N , Programat El Prat Aeroport Surt de Granollers Centre a les 4:59 · d'aquí a 4 min PROPERA ESTACIÓ Granollers Centre 4:59 d'aquí a 4 min 4:59 Granollers Centre 5:03 Montmeló 5:07 Mollet-Sant Fost 5:10 La Llagosta 5:13 Montcada i Reixac 5:20 Barcelona Sant Andreu 5:25 Barcelona El Clot 5:31 Barcelona-Passeig de Gràcia 5:37 Barcelona-Sants 5:44 Bellvitge - Gornal 5:49 El Prat de Llobregat 5:56 El Prat Aeroport",
+  "back": "Torna a Granollers Centre",
+  "errors": []
+ },
+ "ca-masnou-board-back": {
+  "rows": [
+   "Segueix el tren R1 cap a L'Hospitalet de Llobregat, 8:25",
+   "Segueix el tren R1 cap a Maçanet-Massanes, 8:27",
+   "Segueix el tren R1 cap a L'Hospitalet de Llobregat, 8:32",
+   "Segueix el tren R1 cap a Arenys de Mar, 8:37"
+  ],
+  "back": "Torna al Masnou",
+  "panel": "Torna al Masnou R1 , Programat L'Hospitalet de Llobregat Programat · Velocitat estimada ~0 km/h A L'ESTACIÓ El Masnou surt 8:25 ara Arenys de Mar L'Hospitalet de Llobregat, 47,8 km 8 estacions anteriors 8:25 El Masnou 8:26 Montgat-Nord 8:28 Montgat 8:31 Badalona 8:34 Sant Adrià de Besòs 8:45 Barcelona El Clot 8:49 Barcelona Arc de Triomf 8:52 Barcelona Plaça de Catalunya 8:57 Barcelona-Sants 9:05 L'Hospitalet de Llobregat",
+  "errors": []
+ },
+ "ca-arenys-coming": {
+  "panel": "R1 , Programat L'Hospitalet de Llobregat Surt d'Arenys de Mar a les 6:41 · d'aquí a 1 min PROPERA ESTACIÓ Arenys de Mar 6:41 d'aquí a 1 min 6:41 Arenys de Mar 6:42 Caldes d'Estrac 6:45 Sant Andreu de Llavaneres 6:50 Mataró 6:54 Cabrera de Mar-Vilassar de Mar 6:56 Vilassar de Mar 7:00 Premià de Mar 7:03 Ocata 7:06 El Masnou 7:08 Montgat-Nord 7:10 Montgat 7:13 Badalona 7:16 Sant Adrià de Besòs 7:27 Barcelona El Clot 7:31 Barcelona Arc de Triomf 7:34 Barcelona Plaça de Catalunya 7:39 Barcelona-Sants 7:47 L'Hospitalet de Llobregat",
+  "errors": []
+ },
+ "ca-masnou-arriving": {
+  "panel": "R1 , Programat L'Hospitalet de Llobregat Programat · Velocitat estimada ~25 km/h PROPERA ESTACIÓ El Masnou 8:31 d'aquí a 10 s Arenys de Mar L'Hospitalet de Llobregat, 47,8 km 8 estacions anteriors ara Entre Ocata i El Masnou 8:31 El Masnou 8:33 Montgat-Nord 8:35 Montgat 8:38 Badalona 8:41 Sant Adrià de Besòs 8:51 Barcelona El Clot 8:55 Barcelona Arc de Triomf 8:58 Barcelona Plaça de Catalunya 9:03 Barcelona-Sants 9:11 L'Hospitalet de Llobregat",
+  "errors": []
+ },
+ "ca-masnou-leaving": {
+  "panel": "R1 , Programat L'Hospitalet de Llobregat Programat · Velocitat estimada ~43 km/h PROPERA ESTACIÓ Montgat-Nord 8:33 d'aquí a 1 min Arenys de Mar L'Hospitalet de Llobregat, 47,8 km 9 estacions anteriors ara Entre El Masnou i Montgat-Nord 8:33 Montgat-Nord 8:35 Montgat 8:38 Badalona 8:41 Sant Adrià de Besòs 8:51 Barcelona El Clot 8:55 Barcelona Arc de Triomf 8:58 Barcelona Plaça de Catalunya 9:03 Barcelona-Sants 9:11 L'Hospitalet de Llobregat",
+  "errors": []
+ },
+ "ca-hospitalet-board-back": {
+  "rows": [
+   "Segueix el tren R4 cap a Sant Vicenç de Calders, 8:00",
+   "Segueix el tren R4 cap a Terrassa Estació del Nord, 8:06",
+   "Segueix el tren R1 cap a Mataró, 8:09"
+  ],
+  "back": "Torna a L'Hospitalet de Llobregat",
+  "panel": "Torna a L'Hospitalet de Llobregat R4 , Programat Sant Vicenç de Calders Programat · Velocitat estimada ~0 km/h A L'ESTACIÓ L'Hospitalet de Llobregat surt 8:00 ara Terrassa Estació del Nord Sant Vicenç de Calders, 111 km 16 estacions més, fins a Sant Vicenç de Calders (9:27)",
+  "errors": []
+ },
+ "ca-madrid-c8a-following": {
+  "panel": "C8a , Programat El Escorial Programat · Velocitat estimada ~100 km/h PROPERA ESTACIÓ Zarzalejo 6:46 d'aquí a 4 min Santa María de la Alameda-Peguerinos El Escorial, 21,4 km 1 estació més, fins a El Escorial (6:52)",
+  "more": [
+   "1 estació més, fins a El Escorial (6:52)"
+  ],
+  "errors": []
+ },
+ "ca-oviedo-board": {
+  "rows": [
+   "Segueix el tren C1 cap a Pola de Lena, 21:03",
+   "Segueix el tren C6 cap al Berrón, 21:04",
+   "Segueix el tren C5a cap a Gijón-Sanz Crespo, 21:11"
+  ],
+  "errors": []
+ },
+ "gl-cuqueira-board-back": {
+  "rows": [
+   "Seguir o tren C1 cara a Ortigueira, 10:31",
+   "Seguir o tren C1 cara a Ferrol, 11:26",
+   "Seguir o tren C1 cara a Ortigueira, 11:42"
+  ],
+  "back": "Volver á Cuqueira",
+  "panel": "Volver á Cuqueira C1 , Programado Ortigueira Programado · Velocidade estimada ~0 km/h NA ESTACIÓN Entrambarrías sae 10:20 agora Ferrol Ortigueira, 51,9 km 7 estacións máis, ata Ortigueira (10:52)",
+  "errors": []
+ },
+ "gl-ponto-board-back": {
+  "rows": [
+   "Seguir o tren C1 cara a San Sadurniño, 7:35",
+   "Seguir o tren C1 cara a Ferrol, 7:41",
+   "Seguir o tren C1 cara a Xuvia, 8:03",
+   "Seguir o tren C1 cara a Ferrol, 8:08"
+  ],
+  "back": "Volver ao Ponto",
+  "panel": "Volver ao Ponto C1 , Programado San Sadurniño Programado · Velocidade estimada ~0 km/h NA ESTACIÓN Virxe Do Mar sae 7:30 agora Ferrol San Sadurniño, 16,3 km 2 estacións anteriores 7:30 Virxe Do Mar 7:30 Santa Icía 7:31 O Alto Do Castiñeiro 7:33 Piñeiros 7:34 O Ponto 7:37 Xuvia 7:39 Ferrerías 7:43 Sedes 7:46 Pedroso de Narón 7:51 San Sadurniño",
+  "errors": []
+ },
+ "gl-ponto-arriving": {
+  "panel": "C1 , Programado San Sadurniño Programado · Velocidade estimada ~29 km/h PRÓXIMA ESTACIÓN O Ponto 7:34 en 9 s Ferrol San Sadurniño, 16,3 km 6 estacións anteriores agora Entre Piñeiros e O Ponto 7:34 O Ponto 7:37 Xuvia 7:39 Ferrerías 7:43 Sedes 7:46 Pedroso de Narón 7:51 San Sadurniño",
+  "errors": []
+ },
+ "gl-ponto-leaving": {
+  "panel": "C1 , Programado San Sadurniño Programado · Velocidade estimada ~48 km/h PRÓXIMA ESTACIÓN Xuvia 7:37 en 2 min Ferrol San Sadurniño, 16,3 km 7 estacións anteriores agora Entre O Ponto e Xuvia 7:37 Xuvia 7:39 Ferrerías 7:43 Sedes 7:46 Pedroso de Narón 7:51 San Sadurniño",
+  "errors": []
+ }
+}
