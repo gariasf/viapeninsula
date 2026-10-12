@@ -126,9 +126,10 @@ export function regionsCame(loaded: Iterable<string>, days: DayFiles[], done: Da
 }
 
 /**
- * The days a look needs, as their bundles come (#593): a step each time one does or fails to, of the
- * days that have so far, joined in the order of `days` (joinDays()), so that the map has the first day's
- * Trips when they come, and the others' join as theirs do, not all together once the last day's have.
+ * The days a look needs, as their bundles come (#593): a step each time one comes, of the days that
+ * have so far, joined in the order of `days` (joinDays()), so that the map has the first day's Trips
+ * when they come, and the others' join as theirs do, not all together once the last day's have. A day
+ * that fails is no step of its own, but for the last where it's the one that ends the look.
  * A day that hasn't come yet is, for as long as it hasn't, the bundle the map had of it (`kept`, by its
  * date), so that a look for a region the map doesn't have yet, which fetches every day's files again,
  * doesn't take a day's Trips off the map while the other's come. The last step, `complete`, is the days
