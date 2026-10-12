@@ -4,7 +4,7 @@ import { copyFile, mkdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { madridDate, type Line, type Station } from '../bundle.ts';
 import { FGC, LONG_DISTANCE, METRO, NETWORKS, RODALIES, TRAM, type Gauges, type NetworkConfig, type Rails, type Timetable } from '../networks.ts';
-import { rows, seconds, serviceIdsOn, zipFile, zipSource, type Source } from './gtfs.ts';
+import { feedStart, rows, seconds, serviceIdsOn, zipFile, zipSource, type Source } from './gtfs.ts';
 import type { OsmWay } from './osm.ts';
 import type { Found } from './report.ts';
 import { eachWay, fine, type FeedShape } from './track.ts';
@@ -452,22 +452,23 @@ export function copyOf({ prefix }: Timetable, cache = CACHE): string {
  * last built it, kept in `cache` (#286), which is reported as a problem spot, with the day it was kept
  * and why. `read` gives the Lines each timetable gives the Network. Timetables that each give it Lines
  * replace its copy, which is its own, as one Renfe file can have one núcleo's Trips and not another's.
- * With no copy, it fails.
+ * With no copy, it fails. Each timetable comes with the day it was read (`readOn`): today, or the day
+ * its copy was kept.
  */
 export async function readTimetables<T extends { lines: unknown[][] }>(
   network: Pick<NetworkConfig, 'id' | 'name' | 'timetables' | 'lines' | 'stations' | 'stationNames' | 'beyond'>,
   failed: unknown,
-  read: (feeds: (Feed & { gtfs: Source })[]) => Promise<T>,
+  read: (feeds: (Feed & { gtfs: Source; readOn: string })[]) => Promise<T>,
   report: (found: Found) => void,
   cache = CACHE,
 ): Promise<T> {
   const copy = (t: Timetable) => copyOf(t, cache);
-  const from = (zip: (t: Timetable) => string) => read(network.timetables.map((t) => ({ ...t, network, gtfs: zipSource(zip(t)) })));
+  const from = (zip: (t: Timetable) => string, readOn: string) => read(network.timetables.map((t) => ({ ...t, network, gtfs: zipSource(zip(t)), readOn })));
   let why = failed;
   let got: T | undefined;
   if (!failed) {
     try {
-      got = await from((t) => zipFile(t.prefix));
+      got = await from((t) => zipFile(t.prefix), madridDate(new Date()));
     } catch (error) {
       why = error;
     }
@@ -492,7 +493,22 @@ export async function readTimetables<T extends { lines: unknown[][] }>(
   const line = `${network.name} is built from the copy of its timetables kept on ${day}: ${reason}`;
   console.warn(line);
   report({ kind: 'copy', network: network.id, text: [line] });
-  return from(copy);
+  return from(copy, day);
+}
+
+/**
+ * The day a Network's timetables were last updated, where its terms ask the map to show it (`updated`):
+ * its feed's start date, from its feed_info.txt, which fails where there's none, or, as TRAM's feeds
+ * have none, the day it was read (#537).
+ * ponytail: that is when the map last had TRAM's data, not when TRAM changed it, and it moves each day,
+ * so Catalonia's track file and the file below zoom 7, which hold the credits, are renamed each day
+ * (450,891 and 25,372 bytes brotli on 12 Oct 2026); date it by the day a download last differed from
+ * its copy, less its calendar_dates.txt, which rolls, kept across builds, if that ever costs more than
+ * it's worth.
+ */
+export async function updatedOn(feeds: (Pick<Feed, 'updated'> & { gtfs: Source; readOn: string })[]): Promise<string | undefined> {
+  const dated = feeds.find((f) => f.updated);
+  return dated?.updated === 'read' ? dated.readOn : dated && feedStart(dated.gtfs);
 }
 
 /** Seconds into the service day as a GTFS time, such as 25:10:00. */

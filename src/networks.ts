@@ -132,8 +132,13 @@ export interface Timetable {
   stopNumbers?: true;
   /** It has no shapes, as Renfe's long-distance timetable hasn't: any other that loses its shapes.txt is read from its copy. */
   shapeless?: true;
-  /** Its terms ask the map to show the day it was last updated, in its credit: its feed's start date. */
-  updated?: true;
+  /**
+   * Its terms ask the map to show the day it was last updated, in its credit: its feed's start date
+   * (`true`, from its feed_info.txt), or, where its feed has none, as TRAM's hasn't, the day it was read
+   * (`'read'`): the day the build downloaded it, or where the Network is built from its copy, the day
+   * that was kept (updatedOn()).
+   */
+  updated?: true | 'read';
   /** Where some of its Stations are, by stop_id, where it has them too far from their rails to trace (#259). */
   points?: Record<string, [lon: number, lat: number]>;
 }
@@ -258,12 +263,14 @@ export const TRAM: NetworkConfig = {
   pillZoom: 12,
   rails: { railway: ['tram'] },
   // TRAM publishes a feed for each of its halves, Trambaix (T1–T3) and Trambesòs (T4–T6), and their
-  // shapes' IDs clash. Each feed makes each platform a stop of its own.
+  // shapes' IDs clash. Each feed makes each platform a stop of its own. TRAM's terms ask for the day its
+  // data was last updated (restriction 4), which neither feed says, as neither has a feed_info.txt:
+  // the day the build read them (`updated: 'read'`).
   timetables: [
-    { url: 'https://opendata.tram.cat/GTFS/zip/TBX.zip', prefix: 'tram:TBX', operator: 'tram', parents: true, stopNumbers: true },
-    { url: 'https://opendata.tram.cat/GTFS/zip/TBS.zip', prefix: 'tram:TBS', operator: 'tram', parents: true, stopNumbers: true },
+    { url: 'https://opendata.tram.cat/GTFS/zip/TBX.zip', prefix: 'tram:TBX', operator: 'tram', parents: true, stopNumbers: true, updated: 'read' },
+    { url: 'https://opendata.tram.cat/GTFS/zip/TBS.zip', prefix: 'tram:TBS', operator: 'tram', parents: true, stopNumbers: true, updated: 'read' },
   ],
-  // TRAM's terms ask for these words, and a link.
+  // TRAM's terms ask for these words, and a link, and the day (`updated`).
   credit: { text: 'Powered by TRAM Barcelona', url: 'https://www.tram.cat/' },
   // TRAM names the stop a Train is at or has just left, not one it stands at: its distance reads a
   // Station's for about 40 s as the Train reaches it, and then 0 until it reaches the next. Held at that

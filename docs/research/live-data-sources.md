@@ -167,8 +167,10 @@ From its [README](https://github.com/siriushsu/taiwan-rail-live):
   - attribution "Powered by TRAM Barcelona", with a link to tram.cat
   - "content may not be altered"
   - keep the data up to date
+  - cite the date of the last update (restriction 4: "always up to date, referring to the last update" in the English, "citant la data de la darrera actualització" in the Catalan). TMB's terms ask the same, and the map gives its feed's start date; TRAM's feeds have no `feed_info.txt`, so the map gives the day the build read them, or where it built them from their copy, the day that was kept (#537)
   - TRAM monitors access and can revoke identifiers
-  - one-year agreement, auto-renewing
+  - one-year agreement from first use, auto-renewing unless either side gives 15 days' notice, and either side can end it at once on breach
+  - at its end the developer "will be obliged to delete all assigned data that may be stored on its information systems"
 
 ### TMB (Metro de Barcelona, buses)
 

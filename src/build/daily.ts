@@ -26,9 +26,9 @@ import { brotliCompressSync, constants } from 'node:zlib';
 import { addDays, LIVE_URL, madridDate, profiled, type Manifest, type Network } from '../bundle.ts';
 import { LONG_DISTANCE, NETWORKS, regionsOf, type NetworkConfig, type Timetable } from '../networks.ts';
 import { decodeTrack, type TrackFile } from '../pieces.ts';
-import { download, feedStart, type Source } from './gtfs.ts';
+import { download, type Source } from './gtfs.ts';
 import { manifestOf } from './manifest.ts';
-import { ownRails, RAILWAYS, readFeed, readTimetables, unlisted, untaken, type Feed } from './networks.ts';
+import { ownRails, RAILWAYS, readFeed, readTimetables, unlisted, untaken, updatedOn, type Feed } from './networks.ts';
 import { crop, toBorder } from './border.ts';
 import { measures, reported, summary } from './measures.ts';
 import { osm } from './osm.ts';
@@ -105,7 +105,7 @@ for (const found of reported(drawn, logged)) report.add(found);
 // nothing else.
 for (const { network, failed } of await longDistance) {
   try {
-    const read = async (feeds: (Feed & { gtfs: Source })[]) => ({ ...(await readDays(feeds)), routes: (await Promise.all(feeds.map((f) => untaken(f.gtfs)))).flat() });
+    const read = async (feeds: (Feed & { gtfs: Source; readOn: string })[]) => ({ ...(await readDays(feeds)), routes: (await Promise.all(feeds.map((f) => untaken(f.gtfs)))).flat() });
     const { days, routes } = await readTimetables(network, failed, read, () => {});
     for (const found of routes) report.add(found);
     const trains = unlistedTrains(network, days);
@@ -174,10 +174,10 @@ if (!process.argv.includes('--dry-run')) {
  * grows slow, read each URL once for every day and split it by `routes.idPrefix`
  * (docs/research/network-config.md, "The cost").
  */
-async function readDays(feeds: (Feed & { gtfs: Source })[]) {
-  // A feed starts the day its operator publishes it, which can't be after today.
-  const dated = feeds.find((f) => f.updated);
-  const published = dated && (await feedStart(dated.gtfs));
+async function readDays(feeds: (Feed & { gtfs: Source; readOn: string })[]) {
+  // A feed starts the day its operator publishes it, which can't be after today (build()); one with no
+  // start of its own, as TRAM's, is dated the day it was read.
+  const published = await updatedOn(feeds);
   const days = await Promise.all(DAYS.map((day) => Promise.all(feeds.map((feed) => readFeed(feed.gtfs, day, feed)))));
   return { published, days, lines: (days[0] ?? []).map((p) => p.lines) };
 }
