@@ -2839,6 +2839,18 @@ test('a followed Metro Train whose Block waits at the end of its Line stands at 
   expect(panel?.upcoming[0]).toMatchObject({ station: 'tmb:1.140', departure: Date.parse('2026-09-25T13:17:13+02:00') });
 });
 
+test("a followed Metro Train held at its first Station is expected to leave when TMB's report has it leave, not now, as a board has it, though it's drawn standing there at its timetable's time (#610)", () => {
+  // Made up: at 13:17:20 TMB names Santa Coloma, 87 s on by the Trip's timetable, and expects 112 there at 13:19:00, 20 s late: 112 leaves Fondo at 13:17:33,
+  // and stays there, drawn at 13:17:13 of its timetable, until a report has it gone. The Delay it's drawn at, now - time, is 12 s at 13:17:25, not the 20 its times run.
+  const received = [outOfFondo('13:16:40', ['112', 'tmb:1.140', '13:17:13']), outOfFondo('13:17:20', ['112', 'tmb:1.139', '13:19:00'])];
+  const [moment, leaves] = [Date.parse('2026-09-25T13:17:25+02:00'), Date.parse('2026-09-25T13:17:33+02:00')];
+  expect(metro(NEXT_OUT_OF_FONDO, '13:17:25', received)).toMatchObject({ live: true, dist: 0 });
+  expect(followed(NEXT_OUT_OF_FONDO, moment, received, METRO)).toMatchObject({ standsAt: 'tmb:1.140', speed: 0, upcoming: [{ station: 'tmb:1.140', departure: leaves }, {}, {}] });
+  // Its countdown reads 8 s, where `now` would say it's leaving, and its board's row has it leave then too.
+  expect(countdownTo(leaves, mapTime(moment, by(received, moment)))).toEqual({ n: 8, unit: 'seconds' });
+  expect(board(['tmb:1.140'], moment, received, METRO)).toMatchObject([{ trip: { id: NEXT_OUT_OF_FONDO }, departure: leaves, live: true }]);
+});
+
 test('a Metro Train whose Block waits at the end of its Line passes near a point there now', () => {
   const moment = Date.parse('2026-09-25T13:16:30+02:00');
   const passes = nearbyAt(METRO, moment, by(TURNING_112, moment), [2.218435, 41.451583], 300, 60 * 60_000); // Fondo
