@@ -284,7 +284,7 @@ export function linesOnBoard(trips: Trip[], place: { stations: string[]; lines?:
  */
 export function linkedTrip(link: string, serviceDay: string | undefined): string {
   const [, day, trip] = /^(\d{4}-\d{2}-\d{2})\/(.*)$/.exec(link) ?? [];
-  return day && trip && day !== serviceDay ? link : (trip ?? link);
+  return day && trip && day !== serviceDay ? link : trip || link;
 }
 
 /** Whose words each feed's Alerts are, by its ID in alerts.json. */

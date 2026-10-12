@@ -116,19 +116,20 @@ test("reads a track file that stores its shapes as pieces back as the track it w
   expect(again.shapes[0]).toBe(first.shapes[0]);
 });
 
-/** A service day's bundle, as a look makes it from its files: one Trip of its own on a day's clock. */
+/** A service day's bundle, as a look makes it from its files: the Trips of these IDs on a day's clock. */
 const bundleOf = (date: string, ...ids: string[]): Bundle => ({ ...track('catalonia'), serviceDay: date, noonMinus12h: Date.parse(`${date}T00:00:00Z`), trips: ids.map(trip) });
-const filesOf = (date: string): DayFiles => ({ date, from: 0, to: 1, regions: [] });
+/** A day's files for these regions, named as the manifest names them, with none for the day where a region is left out. */
+const filesFor = (date: string, ...ids: string[]): DayFiles => ({ date, from: 0, to: 1, regions: ids.map((id) => ({ id, track: `${id}.track`, trips: `${id}.${date}.trips` })) });
 /** A promise a test settles when it likes, so that one day's files can come after another's. */
 function wait<T>() {
   let [resolve, reject] = [(_: T) => {}, (_: unknown) => {}];
   const promise = new Promise<T>((yes, no) => ([resolve, reject] = [yes, no]));
   return { promise, resolve, reject };
 }
-/** What each of the days' bundles was made of, by date: `later` days are asked for in this order, and come when a test says. */
+/** The days a look needs, in this order, each of whose bundles comes (or fails) when a test says. */
 function coming(...dates: string[]) {
   const waits = new Map(dates.map((date) => [date, wait<Bundle>()]));
-  const days = dates.map(filesOf);
+  const days = dates.map((date) => filesFor(date));
   return { days, bundleOf: (day: DayFiles) => waits.get(day.date)?.promise ?? Promise.reject(new Error(`no ${day.date}`)), come: (bundle: Bundle) => waits.get(bundle.serviceDay)?.resolve(bundle), fail: (date: string, why: string) => waits.get(date)?.reject(new Error(why)) };
 }
 const [DAY, NEXT] = ['2026-10-11', '2026-10-12'];
@@ -251,9 +252,6 @@ test("is the bundle of the step before it where the look's last step has the sam
   // The same object, not another joined from the same parts: the map lays a bundle out again when its Stations aren't the ones it drew.
   expect(last.value?.bundle).toBe(joined.value?.bundle);
 });
-
-/** A day's files for these regions, named as the manifest names them, with none for the day where a region is left out. */
-const filesFor = (date: string, ...ids: string[]): DayFiles => ({ date, from: 0, to: 1, regions: ids.map((id) => ({ id, track: `${id}.track`, trips: `${id}.${date}.trips` })) });
 
 test("the regions that have come are those loaded whose files for the days that have come are all in, and those with none in any day, which have nothing to wait for (#593)", () => {
   const [d1, d2] = [filesFor('2026-10-11', 'catalonia', 'cercanias-madrid'), filesFor('2026-10-12', 'catalonia', 'cercanias-madrid')];

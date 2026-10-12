@@ -564,8 +564,9 @@ test("a link's Trip is the ID it has among the days joined: led by its day but f
   expect(linkedTrip(link, undefined)).toBe(link);
   // A link without a day, as follow() takes one, is a Trip of the last day.
   expect(linkedTrip('metro:1.1.11781651', '2026-10-11')).toBe('metro:1.1.11781651');
-  // A day is the day only at the start of a link, as follow() has it: not one that an ID has in it.
+  // A day is the day only at the start of a link, as follow() has it: not one that an ID has in it, nor a day with no Trip after it.
   expect(linkedTrip('metro:2026-10-10/1.1', '2026-10-10')).toBe('metro:2026-10-10/1.1');
+  expect(linkedTrip('2026-10-10/', '2026-10-10')).toBe('2026-10-10/');
 });
 
 test("a board names the same Lines while its Trips are on their way and once they've come, so that its pills are there before its rows and don't change as they come (#594)", () => {
