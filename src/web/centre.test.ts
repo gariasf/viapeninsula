@@ -51,6 +51,10 @@ test('a press holds it for 3 s at most, so that a lift that never came does not 
   down.press(2, 10_000);
   expect(down.holds(12_999)).toBe(true);
   expect(down.holds(13_000)).toBe(false);
+  // A mouse is always pointer 1, so a press after one whose lift never came is the same ID: it holds from its own moment too.
+  down.press(1, 20_000);
+  expect(down.holds(22_999)).toBe(true);
+  expect(down.holds(23_000)).toBe(false);
 });
 
 beforeEach(() => vi.useFakeTimers());
