@@ -682,7 +682,7 @@ let lines = new Map<string, Line>();
 let pills = new Map<string, Pill>();
 /** The top speed of the fastest Line of the days on the map, AVE's 300 km/h with long distance's, in m/s, which quarterPixel() goes by: worked out as they come, not each frame. */
 let fastest = 0;
-/** The days shown whose places' names are still to be put beside their tracks, a frame after their Lines are drawn (show()). */
+/** The days shown whose places' names, and where Lines were drawn already their Lines, are still to be handed to MapLibre a frame on (show()). */
 let namesDue: Track | Bundle | undefined;
 /** The cards' colour, style.css's --card, which a Scheduled Train's pill letters its Line's colour against (pill()). */
 const cardColour = hex(getComputedStyle(document.documentElement).getPropertyValue('--card').trim() || '#fff');
@@ -1425,6 +1425,7 @@ function show(days: Track | Bundle, tripsOnly = false) {
   // takes about as long as making the Lines, and in one task with those the page drew no frame for 2 s at Barcelona at
   // zoom 12 (#262).
   namesDue = days;
+  // A frame on, unless other days are shown meanwhile, which hand over their own.
   const later = (then: () => void) => requestAnimationFrame(() => setTimeout(() => namesDue === days && then()));
   const putNames = () => {
     namesDue = undefined;
@@ -1440,8 +1441,12 @@ function show(days: Track | Bundle, tripsOnly = false) {
     });
     showNames();
   };
-  if (again) later(() => (handOver(), later(putNames)));
-  else later(putNames);
+  if (again) {
+    later(() => {
+      handOver();
+      later(putNames);
+    });
+  } else later(putNames);
 }
 
 /**
