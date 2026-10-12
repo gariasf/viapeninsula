@@ -35,7 +35,7 @@ import { osm } from './osm.ts';
 import { buildRegion, buildRegions, sharedStretches, zoomedOut } from './regions.ts';
 import { railGraphs, railsBeside, traceOwn, traceRuns, traceShapes, withLines } from './track.ts';
 import { collect, comment, diff, type Found, type Spot } from './report.ts';
-import { closuresOf, placeDays, placeRuns, type FeedTrip } from './trips.ts';
+import { closuresOf, placeDays, placeRuns, unserved, type FeedTrip } from './trips.ts';
 
 const BUCKET = 'viapeninsula-live';
 
@@ -212,7 +212,10 @@ function build(config: NetworkConfig, { published, days }: Awaited<ReturnType<ty
   for (const [i, day] of days.entries()) for (const part of day) for (const f of part.found) found({ ...f, day: i });
   const feeds = parts.flatMap((p) => p.shapes);
   const graphs = railGraphs(feeds, stations, own, network.runningSide);
-  const shapes = traceShapes(feeds, stations, own, network.runningSide, console.log, found, graphs);
+  // A Station a shape's trace leaves out, as it lies off the feed's shape on a branch, is reported only if no Trip
+  // of its Line runs a trace of its own through it on these days (#601): it's logged either way.
+  const branches: Found[] = [];
+  const shapes = traceShapes(feeds, stations, own, network.runningSide, console.log, (f) => (f.kind === 'branch' ? branches.push(f) : found(f)), graphs);
   const cropped = crop(border, stations, shapes, days.map((day) => day.flatMap((p) => p.trips)));
   // Each Line's top speed, its own where its profile has one, as AVE's 300 km/h (#260), or its Network's.
   const speeds = new Map(lines.map((l) => [l.id, profiled(network, l)?.profile.topSpeed ?? profile.topSpeed]));
@@ -225,6 +228,7 @@ function build(config: NetworkConfig, { published, days }: Awaited<ReturnType<ty
   const placed = shapeless
     ? placeRuns(traceRuns(toBorder(border, stations, unlistedTrains(config, days)), stations, rails, changers, runningSide, console.log, found), stations, topSpeed, console.log, found)
     : placeDays(cropped.days, shapes, stations, topSpeed, (unfit) => traceOwn(unfit, feeds, stations, graphs, console.log, found), console.log, found);
+  for (const f of unserved(branches, placed.days, placed.shapes)) found(f);
   const traces = crop(border, stations, placed.shapes, []).shapes;
   const lineOf = new Map(placed.days.flat().map((t) => [t.shape, t.line]));
   const closures = days.map((day, i) => closuresOf(day.flatMap((p) => p.buses), day.flatMap((p) => p.trips), feeds, cropped.stations, console.log, (f) => found({ ...f, day: i })));
