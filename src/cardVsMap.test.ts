@@ -360,7 +360,35 @@ describe('the runner', () => {
     // The card counted down to the dwell's end there: seconds, and now once, or a few times.
     expect((all['s.last.was.seconds'] ?? 0) + (all['s.last.was.now'] ?? 0)).toBe(all['s.last']);
     expect(all['s.last.was.seconds']).toBeGreaterThanOrEqual(29);
-    // None of those seconds is one of a countdown's steps, and a Train's last Station isn't one it turns back at.
+    // None of those seconds is one of a countdown's steps: the 59 s before B, the 29 it stands there counting down to when it leaves, and the 59 before C, but not the 30 at C.
+    expect(all['s.steps.of']).toBe(148);
+    // And a Train's last Station isn't one it turns back at.
     expect(all['s.last.loop'] ?? 0).toBe(0);
+    expect(all['s.last.loopMid'] ?? 0).toBe(0);
+  }, 60_000);
+
+  it('counts a Train that turns back apart: it stands at the Station it ends its Trip at on its way out too, and counts down there to when it leaves (#607)', () => {
+    // A – B – C and back to B, its last Station: it stands at B from 10:01:30 to 10:02:00, and again from 10:05:30 for its dwell of 30 s.
+    const turning: Bundle = {
+      ...line,
+      trips: [{ id: 't', line: 'L3', shape: 's', headsign: 'B', calls: [{ station: 'a', arrival: 36000, departure: 36000, dist: 0 }, { station: 'b', arrival: 36090, departure: 36120, dist: 1000 }, { station: 'c', arrival: 36210, departure: 36240, dist: 2000 }, { station: 'b', arrival: 36330, departure: 36330, dist: 1000 }] }],
+    };
+    const all = counted(13, { bundle: turning, received: [read(20), read(400)] }).test ?? {};
+    expect(all['s.last.passages']).toBe(1);
+    expect(all['s.last']).toBeGreaterThanOrEqual(30);
+    expect(all['s.last.loop']).toBe(all['s.last']);
+    // The 30 s at its first call at B have a countdown, to when it leaves.
+    expect(all['s.last.loopMid']).toBeGreaterThanOrEqual(29);
+    expect(all['s.last.loopMid']).toBeLessThanOrEqual(31);
+  }, 60_000);
+
+  it('counts the seconds a Train stands at its last Station apart by what the card counted down in, in minutes where its timetable has a layover (#607)', () => {
+    // C has a layover of 150 s: the Train reaches it at 10:03:30 and its timetable has it leave at 10:06:00, so that the old card said minutes for 90 s and seconds for the last 60.
+    const layover: Bundle = { ...line, trips: [{ id: 't', line: 'L3', shape: 's', headsign: 'C', calls: [{ station: 'a', arrival: 36000, departure: 36000, dist: 0 }, { station: 'b', arrival: 36090, departure: 36120, dist: 1000 }, { station: 'c', arrival: 36210, departure: 36360, dist: 2000 }] }] };
+    const all = counted(13, { bundle: layover, received: [read(20), read(400)] }).test ?? {};
+    expect(all['s.last']).toBeGreaterThanOrEqual(150);
+    expect(all['s.last.was.minutes']).toBeGreaterThan(80);
+    expect(all['s.last.was.seconds']).toBeGreaterThan(50);
+    expect((all['s.last.was.minutes'] ?? 0) + (all['s.last.was.seconds'] ?? 0) + (all['s.last.was.now'] ?? 0)).toBe(all['s.last']);
   }, 60_000);
 });

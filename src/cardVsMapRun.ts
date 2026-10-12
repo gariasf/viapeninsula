@@ -36,14 +36,14 @@
 // counted them.
 //
 // At its Trip's last Station the followed Train's card has no countdown (#607): `s.reads.none` is those seconds, `s.last` the Train-seconds a Train
-// stands there (the same), `s.last.passages` how many times one comes to stand at its last Station, `s.last.was.seconds` and `.now` what the card
-// read there before, counting down to the dwell's end, `s.last.loop` of them the seconds at a Station its Trip calls at earlier too, as a Line that
+// stands there (the same), `s.last.passages` how many times one comes to stand at its last Station, `s.last.was.seconds`, `.minutes` and `.now` what the card
+// read there before, counting down to the dwell's end or a layover's, by the Delay live data gave, `s.last.loop` of them the seconds at a Station its Trip calls at earlier too, as a Line that
 // turns back does, and `s.last.loopMid` the seconds a Train stands at such a Station at that earlier call, where it still counts down to when it leaves.
 //
 // Its times run the Delay it's drawn at (`drawnDelay`, #610), which eases to live data's as the Train does, where a board's rows run the one live data
 // gave (`delay`): `s.vsData.*` count the card's time against the report's in the seconds a countdown is in seconds (`s.steps.of`): `later5` and
 // `earlier5` where the card's time is more than 5 s later or earlier than the report's, `nowEarly` and `nowEarly5` where it reads now while the
-// report's time hasn't come, or is more than 5 s on, `minute` where the clock minute they show differs, and `stood` where its number is the one it was
+// report's time hasn't come, or is more than 5 s on, `minute` where the clock minute they show differs, and `stood` where its number, not `now`, is the one it was
 // the second before; and `s.steps.later2.jumped` and `earlier2.jumped` the steps of more than 2 s in a second the Train itself moved by more than line
 // speed plus 5%, which are the map's jump, not the card's step, and `.standing` those of a Train standing at a Station (not jumped), whose Delay is its
 // timetable's place at once where live data has it earlier, as nothing is there to ease; what's left is a Train running, which catches up faster than 2 s a second.
@@ -341,11 +341,11 @@ for (const dir of process.argv.slice(2)) {
       if (!d.countdown) {
         lastingNow.add(trip.id);
         const stood = m.calls.find((c) => c.departure >= m.time);
-        const was = stood && countdownTo(m.noon + (stood.departure + m.delay) * 1000, m.at);
+        const was = stood && countdownTo(m.noon + (stood.departure + (m.reported ?? m.delay)) * 1000, m.at);
         // Whether its Trip calls at that Station earlier too, as a Line that turns back does.
         const loop = !!stood && made.calls.slice(0, -1).some((c) => c.station === stood.station);
         add('s.last');
-        add(was?.n ? 's.last.was.seconds' : 's.last.was.now');
+        add(was?.unit === 'minutes' ? 's.last.was.minutes' : was?.n ? 's.last.was.seconds' : 's.last.was.now');
         if (!lasting.has(trip.id)) add('s.last.passages');
         if (loop) add('s.last.loop');
       } else if (m.standing) {
