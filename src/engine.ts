@@ -599,7 +599,9 @@ const outside = (stretches: [from: number, to: number][], parts: [from: number, 
  * 99% of 1,131 reports, and one 26 km off. TRAM's distance put its trams within 74 m of their
  * Station's on the bundle's track. So a Train standing at either Station, or coming into it, isn't seen
  * within, and one running in is this far in within a report or two. T1–T3's Stations nearest Francesc
- * Macià and Montesa within their Closure, L'Illa and La Sardana, are 583 m and 432 m in.
+ * Macià and Montesa within their Closure, L'Illa and La Sardana, are 583 m and 432 m in. It's also how
+ * much further along its Trip a report has to put a Train than its report before for it to have moved
+ * (movedOn()).
  */
 const MARGIN = 200;
 
@@ -952,7 +954,7 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
   for (let i = folding ? had : 0; i < received.length; i++) {
     const r = received[i] as Received;
     const [arrived, upTo] = [(r.at + clock - bundle.noonMinus12h) / 1000, heardTo(received.slice(0, i + 1), r.at + clock)];
-    const { reports, ran, refused } = reportsByTrip(bundle, r.snapshot, lines, received[i - 1]?.snapshot);
+    const { reports, ran, refused } = reportsByTrip(bundle, r.snapshot, lines, shapes, received[i - 1]?.snapshot);
     // A Train whose Block can't keep it, as TMB's ETA has the Block out of its first Station too early,
     // turns Scheduled at once and drops its Delay, as early as the Block's last report for it was: it
     // waits for a Block as one live data never placed does (#125, #152).
@@ -1052,21 +1054,24 @@ function linesByBlock(snapshot: Snapshot): string[] {
 
 /**
  * What a replay makes of a snapshot, for a bundle: its reports by the Trip each is about, the Trip each
- * of the Metro's Blocks in it runs, by blockOf(), and the Trips their Blocks can't keep, as TMB's ETA
- * has each Block out of its Trip's first Station too early (#152).
+ * of the Metro's Blocks in it runs, by blockOf(), the Trips their Blocks can't keep, as TMB's ETA
+ * has each Block out of its Trip's first Station too early (#152), and where its Network's live data
+ * lingers on Trips that ended, each Trip's report and the report before it of another time (#487).
  */
 interface Matched {
   bundle: Bundle;
   reports: Map<string, Report>;
   ran: Map<string, string>;
   refused: Set<string>;
+  moves: Map<string, [report: Report, earlier?: Report]>;
 }
 
 /**
  * What a replay makes of each snapshot, for a bundle, worked out once, as a replay first comes to it.
- * It's more than a cache: each Block goes on from the Trip it ran in the snapshot before it then, so
- * a later replay of the snapshots kept, with none before the oldest, matches their Blocks as the fold
- * did only by going by this. Matching the Metro's Blocks to Trips is slow, too.
+ * It's more than a cache: each Block goes on from the Trip it ran in the snapshot before it then, and
+ * a report of a Trip that ended is judged against the Trip's report before it (#487), so a later replay
+ * of the snapshots kept, with none before the oldest, matches their Blocks, and keeps those reports, as
+ * the fold did only by going by this. Matching the Metro's Blocks to Trips is slow, too.
  * ponytail: a snapshot keeps what it first made of the one before it, whatever a later replay puts
  * there, and a Block goes on only from the snapshot just before, so one missing from that, or matched
  * to no Trip there, is matched afresh. Keep the Trip each Block last ran in the replay, beside
@@ -1132,16 +1137,36 @@ const canRun = (trip: Trip, next: NonNullable<Report['expected']>, reported: num
 
 /**
  * How long after its Trip ended, by its timetable, a report can still be about it, in seconds, where
- * its Network's live data lingers on Trips that ended. At 13:46 on 4 October 2026, Geotren named 12
- * rack Trips that had ended 38 minutes to 5 hours before, and their Trains were drawn Live, up to 5½
- * hours late, beside the two running (#232).
- * ponytail: one margin, by the timetable alone. An FGC Train really running more than this late has
- * its reports dropped from this long after its Trip was due to end, as if live data had stopped
- * reporting it: RL2's 13:39 from Lleida on 25 September may have been one, drawn 2 h 15 min late along
- * its track. And a report whose Trip ended less than this before it is kept, as Geotren's naming
- * 652dc7e000 was at 13:46, 11 minutes after it ended. #233's audit says whether either matters.
+ * its Network's live data lingers on Trips that ended, unless it puts the Train further along the Trip
+ * than the Trip's report before it did (movedOn()). At 13:46 on 4 October 2026, Geotren named 12 rack
+ * Trips that had ended 38 minutes to 5 hours before, standing near their Stations, and their Trains
+ * were drawn Live, up to 5½ hours late, beside the two running (#232). A Train that moves along its
+ * Trip is one running late, however late, as RL1's 15:52 from Lleida was on 7 October, which Geotren
+ * named from 17:46 to 17:58, 88 to 100 minutes after it ended, as its Unit ran 12.2 km on along it at
+ * the timetable's pace (#487).
+ * ponytail: by the timetable and the Trip's report before. A report with none before it, as a Unit's
+ * first, on a map just opened, or after a snapshot that lacked it, is dropped until the next of its
+ * feed's updates shows the Train moving: up to 2 minutes, FGC's. A Unit running on along an ended Trip
+ * is taken for its Train, as no other RL1 Trip was due where RL1's Unit ran: one named by an ended Trip
+ * while it ran a later Trip of its Line the same way would be drawn on both, the ended one as late as
+ * that. Check that no Trip of the Line is due there too if that shows. And a report whose Trip ended
+ * less than this before it is kept, as Geotren's naming 652dc7e000 was at 13:46, 11 minutes after it ended.
  */
 const ENDED = 30 * 60;
+
+/**
+ * Whether a report puts a Train further along its Trip than an earlier one did, the way the Trip runs,
+ * by more than MARGIN, a Station's reach: by its GPS or TRAM's distance, or at the Station it's near.
+ * One standing hasn't: near the same Station, or at the same GPS, as Geotren repeats a standing Unit's
+ * to the decimal. Of FGC's reports in October's ten recordings that came after another of their
+ * Trip's, about 2 minutes on, 748 had the Train where it was, 76 further on within MARGIN, as coming
+ * into or leaving a Station, and 3,943 further on than that (#487).
+ */
+function movedOn(trip: Trip, shape: Shape | undefined, earlier: Report, report: Report): boolean {
+  const along = ({ position }: Report) => (!position || 'next' in position ? NaN : 'near' in position ? (trip.calls.find((c) => c.station === position.near)?.dist ?? NaN) : shape ? placedBy(trip.calls, shape, position)[0] : NaN);
+  const way = Math.sign((trip.calls.at(-1)?.dist ?? 0) - (trip.calls[0]?.dist ?? 0));
+  return (along(report) - along(earlier)) * way > MARGIN;
+}
 
 /** A day, in seconds. */
 const DAY = 86_400;
@@ -1167,15 +1192,16 @@ const DAY = 86_400;
  * Trip from 00:00, is about its Line's Trip of that Train number, on the days joined, that runs nearest
  * then (#566). A report that matches no Trip is dropped, and so is one
  * whose Trip ended more than ENDED before it, where its Network's live data lingers on Trips that
- * ended, as FGC's does (#232).
+ * ended, as FGC's does (#232), unless it puts the Train further along the Trip than the Trip's report
+ * before it, of another time, did (movedOn(), #487).
  */
-function reportsByTrip(bundle: Bundle, snapshot: Snapshot, lines: Map<string, Network | undefined>, before?: Snapshot): Matched {
+function reportsByTrip(bundle: Bundle, snapshot: Snapshot, lines: Map<string, Network | undefined>, shapes: Map<string, Shape>, before?: Snapshot): Matched {
   const known = matched.get(snapshot);
   if (known?.bundle === bundle) return known;
   const prior = before && matched.get(before);
-  const ran = prior?.bundle === bundle ? prior.ran : new Map<string, string>();
+  const [ran, earlierMoves] = prior?.bundle === bundle ? [prior.ran, prior.moves] : [new Map<string, string>(), new Map<string, [Report, Report?]>()];
   const [reports, offs, headed, named, numbered, kept] = [new Map<string, Report>(), new Map<string, number>(), new Map<string, Trip[]>(), namedIn(bundle), numberedIn(bundle), new Set<string>()];
-  const refused = new Set<string>();
+  const [refused, moves] = [new Set<string>(), new Map<string, [Report, Report?]>()];
   for (const trip of bundle.trips) add(headed, `${trip.line} ${trip.headsign}`, trip);
   // The Metro's Blocks that don't keep their Trip, each with the Trips headed its way and its next Station.
   const rest: [Report, Trip[], NonNullable<Report['expected']>][] = [];
@@ -1186,7 +1212,12 @@ function reportsByTrip(bundle: Bundle, snapshot: Snapshot, lines: Map<string, Ne
     const reported = (report.at - bundle.noonMinus12h) / 1000;
     const nearest = closest(candidates, reported);
     const trip = nearest?.number && apart(nearest, reported) > DAY / 2 ? closest((numbered.get(nearest.number) ?? []).filter((t) => t.line === nearest.line), reported) : nearest;
-    const lingering = trip && lines.get(trip.line)?.live?.lingers && reported - (trip.calls.at(-1)?.departure ?? Infinity) > ENDED;
+    const lingers = trip && lines.get(trip.line)?.live?.lingers;
+    // Its Trip's report before it, of another time: Geotren's stays in each snapshot until FGC's next update.
+    const [latest, previous] = (lingers && earlierMoves.get(trip.id)) || [];
+    const earlier = latest?.at === report.at ? previous : latest;
+    if (lingers) moves.set(trip.id, [report, earlier]);
+    const lingering = lingers && reported - (trip.calls.at(-1)?.departure ?? Infinity) > ENDED && !(earlier && movedOn(trip, shapes.get(trip.shape), earlier, report));
     // A Train its Network's own feed reports by its Trip goes by that report, not one naming its Train number.
     const taken = trip && report.number && reports.get(trip.id)?.trip;
     if (trip && !lingering && !taken) reports.set(trip.id, report);
@@ -1216,7 +1247,7 @@ function reportsByTrip(bundle: Bundle, snapshot: Snapshot, lines: Map<string, Ne
       offs.set(found, off);
     }
   }
-  const decided = { bundle, reports, ran: new Map([...reports].flatMap(([id, { block }]) => (block ? [[blockOf(block), id] as const] : []))), refused };
+  const decided = { bundle, reports, ran: new Map([...reports].flatMap(([id, { block }]) => (block ? [[blockOf(block), id] as const] : []))), refused, moves };
   matched.set(snapshot, decided);
   return decided;
 }
