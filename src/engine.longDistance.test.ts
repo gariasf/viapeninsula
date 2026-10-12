@@ -198,7 +198,7 @@ test("no position holds a long-distance Train at a Station: where Renfe's report
   expect(where(gpsHeld, 'ave', at('10:50:30'), near)).toBeCloseTo(due ?? NaN, 3);
 });
 
-test("a long-distance Train carries on from its last GPS Delay, whatever Renfe's own figure says, and goes by Renfe's figure only where its GPS has given none", () => {
+test("a long-distance Train carries on from its last GPS Delay, whatever Renfe's own figure says within 10 minutes, and goes by Renfe's figure only where its GPS has given none", () => {
   const behind = (late: number, moment: number) => gps('ave', (where(VIA_B, 'ave', moment - late * 1000) ?? NaN) / 1000, moment);
   // GPS has the Train 30 s late between B and C at 10:50:00 and 10:50:40, where Renfe's figure says 5
   // minutes. Then Renfe gives it no position, still 5 minutes late. It runs on 30 s late.
@@ -211,6 +211,39 @@ test("a long-distance Train carries on from its last GPS Delay, whatever Renfe's
   // With no GPS Delay to carry on from, it runs as late as Renfe says: 5 minutes.
   const figure = [heard(at('10:51:20'), [{ trip: 'ave', at: at('10:51:20'), delay: 300 }])];
   expect(where(VIA_B, 'ave', at('10:51:30'), figure)).toBeCloseTo(where(VIA_B, 'ave', at('10:46:30')) ?? NaN, 3);
+});
+
+test("a GPS fix is judged by its Line's top speed: 2.7 km in 30 s is a position for an AVE's 300 km/h and none for an MD's 160", () => {
+  // Made up, on a Network whose positions have their own time, as Rodalies': the Train is on time at
+  // 10:40:00, and at 10:40:30 1 km ahead of where its timetable has it, 18 s early, which is 2.7 km on in
+  // 30 s, 89 m/s. An AVE's 300 km/h and 5% over run 2.9 km in 30 s with 300 m of slack, and an MD's 1.7 km.
+  const bundle = day(network(RODALIES_PROFILE, CERCANIAS), { AVE: { topSpeed: 300 / 3.6 }, MD: undefined }, { ave: { line: 'AVE', calls: FAST }, md: { line: 'MD', calls: FAST } });
+  const [first, second] = [at('10:40:00'), at('10:40:30')];
+  const km = (trip: string, moment: number, metres = 0) => ((where(bundle, trip, moment) ?? NaN) + metres) / 1000;
+  const received = [
+    heard(first, [gps('ave', km('ave', first), first), gps('md', km('md', first), first)]),
+    heard(second, [gps('ave', km('ave', second, 1000), second), gps('md', km('md', second, 1000), second)]),
+  ];
+  // The AVE runs on 1 km ahead of its timetable, and the MD on time.
+  expect(where(bundle, 'ave', at('10:41:00'), received)).toBeCloseTo((where(bundle, 'ave', at('10:41:00')) ?? NaN) + 1000, 0);
+  expect(where(bundle, 'md', at('10:41:00'), received)).toBeCloseTo(where(bundle, 'md', at('10:41:00')) ?? NaN, 3);
+});
+
+test("a long-distance report by Train number is judged by no time between fixes, as its feed's header stands for the time of its own: a position 5 km on in 40 s is a position", () => {
+  // Made up: the Train is on time at 10:40:00, and at 10:40:40 5 km ahead of where its timetable has it,
+  // 7.2 km on in 40 s of the feed's headers, which an AVE doesn't run. By its Trip, as a feed with a time of
+  // its own would have it, that's no position. By its Train number, as Renfe's long-distance files have it,
+  // the position held for as long as the feed's header says, and it's a position: the Train is 90 s early.
+  const numbered: Bundle = { ...VIA_B, trips: VIA_B.trips.map((t) => ({ ...t, number: '10001' })) };
+  const km = (moment: number, metres = 0) => ((where(VIA_B, 'ave', moment) ?? NaN) + metres) / 1000;
+  const [first, second] = [at('10:40:00'), at('10:40:40')];
+  const byTrip = [heard(first, [gps('ave', km(first), first)]), heard(second, [gps('ave', km(second, 5000), second)])];
+  const byNumber = [first, second].map((moment, i): Received => {
+    const [lon, lat] = [((km(moment, i * 5000) * 1000) / KX), 41];
+    return heard(moment, [{ number: '10001', at: moment, position: { lon, lat } }]);
+  });
+  expect(where(VIA_B, 'ave', at('10:41:20'), byTrip)).toBeCloseTo(where(VIA_B, 'ave', at('10:41:20')) ?? NaN, 3);
+  expect(where(numbered, 'ave', at('10:41:20'), byNumber)).toBeCloseTo((where(numbered, 'ave', at('10:41:20')) ?? NaN) + 5000, 0);
 });
 
 test("a long-distance Train that vanishes from its feed for minutes, as in Guadarrama's 28 km tunnel, runs on its last GPS Delay, Scheduled, and is Live again where its position comes back, without a jump", () => {
