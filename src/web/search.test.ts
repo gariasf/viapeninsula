@@ -83,7 +83,7 @@ test("gives two places that read alike a row each, which names their Networks, i
     ['Girona', ['rodalies'], true],
     ['Girona', ['metro'], true],
   ]);
-  // Torreblanca's tram stop and Valencia's Station, and Vacarisses-Torreblanca, which reads otherwise.
+  // TRAM's Torreblanca and Valencia's, and Vacarisses-Torreblanca, which reads otherwise.
   expect(rows('torreblanca')).toEqual([
     ['Torreblanca', ['tram'], true],
     ['Torreblanca', ['cercanias-valencia'], true],
@@ -170,7 +170,7 @@ test("raises Search's sheet over the on-screen keyboard while it's up, from 8 px
   expect(keyboardRise(844, { height: 422, offsetTop: 200, scale: 2 })).toBeUndefined();
 });
 
-test("opens a Station's board in a region the map hasn't loaded by a Station the file below zoom 7 lists for that region, which loads it as a `station=` link does, as Valencia's Torreblanca, found from Barcelona (#471)", () => {
+test("gives a place it finds in a region the map hasn't loaded a Station the file below zoom 7 lists for that region, which a `station=` link loads, as Valencia's Torreblanca, found from Barcelona, and TRAM's a Station of the region loaded (#471)", () => {
   const [tram, valencia] = findPlaces(PLACES, 'torreblanca');
   const regions: Pick<ManifestRegion, 'id' | 'networks' | 'extent'>[] = [
     { id: 'catalonia', networks: ['rodalies', 'fgc', 'tram', 'metro'], extent: [-0.86, 40.595, 3.162, 42.447] },
