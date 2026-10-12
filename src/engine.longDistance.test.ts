@@ -288,6 +288,21 @@ test("a long-distance position that holds counts as none, so the Train neither s
   expect(Math.max(...stood)).toBeGreaterThan(7000);
 });
 
+test("a long-distance Train whose position holds stays Live for up to 5 minutes, drawn as it would be Scheduled, and then turns Scheduled, where a Rodalies one turns Scheduled at its feed's third update (#443, #33)", () => {
+  // GPS has the Train on time at 10:40:00, and at the same spot every 40 s for 6 minutes, where Renfe's figure grows a minute every 40 s.
+  const spot = (where(VIA_B, 'ave', at('10:40:00')) ?? NaN) / 1000;
+  const received = Array.from({ length: 10 }, (_, i) => heard(at('10:40:00', i * 40), [{ ...gps('ave', spot, at('10:40:00', i * 40)), delay: i * 60 }]));
+  const live = (bundle: Bundle, s: number) => trainsAt(bundle, at('10:40:00', s), received.filter((r) => r.at <= at('10:40:00', s))).find((t) => t.trip.id === 'ave')?.live;
+  // Scheduled once the device has its feed's update 5 minutes after the first that gave it, at 10:45:20.
+  expect([60, 150, 240, 299, 319, 320, 330, 400].map((s) => live(VIA_B, s))).toEqual([true, true, true, true, true, false, false, false]);
+  // Its Network's live data not naming Trains by number, as Rodalies' doesn't, the same position again counts as none: Scheduled 120 s on.
+  const rodalies = day(network(LD.profile, CERCANIAS), LD_LINES, { ave: { line: 'AVE', calls: BY_B } });
+  expect([60, 119, 120, 240].map((s) => live(rodalies, s))).toEqual([true, true, false, false]);
+  // Drawn the same either way, running on its last GPS Delay all the while.
+  expect(course(VIA_B, 'ave', at('10:40:00'), 400, received)).toEqual(course(rodalies, 'ave', at('10:40:00'), 400, received));
+  expect(Math.min(...speeds(course(VIA_B, 'ave', at('10:40:00'), 400, received)))).toBeGreaterThan(20);
+});
+
 test("a long-distance position that holds for 26 minutes and then moves 73 km, as 4 October's longest did, neither stalls the Train nor snaps it back, nor does Renfe's figure, which grows all the while, take it over", () => {
   // 4 October's positions weren't kept, so the hold is made up to its size: GPS has the Train on time
   // at 10:34:00, and at the same spot every 40 s for 26 minutes, where Renfe's figure grows a minute
@@ -410,16 +425,19 @@ test("replaying long-distance positions that held and then moved, no Train stand
 }, 60_000);
 
 test("counts each long-distance Network's jumps over 12 minutes of its live data, as the fetcher will read it: fewer snapped by the minute than by the kilometre", () => {
-  // Per Train-minute, (forward + back) / (liveSeconds / 60): AVE y Larga Distancia 0.105 and Media
-  // Distancia y Avant 0.081, in the replay's 23 Trains, whose positions held and then moved.
+  // Per Train-minute, (forward + back) / (liveSeconds / 60): AVE y Larga Distancia 0.091 and Media
+  // Distancia y Avant 0.080, in the replay's 23 Trains, whose positions held and then moved. A Train
+  // whose position holds is Live for up to 5 minutes (#443), drawn as it was when Scheduled, so that 3
+  // of Media Distancia y Avant's moves jumps() skipped then, Live in one second and Scheduled in the
+  // other, are Live in both now: they were 0.105 and 0.081, in 3,426 and 9,571 Live seconds.
   expect(jumps(replayed(), REPLAY.received)).toEqual({
-    'ave-larga-distancia': { forward: 3, back: 3, liveSeconds: 3426 },
-    'media-distancia-avant': { forward: 10, back: 3, liveSeconds: 9571 },
+    'ave-larga-distancia': { forward: 3, back: 3, liveSeconds: 3968 },
+    'media-distancia-avant': { forward: 13, back: 3, liveSeconds: 11968 },
   });
   // As Rodalies' are, snapped past a kilometre, a Train jumps about twice as often.
-  expect(jumps(replayed({ delay: 'gps', near: 'pinned' }), REPLAY.received)).toEqual({
-    'ave-larga-distancia': { forward: 7, back: 12, liveSeconds: 3426 },
-    'media-distancia-avant': { forward: 13, back: 6, liveSeconds: 9571 },
+  expect(jumps(replayed({ delay: 'gps', near: 'pinned', numbers: true }), REPLAY.received)).toEqual({
+    'ave-larga-distancia': { forward: 7, back: 12, liveSeconds: 3968 },
+    'media-distancia-avant': { forward: 16, back: 7, liveSeconds: 11968 },
   });
 }, 60_000);
 

@@ -19,7 +19,7 @@ A Trip's call at one Station: when its Train arrives and leaves, and how far alo
 _Avoid_: Stop, visit
 
 **Train number**:
-An operator's public identifier for a Train, where one exists (Renfe's five digits). It isn't unique across Spain: two timetables describe the same Train only when the Train number matches and their stops overlap, and a live report that names a Train only by its number describes the Trip of that number, in any Network, whose timetable runs nearest when it was reported.
+An operator's public identifier for a Train, where one exists (Renfe's five digits). It isn't unique across Spain: two timetables describe the same Train only when the Train number matches and their stops overlap, and a live report that names a Train only by its number describes the Trip of that number, in any Network, whose timetable runs nearest when it was reported. Of a Rodalies or núcleo Trip, such a report says something only where its GPS gives a Delay: the operator's own figure is against its long-distance timetable, which can run apart from the Trip's (#442).
 _Avoid_: Train ID, service code
 
 **Unit**:
@@ -79,7 +79,7 @@ _Avoid_: Transfer, connection, hub, station complex
 ### Live data
 
 **Live**:
-A Train whose position live data has confirmed recently. Between reports it keeps moving along its Trip.
+A Train whose position live data has confirmed recently. Between reports it keeps moving along its Trip. A long-distance Train's position that holds, as Renfe's long-distance live data repeats one for minutes, keeps it Live for up to 5 minutes, though it moves it nowhere (#443).
 _Avoid_: Real-time, tracked, GPS
 
 **Scheduled**:
