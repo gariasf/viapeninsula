@@ -37,6 +37,8 @@ test("MapLibre's zoom for a double-click or a double-tap is told from the ease t
   // The app's own eases give no event, and a zoom with no `around` is about the middle already.
   expect(tapZooms({ zoom: 13 })).toBe(false);
   expect(tapZooms({ zoom: 15 }, { originalEvent: { type: 'dblclick' } })).toBe(false);
+  // An ease about a point that doesn't zoom, as a turn or a tilt about it, is not a zoom to take it from.
+  expect(tapZooms({ around: zoom.around }, { originalEvent: { type: 'dblclick' } })).toBe(false);
 });
 
 test('a pointer down on the map holds it from its press to its lift or its cancel, and two fingers hold it till both are up', () => {
