@@ -832,7 +832,9 @@ test("puts Maliaño on Adif's track, where C1 runs, with Cercanías Santander's 
   const published = await c1Trip({ ...CERCANIAS_SANTANDER, stations: undefined });
   expect(published.placed.map((t) => t.id)).toEqual(['cercanias-santander:6281S26906C1']);
   expect(published.left).toEqual([]);
-  expect(Math.round(published.off)).toBe(65);
+  // 65.47 m to Adif's way: a figure the rails' simplification could take past 65.5, so a range.
+  expect(published.off).toBeGreaterThan(60);
+  expect(published.off).toBeLessThan(70);
 
   const configured = await c1Trip(CERCANIAS_SANTANDER);
   expect(configured.placed.map((t) => t.id)).toEqual(['cercanias-santander:6281S26906C1']);
