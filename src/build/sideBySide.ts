@@ -251,10 +251,14 @@ async function graphed(
     };
     return [...new Set(onIt.toSorted((a, b) => usual(a) - usual(b) || a - b).map((l) => lane[l] ?? l))];
   });
-  // Less where a shape only crosses a node along its centreline (#353), on the graph every band from zoom 10 up
-  // shares. ponytail: not on a band's own below it, where it fixes no hairpin and moves other Lines' strokes,
-  // SHORT being in metres and a line width there 250 m to 690 m: scale it with the band if a hook shows there.
-  const seen = every.map((shape) => visits(shape, pieces, drawer, edgeOf));
+  // Which way the centreline runs along each of the pieces it is made of, against the way each points.
+  const wayOn = new Map(found.flatMap(({ steps }) => steps.map((s): [number, number] => [s.piece, s.way])));
+  // Which way a shape goes over a Stretch of one piece (#599), and less where it only crosses a node along its
+  // centreline (#353), on the graph every band from zoom 10 up shares. ponytail: not on a band's own below it,
+  // where #353 fixes no hairpin and moves other Lines' strokes, SHORT being in metres and a line width there
+  // 250 m to 690 m, and #599 takes in a stroke of under a pixel and moves nodes' rooms with it, which makes
+  // hairpins at zoom 9: scale them with the band if a hook or a stroke beside its curve shows there.
+  const seen = every.map((shape) => visits(shape, pieces, drawer, edgeOf, own === undefined ? wayOn : undefined));
   const walked = every.map((shape, k) => ({ line: shape[0]?.line ?? -1, visits: own === undefined ? crossing(seen[k] ?? [], found) : (seen[k] ?? []) }));
   const byId = new Map(centrelines.map((c) => [c.id, c]));
   const orders = await order(prior, graph(found, walked.map((w) => ({ ...w, line: lane[w.line] ?? w.line })), byId));
@@ -297,7 +301,6 @@ async function graphed(
   const linked = curves(joins, found, onStretch, byId, bands, `${LINK}${prefix}`);
   // Each step of each shape on its Line's stroke along the Stretch its piece is drawn on, or where the
   // Line has none there, beside its own track, at the side its own stroke would be drawn.
-  const wayOn = new Map(found.flatMap(({ steps }) => steps.map((s): [number, number] => [s.piece, s.way])));
   // On a band's own graph, as far off as the map simplifies a line there, out of sight.
   const px = pixelMetres(BANDS[own ?? -1] ?? 0, LATITUDE);
   const off = own === undefined ? ALONG : Math.max(ALONG, TOLERANCE * px);
@@ -309,8 +312,7 @@ async function graphed(
       const [side, on] = [sideOn.get(`${edge} ${s.line}`), found[edge ?? -1]?.steps[0]?.shape];
       if (middle === undefined || side === undefined || !on) return { on: s.shape, side: sideOf(s), from: s.from, to: s.to, at: [s.from, s.to] };
       // Which way the centreline runs, against the shape.
-      const [p, q] = [pieces[s.piece], pieces[drawnOn]];
-      const way = Math.sign(s.way * (wayOn.get(drawnOn) ?? 1) * ((p?.ux ?? 0) * (q?.ux ?? 0) + (p?.uy ?? 0) * (q?.uy ?? 0))) || 1;
+      const way = wayAlong(s, pieces, drawnOn, wayOn) || 1;
       const half = (way * (s.to - s.from)) / 2;
       return { on, side, from: s.from, to: s.to, at: [middle - half, middle + half] };
     });
@@ -383,24 +385,39 @@ function slotted(off: number, steps: Omit<Slot, 'line' | 'shape'>[]): Omit<Slot,
   return found;
 }
 
-/** A shape's time on a Stretch it goes along: how far along the Stretch's centreline it comes in and goes out, and how far it goes, over which of its steps. */
+/** A shape's time on a Stretch it goes along: how far along the Stretch's centreline it comes in and goes out, and how far it goes, over which of its steps, and which way. */
 interface Visit {
   edge: number;
   first: number;
   last: number;
   length: number;
   steps: [from: number, to: number];
+  /** Which way its first step goes along the centreline and which way its last does: 1 towards its end, -1 towards its start, 0 across it. */
+  ways: [first: number, last: number];
+}
+
+/**
+ * Which way a step goes along the centreline of the Stretch its piece is drawn on, `drawn`: 1 towards its
+ * end, -1 towards its start, 0 where the piece is across it. `wayOn` is each drawing piece's way along it.
+ */
+function wayAlong(s: Step, pieces: Piece[], drawn: number, wayOn: Map<number, number>): number {
+  const [p, q] = [pieces[s.piece], pieces[drawn]];
+  return Math.sign(s.way * (wayOn.get(drawn) ?? 1) * ((p?.ux ?? 0) * (q?.ux ?? 0) + (p?.uy ?? 0) * (q?.uy ?? 0)));
 }
 
 /** The Stretches a shape goes along, in order, each where its pieces are drawn. */
-function visits(shape: Step[], pieces: Piece[], drawer: number[], edgeOf: Map<number, [edge: number, at: number]>): Visit[] {
+function visits(shape: Step[], pieces: Piece[], drawer: number[], edgeOf: Map<number, [edge: number, at: number]>, wayOn?: Map<number, number>): Visit[] {
   const found: Visit[] = [];
   for (const [i, s] of shape.entries()) {
-    const [edge, middle] = edgeOf.get(drawer[s.piece] ?? s.piece) ?? [];
+    const drawn = drawer[s.piece] ?? s.piece;
+    const [edge, middle] = edgeOf.get(drawn) ?? [];
     if (edge === undefined || middle === undefined) continue;
+    // None where `wayOn` isn't given.
+    const way = wayOn ? wayAlong(s, pieces, drawn, wayOn) : 0;
+    const length = pieces[s.piece]?.length ?? 0;
     const v = found.at(-1);
-    if (v?.edge === edge) [v.last, v.length, v.steps[1]] = [middle, v.length + (pieces[s.piece]?.length ?? 0), i + 1];
-    else found.push({ edge, first: middle, last: middle, length: pieces[s.piece]?.length ?? 0, steps: [i, i + 1] });
+    if (v?.edge === edge) [v.last, v.length, v.steps[1], v.ways[1]] = [middle, v.length + length, i + 1, way || v.ways[1]];
+    else found.push({ edge, first: middle, last: middle, length, steps: [i, i + 1], ways: [way, way] });
   }
   return found;
 }
@@ -608,7 +625,7 @@ function curves(joins: Join[], found: Stretch[], onStretch: Map<string, Stroke[]
     };
     let made: ReturnType<typeof across> = [];
     for (;;) {
-      made = across(at, hidden, id);
+      made = notTwice(across(at, hidden, id), (s) => hidden(s) && found[edgeOf.get(s) ?? -1]?.steps.length === 1, id);
       // The most each Line crossing a node changes side, or moves over, at each front, and the node's room there.
       const change = new Map<string, number>();
       const curved = new Set<string>(); // each stroke end a curve takes over at, `<stroke> <end>`
@@ -809,6 +826,26 @@ export function across(at: Map<Stroke, [Leg[], Leg[]]>, hidden: (s: Stroke) => b
 }
 
 /**
+ * Each Line's ways across the nodes less those through a stroke of one piece (`short`) where the Line has
+ * another between the same two strokes without it: that stroke is a piece of its other track, which a way
+ * of its own would draw as the same curve again, as T1's does at the 37 m Stretch by Cádiz's junction (#599).
+ */
+export function notTwice(ways: Leg[][], short: (s: Stroke) => boolean, id: Map<Stroke, number>): Leg[][] {
+  // A way's Line, the stroke ends it goes between, and the strokes between them but those of one piece, whichever way round it goes.
+  const key = (legs: Leg[]) => {
+    const ends = [legs[0], legs.at(-1)].map((l) => `${l && id.get(l.stroke)}.${l?.end}`).sort();
+    const between = legs.slice(1, -1).filter((l) => !short(l.stroke)).map((l) => id.get(l.stroke)).sort();
+    return `${legs[0]?.stroke.line} ${ends} ${between}`;
+  };
+  const fewest = new Map<string, number>();
+  for (const legs of ways) {
+    const k = key(legs);
+    fewest.set(k, Math.min(fewest.get(k) ?? Infinity, legs.length));
+  }
+  return ways.filter((legs) => legs.length === fewest.get(key(legs)));
+}
+
+/**
  * Each centreline smoothed for each zoom band, where a Line drawn off it at the band's zoom would
  * fold, on the inside of a bend tighter than it's far off (#164). The strokes go along it in the
  * band, as far along as on the centreline, and so do the curves.
@@ -943,7 +980,7 @@ function graph(edges: Stretch[], walked: { line: number; visits: Visit[] }[], by
     for (let i = visits.length - 1; i >= 0; i--) {
       const [v, w] = [visits[i], visits[i + 1]];
       if (v && v.length < SHORT) visits.splice(i, 1);
-      else if (v && w && v.edge === w.edge) visits.splice(i, 2, { ...v, last: w.last, length: v.length + w.length });
+      else if (v && w && v.edge === w.edge) visits.splice(i, 2, { ...v, last: w.last, length: v.length + w.length, ways: [v.ways[0], w.ways[1]] });
     }
     for (const [i, v] of visits.entries()) {
       const w = visits[i + 1];
@@ -990,9 +1027,13 @@ function graph(edges: Stretch[], walked: { line: number; visits: Visit[] }[], by
 }
 
 /** Which end of its edge a shape goes out at (or comes in at): 1 at its end, 0 at its start. */
-function end({ edge, first, last }: Visit, edges: Stretch[], into: boolean): 0 | 1 {
+export function end({ edge, first, last, ways }: Visit, edges: Stretch[], into: boolean): 0 | 1 {
   const steps = edges[edge]?.steps ?? [];
   const [from, to] = [steps[0]?.from ?? 0, steps.at(-1)?.to ?? 0];
+  // Along a Stretch of one piece, which has no first and last, it comes in at the end its first step goes
+  // from and goes out at the end its last goes to, not at the nearer one both times (#599).
+  const way = ways[into ? 0 : 1];
+  if (first === last && steps.length === 1 && way) return way > 0 !== into ? 1 : 0;
   if (first === last) return last - from > to - last ? 1 : 0; // the nearer
   return last > first !== into ? 1 : 0;
 }

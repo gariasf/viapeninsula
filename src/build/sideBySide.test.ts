@@ -3,7 +3,7 @@ import { expect, test } from 'vitest';
 import { along, APART, atZoom, BANDS, beside, cutIn, DEGREE, drawnIn, GRAPH_BAND, inBand, LINK, onStroke, pieces, zones, pixelMetres, pointAt, SMOOTH, STRETCH, type Line, type Shape, type Stroke, type Track } from '../bundle.ts';
 import { measures } from './measures.ts';
 import { offset } from './offset.ts';
-import { across, crossing, KX, sharedTrack, sideBySide, type Leg } from './sideBySide.ts';
+import { across, crossing, end, KX, notTwice, sharedTrack, sideBySide, type Leg } from './sideBySide.ts';
 
 // Track drawn in metres east (x) and north (y) of a point in Barcelona.
 const M = (6_371_008.8 * Math.PI) / 180; // metres in a degree of latitude
@@ -545,6 +545,47 @@ test("brings L1 from Marina onto the Rodalies bundle at Auditori without a hook,
   expect(measures({ shapes: [...shapes, ...centrelines], strokes: l1 }).wiggles).toEqual(Object.fromEntries(BANDS.map((zoom) => [zoom, 0])));
 });
 
+test("takes L1's and R4's stroke along the 36 m Stretch at Auditori/Teatre Nacional into their curves across the node, where each goes through it from one end to the other (#599)", async () => {
+  // L1, R1 and R4 round Auditori/Teatre Nacional on 6 Oct 2026 (fixtures/auditori.json). A Stretch of one
+  // piece, 36 m, lies between the 89 m L1 shares with R4 and the Stretch they go on along. L1 and R4 go
+  // through it, but their visit of its one piece has no first and last, and end() took the nearer end for
+  // the way out as for the way in: both of their joins to its stroke were made at its start. across() took
+  // that for a hidden stroke a Line only touches, coming and going at one end, and passed it by: no curve
+  // named it, and its stroke was drawn at every zoom from 10 to 14, along a curve that goes by it (363 m
+  // at zoom 13, across 2 Stretches and the 89 m).
+  const { lines, shapes } = JSON.parse(readFileSync(new URL('fixtures/auditori.json', import.meta.url), 'utf8')) as Pick<Track, 'lines' | 'shapes'>;
+  const { strokes, centrelines } = await sideBySide(lines, shapes);
+  const short = centrelines.find((c) => /^stretch:\d+$/.test(c.id) && c.dist.at(-1) === 36)?.id;
+  expect(short).toBeDefined();
+  for (const name of ['metro:L1', 'rodalies:R4']) {
+    const stroke = strokes.find((s) => s.line === name && s.band === undefined && s.shape === short);
+    expect(stroke).toBeDefined();
+    // Per zoom from 10 up: metres of the stroke not drawn (all 36), and curves of the Line that go along it.
+    const each = BANDS.flatMap((_, band) => {
+      if (band < GRAPH_BAND || !stroke) return [];
+      const curves = strokes.filter((s) => s.line === name && s.band === band && s.shape.startsWith(LINK) && s.across?.some(([id]) => id === short));
+      return [[band, cutIn(stroke, band).reduce((sum, d) => sum + d, 0), curves.length]];
+    });
+    expect(each).toEqual(BANDS.flatMap((_, band) => (band < GRAPH_BAND ? [] : [[band, 36, 1]])));
+  }
+  // Each curve goes in at the end of the Stretch nearer the leg before it, and out at the end nearer the leg after it.
+  const byId = new Map([...shapes, ...centrelines].map((c) => [c.id, c]));
+  const at = (id: string, d: number): [number, number] => {
+    const [lon, lat] = pointAt(byId.get(id) ?? { coords: [], dist: [] }, d);
+    return [lon * KX, lat * DEGREE];
+  };
+  const curves = strokes.filter((s) => s.shape.startsWith(LINK) && s.across?.some(([id]) => id === short));
+  expect(curves.length).toBeGreaterThan(0);
+  for (const { across = [] } of curves) {
+    const i = across.findIndex(([id]) => id === short);
+    const [[, before = 0, after = 0], [, , prior = 0], [, next = 0]] = [across[i] ?? [], across[i - 1] ?? [], across[i + 1] ?? []];
+    const [p, q] = [at(across[i - 1]?.[0] ?? '', prior), at(across[i + 1]?.[0] ?? '', next)];
+    const near = (point: [number, number], d: number) => Math.hypot(point[0] - at(short ?? '', d)[0], point[1] - at(short ?? '', d)[1]);
+    expect(near(p, before)).toBeLessThan(near(p, after));
+    expect(near(q, after)).toBeLessThan(near(q, before));
+  }
+});
+
 test("takes C3, C4 and C5 across the node by Madrid-Atocha without hooking back, where the stroke a node hides runs on past their next Stretch's start (#311)", async () => {
   // The Lines round Madrid-Atocha Cercanías on 9 Oct 2026 (fixtures/atocha.json). By the Station, C3's,
   // C4's and C5's stroke along the Stretch they leave runs on, hidden by a node at every zoom, 35 m past
@@ -617,7 +658,47 @@ test("closes a loop Line across the node it began at, where its last piece touch
 
 /** A Stretch along a centreline from one distance to another, as sideBySide() finds them, and a visit of a shape to one. */
 const stretch = (shape: string, from: number, to: number) => ({ steps: [{ line: -1, piece: 0, shape, way: 1, from, to }], lines: [] });
-const visit = (edge: number, first: number, last: number, length: number) => ({ edge, first, last, length, steps: [0, 1] as [number, number] });
+const visit = (edge: number, first: number, last: number, length: number) => ({ edge, first, last, length, steps: [0, 1] as [number, number], ways: [0, 0] as [number, number] });
+
+test('comes in and goes out of a Stretch of one piece at the ends its first and last steps go from and to, and at the nearer end where they go across it (#599)', () => {
+  // A Stretch of one piece, 36 m, which a visit of has no first and last apart.
+  const one = [stretch('c0', 0, 36)];
+  const goes = (...ways: [number, number]) => ({ ...visit(0, 18, 18, 36), ways });
+  const into = (v: ReturnType<typeof goes>) => [end(v, one, true), end(v, one, false)];
+  // Towards its end: in at its start, out at its end; and back.
+  expect(into(goes(1, 1))).toEqual([0, 1]);
+  expect(into(goes(-1, -1))).toEqual([1, 0]);
+  // Out and back on it: in and out at the end it came in at.
+  expect(into(goes(1, -1))).toEqual([0, 0]);
+  expect(into(goes(-1, 1))).toEqual([1, 1]);
+  // Across it, or where nothing says: the nearer end, as for one piece of a longer Stretch.
+  expect(into({ ...goes(0, 0), first: 30, last: 30 })).toEqual([1, 1]);
+  expect(into({ ...goes(0, 0), first: 5, last: 5 })).toEqual([0, 0]);
+  // Not along a Stretch of more pieces, where first and last say.
+  const two = [{ steps: [{ line: -1, piece: 0, shape: 'c0', way: 1, from: 0, to: 40 }, { line: -1, piece: 1, shape: 'c0', way: 1, from: 40, to: 80 }], lines: [] }];
+  expect([end({ ...goes(1, 1), first: 60, last: 20 }, two, true), end({ ...goes(1, 1), first: 60, last: 20 }, two, false)]).toEqual([1, 0]);
+  // And one piece of it a shape only touches is at its nearer end, whichever way it goes over it.
+  expect([end({ ...goes(1, 1), first: 10, last: 10 }, two, true), end({ ...goes(1, 1), first: 10, last: 10 }, two, false)]).toEqual([0, 0]);
+});
+
+test('leaves a Line the one way across a node where it has two between the same strokes that differ by a hidden stroke of one piece, the one without it (#599)', () => {
+  // A Line's way across a node from stroke a to stroke b, and one through a stroke of one piece; another's, through a stroke of its own.
+  const stroke = (name: string): Stroke => ({ line: 'R2', shape: name, from: 0, to: 100, side: 0 });
+  const [a, short, b, other] = [stroke('a'), stroke('short'), stroke('b'), stroke('other')];
+  const id = new Map([[a, 0], [short, 1], [b, 2], [other, 3]]);
+  const [first, last] = [{ stroke: a, end: 1 as const }, { stroke: b, end: 0 as const }];
+  const direct = [first, last];
+  const through = [first, { stroke: short, end: 0 as const }, last];
+  const round = [first, { stroke: other, end: 0 as const }, last];
+  const isShort = (s: Stroke) => s === short;
+  expect(notTwice([through, direct], isShort, id)).toEqual([direct]);
+  // Whichever way round it was found, and a way through another stroke is another way.
+  const back = [{ stroke: b, end: 0 as const }, { stroke: short, end: 1 as const }, { stroke: a, end: 1 as const }];
+  expect(notTwice([back, direct], isShort, id)).toEqual([direct]);
+  expect(notTwice([through, direct, round], isShort, id)).toEqual([direct, round]);
+  // Where there's none without it, it stays: the Line goes through it alone.
+  expect(notTwice([through], isShort, id)).toEqual([through]);
+});
 
 test('leaves out a shape\'s track round a node only where it follows the Stretch it left along one centreline, left it beyond REACH from its end and doesn\'t come back onto it (#353)', () => {
   // Two Stretches of one centreline, 0 to 1,000 and 1,000 to 2,000 m, and a bridge of its own, 145 m.
