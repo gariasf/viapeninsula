@@ -24,7 +24,14 @@ export function letsGo({ type, originalEvent: e }: Moved): boolean {
   return type === 'movestart' && !e.shiftKey && !!e.key?.startsWith('Arrow');
 }
 
-/** How long a pointer down on the map holds it still at most, in ms: a drag in the making moves within a moment, and a lift that never came must not hold it for good. */
+/**
+ * How long a pointer down on the map holds it still at most, in ms: a drag in the making moves within a
+ * moment, and a lift that never came must not hold it for good.
+ * ponytail: the one thing that ends a hold but its lift or its cancel. A press held still for longer and
+ * then dragged loses its drag to the map's jump, as it did, and a pointer whose lift never came stays in
+ * the map, holding nothing, till its ID is pressed again. Lift every pointer on `contextmenu`, `blur` and
+ * a hidden tab too if a lost lift is seen to hold the map, or a slow press to lose its drag.
+ */
 const PRESSED = 3000;
 
 /**

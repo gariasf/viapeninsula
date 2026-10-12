@@ -36,10 +36,13 @@ test('a pointer down on the map holds it from its press to its lift or its cance
   expect(down.holds(1000)).toBe(true);
   down.lift(8);
   expect(down.holds(1050)).toBe(false);
-  // A lift of a pointer that was never down, or twice, holds nothing and takes nothing.
+  // A lift of a pointer that was never down, or twice, holds nothing and takes nothing: one down on the map stays.
+  down.press(10, 1060);
   down.lift(8);
   down.lift(9);
-  expect(down.holds(1100)).toBe(false);
+  expect(down.holds(1100)).toBe(true);
+  down.lift(10);
+  expect(down.holds(1150)).toBe(false);
 });
 
 test('a press holds it for 3 s at most, so that a lift that never came does not hold it for good', () => {
