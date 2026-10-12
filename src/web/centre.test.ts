@@ -47,6 +47,16 @@ test("a Train is outside the middle 60% of the map beside the panel once it's in
   expect(outsideMiddle({ x: 500, y: 150 }, size, sheet)).toBe(false);
   expect(outsideMiddle({ x: 500, y: 59 }, size, sheet)).toBe(true);
   expect(outsideMiddle({ x: 500, y: 241 }, size, sheet)).toBe(true);
+  // The panel is on the left or at the bottom, but each side is read: 200 px over the top and 300 px down the right leave x 0 to 700
+  // and y 200 to 600, and a middle 60% of x 140 to 560 and y 280 to 520.
+  const strips = { ...none, top: 200, right: 300 };
+  expect(outsideMiddle({ x: 300, y: 400 }, size, strips)).toBe(false);
+  expect(outsideMiddle({ x: 140, y: 280 }, size, strips)).toBe(false);
+  expect(outsideMiddle({ x: 560, y: 520 }, size, strips)).toBe(false);
+  expect(outsideMiddle({ x: 139, y: 400 }, size, strips)).toBe(true);
+  expect(outsideMiddle({ x: 561, y: 400 }, size, strips)).toBe(true);
+  expect(outsideMiddle({ x: 300, y: 279 }, size, strips)).toBe(true);
+  expect(outsideMiddle({ x: 300, y: 521 }, size, strips)).toBe(true);
   // Far off the screen, as a Train that comes out of a Closure 14 km away at zoom 13 is.
   expect(outsideMiddle({ x: 2000, y: -1500 }, size, card)).toBe(true);
 });
