@@ -16,15 +16,6 @@ Where a problem spot is new (a run of legs that keeps the feed's shape, a turn-b
 
 A fix in OpenStreetMap reaches the map when the build next downloads Geofabrik's extracts, which it keeps for a week. The spot then shows as gone: that's the check that the fix worked.
 
-## A long hop, or a jump across a Station's tracks
-
-Renfe's long-distance timetable has no shapes, so the build traces each run of a Line's Trips through its Stations (#259), with no feed's shape to hold the trace against. Two kinds of spot say where a trace may have gone wrong, though its Trains are drawn on it all the same (#262):
-
-- A `detour <line> <stations>` spot is a hop between two Stations traced more than twice its straight line and 10 km more, which a gap in the rails can cause. Open its map link: where the trace goes round a gap the Trains don't, fix OpenStreetMap there (2 above); where the line itself winds so, do nothing (4 above).
-- An `across <line> <station>` spot is a trace that leaves a Station on another of its tracks than it came in on, as OpenStreetMap has no switch there that leads on from that one, so its track jumps across the Station, by the spot's `metres`, the most any of the Line's runs jumps there: on 11 Oct 2026, Alvia's 32 m at Alcázar de San Juan, where its run the other way jumps 24 m, and AVE Int's 50 m at Figueres-Vilafant. Look at the Station's tracks and switches in OpenStreetMap, and map the switch that's missing (2 above).
-
-Either shows as gone once the build's rails have the fix.
-
 ## A Network with fewer Trips
 
 A Network shows as changed when it has more than a quarter fewer Trips today than the last report has for the same day of the week (#252). The build keeps them all. A holiday runs a Sunday's timetable, so on one there's nothing to do. Otherwise, look in the same summary for Trips left out, as a gap in the rails leaves them, and for the Network's `leftOut`, which counts those its config leaves out (#368), then at the operator's timetable, which may have lost them.
@@ -48,6 +39,10 @@ Renfe's long-distance timetable names each route for its product, and AVE y Larg
 ## A hop traced much longer than its straight line
 
 A Trip that doesn't fit its feed's shape is traced through its own Stations, along the rails from each to the next (6). Where a hop comes out more than twice its straight line and 10 km more (`DETOUR` and its 10 km, in `traceRun()` of `src/build/track.ts`), the build logs it, as `<run>: <from> → <to> is traced <km> km, <n> times its <km> km straight line` (the run's ID is `<Line>:<n>`, as in 6), and reports a `detour <line> <station> <station>` spot, its key giving the hop's two Stations in order of ID, so that the same hop on another run of the Line is the one spot. Nothing fails, and the Trips on that trace are drawn along it where their times fit it; one that would run too fast along it is left out, with a `trip` spot of its own (6). Open the hop's map link, which fits its two Stations in view and rings the point halfway between them, and look at the rails between them. A Station of the hop that isn't where its Trains stop is moved in its Network's `stations` (#367, as in 5); rails with a gap that sends the path round by another line are mended in OpenStreetMap (as in 2); the spot then shows as gone. A hop that is that long on rails that are right wants nothing: the spot stays in `report.json` and won't show again (4).
+
+## A jump across a Station's tracks
+
+Renfe's long-distance timetable has no shapes, so the build traces each run of a Line's Trips through its Stations (#259), with no feed's shape to hold the trace against. An `across <line> <station>` spot is a trace that leaves a Station on another of its tracks than it came in on, as OpenStreetMap has no switch there that leads on from that one, so its track jumps across the Station, by the spot's `metres`, the most any of the Line's runs jumps there: on 11 Oct 2026, Alvia's 32 m at Alcázar de San Juan, where its run the other way jumps 24 m, and AVE Int's 50 m at Figueres-Vilafant. Its Trains are drawn on it all the same (#262). Look at the Station's tracks and switches in OpenStreetMap, and map the switch that's missing (2 above). The spot shows as gone once the build's rails have the fix.
 
 ## A spot as a test
 
