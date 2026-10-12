@@ -5,6 +5,7 @@ import { ALERTS_START, readAlerts } from '../fetcher/alerts.ts';
 import { APART, atZoom, BANDS, beside, DEGREE, inBand, onStroke, pixelMetres, zones, type Alert, type Alerts, type Bundle, type Line, type Shape, type Stroke } from '../bundle.ts';
 import { parseLine } from '../build/gtfs.ts';
 import { sideBySide } from '../build/sideBySide.ts';
+import { TRAM } from '../networks.ts';
 import { joinDays } from '../engine.ts';
 import { inNameOrder } from './cards.ts';
 import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, stretchesIn, tappedRows, type Shown } from './closures.ts';
@@ -215,11 +216,52 @@ test("reads Sevilla's C3 plan, 'entre las estaciones de X y Y' under 'Plan Alter
   ]);
 });
 
-test("reads TRAM's \"Servei alternatiu entre X i Y\" as closed, its \"Estació de Sant Adrià\" as the bundle's \"Estació St.Adrià\", and its Line's \"no donarà servei\" as no stretch (#396)", () => {
+test("reads TRAM's \"Servei alternatiu entre X i Y\" as closed, its \"Estació de Sant Adrià\" as 10 Oct's bundle's \"Estació St.Adrià\", and its Line's \"no donarà servei\" as no stretch (#396)", () => {
   // sc-286, for 14 and 15 Oct 7:30–14:30: "…la línia T6 no donarà servei per tasques de manteniment de l’arbrat
   // a la Rambla de la Mina. Es reforçarà el servei de la línia T5. Servei alternatiu entre Estació de Sant
   // Adrià i Parc del Besòs: Bus H14." It names T6 in the first sentence, and its stretch in the last.
   expect(stretchesIn(said('sc-286'), stationsOf('tram'))).toEqual([{ stations: ['tram:ST-229', 'tram:ST-213'], says: 'closed' }]);
+});
+
+/** TRAM's Stations in the fixture as the build names them now: by its config, which spells out the eight its timetables shorten (#571). */
+const tramNow = (): { id: string; name: string; networks: string[] }[] => stationsOf('tram').map((s) => ({ ...s, name: TRAM.stationNames?.[s.id]?.name ?? s.name }));
+
+test("reads TRAM's \"Servei alternatiu entre Estació de Sant Adrià i Parc del Besòs\" against the Station the build names \"Estació de Sant Adrià\" as it did against \"Estació St.Adrià\" (#571)", () => {
+  // sc-286, as in the test above, with the name the build gives tram:ST-229 now.
+  expect(tramNow().find((s) => s.id === 'tram:ST-229')?.name).toBe('Estació de Sant Adrià');
+  expect(stretchesIn(said('sc-286'), tramNow())).toEqual([{ stations: ['tram:ST-229', 'tram:ST-213'], says: 'closed' }]);
+  // And the same stretches, in each of TRAM's three Alerts of 9 Oct, under the names the build gave then and gives now.
+  for (const id of ['sc-279', 'sc-286', 'sc-287']) {
+    expect(stretchesIn(said(id), tramNow()), id).toEqual(stretchesIn(said(id), stationsOf('tram')));
+  }
+});
+
+test("finds each of the eight Stations TRAM's config spells out as TRAM's words spell it, as the first end of a stretch and as the second (#571)", () => {
+  // As TRAM's site writes them: its lines page's descriptions (Fontsanta | Fatjó, Llevant | Les Planes), its Alerts (sc-286's
+  // "Estació de Sant Adrià", sc-287's "Sant Feliu | Consell Comarcal") and its note of 10 Oct's works ("Llevant-Les Planes", "Ciutadella | Vila Olímpica").
+  const spelling: Record<string, string[]> = {
+    'tram:ST-178': ['Zona Universitària'],
+    'tram:ST-193': ['Fontsanta | Fatjó'],
+    'tram:ST-197': ['Hospital Sant Joan Despí | TV3'],
+    'tram:ST-201': ['Sant Feliu | Consell Comarcal', 'Sant Feliu|Consell Comarcal'],
+    'tram:ST-202': ['Ciutadella | Vila Olímpica', 'Ciutadella-Vila Olímpica'],
+    'tram:ST-203': ['Wellington | UPF', 'Wellington-UPF'],
+    'tram:ST-229': ['Estació de Sant Adrià'],
+    'tram:ST-230': ['Llevant | Les Planes', 'Llevant-Les Planes'],
+  };
+  expect(Object.keys(spelling).sort()).toEqual(Object.keys(TRAM.stationNames ?? {}).sort());
+  const stations = [
+    ...Object.entries(TRAM.stationNames ?? {}).map(([id, { name }]) => ({ id, name })),
+    { id: 'tram:ST-206', name: 'Glòries' },
+    { id: 'tram:ST-208', name: 'Can Jaumandreu' },
+  ];
+  for (const [id, words] of Object.entries(spelling)) {
+    for (const word of words) {
+      // sc-286's words, with the stretch's ends put by these.
+      expect(stretchesIn(`Servei alternatiu entre ${word} i Glòries: Bus H14.`, stations), word).toEqual([{ stations: [id, 'tram:ST-206'], says: 'closed' }]);
+      expect(stretchesIn(`Servei alternatiu entre Can Jaumandreu i ${word}: Bus H14.`, stations), word).toEqual([{ stations: ['tram:ST-208', id], says: 'closed' }]);
+    }
+  }
 });
 
 test("matches a Station's name without or with link words its Alert has or hasn't, as Adif's \"València-La Font de Sant Lluís\" is Renfe's \"Valencia Font de Sant Lluis\", and reads \"servicio alternativo por autobús\" as closed (#396, #552)", () => {
