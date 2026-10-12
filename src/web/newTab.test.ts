@@ -18,6 +18,8 @@ function anchor() {
 }
 
 test("opens a link in a new tab, with noopener and noreferrer, and says so after its text to a screen reader alone, in the language it's asked for", () => {
+  // Not the language this test runs in, whichever that is, so that a word in the interface's would show.
+  setLanguage('en');
   const link = anchor();
   opensInNewTab(link as unknown as HTMLAnchorElement, 'ca');
   expect(link).toMatchObject({ target: '_blank', rel: 'noopener noreferrer' });
@@ -59,6 +61,13 @@ const read = (file: string) => readFileSync(new URL(file, web), 'utf8');
 test("opens no tab but through opensInNewTab(): no other file of the page writes the target that does, and none of main.ts's anchors is made without it", () => {
   expect(sources.filter((file) => read(file).includes('_blank'))).toEqual(['newTab.ts']);
   expect(read('main.ts').match(/(?<!opensInNewTab\(\s*)el\('a'/g) ?? []).toEqual([]);
+});
+
+test('puts the credits in each of the three places they show through putHtml(): behind the © button, in the strip and in About', () => {
+  const showCredits = /^function showCredits\(\) \{\n[\s\S]*?^\}$/m.exec(read('main.ts'))?.[0] ?? '';
+  expect(showCredits).toContain('putHtml(creditsText, ');
+  expect(showCredits).toContain('putHtml(creditsStrip, ');
+  expect(showCredits).toMatch(/aboutCredits\.replaceChildren\(.*putHtml\(/);
 });
 
 test("writes no HTML but through putHtml(), which makes its links open in a new tab: the page's other HTML is the icons' SVG", () => {
