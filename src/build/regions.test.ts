@@ -276,7 +276,7 @@ test("counts a failed region's days down by one a build, says 1 more day for the
   expect(says(10, kept)).toEqual(["cercanias-madrid isn't built, and keeps the files of its last build for 3 more days: HTTP 503", 3, kept]);
   expect(says(11, kept)).toEqual(["cercanias-madrid isn't built, and keeps the files of its last build for 2 more days: HTTP 503", 2, kept.slice(1)]);
   expect(says(12, kept.slice(1))).toEqual(["cercanias-madrid isn't built, and keeps the files of its last build for 1 more day: HTTP 503", 1, kept.slice(2)]);
-  // The 13th's build has none of the 11th's but not the 12th, which isn't named: the manifest leaves Madrid out.
+  // The last manifest, the 12th's, names the 11th's file alone, and the 13th's build keeps from the 12th on: none, so the manifest leaves Madrid out.
   expect(says(13, kept.slice(2))).toEqual(["cercanias-madrid isn't built, and has gone from the map: HTTP 503", 0, undefined]);
 });
 
