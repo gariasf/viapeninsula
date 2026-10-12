@@ -89,7 +89,7 @@ const STRINGS = {
   nextStationArriving: { ca: 'Arribant a', es: 'Llegando a', eu: 'Iristen', gl: 'Chegando a', en: 'Arriving at' },
   nextStationStanding: { ca: "A l'estació", es: 'En la estación', eu: 'Geltokian', gl: 'Na estación', en: 'At station' },
   leaves: { ca: 'surt', es: 'sale', eu: 'irteera', gl: 'sae', en: 'leaves' },
-  // The followed Train's strip's name with its fold open, as it lists the Stations the Train has already left too; and what a screen reader hears after each of those, whose subject is the Train, so that it needn't agree with a Station's name.
+  // The followed Train's strip's name with its fold open, as it lists the Stations the Train has already left too, and Search's section of the Stations it finds (#471); and what a screen reader hears after each of those the Train has left, whose subject is the Train, so that it needn't agree with a Station's name.
   stations: { ca: 'Estacions', es: 'Estaciones', eu: 'Geltokiak', gl: 'Estacións', en: 'Stations' },
   passed: { ca: 'ja hi ha passat', es: 'ya ha pasado', eu: 'dagoeneko igaro da', gl: 'xa pasou', en: 'passed' },
   // Where the followed Train's next Stations start: where it is by how it's drawn (#455), arriving at the Station it comes to, leaving the one it left, passing one it doesn't call at (#457), or between the two, {a} and {b}.
@@ -187,8 +187,33 @@ const STRINGS = {
   search: { ca: 'Cerca', es: 'Buscar', eu: 'Bilatu', gl: 'Buscar', en: 'Search' },
   nowTab: { ca: 'Ara', es: 'Ahora', eu: 'Orain', gl: 'Agora', en: 'Now' },
   favourites: { ca: 'Preferits', es: 'Favoritos', eu: 'Gogokoak', gl: 'Favoritos', en: 'Favourites' },
-  // Search's sheet, which its tab opens, titled by its label, and #471 fills: the button that closes it.
+  // Search's sheet, which its tab opens: the button that closes it.
   closeSearch: { ca: 'Tanca la cerca', es: 'Cerrar la búsqueda', eu: 'Itxi bilaketa', gl: 'Pechar a busca', en: 'Close search' },
+  // Its field (#471): what it says while it's empty, its name for a screen reader, and the button that clears it.
+  searchPlaceholder: { ca: 'Estació o número de tren', es: 'Estación o número de tren', eu: 'Geltokia edo tren-zenbakia', gl: 'Estación ou número de tren', en: 'Station or train number' },
+  searchLabel: { ca: 'Cerca una estació o un número de tren', es: 'Buscar una estación o un número de tren', eu: 'Bilatu geltoki bat edo tren-zenbaki bat', gl: 'Buscar unha estación ou un número de tren', en: 'Search for a station or a train number' },
+  clearSearch: { ca: 'Esborra la cerca', es: 'Borrar la búsqueda', eu: 'Ezabatu bilaketa', gl: 'Borrar a busca', en: 'Clear the search' },
+  // Under the empty field, what it finds, beside examples, which are names: a Station, and a Train number, which only Renfe's Trains have, and which it finds among the Trips of the regions the map has loaded. A Line comes with a Line's screen (#473).
+  find: { ca: 'Troba', es: 'Encuentra', eu: 'Aurkitu', gl: 'Atopa', en: 'Find' },
+  aStation: { ca: 'Una estació', es: 'Una estación', eu: 'Geltoki bat', gl: 'Unha estación', en: 'A station' },
+  aTrainNumber: { ca: 'Un número de tren', es: 'Un número de tren', eu: 'Tren-zenbaki bat', gl: 'Un número de tren', en: 'A train number' },
+  renfeOnly: {
+    ca: "Només trens de Renfe, de les zones del mapa ja carregades: cap d'FGC, del TRAM ni del metro no en té",
+    es: 'Solo trenes de Renfe, de las zonas del mapa ya cargadas: ninguno de FGC, del TRAM ni del metro tiene',
+    eu: 'Renferen trenak bakarrik, maparen kargatutako eremuetakoak: FGC, TRAM eta metroko trenek ez dute zenbakirik',
+    gl: 'Só trens de Renfe, das zonas do mapa xa cargadas: ningún de FGC, do TRAM nin do metro ten',
+    en: "Renfe's trains only, in the parts of the map loaded so far: none of FGC, TRAM or the Metro has one",
+  },
+  // Its section of the Train numbers it finds, after that of the Stations (`stations`); and under it, how many more it found, {n}, whose numbers start with what was typed, {query}.
+  trainNumbers: { ca: 'Números de tren', es: 'Números de tren', eu: 'Tren-zenbakiak', gl: 'Números de tren', en: 'Train numbers' },
+  moreNumbers: { ca: '{n} més amb un número que comença per {query}', es: '{n} más con un número que empieza por {query}', eu: 'Beste {n}, {query} hasierako zenbakiarekin', gl: '{n} máis cun número que comeza por {query}', en: '{n} more with a number starting {query}' },
+  oneMoreNumber: { ca: '{n} més amb un número que comença per {query}', es: '{n} más con un número que empieza por {query}', eu: 'Beste bat, {query} hasierako zenbakiarekin', gl: '{n} máis cun número que comeza por {query}', en: '{n} more with a number starting {query}' },
+  // What it says where it finds nothing for what was typed, {query}.
+  nothingFound: { ca: "No s'ha trobat res per a «{query}».", es: 'No se ha encontrado nada para «{query}».', eu: 'Ez da ezer aurkitu «{query}» bilaketarako.', gl: 'Non se atopou nada para «{query}».', en: 'Nothing found for “{query}”.' },
+  // A Train number's row: the number, {number}, and where its Train is headed, {headsign}; under them, after Live or Scheduled, its next Station, {station}, and when it's due there, {time}; or when it reached its last Station, once it has ended. One still to leave says where and when with leavesAt.
+  trainTo: { ca: '{number} cap a {headsign}', es: '{number} hacia {headsign}', eu: '{number}, {headsign} aldera', gl: '{number} cara a {headsign}', en: '{number} to {headsign}' },
+  nextAt: { ca: 'propera: {station}, {time}', es: 'próxima: {station}, {time}', eu: 'hurrengoa: {station}, {time}', gl: 'próxima: {station}, {time}', en: 'next {station}, {time}' },
+  endedAt: { ca: 'Ha acabat a les {time}', es: 'Terminó a las {time}', eu: 'Amaitu da: {time}', gl: 'Rematou ás {time}', en: 'Ended at {time}' },
   // Nearby Trains: their panel's title, and the tab that opens them (#470).
   nearby: { ca: 'Trens a prop', es: 'Trenes cercanos', eu: 'Inguruko trenak', gl: 'Trens próximos', en: 'Nearby trains' },
   nearbyButton: { ca: 'A prop', es: 'Cerca', eu: 'Inguruan', gl: 'Preto', en: 'Nearby' },
@@ -449,6 +474,12 @@ export const followDeparture = (line: string, headsign: string, time: string, la
 /** Where a Trip still to come leaves, from which Station and when, in `lang`, or else the language the interface speaks now. */
 export const leavesAt = (station: string, time: string, lang = language()): string => named(STRINGS.leavesAt[lang], '{station}', station, lang).replace('{time}', time);
 
+/** A Train number's row in Search (#471): its number and where its Train is headed, in `lang`, or else the language the interface speaks now. */
+export const trainTo = (number: string, headsign: string, lang = language()): string => named(STRINGS.trainTo[lang].replace('{number}', number), '{headsign}', headsign, lang);
+
+/** Under a Train number's row in Search, the next Station its Train stops at and when it's due there (#471), in `lang`, or else the language the interface speaks now. */
+export const nextAt = (station: string, time: string, lang = language()): string => named(STRINGS.nextAt[lang], '{station}', station, lang).replace('{time}', time);
+
 /** Back, to a place whose board it was opened from, or to Nearby by its title, which no article of a name starts, in `lang`, or else the language the interface speaks now. */
 export const backTo = (place: string, lang = language()): string => named(STRINGS.backTo[lang], '{place}', place, lang);
 
@@ -461,6 +492,9 @@ export const earlierStations = (n: number, shown: boolean, lang = language()): s
 
 /** How many departures more a board lists than it shows peeking, in `lang`, or else the language the interface speaks now. */
 export const moreDepartures = (n: number, lang = language()): string => counting(n, 'oneMoreDeparture', 'moreDepartures', lang);
+
+/** How many Train numbers more Search found than it shows, `n`, whose numbers start with what was typed, `query` (#471), in `lang`, or else the language the interface speaks now. */
+export const moreNumbers = (n: number, query: string, lang = language()): string => counting(n, 'oneMoreNumber', 'moreNumbers', lang).replace('{query}', query);
 
 /** How many Alerts a card has, `n`, in the line they're folded into, in `lang`, or else the language the interface speaks now. */
 export const alertCount = (n: number, lang = language()): string => counting(n, 'oneAlert', 'alerts', lang);

@@ -808,6 +808,174 @@ time .in {
   font-weight: 700;
 }
 
+/* ---- Search (#471): its field atop its sheet, a card 44 px tall, with the sheet's close button beside it; what it finds while it's empty; and its rows, each 56 px high, a button but for a Cancelled or ended Train's: a mark or a Line's pill, what it is with a line under it, and what's said at its end. ---- */
+.sheet-top header:has(> .field) {
+  align-items: center;
+}
+
+.field {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  height: 44px;
+  margin: 2px 0 0;
+  padding: 0 0 0 14px;
+  border-radius: 22px;
+}
+
+.field > .icon {
+  flex: none;
+}
+
+/* 16 px, so that iOS doesn't zoom in on it as it takes the focus. The browser's own clear button goes: Search has its own, in every browser. */
+.search-field {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: 16px/1.2 var(--font);
+  outline: none;
+  appearance: none;
+}
+
+.search-field::placeholder {
+  color: var(--ink-soft);
+  opacity: 1;
+}
+
+.search-field::-webkit-search-cancel-button {
+  display: none;
+}
+
+/* The field shows where the keyboard is, as a button does, and its clear button within it. */
+.field:focus-within {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.clear {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: -2px 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.clear:focus-visible {
+  outline-offset: -4px;
+}
+
+.hints li,
+.result {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  align-items: center;
+  column-gap: 10px;
+  min-height: 56px;
+  padding: 6px 4px;
+}
+
+.hints li + li,
+.results li + li {
+  border-top: 1px solid var(--hairline);
+}
+
+.result {
+  box-sizing: border-box;
+  width: 100%;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+button.result {
+  cursor: pointer;
+}
+
+.lead {
+  display: grid;
+  place-items: center start;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.what {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.what-title {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.what-title .soft {
+  font-weight: 400;
+}
+
+.what-under {
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.what-under.served {
+  margin-top: 3px;
+}
+
+.end {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  color: var(--ink-soft);
+}
+
+.empty {
+  margin-top: 16px;
+  color: var(--ink-soft);
+}
+
+.more-results {
+  margin-top: 8px;
+}
+
+@media (hover: hover) {
+  :is(button.result, .clear):hover {
+    background: var(--hover);
+  }
+}
+
+/* While the on-screen keyboard is up, Search's sheet rises over it, from 8 px under the top of what's on screen to 8 px over the keyboard, as main.ts's riseOverKeyboard() sets them. */
+.dock.risen {
+  bottom: var(--risen-bottom);
+}
+
+.dock.risen .sheet {
+  height: var(--risen-height);
+  max-height: var(--risen-height);
+}
+
 /* A Station's board: its name as a nameboard, reversed out of the ink, holding the Lines that call there. Its close button's hover is reversed too, in its own lettering faded, where the ink's would vanish. */
 .sheet header.nameboard {
   --hover: color-mix(in srgb, currentColor 15%, transparent);

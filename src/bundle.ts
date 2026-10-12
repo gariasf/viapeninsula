@@ -156,16 +156,25 @@ export interface Manifest {
 
 /**
  * What the map draws below zoom 7, every region's, in one file of its own, built with the regions
- * (#266): every region's Networks, which the map credits and names in the banner, and each Network's
- * track, as the map draws it below zoom 7 (#190), simplified, so that it never loads a region for the
- * view there; and each region's Stations, by their IDs, by the region's, which a link that names a
- * Station finds the regions it loads by.
+ * (#266): every region's Networks, which the map credits and names in the banner, and Search by their
+ * short names where two places read alike (#471), and each Network's track, as the map draws it below
+ * zoom 7 (#190), simplified, so that it never loads a region for the view there; and each region's
+ * Stations, by their IDs, by the region's, which a link that names a Station finds the regions it loads
+ * by, and Search finds every Station in Spain in, with no region loaded (#471).
  */
 export interface ZoomedOut {
   networks: Network[];
   /** Each Network's track below zoom 7, as banner.ts's NetworkTrack. */
   tracks: { network: string; coordinates: Point[] }[];
   stations: Record<string, string[]>;
+  /**
+   * Each region's Stations' names, the places their operators group them in and the Lines whose timetable
+   * calls there, in the order `stations` lists their IDs, which Search finds a Station by (#471): none in a
+   * file built before #471, nor Lines for a Station of a track built before #392.
+   */
+  names?: Record<string, Pick<Station, 'name' | 'place' | 'lines'>[]>;
+  /** Every region's Lines, which Search names a Station's with, as pills: none in a file built before #471. */
+  lines?: Pick<Line, 'id' | 'network' | 'name' | 'colour' | 'kind'>[];
 }
 
 /**
@@ -324,6 +333,12 @@ export interface Bundle {
 export interface Network {
   id: string;
   name: string;
+  /**
+   * A shorter name its riders know it by, where its name is long, as `Rodalies`, which Search names it by
+   * where two places read alike (#471): given in its config and in the file below zoom 7, not in a track,
+   * as the credits and the banner name it in full.
+   */
+  short?: string;
   profile: SpeedProfile;
   /** Which track of a double track its Trains run on, looking the way they go. */
   runningSide: 'left' | 'right';
