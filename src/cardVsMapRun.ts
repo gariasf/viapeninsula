@@ -8,7 +8,8 @@
 // - `LIMIT=<seconds>` replays only that long, for a look;
 // - `ZOOM=<n>` is the zoom the followed pill's reach is worked out at (13, the follow zoom's floor),
 //   as the card works it out at the map's (pillReach(), which holds at the zoom its Line's Trains are
-//   pills from, below it);
+//   pills from, below it), and the zoom AT's 7 px are metres at, how near a Station a Train is drawn for
+//   its dot to be at it (50 m at 13, 12 m at 15), so that what is counted at a dot says the same at every zoom (#608);
 // - `STATIONS=1` counts each Station by its own coordinates, keyed by its place or else its name, as #352's note did
 //   (its sections 1 and 2), not as the places the map shows; the card goes by the place's dot either way (#455);
 // - the Networks' live traits are src/networks.ts's, as an older bundle's can differ or be missing.
@@ -41,7 +42,7 @@ import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 import { DEGREE, pixelMetres, places, type Bundle, type Place, type Trip } from './bundle.ts';
-import { differences, type Moment, type Near } from './cardVsMap.ts';
+import { AT, differences, type Moment, type Near } from './cardVsMap.ts';
 import { passedPlace } from './web/cards.ts';
 import type { Received } from './engine.ts';
 import { NETWORKS } from './networks.ts';
@@ -98,6 +99,12 @@ for (const dir of process.argv.slice(2)) {
   const keyOf = byStation ? new Map(bundle.stations.map((s) => [s.id, s.place ?? s.name])) : new Map(shown.flatMap((p) => p.stations.map((id): [string, string] => [id, p.id])));
   // The dot the map draws each Station's place at, which the card goes by whichever of those it counts.
   const placeOf = new Map(shown.flatMap((p) => p.stations.map((id): [string, Place] => [id, p])));
+  // How far each Station is from the dot of its place, in metres: the card goes by the stretch between its platform and the dot too (#609).
+  const stationAt = new Map(bundle.stations.map((s) => [s.id, s]));
+  const offsetOf = new Map([...placeOf].map(([id, p]) => {
+    const s = stationAt.get(id) ?? p;
+    return [id, Math.hypot((s.lon - p.lon) * DEGREE * Math.cos((p.lat * Math.PI) / 180), (s.lat - p.lat) * DEGREE)];
+  }));
   const nameOf = new Map(bundle.stations.map((s) => [s.id, s.name]));
   // The name the map shows each of those keys' place with, which the card compares with its Trip's calls' (#457).
   const shownAs = new Map(bundle.stations.map((s) => [keyOf.get(s.id) ?? s.id, placeOf.get(s.id)?.name ?? s.name]));
@@ -165,7 +172,10 @@ for (const dir of process.argv.slice(2)) {
       const box = boxOf(outlineOf(line?.kind ?? 'commuter'), (line?.name.length ?? 0) * 6, FOLLOWED_TEXT);
       const pillZoom = pillZoomOf.get(line?.network ?? '') ?? 10;
       const half = pillReach(box, zoom, pillZoom, train.lat);
-      const arrowReach = half + ARROW_GAP * pixelMetres(Math.max(zoom, pillZoom), train.lat);
+      const px = pixelMetres(Math.max(zoom, pillZoom), train.lat);
+      const arrowReach = half + ARROW_GAP * px;
+      // How near a Station it's drawn for its dot to be at it: AT px at the zoom its pill is drawn at, as its reach is, so that the count says the same at every zoom (#608).
+      const atReach = AT * px;
       // As the operator runs it: its calls as `o.calls` has them, one for one (cutTrip(), #346).
       const made = o.trip;
       const kx = DEGREE * Math.cos((train.lat * Math.PI) / 180);
@@ -173,7 +183,7 @@ for (const dir of process.argv.slice(2)) {
       const ownPlace = (key: string | undefined) => servedBy.get(key ?? '')?.has(line?.network ?? '') ?? false;
       const calls = o.calls.map((c) => {
         const place = placeOf.get(c.station);
-        return { ...c, key: keyOf.get(c.station) ?? c.station, away: place ? Math.hypot((place.lon - train.lon) * kx, (place.lat - train.lat) * DEGREE) : Infinity };
+        return { ...c, key: keyOf.get(c.station) ?? c.station, offset: offsetOf.get(c.station) ?? 0, away: place ? Math.hypot((place.lon - train.lon) * kx, (place.lat - train.lat) * DEGREE) : Infinity };
       });
       // The place it passes, as the card has it: of its own Network's, the places' dots whichever Stations `near` counts by, none the Stations it calls at, or named as one.
       const hit = passedPlace(around(placeGrid, train.lon, train.lat, half), train, o.calls.map((c) => ({ station: c.station, name: nameOf.get(c.station) ?? c.station })), half, line?.network ?? '');
@@ -190,8 +200,9 @@ for (const dir of process.argv.slice(2)) {
         dist: train.dist,
         calls,
         standing: !!train.standsAt,
-        near: nearTo(train.lon, train.lat, arrowReach),
-        reach: { pill: half, arrow: arrowReach },
+        // The places within the arrow's reach, and within `reach.at` if that is more, which it's not while AT is the arrow's gap's 7 px: near holds all that is counted from it.
+        near: nearTo(train.lon, train.lat, Math.max(atReach, arrowReach)),
+        reach: { pill: half, arrow: arrowReach, at: atReach },
         ...(hit && { passed: { key: keyOf.get(hit.place.stations[0] ?? '') ?? hit.place.id, metres: hit.away } }),
         profile: o.profile,
         ...(pinned && { pin: { dist: pinned.dist, call: made.calls.indexOf(pinned) } }),
@@ -310,8 +321,9 @@ for (const dir of process.argv.slice(2)) {
       if (held?.nowByDelay) add('fix.maxDelay.nowByDelay');
       if (held && held.timeOff > 60) add('fix.maxDelay.drawnAhead60');
       // The Delay measures, as jumps() and the stalls have them: Live in both seconds, moves faster than top speed + 5%, not moving at all more than 20 m from any call.
-      now.set(trip.id, train.dist);
+      // Only a Live Train's distance is kept for the next second, so that the second a report first places a Scheduled Train is no jump (#534).
       const before = was.get(trip.id);
+      if (train.live) now.set(trip.id, train.dist);
       if (train.live && before !== undefined) {
         add('delay.liveSeconds');
         if (Math.abs(train.dist - before) > o.network.profile.topSpeed * 1.05) add('delay.jumps');

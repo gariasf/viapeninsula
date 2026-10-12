@@ -1,5 +1,15 @@
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { gunzipSync, gzipSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
+import { DEGREE, type Bundle } from './bundle.ts';
 import { differences, type Moment } from './cardVsMap.ts';
+import type { Received } from './engine.ts';
+import { jumps } from './jumps.ts';
+import { NETWORKS } from './networks.ts';
 
 // A Trip A (0 m) – B (2,000 m) – C (4,000 m): 100 s legs, the second day's noon-minus-12h at 0, so seconds into the day are ms / 1000.
 const calls = [
@@ -19,7 +29,7 @@ const moment = (time: number, dist: number, over: Partial<Moment> = {}): Moment 
   calls,
   standing: false,
   near: [],
-  reach: { pill: 100, arrow: 150 },
+  reach: { pill: 100, arrow: 150, at: 50 },
   profile,
   ...over,
 });
@@ -40,7 +50,7 @@ describe('differences', () => {
 
   it('has the card between its Stations where the pill is short of the next one, though its arrow covers it and the Train is drawn at it', () => {
     // A pill reaching 40 m, and its arrow 100 m, as at a zoom in.
-    const d = differences(moment(125, 1950, { near: [{ key: 'B', metres: 50 }], reach: { pill: 40, arrow: 100 } }));
+    const d = differences(moment(125, 1950, { near: [{ key: 'B', metres: 50 }], reach: { pill: 40, arrow: 100, at: 50 } }));
     expect(d).toMatchObject({ says: { at: 'between', key: 'A – B' }, atNextBeforeArriving: true, at: 'next', pill: undefined, arrow: 'next', graced: true });
   });
 
@@ -72,8 +82,25 @@ describe('differences', () => {
   it('has the pill cover the Station it left where the card says it is arriving at the next, on a leg shorter than twice its reach', () => {
     // 150 m from A to B, which the Train has 130 m to: A is 20 m behind it and B 130 m ahead, the pill reaching 130 m.
     const short = [{ station: 'a', key: 'A', arrival: 0, departure: 30, dist: 0 }, { station: 'b', key: 'B', arrival: 60, departure: 90, dist: 150 }];
-    const d = differences(moment(40, 20, { calls: short, near: [{ key: 'A', metres: 20 }, { key: 'B', metres: 130 }], reach: { pill: 130, arrow: 180 } }));
+    const d = differences(moment(40, 20, { calls: short, near: [{ key: 'A', metres: 20 }, { key: 'B', metres: 130 }], reach: { pill: 130, arrow: 180, at: 50 } }));
     expect(d).toMatchObject({ says: { at: 'arriving', key: 'B' }, at: 'otherCall', pill: 'otherCall', atNextBeforeArriving: false });
+  });
+
+  it("has a Train at a Station only within AT px of its dot, which is fewer metres the further in the zoom, so that a pill that reaches 32 m is not short of a dot 40 m off (#608)", () => {
+    // Zoom 15: the pill reaches 32 m, its arrow 44.5 m and 7 px is 12.5 m. 40 m short of B's dot the card says between, the arrow covers it, and the Train is not at it.
+    const zoomedIn = { pill: 32, arrow: 44.5, at: 12.5 };
+    expect(differences(moment(125, 1960, { near: [{ key: 'B', metres: 40 }], reach: zoomedIn }))).toMatchObject({ says: { at: 'between', key: 'A – B' }, atNext: false, atNextBeforeArriving: false, at: undefined, arrow: 'next' });
+    // As 50 m, which is 28 px there, it would be: drawn at B, which the card has no words for.
+    expect(differences(moment(125, 1960, { near: [{ key: 'B', metres: 40 }], reach: { ...zoomedIn, at: 50 } }))).toMatchObject({ atNext: true, atNextBeforeArriving: true });
+    // 10 m short of it the card says arriving, as the pill reaches that, and the Train is at it.
+    expect(differences(moment(125, 1990, { near: [{ key: 'B', metres: 10 }], reach: zoomedIn }))).toMatchObject({ says: { at: 'arriving', key: 'B' }, atNext: true, atNextBeforeArriving: false });
+  });
+
+  it("counts a place the Train is drawn at only within AT px of its dot, as it counts the next Station (#608)", () => {
+    // Between A and B, 30 m from X, which is no call: at it by 50 m, not by 7 px at zoom 15, where the pill reaches 32 m and covers it.
+    const near = [{ key: 'X', metres: 30 }];
+    expect(differences(moment(80, 1000, { near, reach: { pill: 100, arrow: 150, at: 50 } }))).toMatchObject({ at: 'notCall', atKey: 'X', pill: 'notCall' });
+    expect(differences(moment(80, 1000, { near, reach: { pill: 32, arrow: 44.5, at: 12.5 } }))).toMatchObject({ at: undefined, atKey: undefined, pill: 'notCall' });
   });
 
   it('names a Station passed without stopping as not a call', () => {
@@ -160,4 +187,70 @@ describe('differences', () => {
     expect(differences(moment(140, 2400, { pin: { dist: 0, call: 0 } }))?.pinnedAway).toBe('past');
     expect(differences(moment(80, 1900, { pin: { dist: 2000, call: 1 } }))?.pinnedAway).toBeUndefined();
   });
+});
+
+describe('the runner', () => {
+  // 45 minutes of the rains of 7 October 2026, 16 Trips of Rodalies and Cercanías Madrid, as its replay is kept.
+  const file = fileURLToPath(new URL('fixtures/replay-2026-10-07.json.gz', import.meta.url));
+  const { bundle, received } = JSON.parse(gunzipSync(readFileSync(file)).toString()) as { bundle: Bundle; received: Received[] };
+  // The runner takes each Network's live traits from src/networks.ts, as an older bundle's can differ.
+  for (const network of bundle.networks) network.live = NETWORKS.find((n) => n.id === network.id)?.live ?? network.live;
+
+  /** The runner's counts of every Train-second drawn, by Network, with the followed pill's zoom `zoom`, over the rains' replay or another. */
+  function counted(zoom: number, replay: { bundle: Bundle; received: Received[] } = { bundle, received }): Record<string, Record<string, number>> {
+    const dir = mkdtempSync(join(tmpdir(), 'card-vs-map-test-'));
+    try {
+      writeFileSync(join(dir, 'bundle.json'), JSON.stringify(replay.bundle));
+      writeFileSync(join(dir, 'replay.json.gz'), gzipSync(JSON.stringify({ received: replay.received })));
+      const script = fileURLToPath(new URL('./cardVsMapRun.ts', import.meta.url));
+      const run = execFileSync(process.execPath, [script, dir], { encoding: 'utf8', env: { ...process.env, ZOOM: String(zoom) }, stdio: ['ignore', 'pipe', 'ignore'] });
+      const results = JSON.parse(run).results[dir] as Record<string, { all: Record<string, number> }>;
+      return Object.fromEntries(Object.entries(results).map(([network, { all }]) => [network, all]));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  it("counts a jump only for a Train that is Live in both seconds, as jumps() does, so that the second a report first places a Scheduled Train is not one (#534)", () => {
+    // Kept as a Scheduled Train's distance too, the runner counts Rodalies' 18 and Madrid's 26.
+    const theirs = Object.fromEntries(Object.entries(jumps(bundle, received)).map(([network, j]) => [network, j.forward + j.back]));
+    expect(Object.fromEntries(Object.entries(counted(13)).map(([network, all]) => [network, all['delay.jumps'] ?? 0]))).toEqual(theirs);
+  }, 60_000);
+
+  it("counts no Train as drawn at its next Station without the card saying it is arriving at zoom 15, where the pill reaches 22 to 32 m and 50 m is 28 px (#608)", () => {
+    // At 50 m, which is the zoom 13's 7 px, the runner counted 36 seconds of each of Rodalies' and Madrid's.
+    const at15 = counted(15);
+    // Trains drawn at all, so that the 0 is a count and not an absence.
+    for (const all of Object.values(at15)) expect(all.seconds).toBeGreaterThan(5000);
+    expect(Object.fromEntries(Object.entries(at15).map(([network, all]) => [network, all['1.atNextBeforeArriving'] ?? 0]))).toEqual({ rodalies: 0, 'cercanias-madrid': 0 });
+  }, 60_000);
+
+  it("has the card say arriving across the stretch between a Station's platform and the dot its place is shown by, as the runner reads the Stations' own coordinates, where Passeig de Gràcia's L3 Station is 204 m from its dot (#609)", () => {
+    // A – B – C a kilometre apart along a line of latitude, and D of B's place 408 m before B: the place's dot, the middle of B and D, is 204 m before B's platform, over
+    // twice the 73 m a two-letter badge's followed pill reaches at zoom 13. Without the stretch the card says arriving at the dot, between, and arriving at the platform.
+    const [lat, day] = [41.4, '2026-10-07'];
+    const lon = (metres: number) => 2.15 + metres / (DEGREE * Math.cos((lat * Math.PI) / 180));
+    const noon = Date.parse(`${day}T00:00:00+02:00`);
+    const where: [id: string, metres: number, place?: string][] = [['a', 0], ['b', 1000, 'bd'], ['c', 2000], ['d', 592, 'bd']];
+    const interchange: Bundle = {
+      serviceDay: day,
+      noonMinus12h: noon,
+      networks: [{ id: 'test', name: 'Test', profile: { acceleration: 1.3, braking: 1.3, topSpeed: 80 / 3.6, dwell: 20 }, runningSide: 'right', colour: '#000', pillZoom: 12, credit: { text: '', url: '' } }],
+      lines: [{ id: 'L3', network: 'test', name: 'L3', colour: '#000', shapes: ['s'], kind: 'metro' }],
+      stations: where.map(([id, metres, place]) => ({ id, name: id, lon: lon(metres), lat, ...(place && { place }) })),
+      shapes: [{ id: 's', coords: [[lon(0), lat], [lon(2000), lat]], dist: [0, 2000] }],
+      strokes: [],
+      rails: [],
+      slots: [],
+      tracks: [],
+      trips: [{ id: 't', line: 'L3', shape: 's', headsign: 'C', calls: [{ station: 'a', arrival: 36000, departure: 36000, dist: 0 }, { station: 'b', arrival: 36090, departure: 36120, dist: 1000 }, { station: 'c', arrival: 36210, departure: 36210, dist: 2000 }] }],
+    };
+    // From 10 s after its Train leaves A to 10 s after it comes to B, with no report: a Scheduled Train, drawn by its timetable.
+    const read = (at: number): Received => ({ at, snapshot: { generated: at, feeds: {}, reports: [] } });
+    const all = counted(13, { bundle: interchange, received: [read(noon + 36_010_000), read(noon + 36_100_000)] }).test ?? {};
+    // The Train drawn, and arriving for some of it, so that no flap is a count and not an absence.
+    expect(all.seconds).toBeGreaterThan(80);
+    expect(all['w.arriving']).toBeGreaterThan(20);
+    expect(all['w.flaps.other'] ?? 0).toBe(0);
+  }, 60_000);
 });

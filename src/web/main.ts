@@ -2181,7 +2181,7 @@ function followedPanel(up: boolean): Panel | undefined {
   const last = running.at(-1);
   // Where it is by how it's drawn: how near its pill reaches its Stations (#455), and the place it passes without stopping, if one (#457).
   const reach = followedReach(train);
-  const where = whereabouts(trip.calls, train.dist, upcoming.length, !!train.standsAt, reach, dotAway(train), passedBy(train, reach));
+  const where = whereabouts(trip.calls, train.dist, upcoming.length, !!train.standsAt, reach, dotOf(train), passedBy(train, reach));
   const status: (Node | string)[] = [t(live ? 'live' : 'scheduled')];
   if (unreported) status.push(t('noLiveTrain'));
   else if (since !== undefined) status.push(t(live ? 'confirmed' : 'lastConfirmed').replace('{ago}', ago(since)));
@@ -2276,16 +2276,18 @@ function followedReach({ trip, lat }: Followed): number {
 }
 
 /**
- * How far a followed Train is drawn from the dot of the place a call's Station is shown in, in metres
- * (whereabouts()'s `dotAway`, #455), none where no place on the map has the Station.
+ * How far a followed Train is drawn from the dot of the place a call's Station is shown in, in metres,
+ * and how far that dot is from the Station itself (whereabouts()'s `dot`, #455, #609): none of the
+ * first where no place on the map has the Station.
  * ponytail: flat, from where the engine draws it on its shape, though zoomed out, it sits on its Line's
  * stroke, up to half a line width to the side. Go by where the map draws it if that shows.
  */
-function dotAway({ lon, lat }: Followed): (call: Call) => number {
+function dotOf({ lon, lat }: Followed): (call: Call) => { away: number; offset: number } {
   const kx = DEGREE * Math.cos((lat * Math.PI) / 180);
+  const apart = (a: { lon: number; lat: number }, b: { lon: number; lat: number }) => Math.hypot((a.lon - b.lon) * kx, (a.lat - b.lat) * DEGREE);
   return ({ station }) => {
-    const place = placeOfStation.get(station);
-    return place ? Math.hypot((place.lon - lon) * kx, (place.lat - lat) * DEGREE) : Infinity;
+    const [place, own] = [placeOfStation.get(station), shownStations?.find((s) => s.id === station)];
+    return place ? { away: apart(place, { lon, lat }), offset: own ? apart(place, own) : 0 } : { away: Infinity, offset: 0 };
   };
 }
 

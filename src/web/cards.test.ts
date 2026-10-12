@@ -226,8 +226,8 @@ test('a pill that reaches nothing makes a Train arriving only where it is drawn 
 });
 
 test("a Train is arriving at or leaving a Station too where it's drawn within its pill's reach of the dot its place is shown by, which is the middle of an interchange's Stations, not where its own Line stops (#455)", () => {
-  // The pill reaches 120 m. How far it's drawn from A's place's dot and B's, where no dot is known: none.
-  const says = (dist: number, a = Infinity, b = Infinity) => whereabouts(ABC, dist, 2, false, 120, (call) => (call.station === 'a' ? a : call.station === 'b' ? b : Infinity));
+  // The pill reaches 120 m. How far it's drawn from A's place's dot and B's, where no dot is known: none; the dots are not far from the platforms.
+  const says = (dist: number, a = Infinity, b = Infinity) => whereabouts(ABC, dist, 2, false, 120, (call) => ({ away: call.station === 'a' ? a : call.station === 'b' ? b : Infinity, offset: 0 }));
   // Drawn 1,650 m along, it's 350 m short of B's platform: B's place is shown 100 m ahead of it.
   expect(says(1650)).toEqual({ at: 'between', last: A, next: B });
   expect(says(1650, undefined, 100)).toEqual({ at: 'arriving', next: B });
@@ -239,8 +239,28 @@ test("a Train is arriving at or leaving a Station too where it's drawn within it
 });
 
 test('a Station no place on the map shows has no dot to go by, only where its platform is along the Trip', () => {
-  expect(whereabouts(ABC, 1950, 2, false, 100, () => Infinity)).toEqual({ at: 'arriving', next: B });
-  expect(whereabouts(ABC, 1000, 2, false, 100, () => Infinity)).toEqual({ at: 'between', last: A, next: B });
+  expect(whereabouts(ABC, 1950, 2, false, 100, () => ({ away: Infinity, offset: 0 }))).toEqual({ at: 'arriving', next: B });
+  expect(whereabouts(ABC, 1000, 2, false, 100, () => ({ away: Infinity, offset: 0 }))).toEqual({ at: 'between', last: A, next: B });
+});
+
+test("a Train stays arriving, or leaving, across the stretch between a dot and its platform where they're more than two reaches apart, as Passeig de Gràcia's L3 Station is 204 m from its place's dot (#609)", () => {
+  // The pill reaches 73 m, as a Metro badge's does at zoom 13. B's dot is 204 m before its platform, along the way in.
+  const arriving = (dist: number) => whereabouts(ABC, dist, 2, false, 73, (call) => (call.station === 'b' ? { away: Math.abs(1796 - dist), offset: 204 } : { away: Infinity, offset: 0 }));
+  // From 73 m short of the dot to 73 m short of the platform, and at it, by one rule: no stretch of between in the middle.
+  for (const dist of [1723, 1750, 1796, 1850, 1900, 1927, 1960]) expect(arriving(dist)).toEqual({ at: 'arriving', next: B });
+  expect(arriving(1700)).toEqual({ at: 'between', last: A, next: B });
+  // And leaving, where the dot is 204 m past the platform along the way out.
+  const leaving = (dist: number) => whereabouts(ABC, dist, 2, false, 73, (call) => (call.station === 'a' ? { away: Math.abs(204 - dist), offset: 204 } : { away: Infinity, offset: 0 }));
+  for (const dist of [30, 73, 120, 204, 270]) expect(leaving(dist)).toEqual({ at: 'leaving', last: A, next: B });
+  expect(leaving(400)).toEqual({ at: 'between', last: A, next: B });
+  // A dot past the platform, in the way in, is not an earlier arrival: the platform's reach is the pill's.
+  const dotAhead = (dist: number) => whereabouts(ABC, dist, 2, false, 73, (call) => (call.station === 'b' ? { away: Math.abs(2204 - dist), offset: 204 } : { away: Infinity, offset: 0 }));
+  expect(dotAhead(1900)).toEqual({ at: 'between', last: A, next: B });
+  expect(dotAhead(1930)).toEqual({ at: 'arriving', next: B });
+  // The track needn't run along the line between them: 100 m short of the platform and 200 m from the dot, which is 100 m off it, is still the stretch, as 100 and 260 m are not, by the two reaches' slack.
+  const beside = (away: number) => whereabouts(ABC, 1900, 2, false, 73, (call) => (call.station === 'b' ? { away, offset: 204 } : { away: Infinity, offset: 0 }));
+  expect(beside(200)).toEqual({ at: 'arriving', next: B });
+  expect(beside(260)).toEqual({ at: 'between', last: A, next: B });
 });
 
 /** The Network the Train in these tests runs for, and whose Trains stop at the places the map shows unless they say. */
