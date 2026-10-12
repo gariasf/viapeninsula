@@ -1,0 +1,1280 @@
+{
+ "phone-light": {
+  "bar": [
+   8,
+   772,
+   382,
+   836
+  ],
+  "nav": {
+   "label": "Main",
+   "tabs": [
+    "Search",
+    "Nearby"
+   ]
+  },
+  "nearby": {
+   "sheet": [
+    8,
+    240.7,
+    382,
+    764
+   ],
+   "current": [
+    null,
+    "page"
+   ],
+   "rows": 47
+  },
+  "empty": {
+   "focused": "field",
+   "value": "",
+   "field": {
+    "label": "Search for a station or a train number",
+    "placeholder": "Station or train number",
+    "autocomplete": "off",
+    "autocorrect": "off",
+    "spellcheck": "false",
+    "enterkeyhint": "search",
+    "type": "search",
+    "form": "search"
+   },
+   "heading": "Search",
+   "clear": null,
+   "labels": [
+    "Find"
+   ],
+   "hints": [
+    "A stationBarcelona-Sants, Terrassa, Mataró",
+    "77428A train numberRenfe's trains only, in the parts of the map loaded so far: none of FGC, TRAM or the Metro has one"
+   ],
+   "rows": [],
+   "empty": null,
+   "sheet": [
+    8,
+    240.7,
+    382,
+    764
+   ],
+   "dock": "dock",
+   "current": [
+    "page",
+    null
+   ],
+   "hash": "#map=12.5/41.385/2.17",
+   "stored": [
+    "language",
+    "view"
+   ]
+  },
+  "terrassa": {
+   "focused": "field",
+   "value": "terrassa",
+   "field": {
+    "label": "Search for a station or a train number",
+    "placeholder": "Station or train number",
+    "autocomplete": "off",
+    "autocorrect": "off",
+    "spellcheck": "false",
+    "enterkeyhint": "search",
+    "type": "search",
+    "form": "search"
+   },
+   "heading": "Search",
+   "clear": [
+    280,
+    270.7,
+    324,
+    314.7
+   ],
+   "labels": [
+    "Stations"
+   ],
+   "hints": [],
+   "rows": [
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa EstR4",
+     "sr": "",
+     "h": 56
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa Estació del Nord · Rodalies de CatalunyaR4",
+     "sr": "",
+     "h": 72
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa  Estació del nord · Ferrocarrils de la Generalitat de CatalunyaS1",
+     "sr": "",
+     "h": 91.5
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa Nacions UnidesS1",
+     "sr": "",
+     "h": 56
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa - RamblaS1",
+     "sr": "",
+     "h": 56
+    }
+   ],
+   "empty": null,
+   "sheet": [
+    8,
+    240.7,
+    382,
+    764
+   ],
+   "dock": "dock",
+   "current": [
+    "page",
+    null
+   ],
+   "hash": "#map=12.5/41.385/2.17",
+   "stored": [
+    "language",
+    "view"
+   ]
+  },
+  "n774": {
+   "focused": "field",
+   "value": "774",
+   "field": {
+    "label": "Search for a station or a train number",
+    "placeholder": "Station or train number",
+    "autocomplete": "off",
+    "autocorrect": "off",
+    "spellcheck": "false",
+    "enterkeyhint": "search",
+    "type": "search",
+    "form": "search"
+   },
+   "heading": "Search",
+   "clear": [
+    280,
+    270.7,
+    324,
+    314.7
+   ],
+   "labels": [
+    "Train numbers"
+   ],
+   "hints": [],
+   "rows": [
+    {
+     "tag": "BUTTON",
+     "text": "R4, Live77412 to ManresaLive · next Barberà del Vallès, 10:07 AM+5 min5 min late",
+     "sr": ", Live5 min late",
+     "h": 66.6
+    },
+    {
+     "tag": "BUTTON",
+     "text": "R4, Live77414 to Terrassa Estació del NordLive · next L'Hospitalet de Llobregat, 10:05 AM+16 min16 min late",
+     "sr": ", Live16 min late",
+     "h": 86.1
+    },
+    {
+     "tag": "BUTTON",
+     "text": "R4, Live77416 to ManresaLive · next Molins de Rei, 10:06 AM+1 min1 min late",
+     "sr": ", Live1 min late",
+     "h": 66.6
+    },
+    {
+     "tag": "BUTTON",
+     "text": "R4, Live77418 to Terrassa Estació del NordLive · next Gelida, 10:11 AM−1 min1 min early",
+     "sr": ", Live1 min early",
+     "h": 68.5
+    },
+    {
+     "tag": "BUTTON",
+     "text": "R4, Live77420 to ManresaLive · next El Vendrell, 10:09 AM+8 min8 min late",
+     "sr": ", Live8 min late",
+     "h": 56
+    },
+    {
+     "tag": "BUTTON",
+     "text": "R4, Scheduled77422 to Terrassa Estació del NordLeaves Vilafranca del Penedès at 10:53 AM",
+     "sr": ", Scheduled",
+     "h": 86.1
+    }
+   ],
+   "empty": null,
+   "more": "27 more with a number starting 774",
+   "sheet": [
+    8,
+    240.7,
+    382,
+    764
+   ],
+   "dock": "dock",
+   "current": [
+    "page",
+    null
+   ],
+   "hash": "#map=12.5/41.385/2.17",
+   "stored": [
+    "language",
+    "view"
+   ]
+  },
+  "n774aria": "- heading \"Train numbers\" [level=3]\n- list:\n  - listitem:\n    - button \"R4 , Live 77412 to Manresa next Barberà del Vallès, 10:07 AM 5 min late\"\n  - listitem:\n    - button \"R4 , Live 77414 to Terrassa Estació del Nord next L'Hospitalet de Llobregat, 10:05 AM 16 min late\"\n  - listitem:\n    - button \"R4 , Live 77416 to Manresa next Molins de Rei, 10:06 AM 1 min late\"\n  - listitem:\n    - button \"R4 , Live 77418 to Terrassa Estació del Nord next Gelida, 10:11 AM 1 min early\"\n  - listitem:\n    - button \"R4 , Live 77420 to Manresa next El Vendrell, 10:09 AM 8 min late\"\n  - listitem:\n    - button \"R4 , Scheduled 77422 to Terrassa Estació del Nord Leaves Vilafranca del Penedès at 10:53 AM\"\n- paragraph: 27 more with a number starting 774",
+  "nothing": {
+   "focused": "field",
+   "value": "xyzzy",
+   "field": {
+    "label": "Search for a station or a train number",
+    "placeholder": "Station or train number",
+    "autocomplete": "off",
+    "autocorrect": "off",
+    "spellcheck": "false",
+    "enterkeyhint": "search",
+    "type": "search",
+    "form": "search"
+   },
+   "heading": "Search",
+   "clear": [
+    280,
+    270.7,
+    324,
+    314.7
+   ],
+   "labels": [],
+   "hints": [],
+   "rows": [],
+   "empty": {
+    "text": "Nothing found for “xyzzy”.",
+    "live": null
+   },
+   "sheet": [
+    8,
+    240.7,
+    382,
+    764
+   ],
+   "dock": "dock",
+   "current": [
+    "page",
+    null
+   ],
+   "hash": "#map=12.5/41.385/2.17",
+   "stored": [
+    "language",
+    "view"
+   ]
+  },
+  "risenBefore": [
+   8,
+   240.7,
+   382,
+   764
+  ],
+  "risen": {
+   "sheet": [
+    8,
+    8,
+    382,
+    500
+   ],
+   "dock": "dock risen",
+   "focused": "search-field"
+  },
+  "dropped": {
+   "sheet": [
+    8,
+    240.7,
+    382,
+    764
+   ],
+   "dock": "dock"
+  }
+ },
+ "phone-tabs-light": {
+  "hoverMedia": true,
+  "hoverOther": "color(srgb 0.0784314 0.188235 0.352941 / 0.07)",
+  "focus": {
+   "on": "Search",
+   "ring": "solid 2px",
+   "visible": true
+  }
+ },
+ "short-light-375": {
+  "fabs": [
+   [
+    315,
+    56,
+    363,
+    104
+   ],
+   [
+    315,
+    114,
+    363,
+    162
+   ],
+   [
+    315,
+    172,
+    363,
+    220
+   ]
+  ],
+  "sheet": [
+   8,
+   232,
+   367,
+   587
+  ],
+  "lang": [
+   302.2,
+   8,
+   367,
+   48
+  ],
+  "hash": "#map=13/41.39641/2.17141&train=2026-10-12/metro:1.2.11940049"
+ },
+ "short-light-390": {
+  "fabs": [
+   [
+    330,
+    385.9,
+    378,
+    433.9
+   ],
+   [
+    330,
+    443.9,
+    378,
+    491.9
+   ]
+  ],
+  "sheet": [
+   8,
+   503.9,
+   382,
+   764
+  ],
+  "lang": [
+   317.2,
+   8,
+   382,
+   48
+  ],
+  "hash": "#map=13/41.40105/2.17807&train=2026-10-12/tram:TBS:1990_0112"
+ },
+ "phone-dark": {
+  "bar": [
+   8,
+   772,
+   382,
+   836
+  ],
+  "nav": {
+   "label": "Main",
+   "tabs": [
+    "Search",
+    "Nearby"
+   ]
+  },
+  "nearby": {
+   "sheet": [
+    8,
+    240.7,
+    382,
+    764
+   ],
+   "current": [
+    null,
+    "page"
+   ],
+   "rows": 47
+  },
+  "empty": {
+   "focused": "field",
+   "value": "",
+   "field": {
+    "label": "Search for a station or a train number",
+    "placeholder": "Station or train number",
+    "autocomplete": "off",
+    "autocorrect": "off",
+    "spellcheck": "false",
+    "enterkeyhint": "search",
+    "type": "search",
+    "form": "search"
+   },
+   "heading": "Search",
+   "clear": null,
+   "labels": [
+    "Find"
+   ],
+   "hints": [
+    "A stationBarcelona-Sants, Terrassa, Mataró",
+    "77428A train numberRenfe's trains only, in the parts of the map loaded so far: none of FGC, TRAM or the Metro has one"
+   ],
+   "rows": [],
+   "empty": null,
+   "sheet": [
+    8,
+    240.7,
+    382,
+    764
+   ],
+   "dock": "dock",
+   "current": [
+    "page",
+    null
+   ],
+   "hash": "#map=12.5/41.385/2.17",
+   "stored": [
+    "language",
+    "view"
+   ]
+  },
+  "terrassa": {
+   "focused": "field",
+   "value": "terrassa",
+   "field": {
+    "label": "Search for a station or a train number",
+    "placeholder": "Station or train number",
+    "autocomplete": "off",
+    "autocorrect": "off",
+    "spellcheck": "false",
+    "enterkeyhint": "search",
+    "type": "search",
+    "form": "search"
+   },
+   "heading": "Search",
+   "clear": [
+    280,
+    270.7,
+    324,
+    314.7
+   ],
+   "labels": [
+    "Stations"
+   ],
+   "hints": [],
+   "rows": [
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa EstR4",
+     "sr": "",
+     "h": 56
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa Estació del Nord · Rodalies de CatalunyaR4",
+     "sr": "",
+     "h": 72
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa  Estació del nord · Ferrocarrils de la Generalitat de CatalunyaS1",
+     "sr": "",
+     "h": 91.5
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa Nacions UnidesS1",
+     "sr": "",
+     "h": 56
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa - RamblaS1",
+     "sr": "",
+     "h": 56
+    }
+   ],
+   "empty": null,
+   "sheet": [
+    8,
+    240.7,
+    382,
+    764
+   ],
+   "dock": "dock",
+   "current": [
+    "page",
+    null
+   ],
+   "hash": "#map=12.5/41.385/2.17",
+   "stored": [
+    "language",
+    "view"
+   ]
+  },
+  "n774": {
+   "focused": "field",
+   "value": "774",
+   "field": {
+    "label": "Search for a station or a train number",
+    "placeholder": "Station or train number",
+    "autocomplete": "off",
+    "autocorrect": "off",
+    "spellcheck": "false",
+    "enterkeyhint": "search",
+    "type": "search",
+    "form": "search"
+   },
+   "heading": "Search",
+   "clear": [
+    280,
+    270.7,
+    324,
+    314.7
+   ],
+   "labels": [
+    "Train numbers"
+   ],
+   "hints": [],
+   "rows": [
+    {
+     "tag": "BUTTON",
+     "text": "R4, Live77412 to ManresaLive · next Barberà del Vallès, 10:07 AM+5 min5 min late",
+     "sr": ", Live5 min late",
+     "h": 66.6
+    },
+    {
+     "tag": "BUTTON",
+     "text": "R4, Live77414 to Terrassa Estació del NordLive · next Barcelona-Sants, 10:12 AM+15 min15 min late",
+     "sr": ", Live15 min late",
+     "h": 86.1
+    },
+    {
+     "tag": "BUTTON",
+     "text": "R4, Live77416 to ManresaLive · next Molins de Rei, 10:07 AM+1 min1 min late",
+     "sr": ", Live1 min late",
+     "h": 66.6
+    },
+    {
+     "tag": "BUTTON",
+     "text": "R4, Live77418 to Terrassa Estació del NordLive · next Gelida, 10:12 AMon time",
+     "sr": ", Live",
+     "h": 68.5
+    },
+    {
+     "tag": "BUTTON",
+     "text": "R4, Live77420 to ManresaLive · next El Vendrell, 10:10 AM+9 min9 min late",
+     "sr": ", Live9 min late",
+     "h": 56
+    },
+    {
+     "tag": "BUTTON",
+     "text": "R4, Scheduled77422 to Terrassa Estació del NordLeaves Vilafranca del Penedès at 10:53 AM",
+     "sr": ", Scheduled",
+     "h": 86.1
+    }
+   ],
+   "empty": null,
+   "more": "27 more with a number starting 774",
+   "sheet": [
+    8,
+    240.7,
+    382,
+    764
+   ],
+   "dock": "dock",
+   "current": [
+    "page",
+    null
+   ],
+   "hash": "#map=12.5/41.385/2.17",
+   "stored": [
+    "language",
+    "view"
+   ]
+  },
+  "n774aria": "- heading \"Train numbers\" [level=3]\n- list:\n  - listitem:\n    - button \"R4 , Live 77412 to Manresa next Barberà del Vallès, 10:07 AM 5 min late\"\n  - listitem:\n    - button \"R4 , Live 77414 to Terrassa Estació del Nord next Barcelona-Sants, 10:12 AM 15 min late\"\n  - listitem:\n    - button \"R4 , Live 77416 to Manresa next Molins de Rei, 10:07 AM 1 min late\"\n  - listitem:\n    - button \"R4 , Live 77418 to Terrassa Estació del Nord next Gelida, 10:12 AM on time\"\n  - listitem:\n    - button \"R4 , Live 77420 to Manresa next El Vendrell, 10:10 AM 9 min late\"\n  - listitem:\n    - button \"R4 , Scheduled 77422 to Terrassa Estació del Nord Leaves Vilafranca del Penedès at 10:53 AM\"\n- paragraph: 27 more with a number starting 774",
+  "nothing": {
+   "focused": "field",
+   "value": "xyzzy",
+   "field": {
+    "label": "Search for a station or a train number",
+    "placeholder": "Station or train number",
+    "autocomplete": "off",
+    "autocorrect": "off",
+    "spellcheck": "false",
+    "enterkeyhint": "search",
+    "type": "search",
+    "form": "search"
+   },
+   "heading": "Search",
+   "clear": [
+    280,
+    270.7,
+    324,
+    314.7
+   ],
+   "labels": [],
+   "hints": [],
+   "rows": [],
+   "empty": {
+    "text": "Nothing found for “xyzzy”.",
+    "live": null
+   },
+   "sheet": [
+    8,
+    240.7,
+    382,
+    764
+   ],
+   "dock": "dock",
+   "current": [
+    "page",
+    null
+   ],
+   "hash": "#map=12.5/41.385/2.17",
+   "stored": [
+    "language",
+    "view"
+   ]
+  },
+  "risenBefore": [
+   8,
+   240.7,
+   382,
+   764
+  ],
+  "risen": {
+   "sheet": [
+    8,
+    8,
+    382,
+    500
+   ],
+   "dock": "dock risen",
+   "focused": "search-field"
+  },
+  "dropped": {
+   "sheet": [
+    8,
+    240.7,
+    382,
+    764
+   ],
+   "dock": "dock"
+  }
+ },
+ "phone-tabs-dark": {
+  "hoverMedia": true,
+  "hoverOther": "color(srgb 0.901961 0.92549 0.960784 / 0.07)",
+  "focus": {
+   "on": "Search",
+   "ring": "solid 2px",
+   "visible": true
+  }
+ },
+ "short-dark-375": {
+  "fabs": [
+   [
+    315,
+    56,
+    363,
+    104
+   ],
+   [
+    315,
+    114,
+    363,
+    162
+   ],
+   [
+    315,
+    172,
+    363,
+    220
+   ]
+  ],
+  "sheet": [
+   8,
+   232,
+   367,
+   587
+  ],
+  "lang": [
+   302.2,
+   8,
+   367,
+   48
+  ],
+  "hash": "#map=13/41.37656/2.1443&train=2026-10-12/fgc:625cdae602743e|622dc6e200"
+ },
+ "wide-light": {
+  "banner": [
+   8,
+   54,
+   208.9,
+   86
+  ],
+  "rail": [
+   8,
+   94,
+   84,
+   234
+  ],
+  "railFocus": {
+   "on": "Search",
+   "visible": true
+  },
+  "nearby": {
+   "card": [
+    92,
+    104,
+    472,
+    792
+   ],
+   "current": [
+    null,
+    "page"
+   ]
+  },
+  "terrassa": {
+   "focused": "field",
+   "value": "terrassa",
+   "field": {
+    "label": "Search for a station or a train number",
+    "placeholder": "Station or train number",
+    "autocomplete": "off",
+    "autocorrect": "off",
+    "spellcheck": "false",
+    "enterkeyhint": "search",
+    "type": "search",
+    "form": "search"
+   },
+   "heading": "Search",
+   "clear": [
+    370,
+    357.7,
+    414,
+    401.7
+   ],
+   "labels": [
+    "Stations"
+   ],
+   "hints": [],
+   "rows": [
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa EstR4",
+     "sr": "",
+     "h": 56
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa Estació del Nord · Rodalies de CatalunyaR4",
+     "sr": "",
+     "h": 72
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa  Estació del nord · Ferrocarrils de la Generalitat de CatalunyaS1",
+     "sr": "",
+     "h": 91.5
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa Nacions UnidesS1",
+     "sr": "",
+     "h": 56
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa - RamblaS1",
+     "sr": "",
+     "h": 56
+    }
+   ],
+   "empty": null,
+   "sheet": [
+    92,
+    347.7,
+    472,
+    792
+   ],
+   "dock": "dock",
+   "current": [
+    "page",
+    null
+   ],
+   "hash": "#map=12.5/41.385/2.17",
+   "stored": [
+    "language",
+    "view"
+   ]
+  },
+  "tabOrder": [
+   {
+    "cls": "clear",
+    "label": "Clear the search",
+    "visible": true,
+    "ring": "solid 2px -4px"
+   },
+   {
+    "cls": "close",
+    "label": "Close search",
+    "visible": true,
+    "ring": "solid 2px 2px"
+   },
+   {
+    "cls": "result",
+    "label": "Terrassa EstR4",
+    "visible": true,
+    "ring": "solid 2px 2px"
+   }
+  ],
+  "rowHover": "color(srgb 0.0784314 0.188235 0.352941 / 0.07)"
+ },
+ "forced-light": {
+  "forced": true,
+  "state": {
+   "focused": "result",
+   "value": "terrassa",
+   "field": {
+    "label": "Search for a station or a train number",
+    "placeholder": "Station or train number",
+    "autocomplete": "off",
+    "autocorrect": "off",
+    "spellcheck": "false",
+    "enterkeyhint": "search",
+    "type": "search",
+    "form": "search"
+   },
+   "heading": "Search",
+   "clear": [
+    370,
+    357.7,
+    414,
+    401.7
+   ],
+   "labels": [
+    "Stations"
+   ],
+   "hints": [],
+   "rows": [
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa EstR4",
+     "sr": "",
+     "h": 56
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa Estació del Nord · Rodalies de CatalunyaR4",
+     "sr": "",
+     "h": 72
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa  Estació del nord · Ferrocarrils de la Generalitat de CatalunyaS1",
+     "sr": "",
+     "h": 91.5
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa Nacions UnidesS1",
+     "sr": "",
+     "h": 56
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa - RamblaS1",
+     "sr": "",
+     "h": 56
+    }
+   ],
+   "empty": null,
+   "sheet": [
+    92,
+    347.7,
+    472,
+    792
+   ],
+   "dock": "dock",
+   "current": [
+    "page",
+    null
+   ],
+   "hash": "#map=12.5/41.385/2.17",
+   "stored": [
+    "language",
+    "view"
+   ]
+  }
+ },
+ "wide-dark": {
+  "banner": [
+   8,
+   54,
+   208.9,
+   86
+  ],
+  "rail": [
+   8,
+   94,
+   84,
+   234
+  ],
+  "railFocus": {
+   "on": "Search",
+   "visible": true
+  },
+  "nearby": {
+   "card": [
+    92,
+    104,
+    472,
+    792
+   ],
+   "current": [
+    null,
+    "page"
+   ]
+  },
+  "terrassa": {
+   "focused": "field",
+   "value": "terrassa",
+   "field": {
+    "label": "Search for a station or a train number",
+    "placeholder": "Station or train number",
+    "autocomplete": "off",
+    "autocorrect": "off",
+    "spellcheck": "false",
+    "enterkeyhint": "search",
+    "type": "search",
+    "form": "search"
+   },
+   "heading": "Search",
+   "clear": [
+    370,
+    357.7,
+    414,
+    401.7
+   ],
+   "labels": [
+    "Stations"
+   ],
+   "hints": [],
+   "rows": [
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa EstR4",
+     "sr": "",
+     "h": 56
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa Estació del Nord · Rodalies de CatalunyaR4",
+     "sr": "",
+     "h": 72
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa  Estació del nord · Ferrocarrils de la Generalitat de CatalunyaS1",
+     "sr": "",
+     "h": 91.5
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa Nacions UnidesS1",
+     "sr": "",
+     "h": 56
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa - RamblaS1",
+     "sr": "",
+     "h": 56
+    }
+   ],
+   "empty": null,
+   "sheet": [
+    92,
+    347.7,
+    472,
+    792
+   ],
+   "dock": "dock",
+   "current": [
+    "page",
+    null
+   ],
+   "hash": "#map=12.5/41.385/2.17",
+   "stored": [
+    "language",
+    "view"
+   ]
+  },
+  "tabOrder": [
+   {
+    "cls": "clear",
+    "label": "Clear the search",
+    "visible": true,
+    "ring": "solid 2px -4px"
+   },
+   {
+    "cls": "close",
+    "label": "Close search",
+    "visible": true,
+    "ring": "solid 2px 2px"
+   },
+   {
+    "cls": "result",
+    "label": "Terrassa EstR4",
+    "visible": true,
+    "ring": "solid 2px 2px"
+   }
+  ],
+  "rowHover": "color(srgb 0.901961 0.92549 0.960784 / 0.07)"
+ },
+ "forced-dark": {
+  "forced": true,
+  "state": {
+   "focused": "result",
+   "value": "terrassa",
+   "field": {
+    "label": "Search for a station or a train number",
+    "placeholder": "Station or train number",
+    "autocomplete": "off",
+    "autocorrect": "off",
+    "spellcheck": "false",
+    "enterkeyhint": "search",
+    "type": "search",
+    "form": "search"
+   },
+   "heading": "Search",
+   "clear": [
+    370,
+    357.7,
+    414,
+    401.7
+   ],
+   "labels": [
+    "Stations"
+   ],
+   "hints": [],
+   "rows": [
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa EstR4",
+     "sr": "",
+     "h": 56
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa Estació del Nord · Rodalies de CatalunyaR4",
+     "sr": "",
+     "h": 72
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa  Estació del nord · Ferrocarrils de la Generalitat de CatalunyaS1",
+     "sr": "",
+     "h": 91.5
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa Nacions UnidesS1",
+     "sr": "",
+     "h": 56
+    },
+    {
+     "tag": "BUTTON",
+     "text": "Terrassa - RamblaS1",
+     "sr": "",
+     "h": 56
+    }
+   ],
+   "empty": null,
+   "sheet": [
+    92,
+    347.7,
+    472,
+    792
+   ],
+   "dock": "dock",
+   "current": [
+    "page",
+    null
+   ],
+   "hash": "#map=12.5/41.385/2.17",
+   "stored": [
+    "language",
+    "view"
+   ]
+  }
+ },
+ "extra-320": {
+  "tabs": [
+   [
+    146,
+    52
+   ],
+   [
+    146,
+    52
+   ]
+  ]
+ },
+ "extra-girona": {
+  "focused": "field",
+  "value": "girona",
+  "field": {
+   "label": "Search for a station or a train number",
+   "placeholder": "Station or train number",
+   "autocomplete": "off",
+   "autocorrect": "off",
+   "spellcheck": "false",
+   "enterkeyhint": "search",
+   "type": "search",
+   "form": "search"
+  },
+  "heading": "Search",
+  "clear": [
+   280,
+   270.7,
+   324,
+   314.7
+  ],
+  "labels": [
+   "Stations"
+  ],
+  "hints": [],
+  "rows": [
+   {
+    "tag": "BUTTON",
+    "text": "Girona · Rodalies de Catalunya, AVE y Larga DistanciaR11RG1AVEAVE IntEuromed",
+    "sr": "",
+    "h": 94
+   },
+   {
+    "tag": "BUTTON",
+    "text": "Girona · Metro de BarcelonaL4",
+    "sr": "",
+    "h": 56
+   }
+  ],
+  "empty": null,
+  "sheet": [
+   8,
+   240.7,
+   382,
+   764
+  ],
+  "dock": "dock",
+  "current": [
+   "page",
+   null
+  ],
+  "hash": "#map=12.5/41.385/2.17",
+  "stored": [
+   "language",
+   "view"
+  ]
+ },
+ "extra-valencia": {
+  "before": [
+   "Torreblanca · TRAMT3",
+   "Torreblanca · Cercanías ValenciaC6",
+   "Torreblanca del SolC1",
+   "Vacarisses-TorreblancaR4"
+  ],
+  "openedIn": 2622,
+  "board": "TorreblancaC6",
+  "hash": "#map=13/40.21221/0.19878&station=adif:65306",
+  "regions": 2
+ },
+ "extra-follow": {
+  "row": "R4, Live77412 to ManresaLive · next Sabadell Sud, 10:11 AM+5 min5 min late",
+  "hash": "#map=13/41.52817/2.10557&train=2026-10-12/rodalies:5183L77412R4",
+  "title": "R4, Live Manresa",
+  "focused": "title"
+ },
+ "extra-old-file": {
+  "terrassa": {
+   "empty": {
+    "text": "Nothing found for “terrassa”.",
+    "live": null
+   },
+   "rows": 0
+  },
+  "n774": {
+   "rows": 6,
+   "more": "27 more with a number starting 774"
+  }
+ },
+ "errors": [],
+ "old-page": {
+  "tracksDrawn": 515,
+  "credits": "OpenFreeMap © OpenMapTiles © OpenStreetMap contributors | Renfe, CC BY 4.0 | FGC, CC BY 4.0 | Powered by TRAM Barcelona | TMB, updated Oct 6, 2026",
+  "zoom": 5.4,
+  "tabs": 0
+ },
+ "lan": {
+  "bucketAsked": 0,
+  "trains": 0,
+  "legend": "221 live46 scheduled. About this map"
+ },
+ "short-names-light": {
+  "terrassa": [
+   [
+    "Terrassa EstR4",
+    56
+   ],
+   [
+    "Terrassa Estació del Nord · RodaliesR4",
+    56
+   ],
+   [
+    "Terrassa  Estació del nord · FGCS1",
+    56
+   ],
+   [
+    "Terrassa Nacions UnidesS1",
+    56
+   ],
+   [
+    "Terrassa - RamblaS1",
+    56
+   ]
+  ],
+  "girona": [
+   [
+    "Girona · Rodalies, Larga DistanciaR11RG1AVEAVE IntEuromed",
+    74.5
+   ],
+   [
+    "Girona · MetroL4",
+    56
+   ]
+  ]
+ },
+ "short-names-dark": {
+  "terrassa": [
+   [
+    "Terrassa EstR4",
+    56
+   ],
+   [
+    "Terrassa Estació del Nord · RodaliesR4",
+    56
+   ],
+   [
+    "Terrassa  Estació del nord · FGCS1",
+    56
+   ],
+   [
+    "Terrassa Nacions UnidesS1",
+    56
+   ],
+   [
+    "Terrassa - RamblaS1",
+    56
+   ]
+  ]
+ }
+}
