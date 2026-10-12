@@ -2019,9 +2019,12 @@ for (const type of ['dragstart', 'movestart'] as const) {
     if (following && !lessMotion.matches && letsGo(e)) released = followKey();
   });
 }
-// A press on the map is seen before MapLibre sees it, and a lift anywhere after it.
+// A press on the map is seen before MapLibre sees it, and a lift anywhere after it, a frame later: a drag's
+// first move and its lift can come in one frame (a flick, or a frame that takes long), and MapLibre applies
+// the move only once the frame loop has run, so a lift seen at once leaves that frame's centreOn() free to
+// jump, which drops the move it has not applied yet and the drag with it.
 map.getCanvasContainer().addEventListener('pointerdown', (e) => pressed.press(e.pointerId, performance.now()));
-for (const type of ['pointerup', 'pointercancel'] as const) addEventListener(type, (e) => pressed.lift(e.pointerId), true);
+for (const type of ['pointerup', 'pointercancel'] as const) addEventListener(type, (e) => requestAnimationFrame(() => pressed.lift(e.pointerId)), true);
 /** Shows the Centre button while the map has let go, and has the wheel and a pinch zoom about the middle while it pans with the Train, where the Train is (#325). */
 function showCentring() {
   centreButton.hidden = lessMotion.matches || !letGo();
