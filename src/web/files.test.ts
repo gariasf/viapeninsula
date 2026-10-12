@@ -18,6 +18,7 @@ function answering(headers = 0) {
     'fetch',
     (_url: string, { signal }: RequestInit = {}) =>
       new Promise((resolve, reject) => {
+        if (signal?.aborted) return reject(signal.reason);
         const stream = new ReadableStream<Uint8Array>({
           start(controller) {
             body = controller;
@@ -96,6 +97,23 @@ test("a file asked behind others of its look isn't cut while their bytes come, a
   expect([first, behind]).toEqual([{}, {}]);
   await vi.advanceTimersByTimeAsync(1);
   expect([first.failed, behind.failed]).toEqual(['https://live.test/days/trips-12.json: no bytes for 20 s', 'https://live.test/days/trips-13.json: no bytes for 20 s']);
+});
+
+test("a file asked once its look's last bytes have come has STALL from its own request, as a day's Trips asked once its tracks have (#721)", async () => {
+  const look = { at: 0 };
+  const track = answering();
+  outcome(getJson('https://live.test/days/track.json', { stall: STALL, progress: look }));
+  await vi.advanceTimersByTimeAsync(5_000);
+  track.send('{"stations":[]}');
+  track.end();
+  await vi.advanceTimersByTimeAsync(5_000);
+  // Asked at 10 s, 5 s after the look's last bytes, and nothing comes.
+  answering(10 * STALL);
+  const trips = outcome(getJson('https://live.test/days/trips-13.json', { stall: STALL, progress: look }));
+  await vi.advanceTimersByTimeAsync(STALL - 1);
+  expect(trips).toEqual({});
+  await vi.advanceTimersByTimeAsync(1);
+  expect(trips.failed).toBe('https://live.test/days/trips-13.json: no bytes for 20 s');
 });
 
 test('a request that is never answered fails as STALL goes by', async () => {
