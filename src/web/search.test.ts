@@ -52,6 +52,11 @@ for (const [region, id, name, lines, place] of STATIONS) {
 }
 
 const PLACES = searchPlaces(FILE);
+
+test("finds no Station in a file below zoom 7 built before #471, which names none, rather than failing, as the page would where it got one, its manifest cached or the build not yet run (#471)", () => {
+  expect(searchPlaces({ stations: FILE.stations })).toEqual([]);
+  expect(findPlaces(searchPlaces({ stations: FILE.stations }), 'terrassa')).toEqual([]);
+});
 /** The names of the places Search finds for a query, in order. */
 const found = (query: string) => findPlaces(PLACES, query).map(({ place }) => place.name);
 
