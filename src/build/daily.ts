@@ -14,14 +14,21 @@
 // build's, in the run's job summary too. In Actions, once it has published, it writes
 // out/comment.md where a problem spot is new, which daily.yml posts on the standing "Build report"
 // issue.
-// `npm run daily` publishes; `npm run daily -- --dry-run` only writes the files to out/. The secrets
-// a timetable's URL needs, as TMB's TMB_APP_ID and TMB_APP_KEY, come from the environment, which
-// `npm run daily` loads from .env.local.
+// `npm run daily` publishes; `npm run daily -- --dry-run` only writes the files to out/, and reads
+// the timetables from the feed cache, .cache/feeds/<today>, where they're kept from the first dry run
+// of the day, so that every dry run of a day builds on the same feeds (#730).
+// `--dry-run --region <id>` builds only that region and writes only its files: none of the others',
+// nor the manifest, the file below zoom 7 or the report. A change whose effects cross regions, as long
+// distance's Lines share Stretches with Catalonia's, needs a full run. Long distance's region reads the
+// Networks before it too, for the Trains they list, which it leaves to them (unlisted()).
+// The secrets a timetable's URL needs, as TMB's TMB_APP_ID and TMB_APP_KEY, come from the
+// environment, which `npm run daily` loads from .env.local.
 
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { appendFile, mkdir, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { parseArgs } from 'node:util';
 import { brotliCompressSync, constants } from 'node:zlib';
 import { addDays, LIVE_URL, madridDate, profiled, type Manifest, type Network } from '../bundle.ts';
 import { LONG_DISTANCE, NETWORKS, regionsOf, type NetworkConfig, type Timetable } from '../networks.ts';
@@ -39,14 +46,24 @@ import { closuresOf, placeDays, placeRuns, unserved, type FeedTrip } from './tri
 
 const BUCKET = 'viapeninsula-live';
 
+const { 'dry-run': dryRun, region: only } = parseArgs({ options: { 'dry-run': { type: 'boolean' }, region: { type: 'string' } } }).values;
+const REGIONS = regionsOf(NETWORKS);
+if (only && !REGIONS.some((r) => r.id === only)) throw new Error(`There's no region ${only}: the regions are ${REGIONS.map((r) => r.id).join(', ')}`);
+if (only && !dryRun) throw new Error('--region builds only some regions, so it never publishes: add --dry-run');
+// The regions built, and with long distance's, the Networks of those before it, read only for the Trains they list.
+const wanted = only ? REGIONS.filter((r) => r.id === only) : REGIONS;
+const listers = wanted.some((r) => r.networks.some((n) => n.timetables.every((t) => t.shapeless))) ? REGIONS.slice(0, REGIONS.indexOf(wanted[0]!)).flatMap((r) => r.networks) : [];
 const today = madridDate(new Date());
 const DAYS = [0, 1, 2].map((n) => addDays(today, n));
 const report = collect();
+// A dry run's feed cache: today's alone, as the feeds change from day to day.
+const FEEDS = join('.cache', 'feeds');
+if (dryRun) for (const day of await readdir(FEEDS).catch(() => [])) if (day !== today) await rm(join(FEEDS, day), { recursive: true, force: true });
 // Every Network's timetables, downloaded at once, and why they couldn't be, where one couldn't: that
 // doesn't stop the others, and its Network's are read from their copy (readTimetables()). And those of
 // Renfe's long-distance timetable's Networks that aren't on the map yet, Media Distancia y Avant (#263).
-const longDistance = Promise.all(LONG_DISTANCE.filter((n) => !NETWORKS.some((m) => m.id === n.id)).map(downloaded));
-const downloads = await Promise.all(NETWORKS.map(downloaded));
+const longDistance = only ? Promise.resolve([]) : Promise.all(LONG_DISTANCE.filter((n) => !NETWORKS.some((m) => m.id === n.id)).map(downloaded));
+const downloads = await Promise.all([...listers, ...wanted.flatMap((r) => r.networks)].map(downloaded));
 // The rails of every kind any Network runs on, the nodes where Trains change gauge on them, and Spain's border.
 const { rails, changers, border } = await osm(RAILWAYS);
 // The last build's manifest names the files of a region whose build fails, and yesterday's bundle,
@@ -60,10 +77,12 @@ const [lastManifest, lastReport] = await Promise.all([
 // Renfe's long-distance timetable lists too are theirs (unlisted()).
 const listed = DAYS.map((): Map<string, Set<string>>[] => []);
 await mkdir('out/days', { recursive: true });
+// A Network that can't be read lists none, as in a full run, where its region fails.
+for (const { network, failed } of downloads.slice(0, listers.length)) await readTimetables(network, failed, readDays, () => {}).then(list, (error: unknown) => console.warn(`${network.name} isn't read: ${error instanceof Error ? error.message : error}`));
 // Each region, one after another: its Networks read and built, its Lines drawn side by side, and its
 // files written. A region that fails keeps the files of its last build (buildRegions()).
 const results = await buildRegions(
-  regionsOf(downloads.map((d) => ({ id: d.network.id, region: d.network.region, ...d }))),
+  regionsOf(downloads.slice(listers.length).map((d) => ({ id: d.network.id, region: d.network.region, ...d }))),
   (region) => {
     console.log(`Region ${region.id}: ${region.networks.map((n) => n.network.name).join(', ')}`);
     return buildRegion(region, {
@@ -76,7 +95,7 @@ const results = await buildRegions(
         try {
           return build(network, read);
         } finally {
-          for (const [i, parts] of read.days.entries()) listed[i]?.push(...parts.map((p) => p.listed));
+          list(read);
         }
       },
       write,
@@ -87,82 +106,87 @@ const results = await buildRegions(
   },
   { report, last: lastReport },
 );
-const built = results.flatMap(({ id, built: region }) => (region ? [{ id, ...region }] : []));
-// Where Lines of two regions run along each other's track, they're drawn over each other, not side by side.
-sharedStretches(built);
-// How the Lines are drawn, for comparing one day's track, or one change to sideBySide(), with another (#160).
-const drawn = measures({ shapes: built.flatMap((r) => r.track.shapes), strokes: built.flatMap((r) => r.track.strokes), lines: built.flatMap((r) => r.track.lines) });
-const logged = `Lines drawn: ${summary(drawn)}`;
-console.log(logged);
-for (const found of reported(drawn, logged)) report.add(found);
+if (only) {
+  const failed = results.find((r) => r.failed);
+  if (failed) throw new Error(`${failed.id} isn't built: ${failed.failed}`);
+} else {
+  const built = results.flatMap(({ id, built: region }) => (region ? [{ id, ...region }] : []));
+  // Where Lines of two regions run along each other's track, they're drawn over each other, not side by side.
+  sharedStretches(built);
+  // How the Lines are drawn, for comparing one day's track, or one change to sideBySide(), with another (#160).
+  const drawn = measures({ shapes: built.flatMap((r) => r.track.shapes), strokes: built.flatMap((r) => r.track.strokes), lines: built.flatMap((r) => r.track.lines) });
+  const logged = `Lines drawn: ${summary(drawn)}`;
+  console.log(logged);
+  for (const found of reported(drawn, logged)) report.add(found);
 
-// Media Distancia y Avant's Trains, each one Trip made from the parts its timetable lists it in, less those
-// a Network on the map lists too, are counted and traced, each run of them along the rails of its Line's
-// gauge to Spain's border (#259), but not drawn till #263, so only the route names neither of Renfe's
-// long-distance Networks takes go in the report from them (#401), as the Trips under them are left out
-// unseen: what their traces find is logged, as the calls their Trains drop are (#403). A long-distance
-// timetable that can't be read, nor its copy, as before a build has kept one, is logged, and stops
-// nothing else.
-for (const { network, failed } of await longDistance) {
-  try {
-    const read = async (feeds: (Feed & { gtfs: Source; readOn: string })[]) => ({ ...(await readDays(feeds)), routes: (await Promise.all(feeds.map((f) => untaken(f.gtfs)))).flat() });
-    const { days, routes } = await readTimetables(network, failed, read, () => {});
-    for (const found of routes) report.add(found);
-    const trains = unlistedTrains(network, days);
-    const stations = (days[0] ?? []).flatMap((p) => p.stations);
-    const traced = traceRuns(toBorder(border, stations, trains), stations, rails, changers, network.runningSide, console.log, () => {});
-    const each = traced.days.map((trips, i) => `${trips.length} of its ${trains[i]?.length} Trains on ${DAYS[i]}`);
-    console.log(`${network.name}'s runs traced: ${traced.shapes.length}, with ${each.join(', ')}`);
-  } catch (error) {
-    console.warn(`${network.name}'s Trains aren't read or traced: ${error instanceof Error ? error.message : error}`);
+  // Media Distancia y Avant's Trains, each one Trip made from the parts its timetable lists it in, less those
+  // a Network on the map lists too, are counted and traced, each run of them along the rails of its Line's
+  // gauge to Spain's border (#259), but not drawn till #263, so only the route names neither of Renfe's
+  // long-distance Networks takes go in the report from them (#401), as the Trips under them are left out
+  // unseen: what their traces find is logged, as the calls their Trains drop are (#403). A long-distance
+  // timetable that can't be read, nor its copy, as before a build has kept one, is logged, and stops
+  // nothing else.
+  for (const { network, failed } of await longDistance) {
+    try {
+      const read = async (feeds: (Feed & { gtfs: Source; readOn: string })[]) => ({ ...(await readDays(feeds)), routes: (await Promise.all(feeds.map((f) => untaken(f.gtfs)))).flat() });
+      const { days, routes } = await readTimetables(network, failed, read, () => {});
+      for (const found of routes) report.add(found);
+      const trains = unlistedTrains(network, days);
+      const stations = (days[0] ?? []).flatMap((p) => p.stations);
+      const traced = traceRuns(toBorder(border, stations, trains), stations, rails, changers, network.runningSide, console.log, () => {});
+      const each = traced.days.map((trips, i) => `${trips.length} of its ${trains[i]?.length} Trains on ${DAYS[i]}`);
+      console.log(`${network.name}'s runs traced: ${traced.shapes.length}, with ${each.join(', ')}`);
+    } catch (error) {
+      console.warn(`${network.name}'s Trains aren't read or traced: ${error instanceof Error ? error.message : error}`);
+    }
   }
-}
 
-// Each region's days, a failed region's from the last manifest, which its spot says how many of (#452).
-const named = manifestOf(results.map(({ id, built: region }) => ({ id, days: region?.days })), lastManifest);
-for (const found of failedRegions(results, named, lastManifest)) report.add(found);
-const spots = report.spots();
-// Then each region's Networks and where it lies, and the file below zoom 7, which the map needs to
-// load only the regions in view (#266): a failed region's from its last track file.
-const { regions, file } = await zoomedOut(
-  named,
-  new Map(built.map((r) => [r.id, r.track])),
-  async (key) => {
-    const last = await lastPublished<TrackFile>(key, "the build fails, as the map would lose its region's track below zoom 7");
-    if (!last) throw new Error(`No ${key} to draw a region whose build failed below zoom 7 from`);
-    return decodeTrack(last);
-  },
-);
-const below = await write('days/zoomed-out', file, `${file.networks.length} Networks, ${file.tracks.length} Network tracks`);
-const manifest: Manifest = { regions, zoomedOut: below };
-await writeFile('out/manifest.json', JSON.stringify(manifest));
-await writeFile('out/report.json', JSON.stringify(spots));
-// The diff and the comment only report, so a last report they can't read, as one of an older shape,
-// doesn't stop the build, and the comment then tells of every problem spot, as with no last report,
-// so that none goes untold. The comment links this attempt at the run, so there's one only in Actions.
-const { GITHUB_SERVER_URL, GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_RUN_ATTEMPT } = process.env;
-const run = GITHUB_RUN_ID && `${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}`;
-let changes: string;
-let news: string | undefined;
-try {
-  changes = diff(lastReport, spots);
-  if (run) news = comment(lastReport, spots, run);
-} catch (error) {
-  changes = `Couldn't diff the build report against the last one: ${error}`;
-  if (run) news = comment(undefined, spots, run);
-}
-console.log(changes);
-if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, `${changes}\n`);
+  // Each region's days, a failed region's from the last manifest, which its spot says how many of (#452).
+  const named = manifestOf(results.map(({ id, built: region }) => ({ id, days: region?.days })), lastManifest);
+  for (const found of failedRegions(results, named, lastManifest)) report.add(found);
+  const spots = report.spots();
+  // Then each region's Networks and where it lies, and the file below zoom 7, which the map needs to
+  // load only the regions in view (#266): a failed region's from its last track file.
+  const { regions, file } = await zoomedOut(
+    named,
+    new Map(built.map((r) => [r.id, r.track])),
+    async (key) => {
+      const last = await lastPublished<TrackFile>(key, "the build fails, as the map would lose its region's track below zoom 7");
+      if (!last) throw new Error(`No ${key} to draw a region whose build failed below zoom 7 from`);
+      return decodeTrack(last);
+    },
+  );
+  const below = await write('days/zoomed-out', file, `${file.networks.length} Networks, ${file.tracks.length} Network tracks`);
+  const manifest: Manifest = { regions, zoomedOut: below };
+  await writeFile('out/manifest.json', JSON.stringify(manifest));
+  await writeFile('out/report.json', JSON.stringify(spots));
+  // The diff and the comment only report, so a last report they can't read, as one of an older shape,
+  // doesn't stop the build, and the comment then tells of every problem spot, as with no last report,
+  // so that none goes untold. The comment links this attempt at the run, so there's one only in Actions.
+  const { GITHUB_SERVER_URL, GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_RUN_ATTEMPT } = process.env;
+  const run = GITHUB_RUN_ID && `${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}`;
+  let changes: string;
+  let news: string | undefined;
+  try {
+    changes = diff(lastReport, spots);
+    if (run) news = comment(lastReport, spots, run);
+  } catch (error) {
+    changes = `Couldn't diff the build report against the last one: ${error}`;
+    if (run) news = comment(undefined, spots, run);
+  }
+  console.log(changes);
+  if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, `${changes}\n`);
 
-if (!process.argv.includes('--dry-run')) {
-  // The bundles go up first, so the manifest never names a file that isn't there yet. The CDN
-  // passes a file stored with brotli as it is to browsers that take it, which squeezes it about
-  // twice as small as the CDN would on the fly.
-  for (const key of new Set([...built.flatMap((r) => r.days.flatMap((d) => [d.track, d.trips])), below])) publish(key, 'public, max-age=31536000, immutable', 'br');
-  publish('manifest.json', 'public, max-age=60');
-  publish('report.json', 'public, max-age=60');
-  // Only once the report is up, as the next build diffs against it, so that it doesn't tell of the same spots again.
-  if (news) await writeFile('out/comment.md', news);
+  if (!dryRun) {
+    // The bundles go up first, so the manifest never names a file that isn't there yet. The CDN
+    // passes a file stored with brotli as it is to browsers that take it, which squeezes it about
+    // twice as small as the CDN would on the fly.
+    for (const key of new Set([...built.flatMap((r) => r.days.flatMap((d) => [d.track, d.trips])), below])) publish(key, 'public, max-age=31536000, immutable', 'br');
+    publish('manifest.json', 'public, max-age=60');
+    publish('report.json', 'public, max-age=60');
+    // Only once the report is up, as the next build diffs against it, so that it doesn't tell of the same spots again.
+    if (news) await writeFile('out/comment.md', news);
+  }
 }
 
 /**
@@ -249,6 +273,11 @@ function build(config: NetworkConfig, { published, days }: Awaited<ReturnType<ty
   };
 }
 
+/** The Train numbers a Network's timetables list on each of DAYS, as long distance leaves those Trains to it (unlisted()). */
+function list(read: Awaited<ReturnType<typeof readDays>>) {
+  for (const [i, parts] of read.days.entries()) listed[i]?.push(...parts.map((p) => p.listed));
+}
+
 /**
  * Each day's Trips of a Network of Renfe's long-distance timetable, each a Train made one Trip from its
  * parts, less those a Network built before it lists too, which are that one's (unlisted(), #258): how many
@@ -279,7 +308,7 @@ async function lastPublished<T>(file: string, otherwise: string): Promise<T | un
 
 /** A Network once its timetables are downloaded, with why one couldn't be, where one couldn't. */
 async function downloaded<N extends Pick<NetworkConfig, 'timetables'>>(network: N): Promise<{ network: N; failed: unknown }> {
-  return { network, failed: await Promise.all(network.timetables.map(async (t) => download(address(t), t.prefix))).then(() => undefined, (error: unknown) => error) };
+  return { network, failed: await Promise.all(network.timetables.map(async (t) => download(address(t), t.prefix, { cache: dryRun ? join(FEEDS, today) : undefined }))).then(() => undefined, (error: unknown) => error) };
 }
 
 /** A timetable's URL, with the secrets its query needs. */
