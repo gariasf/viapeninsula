@@ -26,7 +26,7 @@ How long distance's Trains are made, traced and moved (one Train from its parts,
 ## Consequences
 
 - The bundle was one file through all of Cercanías, and before long distance it's split by region, loading the regions in view (`bundle-at-scale.md`): built by region since #256, and the page loading only the regions in view since #266 (ADR-0014).
-- ADR-0003 is amended by the tickets that change the fetcher: Madrid's (Freshness for each Network, one feed filling many, and a Network that vanishes from a feed that still answers held for two runs), long distance's (its feeds and rates), and the split's (a snapshot for each region).
+- ADR-0003 is amended by the tickets that change the fetcher: Madrid's (Freshness for each Network, one feed filling many, and a Network that vanishes from a feed that still answers held for two runs) and long distance's (its feeds and rates). The snapshot stays one file for every Network (#267): carrying the reports of all 20 Networks the fetcher then read, it was 84–102 KB raw and 10.0–12.0 KB brotli a poll over 13 Oct 2026's three Records (10:49–15:43 CEST, 397 snapshots) and 12.0 KB on the wire at 20:30 that evening, under the 20 KB past which a snapshot for each region, about 2.07M R2 writes a month for 16 regions, would be worth its cost.
 - v1's story 14 changes: a Train leaves the map at Spain's border.
 - Ouigo's timetable comes from NAP, with a key and the credit its licence asks for ("Powered by MITRAMS", with the date of its last update).
 - What the map shows for a Network whose timetable is missing (#226) is decided there, within the rule above.
