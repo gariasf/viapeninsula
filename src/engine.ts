@@ -82,8 +82,8 @@ export const KEEP = CARRY + 5 * 60_000;
  * it's its Trip's last (#485).
  */
 export function trainsAt(bundle: Bundle, at: number, received: Received[] = [], closures: readonly ShownClosure[] = []): Train[] {
-  const { of } = onMap(bundle, at, received, closures);
-  return bundle.trips.flatMap((trip) => of(trip)?.train ?? []);
+  const { of, walked } = onMap(bundle, at, received, closures);
+  return walked().flatMap((trip) => of(trip)?.train ?? []);
 }
 
 /**
@@ -387,16 +387,26 @@ interface OnMap {
 
 /**
  * Where trainsAt() has each Trip's Train at a moment by the device's clock, that moment in seconds
- * into the service day by the fetcher's clock, and the Networks whose live data is available then.
+ * into the service day by the fetcher's clock, the Networks whose live data is available then, and the
+ * Trips that can have a Train on the map then, which trainsAt() walks (`walked`, #732).
  */
-function onMap(bundle: Bundle, at: number, received: Received[], closures: readonly ShownClosure[] = []): { of: (trip: Trip) => OnMap | undefined; now: number; available: Set<string> } {
+function onMap(bundle: Bundle, at: number, received: Received[], closures: readonly ShownClosure[] = []): { of: (trip: Trip) => OnMap | undefined; now: number; available: Set<string>; walked: () => Trip[] } {
   const clock = behind(received);
   const now = (at + clock - bundle.noonMinus12h) / 1000;
-  const shapes = new Map(bundle.shapes.map((s) => [s.id, s]));
-  const networks = new Map(bundle.networks.map((n) => [n.id, n]));
-  const lines = new Map(bundle.lines.map((l) => [l.id, profiled(networks.get(l.network), l)]));
+  const index = indexedIn(bundle);
+  const { shapes, networks, lines } = index;
   // What live data last said about each Trip. A report that matches no Trip is dropped.
   const { eases, heard, reported } = replay(bundle, received, clock, lines, shapes);
+  // The Trips whose timetables could have them on the map now, without live data, in the bundle's order.
+  const spans = spansIn(bundle, index);
+  const timetabled = (spans.buckets.get(Math.floor(now / BUCKET)) ?? []).filter((i) => (spans.from[i] ?? Infinity) <= now && now <= (spans.to[i] ?? -Infinity));
+  // Those, and every Trip live data has said something of, which can be on the map at any time: running late,
+  // held, pinned (#485) or waiting at the end of its Line (#105), in the bundle's order (#732).
+  const walked = () => {
+    const walk = new Set(timetabled);
+    for (const id of [...heard.keys(), ...eases.keys()]) for (const i of index.ids.get(id) ?? []) walk.add(i);
+    return [...walk].sort((a, b) => a - b).flatMap((i) => bundle.trips[i] ?? []);
+  };
   // Where the latest snapshot says Trains won't stop at some Stations, the Trips as they run them.
   const cuts = cutsIn(bundle, received.at(-1)?.snapshot);
   // The closed Closures that hide Trains, by their Lines.
@@ -410,7 +420,7 @@ function onMap(bundle: Bundle, at: number, received: Received[], closures: reado
   // RUNNING: each one whose feed works but has had none of its Trains in it for three of its updates.
   // Most Trips aren't on the map at any one moment, whatever their dwell: those are skipped first.
   const quietOnMap = new Map<string, number>(Object.entries(feeds).flatMap(([id, feed]): [string, number][] => (works(feed, upTo) && stale(reported.get(id), upTo, feed.every) ? [[id, 0]] : [])));
-  for (const trip of quietOnMap.size ? bundle.trips : []) {
+  for (const trip of quietOnMap.size ? timetabled.flatMap((i) => bundle.trips[i] ?? []) : []) {
     const [network, first, last] = [lines.get(trip.line), trip.calls[0], trip.calls.at(-1)];
     const count = network && quietOnMap.get(network.id);
     if (!network || count === undefined || count >= RUNNING || !first || !last || now < first.arrival - network.profile.dwell || now > last.departure + network.profile.dwell) continue;
@@ -435,10 +445,10 @@ function onMap(bundle: Bundle, at: number, received: Received[], closures: reado
   // The Trips live data last had each of the Metro's Blocks run, by blockOf(): worked out only once a Block waits at the end of its Line.
   let blocks: Map<string, Trip[]> | undefined;
   const ranBy = (block: NonNullable<Report['block']>) => {
-    blocks ??= bundle.trips.reduce((m, t) => {
-      const b = heard.get(t.id)?.report.block;
-      return b ? add(m, blockOf(b), t) : m;
-    }, new Map<string, Trip[]>());
+    if (!blocks) {
+      blocks = new Map();
+      for (const [id, { report: { block: b } }] of heard) if (b) for (const trip of (index.ids.get(id) ?? []).flatMap((i) => bundle.trips[i] ?? [])) add(blocks, blockOf(b), trip);
+    }
     return blocks.get(blockOf(block)) ?? [];
   };
   const of = (trip: Trip, nested = false): OnMap | undefined => {
@@ -500,7 +510,74 @@ function onMap(bundle: Bundle, at: number, received: Received[], closures: reado
     });
     return { ...off, within };
   };
-  return { of, now, available };
+  return { of, now, available, walked };
+}
+
+/** A bundle's shapes, Networks and Lines by ID, each Line's Network as profiled() has it, and where in its Trips each Trip ID is. */
+interface Indexed {
+  shapes: Map<string, Shape>;
+  networks: Map<string, Network>;
+  lines: Map<string, Network | undefined>;
+  /** Where in its Trips each Trip ID is: more than once only were a bundle to repeat an ID, as each is walked then. */
+  ids: Map<string, number[]>;
+}
+
+/** Each bundle's Indexed, worked out once: the map moves its Trains many times a second (#732). */
+const indexedOf = new WeakMap<Bundle, Indexed>();
+
+/** A bundle's Indexed. */
+function indexedIn(bundle: Bundle): Indexed {
+  const known = indexedOf.get(bundle);
+  if (known) return known;
+  const networks = new Map(bundle.networks.map((n) => [n.id, n]));
+  const index = {
+    shapes: new Map(bundle.shapes.map((s) => [s.id, s])),
+    networks,
+    lines: new Map(bundle.lines.map((l) => [l.id, profiled(networks.get(l.network), l)])),
+    ids: bundle.trips.reduce((m, t, i) => m.set(t.id, [...(m.get(t.id) ?? []), i]), new Map<string, number[]>()),
+  };
+  indexedOf.set(bundle, index);
+  return index;
+}
+
+/** How long each bucket of spansIn() is, in seconds. */
+const BUCKET = 600;
+
+/** When each of a bundle's Trips can be on the map without live data, as spansIn() has it. */
+interface Spans {
+  from: number[];
+  to: number[];
+  buckets: Map<number, number[]>;
+}
+
+/** Each bundle's Spans, worked out once (#732). */
+const spannedOf = new WeakMap<Bundle, Spans>();
+
+/**
+ * When each of a bundle's Trips can be on the map without live data, in seconds into the service day, by its place
+ * in the bundle: from its first Station's arrival less its dwell to its last's departure plus its dwell and WAIT, as a
+ * Scheduled Metro Train can wait that long for its Block (unshifted()). And the Trips whose spans meet each BUCKET of
+ * the day, by `floor(time / BUCKET)`, in the bundle's order. A Trip live data has said something of can be on the map
+ * outside its span, running late, held or pinned: onMap() walks those whatever their spans.
+ */
+function spansIn(bundle: Bundle, { lines }: Indexed): Spans {
+  const known = spannedOf.get(bundle);
+  if (known) return known;
+  const [from, to, buckets] = [[] as number[], [] as number[], new Map<number, number[]>()];
+  for (const [i, { line, calls }] of bundle.trips.entries()) {
+    const [first, last, dwell] = [calls[0], calls.at(-1), lines.get(line)?.profile.dwell];
+    if (!first || !last || dwell === undefined) continue;
+    const [start, end] = [first.arrival - dwell, last.departure + dwell + WAIT];
+    [from[i], to[i]] = [start, end];
+    for (let k = Math.floor(start / BUCKET); k <= Math.floor(end / BUCKET); k++) {
+      const bucket = buckets.get(k) ?? [];
+      if (!bucket.length) buckets.set(k, bucket);
+      bucket.push(i);
+    }
+  }
+  const made = { from, to, buckets };
+  spannedOf.set(bundle, made);
+  return made;
 }
 
 /**
@@ -1702,15 +1779,23 @@ function reaching(call: Call, next: Call, profile: SpeedProfile, d: number): num
  * stands there for the profile's dwell, arriving that much before it leaves (at its last Station,
  * leaving that much after it arrives), or for half what its stretch there can spare, if less.
  */
-function withDwell({ calls }: Trip, profile: SpeedProfile): Call[] {
-  return calls.map((call, i) => {
+function withDwell(trip: Trip, profile: SpeedProfile): Call[] {
+  const known = dwellsOf.get(trip);
+  if (known?.profile === profile) return known.calls;
+  const { calls } = trip;
+  const made = calls.map((call, i) => {
     const prev = calls[i - 1];
     if (call.arrival !== call.departure) return call;
     if (i === calls.length - 1) return { ...call, departure: call.arrival + profile.dwell };
     const spare = prev ? call.arrival - prev.departure - quickest(Math.abs(call.dist - prev.dist), profile) : Infinity;
     return { ...call, arrival: call.departure - Math.min(profile.dwell, Math.max(0, spare / 2)) };
   });
+  dwellsOf.set(trip, { profile, calls: made });
+  return made;
 }
+
+/** Each Trip's calls as withDwell() has them, by the profile they were worked out for: the map moves its Trains many times a second (#732). */
+const dwellsOf = new WeakMap<Trip, { profile: SpeedProfile; calls: Call[] }>();
 
 /** The least time a stretch of `length` metres can take within a speed profile, in seconds. */
 function quickest(length: number, { acceleration, braking, topSpeed }: SpeedProfile): number {
