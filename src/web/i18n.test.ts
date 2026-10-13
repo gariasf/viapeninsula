@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { createExpression, latest, type ExpressionSpecification, type Feature, type StylePropertySpecification } from '@maplibre/maplibre-gl-style-spec';
 import { afterEach, expect, test, vi } from 'vitest';
-import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, earlierStations, followDeparture, LANGUAGES, leavesAt, leavingStation, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, pickLanguage, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated } from './i18n.ts';
+import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, earlierStations, followDeparture, LANGUAGES, leavesAt, leavingStation, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, pickLanguage, placedBy, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated } from './i18n.ts';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -692,4 +692,17 @@ test("puts no Station's name, place or headsign into a sentence in main.ts, wher
   // main.ts builds the whole page as it loads, so no test can import it: it's read as about.test.ts reads it. A `${place}` of a template is no placeholder.
   const main = readFileSync(new URL('./main.ts', import.meta.url), 'utf8');
   expect(main.match(/(?<!\$)\{(station|place|headsign)\}/g) ?? []).toEqual([]);
+});
+
+test("says where live data last placed a followed Train: where Renfe pinned it to a Station it isn't held at, that Renfe has it there, in each language; by GPS, or Scheduled, as before (#458)", () => {
+  expect(placedBy(true, '5\u00A0s', 'Sants', 'en')).toBe('Renfe has it at Sants, 5\u00A0s ago');
+  expect(placedBy(true, '5\u00A0s', 'Sants', 'ca')).toBe('Renfe el situa a Sants, fa 5\u00A0s');
+  expect(placedBy(true, '5\u00A0s', 'Sants', 'es')).toBe('Renfe lo sitúa en Sants, hace 5\u00A0s');
+  expect(placedBy(true, '5\u00A0s', 'Sants', 'eu')).toBe('Renfek Sants geltokian kokatzen du, duela 5\u00A0s');
+  expect(placedBy(true, '5\u00A0s', 'Sants', 'gl')).toBe('Renfe sitúao en Sants, hai 5\u00A0s');
+  expect(placedBy(true, '5\u00A0s', 'El Prat de Llobregat', 'ca')).toBe('Renfe el situa al Prat de Llobregat, fa 5\u00A0s');
+  expect(placedBy(true, '5\u00A0s', 'A Coruña', 'gl')).toBe('Renfe sitúao na Coruña, hai 5\u00A0s');
+  expect(placedBy(true, '5\u00A0s', 'O Porriño', 'gl')).toBe('Renfe sitúao no Porriño, hai 5\u00A0s');
+  expect(placedBy(true, '5\u00A0s', undefined, 'en')).toBe('confirmed 5\u00A0s ago');
+  expect(placedBy(false, '3\u00A0min', 'Sants', 'en')).toBe('last confirmed live 3\u00A0min ago');
 });

@@ -77,6 +77,8 @@ const STRINGS = {
   late: { ca: '{n} min de retard', es: '{n} min de retraso', eu: '{n} min atzeratuta', gl: '{n} min de atraso', en: '{n} min late' },
   early: { ca: "{n} min d'avançament", es: '{n} min de adelanto', eu: '{n} min aurreratuta', gl: '{n} min de adianto', en: '{n} min early' },
   confirmed: { ca: 'confirmat fa {ago}', es: 'confirmado hace {ago}', eu: 'duela {ago} baieztatua', gl: 'confirmado hai {ago}', en: 'confirmed {ago} ago' },
+  // Where Renfe's last report named the Train at a Station it isn't held at, and its Delay draws it (#458).
+  pinnedAt: { ca: 'Renfe el situa a {station}, fa {ago}', es: 'Renfe lo sitúa en {station}, hace {ago}', eu: 'Renfek {station} geltokian kokatzen du, duela {ago}', gl: 'Renfe sitúao en {station}, hai {ago}', en: 'Renfe has it at {station}, {ago} ago' },
   lastConfirmed: {
     ca: 'confirmat en directe per última vegada fa {ago}',
     es: 'confirmado en directo por última vez hace {ago}',
@@ -420,15 +422,15 @@ export const liveUnavailable = (network: string, lang = language()): string => S
  * What Catalan and Galician make of a preposition and the article a name starts with, by the article and
  * then the preposition: Catalan's "al Prat" (El Prat), "als Monjos" (Els Monjos), "del", "dels", "pel" and
  * "pels"; Galician's "á Coruña" (A Coruña), "ao Porriño" (O Porriño), "ás", "aos", "da", "do", "das",
- * "dos", "pola", "polo", "polas" and "polos" (#606).
+ * "dos", "na", "no", "nas", "nos", "pola", "polo", "polas" and "polos" (#606).
  */
 const CONTRACTED: Partial<Record<Language, Record<string, Record<string, string>>>> = {
   ca: { El: { a: 'al', de: 'del', per: 'pel' }, Els: { a: 'als', de: 'dels', per: 'pels' } },
   gl: {
-    A: { a: 'á', de: 'da', por: 'pola' },
-    As: { a: 'ás', de: 'das', por: 'polas' },
-    O: { a: 'ao', de: 'do', por: 'polo' },
-    Os: { a: 'aos', de: 'dos', por: 'polos' },
+    A: { a: 'á', de: 'da', en: 'na', por: 'pola' },
+    As: { a: 'ás', de: 'das', en: 'nas', por: 'polas' },
+    O: { a: 'ao', de: 'do', en: 'no', por: 'polo' },
+    Os: { a: 'aos', de: 'dos', en: 'nos', por: 'polos' },
   },
 };
 
@@ -523,6 +525,14 @@ export const notRunning = (a: string, b: string, lang = language()): string => t
 
 /** That a Line's Trains have run within a lifted Closure since `time` (#422), in `lang`, or else the language the interface speaks now. */
 export const trainsRunHere = (line: string, time: string, lang = language()): string => STRINGS.trainsRunHere[lang].replace('{line}', line).replace('{time}', time);
+
+/**
+ * Where live data last placed a followed Train, `ago` before, in `lang`, or else the language the interface
+ * speaks now: Live, that it's confirmed, but where Renfe's report pinned it to a Station it isn't held at,
+ * `pinnedAt`, that Renfe has it there, as it's drawn by its Delay (#458); Scheduled, when it last was.
+ */
+export const placedBy = (live: boolean, ago: string, pinnedAt?: string, lang = language()): string =>
+  (live && pinnedAt ? named(STRINGS.pinnedAt[lang], '{station}', pinnedAt, lang) : STRINGS[live ? 'confirmed' : 'lastConfirmed'][lang]).replace('{ago}', ago);
 
 /** That a followed Train is arriving at a Station, by how it's drawn (#455), in `lang`, or else the language the interface speaks now. */
 export const arrivingAt = (station: string, lang = language()): string => named(STRINGS.arriving[lang], '{station}', station, lang);
