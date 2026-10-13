@@ -393,7 +393,7 @@ test("says in Nearby that it's finding where the viewer is, keeping Try again wh
 test("says in the banner's short form that a Network's live data is unavailable, in each language", () => {
   expect(liveUnavailable('TRAM', 'ca')).toBe('TRAM: sense dades en temps real');
   expect(liveUnavailable('TRAM', 'es')).toBe('TRAM: sin datos en tiempo real');
-  expect(liveUnavailable('TRAM', 'en')).toBe('TRAM live data unavailable');
+  expect(liveUnavailable('TRAM', 'en')).toBe('TRAM: no live data');
   expect(liveUnavailable('TRAM', 'eu')).toBe('TRAM: denbora errealeko daturik ez');
   expect(liveUnavailable('TRAM', 'gl')).toBe('TRAM: sen datos en tempo real');
 });

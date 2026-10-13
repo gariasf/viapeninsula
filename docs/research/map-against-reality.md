@@ -490,10 +490,10 @@ So Asturias is in none of the seven reads since 7 October 17:47 (six on Saturday
 
 **León** is as on Saturday, thin and never a banner (1 to 3 rail Trips at a time, under #124's 5): of the four Trips running in the window, 71001 (San Feliz, 11:00–11:12) was reported all through its run and the 11 minutes before it, from the recording's start, 71055 (Matallana, 11:37) for the 12 minutes before its departure that the recording reached, and the two long FEVE Trains, 71093 (to Guardo, 09:34–12:15) and 71082 (to La Asunción Universidad, 09:44–11:27), in none of their 133 and 110 steps, where on Saturday they were in some.
 
-**A pick for the maintainer, not built: what the banner says while a Network's file has none of its Trains for days.** The English string is "{network} live data unavailable" (`liveUnavailable` in `src/web/i18n.ts`), which reads as a fault on the map's side; the other four languages already say the calmer "{network}: no live data" (`sin datos en tiempo real`, `sense dades en temps real`, …).
+**What the banner says while a Network's file has none of its Trains for days: B, picked by the maintainer on 13 Oct 2026 and built with this note.** The English string was "{network} live data unavailable" (`liveUnavailable` in `src/web/i18n.ts`), which reads as a fault on the map's side; the other four languages already say the calmer "{network}: no live data" (`sin datos en tiempo real`, `sense dades en temps real`, …).
 
 - **A. Leave it.** The banner is true, and Asturias is the only case.
-- **B. Say it as the other languages do** (recommended): `en: '{network}: no live data'`, one string and its test, and the same banner for every Network that misses.
+- **B. Say it as the other languages do** (picked): `en: '{network}: no live data'`, one string and its test, and the same banner for every Network that misses.
 - **C. A second banner for a Network whose feed is `ok` but has had none of its Trains for a long while** (e.g. "Cercanías Asturias: timetable only, Renfe publishes no live data"): a rule over hours of reports the fetcher doesn't keep, so more than a string, and only worth it if more Networks go the same way.
 
 ## 13. Why Madrid's fixes snap (#486)

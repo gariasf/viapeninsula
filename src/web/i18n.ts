@@ -52,7 +52,7 @@ const STRINGS = {
     es: '{network}: sin datos en tiempo real',
     eu: '{network}: denbora errealeko daturik ez',
     gl: '{network}: sen datos en tempo real',
-    en: '{network} live data unavailable',
+    en: '{network}: no live data',
   },
   // After a Network's name in the banner, while its timetable has no Trips today, so it has no Trains on the map (#226).
   noTimetable: { ca: 'sense horari avui', es: 'sin horario hoy', eu: 'gaur ordutegirik ez', gl: 'sen horario hoxe', en: 'no timetable today' },
