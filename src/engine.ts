@@ -762,25 +762,28 @@ const MARGIN = 200;
  * feed has failed, nor once the map has received no snapshot for a while, as a tab hidden meanwhile, by
  * when an Alert may have changed, pins it to a Station between the Closure's two, or its GPS, no
  * further than MARGIN from its Trip's track, or TRAM's distance, puts it on that track between them,
- * more than MARGIN from either, as its Line's Trips that call at both have them (closedIn()).
- * ponytail: by the Trip a report names, as Renfe's and TRAM's do, so never a Metro Train, which TMB
- * names by its Block, nor one of FGC's rack Trains, named by its Line, while only Renfe's and TRAM's
- * Alerts make Closures (ADR-0012). Match reports as the replay does (reportsByTrip()) once others do.
+ * more than MARGIN from either, as its Line's Trips that call at both have them (closedIn()). Its
+ * reports go by Trip as the replay matches them (reportsByTrip()), so one by Train number, as Renfe's
+ * long-distance feed's, counts on the Trip it's matched to, judged fresh by that feed (#425), and one
+ * its Network's own feed has of that Trip goes first; its GPS off that Trip's track, as on another part
+ * of its run (OFF_TRACK, #261), doesn't count (#428). The Metro's Blocks and FGC's rack Trains come in
+ * too, though only Renfe's and TRAM's Alerts make Closures (ADR-0012).
  */
 export function seenWithin<C extends ShownClosure>(bundle: Bundle, at: number, received: Received[], closures: readonly C[]): C[] {
   const snapshot = received.at(-1)?.snapshot;
   if (!snapshot) return [];
   const closedOn = closedIn(bundle, closures);
-  const [named, shapes, networks] = [namedIn(bundle), new Map(bundle.shapes.map((s) => [s.id, s])), new Map(bundle.lines.map((l) => [l.id, l.network]))];
+  const { shapes, lines, ids } = indexedIn(bundle);
+  const numbers = bundle.networks.find((n) => n.live?.numbers)?.id;
   // How far into live data the device has got by now, and the Trips as their Trains run them where the
   // snapshot says they won't stop at some Stations, as onMap() has both.
   const [upTo, cuts] = [heardTo(received, at + behind(received)), cutsIn(bundle, snapshot)];
   const seen = new Set<ShownClosure>();
-  for (const { trip: id, at: reported, position, cancelled } of snapshot.reports) {
-    const trip = id && !cancelled ? closest(named.get(id) ?? [], (reported - bundle.noonMinus12h) / 1000) : undefined;
-    const [shape, closed, cut] = [trip && shapes.get(trip.shape), trip && closedOn.get(trip.line), trip && cuts.get(trip.id)];
+  for (const [id, { position, cancelled, number }] of reportsByTrip(bundle, snapshot, lines, shapes, received.at(-2)?.snapshot).reports) {
+    const trip = cancelled ? undefined : bundle.trips[ids.get(id)?.[0] ?? -1];
+    const [shape, closed, cut, network] = [trip && shapes.get(trip.shape), trip && closedOn.get(trip.line), trip && cuts.get(trip.id), trip && lines.get(trip.line)?.id];
     // Not one Cancelled, as one its operator has said won't stop at more than one of its Stations is too (cutTrip()).
-    if (!trip || (cut && !cut.trip) || !shape || !closed || !position || !works(snapshot.feeds[networks.get(trip.line) ?? ''], upTo)) continue;
+    if (!trip || (cut && !cut.trip) || !shape || !closed || !position || !works(snapshot.feeds[(number && numbers) || (network ?? '')], upTo)) continue;
     const [d, off] = 'lon' in position || 'along' in position ? placedBy(trip.calls, shape, position) : [NaN, NaN];
     for (const { closure, between, along } of closed) {
       const [from = NaN, to = NaN] = along.get(trip.shape) ?? [];

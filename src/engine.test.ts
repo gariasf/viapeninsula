@@ -2425,6 +2425,23 @@ test("R15 17050, whose long-distance GPS measured no Delay from 15:26 to 15:37 o
   expect(Math.hypot((lon - gps.lon) * DEGREE * Math.cos((lat * Math.PI) / 180), (lat - gps.lat) * DEGREE)).toBeLessThan(1000);
 });
 
+test("R15 17050's long-distance report by its number, on its track out of Reus at 15:38 on 10 October 2026, lifts a closed R15 Closure from Reus to Tarragona, but not 20 km off its track, nor where Renfe's Cercanías feed reports its Trip at Reus (#428)", () => {
+  const { bundle, received } = R15_17050;
+  const id = 'rodalies:5181S17050R15';
+  // Made up: R15 closed from Reus to Tarragona.
+  const closed: ShownClosure[] = [{ line: 'rodalies:R15', stations: ['adif:71400', 'adif:71500'], kind: 'closed' }];
+  const last = received.at(-1) as Received;
+  const report = last.snapshot.reports[0] as Report;
+  const moved = (reports: Report[]): Received[] => [...received.slice(0, -1), { ...last, snapshot: { ...last.snapshot, reports } }];
+  expect(seenWithin(bundle, last.at + 5000, received, closed)).toEqual(closed);
+  // Its GPS 20 km to the side of where its Train is drawn, as one on another part of its run (OFF_TRACK, #261).
+  const [lon, lat] = beside(bundle.shapes[0] as Shape, trainsAt(bundle, last.at + 5000, received).find((t) => t.trip.id === id)?.dist ?? NaN, 20_000);
+  expect(seenWithin(bundle, last.at + 5000, moved([{ ...report, position: { lon, lat } }]), closed)).toEqual([]);
+  // Made up: Renfe's Cercanías feed has its Trip pinned to Reus, the Closure's edge, which goes first, listed either side of it.
+  const own: Report = { trip: id, at: report.at, position: { near: 'adif:71400' } };
+  for (const reports of [[own, report], [report, own]]) expect(seenWithin(bundle, last.at + 5000, moved(reports), closed)).toEqual([]);
+});
+
 test("an AVE y Larga Distancia Trip whose long-distance GPS is off its track, on a part of its run it doesn't cover, still runs as late as Renfe says, as Renfe's figure is against its own timetable (#442)", () => {
   // Made up: the R2S is a Trip of AVE y Larga Distancia's, whose live data names Trains by number, and
   // Renfe's long-distance GPS has it 30 km out to sea from between Sitges and Castelldefels, 2 minutes late.
