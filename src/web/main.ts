@@ -16,6 +16,7 @@ import { linesAt, popupRoom } from './tap.ts';
 import { alongside, callsIn, namedTwice, nameOffset, nameSort, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
 import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
 import { atMostEvery, drifted, letsGo, outsideMiddle, pointersDown, tapZooms } from './centre.ts';
+import { fastestInView } from './pace.ts';
 import { keepView, lastView, markOf, openingView, tiltPressed, toggledPitch } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { darkInk, INK, lettering } from './colour.ts';
@@ -131,7 +132,7 @@ const [NEARBY, SOON] = [1500, 60 * 60_000];
 const LATE = 60 * 60_000;
 /**
  * How often Trains move, in ms. As often as the fastest of them moves a quarter of a pixel, which
- * nobody sees in between (quarterPixel()): about 23 times a second at zoom 12, as AVE's 300 km/h asks, and every frame zoomed
+ * nobody sees in between (quarterPixel()), the fastest in view: at zoom 12 about 12 times a second, as Rodalies' 160 km/h asks, or 23 with an AVE's 300 km/h, and every frame zoomed
  * right in. Every frame while the map zooms or turns, which moves them beside their Lines and turns
  * their arrows, or follows a Train. Once the map has stood for MOVED, while the viewer is likely still
  * looking closely, no more often than every IDLE_EVERY, about 30 times a second, which leaves a phone
@@ -381,6 +382,9 @@ const map = new MapLibreMap({
   // it. Until the style makes it a globe, it holds the view nowhere, so that it opens where it was left
   // or linked (ADR-0013).
   transformConstrain: (center, zoom) => ({ center, zoom }),
+  // Names placed again, as each time the Trains move, show and hide at once, not fading over 300 ms,
+  // which had MapLibre redraw every frame at rest (#666).
+  fadeDuration: 0,
 });
 /** Keeps the map's view on the device, for the map to open on next time. */
 const keepShownView = () => keepView({ center: map.getCenter().toArray(), zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch() });
@@ -680,8 +684,16 @@ let liftClosures = () => {};
 let lines = new Map<string, Line>();
 /** How each Line's Trains are drawn as pills, by the Line's ID. */
 let pills = new Map<string, Pill>();
-/** The top speed of the fastest Line of the days on the map, AVE's 300 km/h with long distance's, in m/s, which quarterPixel() goes by: worked out as they come, not each frame. */
+/** Each Line's top speed, of the days on the map, in m/s, by the Line's ID: worked out as they come. */
+let topSpeeds = new Map<string, number>();
+/**
+ * The top speed of the fastest Line with a Train in view, in m/s, which quarterPixel() goes by: worked
+ * out as the map stops and once a second (paceInView()), not each frame, so that at Barcelona with no AVE
+ * in view Trains move every 81 ms, as Rodalies' 160 km/h asks, not every 43 ms, as AVE's 300 km/h (#666).
+ */
 let fastest = 0;
+/** The Trains last drawn, with their Lines, where whereDrawn() had them, which paceInView() looks in. */
+let placedTrains: { train: { trip: Trip }; at: Point }[] = [];
 /** The days shown whose places' names, and where Lines were drawn already their Lines, are still to be handed to MapLibre a frame on (show()). */
 let namesDue: Track | Bundle | undefined;
 /** The cards' colour, style.css's --card, which a Scheduled Train's pill letters its Line's colour against (pill()). */
@@ -1264,6 +1276,7 @@ requestAnimationFrame(function move(now) {
   // Train to follow at random: one the map doesn't follow already.
   if (bundle && performance.now() - countShown > 1000) {
     showCount(drawing.features);
+    paceInView();
     followRandomButton.disabled = drawing.features.every((f) => f.properties?.followed);
   }
   if (following) {
@@ -1304,6 +1317,8 @@ requestAnimationFrame(function move(now) {
 // ponytail: only once it stops, so while it turns, names keep their offsets and can cross their
 // tracks. Put them beside their tracks on 'rotate' too, a few times a second, if that shows.
 map.on('moveend', () => map.getBearing() !== namesBearing && showNames());
+// And the pace the Trains move at, by those now in view (#666).
+map.on('moveend', paceInView);
 
 // The link the map is opened with, and one pasted into the tab later: MapLibre moves the view, or
 // openLink() moves the map to the Station where the link names none.
@@ -1347,9 +1362,7 @@ function show(days: Track | Bundle, tripsOnly = false) {
   const pillZoom = new Map(days.networks.map((n) => [n.id, n.pillZoom]));
   pills = new Map(days.lines.map((l) => [l.id, pillOf(l, pillZoom.get(l.network) ?? 10)]));
   const networks = new Map(days.networks.map((n) => [n.id, n]));
-  // None where the days have no Lines, as where the map opens zoomed out before long distance's region has come:
-  // then quarterPixel() is endless, and Trains move as seldom as IDLE_MOST lets them.
-  fastest = Math.max(0, ...days.lines.map((l) => profiled(networks.get(l.network), l)?.profile.topSpeed ?? 0));
+  topSpeeds = new Map(days.lines.map((l) => [l.id, profiled(networks.get(l.network), l)?.profile.topSpeed ?? 0]));
   // Lines drawn already, as at the map's second look: the new ones are handed over a frame later (below).
   const again = shownStrokes.length > 0;
   shownStrokes = days.strokes;
@@ -1553,6 +1566,7 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
     const asPill = pill && box && zoom >= pill.zoom ? { id: trip.id, heading: heading - bearing, box: [box[0] + PILL_HALO, box[1] + PILL_HALO] as [number, number], standsAt } : undefined;
     return { train, pill, box, asPill, at: whereDrawn(train, zoom) };
   });
+  placedTrains = placed;
   standingPills = placed.flatMap(({ asPill, at }) => (asPill?.standsAt ? [{ ...asPill, standsAt: asPill.standsAt, at }] : []));
   // A spread group folds once fewer than two of its Trains stand at its Station drawn as pills, as zoomed out.
   const { group } = spreadState;
@@ -1688,7 +1702,21 @@ function nameLines(name: string, style: NameStyle): string[] {
   return lines;
 }
 
-/** How long the fastest Train, at its Line's top speed, takes to move a quarter of a pixel where the map is, in ms. */
+/**
+ * Works out the pace Trains move at, from the fastest Line with a Train in view (fastestInView()). None
+ * where there's no Train in view, as where the map opens before the Trips have come: then quarterPixel()
+ * is endless, and Trains move as seldom as IDLE_MOST lets them.
+ * ponytail: the view's bounding box, by each Train's point, so a pill reaching in from just off its edge
+ * keeps the pace in view, and, the map turned, its corners count, and tilted, all up to its horizon. A Train
+ * coming into a still view, or days that come, set it at the next second's (move()). Pad the box by a pill
+ * if that steps visibly.
+ */
+function paceInView() {
+  const bounds = map.getBounds();
+  fastest = fastestInView(placedTrains.map(({ train, at }) => ({ line: train.trip.line, at })), (at) => bounds.contains(at), topSpeeds);
+}
+
+/** How long the fastest Train in view, at its Line's top speed, takes to move a quarter of a pixel where the map is, in ms. */
 function quarterPixel(): number {
   const pixel = pixelMetres(map.getZoom()) * Math.cos((map.getCenter().lat * Math.PI) / 180);
   return (1000 * pixel) / 4 / fastest;
