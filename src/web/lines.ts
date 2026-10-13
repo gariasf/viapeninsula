@@ -20,8 +20,9 @@ export interface Drawing {
 
 /**
  * The features MapLibre draws strokes as, of a region's track: a stroke cut back for curves, or along a centreline
- * smoothed for a zoom band, once for each band it's drawn in, as it is there; a curve in its pieces. `rank` is the
- * region's place in the manifest (RANK_STEP), and `round` rounds a Line's bends where it's on its own rails (#203).
+ * smoothed for a zoom band, once for each band it's drawn in, as it is there, or once for them all where it's alike in
+ * each; a curve in its pieces. `rank` is the region's place in the manifest (RANK_STEP), and `round` rounds a Line's
+ * bends where it's on its own rails (#203).
  */
 export function drawnLines(
   strokes: Stroke[],
@@ -31,7 +32,13 @@ export function drawnLines(
   return strokes
     .flatMap((s) => {
       const bands = s.band !== undefined ? [s.band] : BANDS.flatMap((_, band) => (band >= GRAPH_BAND ? [band] : []));
-      if (!s.cut && !s.covered && !bands.some((band) => shapes.has(smoothId(s.shape, band)))) return pieces(s);
+      if (!s.covered && !bands.some((band) => shapes.has(smoothId(s.shape, band)))) {
+        if (!s.cut) return pieces(s);
+        // Cut back alike in every band it's drawn in, it goes once, as one without a band does, which each band from
+        // GRAPH_BAND draws: long distance's Lines went once a band, 1.67M points, and go as 0.58M (#734).
+        const [[start, end] = [0, 0], ...others] = bands.map((band) => cutIn(s, band));
+        if (others.every(([a, b]) => a === start && b === end)) return start + end >= s.to - s.from ? [] : [{ ...s, from: s.from + start, to: s.to - end }];
+      }
       // Not in a band where a node absorbed its Stretch (ADR-0007). Where a Line above one in a tunnel
       // lies within the band's line width, its part is drawn narrower and fainter (#417).
       return bands.flatMap((band) => {
