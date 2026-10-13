@@ -1,10 +1,11 @@
 # Records live data as `npm run record` does, for audits such as #233's: Renfe's feeds, the day's
 # bundle, and production snapshots as the map receives them, so that nobody has to be at a computer
-# for it. It runs from the button in the Actions tab, for as many minutes as asked, and on the
-# schedule below. Each run keeps its recording as an artifact for 90 days, the most Actions allows,
-# named for when it started in Barcelona: `gh run download <run id>` fetches it. A longer-lived copy
-# of one an audit leans on is #414's. GitHub can start a scheduled run minutes late, and under heavy
-# load not at all, so check the runs afterwards.
+# for it. It runs from the button in the Actions tab, for as many minutes as asked, or on a
+# schedule added for an audit's recordings (a cron names no year: take it out once it has run).
+# Each run keeps its recording as an artifact for 90 days, the most Actions allows, named for when
+# it started in Barcelona: `gh run download <run id>` fetches it. A longer-lived copy of one an
+# audit leans on is #414's. GitHub can start a scheduled run hours late, and under heavy
+# load not at all, so check the runs afterwards and dispatch one by hand if need be.
 name: Record
 
 on:
@@ -14,20 +15,6 @@ on:
         description: How many minutes to record
         type: number
         default: 45
-  # #233's three recordings of 45 minutes, in UTC: a weekday late evening as units park, from 22:47
-  # on Tuesday 6 October; a weekday peak, from 07:47 on Wednesday 7 October; and a weekend midday,
-  # from 12:47 on Saturday 10 October, all in Barcelona. A schedule names no year: take these out
-  # once they've run.
-  schedule:
-    - cron: '47 20 6 10 *'
-    - cron: '47 5 7 10 *'
-    - cron: '47 10 10 10 *'
-    # #344's two recordings of 45 minutes, in UTC, for TRAM's departure at a stop that the snapshots
-    # carry from its fetcher's deploy: a weekday peak, from 07:47 on Tuesday 13 October, and a weekday
-    # midday, from 12:47 the same day, both in Barcelona, the first normal weekday after TRAM's works
-    # and the 12 October holiday. Take these out once they've run, too.
-    - cron: '47 5 13 10 *'
-    - cron: '47 10 13 10 *'
 
 permissions:
   contents: read

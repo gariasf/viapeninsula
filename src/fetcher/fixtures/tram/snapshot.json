@@ -23,11 +23,7 @@
       "position": {
         "near": "tram:1111"
       },
-      "delay": 59,
-      "standing": {
-        "stop": 12,
-        "leaves": 1790329498000
-      }
+      "delay": 59
     },
     {
       "trip": "tram:TBX:2579_0198",
@@ -35,11 +31,7 @@
       "position": {
         "near": "tram:1019"
       },
-      "delay": -82,
-      "standing": {
-        "stop": 18,
-        "leaves": 1790329510000
-      }
+      "delay": -82
     },
     {
       "trip": "tram:TBX:2579_0173",
@@ -87,11 +79,7 @@
       "position": {
         "along": 506
       },
-      "delay": -12,
-      "standing": {
-        "stop": 2,
-        "leaves": 1790329510000
-      }
+      "delay": -12
     },
     {
       "trip": "tram:TBX:2579_0114",
@@ -107,11 +95,7 @@
       "position": {
         "near": "tram:1031"
       },
-      "delay": -42,
-      "standing": {
-        "stop": 19,
-        "leaves": 1790329510000
-      }
+      "delay": -42
     },
     {
       "trip": "tram:TBX:2579_0026",
@@ -127,11 +111,7 @@
       "position": {
         "near": "tram:1011"
       },
-      "delay": -96,
-      "standing": {
-        "stop": 9,
-        "leaves": 1790329510000
-      }
+      "delay": -96
     },
     {
       "trip": "tram:TBX:2579_0084",
@@ -139,11 +119,7 @@
       "position": {
         "near": "tram:1008"
       },
-      "delay": -96,
-      "standing": {
-        "stop": 6,
-        "leaves": 1790329570000
-      }
+      "delay": -96
     },
     {
       "trip": "tram:TBX:2579_0042",
@@ -215,11 +191,7 @@
       "position": {
         "along": 5665
       },
-      "delay": 44,
-      "standing": {
-        "stop": 12,
-        "leaves": 1790329494000
-      }
+      "delay": 44
     },
     {
       "trip": "tram:TBS:1947_0758",
