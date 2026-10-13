@@ -201,12 +201,23 @@ test("gives a hop the timetable gives no time half a minute where its length fit
   ]);
 });
 
-test("still leaves out and reports a hop of no time too long for the Line's top speed in half a minute", () => {
-  // 2.6 km in half a minute is 309 km/h.
-  const { placed, log, found } = place(...C4, timed('long', ['05210', '15:14:00', '15:14:00'], ['05209', '15:14:00', '15:14:00']));
+test("still leaves out and reports a hop of no time too long for the Line's top speed in half a minute, or that would take the half minute from the hop before", () => {
+  const { placed, log, found } = place(
+    ...C4,
+    // 2.6 km in half a minute would be 309 km/h, so it keeps its no time.
+    timed('long', ['05210', '15:14:00', '15:14:00'], ['05209', '15:14:00', '15:14:00']),
+    // It doesn't stand at Candás, so leaving it half a minute sooner would take that from its hop from Perlora.
+    timed('no stand', ['05209', '15:10:00', '15:10:00'], ['05211', '15:14:00', '15:14:00'], ['05210', '15:14:00', '15:14:00']),
+  );
   expect(placed).toEqual([]);
-  expect(log).toEqual(['long is left out: it would run 05210 → 05209 at Infinity km/h along its track']);
-  expect(found).toMatchObject([{ kind: 'trip', why: 'fast', trip: 'long', stations: [{ id: '05210' }, { id: '05209' }] }]);
+  expect(log).toEqual([
+    'long is left out: it would run 05210 → 05209 at Infinity km/h along its track',
+    'no stand is left out: it would run 05211 → 05210 at Infinity km/h along its track',
+  ]);
+  expect(found).toMatchObject([
+    { kind: 'trip', why: 'fast', trip: 'long', stations: [{ id: '05210' }, { id: '05209' }] },
+    { kind: 'trip', why: 'fast', trip: 'no stand', stations: [{ id: '05211' }, { id: '05210' }] },
+  ]);
 });
 
 /**
