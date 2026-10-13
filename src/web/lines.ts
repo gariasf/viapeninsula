@@ -7,7 +7,8 @@ import { along, APART, BANDS, coveredIn, cutIn, GRAPH_BAND, inBand, pieces, smoo
  * How much a region's place in the manifest raises its Lines in MapLibre's `line-sort-key`, over a Line's `above`,
  * whose steps are whole: so that, as when every region's Lines were one list in the manifest's order, a region's are
  * drawn over those of the regions before it, and long distance's, the last, over every other's where they share
- * track (ADR-0014), whichever joined first. Under 1 for up to 63 regions.
+ * track (ADR-0014), whichever joined first.
+ * ponytail: under 1 for up to 63 regions, the manifest has 16; past that, a smaller step.
  */
 export const RANK_STEP = 1 / 64;
 

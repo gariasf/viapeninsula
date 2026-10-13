@@ -1379,8 +1379,10 @@ function show(days: Track | Bundle, tripsOnly = false) {
   // manifest keeps them in its order (RANK_STEP). Zoomed in, on its own rails, a Line's bends are rounded (#203).
   const lettering = (line: string) => pills.get(line)?.lettering;
   const drawings = (joinedFrom(days) ?? [{ id: '', track: days }]).map(({ id, track }) => {
-    const rank = Math.max(0, manifest?.regions?.findIndex((r) => r.id === id) ?? 0);
-    return regionLines.made(track, () => ({ lines: drawnLines(track.strokes, { shapes, lines, lettering, rank, nameSize: NAME_SIZE }), rails: drawnLines(track.rails, { shapes, lines, lettering, rank, nameSize: NAME_SIZE }, rounded) }));
+    // ponytail: the region's place in the manifest when its Lines are made, kept for as long as its track is. A manifest
+    // that reorders the regions under a track the map keeps leaves them in the old order; make them again if it does.
+    const how = { shapes, lines, lettering, rank: Math.max(0, manifest?.regions?.findIndex((r) => r.id === id) ?? 0), nameSize: NAME_SIZE };
+    return regionLines.made(track, () => ({ lines: drawnLines(track.strokes, how), rails: drawnLines(track.rails, how, rounded) }));
   });
   // The Lines go to MapLibre as objects, never as a blob: URL, which it fetches, parses and copies on the page's thread
   // and keeps a second copy of: 1.0 s a join at Barcelona at zoom 12 (#731). Handing an object over copies it on the
@@ -1391,7 +1393,7 @@ function show(days: Track | Bundle, tripsOnly = false) {
     const { add, remove } = regionLines.handOver(drawings);
     if (!add.length && !remove.length) return;
     for (const source of ['lines', 'rails'] as const) {
-      map.getSource<GeoJSONSource>(source)?.updateData({ remove: remove.flatMap((d) => d[source].flatMap((f) => (f.id === undefined ? [] : [f.id]))), add: add.flatMap((d) => d[source]) });
+      map.getSource<GeoJSONSource>(source)?.updateData({ remove: remove.flatMap((d) => d[source].map((f) => f.id as number)), add: add.flatMap((d) => d[source]) });
     }
   };
   if (!again) handOver();
