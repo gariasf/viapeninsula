@@ -537,13 +537,13 @@ const asJson = (sides: ((bearing: number) => Side[])[]) => JSON.stringify(sides.
 
 test("works a joined track's places out a region at a time as alongside() does over the track, and at a join only those the join can move (#733)", () => {
   // Two regions 10 km apart, each a track with a Line along it and a place on it, a third place 2 km east of the first
-  // region's, which a place of the second region's comes within REACH of when it joins, and a fourth within REACH of
-  // the second region's track, but of no place's dot that comes.
+  // region's, which a place of the second region's comes within REACH of when it joins, a fourth within REACH of
+  // the second region's track, but of no place's dot that comes, and a fifth near enough both to look, but beyond REACH (#763).
   const a = [track('a', [-3000, 0], [3000, 0])];
   const b = [track('b', [10000, -3000], [10000, 3000])];
   const slots = drawn([...a, ...b]);
   const networks = [{ network: 'A', shapes: ['a'] }, { network: 'B', shapes: ['b'] }];
-  const before = [{ id: 'a1', dot: at(0, 10), served: ['A'] }, { id: 'a2', dot: at(2000, -10), served: ['A'] }, { id: 'far', dot: at(-2900, 5000) }, { id: 'a3', dot: at(7800, 2900), served: ['A'] }];
+  const before = [{ id: 'a1', dot: at(0, 10), served: ['A'] }, { id: 'a2', dot: at(2000, -10), served: ['A'] }, { id: 'far', dot: at(-2900, 5000) }, { id: 'a3', dot: at(7800, 2900), served: ['A'] }, { id: 'a4', dot: at(7300, 0), served: ['A'] }];
   const after = [...before, { id: 'b1', dot: at(10010, -2900), served: ['B'] }, { id: 'b2', dot: at(3500, 0), served: ['B'] }];
   // Each region's track, the same object at every join.
   const [regionA, regionB] = [{ shapes: a }, { shapes: b }];
@@ -554,17 +554,17 @@ test("works a joined track's places out a region at a time as alongside() does o
   // As alongside() over the joined track has them.
   const whole = alongside([...a, ...b], slots, right, networks, new Map(), after.map((p) => p.dot));
   expect(asJson(second)).toBe(asJson(after.map(({ dot, served }) => whole(dot, served))));
-  // a1 and far are further than REACH from b's track and b2's dot, and kept; a2 is within REACH of b2's dot, and a3 of b's track.
-  expect(second.map((s, i) => s === first[i])).toEqual([true, false, true, false, false, false]);
+  // a1, far and a4 are further than REACH from b's track and b1's and b2's dots, and kept; a2 is within REACH of b2's dot, and a3 of b's track.
+  expect(second.map((s, i) => s === first[i])).toEqual([true, false, true, false, true, false, false]);
   // Only the place that changed is worked out again where nothing joins, and every one where told to.
   const served = after.map((p) => (p.id === 'far' ? { ...p, served: ['A'] } : p));
   const third = sides([regionA, regionB], slots, right, networks, new Map(), served);
-  expect(third.map((s, i) => s === second[i])).toEqual([true, true, false, true, true, true]);
+  expect(third.map((s, i) => s === second[i])).toEqual([true, true, false, true, true, true, true]);
   const fresh = sides([regionA, regionB], slots, right, networks, new Map(), served, true);
   expect(fresh.some((s, i) => s === third[i])).toBe(false);
   // b leaves, and the places near it with it: a2 and a3 are worked out again, and far, served as it was.
   const fourth = sides([regionA], slots.slice(0, 1), right, networks.slice(0, 1), new Map(), before);
-  expect(fourth.map((s, i) => s === fresh[i])).toEqual([true, false, false, false]);
+  expect(fourth.map((s, i) => s === fresh[i])).toEqual([true, false, false, false, true]);
   expect(asJson(fourth)).toBe(asJson(first));
 });
 
