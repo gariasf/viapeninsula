@@ -234,8 +234,19 @@ function idsOf(track: Track): { ids: string[]; elsewhere: string[] } {
  * the centrelines of stretches, which a name doesn't go beside.
  */
 interface Filed {
-  cells: Map<number, [shape: Shape, i: number][]>;
+  cells: Map<number, Raw[]>;
   straight: Map<number, Straight[]>;
+}
+
+/**
+ * A segment of the shapes as they are, from `a` to `b`, and each shape that runs it, as its `i`th segment, with its
+ * place among the region's shapes' segments (`order`): filed once however many run it, as Straight is, as long
+ * distance's 696,806 segments are 111,596 (#757). alongside() puts the shapes it finds back in that order.
+ */
+interface Raw {
+  a: Point;
+  b: Point;
+  on: [shape: Shape, i: number, order: number][];
 }
 
 /**
@@ -256,17 +267,28 @@ const filedTracks = new WeakMap<Shape[], Filed>();
 function filed(shapes: Shape[]): Filed {
   const known = filedTracks.get(shapes);
   if (known) return known;
-  // Each shape's segments, by the cells their bounding boxes cross.
+  // Each shape's segments, by the cells their bounding boxes cross, each segment once, by its ends.
   const cells: Filed['cells'] = new Map();
+  const raw = new Map<Point, Map<Point, Raw>>();
+  let order = 0;
   for (const shape of shapes) {
     if (shape.id.startsWith(STRETCH)) continue;
     for (let i = 1; i < shape.coords.length; i++) {
-      const [[ax, ay] = [0, 0], [bx, by] = [0, 0]] = [shape.coords[i - 1], shape.coords[i]];
-      for (let x = Math.floor(Math.min(ax, bx) / CELL); x <= Math.floor(Math.max(ax, bx) / CELL); x++) {
-        for (let y = Math.floor(Math.min(ay, by) / CELL); y <= Math.floor(Math.max(ay, by) / CELL); y++) {
+      const [a = [0, 0], b = [0, 0]] = [shape.coords[i - 1], shape.coords[i]];
+      const to = raw.get(a) ?? new Map<Point, Raw>();
+      raw.set(a, to);
+      const known = to.get(b);
+      if (known) {
+        known.on.push([shape, i, order++]);
+        continue;
+      }
+      const segment: Raw = { a, b, on: [[shape, i, order++]] };
+      to.set(b, segment);
+      for (let x = Math.floor(Math.min(a[0], b[0]) / CELL); x <= Math.floor(Math.max(a[0], b[0]) / CELL); x++) {
+        for (let y = Math.floor(Math.min(a[1], b[1]) / CELL); y <= Math.floor(Math.max(a[1], b[1]) / CELL); y++) {
           const list = cells.get(cell(x, y));
-          if (list) list.push([shape, i]);
-          else cells.set(cell(x, y), [[shape, i]]);
+          if (list) list.push(segment);
+          else cells.set(cell(x, y), [segment]);
         }
       }
     }
@@ -277,8 +299,10 @@ function filed(shapes: Shape[]): Filed {
   const from = new Map<Point, Map<Point, Straight>>();
   for (const shape of shapes) {
     if (shape.id.startsWith(STRETCH)) continue;
-    const index = new Map(shape.coords.map((p, i) => [p, i]));
     const kept = simplify(shape.coords, STRAIGHT / DEGREE);
+    // Where along the shape each point kept is, the last time it comes, as a Map of all its points has it.
+    const index = new Map(kept.map((p) => [p, 0]));
+    shape.coords.forEach((p, i) => index.has(p) && index.set(p, i));
     for (let i = 1; i < kept.length; i++) {
       const [a = [0, 0], b = [0, 0]] = [kept[i - 1], kept[i]];
       const on = { shape, start: shape.dist[index.get(a) ?? 0] ?? 0, stop: shape.dist[index.get(b) ?? 0] ?? 0 };
@@ -345,24 +369,47 @@ function alongsideFiled(
     linesAlong.set(on, made);
     return made;
   };
+  // The Lines drawn along each simplified segment where none of the shapes that run it lies beside a place's own, once
+  // for each side they're drawn, as alongside() takes them below: worked out once for every place near it (#757).
+  const crossingAlong = new Map<Straight, { lines: string[]; side: number }[]>();
+  const crossingOn = (segment: Straight) => {
+    const known = crossingAlong.get(segment);
+    if (known) return known;
+    const taken = new Set<string>();
+    const made: { lines: string[]; side: number }[] = [];
+    for (const runs of segment.on) {
+      if (!slotsOf.has(runs.shape.id)) continue;
+      for (const { lines, side, key } of linesOn(runs)) {
+        if (taken.has(key)) continue;
+        taken.add(key);
+        made.push({ lines, side });
+      }
+    }
+    crossingAlong.set(segment, made);
+    return made;
+  };
   return (dot, served = []) => {
     const own = new Set(served);
     const kx = DEGREE * Math.cos((dot[1] * Math.PI) / 180);
     // Where each shape within NEAR comes nearest the dot, looking in the dot's cell and those round it.
-    const found = new Map<Shape, { at: Point; dist: number; metres: number; segments: [Point, Point][] }>();
+    const found = new Map<Shape, { at: Point; dist: number; metres: number }>();
     const [cx, cy] = [Math.floor(dot[0] / CELL), Math.floor(dot[1] / CELL)];
     for (let x = cx - 1; x <= cx + 1; x++) {
       for (let y = cy - 1; y <= cy + 1; y++) {
-        for (const region of regions) for (const [shape, i] of region.cells.get(cell(x, y)) ?? []) {
-          const [a, b, start = 0, stop = 0] = [shape.coords[i - 1], shape.coords[i], shape.dist[i - 1], shape.dist[i]];
-          if (!a || !b) continue;
-          const [t, metres] = closestOnSegment(a, b, dot, kx);
-          if (metres > NEAR) continue;
-          const f = found.get(shape) ?? { at: a, dist: 0, metres: Infinity, segments: [] };
-          // A segment crossing several cells is found in each.
-          if (!f.segments.some(([sa, sb]) => sa === a && sb === b)) f.segments.push([a, b]);
-          if (metres < f.metres) Object.assign(f, { at: [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])], dist: start + t * (stop - start), metres });
-          found.set(shape, f);
+        for (const region of regions) {
+          // Each shape that runs a segment of the cell within NEAR, in the order of the region's shapes' segments, as found's order picks among them.
+          const hits: [shape: Shape, i: number, order: number, a: Point, b: Point, t: number, metres: number][] = [];
+          for (const { a, b, on } of region.cells.get(cell(x, y)) ?? []) {
+            const [t, metres] = closestOnSegment(a, b, dot, kx);
+            if (metres <= NEAR) for (const [shape, i, order] of on) hits.push([shape, i, order, a, b, t, metres]);
+          }
+          hits.sort((p, q) => p[2] - q[2]);
+          for (const [shape, i, , a, b, t, metres] of hits) {
+            const [start = 0, stop = 0] = [shape.dist[i - 1], shape.dist[i]];
+            const f = found.get(shape) ?? { at: a, dist: 0, metres: Infinity };
+            if (metres < f.metres) Object.assign(f, { at: [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])], dist: start + t * (stop - start), metres });
+            found.set(shape, f);
+          }
         }
       }
     }
@@ -386,12 +433,18 @@ function alongsideFiled(
     for (let x = cx - wx; x <= cx + wx; x++) {
       for (let y = cy - wy; y <= cy + wy; y++) {
         for (const region of regions) {
-          for (const { a, b, on } of region.straight.get(cell(x, y)) ?? []) {
+          for (const segment of region.straight.get(cell(x, y)) ?? []) {
+            const { a, b, on } = segment;
             // A segment crossing several cells is filed in each: take it in the first of them looked in.
             if (x !== Math.max(cx - wx, Math.floor(Math.min(a[0], b[0]) / CELL)) || y !== Math.max(cy - wy, Math.floor(Math.min(a[1], b[1]) / CELL))) continue;
             const d = closestOnSegment(a, b, dot, kx)[1];
             if (d > REACH) continue;
             const [la, lb] = [local(a), local(b)];
+            // None of the shapes that run it alongside the place's own: their Lines cross, as worked out once (crossingOn()).
+            if (!on.some((runs) => besideHeading.has(runs.shape))) {
+              for (const { lines, side } of crossingOn(segment)) crossings.push({ lines, a: la, b: lb, side, d });
+              continue;
+            }
             // The Lines of each shape that runs it, once for each side they're drawn, beside or crossing: more of the same
             // lie under a name no more than one (underName()).
             const taken: string[] = [];

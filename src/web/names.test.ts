@@ -277,6 +277,13 @@ test("where tracks run alongside it, as at a Station with more, it goes from the
   expect(metres(first(others, [], right)(at(0, 5))(0).from)).toEqual([0, 5]);
 });
 
+test('a segment shapes share, at the same points, is found for each shape that runs it, in the order the shapes come (#757)', () => {
+  // One and three run the same points, two alongside them; three's segment is filed with one's, before two's.
+  const one = track('one', [-500, 0], [500, 0]);
+  const station = [one, track('two', [-500, 20], [500, 20]), { ...one, id: 'three' }];
+  expect(first(station, drawn(station), right)(at(0, 5))(0).lines.map(({ line }) => line)).toEqual(['one', 'two', 'three']);
+});
+
 test("where it goes from a track beyond the dot, it keeps how far behind that, in metres, the dot and each Line's track lie", () => {
   // R1 is drawn along the track nearest the dot, 5 m south of it, and R2 along one 25 m north of it.
   const station = [track('near', [-500, 0], [500, 0]), track('far', [-500, 30], [500, 30])];
