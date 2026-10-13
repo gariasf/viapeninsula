@@ -1893,6 +1893,25 @@ test("a Train Renfe has named at a Station is held by when the snapshot says it 
   expect(where(R2S, at('22:18:30'), received)).toBe(135376);
 });
 
+/** pinnedAt()'s snapshots, each report carrying whether Renfe has the Train coming in to the Station or standing at it, by minute from the first (`status`, #670). */
+const pinnedAs = (trip: string, station: string, delay: number, from: number, to: number, status: (minute: number) => 'STOPPED_AT' | 'INCOMING_AT'): Received[] =>
+  pinnedAt(trip, station, delay, from, to).map((r) => ({ ...r, snapshot: { ...r.snapshot, reports: r.snapshot.reports.map((report) => ({ ...report, position: { near: station, status: status(Math.floor((report.at - from) / 60_000)) } })) } }));
+
+test("a Train every report of whose pin has Renfe's INCOMING_AT, coming in to the Station, isn't held there, however long; one with a STOPPED_AT in it is, as before (#671)", () => {
+  // Made up: the R2S 30 s late by GPS at 22:00:00, then named as coming in to Sitges every 20 s until
+  // 22:15. It runs on 30 s late, as with no pin.
+  const start = gps(R2S, where(R2S, at('21:59:30')) ?? NaN, at('22:00:00'));
+  const coming = [start, ...pinnedAs(R2S, 'Sitges', 30, at('22:00:20'), at('22:15:00'), () => 'INCOMING_AT')];
+  for (const time of ['22:10:20', '22:12:00', '22:14:50']) expect(where(R2S, at(time), coming)).toBeCloseTo(where(R2S, at(time), [start]) ?? NaN, 3);
+  // Standing at it for the first minute and coming in to it after, as Renfe can flip, it's held from 22:10:20.
+  const stood = [start, ...pinnedAs(R2S, 'Sitges', 30, at('22:00:20'), at('22:15:00'), (minute) => (minute ? 'INCOMING_AT' : 'STOPPED_AT'))];
+  for (const time of ['22:10:20', '22:14:50']) expect(where(R2S, at(time), stood)).toBe(135376);
+  // Coming in to it for 9 minutes and standing at it from then, it's held once it has been named there for 10.
+  const came = [start, ...pinnedAs(R2S, 'Sitges', 30, at('22:00:20'), at('22:15:00'), (minute) => (minute < 9 ? 'INCOMING_AT' : 'STOPPED_AT'))];
+  expect(where(R2S, at('22:10:10'), came)).toBeCloseTo(where(R2S, at('22:10:10'), [start]) ?? NaN, 3);
+  expect(where(R2S, at('22:10:20'), came)).toBe(135376);
+});
+
 test("a Train Renfe has pinned to a Station for 10 minutes that gives GPS on from it is where its GPS has it, not held: the pin was stale", () => {
   // Made up: pinned to Sitges from 22:00:20 to 22:11:40, held there from 22:10:20, and then its GPS
   // has it 30 s late, 15 km on, at 22:12:00. It's at Sitges at 22:11:50 and where its GPS has it from
