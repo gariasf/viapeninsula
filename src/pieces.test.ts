@@ -149,11 +149,12 @@ test("gives a centreline's distances whole where they aren't its points' lengths
   expect(decodeTrack(written(encodeTrack(track([off]))))).toEqual(track([off]));
 });
 
-test('keeps whole a centreline whose points are off the 1e-5 grid or whose distances are finer than tenths', () => {
+test('keeps whole a centreline whose points are off the 1e-5 grid, whose distances are finer than tenths, or that has no points', () => {
   const fine = shape('stretch:catalonia:0', [[2.170001, 41.39], [2.171, 41.39]]);
   const finer: Shape = { id: 'stretch:linkcatalonia:0', coords: [[2.17, 41.39], [2.171, 41.39]], dist: [0, 83.55] };
-  const t = track([fine, finer]);
-  expect(encodeTrack(t).shapes).toEqual([fine, finer]);
+  const empty: Shape = { id: 'stretch:catalonia:1', coords: [], dist: [] };
+  const t = track([fine, finer, empty]);
+  expect(encodeTrack(t).shapes).toEqual([fine, finer, empty]);
   expect(decodeTrack(written(encodeTrack(t)))).toEqual(t);
 });
 

@@ -10,8 +10,9 @@ export type TrackFile = Track | StoredTrack;
 
 /**
  * A track file with its traced shapes as pieces and its slots as chains: the centrelines, smoothed
- * copies and curves are in `shapes`, as their points' second differences (Drawn), and the slots are whole in `slots` where one doesn't follow the
- * one before on its shape, or names a Line or shape the track hasn't (encodeTrack()): none of the build's does.
+ * copies and curves are in `shapes`, as their points' second differences (Drawn), and the slots are
+ * whole in `slots` where one doesn't follow the one before on its shape, or names a Line or shape the
+ * track hasn't (encodeTrack()): none of the build's does.
  */
 export interface StoredTrack extends Omit<Track, 'slots' | 'shapes'> {
   shapes: (Shape | Drawn)[];
@@ -82,16 +83,23 @@ export interface Drawn {
   points: number[];
   /** Where its distances are in tenths of a metre, as a curve's are: its fixes and `dist` are in tenths too. */
   tenths?: 1;
-  /** As a Run's: where its distances aren't the rounded sum of its points' lengths, how many points on from the last fix, and what to add. */
+  /**
+   * As a Run's: where its distances aren't the rounded sum of its points' lengths, how many points on
+   * from the last fix, and what to add.
+   */
   fixes?: number[];
-  /** As a Run's: its distances, the first and then the change at each point, where its fixes would be more numbers than it has points, as a centreline's on a band's own graph, which keeps the distances of the points it dropped. */
+  /**
+   * As a Run's: its distances, the first and then the change at each point, where its fixes would be
+   * more numbers than it has points, as a centreline's on a band's own graph, which keeps the
+   * distances of the points it dropped.
+   */
   dist?: number[];
 }
 
 /** A point's coordinates are on the grid shapes are written on: millionths of a degree. */
 const MICRO = 1e6;
 /** The grid the centrelines, smoothed copies and curves are written on: hundred-thousandths of a degree. */
-const CENTI = 1e5;
+const HUNDRED_THOUSANDTHS = 1e5;
 
 /**
  * Whether a coordinate is whole steps of a grid, millionths of a degree unless given, and less than `limit` degrees from 0: a point's
@@ -278,41 +286,47 @@ function encodeTraced(shapes: Shape[]): Traced {
   };
 }
 
-/** The distances a shape's points give: the running sum of the great-circle lengths between them, rounded to whole `unit`s of a metre (1, or 10 for tenths), in those units. */
-function distancesOf(coords: Point[], unit: number): number[] {
+/**
+ * The distances a shape's points give: the running sum of the great-circle lengths between them,
+ * rounded to whole steps of 1/`perMetre` of a metre (1, or 10 for tenths), in those steps.
+ */
+function distancesOf(coords: Point[], perMetre: number): number[] {
   let sum = 0;
-  return coords.map((p, i) => Math.round((sum += i ? metres(coords[i - 1] ?? p, p) : 0) * unit));
+  return coords.map((p, i) => Math.round((sum += i ? metres(coords[i - 1] ?? p, p) : 0) * perMetre));
 }
 
-/** A shape's distances, whole `unit`s of a metre, as the file stores them: the fixes to what its points give, or whole where those would be more numbers than it has points. */
-function storedDistances(dist: number[], coords: Point[], unit: number): Pick<Run, 'fixes' | 'dist'> {
+/**
+ * A shape's distances, in whole steps of 1/`perMetre` of a metre, as the file stores them: the fixes
+ * to what its points give, or whole where those would be more numbers than it has points.
+ */
+function storedDistances(dist: number[], coords: Point[], perMetre: number): Pick<Run, 'fixes' | 'dist'> {
   const fixes: number[] = [];
   let last = 0;
-  for (const [k, d] of distancesOf(coords, unit).entries()) {
-    const own = Math.round((dist[k] ?? 0) * unit);
+  for (const [k, d] of distancesOf(coords, perMetre).entries()) {
+    const own = Math.round((dist[k] ?? 0) * perMetre);
     if (d === own) continue;
     fixes.push(k - last, own - d);
     last = k;
   }
-  if (fixes.length > coords.length) return { dist: dist.map((d, k) => Math.round(d * unit) - Math.round((dist[k - 1] ?? 0) * unit)) };
+  if (fixes.length > coords.length) return { dist: dist.map((d, k) => Math.round(d * perMetre) - Math.round((dist[k - 1] ?? 0) * perMetre)) };
   return fixes.length ? { fixes } : {};
 }
 
-/** A shape's distances from what the file stores of them, in whole `unit`s of a metre, as metres. */
-function readDistances({ fixes, dist }: Pick<Run, 'fixes' | 'dist'>, coords: Point[], unit: number): number[] {
+/** A shape's distances from what the file stores of them, in whole steps of 1/`perMetre` of a metre, as metres. */
+function readDistances({ fixes, dist }: Pick<Run, 'fixes' | 'dist'>, coords: Point[], perMetre: number): number[] {
   let out: number[];
   if (dist) {
     let sum = 0;
     out = dist.map((d) => (sum += d));
   } else {
-    out = distancesOf(coords, unit);
+    out = distancesOf(coords, perMetre);
     let at = 0;
     for (let k = 0; k < (fixes?.length ?? 0); k += 2) {
       at += fixes?.[k] ?? 0;
       out[at] = (out[at] ?? 0) + (fixes?.[k + 1] ?? 0);
     }
   }
-  return unit === 1 ? out : out.map((d) => d / unit);
+  return perMetre === 1 ? out : out.map((d) => d / perMetre);
 }
 
 /** Points in whole steps of a grid, as the file stores them: the first, then the change to the second, then each change in that change. */
@@ -329,7 +343,7 @@ function differences(points: Point[]): number[] {
 }
 
 /** The points differences() stores, in degrees, on a grid of `grid` steps to a degree. */
-function points(p: number[], grid: number): Point[] {
+function fromDifferences(p: number[], grid: number): Point[] {
   const [x, y] = [p[0] ?? 0, p[1] ?? 0];
   const out: Point[] = [[x / grid, y / grid]];
   let [px, py, dx, dy] = [x, y, 0, 0];
@@ -347,16 +361,17 @@ function points(p: number[], grid: number): Point[] {
  * the 1e-5 grid, or its distances aren't whole metres or tenths.
  */
 function encodeDrawn(s: Shape): Shape | Drawn {
-  const unit = s.dist.every(Number.isInteger) ? 1 : 10;
-  if (s.levels || s.coords.some(([lon, lat]) => !onGrid(lon, 180, CENTI) || !onGrid(lat, 90, CENTI)) || s.dist.some((d) => Math.round(d * unit) / unit !== d)) return s;
-  const out: Drawn = { id: s.id, points: differences(s.coords.map(([lon, lat]) => [Math.round(lon * CENTI), Math.round(lat * CENTI)])) };
-  if (unit === 10) out.tenths = 1;
-  return { ...out, ...storedDistances(s.dist, s.coords, unit) };
+  const [grid, perMetre] = [HUNDRED_THOUSANDTHS, s.dist.every(Number.isInteger) ? 1 : 10];
+  const offGrid = s.coords.some(([lon, lat]) => !onGrid(lon, 180, grid) || !onGrid(lat, 90, grid));
+  if (!s.coords.length || s.levels || offGrid || s.dist.some((d) => Math.round(d * perMetre) / perMetre !== d)) return s;
+  const out: Drawn = { id: s.id, points: differences(s.coords.map(([lon, lat]) => [Math.round(lon * grid), Math.round(lat * grid)])) };
+  if (perMetre === 10) out.tenths = 1;
+  return { ...out, ...storedDistances(s.dist, s.coords, perMetre) };
 }
 
 /** The centreline, smoothed copy or curve a Drawn stores. */
 function decodeDrawn(s: Drawn): Shape {
-  const coords = points(s.points, CENTI);
+  const coords = fromDifferences(s.points, HUNDRED_THOUSANDTHS);
   return { id: s.id, coords, dist: readDistances(s, coords, s.tenths ? 10 : 1) };
 }
 
@@ -387,7 +402,7 @@ function levelsAtVertices({ dist, levels }: Shape, names: string[]): number[] | 
  * as nothing of the map's or the engine's does.
  */
 function decodeTraced({ pieces, levels: names, shapes }: Traced): Shape[] {
-  const runs = pieces.map((p) => points(p, MICRO));
+  const runs = pieces.map((p) => fromDifferences(p, MICRO));
   return shapes.map((s): Shape => {
     if (!('pieces' in s)) return s;
     const coords: Point[] = [];
