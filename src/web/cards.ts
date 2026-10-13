@@ -49,10 +49,11 @@ export function untilTick(at: number, now: number): number {
  * counting down to either. Not at its Trip's last Station (`ends`): the Train doesn't leave there, and the `departure`
  * it's given is the dwell the engine makes up for it to stay on the map, or a layover's end where its timetable has one,
  * so it's when it arrived, with no countdown (#607). A Station it calls at again later, as a Line that turns back does,
- * isn't its last.
+ * isn't its last. Nor where it's held there (`held`), its time to leave one its operator keeps moving or that
+ * has come already, which the card doesn't give: it says the Train waits, until a report has it move (#689).
  */
-export function due({ arrival, departure }: { arrival: number; departure: number }, standing: boolean, ends: boolean): { at: number; countdown: boolean } {
-  return standing && !ends ? { at: departure, countdown: true } : { at: arrival, countdown: !standing };
+export function due({ arrival, departure }: { arrival: number; departure: number }, standing: boolean, ends: boolean, held = false): { at: number; countdown: boolean } {
+  return standing && !ends ? { at: departure, countdown: !held } : { at: arrival, countdown: !standing };
 }
 
 /**

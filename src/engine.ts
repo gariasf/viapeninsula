@@ -123,6 +123,13 @@ export interface Followed extends Train {
    * card says Renfe has it there, not that its position is confirmed (#458).
    */
   pinnedAt?: string;
+  /**
+   * That it stands held at its Station: a Metro Train at its first Station until TMB's report has it leave
+   * (#107), or one of Renfe's pinned there for LONG_PIN (#485). Its time there is one its operator keeps
+   * moving or that has already come, so the card says it's waiting, with no time and no countdown, until
+   * a report has it move (#689).
+   */
+  held?: true;
 }
 
 /** One Train, as the follow panel shows it, at a moment by the device's clock (ms since 1970), given the snapshots received by then and the Closures that hide Trains: as trainsAt() has it, if it's on the map. */
@@ -135,7 +142,7 @@ export function trainAt(bundle: Bundle, at: number, received: Received[], id: st
 /** A Trip's Train as the follow panel shows it (trainAt()), from where onMap() has it: none where it isn't on the map. */
 function followedOf(bundle: Bundle, on: OnMap): Followed | undefined {
   if (!on.train) return undefined;
-  const { train, now, time, timeAt, calls, profile, said, network, delay, drawnDelay, live } = on;
+  const { train, now, time, timeAt, calls, profile, said, network, delay, drawnDelay, live, ease } = on;
   // When it's expected at a moment of its timetable, running the Delay it's drawn at late, which eases to live data's as the Train does (#610).
   const expected = (seconds: number) => bundle.noonMinus12h + (seconds + drawnDelay) * 1000;
   // How far along its shape it's drawn at a moment, in seconds into the service day.
@@ -150,6 +157,8 @@ function followedOf(bundle: Bundle, on: OnMap): Followed | undefined {
     speed: Math.abs(drawn(now + 0.5) - drawn(now - 0.5)),
     unitType: said?.report.unitType,
     pinnedAt: said?.pin && !(live && stands(said.pin, said.report)) ? said.pin.station : undefined,
+    // At the Station it's held at, not one before it that it's still catching up from.
+    ...(train.standsAt && ease?.hold !== undefined && calls.find((c) => toLeave(c, time))?.departure === ease.hold && { held: true }),
   };
 }
 

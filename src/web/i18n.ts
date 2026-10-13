@@ -95,6 +95,8 @@ const STRINGS = {
   nextStationArriving: { ca: 'Arribant a', es: 'Llegando a', eu: 'Iristen', gl: 'Chegando a', en: 'Arriving at' },
   nextStationStanding: { ca: "A l'estació", es: 'En la estación', eu: 'Geltokian', gl: 'Na estación', en: 'At station' },
   leaves: { ca: 'surt', es: 'sale', eu: 'irteera', gl: 'sae', en: 'leaves' },
+  // In place of when it leaves, where the followed Train is held at the Station it stands at, its time to leave one its operator keeps moving or that has come already (#689).
+  waiting: { ca: 'esperant per sortir', es: 'esperando para salir', eu: 'irteteko zain', gl: 'agardando para saír', en: 'waiting to leave' },
   // The followed Train's strip's name with its fold open, as it lists the Stations the Train has already left too, and Search's section of the Stations it finds (#471); and what a screen reader hears after each of those the Train has left, whose subject is the Train, so that it needn't agree with a Station's name.
   stations: { ca: 'Estacions', es: 'Estaciones', eu: 'Geltokiak', gl: 'Estacións', en: 'Stations' },
   passed: { ca: 'ja hi ha passat', es: 'ya ha pasado', eu: 'dagoeneko igaro da', gl: 'xa pasou', en: 'passed' },

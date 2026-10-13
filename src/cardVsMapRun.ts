@@ -47,6 +47,10 @@
 // the second before; and `s.steps.later2.jumped` and `earlier2.jumped` the steps of more than 2 s in a second the Train itself moved by more than line
 // speed plus 5%, which are the map's jump, not the card's step, and `.standing` those of a Train standing at a Station (not jumped), whose Delay is its
 // timetable's place at once where live data has it earlier, as nothing is there to ease; what's left is a Train running, which catches up faster than 2 s a second.
+//
+// Held at its Station, a Metro Train waiting at its first for TMB's report to have it leave or one of Renfe's on a long pin, the card has no countdown (#689):
+// `s.held` is those seconds, in `s.reads.none` with a last Station's, `s.held.now` those of them it reads now, as the card shows it, which it did for the whole of a long pin and is 0 since by the card's rule (due()), and `s.nowThenIn`
+// how often a countdown reads now and then a number again for the same Station and time, as when TMB pushed a held Train's time later.
 
 import { rmSync } from 'node:fs';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
@@ -57,7 +61,7 @@ import { gunzipSync } from 'node:zlib';
 import { DEGREE, pixelMetres, places, type Bundle, type Place, type Trip } from './bundle.ts';
 import { AT, differences, type Moment, type Near } from './cardVsMap.ts';
 import { countdownTo, passedPlace } from './web/cards.ts';
-import type { Received } from './engine.ts';
+import type { Followed, Received } from './engine.ts';
 import { NETWORKS } from './networks.ts';
 import { ARROW_GAP, boxOf, FOLLOWED_TEXT, outlineOf, pillReach } from './web/pill.ts';
 
@@ -66,7 +70,7 @@ const engineSource = await readFile(new URL('./engine.ts', import.meta.url), 'ut
 const engineCopy = join(await mkdtemp(join(tmpdir(), 'card-vs-map-')), 'engine.ts');
 // The copy imports only bundle.ts: say so if the engine ever imports another sibling, which the copy couldn't find in the temporary directory.
 if ((engineSource.match(/from '\.\//g) ?? []).length !== 1 || !engineSource.includes("from './bundle.ts'")) throw new Error("src/engine.ts imports more than ./bundle.ts: make the copy resolve them too");
-await writeFile(engineCopy, `${engineSource.replace("from './bundle.ts'", `from '${new URL('./bundle.ts', import.meta.url).href}'`)}\nexport { onMap };\n`);
+await writeFile(engineCopy, `${engineSource.replace("from './bundle.ts'", `from '${new URL('./bundle.ts', import.meta.url).href}'`)}\nexport { onMap, followedOf };\n`);
 process.on('exit', () => rmSync(dirname(engineCopy), { recursive: true, force: true }));
 interface OnMap {
   train?: { dist: number; lon: number; lat: number; standsAt?: string; live: boolean };
@@ -80,8 +84,9 @@ interface OnMap {
   profile: Moment['profile'];
   said?: { confirmed?: number; report: { position?: unknown } };
 }
-const { onMap } = (await import(pathToFileURL(engineCopy).href)) as {
+const { onMap, followedOf } = (await import(pathToFileURL(engineCopy).href)) as {
   onMap: (bundle: Bundle, at: number, received: Received[]) => { of: (trip: Trip) => OnMap | undefined };
+  followedOf: (bundle: Bundle, on: OnMap) => Followed | undefined;
 };
 
 const zoom = Number(process.env.ZOOM ?? 13);
@@ -165,7 +170,7 @@ for (const dir of process.argv.slice(2)) {
   // What each Train's card said in each of the last FLAP seconds, to count the words that come back.
   let saying = new Map<string, string[]>();
   // The time and Station each Train's countdown counted to in the last second, to count the steps its Delay gives it (#456).
-  let counting = new Map<string, { countsTo: string; expected: number; n: number }>();
+  let counting = new Map<string, { countsTo: string; expected: number; n: number; now: boolean }>();
   let stalled = new Map<string, number>();
   // Where each Train was drawn in the last second, Live or not, to say whether it moved by more than line speed in this one, and which Trains stood at their Trip's last Station in it.
   let drawnWas = new Map<string, number>();
@@ -177,7 +182,7 @@ for (const dir of process.argv.slice(2)) {
     const now = new Map<string, number>();
     const stalling = new Map<string, number>();
     const said = new Map<string, string[]>();
-    const counted = new Map<string, { countsTo: string; expected: number; n: number }>();
+    const counted = new Map<string, { countsTo: string; expected: number; n: number; now: boolean }>();
     const drawnNow = new Map<string, number>();
     const lastingNow = new Set<string>();
     for (const trip of candidates) {
@@ -221,6 +226,8 @@ for (const dir of process.argv.slice(2)) {
         dist: train.dist,
         calls,
         standing: !!train.standsAt,
+        // Held at its Station, as the follow panel has it (#689).
+        held: !!followedOf(bundle, o)?.held,
         // The places within the arrow's reach, and within `reach.at` if that is more, which it's not while AT is the arrow's gap's 7 px: near holds all that is counted from it.
         near: nearTo(train.lon, train.lat, Math.max(atReach, arrowReach)),
         reach: { pill: half, arrow: arrowReach, at: atReach },
@@ -317,7 +324,11 @@ for (const dir of process.argv.slice(2)) {
       }
       // How steady its seconds are: the card's time for the same Station moved by a new Delay, by more than 2 s or 10 s, later or earlier, and where the Train itself jumped in that second.
       const prior = counting.get(trip.id);
-      counted.set(trip.id, { countsTo: d.countsTo, expected: d.expected, n: d.reads.n });
+      counted.set(trip.id, { countsTo: d.countsTo, expected: d.expected, n: d.reads.n, now: inSeconds && d.reads.n === 0 });
+      // Held at its Station (#689): how long, how long of that it reads now, and how often a countdown reads now and then a number again, as one TMB pushes later does.
+      if (m.held) add('s.held');
+      if (m.held && inSeconds && d.reads.n === 0) add('s.held.now');
+      if (inSeconds && d.reads.n > 0 && prior?.now && prior.countsTo === d.countsTo) add('s.nowThenIn');
       const [moved, drawnBefore] = [Math.abs(train.dist - (drawnWas.get(trip.id) ?? train.dist)), drawnWas.get(trip.id)];
       const jumped = drawnBefore !== undefined && moved > o.network.profile.topSpeed * 1.05;
       if (inSeconds && prior?.countsTo === d.countsTo) {
@@ -337,8 +348,8 @@ for (const dir of process.argv.slice(2)) {
         if (d.reads.n > 0 && d.reads.n === prior.n) add('s.vsData.stood');
       }
       drawnNow.set(trip.id, train.dist);
-      // At its Trip's last Station the card has no countdown (#607): how long, how often, and what it counted down to there before.
-      if (!d.countdown) {
+      // At its Trip's last Station the card has no countdown (#607): how long, how often, and what it counted down to there before. Held, it has none either (#689), counted under `s.held`.
+      if (!d.countdown && !m.held) {
         lastingNow.add(trip.id);
         const stood = m.calls.find((c) => c.departure >= m.time);
         const was = stood && countdownTo(m.noon + (stood.departure + (m.reported ?? m.delay)) * 1000, m.at);

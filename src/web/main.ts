@@ -2477,8 +2477,8 @@ function followedPanel(up: boolean): Panel | undefined {
   else if (since !== undefined) status.push(placedBy(live, ago(since), train.pinnedAt && stationName(train.pinnedAt)));
   status.push(el('span', {}, el('span', { className: 'sr-only', textContent: `${t('speed')} ` }), `~${Math.round(speed * 3.6)} km/h`));
   if (unitType) status.push(`${t('unit')} ${unitType}`);
-  // Where it has no countdown, at its Trip's last Station, the panel waits on none either (#607).
-  const next = upcoming[0] && due(upcoming[0], !!train.standsAt, upcoming.length === 1);
+  // Where it has no countdown, at its Trip's last Station or held (#607, #689), the panel waits on none either.
+  const next = upcoming[0] && due(upcoming[0], !!train.standsAt, upcoming.length === 1, train.held);
   return {
     changes: next?.countdown ? untilTick(next.at, mapNow) : undefined,
     header: el('header', {}, ...backButton(), el('h2', { className: 'title', tabIndex: -1 }, pill(trip.line, { live, train: true }), ` ${trip.headsign}`), closeButton(t('stopFollowing'))),
@@ -2538,21 +2538,24 @@ function backButton(): Node[] {
  * where `where` says so (#455); when the Train's expected there, with its status beside it, and the
  * time to it within the hour, in seconds in its last minute (followedCountdown(), #456). Standing,
  * that time is when it leaves, which it says unless that's its Trip's last Station, where the Train
- * doesn't leave: there it's when it arrived, with no time to it (due(), #607). The first it stops at,
- * not one within a closed Closure that hides Trains (#420).
+ * doesn't leave: there it's when it arrived, with no time to it (due(), #607). Held there, that it's
+ * waiting to leave, with neither (#689). The first it stops at, not one within a closed Closure that
+ * hides Trains (#420).
  */
-function nextStation({ upcoming, standsAt, delay, live }: Pick<Followed, 'upcoming' | 'standsAt' | 'delay' | 'live'>, now: number, where?: Whereabouts<Call, Place>): Node[] {
+function nextStation({ upcoming, standsAt, delay, live, held }: Pick<Followed, 'upcoming' | 'standsAt' | 'delay' | 'live' | 'held'>, now: number, where?: Whereabouts<Call, Place>): Node[] {
   const next = upcoming.find((c) => !c.skipped);
   if (!next) return [];
-  const { at, countdown } = due(next, !!standsAt && next === upcoming[0], next === upcoming.at(-1));
+  const waits = !!held && next === upcoming[0];
+  const { at, countdown } = due(next, !!standsAt && next === upcoming[0], next === upcoming.at(-1), waits);
   const label = where?.at === 'arriving' ? 'nextStationArriving' : where?.at === 'standing' ? 'nextStationStanding' : 'nextStation';
   const leaves = where?.at === 'standing' && upcoming.length > 1 ? [el('span', { className: 'soft', textContent: t('leaves') })] : [];
+  const when = waits ? [el('span', { className: 'soft', textContent: t('waiting') })] : [...leaves, el('time', {}, ...timeOfDay(at))];
   return [
     el(
       'div',
       { className: 'next-station' },
       el('div', {}, el('p', { className: 'label', textContent: t(label) }), stationLink(next.station, el('strong', { className: 'next-name', textContent: stationName(next.station) }))),
-      el('div', { className: 'next-when' }, el('span', { className: 'at' }, ...leaves, el('time', {}, ...timeOfDay(at)), status({ delay, live })), ...(countdown ? followedCountdown(at, now) : [])),
+      el('div', { className: 'next-when' }, el('span', { className: 'at' }, ...when, status({ delay, live })), ...(countdown ? followedCountdown(at, now) : [])),
     ),
   ];
 }
@@ -2631,9 +2634,9 @@ function tripBar({ trip, dist, upcoming }: Followed) {
  * Closure that hides Trains, has its time struck through and says so, as a board's row does (#420).
  * Once it has left a Station, the fold before the strip (foldButton()) shows those it has already left
  * at its top, greyed, by name only, as the map has no time it passed them but its timetable's, and the
- * Train then as a compact mark after them (#349).
+ * Train then as a compact mark after them (#349). Held at the first, that one has no time (#689).
  */
-function strip({ trip, upcoming, standsAt }: Pick<Followed, 'trip' | 'upcoming' | 'standsAt'>, where?: Whereabouts<Call, Place>): Node[] {
+function strip({ trip, upcoming, standsAt, held }: Pick<Followed, 'trip' | 'upcoming' | 'standsAt' | 'held'>, where?: Whereabouts<Call, Place>): Node[] {
   // How many Stations it has already left, and the last of them, before those it has still to leave.
   const earlier = trip.calls.length - upcoming.length;
   const lastLeft = trip.calls[earlier - 1];
@@ -2651,7 +2654,8 @@ function strip({ trip, upcoming, standsAt }: Pick<Followed, 'trip' | 'upcoming' 
       const link = stationLink(call.station, stationName(call.station));
       // Not stopping, within a closed Closure that hides Trains, as a board's row says it (#345, #420).
       const says = call.skipped ? [' ', el('span', { className: 'status skipped', textContent: t('notStopping') })] : [];
-      return station(classes, timeOfDay(due(call, i === 0 && !!standsAt, i === upcoming.length - 1).at), link, ...says);
+      // Held at it, no time: one its operator keeps moving or that has come already (#689).
+      return station(classes, i === 0 && held ? [] : timeOfDay(due(call, i === 0 && !!standsAt, i === upcoming.length - 1).at), link, ...says);
     }),
   );
   list.setAttribute('aria-label', t(past ? 'stations' : 'nextStations'));

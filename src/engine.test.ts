@@ -1825,6 +1825,19 @@ test("a Train Renfe has pinned to a Station for 10 minutes or more is as late as
   expect(row?.departure).toBeCloseTo(now, -3);
 });
 
+test("a followed Train Renfe has pinned to a Station for 10 minutes or more is held there, its card's time one Renfe can't keep, until a report has it elsewhere (#689)", () => {
+  // The same: at 22:10:10 Renfe has named it at Sitges for 9 minutes 50 s and it runs on; at 22:12:00 it's held there; GPS at 22:15:20 has it on.
+  const received = [gps(R2S, where(R2S, at('21:59:30')) ?? NaN, at('22:00:00')), ...pinnedAt(R2S, 'Sitges', 30, at('22:00:20'), at('22:15:00'))];
+  const running = followed(R2S, at('22:10:10'), received);
+  expect(running).toMatchObject({ live: true });
+  expect(running?.held).toBeUndefined();
+  expect(followed(R2S, at('22:12:00'), received)).toMatchObject({ standsAt: 'Sitges', held: true });
+  const moved = [...received, gps(R2S, where(R2S, at('22:14:00')) ?? NaN, at('22:15:20'))];
+  const on = followed(R2S, at('22:15:30'), moved);
+  expect(on).toMatchObject({ live: true, standsAt: undefined });
+  expect(on?.held).toBeUndefined();
+});
+
 test("the 10 minutes a Train Renfe pins to a Station is held for start at the first report that names it there: another Station, or Renfe's GPS, starts them again", () => {
   // Made up: 30 s late by GPS at 22:00:00, then pinned to Sitges until 22:07:00 and to Castelldefels
   // until 22:14:00, 7 minutes each. It runs on 30 s late, past Castelldefels, which its timetable has
@@ -3160,6 +3173,16 @@ test("a followed Metro Train held at its first Station is expected to leave when
   // Its countdown reads 8 s, where `now` would say it's leaving, and its board's row has it leave then too.
   expect(countdownTo(leaves, mapTime(moment, by(received, moment)))).toEqual({ n: 8, unit: 'seconds' });
   expect(board(['tmb:1.140'], moment, received, METRO)).toMatchObject([{ trip: { id: NEXT_OUT_OF_FONDO }, departure: leaves, live: true }]);
+});
+
+test("a followed Metro Train held at its first Station is held, its card's time one TMB keeps moving, until a report has it leave (#689)", () => {
+  // The same: held at Fondo at 13:17:25. At 13:17:40 TMB expects 112 at Santa Coloma at 13:18:50, 10 s late, which has it out of Fondo at 13:17:23: it leaves, and is held no more.
+  const received = [outOfFondo('13:16:40', ['112', 'tmb:1.140', '13:17:13']), outOfFondo('13:17:20', ['112', 'tmb:1.139', '13:19:00'])];
+  expect(followed(NEXT_OUT_OF_FONDO, Date.parse('2026-09-25T13:17:25+02:00'), received, METRO)).toMatchObject({ standsAt: 'tmb:1.140', held: true });
+  const left = [...received, outOfFondo('13:17:40', ['112', 'tmb:1.139', '13:18:50'])];
+  const out = followed(NEXT_OUT_OF_FONDO, Date.parse('2026-09-25T13:17:45+02:00'), left, METRO);
+  expect(out).toMatchObject({ live: true, standsAt: undefined });
+  expect(out?.held).toBeUndefined();
 });
 
 test('a Metro Train whose Block waits at the end of its Line passes near a point there now', () => {
