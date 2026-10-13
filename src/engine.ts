@@ -470,7 +470,8 @@ function onMap(bundle: Bundle, at: number, received: Received[], closures: reado
     const { profile } = network;
     const dwelt = withDwell(asRun, profile);
     // A Train running late is where its timetable had it that long ago, once it has eased there. One
-    // live data hasn't shifted is where unshifted() has it.
+    // live data hasn't shifted is where unshifted() has it. Any other way of drawing a Train outside its timetable
+    // must go by `heard` or `eases`, or widen spansIn(), or trainsAt() won't walk its Trip (#732).
     const timeAt = (moment: number) => (ease ? eased(dwelt, profile, ease, moment) : unshifted(dwelt, profile, moment, blockLines.has(trip.line) && available.has(network.id)));
     const time = timeAt(now);
     const live = isLive(said, feeds, upToNow);
@@ -558,7 +559,8 @@ const spannedOf = new WeakMap<Bundle, Spans>();
  * in the bundle: from its first Station's arrival less its dwell to its last's departure plus its dwell and WAIT, as a
  * Scheduled Metro Train can wait that long for its Block (unshifted()). And the Trips whose spans meet each BUCKET of
  * the day, by `floor(time / BUCKET)`, in the bundle's order. A Trip live data has said something of can be on the map
- * outside its span, running late, held or pinned: onMap() walks those whatever their spans.
+ * outside its span, running late, held or pinned: onMap() walks those whatever their spans. A rule that keeps a
+ * Train on the map longer without live data, in unshifted() or of(), has to widen these spans with it.
  */
 function spansIn(bundle: Bundle, { lines }: Indexed): Spans {
   const known = spannedOf.get(bundle);
