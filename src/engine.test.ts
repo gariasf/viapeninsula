@@ -2200,6 +2200,18 @@ test("a report naming the Train number a long-distance timetable runs a Trip und
   expect(trainAt({ ...SHARED, trips: [...SHARED.trips, own] }, at('12:00:10'), received, R15)).toMatchObject({ live: false });
 });
 
+test("a report naming a twin's number more than 12 hours from its Trip isn't about a Trip of the twin's own number that doesn't answer to it, as on a day the long-distance timetable doesn't run it (#488, #566)", () => {
+  // R15's 30550 answers to 17050 on one of the days joined and not on the next, whose run of it is a day later.
+  const r15 = SHARED.trips.find((t) => t.id === R15) as Trip;
+  const next = { ...r15, id: `${R15}-next`, calls: r15.calls.map((c) => ({ ...c, arrival: c.arrival + 86_400, departure: c.departure + 86_400 })) };
+  const twinned: Bundle = { ...SHARED, trips: [...SHARED.trips.map((t) => (t.id === R15 ? { ...t, twins: ['17050'] } : t)), next] };
+  const when = at('12:00:00') + 86_400_000;
+  const report = at30550(R15, at('11:57:00'), when);
+  // Its own number's report, there, is about it.
+  expect(trainAt(twinned, when + 10_000, [renfeRead(when, [report])], next.id)).toMatchObject({ live: true });
+  expect(trainAt(twinned, when + 10_000, [renfeRead(when, [{ ...report, number: '17050' }])], next.id)).toMatchObject({ live: false });
+});
+
 /** The Trips of `BUNDLE`, the R2S with its Train number, as its trip_id gives it. */
 const NUMBERED: Bundle = { ...BUNDLE, trips: BUNDLE.trips.map((t) => (t.id === R2S ? { ...t, number: '25478' } : t)) };
 

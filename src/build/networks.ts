@@ -436,12 +436,12 @@ export function joinParts(trips: FeedTrip[], stations: Map<string, Station>, day
  * C6 has 33720 run as both 14020 and 38020, which call at its Stations at the same minutes.
  */
 export function twinned(trips: FeedTrip[], others: FeedTrip[]): FeedTrip[] {
-  const at = new Map<string, FeedTrip[]>();
-  for (const other of others) for (const c of other.calls) at.get(c.station)?.push(other) ?? at.set(c.station, [other]);
+  const byStation = new Map<string, FeedTrip[]>();
+  for (const other of others) for (const c of other.calls) byStation.get(c.station)?.push(other) ?? byStation.set(c.station, [other]);
   return trips.map((trip) => {
     if (trip.calls.length < 2) return trip;
     const same = (other: FeedTrip) => other.number !== trip.number && trip.calls.every((c) => other.calls.some((o) => o.station === c.station && (o.arrival === c.arrival || o.departure === c.departure)));
-    const twins = [...new Set((at.get(trip.calls[0]?.station ?? '') ?? []).flatMap((other) => (other.number && same(other) ? [other.number] : [])))];
+    const twins = [...new Set((byStation.get(trip.calls[0]?.station ?? '') ?? []).flatMap((other) => (other.number && same(other) ? [other.number] : [])))];
     return twins.length ? { ...trip, twins } : trip;
   });
 }

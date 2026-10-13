@@ -85,7 +85,8 @@ for (const { network, failed } of downloads.slice(0, listers.length)) await read
 // of them makes all the calls of, at the same minutes, under another number, answers to that number too
 // (twinned(), #488). A timetable that can't be read, nor its copy, twins none, and is logged.
 // ponytail: not AVE y Larga Distancia's, which twin none of them on 13 and 17 Oct 2026, and are read in its
-// own region's build, after the others; read them here too if one shows up as a Trip's twin.
+// own region's build, after the others; read them here too if one shows up as a Trip's twin. And once #263
+// puts Media Distancia y Avant on the map, `longDistance` leaves it out, and no Trip has a twin: read it here still.
 const longRead = await Promise.all((await longDistance).map(async ({ network, failed }) => ({ network, read: await readTimetables(network, failed, readLong, () => {}).catch((error: unknown) => (console.warn(`${network.name}'s Trains aren't read, so they twin no Trip: ${error instanceof Error ? error.message : error}`), { error })) })));
 const twins = DAYS.map((_, i) => longRead.flatMap(({ read }) => ('error' in read ? [] : (read.days[i] ?? []).flatMap((p) => p.trips))));
 // Each region, one after another: its Networks read and built, its Lines drawn side by side, and its
