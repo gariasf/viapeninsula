@@ -555,7 +555,11 @@ export interface Place {
 /** Where the map shows the Stations: those grouped in one place as one, at the middle of theirs, and every other on its own. */
 export function places(stations: Station[]): Place[] {
   const groups = new Map<string, Station[]>();
-  for (const s of stations) groups.set(s.place ?? s.id, [...(groups.get(s.place ?? s.id) ?? []), s]);
+  for (const s of stations) {
+    const group = groups.get(s.place ?? s.id);
+    if (group) group.push(s);
+    else groups.set(s.place ?? s.id, [s]);
+  }
   return [...groups].map(([id, group]) => ({
     id,
     name: group[0]?.name ?? '',
@@ -634,19 +638,28 @@ export interface Shape {
 
 /** A line's points from one distance along it to another, where `dist` gives the distance at each point. */
 export function along(line: Pick<Shape, 'coords' | 'dist'>, from: number, to: number): Shape['coords'] {
-  const { coords, dist } = line;
-  return [pointAt(line, from), ...coords.filter((_, i) => (dist[i] ?? 0) > from && (dist[i] ?? 0) < to), pointAt(line, to)];
+  // Its points strictly between, found by halving, as `dist` only grows along it (#733): filtering every point for each
+  // stroke took 179 ms over Catalonia's and long distance's Lines.
+  const [start, end] = [firstBeyond(line.dist, from, true), firstBeyond(line.dist, to, false)];
+  return [pointAt(line, from), ...line.coords.slice(start, Math.max(start, end)), pointAt(line, to)];
+}
+
+/** The index of the first of distances that only grow that's beyond `d`, where `strictly`, or else at or beyond it. */
+function firstBeyond(dist: number[], d: number, strictly: boolean): number {
+  let [i, end] = [0, dist.length];
+  while (i < end) {
+    const mid = (i + end) >> 1;
+    const at = dist[mid] ?? 0;
+    if (at < d || (strictly && at === d)) i = mid + 1;
+    else end = mid;
+  }
+  return i;
 }
 
 /** The point a distance along a line, where `dist` gives the distance at each of its points. */
 export function pointAt({ coords, dist }: Pick<Shape, 'coords' | 'dist'>, d: number): [lon: number, lat: number] {
   // The first point at or beyond d, found by halving.
-  let [i, end] = [0, dist.length];
-  while (i < end) {
-    const mid = (i + end) >> 1;
-    if ((dist[mid] ?? 0) < d) i = mid + 1;
-    else end = mid;
-  }
+  const i = firstBeyond(dist, d, false);
   const [a, b] = [coords[i - 1], coords[i]];
   if (!b) return coords.at(-1) ?? [NaN, NaN]; // at or beyond the end, give or take rounding
   if (!a) return b;

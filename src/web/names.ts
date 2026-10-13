@@ -162,7 +162,11 @@ export function alongside(
     else dotCells.set(key, [p]);
   }
   const slotsOf = new Map<string, Slot[]>();
-  for (const s of slots) slotsOf.set(s.shape, [...(slotsOf.get(s.shape) ?? []), s]);
+  for (const s of slots) {
+    const known = slotsOf.get(s.shape);
+    if (known) known.push(s);
+    else slotsOf.set(s.shape, [s]);
+  }
   const networkOf = new Map(networks.flatMap((l) => l.shapes.map((shape) => [shape, l.network])));
   return (dot, served = []) => {
     const own = new Set(served);

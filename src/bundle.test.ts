@@ -1,5 +1,22 @@
 import { expect, test } from 'vitest';
-import { APART, atZoom, BANDS, beside, daysNeeded, daysOf, DEGREE, joinTrips, joinTracks, onStroke, pixelMetres, smoothId, zones, type DayTrips, type Manifest, type ManifestDay, type Network, type Shape, type Slot, type Station, type Stroke, type Track, type Trip } from './bundle.ts';
+import { along, APART, atZoom, BANDS, beside, daysNeeded, daysOf, DEGREE, joinTrips, joinTracks, onStroke, pixelMetres, smoothId, zones, type DayTrips, type Manifest, type ManifestDay, type Network, type Point, type Shape, type Slot, type Station, type Stroke, type Track, type Trip } from './bundle.ts';
+
+test("gives a line's points between two distances along it, its ends worked out, as filtering every point did, where points share a distance and where a distance is off either end (#733)", () => {
+  const filtered = ({ coords, dist }: Pick<Shape, 'coords' | 'dist'>, from: number, to: number) => coords.filter((_, i) => (dist[i] ?? 0) > from && (dist[i] ?? 0) < to);
+  let seed = 1;
+  const random = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+  for (let n = 0; n < 2000; n++) {
+    // Distances that only grow, some repeated, as where a shape doubles back on itself for a point.
+    const dist = [0];
+    for (let i = 1; i < 1 + Math.floor(random() * 30); i++) dist.push((dist.at(-1) ?? 0) + (random() < 0.2 ? 0 : Math.round(random() * 100)));
+    const line = { coords: dist.map((d, i): Point => [d, i]), dist };
+    const end = dist.at(-1) ?? 0;
+    // Ends at points, between them and beyond the line's, and the wrong way round.
+    const pick = () => (random() < 0.4 ? (dist[Math.floor(random() * dist.length)] ?? 0) : Math.round(random() * (end + 40)) - 20);
+    const [from, to] = [pick(), pick()];
+    expect(along(line, from, to).slice(1, -1)).toEqual(filtered(line, from, to));
+  }
+});
 
 test('finds the point a distance along a line, moved to its right, or its left where negative', () => {
   // 1 km east along the equator, where a degree is DEGREE metres both ways.

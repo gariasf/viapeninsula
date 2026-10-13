@@ -1,7 +1,7 @@
 // How the map loads a service day from its regions' files (ADR-0014): the tracks of the regions that
 // come, joined as one, which it draws before the Trips, and then the Trips of those whose track came.
 
-import { BANDS, DEGREE, joinTracks, joinTrips, type Bundle, type DayFiles, type DayTrips, type ManifestRegion, type Point, type Track, type ZoomedOut } from '../bundle.ts';
+import { BANDS, DEGREE, joinTracks, joinTrips, type Bundle, type DayFiles, type DayTrips, type ManifestRegion, type Point, type Stroke, type Track, type ZoomedOut } from '../bundle.ts';
 import { joinDays } from '../engine.ts';
 import { decodeTrack, type TrackFile } from '../pieces.ts';
 
@@ -57,6 +57,14 @@ export function forgetJoined(joined: Map<string, Track>, keys: string[]) {
   for (const files of joined.keys()) if (!files.split(JOINED).every((file) => keys.includes(file))) joined.delete(files);
 }
 
+/** The regions a joined track was joined from, by its strokes, which the bundles and the days joined from it keep (joinDays()). */
+const regionsOf = new WeakMap<Stroke[], { id: string; track: Track }[]>();
+
+/** The regions, by their IDs, and their tracks, that a track the loader joined (regionLoader()) was joined from, in its order: the map draws each region's Lines once (#733). */
+export function joinedFrom({ strokes }: Pick<Track, 'strokes'>): { id: string; track: Track }[] | undefined {
+  return regionsOf.get(strokes);
+}
+
 /** Each track file read once, however many days name it and however many times the map looks again: the files the page keeps are these objects. */
 const decoded = new WeakMap<TrackFile, Track>();
 
@@ -94,7 +102,11 @@ export function regionLoader(get: <T>(key: string) => Promise<T>, joined: Map<st
       const [loaded, came] = [day.regions.filter((_, i) => got[i]), got.flatMap((t) => (t ? [t] : []))];
       if (!came.length) throw new Error(`No region's track came for ${day.date}`);
       const files = loaded.map((r) => r.track).join(JOINED);
-      const track = joined.get(files) ?? joinTracks(came);
+      let track = joined.get(files);
+      if (!track) {
+        track = joinTracks(came);
+        regionsOf.set(track.strokes, came.map((t, i) => ({ id: loaded[i]?.id ?? '', track: t })));
+      }
       joined.set(files, track);
       return { track, loaded };
     });
