@@ -915,8 +915,8 @@ interface Heard {
   counted?: GpsDelay;
   /** For Renfe's: the last two different GPS fixes it reported for it, newest first, as first reported, whether hear() took them as positions or not. */
   fixes?: Fix[];
-  /** For Renfe's: the Station its reports have named it at, as `near`, and when its operator first did, in ms since 1970, where none since has named another or given GPS (replay() holds it there from LONG_PIN on): the report's `since`, where it has one (#670). */
-  pin?: { station: string; since: number };
+  /** For Renfe's: the Station its reports have named it at, as `near`, and when its operator first did, in ms since 1970, where none since has named another or given GPS (replay() holds it there from LONG_PIN on): the report's `since`, where it has one (#670). And that every one of those reports the map has had has it coming in to it, Renfe's INCOMING_AT, which replay() doesn't hold (#671). */
+  pin?: { station: string; since: number; incoming?: true };
 }
 
 /** A Delay Renfe's GPS gave a Train, in seconds, and when the fetcher got the report that did, as Heard's `got` has it. */
@@ -975,16 +975,19 @@ const SLACK = 300;
  * The 10 minutes count from when the fetcher says Renfe first named it there, the report's `since`, so
  * that a Train pinned before the map opened is held at once (#670), and from the first report the map
  * has seen where a snapshot from before then has none.
+ * A Train every report of the pin has as coming in to the Station, Renfe's INCOMING_AT, isn't held: in
+ * 13 October 2026's three Record runs, of the 42 such pins a GPS fix ended, the map without the hold was
+ * nearer that fix by over 100 m for 27 and further for 8, the median 161 to 524 m nearer, as for a C3
+ * from Bilbao-Abando named as coming in to it, its first Station, for 16 minutes, and then 1.1 km from it
+ * by its GPS; a pin with a STOPPED_AT in it stays held as before (#671).
  * ponytail: one length for every Line and núcleo, and a Train unreported for 2 minutes starts it again.
- * Nor does it go by Renfe's INCOMING_AT or STOPPED_AT, which the report now carries (`status`), so a Train
- * named as coming in to a Station for the whole run in is held at it before it has got there: 25 of the
- * 410 Train-minutes it moves in #233's four recordings, as RL4 33526's 6.5 minutes of 25 September 2026.
- * Go by that once a Record that has it says how (#671).
+ * Whether a pin had a STOPPED_AT is from the reports the map has had, so one opened during a pin goes by
+ * those since; the fetcher could say so beside `since` if that matters.
  */
 const LONG_PIN = 10 * 60_000;
 
 /** Whether a Train's latest report names it at a Station its reports have named it at for LONG_PIN or more: it stands there. */
-const stands = (pin: Heard['pin'], report: Report) => !!pin && report.at - pin.since >= LONG_PIN;
+const stands = (pin: Heard['pin'], report: Report) => !!pin && !pin.incoming && report.at - pin.since >= LONG_PIN;
 
 /**
  * How soon after a Train's report the next has to come to go on from it, in ms: for one of Renfe's,
@@ -1052,7 +1055,9 @@ function hear(before: Heard | undefined, report: Report, got: number, from: Rece
   // ponytail: the page's own count is for snapshots written before #670; drop it once none is kept (KEEP) or recorded.
   const near = report.position && 'near' in report.position ? report.position : undefined;
   const kept = follows(before) ? before.pin : undefined;
-  const pin = !carriesGpsDelay ? undefined : near ? { station: near.near, since: near.since ?? (kept?.station === near.near ? kept.since : report.at) } : report.position ? undefined : kept;
+  // Coming in to it in every one of them, it isn't held there (#671): a report from before #670 has no status, and holds as before.
+  const incoming = near?.status === 'INCOMING_AT' && (kept?.station !== near.near || !!kept?.incoming);
+  const pin = !carriesGpsDelay ? undefined : near ? { station: near.near, since: near.since ?? (kept?.station === near.near ? kept.since : report.at), ...(incoming && { incoming: true as const }) } : report.position ? undefined : kept;
   // Where its Network's live data names Trains by number, a position that holds still places it, for up to HOLD (#443).
   const holds = frozen && !!live?.numbers;
   const held = holds ? (before.held ?? before.got) : report.position ? undefined : before?.held;
