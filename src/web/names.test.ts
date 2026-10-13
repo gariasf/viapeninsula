@@ -287,6 +287,24 @@ test('a segment shapes share, at the same points, is found for each shape that r
   expect(Math.round(metres(first([one, fork], [], right)(at(0, 5))(0).from)[1] ?? 0)).toBe(20);
 });
 
+test('shapes that share points, all of them or a run of them, are found as they would be with points of their own (#763)', () => {
+  // Through, and a branch that runs three of its points before it leaves north, a twin of the branch, and a track across.
+  const through = track('through', [-900, 0], [-300, 0], [0, 0], [300, 0], [900, 0]);
+  const branch: Shape = { id: 'branch', coords: [...through.coords.slice(1, 4), at(600, 300), at(900, 900)], dist: [] };
+  branch.dist = branch.coords.map((_, i) => branch.coords.slice(1, i + 1).reduce((sum, [lon, lat], j) => sum + Math.hypot(lon - (branch.coords[j]?.[0] ?? 0), lat - (branch.coords[j]?.[1] ?? 0)) * DEGREE, 0));
+  const shared = [through, branch, { ...branch, id: 'twin' }, track('across', [0, -900], [0, 900])];
+  // The same, each with points of its own.
+  const own = shared.map((s) => ({ ...s, coords: s.coords.map(([lon, lat]): Point => [lon, lat]) }));
+  const slots = drawn(shared);
+  const seen = (shapes: Shape[]) => {
+    const spots = alongside(shapes, slots, right);
+    return [at(0, 10), at(-300, 50), at(450, 150), at(300, -40)].map((dot) =>
+      spots(dot)(30).map(({ clear, near }) => [clear, near].map(({ crossing, ...spot }) => ({ ...spot, crossing: [...new Set(crossing.map((c) => JSON.stringify(c)))].sort() }))),
+    );
+  };
+  expect(seen(shared)).toEqual(seen(own));
+});
+
 test("where it goes from a track beyond the dot, it keeps how far behind that, in metres, the dot and each Line's track lie", () => {
   // R1 is drawn along the track nearest the dot, 5 m south of it, and R2 along one 25 m north of it.
   const station = [track('near', [-500, 0], [500, 0]), track('far', [-500, 30], [500, 30])];
@@ -566,6 +584,19 @@ test("works a joined track's places out a region at a time as alongside() does o
   const fourth = sides([regionA], slots.slice(0, 1), right, networks.slice(0, 1), new Map(), before);
   expect(fourth.map((s, i) => s === fresh[i])).toEqual([true, false, false, false, true]);
   expect(asJson(fourth)).toBe(asJson(first));
+});
+
+test("a region's crossings kept from an earlier join are worked out again where the tracks its place runs beside change (#763)", () => {
+  // A place served by both Networks, 10 m from the first region's track, which the second region's, 5 m from it on the other side, is nearer.
+  const [a, b] = [[track('a', [-3000, 10], [3000, 10])], [track('b', [-3000, -5], [3000, -5])]];
+  const slots = drawn([...a, ...b]);
+  const networks = [{ network: 'A', shapes: ['a'] }, { network: 'B', shapes: ['b'] }];
+  const places = [{ id: 'p', dot: at(0, 0), served: ['A', 'B'] }];
+  const [regionA, regionB] = [{ shapes: a }, { shapes: b }];
+  const sides = sidesByJoin();
+  sides([regionA], slots.slice(0, 1), right, networks.slice(0, 1), new Map(), places);
+  const joined = sides([regionA, regionB], slots, right, networks, new Map(), places);
+  expect(asJson(joined)).toBe(asJson(places.map(({ dot, served }) => alongside([...a, ...b], slots, right, networks, new Map(), [dot])(dot, served))));
 });
 
 test("splits a joined track's names by region only where it's the regions' tracks joined, each with IDs of its own (#733)", () => {
