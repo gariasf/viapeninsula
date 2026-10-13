@@ -4,7 +4,7 @@ import { expect, test } from 'vitest';
 import type { Bundle, Point, Shape, Slot, Track } from './bundle.ts';
 import { sideBySide } from './build/sideBySide.ts';
 import { metres } from './build/track.ts';
-import { decodeTrack, encodeTrack, metres as piecesMetres, type Run, type StoredTrack } from './pieces.ts';
+import { decodeTrack, encodeTrack, metres as piecesMetres, type Drawn, type Run, type StoredTrack } from './pieces.ts';
 
 // Hand-drawn track, in metres east (x) and north (y) of a spot in Barcelona, on the 6-decimal grid the
 // build writes its shapes' points on.
@@ -107,12 +107,54 @@ test("keeps whole a shape whose points aren't on the file's grid, whose distance
   expect(decodeTrack(encodeTrack(t))).toEqual(t);
 });
 
-test('keeps the order of the traced shapes, and the centrelines and curves after them as they were', () => {
-  const stretch: Shape = { id: 'stretch:catalonia:0', coords: [at(0, 0), at(600, 0)], dist: [0, 600] };
+test('keeps the order of the traced shapes, and the centrelines and curves after them', () => {
+  const stretch = shape('stretch:catalonia:0', [[2.17, 41.39], [2.171, 41.39]]);
   const t = track([B, A, stretch]);
   const file = encodeTrack(t);
-  expect(file.shapes).toEqual([stretch]);
+  expect(file.shapes.map((s) => s.id)).toEqual(['stretch:catalonia:0']);
   expect(decodeTrack(file).shapes.map((s) => s.id)).toEqual(['B', 'A', 'stretch:catalonia:0']);
+});
+
+test("stores a centreline as its points' second differences on the 1e-5 grid, with no distances where they're the rounded sum of its points' lengths", () => {
+  const centreline = shape('stretch:catalonia:0', [[2.17, 41.39], [2.171, 41.39], [2.172, 41.3901]]);
+  const t = track([centreline]);
+  // Its first point in hundred-thousandths of a degree, then a step of 100 east, then the same step turned 10 north.
+  expect(encodeTrack(t).shapes).toEqual([{ id: 'stretch:catalonia:0', points: [217000, 4139000, 100, 0, 0, 10] }]);
+  expect(decodeTrack(written(encodeTrack(t)))).toEqual(t);
+});
+
+test("stores a curve's distances in tenths of a metre, as the build rounds them, with no fixes where they're its points' lengths summed", () => {
+  const coords: Point[] = [[2.17, 41.39], [2.17009, 41.38999], [2.17034, 41.38995]];
+  let along = 0;
+  const curve: Shape = { id: 'stretch:linkcatalonia:0', coords, dist: coords.map((p, i) => Math.round((along += i ? metres(coords[i - 1] ?? p, p) : 0) * 10) / 10) };
+  expect(curve.dist).toEqual([0, 7.6, 28.9]);
+  const t = track([curve]);
+  expect(encodeTrack(t).shapes).toEqual([{ id: 'stretch:linkcatalonia:0', points: [217000, 4139000, 9, -1, 16, -3], tenths: 1 }]);
+  expect(decodeTrack(written(encodeTrack(t)))).toEqual(t);
+});
+
+test("gives a centreline's distances whole where they aren't its points' lengths summed, as a band's own graph keeps those of the points it drops", () => {
+  // Every other point dropped from a centreline that zig-zags 10 m either side, its distances kept.
+  const full = shape('full', [0, 1, 2, 3, 4, 5, 6].map((i): Point => [(217_000 + i * 100) / 1e5, (4_139_000 + (i % 2) * 10) / 1e5]));
+  const kept = { id: 'stretch:catalonia:7-0', coords: full.coords.filter((_, i) => i % 2 === 0), dist: full.dist.filter((_, i) => i % 2 === 0) };
+  const t = track([kept]);
+  // Each kept step is 168 or 169 m of track the zig-zag ran, where the straight line is 167.
+  const { dist } = encodeTrack(t).shapes[0] as Drawn;
+  expect(dist?.slice(1).every((d) => d === 168 || d === 169)).toBe(true);
+  expect(decodeTrack(written(encodeTrack(t)))).toEqual(t);
+  // One a metre off at a point, as fixes.
+  const off = shape('stretch:catalonia:1', full.coords);
+  off.dist[2] = (off.dist[2] ?? 0) + 1;
+  expect(encodeTrack(track([off])).shapes[0]).toHaveProperty('fixes', [2, 1]);
+  expect(decodeTrack(written(encodeTrack(track([off]))))).toEqual(track([off]));
+});
+
+test('keeps whole a centreline whose points are off the 1e-5 grid or whose distances are finer than tenths', () => {
+  const fine = shape('stretch:catalonia:0', [[2.170001, 41.39], [2.171, 41.39]]);
+  const finer: Shape = { id: 'stretch:linkcatalonia:0', coords: [[2.17, 41.39], [2.171, 41.39]], dist: [0, 83.55] };
+  const t = track([fine, finer]);
+  expect(encodeTrack(t).shapes).toEqual([fine, finer]);
+  expect(decodeTrack(written(encodeTrack(t)))).toEqual(t);
 });
 
 /** A Line along the shapes given, as the build makes them. */
@@ -185,6 +227,12 @@ test('gives back a track with no traced shapes, and a Line with no slots', () =>
 test('reads a track built before it as it is', () => {
   const old = track([A, B], { lines: [line('R1', ['A', 'B'])] });
   expect(decodeTrack(old)).toBe(old);
+});
+
+test('reads a file of a build before #524, with its centrelines and curves whole', () => {
+  const stretch = shape('stretch:catalonia:0', [[2.17, 41.39], [2.171, 41.39]]);
+  const t = track([A, stretch]);
+  expect(decodeTrack({ ...encodeTrack(t), shapes: [stretch] })).toEqual(t);
 });
 
 // What production built, kept for the engine's tests: Rodalies' shapes of 25 September, Lines drawn by

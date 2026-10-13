@@ -10,10 +10,11 @@ export type TrackFile = Track | StoredTrack;
 
 /**
  * A track file with its traced shapes as pieces and its slots as chains: the centrelines, smoothed
- * copies and curves stay in `shapes`, and the slots are whole in `slots` where one doesn't follow the
+ * copies and curves are in `shapes`, as their points' second differences (Drawn), and the slots are whole in `slots` where one doesn't follow the
  * one before on its shape, or names a Line or shape the track hasn't (encodeTrack()): none of the build's does.
  */
-export interface StoredTrack extends Omit<Track, 'slots'> {
+export interface StoredTrack extends Omit<Track, 'slots' | 'shapes'> {
+  shapes: (Shape | Drawn)[];
   traced: Traced;
   chains?: Chains;
   slots?: Slot[];
@@ -71,17 +72,35 @@ export interface Run {
   levels?: Shape['levels'];
 }
 
+/**
+ * A centreline, a smoothed copy or a curve, whose points the build writes on a grid of hundred-thousandths
+ * of a degree (#524): its first point in them, `[lon, lat]`, then its second point as the change from
+ * the first, and each point after as the change in that change, as a piece's are.
+ */
+export interface Drawn {
+  id: string;
+  points: number[];
+  /** Where its distances are in tenths of a metre, as a curve's are: its fixes and `dist` are in tenths too. */
+  tenths?: 1;
+  /** As a Run's: where its distances aren't the rounded sum of its points' lengths, how many points on from the last fix, and what to add. */
+  fixes?: number[];
+  /** As a Run's: its distances, the first and then the change at each point, where its fixes would be more numbers than it has points, as a centreline's on a band's own graph, which keeps the distances of the points it dropped. */
+  dist?: number[];
+}
+
 /** A point's coordinates are on the grid shapes are written on: millionths of a degree. */
 const MICRO = 1e6;
+/** The grid the centrelines, smoothed copies and curves are written on: hundred-thousandths of a degree. */
+const CENTI = 1e5;
 
 /**
- * Whether a coordinate is whole millionths of a degree, and less than `limit` degrees from 0: a point's
+ * Whether a coordinate is whole steps of a grid, millionths of a degree unless given, and less than `limit` degrees from 0: a point's
  * key, its longitude's millionths times 2^28 and its latitude's added, stays whole up to 33° of longitude.
  * ponytail: a shape beyond 33° of longitude either way, which none of Spain's is, from the Canary
  * Islands at 18° W to Menorca at 4.4° E, is kept whole; key a point by a string if a region ever runs there.
  */
-function onGrid(degrees: number, limit: number): boolean {
-  return Math.round(degrees * MICRO) / MICRO === degrees && Math.abs(degrees) < limit;
+function onGrid(degrees: number, limit: number, grid = MICRO): boolean {
+  return Math.round(degrees * grid) / grid === degrees && Math.abs(degrees) < limit;
 }
 
 /**
@@ -100,7 +119,7 @@ export function encodeTrack(track: Track): StoredTrack {
   const { shapes, slots, ...rest } = track;
   const traced = shapes.filter((s) => !s.id.startsWith(STRETCH));
   const chains = encodeChains(slots, track.lines, traced);
-  return { ...rest, shapes: shapes.filter((s) => s.id.startsWith(STRETCH)), traced: encodeTraced(traced), ...(chains ? { chains } : { slots }) };
+  return { ...rest, shapes: shapes.filter((s) => s.id.startsWith(STRETCH)).map(encodeDrawn), traced: encodeTraced(traced), ...(chains ? { chains } : { slots }) };
 }
 
 /** The track a file stores, or the file itself where it's of a build before #257, with its shapes whole. */
@@ -109,7 +128,7 @@ export function decodeTrack(file: TrackFile): Track {
   const { traced, chains, shapes, slots, ...rest } = file;
   return {
     ...rest,
-    shapes: [...decodeTraced(traced), ...shapes],
+    shapes: [...decodeTraced(traced), ...shapes.map((s) => ('points' in s ? decodeDrawn(s) : s))],
     slots: chains ? decodeChains(chains, rest.lines, traced.shapes) : (slots ?? []),
   };
 }
@@ -246,30 +265,11 @@ function encodeTraced(shapes: Shape[]): Traced {
   });
   const names: string[] = [];
   return {
-    pieces: pieces.map((run) => {
-      const out = [xs[run[0] ?? 0] ?? 0, ys[run[0] ?? 0] ?? 0];
-      let [dx, dy] = [0, 0];
-      for (let k = 1; k < run.length; k++) {
-        const [a, b] = [run[k - 1] ?? 0, run[k] ?? 0];
-        const [x, y] = [(xs[b] ?? 0) - (xs[a] ?? 0), (ys[b] ?? 0) - (ys[a] ?? 0)];
-        out.push(x - dx, y - dy);
-        [dx, dy] = [x, y];
-      }
-      return out;
-    }),
+    pieces: pieces.map((run) => differences(run.map((v): Point => [xs[v] ?? 0, ys[v] ?? 0]))),
     levels: names,
     shapes: shapes.map((s, i): Shape | Run => {
       if (whole[i]) return s;
-      const run: Run = { id: s.id, pieces: runs[i] ?? [] };
-      const fixes: number[] = [];
-      let last = 0;
-      for (const [k, d] of distancesOf(s.coords).entries()) {
-        if (d === s.dist[k]) continue;
-        fixes.push(k - last, (s.dist[k] ?? 0) - d);
-        last = k;
-      }
-      if (fixes.length > s.coords.length) run.dist = s.dist.map((d, k) => d - (s.dist[k - 1] ?? 0));
-      else if (fixes.length) run.fixes = fixes;
+      const run: Run = { id: s.id, pieces: runs[i] ?? [], ...storedDistances(s.dist, s.coords, 1) };
       const levelsAt = s.levels && levelsAtVertices(s, names);
       if (levelsAt) run.levelsAt = levelsAt;
       else if (s.levels) run.levels = s.levels;
@@ -278,10 +278,86 @@ function encodeTraced(shapes: Shape[]): Traced {
   };
 }
 
-/** The distances a shape's points give: the rounded running sum of the great-circle lengths between them. */
-function distancesOf(coords: Point[]): number[] {
+/** The distances a shape's points give: the running sum of the great-circle lengths between them, rounded to whole `unit`s of a metre (1, or 10 for tenths), in those units. */
+function distancesOf(coords: Point[], unit: number): number[] {
   let sum = 0;
-  return coords.map((p, i) => Math.round((sum += i ? metres(coords[i - 1] ?? p, p) : 0)));
+  return coords.map((p, i) => Math.round((sum += i ? metres(coords[i - 1] ?? p, p) : 0) * unit));
+}
+
+/** A shape's distances, whole `unit`s of a metre, as the file stores them: the fixes to what its points give, or whole where those would be more numbers than it has points. */
+function storedDistances(dist: number[], coords: Point[], unit: number): Pick<Run, 'fixes' | 'dist'> {
+  const fixes: number[] = [];
+  let last = 0;
+  for (const [k, d] of distancesOf(coords, unit).entries()) {
+    const own = Math.round((dist[k] ?? 0) * unit);
+    if (d === own) continue;
+    fixes.push(k - last, own - d);
+    last = k;
+  }
+  if (fixes.length > coords.length) return { dist: dist.map((d, k) => Math.round(d * unit) - Math.round((dist[k - 1] ?? 0) * unit)) };
+  return fixes.length ? { fixes } : {};
+}
+
+/** A shape's distances from what the file stores of them, in whole `unit`s of a metre, as metres. */
+function readDistances({ fixes, dist }: Pick<Run, 'fixes' | 'dist'>, coords: Point[], unit: number): number[] {
+  let out: number[];
+  if (dist) {
+    let sum = 0;
+    out = dist.map((d) => (sum += d));
+  } else {
+    out = distancesOf(coords, unit);
+    let at = 0;
+    for (let k = 0; k < (fixes?.length ?? 0); k += 2) {
+      at += fixes?.[k] ?? 0;
+      out[at] = (out[at] ?? 0) + (fixes?.[k + 1] ?? 0);
+    }
+  }
+  return unit === 1 ? out : out.map((d) => d / unit);
+}
+
+/** Points in whole steps of a grid, as the file stores them: the first, then the change to the second, then each change in that change. */
+function differences(points: Point[]): number[] {
+  const [x0, y0] = points[0] ?? [0, 0];
+  const out = [x0, y0];
+  let [dx, dy] = [0, 0];
+  for (let k = 1; k < points.length; k++) {
+    const [[ax, ay], [bx, by]] = [points[k - 1] ?? [0, 0], points[k] ?? [0, 0]];
+    out.push(bx - ax - dx, by - ay - dy);
+    [dx, dy] = [bx - ax, by - ay];
+  }
+  return out;
+}
+
+/** The points differences() stores, in degrees, on a grid of `grid` steps to a degree. */
+function points(p: number[], grid: number): Point[] {
+  const [x, y] = [p[0] ?? 0, p[1] ?? 0];
+  const out: Point[] = [[x / grid, y / grid]];
+  let [px, py, dx, dy] = [x, y, 0, 0];
+  for (let k = 2; k < p.length; k += 2) {
+    dx += p[k] ?? 0;
+    dy += p[k + 1] ?? 0;
+    [px, py] = [px + dx, py + dy];
+    out.push([px / grid, py / grid]);
+  }
+  return out;
+}
+
+/**
+ * A centreline, smoothed copy or curve as the file stores it, or as it is where its points aren't on
+ * the 1e-5 grid, or its distances aren't whole metres or tenths.
+ */
+function encodeDrawn(s: Shape): Shape | Drawn {
+  const unit = s.dist.every(Number.isInteger) ? 1 : 10;
+  if (s.levels || s.coords.some(([lon, lat]) => !onGrid(lon, 180, CENTI) || !onGrid(lat, 90, CENTI)) || s.dist.some((d) => Math.round(d * unit) / unit !== d)) return s;
+  const out: Drawn = { id: s.id, points: differences(s.coords.map(([lon, lat]) => [Math.round(lon * CENTI), Math.round(lat * CENTI)])) };
+  if (unit === 10) out.tenths = 1;
+  return { ...out, ...storedDistances(s.dist, s.coords, unit) };
+}
+
+/** The centreline, smoothed copy or curve a Drawn stores. */
+function decodeDrawn(s: Drawn): Shape {
+  const coords = points(s.points, CENTI);
+  return { id: s.id, coords, dist: readDistances(s, coords, s.tenths ? 10 : 1) };
 }
 
 /** A shape's levels as the vertices they start at, where every one does, by the names' numbers in `names`, which it adds to. */
@@ -311,39 +387,17 @@ function levelsAtVertices({ dist, levels }: Shape, names: string[]): number[] | 
  * as nothing of the map's or the engine's does.
  */
 function decodeTraced({ pieces, levels: names, shapes }: Traced): Shape[] {
-  const points = pieces.map((p): Point[] => {
-    const [x, y] = [p[0] ?? 0, p[1] ?? 0];
-    const out: Point[] = [[x / MICRO, y / MICRO]];
-    let [px, py, dx, dy] = [x, y, 0, 0];
-    for (let k = 2; k < p.length; k += 2) {
-      dx += p[k] ?? 0;
-      dy += p[k + 1] ?? 0;
-      [px, py] = [px + dx, py + dy];
-      out.push([px / MICRO, py / MICRO]);
-    }
-    return out;
-  });
+  const runs = pieces.map((p) => points(p, MICRO));
   return shapes.map((s): Shape => {
     if (!('pieces' in s)) return s;
     const coords: Point[] = [];
     for (const ref of s.pieces) {
-      const run = points[Math.abs(ref) - 1] ?? [];
+      const run = runs[Math.abs(ref) - 1] ?? [];
       const along = ref < 0 ? run.toReversed() : run;
       // Where a piece comes on after another, its first point is the one before's last.
       for (const p of coords.length ? along.slice(1) : along) coords.push(p);
     }
-    let dist: number[];
-    if (s.dist) {
-      let sum = 0;
-      dist = s.dist.map((d) => (sum += d));
-    } else {
-      dist = distancesOf(coords);
-      let at = 0;
-      for (let k = 0; k < (s.fixes?.length ?? 0); k += 2) {
-        at += s.fixes?.[k] ?? 0;
-        dist[at] = (dist[at] ?? 0) + (s.fixes?.[k + 1] ?? 0);
-      }
-    }
+    const dist = readDistances(s, coords, 1);
     let levels = s.levels;
     if (s.levelsAt) {
       let at = 0;
