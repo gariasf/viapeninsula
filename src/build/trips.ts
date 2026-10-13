@@ -36,6 +36,9 @@ export interface FeedBus {
  */
 export const REACH = 300;
 
+/** The time a hop between two Stations gets where its timetable gives it none, half a minute, as #600 decided for Asturias' C4, in seconds. */
+const HALF_MINUTE = 30;
+
 /** A Trip that can't be placed on its track: why, in words, and the Stations the reason names, or else its first. */
 interface Unplaced {
   trip: FeedTrip;
@@ -50,7 +53,7 @@ interface Unplaced {
  * Station, but not in between. A Trip calling at a Station off its track, or that would have to run
  * faster than its Line's top speed (`topSpeed`, by the Line's ID, in m/s) between two Stations, is
  * left out and logged rather than drawn wrong, and reported with the Stations its log names, or else
- * its first.
+ * its first. A hop its timetable gives no time gets half a minute, where that's not too fast (#600).
  */
 export function placeTrips(
   trips: FeedTrip[],
@@ -78,9 +81,9 @@ function leave({ trip, why, reason, at }: Unplaced, log: (line: string) => void,
  * Why a Trip doesn't fit its shape, to be traced through its own Stations instead (placeDays()): a Station
  * off its track, or a stretch faster than its Line's top speed along it. Not one that calls at fewer
  * than two Stations, nor whose shape has no track, which no trace of its own would mend.
- * ponytail: a stretch its timetable gives no time, as Asturias' C4 Trips from Candás to Candás-Apeadero
- * (6–7 a day on 11–13 Oct 2026), is traced and left out all the same: each run takes milliseconds, so skip
- * a Trip whose stretch no distance fits if that ever adds up.
+ * ponytail: a hop its timetable gives no time that doesn't get half a minute (HALF_MINUTE) is
+ * traced and left out all the same: each run takes milliseconds, so skip a Trip whose stretch no distance
+ * fits if that ever adds up.
  */
 const UNFIT: Cause[] = ['off', 'fast'];
 
@@ -193,11 +196,22 @@ function place(trips: FeedTrip[], shapes: Shape[], stations: Station[], topSpeed
     const off = calledAt.find((_, i) => !options[i]?.length);
     if (off) return leave('off', `${off.name} is ${(nearest(shape.coords, [off.lon, off.lat]).metres / 1000).toFixed(1)} km off its track`, [off]);
     const dist = leastTravel(options, onward);
+    const length = (i: number) => Math.abs((dist[i] ?? 0) - (dist[i - 1] ?? 0));
+    // A hop the timetable gives no time gets half a minute where its length fits its Line's top speed in it, the
+    // Train leaving the Station before that much sooner, where that's its first or it stands there that long, so
+    // that no hop before gets shorter: as C4's leave Candás for Candás-Apeadero, 431 m on, at 52 km/h (#600).
+    // Any other stays too fast, and a hop of no length stands, as it did.
+    const halved = calls.map((c, i) => {
+      const fits = calls[i + 1]?.arrival === c.departure && length(i + 1) > 0 && length(i + 1) <= HALF_MINUTE * topSpeed(trip.line);
+      if (!fits || (i > 0 && c.departure - HALF_MINUTE < c.arrival)) return c;
+      const departure = c.departure - HALF_MINUTE;
+      return { ...c, arrival: Math.min(c.arrival, departure), departure };
+    });
     // A stretch faster than its Line's top speed is placed on the wrong track, say one that runs back past a Station.
-    const speed = (i: number) => Math.abs((dist[i] ?? 0) - (dist[i - 1] ?? 0)) / ((calls[i]?.arrival ?? 0) - (calls[i - 1]?.departure ?? 0));
-    const fast = calls.findIndex((_, i) => i > 0 && speed(i) > topSpeed(trip.line));
+    const speed = (i: number) => length(i) / ((halved[i]?.arrival ?? 0) - (halved[i - 1]?.departure ?? 0));
+    const fast = halved.findIndex((_, i) => i > 0 && speed(i) > topSpeed(trip.line));
     if (fast > 0) return leave('fast', `it would run ${calledAt[fast - 1]?.name} → ${calledAt[fast]?.name} at ${Math.round(speed(fast) * 3.6)} km/h along its track`, calledAt.slice(fast - 1, fast + 1));
-    return { ...trip, calls: calls.map((c, i) => ({ ...c, dist: Math.round(dist[i] ?? 0) })) };
+    return { ...trip, calls: halved.map((c, i) => ({ ...c, dist: Math.round(dist[i] ?? 0) })) };
   });
 }
 

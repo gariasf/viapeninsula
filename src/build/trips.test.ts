@@ -174,6 +174,52 @@ test("checks each Trip against its own Line's top speed, as an AVE's 300 km/h is
   expect(found).toMatchObject([{ kind: 'trip', why: 'fast', trip: 'alvia', line: 'Alvia' }]);
 });
 
+/** C4's track from Candás by Candás-Apeadero, 431 m on, to Perlora, as Renfe's timetable of 13 Oct 2026 times its Trips on it. */
+const C4: [Shape[], Station[]] = [[shape('C4', [0, 0], [3000, 0])], [station('05211', 0, 10), station('05210', 431, -10), station('05209', 3000, 5)]];
+const hms = (t: string) => t.split(':').reduce((s, n) => s * 60 + Number(n), 0);
+const timed = (id: string, ...calls: [station: string, arrival: string, departure: string][]): FeedTrip => ({
+  id,
+  line: 'C4',
+  shape: 'C4',
+  headsign: '05209',
+  calls: calls.map(([station, arrival, departure]) => ({ station, arrival: hms(arrival), departure: hms(departure) })),
+});
+
+test("gives a hop the timetable gives no time half a minute where its length fits the Line's top speed in it, leaving its first Station that much sooner, as C4's from Candás to Candás-Apeadero (#600)", () => {
+  const { placed, log, found } = place(
+    ...C4,
+    // It starts at Candás at the minute it's at Candás-Apeadero.
+    timed('2084M70219C4', ['05211', '15:14:00', '15:14:00'], ['05210', '15:14:00', '15:14:00'], ['05209', '15:20:00', '15:22:00']),
+    // A through Train from Cudillero, which leaves Candás at the minute it's at Candás-Apeadero.
+    timed('2084M70305C4', ['05211', '10:50:00', '10:51:00'], ['05210', '10:51:00', '10:51:00'], ['05209', '10:57:00', '10:57:00']),
+  );
+  expect(log).toEqual([]);
+  expect(found).toEqual([]);
+  expect(placed.map((t) => [t.id, t.calls.map((c) => [c.station, c.arrival, c.departure, c.dist])])).toEqual([
+    ['2084M70219C4', [['05211', hms('15:13:30'), hms('15:13:30'), 0], ['05210', hms('15:14:00'), hms('15:14:00'), 431], ['05209', hms('15:20:00'), hms('15:22:00'), 3000]]],
+    ['2084M70305C4', [['05211', hms('10:50:00'), hms('10:50:30'), 0], ['05210', hms('10:51:00'), hms('10:51:00'), 431], ['05209', hms('10:57:00'), hms('10:57:00'), 3000]]],
+  ]);
+});
+
+test("still leaves out and reports a hop of no time too long for the Line's top speed in half a minute, or that would take the half minute from the hop before", () => {
+  const { placed, log, found } = place(
+    ...C4,
+    // 2.6 km in half a minute would be 309 km/h, so it keeps its no time.
+    timed('long', ['05210', '15:14:00', '15:14:00'], ['05209', '15:14:00', '15:14:00']),
+    // It doesn't stand at Candás, so leaving it half a minute sooner would take that from its hop from Perlora.
+    timed('no stand', ['05209', '15:10:00', '15:10:00'], ['05211', '15:14:00', '15:14:00'], ['05210', '15:14:00', '15:14:00']),
+  );
+  expect(placed).toEqual([]);
+  expect(log).toEqual([
+    'long is left out: it would run 05210 → 05209 at Infinity km/h along its track',
+    'no stand is left out: it would run 05211 → 05210 at Infinity km/h along its track',
+  ]);
+  expect(found).toMatchObject([
+    { kind: 'trip', why: 'fast', trip: 'long', stations: [{ id: '05210' }, { id: '05209' }] },
+    { kind: 'trip', why: 'fast', trip: 'no stand', stations: [{ id: '05211' }, { id: '05210' }] },
+  ]);
+});
+
 /**
  * A trace through Sants, Gràcia and Estació de França, which the Trips that don't fit R2N's shape take
  * (#280): R2N's track, and out from Gràcia to França, which is off it.
