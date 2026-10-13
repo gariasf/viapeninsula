@@ -601,10 +601,9 @@ const cutsOf = new WeakMap<Snapshot, { bundle: Bundle; cuts: Map<string, Cut> }>
  * Where a snapshot says Trains won't stop at some Stations, each Trip as its Train runs it, by the
  * Trip's ID: the Trip of the ID the snapshot names on the days joined whose timetable runs nearest
  * when its operator first said so, or for Stations it names by a Train number, the Trip of that
- * number, in any Network, that runs nearest then (#426), or where that runs more than 12 hours off, as
- * Renfe names a Train running through midnight by the next day's Trip from 00:00, its Line's Trip of
- * that number that runs nearest, as for a report (nearestOf(), #643). A Trip its own Network's feed has
- * said so of goes by that, first, as a report does (#261).
+ * number, in any Network, that runs nearest then (#426), as for a report, Renfe's next day's Trip of a
+ * Train running through midnight too (tripMeant(), #643). A Trip its own Network's feed has said so of
+ * goes by that, first, as a report does (#261).
  */
 function cutsIn(bundle: Bundle, snapshot: Snapshot | undefined): Map<string, Cut> {
   if (!snapshot?.skipped?.length) return NO_CUTS;
@@ -613,7 +612,7 @@ function cutsIn(bundle: Bundle, snapshot: Snapshot | undefined): Map<string, Cut
   const [names, named, numbered, cuts, own] = [new Map(bundle.stations.map((s) => [s.id, s.name])), namedIn(bundle), numberedIn(bundle), new Map<string, Cut>(), new Set<string>()];
   // Those by Trip first.
   for (const skipped of snapshot.skipped.toSorted((a, b) => Number(a.trip === undefined) - Number(b.trip === undefined))) {
-    const trip = nearestOf((skipped.trip !== undefined ? named.get(skipped.trip) : numbered.get(skipped.number ?? '')) ?? [], numbered, skipped.number, (skipped.since - bundle.noonMinus12h) / 1000);
+    const trip = tripMeant((skipped.trip !== undefined ? named.get(skipped.trip) : numbered.get(skipped.number ?? '')) ?? [], numbered, skipped.number, (skipped.since - bundle.noonMinus12h) / 1000);
     if (!trip || (skipped.trip === undefined && own.has(trip.id))) continue;
     if (skipped.trip !== undefined) own.add(trip.id);
     const cut = cutTrip(trip, skipped, bundle.noonMinus12h, names);
@@ -1437,7 +1436,7 @@ function reportsByTrip(bundle: Bundle, snapshot: Snapshot, lines: Map<string, Ne
     const end = report.line && report.trip?.split('|')[1];
     const candidates = end ? bundle.trips.filter((t) => t.line === report.line && t.id.endsWith(`|${end}`)) : report.trip ? (named.get(report.trip) ?? []) : (numbered.get(report.number ?? '') ?? []);
     const reported = (report.at - bundle.noonMinus12h) / 1000;
-    const trip = nearestOf(candidates, numbered, report.number, reported);
+    const trip = tripMeant(candidates, numbered, report.number, reported);
     const lingers = trip && lines.get(trip.line)?.live?.lingers;
     // Its Trip's report before it, of another time: Geotren's stays in each snapshot until FGC's next update.
     const [latest, previous] = (lingers && earlierMoves.get(trip.id)) || [];
@@ -1485,7 +1484,7 @@ function reportsByTrip(bundle: Bundle, snapshot: Snapshot, lines: Map<string, Ne
  * its Line's Trip of that Train number, or of the number named, on the days joined, that runs nearest
  * (#566, #643).
  */
-function nearestOf(candidates: Trip[], numbered: Map<string, Trip[]>, number: string | undefined, time: number): Trip | undefined {
+function tripMeant(candidates: Trip[], numbered: Map<string, Trip[]>, number: string | undefined, time: number): Trip | undefined {
   const nearest = closest(candidates, time);
   return nearest?.number && apart(nearest, time) > DAY / 2 ? closest((numbered.get(number ?? nearest.number) ?? []).filter((t) => t.line === nearest.line), time) : nearest;
 }
