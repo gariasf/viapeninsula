@@ -958,10 +958,10 @@ function hear(before: Heard | undefined, report: Report, got: number, from: Rece
   const fixes = fix && !sameSpot(newest, fix) ? [fix, ...(newest ? [newest] : [])] : before?.fixes;
   // Where its reports have named it at one Station since, until one names another or gives GPS: one with no position doesn't. A gap of FOLLOWS or more ends it.
   // Since when is the report's own where the fetcher says (#670): it judges the gap, and saw the Train before the map opened.
+  // ponytail: the page's own count is for snapshots written before #670; drop it once none is kept (KEEP) or recorded.
   const near = report.position && 'near' in report.position ? report.position : undefined;
   const kept = follows(before) ? before.pin : undefined;
-  const since = near?.since ?? (kept?.station === near?.near ? kept?.since : undefined) ?? report.at;
-  const pin = !carriesGpsDelay ? undefined : near ? { station: near.near, since } : report.position ? undefined : kept;
+  const pin = !carriesGpsDelay ? undefined : near ? { station: near.near, since: near.since ?? (kept?.station === near.near ? kept.since : report.at) } : report.position ? undefined : kept;
   // Where its Network's live data names Trains by number, a position that holds still places it, for up to HOLD (#443).
   const holds = frozen && !!live?.numbers;
   const held = holds ? (before.held ?? before.got) : report.position ? undefined : before?.held;

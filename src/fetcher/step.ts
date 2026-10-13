@@ -272,12 +272,12 @@ export interface RenfeResponses {
  * Train's pin, by its Trip (#670).
  */
 interface RenfeOwn {
-  skipped: Kept;
+  skipped: KeptSkipped;
   pins?: Record<string, Pin>;
 }
 
 /** Each Trip's skipped Stations, as Renfe's adapter keeps them. */
-type Kept = Record<string, Omit<Skipped, 'trip' | 'number'> & { listed: number }>;
+type KeptSkipped = Record<string, Omit<Skipped, 'trip' | 'number'> & { listed: number }>;
 
 /**
  * Where Renfe's reports have named a Train at one Station, as `near`: the Station, when the first of
@@ -292,7 +292,7 @@ interface Pin {
 
 /**
  * How long a Train can go unreported in Renfe's feeds for its pin to go on, in ms: one left out for
- * longer starts it again, as the engine's FOLLOWS did while the page kept pins (#485, #670).
+ * longer starts it again, as the engine's FOLLOWS does for a snapshot with no `since` (#485, #670).
  */
 const PIN_GAP = 2 * 60_000;
 
@@ -305,7 +305,8 @@ const PIN_GAP = 2 * 60_000;
 export function pinned(reports: Report[], kept: Record<string, Pin> = {}, now: number): { reports: Report[]; pins: Record<string, Pin> } {
   const pins = Object.fromEntries(Object.entries(kept).filter(([, { seen }]) => now - seen < PIN_GAP));
   const stamped = reports.map((report) => {
-    const key = report.trip ?? '';
+    const key = report.trip ?? report.number;
+    if (key === undefined) return report;
     const pin = pins[key];
     const { position } = report;
     if (!position) {
@@ -328,7 +329,7 @@ export function pinned(reports: Report[], kept: Record<string, Pin> = {}, now: n
  * Stations alone, as the whole of it.
  * ponytail: the old shape is read for the first run after the deploy; drop this once that's past.
  */
-const renfeOwn = (own: RenfeOwn | Kept | undefined): RenfeOwn => (!own ? { skipped: {} } : 'skipped' in own ? (own as RenfeOwn) : { skipped: own as Kept });
+const renfeOwn = (own: RenfeOwn | KeptSkipped | undefined): RenfeOwn => (!own ? { skipped: {} } : 'skipped' in own ? (own as RenfeOwn) : { skipped: own as KeptSkipped });
 
 /**
  * How long Renfe's adapter keeps a Trip's skipped Stations after Renfe last listed the Trip, in ms.
@@ -341,7 +342,7 @@ const renfeOwn = (own: RenfeOwn | Kept | undefined): RenfeOwn => (!own ? { skipp
 const KEEP_SKIPPED = 3 * 3_600_000;
 
 /** Renfe's: GTFS-RT as JSON, both files on each run it's due. */
-const renfe: LiveAdapter<SourceOf<'renfe'>, RenfeResponses, RenfeOwn | Kept> = {
+const renfe: LiveAdapter<SourceOf<'renfe'>, RenfeResponses, RenfeOwn | KeptSkipped> = {
   async fetch({ source: { urls }, get }) {
     const [positions, updates] = await Promise.all([get(urls.positions, asText), get(urls.updates, asText)]);
     return { positions, updates };
@@ -453,7 +454,7 @@ function renfeTrip(source: LiveSource, tripId: string | undefined): string | und
  * (skippedIn()); or why they can't be read, as where Renfe answers with JSON that isn't its feed,
  * such as `{}`. The step tries them in reports(), so that their failing fails Renfe's try alone.
  */
-function renfeTripUpdates(source: SourceOf<'renfe'>, updates: Fetched, kept: Kept, now: number): { trips: GtfsRt; skipped: Kept } | { error: unknown } {
+function renfeTripUpdates(source: SourceOf<'renfe'>, updates: Fetched, kept: KeptSkipped, now: number): { trips: GtfsRt; skipped: KeptSkipped } | { error: unknown } {
   try {
     const trips = json<GtfsRt>('trip_updates', updates);
     return { trips, skipped: skippedIn(source, trips, kept, now) };
@@ -472,7 +473,7 @@ function renfeTripUpdates(source: SourceOf<'renfe'>, updates: Fetched, kept: Kep
  * lists a Train once for each part of its run, each listing the Stations its timetable hasn't left
  * yet, so its are kept by the number: the union over its parts (#426).
  */
-function skippedIn(source: SourceOf<'renfe'>, updates: GtfsRt, kept: Kept = {}, now: number): Kept {
+function skippedIn(source: SourceOf<'renfe'>, updates: GtfsRt, kept: KeptSkipped = {}, now: number): KeptSkipped {
   const skipped = Object.fromEntries(Object.entries(kept).filter(([, { listed }]) => now - listed < KEEP_SKIPPED));
   const at = ms(updates.header.timestamp);
   // What each Trip, or Train number, lists now, SKIPPED and at all.
