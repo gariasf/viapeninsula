@@ -109,6 +109,12 @@ test("a followed Train standing at its Trip's last Station is expected there whe
   expect(due(call, true, true)).toEqual({ at: at(8, 14), countdown: false });
 });
 
+test("a followed Train held at the Station it stands at has no countdown to when it leaves, a time its operator keeps moving or that has come already: it waits there until a report has it move (#689)", () => {
+  const call = { arrival: at(8, 14), departure: at(8, 14, 30) };
+  expect(due(call, true, false, true)).toMatchObject({ countdown: false });
+  expect(due(call, true, false, false)).toEqual({ at: at(8, 14, 30), countdown: true });
+});
+
 test("how long ago live data placed a Train is to the second under a minute and to the minute after, each number joined to its unit by a no-break space so that a line never ends between them (#612)", () => {
   expect(ago(0)).toBe('0\u00A0s');
   expect(ago(12_400)).toBe('12\u00A0s');

@@ -199,6 +199,14 @@ describe('differences', () => {
     expect(differences(moment(140, 2000, { standing: true, calls: dwelt, near: [{ key: 'B', metres: 0 }] }))).toMatchObject({ countdown: true, countsTo: 'B leaves', reads: { n: 20, unit: 'seconds' } });
   });
 
+  it('has no countdown for a Train held at its Station, whose time there its operator keeps moving or has had come already: the card says it waits (#689)', () => {
+    // Held at B, its time to leave 20 s on or 30 s gone: no countdown either way; let go, it counts down to when it leaves.
+    const atB = { standing: true, near: [{ key: 'B', metres: 0 }] };
+    expect(differences(moment(140, 2000, { ...atB, held: true }))).toMatchObject({ says: { at: 'standing', key: 'B' }, countdown: false });
+    expect(differences(moment(190, 2000, { ...atB, held: true, delay: 0, time: 160 }))).toMatchObject({ countdown: false });
+    expect(differences(moment(140, 2000, atB))).toMatchObject({ countdown: true, countsTo: 'B leaves', reads: { n: 20, unit: 'seconds' } });
+  });
+
   it('says whether the drawn Train is at its next Station without standing there, the last of its way in', () => {
     expect(differences(moment(125, 1980, { near: [{ key: 'B', metres: 20 }] }))).toMatchObject({ atNext: true, reads: { n: 5, unit: 'seconds' } });
     expect(differences(moment(140, 2000, { standing: true, near: [{ key: 'B', metres: 0 }] }))).toMatchObject({ atNext: false });

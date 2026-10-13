@@ -48,6 +48,8 @@ export interface Moment {
   calls: (Call & { key: string; away?: number; offset?: number })[];
   /** Whether it stands at the first Station it has still to leave. */
   standing: boolean;
+  /** Whether it's held there, where the card has no countdown (the engine's `held`, #689). */
+  held?: boolean;
   /** Every place's dot within the arrow's reach of where it's drawn, and within `reach.at` where that is more, nearest first. */
   near: Near[];
   /** How far its followed pill reaches along its track, in metres: its box alone, which the card goes by (pillReach()), and with its arrow; and how near a Station it's drawn for its dot to be at it, AT px at the zoom its pill is drawn at. */
@@ -150,8 +152,8 @@ export function differences(m: Moment): Differences | undefined {
   const left = new Set(m.calls.slice(0, earlier).map((c) => c.key));
   const ahead = (n: Near) => !left.has(n.key) || upcoming.some((c) => c.key === n.key);
 
-  // Which of its times the card has for the Station: its arrival, or its departure where it stands there, but its arrival where it ends its Trip there (#607).
-  const { at: dueAt, countdown } = due(next, m.standing, upcoming.length === 1);
+  // Which of its times the card has for the Station: its arrival, or its departure where it stands there, but its arrival where it ends its Trip there (#607), and no countdown where it's held (#689).
+  const { at: dueAt, countdown } = due(next, m.standing, upcoming.length === 1, m.held);
   const reported = m.reported ?? m.delay;
   const expected = m.noon + (dueAt + m.delay) * 1000;
   const reportedAt = m.noon + (dueAt + reported) * 1000;
