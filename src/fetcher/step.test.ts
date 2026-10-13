@@ -32,8 +32,8 @@ test('gives a Train running between Stations its GPS position, and one standing 
   // IN_TRANSIT_TO, between Sils and Caldes de Malavella.
   expect(report('5166V15261RG1')?.position).toEqual({ lon: 2.775004, lat: 41.82224 });
   // STOPPED_AT La Granada, and INCOMING_AT Granollers Centre: Renfe pins both to the Station's coordinates.
-  expect(report('5166V77538R4')?.position).toEqual({ near: 'adif:72205' });
-  expect(report('5166V28444R2N')?.position).toEqual({ near: 'adif:79100' });
+  expect(report('5166V77538R4')?.position).toEqual({ near: 'adif:72205', since: REPORTED, status: 'STOPPED_AT' });
+  expect(report('5166V28444R2N')?.position).toEqual({ near: 'adif:79100', since: REPORTED, status: 'INCOMING_AT' });
   // Of the 57 Rodalies Trains Renfe places, 18 are in transit.
   const positions = run().snapshot.reports.filter((r) => r.trip?.startsWith('rodalies:')).map((r) => r.position);
   expect(positions.filter((p) => p && 'lon' in p)).toHaveLength(18);
@@ -49,7 +49,7 @@ test("gives a Train no position where Renfe knows no Station for it, as its stop
 test('gives each Train the time Renfe reported it and the Delay of its trip update', () => {
   const reported = Date.parse('2026-09-25T15:57:06+02:00');
   expect(report('5166V15261RG1')).toEqual({ trip: 'rodalies:5166V15261RG1', at: reported, position: { lon: 2.775004, lat: 41.82224 }, delay: 60 });
-  expect(report('5166V28444R2N')).toEqual({ trip: 'rodalies:5166V28444R2N', at: reported, position: { near: 'adif:79100' }, delay: -60 });
+  expect(report('5166V28444R2N')).toEqual({ trip: 'rodalies:5166V28444R2N', at: reported, position: { near: 'adif:79100', since: reported, status: 'INCOMING_AT' }, delay: -60 });
 });
 
 test('marks a Train Cancelled when Renfe cancels its Trip', () => {
@@ -57,7 +57,7 @@ test('marks a Train Cancelled when Renfe cancels its Trip', () => {
   // and Ferrol's 4666V70155C1. It still places one of their Trains, coming into Mataró.
   const { reports } = run().snapshot;
   expect(reports).toContainEqual({ trip: 'rodalies:5166V77640R4', at: Date.parse('2026-09-25T15:57:09+02:00'), cancelled: true });
-  expect(reports).toContainEqual({ trip: 'rodalies:5166V25756R1', at: Date.parse('2026-09-25T15:57:06+02:00'), cancelled: true, position: { near: 'adif:79500' } });
+  expect(reports).toContainEqual({ trip: 'rodalies:5166V25756R1', at: Date.parse('2026-09-25T15:57:06+02:00'), cancelled: true, position: { near: 'adif:79500', since: REPORTED, status: 'INCOMING_AT' } });
   expect(reports).toContainEqual({ trip: 'cercanias-ferrol:4666V70155C1', at: Date.parse('2026-09-25T15:57:09+02:00'), cancelled: true });
   expect(reports.filter((r) => r.cancelled)).toHaveLength(11 + 1);
 });
@@ -173,6 +173,76 @@ test("while Renfe's headers stay put, Rodalies' live data is unavailable from th
   expect(unavailableAfter([0, 20, 20, 40, 60, 60, 80])).toEqual([[], [], [], [], [], [], []]);
 });
 
+/** A recorded Vehicle, as Renfe's JSON has it: the parts these tests change. */
+type Vehicle = { trip: { tripId: string }; position?: { latitude: number; longitude: number }; currentStatus?: string; stopId?: string };
+
+/**
+ * Renfe's feeds as recorded at 15:57:09, every time in them so many seconds later, with each Vehicle
+ * as `edit` makes it: unchanged, or none, which leaves its Train out of both feeds.
+ */
+function renfeLater(seconds: number, edit: (vehicle: Vehicle) => Vehicle | undefined = (v) => v): RenfeResponses {
+  const later = (fetched: Fetched) => JSON.parse(('body' in fetched ? fetched.body : '').replace(/"timestamp": "(\d+)"/g, (_, s) => `"timestamp": "${Number(s) + seconds}"`));
+  const [positions, updates] = [later(RENFE.positions), later(RENFE.updates)];
+  const out = new Set<string>();
+  positions.entity = positions.entity.flatMap((e: { vehicle: Vehicle }) => {
+    const vehicle = edit(e.vehicle);
+    if (!vehicle) out.add(e.vehicle.trip.tripId);
+    return vehicle ? [{ ...e, vehicle }] : [];
+  });
+  updates.entity = updates.entity.filter((e: { tripUpdate: { trip: { tripId: string } } }) => !out.has(e.tripUpdate.trip.tripId));
+  return { positions: { status: 200, body: JSON.stringify(positions) }, updates: { status: 200, body: JSON.stringify(updates) } };
+}
+
+/** When Renfe reported the recorded Trains it places, R4 77538 STOPPED_AT La Granada and R2N 28444 INCOMING_AT Granollers Centre among them. */
+const REPORTED = Date.parse('2026-09-25T15:57:06+02:00');
+
+/** The R4 standing at La Granada, the R2N coming into Granollers Centre: their Trips, as Renfe's trip_ids. */
+const [R4_STANDING, R2N_COMING] = ['5166V77538R4', '5166V28444R2N'];
+
+/** A run's reported position of a Rodalies Trip. */
+const positionIn = (done: ReturnType<typeof step>, trip: string) => done.snapshot.reports.find((r) => r.trip === `rodalies:${trip}`)?.position;
+
+test("carries, with a Train Renfe names at a Station, when it first named it there and whether it has it STOPPED_AT or INCOMING_AT it (#670)", () => {
+  // Named there run after run, 20 s apart, it was first named there on the first.
+  const runs = renfeRuns([0, 20, 40, 60].map((s) => renfeLater(s)));
+  for (const done of runs) {
+    expect(positionIn(done, R4_STANDING)).toEqual({ near: 'adif:72205', since: REPORTED, status: 'STOPPED_AT' });
+    expect(positionIn(done, R2N_COMING)).toEqual({ near: 'adif:79100', since: REPORTED, status: 'INCOMING_AT' });
+  }
+  // STOPPED_AT after INCOMING_AT at the same Station is the same Station named: it goes on from the first.
+  const stopped = renfeRuns([renfeLater(0), renfeLater(20, (v) => (v.trip.tripId === R2N_COMING ? { ...v, currentStatus: 'STOPPED_AT' } : v))]);
+  expect(positionIn(stopped[1] as ReturnType<typeof step>, R2N_COMING)).toEqual({ near: 'adif:79100', since: REPORTED, status: 'STOPPED_AT' });
+});
+
+test("starts when a Train was first named at a Station again where Renfe names another, gives its GPS, or leaves it out of its feeds for 2 minutes or more, but not for a report with no position (#670)", () => {
+  const R4 = (edit: (v: Vehicle) => Vehicle | undefined) => (v: Vehicle) => (v.trip.tripId === R4_STANDING ? edit(v) : v);
+  const since = (files: RenfeResponses[]) => renfeRuns(files).map((done) => (positionIn(done, R4_STANDING) as { since?: number } | undefined)?.since);
+  // Another Station 20 s on, then La Granada again: each from its own first report.
+  expect(since([renfeLater(0), renfeLater(20, R4((v) => ({ ...v, stopId: '72207' }))), renfeLater(40)])).toEqual([REPORTED, REPORTED + 20_000, REPORTED + 40_000]);
+  // Its GPS between: the same.
+  expect(since([renfeLater(0), renfeLater(20, R4((v) => ({ ...v, currentStatus: 'IN_TRANSIT_TO' }))), renfeLater(40)])).toEqual([REPORTED, undefined, REPORTED + 40_000]);
+  // No position between, as Renfe's stop 00000: it goes on.
+  expect(since([renfeLater(0), renfeLater(20, R4((v) => ({ ...v, stopId: '00000' }))), renfeLater(40)])).toEqual([REPORTED, undefined, REPORTED]);
+  // Left out of the positions for 100 s, it goes on; for 120 s, it starts again.
+  const out = (seconds: number) => [renfeLater(0), ...Array.from({ length: seconds / 20 - 1 }, (_, i) => renfeLater(20 * (i + 1), R4(() => undefined))), renfeLater(seconds)];
+  expect(since(out(100)).at(-1)).toBe(REPORTED);
+  expect(since(out(120)).at(-1)).toBe(REPORTED + 120_000);
+});
+
+test("keeps when Renfe first named each Train at a Station through runs whose responses fail (#670)", () => {
+  const [good] = renfeRuns([renfeLater(0)]);
+  const failed = step(good?.state ?? START.state, { renfe: { ...renfeLater(20), positions: { status: 503, body: '' } } }, NOW + 20_000);
+  const back = step(failed.state, { renfe: renfeLater(40) }, NOW + 40_000);
+  expect(positionIn(back, R4_STANDING)).toMatchObject({ since: REPORTED });
+});
+
+test("reads what Renfe's adapter kept before it kept when it first named each Train at a Station: each Trip's skipped Stations (#670)", () => {
+  const before = step(START.state, { renfe: SKIPPING }, RAINS);
+  const skippedOnly = (before.state.own?.renfe as { skipped: unknown }).skipped;
+  const state = { ...before.state, own: { renfe: skippedOnly } };
+  expect(step(state, { renfe: rainsAt(RAINS + 20_000) }, RAINS + 20_000).snapshot.skipped).toEqual(before.snapshot.skipped);
+});
+
 test('fetches Renfe on every run', () => {
   expect(START.due).toContain('renfe');
   expect(run().due).toContain('renfe');
@@ -183,8 +253,8 @@ test("sends each of Renfe's Trains to the Network its source names by how its tr
   // Sevilla's two Trains, núcleo 30's, both coming into a Station late, besides Rodalies' 67, and Ferrol's cancelled Trip, núcleo 46's.
   const reported = Date.parse('2026-09-25T15:57:06+02:00');
   expect(reports.filter((r) => !r.trip?.startsWith('rodalies:'))).toEqual([
-    { trip: 'cercanias-sevilla:3066V23639C4', at: reported, position: { near: 'adif:51009' }, delay: 900 },
-    { trip: 'cercanias-sevilla:3066V23551C1', at: reported, position: { near: 'adif:51112' }, delay: 840 },
+    { trip: 'cercanias-sevilla:3066V23639C4', at: reported, position: { near: 'adif:51009', since: reported, status: 'INCOMING_AT' }, delay: 900 },
+    { trip: 'cercanias-sevilla:3066V23551C1', at: reported, position: { near: 'adif:51112', since: reported, status: 'INCOMING_AT' }, delay: 840 },
     { trip: 'cercanias-ferrol:4666V70155C1', at: Date.parse('2026-09-25T15:57:09+02:00'), cancelled: true },
   ]);
   // Made up: Renfe's source without Sevilla's núcleo, whose Trains then go to no Network.
@@ -239,7 +309,7 @@ test("reports Madrid's Trains in Renfe's feeds as Cercanías Madrid's, read as R
   // C8b's, running between Stations: its GPS, and its trip update's Delay.
   expect(snapshot.reports).toContainEqual({ trip: 'cercanias-madrid:1076L20602C8b', at: Date.parse('2026-10-05T07:43:58+02:00'), position: { lon: -3.6947744, lat: 40.488266 }, delay: 960 });
   // C1's, standing at Chamartín, which Renfe pins it to.
-  expect(snapshot.reports.find((r) => r.trip === 'cercanias-madrid:1076L19814C1')?.position).toEqual({ near: 'adif:17000' });
+  expect(snapshot.reports.find((r) => r.trip === 'cercanias-madrid:1076L19814C1')?.position).toEqual({ near: 'adif:17000', since: Date.parse('2026-10-05T07:43:58+02:00'), status: 'STOPPED_AT' });
   const fine = { lastSuccess: MONDAY, lastAttempt: MONDAY, status: 'ok', every: 20_000 };
   expect(snapshot.feeds).toEqual(Object.fromEntries(RENFE_NETWORKS.map((network) => [network, fine])));
 });
@@ -266,7 +336,7 @@ test("keeps the last reports of only the Network that has vanished, and the othe
   const of = (network: string, { reports }: Snapshot) => reports.filter((r) => r.trip?.startsWith(`${network}:`));
   expect(of('cercanias-madrid', second.snapshot)).toEqual(of('cercanias-madrid', first.snapshot));
   // Asturias' Train as the second files have it, coming into Serín.
-  expect(of('cercanias-asturias', second.snapshot)).toEqual([{ trip: 'cercanias-asturias:2076L22001C1', at: Date.parse('2026-10-05T07:44:35+02:00'), position: { near: 'adif:15302' }, delay: 660 }]);
+  expect(of('cercanias-asturias', second.snapshot)).toEqual([{ trip: 'cercanias-asturias:2076L22001C1', at: Date.parse('2026-10-05T07:44:35+02:00'), position: { near: 'adif:15302', since: Date.parse('2026-10-05T07:44:35+02:00'), status: 'INCOMING_AT' }, delay: 660 }]);
 });
 
 test("drops a source's reports as soon as their Trains vanish from answers that work, where it feeds one Network", () => {

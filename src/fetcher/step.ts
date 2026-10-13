@@ -268,9 +268,67 @@ export interface RenfeResponses {
 /**
  * What Renfe's adapter keeps from one run to the next: each Trip's skipped Stations, by the Trip as
  * the bundle names it, or for a source whose files name Train numbers, by the number (#426), when
- * Renfe first said so of any, and when it last listed the Trip, in ms since 1970 (#346).
+ * Renfe first said so of any, and when it last listed the Trip, in ms since 1970 (#346); and each
+ * Train's pin, by its Trip (#670).
  */
-type RenfeOwn = Record<string, Omit<Skipped, 'trip' | 'number'> & { listed: number }>;
+interface RenfeOwn {
+  skipped: Kept;
+  pins?: Record<string, Pin>;
+}
+
+/** Each Trip's skipped Stations, as Renfe's adapter keeps them. */
+type Kept = Record<string, Omit<Skipped, 'trip' | 'number'> & { listed: number }>;
+
+/**
+ * Where Renfe's reports have named a Train at one Station, as `near`: the Station, when the first of
+ * them was reported (`since`, the report's `at`), and the run that last had a report of it, in ms
+ * since 1970, where none since has named another Station or given GPS (#670).
+ */
+interface Pin {
+  station: string;
+  since: number;
+  seen: number;
+}
+
+/**
+ * How long a Train can go unreported in Renfe's feeds for its pin to go on, in ms: one left out for
+ * longer starts it again, as the engine's FOLLOWS did while the page kept pins (#485, #670).
+ */
+const PIN_GAP = 2 * 60_000;
+
+/**
+ * Renfe's reports, with when Renfe first named each Train at the Station it names now (`since`), and
+ * the pins to keep: another Station or a GPS fix starts a Train's again, a report with no position
+ * doesn't, and nor does a run whose files leave it out, until PIN_GAP has passed since the last that
+ * had it.
+ */
+export function pinned(reports: Report[], kept: Record<string, Pin> = {}, now: number): { reports: Report[]; pins: Record<string, Pin> } {
+  const pins = Object.fromEntries(Object.entries(kept).filter(([, { seen }]) => now - seen < PIN_GAP));
+  const stamped = reports.map((report) => {
+    const key = report.trip ?? '';
+    const pin = pins[key];
+    const { position } = report;
+    if (!position) {
+      if (pin) pins[key] = { ...pin, seen: now };
+      return report;
+    }
+    if (!('near' in position)) {
+      delete pins[key];
+      return report;
+    }
+    const since = pin?.station === position.near ? pin.since : report.at;
+    pins[key] = { station: position.near, since, seen: now };
+    return { ...report, position: { ...position, since } };
+  });
+  return { reports: stamped, pins };
+}
+
+/**
+ * What Renfe's adapter kept, read as it keeps it now: before #670 it kept each Trip's skipped
+ * Stations alone, as the whole of it.
+ * ponytail: the old shape is read for the first run after the deploy; drop this once that's past.
+ */
+const renfeOwn = (own: RenfeOwn | Kept | undefined): RenfeOwn => (!own ? { skipped: {} } : 'skipped' in own ? (own as RenfeOwn) : { skipped: own as Kept });
 
 /**
  * How long Renfe's adapter keeps a Trip's skipped Stations after Renfe last listed the Trip, in ms.
@@ -283,26 +341,37 @@ type RenfeOwn = Record<string, Omit<Skipped, 'trip' | 'number'> & { listed: numb
 const KEEP_SKIPPED = 3 * 3_600_000;
 
 /** Renfe's: GTFS-RT as JSON, both files on each run it's due. */
-const renfe: LiveAdapter<SourceOf<'renfe'>, RenfeResponses, RenfeOwn> = {
+const renfe: LiveAdapter<SourceOf<'renfe'>, RenfeResponses, RenfeOwn | Kept> = {
   async fetch({ source: { urls }, get }) {
     const [positions, updates] = await Promise.all([get(urls.positions, asText), get(urls.updates, asText)]);
     return { positions, updates };
   },
-  read({ positions, updates }, { source, own, now }) {
+  read({ positions, updates }, given) {
+    const { source, now } = given;
+    const own = renfeOwn(given.own);
     // Read first, so that what the trip updates say of skipped Stations is kept whether or not the positions can be read.
-    const got = renfeTripUpdates(source, updates, own, now);
+    const got = renfeTripUpdates(source, updates, own.skipped, now);
+    // Read now, so that the pins are kept as they read, and as they were where they can't be read.
+    let read: { vehicles: GtfsRt; trips: GtfsRt; reports: Report[]; pins: Record<string, Pin> } | { error: unknown };
+    try {
+      const vehicles = json<GtfsRt>('vehicle_positions', positions);
+      if ('error' in got) throw got.error;
+      read = { vehicles, trips: got.trips, ...pinned(renfeReports(source, vehicles, got.trips), own.pins, now) };
+    } catch (error) {
+      read = { error };
+    }
+    const pins = 'error' in read ? own.pins : read.pins;
     return {
-      own: 'error' in got ? own : got.skipped,
+      own: { skipped: 'error' in got ? own.skipped : got.skipped, ...(pins && Object.keys(pins).length ? { pins } : {}) },
       reports(said) {
-        const vehicles = json<GtfsRt>('vehicle_positions', positions);
-        if ('error' in got) throw got.error;
-        said('vehicle_positions', ms(vehicles.header.timestamp));
-        said('trip_updates', ms(got.trips.header.timestamp));
-        return renfeReports(source, vehicles, got.trips);
+        if ('error' in read) throw read.error;
+        said('vehicle_positions', ms(read.vehicles.header.timestamp));
+        said('trip_updates', ms(read.trips.header.timestamp));
+        return read.reports;
       },
     };
   },
-  skipped: (own, source) => Object.entries(own ?? {}).map(([key, { stations, since }]) => ({ ...(source.numbers ? { number: key } : { trip: key }), stations, since })),
+  skipped: (own, source) => Object.entries(renfeOwn(own).skipped).map(([key, { stations, since }]) => ({ ...(source.numbers ? { number: key } : { trip: key }), stations, since })),
 };
 
 /** GTFS-RT as Renfe's JSON has it, with times in seconds since 1970: the parts the step reads. */
@@ -384,7 +453,7 @@ function renfeTrip(source: LiveSource, tripId: string | undefined): string | und
  * (skippedIn()); or why they can't be read, as where Renfe answers with JSON that isn't its feed,
  * such as `{}`. The step tries them in reports(), so that their failing fails Renfe's try alone.
  */
-function renfeTripUpdates(source: SourceOf<'renfe'>, updates: Fetched, kept: RenfeOwn | undefined, now: number): { trips: GtfsRt; skipped: RenfeOwn } | { error: unknown } {
+function renfeTripUpdates(source: SourceOf<'renfe'>, updates: Fetched, kept: Kept, now: number): { trips: GtfsRt; skipped: Kept } | { error: unknown } {
   try {
     const trips = json<GtfsRt>('trip_updates', updates);
     return { trips, skipped: skippedIn(source, trips, kept, now) };
@@ -403,7 +472,7 @@ function renfeTripUpdates(source: SourceOf<'renfe'>, updates: Fetched, kept: Ren
  * lists a Train once for each part of its run, each listing the Stations its timetable hasn't left
  * yet, so its are kept by the number: the union over its parts (#426).
  */
-function skippedIn(source: SourceOf<'renfe'>, updates: GtfsRt, kept: RenfeOwn = {}, now: number): RenfeOwn {
+function skippedIn(source: SourceOf<'renfe'>, updates: GtfsRt, kept: Kept = {}, now: number): Kept {
   const skipped = Object.fromEntries(Object.entries(kept).filter(([, { listed }]) => now - listed < KEEP_SKIPPED));
   const at = ms(updates.header.timestamp);
   // What each Trip, or Train number, lists now, SKIPPED and at all.
@@ -438,7 +507,7 @@ function position(vehicle: Vehicle): Report['position'] {
   const { currentStatus, position: gps } = vehicle;
   if (currentStatus === 'IN_TRANSIT_TO') return gps && { lon: gps.longitude, lat: gps.latitude };
   const stop = vehicle.stopId?.trim();
-  return stop && stop !== '00000' ? { near: `adif:${stop}` } : undefined;
+  return stop && stop !== '00000' ? { near: `adif:${stop}`, ...(currentStatus && { status: currentStatus }) } : undefined;
 }
 
 /** FGC's live data: its positions from Geotren, as JSON, and its trip updates, as GTFS-RT; and where the run looked up the trip-updates file, if it had to. */

@@ -1864,6 +1864,35 @@ test("a Train Renfe has no report of for 2 minutes or more isn't held for the pi
   expect(where(R2S, at('22:12:00'), short)).toBe(135376);
 });
 
+/** pinnedAt()'s snapshots, each report carrying when the fetcher says Renfe first named the Train at the Station (`since`, #670). */
+const pinnedSince = (trip: string, station: string, delay: number, from: number, to: number, since: number): Received[] =>
+  pinnedAt(trip, station, delay, from, to).map((r) => ({ ...r, snapshot: { ...r.snapshot, reports: r.snapshot.reports.map((report) => ({ ...report, position: { near: station, since } })) } }));
+
+test("a Train Renfe has named at one Station for 10 minutes or more before the map opened is held there from the map's first snapshot, as the snapshot says since when (#670)", () => {
+  // Made up: the fetcher has had the R2S named at Sitges since 21:50:00, 30 s late, and the map opens
+  // at 22:00:00. It's at Sitges at once, as it would be had the map been open since 21:50.
+  const received = pinnedSince(R2S, 'Sitges', 30, at('22:00:00'), at('22:10:00'), at('21:50:00'));
+  for (const s of [10, 30, 120, 300]) expect(where(R2S, at('22:00:00', s), received)).toBe(135376);
+  expect(train(R2S, at('22:02:00'), received)).toMatchObject({ live: true, standsAt: 'Sitges' });
+  // Named there since 21:58:00, it runs on 30 s late until 22:08:00, and is at Sitges from then.
+  const later = pinnedSince(R2S, 'Sitges', 30, at('22:00:00'), at('22:12:00'), at('21:58:00'));
+  expect(where(R2S, at('22:07:50'), later)).toBeGreaterThan(135376 + 10_000);
+  for (const s of [10, 60]) expect(where(R2S, at('22:08:00', s), later)).toBe(135376);
+});
+
+test("a Train Renfe has named at a Station is held by when the snapshot says it was first named there, not by the first report the map has seen: the fetcher judges a gap (#670)", () => {
+  // Made up: the map has had the R2S named at Sitges since 22:00:20, but the fetcher left it out of
+  // Renfe's feeds for 2 minutes and says it was first named there again at 22:08:20. It's not held at
+  // 22:12:00, and is from 22:18:20.
+  const received = [
+    gps(R2S, where(R2S, at('21:59:30')) ?? NaN, at('22:00:00')),
+    ...pinnedSince(R2S, 'Sitges', 30, at('22:00:20'), at('22:08:00'), at('22:00:20')),
+    ...pinnedSince(R2S, 'Sitges', 30, at('22:08:20'), at('22:20:00'), at('22:08:20')),
+  ];
+  expect(where(R2S, at('22:12:00'), received)).toBeCloseTo(where(R2S, at('22:11:30')) ?? NaN, 3);
+  expect(where(R2S, at('22:18:30'), received)).toBe(135376);
+});
+
 test("a Train Renfe has pinned to a Station for 10 minutes that gives GPS on from it is where its GPS has it, not held: the pin was stale", () => {
   // Made up: pinned to Sitges from 22:00:20 to 22:11:40, held there from 22:10:20, and then its GPS
   // has it 30 s late, 15 km on, at 22:12:00. It's at Sitges at 22:11:50 and where its GPS has it from

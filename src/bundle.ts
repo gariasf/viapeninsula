@@ -69,7 +69,7 @@ export interface Report {
    * only for about 40 s as it reaches a Station (#42); or for the Metro, the Station it comes to next,
    * and when it's expected there, in ms since 1970.
    */
-  position?: { lon: number; lat: number } | { near: string } | { along: number } | { next: { station: string; at: number } };
+  position?: { lon: number; lat: number } | Near | { along: number } | { next: { station: string; at: number } };
   /** How late it's running, in seconds, as its operator has it: early where it's negative. */
   delay?: number;
   /** Where its operator gives no Delay, when it expects it at a Station, in ms since 1970, as FGC does. */
@@ -92,6 +92,18 @@ export interface Report {
   cancelled?: true;
   /** The type of Unit it runs as, where its operator publishes it: FGC's series, such as 213x2 for two 213s coupled. */
   unitType?: string;
+}
+
+/**
+ * A Train at or near a Station, as a report's position names it. For Renfe's Cercanías: when Renfe first
+ * named it there, in ms since 1970, as the report's `at` has it, where none of its reports since has
+ * named another Station or given GPS, nor has it been left out of Renfe's feeds for 2 minutes or more
+ * (`since`); and whether Renfe has it standing there or coming in to it, its `currentStatus` (#670).
+ */
+export interface Near {
+  near: string;
+  since?: number;
+  status?: 'STOPPED_AT' | 'INCOMING_AT';
 }
 
 /**
