@@ -422,15 +422,15 @@ export const liveUnavailable = (network: string, lang = language()): string => S
  * What Catalan and Galician make of a preposition and the article a name starts with, by the article and
  * then the preposition: Catalan's "al Prat" (El Prat), "als Monjos" (Els Monjos), "del", "dels", "pel" and
  * "pels"; Galician's "á Coruña" (A Coruña), "ao Porriño" (O Porriño), "ás", "aos", "da", "do", "das",
- * "dos", "pola", "polo", "polas" and "polos" (#606).
+ * "dos", "na", "no", "nas", "nos", "pola", "polo", "polas" and "polos" (#606).
  */
 const CONTRACTED: Partial<Record<Language, Record<string, Record<string, string>>>> = {
   ca: { El: { a: 'al', de: 'del', per: 'pel' }, Els: { a: 'als', de: 'dels', per: 'pels' } },
   gl: {
-    A: { a: 'á', de: 'da', por: 'pola' },
-    As: { a: 'ás', de: 'das', por: 'polas' },
-    O: { a: 'ao', de: 'do', por: 'polo' },
-    Os: { a: 'aos', de: 'dos', por: 'polos' },
+    A: { a: 'á', de: 'da', en: 'na', por: 'pola' },
+    As: { a: 'ás', de: 'das', en: 'nas', por: 'polas' },
+    O: { a: 'ao', de: 'do', en: 'no', por: 'polo' },
+    Os: { a: 'aos', de: 'dos', en: 'nos', por: 'polos' },
   },
 };
 

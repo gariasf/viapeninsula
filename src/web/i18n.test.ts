@@ -701,6 +701,8 @@ test("says where live data last placed a followed Train: where Renfe pinned it t
   expect(placedBy(true, '5\u00A0s', 'Sants', 'eu')).toBe('Renfek Sants geltokian kokatzen du, duela 5\u00A0s');
   expect(placedBy(true, '5\u00A0s', 'Sants', 'gl')).toBe('Renfe sitúao en Sants, hai 5\u00A0s');
   expect(placedBy(true, '5\u00A0s', 'El Prat de Llobregat', 'ca')).toBe('Renfe el situa al Prat de Llobregat, fa 5\u00A0s');
+  expect(placedBy(true, '5\u00A0s', 'A Coruña', 'gl')).toBe('Renfe sitúao na Coruña, hai 5\u00A0s');
+  expect(placedBy(true, '5\u00A0s', 'O Porriño', 'gl')).toBe('Renfe sitúao no Porriño, hai 5\u00A0s');
   expect(placedBy(true, '5\u00A0s', undefined, 'en')).toBe('confirmed 5\u00A0s ago');
   expect(placedBy(false, '3\u00A0min', 'Sants', 'en')).toBe('last confirmed live 3\u00A0min ago');
 });
