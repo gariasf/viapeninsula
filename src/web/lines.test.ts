@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
-import type { DayFiles, DayTrips, Track } from '../bundle.ts';
-import { byRegion, type Drawing } from './lines.ts';
+import { along, BANDS, coveredIn, cutIn, GRAPH_BAND, inBand, smoothId, type DayFiles, type DayTrips, type Line, type Shape, type Stroke, type Track } from '../bundle.ts';
+import { byRegion, drawnLines, type Drawing } from './lines.ts';
 import { daysAsTheyCome, joinedFrom, regionLoader } from './regions.ts';
 
 /** A region's track of one Station and no Lines, named for it. */
@@ -45,4 +45,34 @@ test("lays a region new to the map out once, at its track, though its Trips and 
   for (const s of shown) for (const { track: t } of joinedFrom(s) ?? []) regions.made(t, () => (made++, drawing()));
   expect(joinedFrom(first)?.map((r) => r.id)).toEqual(ids);
   expect(made).toBe(2);
+});
+
+test('draws a stroke cut back alike in every band from GRAPH_BAND once, band-less, and each band still draws every stroke as it is there, point for point (#734)', () => {
+  // A centreline 10 km east, a point every 10 m, and a copy smoothed for zoom 12's band.
+  const line = (id: string): Shape => ({ id, coords: Array.from({ length: 1001 }, (_, k): [number, number] => [2 + k * 0.0001, 41]), dist: Array.from({ length: 1001 }, (_, k) => k * 10) });
+  const shapes = new Map<string, Shape>([line('s:a'), { ...line(smoothId('s:b', BANDS.indexOf(12))), coords: line('').coords.map(([x]): [number, number] => [x, 41.001]) }, line('s:b')].map((s) => [s.id, s]));
+  const graph = BANDS.flatMap((_, band) => (band >= GRAPH_BAND ? [band] : []));
+  const stroke = (shape: string, cut: [number, number][]): Stroke => ({ line: 'L', shape, from: 1000, to: 9000, side: 1, cut });
+  const strokes = [
+    stroke('s:a', graph.map(() => [105, 55])), // alike
+    stroke('s:a', graph.map((_, k) => [100 * k + 5, 0])), // each band its own
+    stroke('s:a', graph.map((_, k) => [105, 10 * k])), // each band its own end
+    stroke('s:a', graph.map(() => [5000, 3000])), // cut away in every band
+    { ...stroke('s:a', graph.map(() => [105, 55])), covered: [[GRAPH_BAND, 3000, 4000] as [number, number, number]] }, // alike, but covered in a band
+    stroke('s:b', graph.map(() => [105, 55])), // alike, but along a centreline smoothed in one band
+    { ...stroke('s:a', [[105, 55]]), band: GRAPH_BAND }, // a curve's band only
+  ];
+  const lines = new Map<string, Line>([['L', { id: 'L', network: 'n', name: 'L', colour: '#f00', shapes: [], kind: 'regional' } as Line]]);
+  const features = drawnLines(strokes, { shapes, lines, lettering: () => '#fff', rank: 0, nameSize: 12 });
+  for (const band of graph) {
+    const drawn = features.filter((f) => (f.properties?.band ?? band) === band).map((f) => (f.geometry as GeoJSON.LineString).coordinates);
+    const expected = strokes.flatMap((s) => {
+      const [start, end] = cutIn(s, band);
+      if ((s.band ?? band) !== band || start + end >= s.to - s.from) return [];
+      return coveredIn({ ...s, from: s.from + start, to: s.to - end }, band).map((p) => along(inBand(shapes, s.shape, band) as Shape, p.from, p.to));
+    });
+    expect(drawn).toEqual(expected);
+  }
+  // The stroke cut alike goes once, without a band; the others once in each band they're drawn in.
+  expect(features.map((f) => f.properties?.band)).toEqual([undefined, ...graph, ...graph, GRAPH_BAND, GRAPH_BAND, GRAPH_BAND, ...graph.slice(1), ...graph, GRAPH_BAND]);
 });
