@@ -1058,7 +1058,10 @@ const dotAt = (zoom: number, followed: boolean) => atZoom(TRAIN_DOT.map(([z, px,
 const trainDot: ExpressionSpecification = ['interpolate', ['linear'], ['zoom'], ...TRAIN_DOT.flatMap(([zoom, px, followed]): (number | ExpressionSpecification)[] => [zoom, ['case', ['get', 'followed'], followed, px]])];
 // Zoomed out, Trains are dots over the Stations they stand at, under the Stations' names.
 // Below linesZoom, only long distance's (`dotZoom`, pillOf()).
-map.addSource('trains', { type: 'geojson', data: trains() });
+// With no buffer: MapLibre draws a dot or a pill only from the tile its Train is in, so a copy of a Train
+// near a tile's side in the next tile's buffer is only more for its worker to cut, which had a draw's tiles
+// come back over two frames, each one drawn (#747).
+map.addSource('trains', { type: 'geojson', data: trains(), buffer: 0 });
 map.addLayer({
   id: 'trains',
   type: 'circle',
@@ -1264,6 +1267,23 @@ document.addEventListener('keydown', (e) => e.key === 'Escape' && !about.open &&
 // Moves the Trains as often as MOVED says, and once a second works out which Networks the banner
 // names. The browser stops asking while the tab is hidden.
 const trainSource = map.getSource<GeoJSONSource>('trains');
+// MapLibre draws a frame for each of the Trains' tiles that comes back from its worker in a frame of its
+// own, so each draw of the Trains (move()) cuts them in tiles two zooms out from the map's, a sixteenth
+// as many: at Barcelona z12, 2 on a desktop rather than 12. A tile holds a Train's place to 1/8192 of
+// its side, a quarter to half a pixel at those (#747).
+const trainTileZoom = () => Math.min(18, Math.max(0, Math.floor(map.getZoom()) - 2));
+// And as the Trains' pills are names, MapLibre marks the names' placement it has just made stale each time
+// the Trains' tiles come, and draws another frame to place them again. With fadeDuration 0 it places them
+// all again each frame it draws anyway, so that frame is let go (#747).
+// ponytail: MapLibre's own Style._updatePlacement() (6.11), whose result is then only that stale mark.
+// Drop this once MapLibre leaves a placement it has just made in full alone.
+const updatePlacement = map.style._updatePlacement.bind(map.style);
+map.style._updatePlacement = (...args) => {
+  const again = updatePlacement(...args);
+  if (!again || !map.style.pauseablePlacement.isDone()) return again;
+  map.style.placement.stale = false;
+  return false;
+};
 // The map can move Trains now, so the tabs, Nearby's among them, and the random follow can show them.
 trainButtons.hidden = false;
 for (const tab of Object.values(tabs)) tab.disabled = false;
@@ -1278,6 +1298,7 @@ requestAnimationFrame(function move(now) {
   if (now - drawn < every) return requestAnimationFrame(move);
   [drawn, drawnAt] = [now, view];
   const drawing = trains();
+  if (trainSource) trainSource.maxzoom = trainTileZoom();
   trainSource?.setData(drawing);
   // The legend's count changes by the second, once the Trips have come, and with it whether there's a
   // Train to follow at random: one the map doesn't follow already.
