@@ -117,6 +117,12 @@ export interface Followed extends Train {
   speed: number;
   /** The type of Unit it runs as, where its operator reports one, as FGC does. */
   unitType?: string;
+  /**
+   * The Station Renfe's reports have last named it at, where that's where live data last placed it,
+   * and it isn't held there (#485): drawn by its Delay, which can have it far from the Station, so the
+   * card says Renfe has it there, not that its position is confirmed (#458).
+   */
+  pinnedAt?: string;
 }
 
 /** One Train, as the follow panel shows it, at a moment by the device's clock (ms since 1970), given the snapshots received by then and the Closures that hide Trains: as trainsAt() has it, if it's on the map. */
@@ -129,7 +135,7 @@ export function trainAt(bundle: Bundle, at: number, received: Received[], id: st
 /** A Trip's Train as the follow panel shows it (trainAt()), from where onMap() has it: none where it isn't on the map. */
 function followedOf(bundle: Bundle, on: OnMap): Followed | undefined {
   if (!on.train) return undefined;
-  const { train, now, time, timeAt, calls, profile, said, network, delay, drawnDelay } = on;
+  const { train, now, time, timeAt, calls, profile, said, network, delay, drawnDelay, live } = on;
   // When it's expected at a moment of its timetable, running the Delay it's drawn at late, which eases to live data's as the Train does (#610).
   const expected = (seconds: number) => bundle.noonMinus12h + (seconds + drawnDelay) * 1000;
   // How far along its shape it's drawn at a moment, in seconds into the service day.
@@ -143,6 +149,7 @@ function followedOf(bundle: Bundle, on: OnMap): Followed | undefined {
     since: said?.confirmed === undefined ? undefined : bundle.noonMinus12h + now * 1000 - said.confirmed,
     speed: Math.abs(drawn(now + 0.5) - drawn(now - 0.5)),
     unitType: said?.report.unitType,
+    pinnedAt: said?.pin && !(live && stands(said.pin, said.report)) ? said.pin.station : undefined,
   };
 }
 

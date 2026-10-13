@@ -1912,6 +1912,18 @@ test("a Train every report of whose pin has Renfe's INCOMING_AT, coming in to th
   expect(where(R2S, at('22:10:20'), came)).toBe(135376);
 });
 
+test("a followed Train whose last report pins it to a Station it isn't held at names that Station, for the card to say Renfe has it there; a GPS report, or a pin it's held at, names none (#458)", () => {
+  // Made up: the R2S 30 s late by GPS at 22:00:00, then pinned to Sitges every 20 s until 22:15. Not
+  // held there before 10 minutes, or ever as only coming in to it (#671); held from 22:10:20 as standing.
+  const start = gps(R2S, where(R2S, at('21:59:30')) ?? NaN, at('22:00:00'));
+  expect(followed(R2S, at('22:00:10'), [start])?.pinnedAt).toBeUndefined();
+  const pinned = [start, ...pinnedAt(R2S, 'Sitges', 30, at('22:00:20'), at('22:15:00'))];
+  expect(followed(R2S, at('22:05:00'), pinned)?.pinnedAt).toBe('Sitges');
+  expect(followed(R2S, at('22:12:00'), pinned)?.pinnedAt).toBeUndefined();
+  const coming = [start, ...pinnedAs(R2S, 'Sitges', 30, at('22:00:20'), at('22:15:00'), () => 'INCOMING_AT')];
+  expect(followed(R2S, at('22:12:00'), coming)?.pinnedAt).toBe('Sitges');
+});
+
 test("a Train Renfe has pinned to a Station for 10 minutes that gives GPS on from it is where its GPS has it, not held: the pin was stale", () => {
   // Made up: pinned to Sitges from 22:00:20 to 22:11:40, held there from 22:10:20, and then its GPS
   // has it 30 s late, 15 km on, at 22:12:00. It's at Sitges at 22:11:50 and where its GPS has it from
