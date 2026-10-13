@@ -7,23 +7,30 @@ export const TOLERANCE = 0.375;
 /** A line with only the points it needs to stay within a tolerance of itself (Douglas–Peucker, as geojson-vt). */
 export function simplify(points: [number, number][], tolerance: number): [number, number][] {
   if (points.length < 3) return points;
-  const keep = new Set([0, points.length - 1]);
-  const stack: [number, number][] = [[0, points.length - 1]];
-  for (let next = stack.pop(); next; next = stack.pop()) {
-    const [a, b] = next;
-    const [[ax, ay], [bx, by]] = [points[a] ?? [0, 0], points[b] ?? [0, 0]];
+  // Flags and plain loops, as names.ts simplifies every shape of a region where it joins (#757).
+  const keep = new Uint8Array(points.length);
+  keep[0] = keep[points.length - 1] = 1;
+  const stack = [0, points.length - 1];
+  while (stack.length) {
+    const [b = 0, a = 0] = [stack.pop(), stack.pop()];
+    const [ax, ay] = points[a] ?? [0, 0];
+    const [bx, by] = points[b] ?? [0, 0];
     const length = Math.hypot(bx - ax, by - ay) || 1;
-    let [far, at] = [tolerance, -1];
+    let far = tolerance;
+    let at = -1;
     for (let i = a + 1; i < b; i++) {
-      const [x, y] = points[i] ?? [0, 0];
-      const off = Math.abs((bx - ax) * (ay - y) - (ax - x) * (by - ay)) / length;
-      if (off > far) [far, at] = [off, i];
+      const p = points[i] ?? [0, 0];
+      const off = Math.abs((bx - ax) * (ay - p[1]) - (ax - p[0]) * (by - ay)) / length;
+      if (off > far) {
+        far = off;
+        at = i;
+      }
     }
     if (at < 0) continue;
-    keep.add(at);
-    stack.push([a, at], [at, b]);
+    keep[at] = 1;
+    stack.push(a, at, at, b);
   }
-  return points.filter((_, i) => keep.has(i));
+  return points.filter((_, i) => keep[i]);
 }
 
 /** A line's points moved so many metres to its right, each along its join's miter. */
