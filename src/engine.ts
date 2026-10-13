@@ -923,7 +923,7 @@ interface GpsDelay {
   delay: number;
   got: number;
   /** How far it was from the figure Renfe gave in the report that gave it, as delayOf() reads it, not the latest, in seconds, where Renfe gave one: over GATE, delayBy() puts it aside. */
-  off?: number;
+  fromFigure?: number;
 }
 
 /** A GPS fix Renfe reported for a Train, as reported: where, when its operator says (`at`), and when the fetcher got it, as Heard's `got` has it. */
@@ -946,19 +946,19 @@ interface Fix {
  * that go by one (#410, #565). By the figure of the report that gave it, not the latest, as the figure
  * moves on while a position holds, and a Train would be drawn by it where its GPS had it, as ADR-0002
  * has it. Nor does a GPS fix that no report of the Train within FOLLOWS could have run to give a
- * Delay: hear() takes it as no position. Going by the figure wherever none counts, not by the last
+ * Delay: hear() takes it as no position, but for a Train's first fix after a pin and the next (#634). Going by the figure wherever none counts, not by the last
  * its GPS gave it, was tried and rejected: it drew more Trains ahead of their GPS and then standing
  * (ADR-0002, #410).
  */
 const delayBy = (said: Heard, upTo: number) => {
   const gps = recent(said.gps, upTo);
-  return (recent(said.counted, upTo) ?? ((gps?.off ?? 0) > GATE ? undefined : gps) ?? said).delay;
+  return (recent(said.counted, upTo) ?? ((gps?.fromFigure ?? 0) > GATE ? undefined : gps) ?? said).delay;
 };
 
 /** How far a Renfe Train's GPS can put its Delay from where its GPS report before put it and still count, in seconds. */
 const CONFIRM = 120;
 
-/** How far a GPS Delay no report before it supported can be from Renfe's own figure, in the report that gave it, and still be gone by, in seconds: hear() marks it, delayBy() goes by that. */
+/** How far a GPS Delay no report before it supported can be from Renfe's own figure, in the report that gave it, and still be gone by, in seconds: hear() keeps how far it was (`fromFigure`), delayBy() goes by that. */
 const GATE = 10 * 60;
 
 /** How much further a GPS fix can be from the Train's last two than it could have run in the time between them, in metres: GPS error, and a Train that runs a little over its Line's speed (hear()). */
@@ -1009,7 +1009,10 @@ const FOLLOWS = 2 * 60_000;
  * have run in the time between them, at its Line's top speed and 5% over, as jumps() has it, and a
  * second at the least, with SLACK more: GPS that has a Train where no report of it a minute or two
  * before could have run to is another Train's, as a C5's put it 23 minutes ahead on 7 October 2026
- * and back at its next report, or a Train's far off (#565). The two fixes are the reports' as
+ * and back at its next report, or a Train's far off (#565). But where the fix it's judged by is the
+ * Train's first GPS after a pin, or its first of all, of the two the one whose GPS Delay is nearer
+ * Renfe's own figure in its report is the position and the other none: a Train's first GPS after a pin
+ * is often off and the next real, in Madrid and Valencia (#634). The two fixes are the reports' as
  * reported, whether taken as positions or not, and a fix reported again isn't another, so that a
  * fix between two good ones doesn't take the good one after it with it, as it would were each judged
  * by the one before alone. Not a report by Train number, as Renfe's long-distance files make: it has
@@ -1037,9 +1040,9 @@ function hear(before: Heard | undefined, report: Report, got: number, from: Rece
   // Where the fix it can't be run to from is the Train's first after a pin, of the two the one whose GPS
   // Delay is nearer Renfe's own figure in its report is the position, and the other none: that first fix
   // is often off, and the second real, in Madrid and Valencia (#634).
-  const rival = unreachable && newest?.first && before?.gps?.got === newest.got ? before.gps.off : undefined;
-  const mine = rival !== undefined && report.delay !== undefined ? ownDelay(report) : undefined;
-  const nearer = !!mine?.measured && Math.abs(mine.delay - ownDelay({ ...report, position: undefined }).delay) < (rival ?? 0);
+  const firstFromFigure = unreachable && newest?.first && before?.gps?.got === newest.got ? before.gps.fromFigure : undefined;
+  const byGps = firstFromFigure !== undefined && report.delay !== undefined ? ownDelay(report) : undefined;
+  const nearer = !!byGps?.measured && firstFromFigure !== undefined && Math.abs(byGps.delay - ownDelay({ ...report, position: undefined }).delay) < firstFromFigure;
   const taken = frozen || (unreachable && !nearer) ? { ...report, position: undefined } : report;
   const { position } = taken;
   const fixes = nearer && fix ? [fix] : fix && !sameSpot(newest, fix) ? [fix, ...(newest ? [newest] : [])] : before?.fixes;
@@ -1067,8 +1070,8 @@ function hear(before: Heard | undefined, report: Report, got: number, from: Rece
   // one by Train number of a Trip of a Network whose live data doesn't name Trains by number: Renfe's
   // figure is against its long-distance timetable, which such a Trip can run 30 minutes apart from, as
   // R15 17050's did on 10 October 2026, so it says nothing of the GPS Delay (#442).
-  const off = report.delay !== undefined && !(report.number && !live?.numbers) ? Math.abs(delay - figure) : undefined;
-  return { ...heard, delay: figure, gps: { delay, got, ...(off !== undefined && { off }) }, counted: agrees ? { delay, got } : counted };
+  const fromFigure = report.delay !== undefined && !(report.number && !live?.numbers) ? Math.abs(delay - figure) : undefined;
+  return { ...heard, delay: figure, gps: { delay, got, ...(fromFigure !== undefined && { fromFigure }) }, counted: agrees ? { delay, got } : counted };
 }
 
 /** Whether two positions are the same coordinates. */
