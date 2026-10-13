@@ -3531,3 +3531,28 @@ test("the minutes to go on a board and in Nearby are the same on a device whose 
     expect(minutes(at('21:29:30', off), received)).toEqual(right);
   }
 });
+
+test("a draw walks only the Trips whose timetables have them near now, but never leaves out one live data keeps on the map outside that: running late, pinned, or waiting at the end of its Line, nor a Scheduled one waiting for its Block (#732)", () => {
+  // Made up: a trip update alone has the R2N, due to end its run at La Llagosta at 21:41, an hour late.
+  const late: Received[] = [{ snapshot: { ...written(at('22:39:00')), reports: [{ trip: R2N, at: at('22:38:50'), delay: 3600 }] }, at: at('22:39:05') }];
+  expect(where(R2N, at('22:39:30'), late)).toBeCloseTo(where(R2N, at('21:39:30')) ?? NaN, 3);
+  // Made up: Renfe pins the R2N to Mollet-Sant Fost, 25 minutes late, from 21:58 to 22:15: from 22:08 it stands there,
+  // half an hour after its timetable has it leave.
+  expect(train(R2N, at('22:12:00'), pinnedAt(R2N, 'Mollet-Sant Fost', 1500, at('21:58:00'), at('22:15:00')))).toMatchObject({ live: true, standsAt: 'Mollet-Sant Fost' });
+  // Made up: at 12:50:00, 23 minutes before the Trip out of Fondo is due to leave it, TMB expects L1's
+  // 112 at Santa Coloma at 13:14:30: its Train stands at Fondo.
+  expect(metro(OUT_OF_FONDO, '12:50:10', [outOfFondo('12:50:00', ['112', 'tmb:1.139', '13:14:30'])])).toMatchObject({ live: true, dist: 0 });
+  // Made up: a Metro Trip from Trinitat Vella to Baró de Viver, due to leave at 13:12:29 and end its run at 13:13:37,
+  // which no Block runs while TMB's feed works: it waits at Trinitat Vella until 13:15:29.
+  const short = bundleOf('2026-09-25', METRO.networks[0] as Network, {
+    'metro:1.1.short': {
+      line: 'metro:L1',
+      calls: [
+        ['tmb:1.137', '13:12:10', '13:12:29', 17896, 2.193837, 41.448956], // Trinitat Vella
+        ['tmb:1.138', '13:13:37', '13:13:37', 18427, 2.199563, 41.449936], // Baró de Viver
+      ],
+    },
+  });
+  const moment = Date.parse('2026-09-25T13:15:20+02:00');
+  expect(trainsAt(short, moment, by(elsewhere('13:10:00', '13:15:20'), moment))).toMatchObject([{ live: false, dist: 17896 }]);
+});
