@@ -155,7 +155,7 @@ declare global {
 export interface Probe {
   /** rAF timestamps (page ms), from before the page's own scripts run. */
   frames: number[];
-  /** Each GeoJSON source's `setData`: [page ms, source, features (-1 for a URL)]. */
+  /** Each GeoJSON source's `setData` and `updateData`: [page ms, source, features (-1 for a URL), or those added]. */
   setData: [number, string, number][];
   /** MapLibre's `render` events (page ms). */
   renders: number[];
@@ -181,6 +181,12 @@ const PROBE = () => {
             (source as import('maplibre-gl').GeoJSONSource).setData = (d, ...more) => {
               p.setData.push([performance.now(), id, typeof d === 'string' ? -1 : 'features' in d ? d.features.length : 1]);
               return setData(d, ...more);
+            };
+            // And its `updateData`, by the features it adds, as the Lines go since #733.
+            const updateData = (source as import('maplibre-gl').GeoJSONSource).updateData.bind(source);
+            (source as import('maplibre-gl').GeoJSONSource).updateData = (diff, ...more) => {
+              p.setData.push([performance.now(), id, diff.add?.length ?? 0]);
+              return updateData(diff, ...more);
             };
           }
           return added;

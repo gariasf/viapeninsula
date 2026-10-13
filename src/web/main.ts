@@ -6,14 +6,15 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import nunitoSans from '@fontsource/nunito-sans/files/nunito-sans-latin-400-normal.woff2?url';
 import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-normal.woff2?url';
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
-import { along, APART, atZoom, BANDS, bandZooms, coveredIn, cutIn, GRAPH_BAND, STRETCH, smoothId, inBand, onStroke, pieces, profiled, zones, type Zone, daysNeeded, daysOf, DEGREE, EARTH, joinTracks, LIVE_URL, madridDate, networkTracks, places, type Alerts, type Bundle, type Credit, type Call, type DayFiles, type Place, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH, type ZoomedOut } from '../bundle.ts';
+import { along, APART, atZoom, BANDS, bandZooms, GRAPH_BAND, STRETCH, inBand, onStroke, profiled, zones, type Zone, daysNeeded, daysOf, DEGREE, EARTH, joinTracks, LIVE_URL, madridDate, networkTracks, places, type Alerts, type Bundle, type Credit, type Call, type DayFiles, type Place, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH, type ZoomedOut } from '../bundle.ts';
 import { boardAt, comingAt, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, tripsAt, unavailable, type Coming, type Departure, type Followed, type Received, type Train, type TripNow } from '../engine.ts';
 import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, earlierStations, followDeparture, language, LANGUAGES, leavesAt, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, setLanguage, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { getJson, lookAgainSoon, RETRY, STALL } from './files.ts';
-import { daysAsTheyCome, firstLook, forgetJoined, regionLoader, regionsCame, regionsNeeded } from './regions.ts';
+import { daysAsTheyCome, firstLook, forgetJoined, joinedFrom, regionLoader, regionsCame, regionsNeeded } from './regions.ts';
+import { byRegion, drawnLines, RANK_STEP } from './lines.ts';
 import { linesAt, popupRoom } from './tap.ts';
-import { alongside, callsIn, namedTwice, nameOffset, nameSort, nearestSide, rightOf, underName, type Side, type Spot } from './names.ts';
+import { callsIn, namedTwice, nameOffset, nameSort, nearestSide, rightOf, sidesByJoin, splitBy, underName, type Side, type Spot } from './names.ts';
 import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
 import { atMostEvery, drifted, letsGo, outsideMiddle, pointersDown, tapZooms } from './centre.ts';
 import { fastestInView } from './pace.ts';
@@ -837,6 +838,10 @@ let hidingClosures: Shown[] = [];
 const lifted = new Map<string, number>();
 /** The Lines' strokes along their Stretches, which a tap on one names (linesAt()). */
 let shownStrokes: Stroke[] = [];
+/** Each region's Lines and rails, made once for its track, and those MapLibre has (byRegion(), #733). */
+const regionLines = byRegion();
+/** Each place's sides of its track, worked out again at a join only where it can move them (sidesByJoin(), #733). */
+const placeSides = sidesByJoin();
 /** What moves a tapped group of Trains standing together at a Station apart (#129). */
 const spread = spreading();
 /**
@@ -886,7 +891,7 @@ setInterval(refreshDays, 60_000);
 // Track goes under the basemap's labels; Stations and names go on top of everything.
 const firstLabel = map.getStyle().layers.find((l) => l.type === 'symbol')?.id;
 /** How each Line's stroke is laid out, and its casing alike, so that MapLibre builds their geometry once. */
-const lineLayout: LineLayerSpecification['layout'] = { 'line-cap': 'round', 'line-join': 'round', 'line-sort-key': ['get', 'above'] };
+const lineLayout: LineLayerSpecification['layout'] = { 'line-cap': 'round', 'line-join': 'round', 'line-sort-key': ['+', ['get', 'above'], ['*', ['get', 'rank'], RANK_STEP]] };
 /** The colour each Line's stroke is drawn in. */
 const lineColour: ExpressionSpecification = ['case', ['to-boolean', ['get', 'shared']], SHARED, ['get', 'colour']];
 /** How far right of its track each Line's stroke is drawn, and its casing: `side` line widths, zoomed out. */
@@ -984,6 +989,8 @@ for (const { source, id, prefix, zooms, nameZooms, opacity, throughOpacity, belo
     ...nameZooms,
     layout: {
       'symbol-placement': 'line',
+      // Placed in the manifest's order of their regions, as when every region's Lines were one list (RANK_STEP).
+      'symbol-sort-key': ['get', 'rank'],
       'text-field': ['get', 'name'],
       'text-font': FONT,
       'text-size': NAME_SIZE,
@@ -1355,7 +1362,11 @@ function show(days: Track | Bundle, tripsOnly = false) {
   const shapes = new Map(days.shapes.map((s) => [s.id, s]));
   const slots = new Map<string, Slot[]>();
   // A track built before #176 has none: its Trains go on their own track.
-  for (const s of days.slots ?? []) slots.set(`${s.line} ${s.shape}`, [...(slots.get(`${s.line} ${s.shape}`) ?? []), s]);
+  for (const s of days.slots ?? []) {
+    const known = slots.get(`${s.line} ${s.shape}`);
+    if (known) known.push(s);
+    else slots.set(`${s.line} ${s.shape}`, [s]);
+  }
   const keep = new Map(days.networks.map((n) => [n.id, n.runningSide === 'left' ? -1 : 1]));
   placing = { shapes, slots, curves: zones(days.strokes), keep: new Map(days.lines.map((l) => [l.id, keep.get(l.network) ?? 1])), closures: new Map() };
   // A track built before #241 names no kinds of service and no pill zooms: its Trains are round pills from zoom 10.
@@ -1366,58 +1377,26 @@ function show(days: Track | Bundle, tripsOnly = false) {
   // Lines drawn already, as at the map's second look: the new ones are handed over a frame later (below).
   const again = shownStrokes.length > 0;
   shownStrokes = days.strokes;
-  // Zoomed in, on its own rails, a Line's bends are rounded (#203).
-  const drawn = (strokes: Stroke[], round = false): GeoJSON.FeatureCollection => ({
-    type: 'FeatureCollection',
-    // A stroke cut back for curves, or along a centreline smoothed for a zoom band, once for each band
-    // it's drawn in, as it is there; a curve in its pieces.
-    features: strokes.flatMap((s) => {
-      const bands = s.band !== undefined ? [s.band] : BANDS.flatMap((_, band) => (band >= GRAPH_BAND ? [band] : []));
-      if (!s.cut && !s.covered && !bands.some((band) => shapes.has(smoothId(s.shape, band)))) return pieces(s);
-      // Not in a band where a node absorbed its Stretch (ADR-0007). Where a Line above one in a tunnel
-      // lies within the band's line width, its part is drawn narrower and fainter (#417).
-      return bands.flatMap((band) => {
-        const [start, end] = cutIn(s, band);
-        if (start + end >= s.to - s.from) return [];
-        const there = { ...s, from: s.from + start, to: s.to - end, band };
-        return s.covered ? coveredIn(there, band).map((part) => ({ ...part, band })) : [there];
-      });
-    }).flatMap(({ line: id, shape: shapeId, from, to, side, band, shared, under, covered, crowded }): GeoJSON.Feature[] => {
-      const [line, shape] = [lines.get(id), band === undefined ? shapes.get(shapeId) : inBand(shapes, shapeId, band)];
-      if (!line || !shape) return [];
-      const properties = {
-        // Which Lines a tap on it names (linesAt()).
-        line: id,
-        shape: shapeId,
-        from,
-        to,
-        name: line.name,
-        colour: line.colour,
-        lettering: pills.get(id)?.lettering,
-        // Zoomed right in, where Lines share track, Barcelona's commuter lines (R1–R8) are drawn over the regional ones.
-        // And those in tunnels below the rest, the deeper the lower (#178).
-        above: (/^R\d[NS]?$/.test(line.name) ? 1 : 0) - 2 * (under ?? 0),
-        side,
-        ...(band !== undefined && { band }),
-        ...(shared && { shared }),
-        ...(under && { under }),
-        ...(covered && { covered: true }),
-        ...(crowded && { crowded }),
-        // Each Line's name goes on its own stroke: text-offset is in ems.
-        ...Object.fromEntries(APART.map(([zoom, px]) => [`textOffset${zoom}`, [0, (side * px) / NAME_SIZE]])),
-      };
-      const coordinates = along(shape, from, to);
-      return [{ type: 'Feature', properties, geometry: { type: 'LineString', coordinates: round ? rounded(coordinates) : coordinates } }];
-    }),
+  // Each region's Lines and rails are made once, for its track, and handed over once (#733); a region's place in the
+  // manifest keeps them in its order (RANK_STEP). Zoomed in, on its own rails, a Line's bends are rounded (#203).
+  const lettering = (line: string) => pills.get(line)?.lettering;
+  const drawings = (joinedFrom(days) ?? [{ id: '', track: days }]).map(({ id, track }) => {
+    // ponytail: the region's place in the manifest when its Lines are made, kept for as long as its track is. A manifest
+    // that reorders the regions under a track the map keeps leaves them in the old order; make them again if it does.
+    const how = { shapes, lines, lettering, rank: Math.max(0, manifest?.regions?.findIndex((r) => r.id === id) ?? 0), nameSize: NAME_SIZE };
+    return regionLines.made(track, () => ({ lines: drawnLines(track.strokes, how), rails: drawnLines(track.rails, how, rounded) }));
   });
   // The Lines go to MapLibre as objects, never as a blob: URL, which it fetches, parses and copies on the page's thread
   // and keeps a second copy of: 1.0 s a join at Barcelona at zoom 12 (#731). Handing an object over copies it on the
-  // page's thread too, 0.5 s for long distance's joined with the view's own, so where Lines are drawn already it's a
-  // frame after making them (below). The first Lines go at once, which onScreen() waits for.
-  const [strokes, rails] = [drawn(days.strokes), drawn(days.rails, true)];
+  // page's thread too, 0.5 s for long distance's, so where Lines are drawn already it's a frame after making them
+  // (below). The first Lines go at once, which onScreen() waits for. Only the regions new to MapLibre go, and those no
+  // longer joined come off, worked out as they're handed over, as a frame on other days may have been shown.
   const handOver = () => {
-    map.getSource<GeoJSONSource>('lines')?.setData(strokes);
-    map.getSource<GeoJSONSource>('rails')?.setData(rails);
+    const { add, remove } = regionLines.handOver(drawings);
+    if (!add.length && !remove.length) return;
+    for (const source of ['lines', 'rails'] as const) {
+      map.getSource<GeoJSONSource>(source)?.updateData({ remove: remove.flatMap((d) => d[source].map((f) => f.id as number)), add: add.flatMap((d) => d[source]) });
+    }
   };
   if (!again) handOver();
   showZoomedOut(zoomedOut ?? { networks: days.networks, tracks: networkTracks(days) });
@@ -1444,13 +1423,15 @@ function show(days: Track | Bundle, tripsOnly = false) {
     namesDue = undefined;
     // Names go beside the track, not the stretches' centrelines, clear of the Trains on their Lines' strokes along those,
     // and of the other places' dots (#501).
-    const [track, centrelines] = [days.shapes.filter((s) => !s.id.startsWith(STRETCH)), days.shapes.filter((s) => s.id.startsWith(STRETCH))];
-    const dots = tiered.map(({ lon, lat }): Point => [lon, lat]);
-    const spots = alongside(track, (days.slots ?? []).filter((s) => s.band === undefined), (line) => placing.keep.get(line) ?? 1, days.lines, new Map(centrelines.map((c) => [c.id, c])), dots);
+    // Worked out a region at a time, and at a join only for the places it can move (#733).
+    const regions = splitBy(days, joinedFrom(days)?.map((r) => r.track));
+    const centrelines = new Map(days.shapes.flatMap((s) => (s.id.startsWith(STRETCH) ? [[s.id, s]] : [])));
     // A track built before #243 names no Station's Networks: its names go beside the nearest track of any.
-    names = tiered.map(({ id, name, networks, nameZoom, tier, stations, larger, style, lon, lat }) => {
+    const where = tiered.map(({ id, networks, lon, lat }) => ({ id, dot: [lon, lat] as Point, served: networks }));
+    const sides = placeSides(regions ?? [days], (days.slots ?? []).filter((s) => s.band === undefined), (line) => placing.keep.get(line) ?? 1, days.lines, centrelines, where, !regions);
+    names = tiered.map(({ id, name, nameZoom, tier, stations, larger, style, lon, lat }, i) => {
       const rows = nameLines(name, style);
-      return { id, dot: [lon, lat], sides: spots([lon, lat], networks), name: rows.join('\n'), size: [Math.max(...rows.map((row) => placeWidth(row, style))), rows.length * LINE_HEIGHT * style.size], nameZoom, tier, stations, larger, style };
+      return { id, dot: [lon, lat], sides: sides[i] ?? (() => []), name: rows.join('\n'), size: [Math.max(...rows.map((row) => placeWidth(row, style))), rows.length * LINE_HEIGHT * style.size], nameZoom, tier, stations, larger, style };
     });
     showNames();
   };
@@ -1610,7 +1591,7 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
 }
 
 /**
- * Puts each place's name beside its own Networks' track (alongside()) as the track lies on screen now, at each of
+ * Puts each place's name beside its own Networks' track (alongside(), sidesByJoin()) as the track lies on screen now, at each of
  * NAME_ZOOMS on the side nearestSide() takes, as far out from its dot as clearance() says, and off any track
  * crossing its own there and any other place's dot (underName()), and sorts them for where they collide (nameSort(), #372).
  * ponytail: tries a name under a crossing track, or by another place's dot, at the zoom and the next, not
@@ -1623,7 +1604,14 @@ function showNames() {
   // Where each name goes depends on the names, the pills clearance() reads and the bearing, not on its
   // rank: the calls that come with the Trips rank them again without laying them out (#372).
   if (laidOut?.names !== names || laidOut.pills !== pills || laidOut.bearing !== namesBearing) {
+    // A name whose sides, size, zoom, dot size and type size are as they were, at the bearing it was laid out at, goes where it went,
+    // unless a Train's pill it clears changed (clearance()): at a join, those whose sides it can't move (sidesByJoin(), #733).
+    const was = laidOut;
+    const pillsAsWere = was !== undefined && was.bearing === namesBearing && [...pills].every(([line, p]) => samePill(was.pills.get(line), p));
+    const before = new Map(pillsAsWere ? was.names.map((n, i) => [n.sides, { n, where: was.where[i] }]) : []);
     const where = names.map(({ dot, sides, size, nameZoom, larger, style }) => {
+      const had = before.get(sides);
+      if (had?.where && had.n.size[0] === size[0] && had.n.size[1] === size[1] && had.n.nameZoom === nameZoom && had.n.larger === larger && had.n.style.size === style.size) return had.where;
       const at = sides(namesBearing);
       const properties = NAME_ZOOMS.flatMap((zoom) => {
         // MapLibre lays names out at whole zooms, so a track crossing its own lies under one from this zoom to the next, at half the metres a px.
@@ -1654,6 +1642,11 @@ function showNames() {
       return { type: 'Feature', properties: { id, name, nameZoom, sort, ...style, ...where[i] }, geometry: { type: 'Point', coordinates: dot } };
     }),
   });
+}
+
+/** Whether a Line's Trains' pill is as large, and from the same zoom, as it was, or it had none: where a name clears it, it goes where it went (clearance()). */
+function samePill(was: Pill | undefined, pill: Pill): boolean {
+  return !was || (was.zoom === pill.zoom && was.box[0] === pill.box[0] && was.box[1] === pill.box[1]);
 }
 
 /**

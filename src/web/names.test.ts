@@ -1,8 +1,8 @@
 import { featureFilter, type Feature, type ICanonicalTileID } from '@maplibre/maplibre-gl-style-spec';
 import { assert, expect, test, vi } from 'vitest';
 import { stationsOf } from '../build/track.ts';
-import { DEGREE, places, type Place, type Point, type Shape, type Slot, type Station, type Stroke } from '../bundle.ts';
-import { alongside, callsIn, CAP, DOT_COST, namedTwice, nameOffset, nameSort, nearestSide, underName, type Side, type Spot } from './names.ts';
+import { DEGREE, joinTracks, places, type Place, type Point, type Shape, type Slot, type Station, type Stroke, type Track } from '../bundle.ts';
+import { alongside, callsIn, CAP, DOT_COST, namedTwice, nameOffset, nameSort, nearestSide, sidesByJoin, splitBy, underName, type Side, type Spot } from './names.ts';
 
 // Made up, on the equator, where a degree is DEGREE metres both ways, but for the one test of #501's cells.
 /** The point so many metres east and north of 0°, 0°. */
@@ -520,4 +520,65 @@ test("sorts a place's name by its tier's zoom, and one in no tier by its calls a
   expect(tiered('abando')).toBe(11);
   expect(tiered('nobody')).toBe(11);
   expect(tiered('nobody')).toBeLessThan(nameSort({ nameZoom: 12, tier: false, stations: ['x'] }, new Map([['x', 1_000_000]])));
+});
+
+/** Each place's sides at a few bearings, as they'd go to JSON. */
+const asJson = (sides: ((bearing: number) => Side[])[]) => JSON.stringify(sides.map((s) => [0, 37, 90].map((bearing) => s(bearing))));
+
+test("works a joined track's places out a region at a time as alongside() does over the track, and at a join only those the join can move (#733)", () => {
+  // Two regions 10 km apart, each a track with a Line along it and a place on it, a third place 2 km east of the first
+  // region's, which a place of the second region's comes within REACH of when it joins, and a fourth within REACH of
+  // the second region's track, but of no place's dot that comes.
+  const a = [track('a', [-3000, 0], [3000, 0])];
+  const b = [track('b', [10000, -3000], [10000, 3000])];
+  const slots = drawn([...a, ...b]);
+  const networks = [{ network: 'A', shapes: ['a'] }, { network: 'B', shapes: ['b'] }];
+  const before = [{ id: 'a1', dot: at(0, 10), served: ['A'] }, { id: 'a2', dot: at(2000, -10), served: ['A'] }, { id: 'far', dot: at(-2900, 5000) }, { id: 'a3', dot: at(7800, 2900), served: ['A'] }];
+  const after = [...before, { id: 'b1', dot: at(10010, -2900), served: ['B'] }, { id: 'b2', dot: at(3500, 0), served: ['B'] }];
+  // Each region's track, the same object at every join.
+  const [regionA, regionB] = [{ shapes: a }, { shapes: b }];
+  const sides = sidesByJoin();
+  const first = sides([regionA], slots.slice(0, 1), right, networks.slice(0, 1), new Map(), before);
+  expect(asJson(first)).toBe(asJson(before.map(({ dot, served }) => alongside(a, slots.slice(0, 1), right, networks.slice(0, 1), new Map(), before.map((p) => p.dot))(dot, served))));
+  const second = sides([regionA, regionB], slots, right, networks, new Map(), after);
+  // As alongside() over the joined track has them.
+  const whole = alongside([...a, ...b], slots, right, networks, new Map(), after.map((p) => p.dot));
+  expect(asJson(second)).toBe(asJson(after.map(({ dot, served }) => whole(dot, served))));
+  // a1 and far are further than REACH from b's track and b2's dot, and kept; a2 is within REACH of b2's dot, and a3 of b's track.
+  expect(second.map((s, i) => s === first[i])).toEqual([true, false, true, false, false, false]);
+  // Only the place that changed is worked out again where nothing joins, and every one where told to.
+  const served = after.map((p) => (p.id === 'far' ? { ...p, served: ['A'] } : p));
+  const third = sides([regionA, regionB], slots, right, networks, new Map(), served);
+  expect(third.map((s, i) => s === second[i])).toEqual([true, true, false, true, true, true]);
+  const fresh = sides([regionA, regionB], slots, right, networks, new Map(), served, true);
+  expect(fresh.some((s, i) => s === third[i])).toBe(false);
+  // b leaves, and the places near it with it: a2 and a3 are worked out again, and far, served as it was.
+  const fourth = sides([regionA], slots.slice(0, 1), right, networks.slice(0, 1), new Map(), before);
+  expect(fourth.map((s, i) => s === fresh[i])).toEqual([true, false, false, false]);
+  expect(asJson(fourth)).toBe(asJson(first));
+});
+
+test("splits a joined track's names by region only where it's the regions' tracks joined, each with IDs of its own (#733)", () => {
+  /** A region's track: a shape, a Line of its Network along it, and a slot of that Line on it. */
+  const region = (id: string, shape = id, on = shape): Track => ({
+    networks: [{ id, name: id, runningSide: 'right' } as Track['networks'][number]],
+    lines: [{ id, network: id, shapes: [shape] } as Track['lines'][number]],
+    stations: [],
+    shapes: [track(shape, [0, 0], [1, 0])],
+    strokes: [],
+    rails: [],
+    slots: [{ line: id, shape, from: 0, to: 1, side: 0, on, at: [0, 1] }],
+    tracks: [],
+  });
+  const [a, b] = [region('a'), region('b')];
+  expect(splitBy(joinTracks([a, b]), [a, b])).toEqual([a, b]);
+  expect(splitBy(joinTracks([a, b]), undefined)).toBeUndefined();
+  // Not the regions' tracks joined, as where a day of another build is joined in.
+  expect(splitBy(joinTracks([b, a]), [a, b])).toBeUndefined();
+  expect(splitBy(joinTracks([a]), [a, b])).toBeUndefined();
+  // A shape of the same ID in both, or a slot on the other's centreline.
+  const twin = region('c', 'a');
+  expect(splitBy(joinTracks([a, twin]), [a, twin])).toBeUndefined();
+  const across = region('d', 'd', 'a');
+  expect(splitBy(joinTracks([a, across]), [a, across])).toBeUndefined();
 });
