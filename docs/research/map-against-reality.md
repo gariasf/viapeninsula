@@ -477,7 +477,24 @@ So the ticket's second question, whether the map should say "no live data" for a
 
 **León (47)** isn't absent, only thin: up to 3 rail Trips run at a time (a rail Trip's `BUS` twins have no reports), and its reports came for 344 of 717 Train-snapshots on Saturday (48%): 24 of 84 at 10:38, 36 of 239 at 11:04, 182 of 286 at 13:15, 12 of 18 at 16:34 and 90 of 90 at 17:57. Its two Trains of 09:34 to 12:15 and 09:44 to 11:27 (`71093` and `71082`) are named in 22 of 42 snapshots at 10:38 and, of the 45 minutes after, one of them is, in 80 of 134: the "none in the 10 stretches" of the ticket is that window. That's the quiet of any núcleo (León's Live is 66% in section 2's table), under #124's 5 Trains on the map, so never a banner: the timetable has 3 rail Trips at most at once on Saturday, and the same 18 on Monday 12 October.
 
-*What's left:* the weekday morning peak the ticket asks for, from Monday 12 October (`npm run record -- <dir> 45`, then count `trip_id` prefixes `20` and `47` in each `vehicle_positions.json` of the run against the Trains the timetable has running), and whether Asturias is back by then.
+**On a weekday it's still gone: not Saturdays only.** The weekday sample is the Record run of Tuesday 13 October dispatched by hand at 10:49 CEST (run 38371923952, `recording-2026-10-13-1049`, 45 minutes, 133 steps of 20 s to 11:34), as the 07:47 cron never ran (#344's cron, #408): late morning, not the peak the ticket asked for, though with 19 to 27 of Asturias' Trips running at a time it's no quiet hour. Counted in its `renfe.ndjson.gz`, which keeps Renfe's Cercanías `vehicle_positions.json` and `trip_updates.json` at every step (#551), against the Trips of the day's bundle running at each step (first departure to last arrival):
+
+| 13 Oct 10:49–11:34 (133 steps) | Trips running at a time | Train-snapshots running | Reports (`trip_id` prefix) | Trip updates | Train-snapshots reported |
+|---|---|---|---|---|---|
+| Asturias (20) | 19–27 (23.2 on average: C1 4.7, C4 4.5, C3 2.9, C6 2.8, C7 2.7, C5 2.6, C8 1.3, C2 1.0, C5a 0.6) | 3,089 | **0** | **0** | **0** |
+| León (47) | 1–3 | 278 | 104 | 103 | 35 |
+
+The file had 231 to 258 reports a step, all the other núcleos in it (Madrid `10` 93 a step, Barcelona's `51` 67.5, Valencia `40` 18.1 and so on), and none at all inside Asturias' box, by any prefix. The feed said `ok` in 120 of the replay's 133 snapshots and, in the other 13, the "not updated since" every núcleo had at that moment (the one Renfe file all of them share), so the banner was #124's rule again, the whole 45 minutes. The long-distance file, read at the same steps, named two of the Trips running by number, 12101 (C1, 108 steps) and 71821 (C7, 69), so 177 of the 3,089 Train-snapshots (5.7%, 1.3 Trains a step against Saturday's 0.7): #261's Live for those two, Scheduled for the other 22 or so.
+
+So Asturias is in none of the seven reads since 7 October 17:47 (six on Saturday 10 October, then the Tuesday's 133 steps): it went between that Wednesday evening and Saturday morning and hasn't come back on a weekday. One weekday doesn't make it gone for good, but nothing on the map's side can bring it back: Renfe's file stopped carrying núcleo 20, while the timetable still runs its 462 Trips (Tuesday's bundle). The map draws them Scheduled, as it should.
+
+**León** is as on Saturday, thin and never a banner (1 to 3 rail Trips at a time, under #124's 5): of the four Trips running in the window, 71001 (San Feliz, 11:00–11:12) was reported all through its run and the 11 minutes before it, from the recording's start, 71055 (Matallana, 11:37) for the 12 minutes before its departure that the recording reached, and the two long FEVE Trains, 71093 (to Guardo, 09:34–12:15) and 71082 (to La Asunción Universidad, 09:44–11:27), in none of their 133 and 110 steps, where on Saturday they were in some.
+
+**A pick for the maintainer, not built: what the banner says while a Network's file has none of its Trains for days.** The English string is "{network} live data unavailable" (`liveUnavailable` in `src/web/i18n.ts`), which reads as a fault on the map's side; the other four languages already say the calmer "{network}: no live data" (`sin datos en tiempo real`, `sense dades en temps real`, …).
+
+- **A. Leave it.** The banner is true, and Asturias is the only case.
+- **B. Say it as the other languages do** (recommended): `en: '{network}: no live data'`, one string and its test, and the same banner for every Network that misses.
+- **C. A second banner for a Network whose feed is `ok` but has had none of its Trains for a long while** (e.g. "Cercanías Asturias: timetable only, Renfe publishes no live data"): a rule over hours of reports the fetcher doesn't keep, so more than a string, and only worth it if more Networks go the same way.
 
 ## 13. Why Madrid's fixes snap (#486)
 
