@@ -282,6 +282,9 @@ test('a segment shapes share, at the same points, is found for each shape that r
   const one = track('one', [-500, 0], [500, 0]);
   const station = [one, track('two', [-500, 20], [500, 20]), { ...one, id: 'three' }];
   expect(first(station, drawn(station), right)(at(0, 5))(0).lines.map(({ line }) => line)).toEqual(['one', 'two', 'three']);
+  // A shape that leaves from one's first point, but not to its second, runs a segment of its own, about 20 m north of the dot.
+  const fork: Shape = { id: 'fork', coords: [one.coords[0] ?? at(-500, 0), at(500, 40)], dist: [0, Math.hypot(1000, 40)] };
+  expect(Math.round(metres(first([one, fork], [], right)(at(0, 5))(0).from)[1] ?? 0)).toBe(20);
 });
 
 test("where it goes from a track beyond the dot, it keeps how far behind that, in metres, the dot and each Line's track lie", () => {
