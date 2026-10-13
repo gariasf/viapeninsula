@@ -1919,6 +1919,9 @@ test("a followed Train whose last report pins it to a Station it isn't held at n
   expect(followed(R2S, at('22:00:10'), [start])?.pinnedAt).toBeUndefined();
   const pinned = [start, ...pinnedAt(R2S, 'Sitges', 30, at('22:00:20'), at('22:15:00'))];
   expect(followed(R2S, at('22:05:00'), pinned)?.pinnedAt).toBe('Sitges');
+  // GPS after the pin, by 22:05:10, names none: the pin ends.
+  const then = [...pinnedAt(R2S, 'Sitges', 30, at('22:00:20'), at('22:05:00')), gps(R2S, where(R2S, at('22:04:40')) ?? NaN, at('22:05:10'))];
+  expect(followed(R2S, at('22:05:20'), [start, ...then])?.pinnedAt).toBeUndefined();
   expect(followed(R2S, at('22:12:00'), pinned)?.pinnedAt).toBeUndefined();
   const coming = [start, ...pinnedAs(R2S, 'Sitges', 30, at('22:00:20'), at('22:15:00'), () => 'INCOMING_AT')];
   expect(followed(R2S, at('22:12:00'), coming)?.pinnedAt).toBe('Sitges');
