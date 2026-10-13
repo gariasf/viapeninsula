@@ -1300,11 +1300,14 @@ const add = (to: Map<string, Trip[]>, key: string, trip: Trip) => to.set(key, [.
 
 /**
  * A bundle's Trips by their Train numbers, where they have one, those of one number in any Network
- * and on each of the days joined: the Trips a report that names a Train by its number alone can be
- * about, of which the one whose timetable runs nearest when it was reported is (reportsByTrip()).
+ * and on each of the days joined, and each by the numbers another timetable runs it under too (`twins`,
+ * #488): the Trips a report that names a Train by its number alone can be about, of which the one whose
+ * timetable runs nearest when it was reported is (reportsByTrip()).
  */
 export function numberedIn(bundle: Bundle): Map<string, Trip[]> {
-  return bundle.trips.reduce((numbered, trip) => (trip.number ? add(numbered, trip.number, trip) : numbered), new Map<string, Trip[]>());
+  const numbered = new Map<string, Trip[]>();
+  for (const trip of bundle.trips) for (const number of [trip.number, ...(trip.twins ?? [])]) if (number) add(numbered, number, trip);
+  return numbered;
 }
 
 /**
