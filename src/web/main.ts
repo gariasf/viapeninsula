@@ -1274,13 +1274,15 @@ const trainSource = map.getSource<GeoJSONSource>('trains');
 const trainTileZoom = () => Math.min(18, Math.max(0, Math.floor(map.getZoom()) - 2));
 // And as the Trains' pills are names, MapLibre marks the names' placement it has just made stale each time
 // the Trains' tiles come, and draws another frame to place them again. With fadeDuration 0 it places them
-// all again each frame it draws anyway, so that frame is let go (#747).
-// ponytail: MapLibre's own Style._updatePlacement() (6.11), whose result is then only that stale mark.
-// Drop this once MapLibre leaves a placement it has just made in full alone.
+// all again each frame it draws anyway, so that frame is let go (#747). With a fade, which MapLibre then
+// goes on drawing frames for, the frame stays.
+// ponytail: MapLibre's own Style._updatePlacement() (6.11), whose result with no fade is only that stale
+// mark. Drop this once MapLibre leaves a placement it has just made in full alone.
 const updatePlacement = map.style._updatePlacement.bind(map.style);
 map.style._updatePlacement = (...args) => {
   const again = updatePlacement(...args);
-  if (!again || !map.style.pauseablePlacement.isDone()) return again;
+  const [, , fadeDuration] = args;
+  if (!again || fadeDuration !== 0 || !map.style.pauseablePlacement.isDone()) return again;
   map.style.placement.stale = false;
   return false;
 };
@@ -1298,8 +1300,12 @@ requestAnimationFrame(function move(now) {
   if (now - drawn < every) return requestAnimationFrame(move);
   [drawn, drawnAt] = [now, view];
   const drawing = trains();
-  if (trainSource) trainSource.maxzoom = trainTileZoom();
-  trainSource?.setData(drawing);
+  if (trainSource) {
+    // ponytail: MapLibre 6.11 reads a source's maxzoom afresh for each tile it asks for; one that read it
+    // only once would keep the Trains' tiles at the map's zoom, 12 at Barcelona again.
+    trainSource.maxzoom = trainTileZoom();
+    trainSource.setData(drawing);
+  }
   // The legend's count changes by the second, once the Trips have come, and with it whether there's a
   // Train to follow at random: one the map doesn't follow already.
   if (bundle && performance.now() - countShown > 1000) {
