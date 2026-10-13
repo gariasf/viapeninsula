@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { expect, test } from 'vitest';
-import { beside, DEGREE, places, pointAt, type Bundle, type Network, type Point, type Report, type Shape, type Snapshot, type Trip } from './bundle.ts';
+import { beside, DEGREE, places, pointAt, type Bundle, type Freshness, type Network, type Point, type Report, type Shape, type Snapshot, type Trip } from './bundle.ts';
 import { noonMinus12h } from './build/gtfs.ts';
 import { stationsOf } from './build/track.ts';
 import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, tripsAt, unavailable, type Received, type ShownClosure } from './engine.ts';
@@ -2423,6 +2423,40 @@ test("R15 17050, whose long-distance GPS measured no Delay from 15:26 to 15:37 o
   expect(trainAt(bundle, moment, kept(moment), id)?.delay).toBeCloseTo(31 * 60, -2);
   const [lon, lat] = pointAt(bundle.shapes[0] as Shape, drawn(moment)?.dist ?? NaN);
   expect(Math.hypot((lon - gps.lon) * DEGREE * Math.cos((lat * Math.PI) / 180), (lat - gps.lat) * DEGREE)).toBeLessThan(1000);
+});
+
+test("R15 17050's long-distance report by its number, on its track out of Reus at 15:38 on 10 October 2026, lifts a closed R15 Closure from Reus to Tarragona, but not 20 km off its track, nor where Renfe's Cercanías feed reports its Trip at Reus (#428)", () => {
+  const { bundle, received } = R15_17050;
+  const id = 'rodalies:5181S17050R15';
+  // Made up: R15 closed from Reus to Tarragona.
+  const closed: ShownClosure[] = [{ line: 'rodalies:R15', stations: ['adif:71400', 'adif:71500'], kind: 'closed' }];
+  const last = received.at(-1) as Received;
+  const report = last.snapshot.reports[0] as Report;
+  const moved = (reports: Report[]): Received[] => [...received.slice(0, -1), { ...last, snapshot: { ...last.snapshot, reports } }];
+  expect(seenWithin(bundle, last.at + 5000, received, closed)).toEqual(closed);
+  // Its GPS 20 km to the side of where its Train is drawn, as one on another part of its run (OFF_TRACK, #261).
+  const [lon, lat] = beside(bundle.shapes[0] as Shape, trainsAt(bundle, last.at + 5000, received).find((t) => t.trip.id === id)?.dist ?? NaN, 20_000);
+  expect(seenWithin(bundle, last.at + 5000, moved([{ ...report, position: { lon, lat } }]), closed)).toEqual([]);
+  // Made up: Renfe's Cercanías feed has its Trip pinned to Reus, the Closure's edge, which goes first, listed either side of it.
+  const own: Report = { trip: id, at: report.at, position: { near: 'adif:71400' } };
+  for (const reports of [[own, report], [report, own]]) expect(seenWithin(bundle, last.at + 5000, moved(reports), closed)).toEqual([]);
+});
+
+test("R15 17050's long-distance report by its number is judged fresh by Renfe's long-distance feed, not Rodalies' Cercanías one, in lifting a closed R15 Closure (#428, #425)", () => {
+  const { bundle, received } = R15_17050;
+  const closed: ShownClosure[] = [{ line: 'rodalies:R15', stations: ['adif:71400', 'adif:71500'], kind: 'closed' }];
+  const last = received.at(-1) as Received;
+  // The latest snapshot, with one of Renfe's feeds failing since 10 minutes before it.
+  const down = (network: string): Received[] => [
+    ...received.slice(0, -1),
+    { ...last, snapshot: { ...last.snapshot, feeds: { ...last.snapshot.feeds, [network]: { ...(last.snapshot.feeds[network] as Freshness), lastSuccess: last.snapshot.generated - 600_000, status: 'HTTP 503' } } } },
+  ];
+  expect(seenWithin(bundle, last.at + 5000, down('ave-larga-distancia'), closed)).toEqual([]);
+  expect(seenWithin(bundle, last.at + 5000, down('rodalies'), closed)).toEqual(closed);
+  // Made up: Renfe's Cercanías feed pins its Trip to Vila-seca, within, and goes by its own feed.
+  const own: Report = { trip: 'rodalies:5181S17050R15', at: last.snapshot.generated, position: { near: 'adif:71401' } };
+  const only = (got: Received[]): Received[] => [...got.slice(0, -1), { ...last, snapshot: { ...(got.at(-1) as Received).snapshot, reports: [own] } }];
+  expect(seenWithin(bundle, last.at + 5000, only(down('ave-larga-distancia')), closed)).toEqual(closed);
 });
 
 test("an AVE y Larga Distancia Trip whose long-distance GPS is off its track, on a part of its run it doesn't cover, still runs as late as Renfe says, as Renfe's figure is against its own timetable (#442)", () => {
