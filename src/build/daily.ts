@@ -35,7 +35,7 @@ import { LONG_DISTANCE, NETWORKS, regionsOf, type NetworkConfig, type Timetable 
 import { decodeTrack, type TrackFile } from '../pieces.ts';
 import { download, type Source } from './gtfs.ts';
 import { manifestOf } from './manifest.ts';
-import { ownRails, RAILWAYS, readFeed, readTimetables, unlisted, untaken, updatedOn, type Feed } from './networks.ts';
+import { ownRails, RAILWAYS, readFeed, readTimetables, twinned, unlisted, untaken, updatedOn, type Feed } from './networks.ts';
 import { crop, toBorder } from './border.ts';
 import { measures, reported, summary } from './measures.ts';
 import { osm } from './osm.ts';
@@ -62,8 +62,9 @@ const FEEDS = join(dryRun ? dirname(execFileSync('git', ['rev-parse', '--path-fo
 if (dryRun) for (const day of await readdir(FEEDS).catch(() => [])) if (day !== today) await rm(join(FEEDS, day), { recursive: true, force: true });
 // Every Network's timetables, downloaded at once, and why they couldn't be, where one couldn't: that
 // doesn't stop the others, and its Network's are read from their copy (readTimetables()). And those of
-// Renfe's long-distance timetable's Networks that aren't on the map yet, Media Distancia y Avant (#263).
-const longDistance = only ? Promise.resolve([]) : Promise.all(LONG_DISTANCE.filter((n) => !NETWORKS.some((m) => m.id === n.id)).map(downloaded));
+// Renfe's long-distance timetable's Networks that aren't on the map yet, Media Distancia y Avant (#263),
+// which a region's build reads too, for the Trips its Trains run under other numbers (twins, #488).
+const longDistance = Promise.all(LONG_DISTANCE.filter((n) => !NETWORKS.some((m) => m.id === n.id)).map(downloaded));
 const downloads = await Promise.all([...listers, ...wanted.flatMap((r) => r.networks)].map(downloaded));
 // The rails of every kind any Network runs on, the nodes where Trains change gauge on them, and Spain's border.
 const { rails, changers, border } = await osm(RAILWAYS);
@@ -80,6 +81,14 @@ const listed = DAYS.map((): Map<string, Set<string>>[] => []);
 await mkdir('out/days', { recursive: true });
 // A Network that can't be read lists none, as in a full run, where its region fails.
 for (const { network, failed } of downloads.slice(0, listers.length)) await readTimetables(network, failed, readDays, () => {}).then(addListed, (error: unknown) => console.warn(`${network.name} isn't read: ${error instanceof Error ? error.message : error}`));
+// Media Distancia y Avant's Trains, read before the regions are built, so that a Rodalies or núcleo Trip one
+// of them makes all the calls of, at the same minutes, under another number, answers to that number too
+// (twinned(), #488). A timetable that can't be read, nor its copy, twins none, and is logged.
+// ponytail: not AVE y Larga Distancia's, which twin none of them on 13 and 17 Oct 2026, and are read in its
+// own region's build, after the others; read them here too if one shows up as a Trip's twin. And once #263
+// puts Media Distancia y Avant on the map, `longDistance` leaves it out, and no Trip has a twin: read it here still.
+const longRead = await Promise.all((await longDistance).map(async ({ network, failed }) => ({ network, read: await readTimetables(network, failed, readLong, () => {}).catch((error: unknown) => (console.warn(`${network.name}'s Trains aren't read, so they twin no Trip: ${error instanceof Error ? error.message : error}`), { error })) })));
+const twins = DAYS.map((_, i) => longRead.flatMap(({ read }) => ('error' in read ? [] : (read.days[i] ?? []).flatMap((p) => p.trips))));
 // Each region, one after another: its Networks read and built, its Lines drawn side by side, and its
 // files written. A region that fails keeps the files of its last build (buildRegions()).
 const results = await buildRegions(
@@ -127,10 +136,10 @@ if (only) {
   // unseen: what their traces find is logged, as the calls their Trains drop are (#403). A long-distance
   // timetable that can't be read, nor its copy, as before a build has kept one, is logged, and stops
   // nothing else.
-  for (const { network, failed } of await longDistance) {
+  for (const { network, read } of longRead) {
     try {
-      const read = async (feeds: (Feed & { gtfs: Source; readOn: string })[]) => ({ ...(await readDays(feeds)), routes: (await Promise.all(feeds.map((f) => untaken(f.gtfs)))).flat() });
-      const { days, routes } = await readTimetables(network, failed, read, () => {});
+      if ('error' in read) continue;
+      const { days, routes } = read;
       for (const found of routes) report.add(found);
       const trains = unlistedTrains(network, days);
       const stations = (days[0] ?? []).flatMap((p) => p.stations);
@@ -207,6 +216,11 @@ async function readDays(feeds: (Feed & { gtfs: Source; readOn: string })[]) {
   return { published, days, lines: (days[0] ?? []).map((p) => p.lines) };
 }
 
+/** What a long-distance timetable gives its Network (readDays()), and the route names neither of its Networks takes (untaken(), #401). */
+async function readLong(feeds: (Feed & { gtfs: Source; readOn: string })[]) {
+  return { ...(await readDays(feeds)), routes: (await Promise.all(feeds.map((f) => untaken(f.gtfs)))).flat() };
+}
+
 /**
  * A Network from what its timetables give it (readDays()), with the day they were last updated
  * where its terms ask the map to show it: its Lines, Stations and track traced along
@@ -233,6 +247,7 @@ function build(config: NetworkConfig, { published, days }: Awaited<ReturnType<ty
   for (const [stationId, { name: spelt, source }] of Object.entries(config.stationNames ?? {})) {
     console.log(stations.some((s) => s.id === stationId) ? `${name} spells ${stationId} as ${spelt}: ${source}` : `${name}'s timetables have no Station ${stationId}, so its spelling of its name isn't applied`);
   }
+  const shapeless = config.timetables.every((t) => t.shapeless);
   const own = ownRails(rails, config);
   const near = railsBeside(own, stations);
   const found = (f: Found) => report.add({ ...f, network: id, ways: [...new Set(f.stations?.flatMap((s) => near.get(s.id)?.map((c) => c.way.id) ?? []))] });
@@ -244,7 +259,13 @@ function build(config: NetworkConfig, { published, days }: Awaited<ReturnType<ty
   // of its Line runs a trace of its own through it on these days (#601): it's logged either way.
   const branches: Found[] = [];
   const shapes = traceShapes(feeds, stations, own, network.runningSide, console.log, (f) => (f.kind === 'branch' ? branches.push(f) : found(f)), graphs);
-  const cropped = crop(border, stations, shapes, days.map((day) => day.flatMap((p) => p.trips)));
+  // Its Trips, each with the numbers Media Distancia y Avant runs it under, as R15's 30501 as 17501 (twinned(), #488).
+  const trips = days.map((day, i) => (shapeless ? day.flatMap((p) => p.trips) : twinned(day.flatMap((p) => p.trips), twins[i] ?? [])));
+  for (const [i, day] of trips.entries()) {
+    const twin = day.filter((t) => t.twins).length;
+    if (twin) console.log(`${name}'s Trips on ${DAYS[i]} that Media Distancia y Avant runs under another number too: ${twin}`);
+  }
+  const cropped = crop(border, stations, shapes, trips);
   // Each Line's top speed, its own where its profile has one, as AVE's 300 km/h (#260), or its Network's.
   const speeds = new Map(lines.map((l) => [l.id, profiled(network, l)?.profile.topSpeed ?? profile.topSpeed]));
   const topSpeed = (line: string) => speeds.get(line) ?? profile.topSpeed;
@@ -252,7 +273,6 @@ function build(config: NetworkConfig, { published, days }: Awaited<ReturnType<ty
   // Network before it lists too, traced through their Stations instead, cut at Spain's border with the first call
   // beyond it, and its Trips placed on their runs' traces (#259, #262). A Trip of a timetable with shapes that
   // doesn't fit its feed's shape runs on a trace through its own Stations, which its Line has too (#280).
-  const shapeless = config.timetables.every((t) => t.shapeless);
   const placed = shapeless
     ? placeRuns(traceRuns(toBorder(border, stations, unlistedTrains(config, days)), stations, rails, changers, runningSide, console.log, found), stations, topSpeed, console.log, found)
     : placeDays(cropped.days, shapes, stations, topSpeed, (unfit) => traceOwn(unfit, feeds, stations, graphs, console.log, found), console.log, found);

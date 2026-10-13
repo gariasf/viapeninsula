@@ -8,7 +8,7 @@ import { afterAll, afterEach, expect, test, vi } from 'vitest';
 import { places, type Point } from '../bundle.ts';
 import { AVE_LARGA_DISTANCIA, CERCANIAS_ASTURIAS, CERCANIAS_BILBAO, CERCANIAS_SANTANDER, CERCANIAS_ZARAGOZA, MEDIA_DISTANCIA_AVANT, NETWORKS, RODALIES, TRAM, type NetworkConfig } from '../networks.ts';
 import { dirSource, rows, seconds, zipFile, zipSource, type Source } from './gtfs.ts';
-import { copyOf, FGC_FEED, joinParts, meeting, METRO_FEED, onFgcRails, onMetroRails, onRails, onRodaliesRails, ownRails, readFeed, readTimetables, RODALIES_FEED, TRAMBAIX_FEED, unlisted, untaken, updatedOn, type Feed } from './networks.ts';
+import { copyOf, FGC_FEED, joinParts, meeting, METRO_FEED, onFgcRails, onMetroRails, onRails, onRodaliesRails, ownRails, readFeed, readTimetables, RODALIES_FEED, TRAMBAIX_FEED, twinned, unlisted, untaken, updatedOn, type Feed } from './networks.ts';
 import type { Found } from './report.ts';
 import type { Snippet } from './snippet.ts';
 import { nearest, traceShapes } from './track.ts';
@@ -1364,4 +1364,19 @@ test('fails with no copy to build the Network from, as the build did before it k
   );
   const before = await copied({ ...PAIR, timetables: [PAIR.timetables[0]] }, ['T1']);
   await expect(readTimetables(PAIR, new Error('HTTP 503'), read, () => {}, before)).rejects.toThrow('TRAM has no copy of its timetables to build it from: HTTP 503');
+});
+
+test("gives a Rodalies or núcleo Trip all of whose calls a long-distance Train makes, at the same minutes, under another number, that Train's number too, as Renfe's timetables of 13 Oct 2026 have RL3's 33546 run as Regional 15636 (#488)", () => {
+  const trip = (number: string, calls: [string, string, string][]): FeedTrip => ({ id: number, line: 'l', shape: '', headsign: '', number, calls: calls.map(([station, arrival, departure]) => ({ station, arrival: at(arrival), departure: at(departure) })) });
+  // RL3's first three calls: the long-distance timetable gives a stop of a minute only its departure.
+  const rl3 = trip('33546', [['adif:78400', '14:17', '14:17'], ['adif:78402', '14:27', '14:28'], ['adif:78403', '14:36', '14:37']]);
+  const regional = trip('15636', [['adif:78300', '14:05', '14:06'], ['adif:78400', '14:16', '14:17'], ['adif:78402', '14:28', '14:28'], ['adif:78403', '14:37', '14:37'], ['adif:78404', '14:40', '14:40']]);
+  expect(twinned([rl3], [regional])).toEqual([{ ...rl3, twins: ['15636'] }]);
+  // Not one a minute off at a Station, nor one that doesn't call at all of its Stations, nor one of its own number.
+  const late = { ...regional, calls: regional.calls.map((c) => (c.station === 'adif:78402' ? { ...c, arrival: at('14:29'), departure: at('14:29') } : c)) };
+  const short = { ...regional, calls: regional.calls.filter((c) => c.station !== 'adif:78403') };
+  expect(twinned([rl3], [late, short, { ...regional, number: '33546' }])).toEqual([rl3]);
+  // Nor a Trip of one call, which any Train at its Station that minute makes.
+  const one = trip('33547', [['adif:78400', '14:17', '14:17']]);
+  expect(twinned([one], [regional])).toEqual([one]);
 });

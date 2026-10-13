@@ -428,6 +428,25 @@ export function joinParts(trips: FeedTrip[], stations: Map<string, Station>, day
 }
 
 /**
+ * Trips, each with the Train numbers of `others`' Trains that make all of its calls, at least two, at
+ * the same minutes, under another number, as Renfe's long-distance timetable runs Rodalies' R15 30501
+ * as Reg.Exp. 17501 (`twins`, #488, CONTEXT.md): a call is the same where the two arrive at its Station
+ * in the same minute, or leave it in the same minute, as that timetable gives a stop of a minute only its
+ * departure. Renfe's timetables of 13 and 17 Oct 2026 twin 34 and 32 of Rodalies' Trips so, and Valencia's
+ * C6 has 33720 run as both 14020 and 38020, which call at its Stations at the same minutes.
+ */
+export function twinned(trips: FeedTrip[], others: FeedTrip[]): FeedTrip[] {
+  const byStation = new Map<string, FeedTrip[]>();
+  for (const other of others) for (const c of other.calls) byStation.get(c.station)?.push(other) ?? byStation.set(c.station, [other]);
+  return trips.map((trip) => {
+    if (trip.calls.length < 2) return trip;
+    const same = (other: FeedTrip) => other.number !== trip.number && trip.calls.every((c) => other.calls.some((o) => o.station === c.station && (o.arrival === c.arrival || o.departure === c.departure)));
+    const twins = [...new Set((byStation.get(trip.calls[0]?.station ?? '') ?? []).flatMap((other) => (other.number && same(other) ? [other.number] : [])))];
+    return twins.length ? { ...trip, twins } : trip;
+  });
+}
+
+/**
  * Trips less the Trains other timetables list too, by each of their Train numbers and the Stations it
  * calls at (readFeed()'s `listed`): those with one of the numbers that call at one of its Stations
  * (CONTEXT.md), which are kept from that timetable, as Rodalies' and the núcleos' have shapes. On 10 Oct

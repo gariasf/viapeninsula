@@ -2187,6 +2187,31 @@ test("a report naming a Train number is about that number's Trip, in any Network
   expect(trainAt(SHARED, at('12:00:10'), later, R15)?.delay).toBeCloseTo(180, 0);
 });
 
+test("a report naming the Train number a long-distance timetable runs a Trip under, its twin's, is about that Trip too (#488)", () => {
+  // As Renfe's long-distance timetable runs R15's 30550 from Quinto as Reg.Exp. 17050, which its live data
+  // names it by, and R15 has a Trip of its own of 17050, from 15:06, a part of the run it isn't on yet (#442).
+  const r15 = SHARED.trips.find((t) => t.id === R15) as Trip;
+  const own = { ...r15, id: 'rodalies:5181S17050R15', number: '17050', calls: r15.calls.map((c) => ({ ...c, arrival: c.arrival + 3 * 3600, departure: c.departure + 3 * 3600 })) };
+  const twinned: Bundle = { ...SHARED, trips: [...SHARED.trips.map((t) => (t.id === R15 ? { ...t, twins: ['17050'] } : t)), own] };
+  const received = [renfeRead(at('12:00:00'), [{ ...at30550(R15, at('11:57:00'), at('12:00:00')), number: '17050' }])];
+  expect(trainAt(twinned, at('12:00:10'), received, R15)).toMatchObject({ live: true });
+  expect(trainAt(twinned, at('12:00:10'), received, R15)?.delay).toBeCloseTo(180, 0);
+  expect(trainAt(twinned, at('12:00:10'), received, own.id)).toBeUndefined();
+  expect(trainAt({ ...SHARED, trips: [...SHARED.trips, own] }, at('12:00:10'), received, R15)).toMatchObject({ live: false });
+});
+
+test("a report naming a twin's number more than 12 hours from its Trip isn't about a Trip of the twin's own number that doesn't answer to it, as on a day the long-distance timetable doesn't run it (#488, #566)", () => {
+  // R15's 30550 answers to 17050 on one of the days joined and not on the next, whose run of it is a day later.
+  const r15 = SHARED.trips.find((t) => t.id === R15) as Trip;
+  const next = { ...r15, id: `${R15}-next`, calls: r15.calls.map((c) => ({ ...c, arrival: c.arrival + 86_400, departure: c.departure + 86_400 })) };
+  const twinned: Bundle = { ...SHARED, trips: [...SHARED.trips.map((t) => (t.id === R15 ? { ...t, twins: ['17050'] } : t)), next] };
+  const when = at('12:00:00') + 86_400_000;
+  const report = at30550(R15, at('11:57:00'), when);
+  // Its own number's report, there, is about it.
+  expect(trainAt(twinned, when + 10_000, [renfeRead(when, [report])], next.id)).toMatchObject({ live: true });
+  expect(trainAt(twinned, when + 10_000, [renfeRead(when, [{ ...report, number: '17050' }])], next.id)).toMatchObject({ live: false });
+});
+
 /** The Trips of `BUNDLE`, the R2S with its Train number, as its trip_id gives it. */
 const NUMBERED: Bundle = { ...BUNDLE, trips: BUNDLE.trips.map((t) => (t.id === R2S ? { ...t, number: '25478' } : t)) };
 

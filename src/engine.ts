@@ -1300,11 +1300,14 @@ const add = (to: Map<string, Trip[]>, key: string, trip: Trip) => to.set(key, [.
 
 /**
  * A bundle's Trips by their Train numbers, where they have one, those of one number in any Network
- * and on each of the days joined: the Trips a report that names a Train by its number alone can be
- * about, of which the one whose timetable runs nearest when it was reported is (reportsByTrip()).
+ * and on each of the days joined, and each by the numbers another timetable runs it under too (`twins`,
+ * #488): the Trips a report that names a Train by its number alone can be about, of which the one whose
+ * timetable runs nearest when it was reported is (reportsByTrip()).
  */
 export function numberedIn(bundle: Bundle): Map<string, Trip[]> {
-  return bundle.trips.reduce((numbered, trip) => (trip.number ? add(numbered, trip.number, trip) : numbered), new Map<string, Trip[]>());
+  const numbered = new Map<string, Trip[]>();
+  for (const trip of bundle.trips) for (const number of [trip.number, ...(trip.twins ?? [])]) if (number) add(numbered, number, trip);
+  return numbered;
 }
 
 /**
@@ -1399,7 +1402,7 @@ const DAY = 86_400;
  * it has: its Network's own feed goes first (#261). One naming a Trip whose timetable runs more than 12
  * hours from when it was reported, as Renfe names a Train running through midnight by the next day's
  * Trip from 00:00, is about its Line's Trip of that Train number, on the days joined, that runs nearest
- * then (#566). A report that matches no Trip is dropped, and so is one
+ * then (#566), or of the number a report names, which a Trip answers to as its twin's (#488). A report that matches no Trip is dropped, and so is one
  * whose Trip ended more than ENDED before it, where its Network's live data lingers on Trips that
  * ended, as FGC's does (#232), unless it puts the Train further along the Trip than the Trip's report
  * before it, of another time, did (movedOn(), #487).
@@ -1420,7 +1423,7 @@ function reportsByTrip(bundle: Bundle, snapshot: Snapshot, lines: Map<string, Ne
     const candidates = end ? bundle.trips.filter((t) => t.line === report.line && t.id.endsWith(`|${end}`)) : report.trip ? (named.get(report.trip) ?? []) : (numbered.get(report.number ?? '') ?? []);
     const reported = (report.at - bundle.noonMinus12h) / 1000;
     const nearest = closest(candidates, reported);
-    const trip = nearest?.number && apart(nearest, reported) > DAY / 2 ? closest((numbered.get(nearest.number) ?? []).filter((t) => t.line === nearest.line), reported) : nearest;
+    const trip = nearest?.number && apart(nearest, reported) > DAY / 2 ? closest((numbered.get(report.number ?? nearest.number) ?? []).filter((t) => t.line === nearest.line), reported) : nearest;
     const lingers = trip && lines.get(trip.line)?.live?.lingers;
     // Its Trip's report before it, of another time: Geotren's stays in each snapshot until FGC's next update.
     const [latest, previous] = (lingers && earlierMoves.get(trip.id)) || [];

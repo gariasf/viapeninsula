@@ -15,6 +15,8 @@ export interface FeedTrip {
   number?: string;
   /** The IDs of the Trips of its Train that were made one with it (#467), which live data names the Train by while it runs their part. */
   joined?: string[];
+  /** The Train numbers another timetable runs it under, where it makes all of its calls at the same minutes (twinned(), #488). */
+  twins?: string[];
   /** Its calls in order, with arrival and departure in seconds into the service day. */
   calls: { station: string; arrival: number; departure: number }[];
   /** The rails it runs on, where its timetable has no shapes, as Renfe's long-distance one hasn't, to trace it along (traceRuns()). */
