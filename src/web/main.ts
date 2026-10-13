@@ -14,7 +14,7 @@ import { getJson, lookAgainSoon, RETRY, STALL } from './files.ts';
 import { daysAsTheyCome, firstLook, forgetJoined, joinedFrom, regionLoader, regionsCame, regionsNeeded } from './regions.ts';
 import { byRegion, drawnLines, RANK_STEP } from './lines.ts';
 import { linesAt, popupRoom } from './tap.ts';
-import { callsIn, namedTwice, nameOffset, nameSort, nearestSide, rightOf, sidesByJoin, splitBy, underName, type Side, type Spot } from './names.ts';
+import { callsIn, fileShapes, namedTwice, nameOffset, nameSort, nearestSide, rightOf, sidesByJoin, splitBy, underName, type Side, type Spot } from './names.ts';
 import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
 import { atMostEvery, drifted, letsGo, outsideMiddle, pointersDown, tapZooms } from './centre.ts';
 import { fastestInView } from './pace.ts';
@@ -1419,12 +1419,10 @@ function show(days: Track | Bundle, tripsOnly = false) {
   namesDue = days;
   // A frame on, unless other days are shown meanwhile, which hand over their own.
   const later = (then: () => void) => requestAnimationFrame(() => setTimeout(() => namesDue === days && then()));
-  const putNames = () => {
+  const putNames = (regions: Track[] | undefined) => {
     namesDue = undefined;
     // Names go beside the track, not the stretches' centrelines, clear of the Trains on their Lines' strokes along those,
     // and of the other places' dots (#501).
-    // Worked out a region at a time, and at a join only for the places it can move (#733).
-    const regions = splitBy(days, joinedFrom(days)?.map((r) => r.track));
     const centrelines = new Map(days.shapes.flatMap((s) => (s.id.startsWith(STRETCH) ? [[s.id, s]] : [])));
     // A track built before #243 names no Station's Networks: its names go beside the nearest track of any.
     const where = tiered.map(({ id, networks, lon, lat }) => ({ id, dot: [lon, lat] as Point, served: networks }));
@@ -1435,12 +1433,19 @@ function show(days: Track | Bundle, tripsOnly = false) {
     });
     showNames();
   };
+  // Worked out a region at a time, and at a join only for the places it can move (#733), from the regions' shapes filed a
+  // frame before: long distance's alone take some 0.15 s (#770).
+  const fileNames = () => {
+    const regions = splitBy(days, joinedFrom(days)?.map((r) => r.track));
+    for (const track of regions ?? [days]) fileShapes(track.shapes);
+    later(() => putNames(regions));
+  };
   if (again) {
     later(() => {
       handOver();
-      later(putNames);
+      later(fileNames);
     });
-  } else later(putNames);
+  } else later(fileNames);
 }
 
 /**

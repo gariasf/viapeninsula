@@ -3,9 +3,10 @@
 // each region's track from the shared main baseline (`npm run -s baseline`, #730).
 //   npm run names-bench -- [--against <ref>] [--runs <n>] [--order alt] [--bearing <deg>] [--days <out dir>]
 // prints, by join, the median ms over `runs` processes (5) of the names (`sides`, the places' sides, and `layout`,
-// laying them out). With --against, the ref's src too, a process of each alternated, and then whether every place's
-// name is laid out the same in both, and the names in the same order, at every join and after Valencia leaves, in
-// both orders and at bearings 0, 37 and −120 (`differ`, the places that don't, is 0 where it is).
+// laying them out), and of filing the regions' shapes a frame before, where the src does (`filed`, #770). With
+// --against, the ref's src too, a process of each alternated, and then whether every place's name is laid out the same
+// in both, and the names in the same order, at every join and after Valencia leaves, in both orders and at bearings 0,
+// 37 and −120 (`differ`, the places that don't, is 0 where it is).
 // --order alt joins Madrid, long distance, the rest backwards, then Catalonia.
 // It copies what main.ts does for the names, as main.ts can't be imported (the DOM at its top), and reads main.ts's
 // constants (TIERS, BOLD…) from its source; text is measured as main.ts does where it has no canvas, 6 px a letter.
@@ -95,9 +96,13 @@ async function variant(src: string, bearing: number) {
       const { nameZoom, larger, size } = tier ?? C.UNTIERED;
       return { ...p, nameZoom, tier: tier !== undefined, larger, style: { bold: C.BOLD.has(p.id), size } };
     });
+    // The regions split and their shapes filed a frame before putNames(), where the src does so (fileShapes(), #770).
+    const filing = performance.now();
+    const ahead = N.fileShapes ? N.splitBy(days, parts) : undefined;
+    for (const track of N.fileShapes ? (ahead ?? [days]) : []) N.fileShapes(track.shapes);
     // putNames().
     const t0 = performance.now();
-    const regions = N.splitBy(days, parts);
+    const regions = N.fileShapes ? ahead : N.splitBy(days, parts);
     const centrelines = new Map(days.shapes.flatMap((s: any) => (s.id.startsWith(B.STRETCH) ? [[s.id, s]] : [])));
     const where = tiered.map(({ id, networks, lon, lat }: any) => ({ id, dot: [lon, lat], served: networks }));
     const sides = placeSides(regions ?? [days], (days.slots ?? []).filter((s: any) => s.band === undefined), (line: string) => keep.get(line) ?? 1, days.lines, centrelines, where, !regions);
@@ -127,7 +132,7 @@ async function variant(src: string, bearing: number) {
     });
     laidOut = { names, pills, bearing, where: laid };
     const t3 = performance.now();
-    return { ms: { names: t3 - t0, sides: t1 - t0, layout: t3 - t2 }, laid: new Map(names.map((n: any, i: number) => [n.id as string, JSON.stringify(laid[i])])), order: names.map((n: any) => n.id as string).join(' ') };
+    return { ms: { names: t3 - t0, sides: t1 - t0, layout: t3 - t2, filed: t0 - filing }, laid: new Map(names.map((n: any, i: number) => [n.id as string, JSON.stringify(laid[i])])), order: names.map((n: any) => n.id as string).join(' ') };
   };
   return show;
 }
@@ -166,7 +171,7 @@ if (args.once) {
   }
 } else {
   const trees: [string, string][] = [['this', here], ...(args.against ? [[args.against, srcOf(args.against)] as [string, string]] : [])];
-  const runs = new Map<string, { join: string; names: number; sides: number; layout: number }[]>();
+  const runs = new Map<string, { join: string; names: number; sides: number; layout: number; filed: number }[]>();
   for (let i = 0; i < Number(args.runs); i++) {
     for (const [tree, src] of trees) {
       const out = execFileSync('node', [import.meta.filename, '--once', '--src', src, '--days', days, '--order', args.order ?? '', '--bearing', args.bearing ?? '0'], { encoding: 'utf8' });
@@ -174,12 +179,12 @@ if (args.once) {
     }
   }
   const median = (xs: number[]) => xs.sort((a, b) => a - b)[Math.floor(xs.length / 2)] ?? NaN;
-  console.log(`ms, median of ${args.runs} runs: names (sides, layout)`);
+  console.log(`ms, median of ${args.runs} runs: names (sides, layout; filed a frame before)`);
   for (const id of joinsOf(args.order === 'alt')) {
     const cols = trees.map(([tree]) => {
       const of = (runs.get(tree) ?? []).filter((r) => r.join === id);
-      const [names, sides, layout] = (['names', 'sides', 'layout'] as const).map((k) => median(of.map((r) => r[k])).toFixed(0));
-      return `${tree} ${names?.padStart(4)} (${sides}, ${layout})`;
+      const [names, sides, layout, filed] = (['names', 'sides', 'layout', 'filed'] as const).map((k) => median(of.map((r) => r[k])).toFixed(0));
+      return `${tree} ${names?.padStart(4)} (${sides}, ${layout}; ${filed})`;
     });
     console.log(`${id.padEnd(26)} ${cols.join('   ')}`);
   }

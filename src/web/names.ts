@@ -294,6 +294,11 @@ interface Straight {
 /** Each track's shapes filed (Filed), by the array they come in. */
 const filedTracks = new WeakMap<Shape[], Filed>();
 
+/** Files a region's track's shapes (Filed) a frame ahead of the join that names its places, off that frame (#770). */
+export function fileShapes(shapes: Shape[]): void {
+  filed(shapes);
+}
+
 /** A track's shapes filed by the cells their segments cross (Filed), once for each array of them. */
 function filed(shapes: Shape[]): Filed {
   const known = filedTracks.get(shapes);
