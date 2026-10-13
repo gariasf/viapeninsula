@@ -835,7 +835,7 @@ interface Heard {
   counted?: GpsDelay;
   /** For Renfe's: the last two different GPS fixes it reported for it, newest first, as first reported, whether hear() took them as positions or not. */
   fixes?: Fix[];
-  /** For Renfe's: the Station its reports have named it at, as `near`, and when its operator first did, in ms since 1970, where none since has named another or given GPS (replay() holds it there from LONG_PIN on). */
+  /** For Renfe's: the Station its reports have named it at, as `near`, and when its operator first did, in ms since 1970, where none since has named another or given GPS (replay() holds it there from LONG_PIN on): the report's `since`, where it has one (#670). */
   pin?: { station: string; since: number };
 }
 
@@ -890,13 +890,14 @@ const SLACK = 300;
  * fixes in the 15 minutes after a pin of 10 minutes or more, in 4 recordings of Rodalies' and the
  * núcleos' Trains, that the map had drawn 3 km or more from the pin, 17 were at it, 7 near where the map
  * had the Train and 3 at neither (#485).
- * ponytail: one length for every Line and núcleo, and a Train unreported for FOLLOWS starts it again.
- * Give the fetcher the first time it named the Station (`since`), so that a Train pinned before the map
- * opened is held at once, and not from 10 minutes after, if that matters. Nor can it tell Renfe's
- * INCOMING_AT from STOPPED_AT, so a Train named as coming in to a Station for the whole run in is held at
- * it before it has got there: 25 of the 410 Train-minutes it moves in #233's four recordings, as RL4
- * 33526's 6.5 minutes of 25 September 2026. Keep `currentStatus` in the report, once a Record has it,
- * and go by that if that matters.
+ * The 10 minutes count from when the fetcher says Renfe first named it there, the report's `since`, so
+ * that a Train pinned before the map opened is held at once (#670), and from the first report the map
+ * has seen where a snapshot from before then has none.
+ * ponytail: one length for every Line and núcleo, and a Train unreported for 2 minutes starts it again.
+ * Nor does it go by Renfe's INCOMING_AT or STOPPED_AT, which the report now carries (`status`), so a Train
+ * named as coming in to a Station for the whole run in is held at it before it has got there: 25 of the
+ * 410 Train-minutes it moves in #233's four recordings, as RL4 33526's 6.5 minutes of 25 September 2026.
+ * Go by that once a Record that has it says how (#671).
  */
 const LONG_PIN = 10 * 60_000;
 
@@ -935,7 +936,8 @@ const FOLLOWS = 2 * 60_000;
  * moves kilometres, so the time between two says nothing of how far a Train could have run: of the 7
  * fixes it would take as none in 10 October 2026's long-distance replay, each was its Train's real
  * position, and one would leave its Train drawn 7 to 8 km behind for 5 minutes. It keeps where the
- * Train's reports have named it at one Station, and since when, which holds it there from LONG_PIN on (#485).
+ * Train's reports have named it at one Station, and since when, which holds it there from LONG_PIN on (#485):
+ * since the report's `since`, where the fetcher gives one, which judges a gap in its reports itself (#670).
  */
 function hear(before: Heard | undefined, report: Report, got: number, from: Received, feed: string, live: LiveTraits | undefined, ownDelay: (report: Report) => OwnDelay, topSpeed: number): Heard {
   const carriesGpsDelay = live?.delay === 'gps';
@@ -955,9 +957,11 @@ function hear(before: Heard | undefined, report: Report, got: number, from: Rece
   const [newest] = before?.fixes ?? [];
   const fixes = fix && !sameSpot(newest, fix) ? [fix, ...(newest ? [newest] : [])] : before?.fixes;
   // Where its reports have named it at one Station since, until one names another or gives GPS: one with no position doesn't. A gap of FOLLOWS or more ends it.
-  const near = report.position && 'near' in report.position ? report.position.near : undefined;
+  // Since when is the report's own where the fetcher says (#670): it judges the gap, and saw the Train before the map opened.
+  // ponytail: the page's own count is for snapshots written before #670; drop it once none is kept (KEEP) or recorded.
+  const near = report.position && 'near' in report.position ? report.position : undefined;
   const kept = follows(before) ? before.pin : undefined;
-  const pin = !carriesGpsDelay ? undefined : near !== undefined ? (kept?.station === near ? kept : { station: near, since: report.at }) : report.position ? undefined : kept;
+  const pin = !carriesGpsDelay ? undefined : near ? { station: near.near, since: near.since ?? (kept?.station === near.near ? kept.since : report.at) } : report.position ? undefined : kept;
   // Where its Network's live data names Trains by number, a position that holds still places it, for up to HOLD (#443).
   const holds = frozen && !!live?.numbers;
   const held = holds ? (before.held ?? before.got) : report.position ? undefined : before?.held;
