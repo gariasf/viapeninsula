@@ -265,7 +265,8 @@ interface Filed {
 }
 
 /**
- * A segment of the shapes as they are, from `a` to `b`, and each shape that runs it (`on`), as its `i`th segment, and
+ * A segment of the shapes as they are, from `a` to `b`, and each shape that runs it (`on`), as its `i`th segment, the
+ * `i` of the shape in `on` at the same place, and
  * the shape's twins too (Filed's `twins`): filed once however many run it, as Straight is, as long distance's 696,806
  * segments are 111,596 (#757). alongside() puts the shapes it finds back in the order of the region's shapes' segments.
  */
@@ -284,7 +285,7 @@ interface Raw {
 interface Straight {
   a: Point;
   b: Point;
-  /** The first cell it's filed in, east to west and north to south. */
+  /** The first cell it's filed in, west to east and south to north. */
   x: number;
   y: number;
   on: { shape: Shape; start: number; stop: number }[];
@@ -417,10 +418,10 @@ interface Memo {
   lastAlong: Map<Shape, { over: Slot[]; made: { lines: string[]; side: number; key: string }[] }>;
   crossingAlong: Map<Straight, { lines: string[]; side: number }[]>;
   found: Map<string, { shape: Shape; first: number; at: Point; dist: number; metres: number }[]>;
-  near: Map<string, { key: string; crossings: Spot['crossing']; besides: Spot['crossing'] }>;
+  crossingsNear: Map<string, { key: string; crossings: Spot['crossing']; besides: Spot['crossing'] }>;
 }
 
-const newMemo = (): Memo => ({ linesAlong: new Map(), lastAlong: new Map(), found: new Map(), crossingAlong: new Map(), near: new Map() });
+const newMemo = (): Memo => ({ linesAlong: new Map(), lastAlong: new Map(), found: new Map(), crossingAlong: new Map(), crossingsNear: new Map() });
 
 /** Lists of segments, each nearest first, as one, nearest first: where two are as near, that of the earlier list first. */
 function byNearest(lists: Spot['crossing'][]): Spot['crossing'] {
@@ -570,7 +571,7 @@ function alongsideFiled(
       const memo = memos[r] ?? newMemo();
       const besideHere = tracks.filter((n) => regionOf.get(n.shape) === r);
       const key = `${nearest && regionOf.get(nearest.shape) === r ? nearest.shape.id : ''};${besideHere.map((n) => `${n.shape.id} ${n.heading}`).join(';')}`;
-      const known = memo.near.get(dotKey);
+      const known = memo.crossingsNear.get(dotKey);
       const part = known?.key === key ? known : { key, crossings: [] as Spot['crossing'], besides: [] as Spot['crossing'] };
       if (part !== known) {
         for (let x = cx - wx; x <= cx + wx; x++) {
@@ -611,7 +612,7 @@ function alongsideFiled(
         }
         part.crossings.sort((p, q) => p.d - q.d);
         part.besides.sort((p, q) => p.d - q.d);
-        memo.near.set(dotKey, part);
+        memo.crossingsNear.set(dotKey, part);
       }
       crossings.push(part.crossings);
       besides.push(part.besides);

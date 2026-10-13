@@ -1,7 +1,7 @@
 // The places' names at each join, in Node (#757, #763): how long main.ts's putNames() and showNames() take as
 // today's regions join one by one, the view's region, long distance, Madrid, then the rest in the manifest's order,
 // each region's track from the shared main baseline (`npm run -s baseline`, #730).
-//   node src/page/namesBench.ts [--against <ref>] [--runs <n>] [--order alt] [--bearing <deg>] [--days <out dir>]
+//   npm run names-bench -- [--against <ref>] [--runs <n>] [--order alt] [--bearing <deg>] [--days <out dir>]
 // prints, by join, the median ms over `runs` processes (5) of the names (`sides`, the places' sides, and `layout`,
 // laying them out). With --against, the ref's src too, a process of each alternated, and then whether every place's
 // name is laid out the same in both, and the names in the same order, at every join and after Valencia leaves, in
@@ -9,7 +9,9 @@
 // --order alt joins Madrid, long distance, the rest backwards, then Catalonia.
 // It copies what main.ts does for the names, as main.ts can't be imported (the DOM at its top), and reads main.ts's
 // constants (TIERS, BOLD…) from its source; text is measured as main.ts does where it has no canvas, 6 px a letter.
-import { execFileSync, execSync } from 'node:child_process';
+// ponytail: a copy of putNames(), showNames(), clearance() and nameLines(), which a change to them leaves behind. Move
+// them out of main.ts into a module both import if the bench and the map ever lay names out apart.
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -148,7 +150,8 @@ function constants(main: string) {
 function srcOf(ref: string): string {
   const dir = mkdtempSync(join(tmpdir(), 'names-bench-'));
   process.on('exit', () => rmSync(dir, { recursive: true, force: true }));
-  execSync(`git archive ${ref} src | tar -x -C ${dir}`, { cwd: dirname(here) });
+  execFileSync('git', ['archive', '--output', join(dir, 'src.tar'), ref, 'src'], { cwd: dirname(here) });
+  execFileSync('tar', ['-xf', join(dir, 'src.tar'), '-C', dir]);
   symlinkSync(join(dirname(here), 'node_modules'), join(dir, 'node_modules'));
   return join(dir, 'src');
 }
