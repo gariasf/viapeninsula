@@ -3564,6 +3564,28 @@ test("a report naming the next day's Trip of a Train number for a Train running 
   expect(trainAt(THROUGH, moment + 10_000, received, friday)?.delay).toBeCloseTo(7_200, 3);
 });
 
+test("a Station Renfe first lists SKIPPED after midnight, under the next day's Trip of a Train number running through it, cuts the day before's Trip of that number, not the next day's (#643)", () => {
+  // Read in the code, not seen: from 00:00 Renfe names a Train still running from the day before by the
+  // next day's Trip of its number, in its SKIPPED Stations as in its reports, and before #643 the cut
+  // went to the next day's Trip, not drawn then, as the Train drawn ran on through the Station and its
+  // board had it stopping there. Made up: 25601 runs 3 minutes later, from Badalona at 23:58, and at
+  // 00:01, before it leaves Montgat, Renfe lists it skipping Montgat-Nord under Saturday's Trip.
+  const later: Row[] = R1_THROUGH.map(([station, , , ...rest], i) => [station, ...(Array(2).fill(['23:58:00', '24:02:00', '24:06:00', '24:10:00'][i]) as [string, string]), ...rest]);
+  const days = joinDays([bundleOf('2026-09-25', RODALIES, { [FRIDAY_25601]: { line: 'R1', number: '25601', calls: later } }), bundleOf('2026-09-26', RODALIES, { [SATURDAY_25601]: { line: 'R1', number: '25601', calls: later } })]);
+  const moment = onSaturday('00:01:00');
+  const friday = `2026-09-25/${FRIDAY_25601}`;
+  const received = [{ snapshot: { ...written(moment), skipped: [{ trip: SATURDAY_25601, stations: ['Montgat-Nord'], since: moment }] }, at: moment }];
+  // Friday's Train runs on through Montgat-Nord, not standing there as its timetable has it.
+  expect(trainAt(days, onSaturday('00:05:45'), [], friday)?.standsAt).toBe('Montgat-Nord');
+  expect(trainAt(days, onSaturday('00:05:45'), received, friday)).toMatchObject({ trip: { id: friday } });
+  expect(trainAt(days, onSaturday('00:05:45'), received, friday)?.standsAt).toBeUndefined();
+  // Montgat-Nord's board has it not stopping there, and Saturday's Trip, due there a day later, stopping there as its timetable has it.
+  expect(boardAt(days, moment, received, ['Montgat-Nord'])).toMatchObject([
+    { trip: { id: friday }, departure: onSaturday('00:06:00'), skipped: true, cancelled: false },
+    { trip: { id: SATURDAY_25601 }, departure: Date.parse('2026-09-27T00:06:00+02:00'), skipped: false, cancelled: false },
+  ]);
+});
+
 test('on the night the clocks go back, the previous day runs an hour longer, and both days keep their times', () => {
   // 25 October's timetable starts at 01:00 summer time, noon less 12 hours: 24 October's 25:30 and
   // 25 October's 00:30 are one moment, 01:30 summer time.
