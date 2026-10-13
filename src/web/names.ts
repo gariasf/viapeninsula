@@ -111,6 +111,7 @@ export interface Side {
  * and the centrelines the Trains go along, and every place's dot (`everyDot`): given a place's dot and the Networks
  * it serves, its own (Place's `networks`), which finds its tracks and the dots of the others near it
  * once, and then the map's bearing, in degrees clockwise from north, as often as the map turns.
+ * It leaves out the centrelines of stretches among `shapes`: names go beside the track (#733).
  * ponytail: takes the Trains to be on the centrelines as they are, not as each zoom band smooths them,
  * up to a line width off. Take the band's if names over Trains show.
  */
@@ -126,17 +127,19 @@ export function alongside(
 }
 
 /**
- * alongside() for a track joined from regions' (`tracks`, each a region's shapes, in the joined track's order) at each
+ * alongside() for a track joined from regions' (`tracks`, each a region's track, in the joined track's order) at each
  * join, for these places, by their IDs: worked out again only for the places whose sides the join can move (#733).
  * Those are the places new or changed, and those within REACH of a region that joined or left, or of a place's dot that
  * came, went or moved, which is as far as alongside() looks. The others keep the sides they had. `fresh` works every
  * place out again, as where the regions' IDs aren't their own (splitBy()).
+ * ponytail: a place's sides kept from an earlier join keep that join's slots, dots and Lines along segments too, a set for
+ * each join a kept place dates from. Work kept places out again after so many joins if the heap shows it.
  */
 export function sidesByJoin() {
   type Sides = (bearing: number) => Side[];
-  let last: { regions: Filed[]; dots: Map<number, string>; sides: Map<string, { dot: Point; served: string; sides: Sides }> } | undefined;
+  let last: { tracks: Pick<Track, 'shapes'>[]; dots: Map<number, string>; sides: Map<string, { dot: Point; served: string; sides: Sides }> } | undefined;
   return (
-    tracks: Shape[][],
+    tracks: Pick<Track, 'shapes'>[],
     slots: Slot[],
     keep: (line: string) => number,
     networks: Pick<Line, 'network' | 'shapes'>[],
@@ -144,7 +147,7 @@ export function sidesByJoin() {
     places: { id: string; dot: Point; served?: string[] }[],
     fresh = false,
   ): Sides[] => {
-    const regions = tracks.map(filed);
+    const regions = tracks.map((t) => filed(t.shapes));
     const spots = alongsideFiled(regions, slots, keep, networks, centrelines, places.map((p) => p.dot));
     // Each cell's dots, as a key that changes where one comes, goes or moves.
     const dots = new Map<number, string>();
@@ -155,9 +158,9 @@ export function sidesByJoin() {
     // The cells where the join moved something: those of the regions that joined or left, and of the dots that changed.
     const moved = new Set<number>();
     if (last && !fresh) {
-      const was = new Set(last.regions);
-      const now = new Set(regions);
-      for (const region of [...regions.filter((r) => !was.has(r)), ...last.regions.filter((r) => !now.has(r))]) {
+      // A region is the same by its track, as a track's slots and Lines are its own (splitBy()).
+      const [was, now] = [new Set(last.tracks), new Set(tracks)];
+      for (const region of [...tracks.filter((t) => !was.has(t)), ...last.tracks.filter((t) => !now.has(t))].map((t) => filed(t.shapes))) {
         for (const key of region.cells.keys()) moved.add(key);
         for (const key of region.straight.keys()) moved.add(key);
       }
@@ -176,7 +179,7 @@ export function sidesByJoin() {
       sides.set(id, { ...now, sides: kept });
       return kept;
     });
-    last = { regions, dots, sides };
+    last = { tracks, dots, sides };
     return made;
   };
 }
@@ -185,7 +188,8 @@ export function sidesByJoin() {
  * The regions' tracks (`parts`) a joined track's names can be worked out from a region at a time (sidesByJoin()): where
  * `joined` has their shapes, slots, Lines and Networks, in order, as joinTracks() joins them, and each region's IDs are
  * its own, its Lines and slots on its own shapes. Not where a day of another build was joined in (joinDays()), or a
- * region names another's shape, Line or Network: then what a region's join moves can lie beyond its own track.
+ * region has a shape, Line or Network of another's ID, or its slots or Lines are on another's shapes: then what a region's
+ * join moves can lie beyond its own track.
  */
 export function splitBy(joined: Track, parts: Track[] | undefined): Track[] | undefined {
   if (!parts) return undefined;

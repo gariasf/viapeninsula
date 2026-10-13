@@ -1428,7 +1428,7 @@ function show(days: Track | Bundle, tripsOnly = false) {
     const centrelines = new Map(days.shapes.flatMap((s) => (s.id.startsWith(STRETCH) ? [[s.id, s]] : [])));
     // A track built before #243 names no Station's Networks: its names go beside the nearest track of any.
     const where = tiered.map(({ id, networks, lon, lat }) => ({ id, dot: [lon, lat] as Point, served: networks }));
-    const sides = placeSides(regions?.map((r) => r.shapes) ?? [days.shapes], (days.slots ?? []).filter((s) => s.band === undefined), (line) => placing.keep.get(line) ?? 1, days.lines, centrelines, where, !regions);
+    const sides = placeSides(regions ?? [days], (days.slots ?? []).filter((s) => s.band === undefined), (line) => placing.keep.get(line) ?? 1, days.lines, centrelines, where, !regions);
     names = tiered.map(({ id, name, nameZoom, tier, stations, larger, style, lon, lat }, i) => {
       const rows = nameLines(name, style);
       return { id, dot: [lon, lat], sides: sides[i] ?? (() => []), name: rows.join('\n'), size: [Math.max(...rows.map((row) => placeWidth(row, style))), rows.length * LINE_HEIGHT * style.size], nameZoom, tier, stations, larger, style };
@@ -1604,7 +1604,7 @@ function showNames() {
   // Where each name goes depends on the names, the pills clearance() reads and the bearing, not on its
   // rank: the calls that come with the Trips rank them again without laying them out (#372).
   if (laidOut?.names !== names || laidOut.pills !== pills || laidOut.bearing !== namesBearing) {
-    // A name whose sides, size, zoom and lettering are as they were, at the bearing it was laid out at, goes where it went,
+    // A name whose sides, size, zoom, dot size and type size are as they were, at the bearing it was laid out at, goes where it went,
     // unless a Train's pill it clears changed (clearance()): at a join, those whose sides it can't move (sidesByJoin(), #733).
     const was = laidOut;
     const pillsAsWere = was !== undefined && was.bearing === namesBearing && [...pills].every(([line, p]) => samePill(was.pills.get(line), p));

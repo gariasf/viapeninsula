@@ -534,10 +534,12 @@ test("works a joined track's places out a region at a time as alongside() does o
   const networks = [{ network: 'A', shapes: ['a'] }, { network: 'B', shapes: ['b'] }];
   const before = [{ id: 'a1', dot: at(0, 10), served: ['A'] }, { id: 'a2', dot: at(2000, -10), served: ['A'] }, { id: 'far', dot: at(-2900, 5000) }];
   const after = [...before, { id: 'b1', dot: at(10010, 0), served: ['B'] }, { id: 'b2', dot: at(3500, 0), served: ['B'] }];
+  // Each region's track, the same object at every join.
+  const [regionA, regionB] = [{ shapes: a }, { shapes: b }];
   const sides = sidesByJoin();
-  const first = sides([a], slots.slice(0, 1), right, networks.slice(0, 1), new Map(), before);
+  const first = sides([regionA], slots.slice(0, 1), right, networks.slice(0, 1), new Map(), before);
   expect(asJson(first)).toBe(asJson(before.map(({ dot, served }) => alongside(a, slots.slice(0, 1), right, networks.slice(0, 1), new Map(), before.map((p) => p.dot))(dot, served))));
-  const second = sides([a, b], slots, right, networks, new Map(), after);
+  const second = sides([regionA, regionB], slots, right, networks, new Map(), after);
   // As alongside() over the joined track has them.
   const whole = alongside([...a, ...b], slots, right, networks, new Map(), after.map((p) => p.dot));
   expect(asJson(second)).toBe(asJson(after.map(({ dot, served }) => whole(dot, served))));
@@ -545,11 +547,11 @@ test("works a joined track's places out a region at a time as alongside() does o
   expect(second.map((s, i) => s === first[i])).toEqual([true, false, true, false, false]);
   // Only the place that changed is worked out again where nothing joins, and every one where told to.
   const served = after.map((p) => (p.id === 'far' ? { ...p, served: ['A'] } : p));
-  const third = sides([a, b], slots, right, networks, new Map(), served);
+  const third = sides([regionA, regionB], slots, right, networks, new Map(), served);
   expect(third.map((s, i) => s === second[i])).toEqual([true, true, false, true, true]);
-  expect(sides([a, b], slots, right, networks, new Map(), served, true).some((s, i) => s === third[i])).toBe(false);
+  expect(sides([regionA, regionB], slots, right, networks, new Map(), served, true).some((s, i) => s === third[i])).toBe(false);
   // b leaves, and the places near it with it: a2 is worked out again.
-  const fourth = sides([a], slots.slice(0, 1), right, networks.slice(0, 1), new Map(), before);
+  const fourth = sides([regionA], slots.slice(0, 1), right, networks.slice(0, 1), new Map(), before);
   expect(asJson(fourth)).toBe(asJson(first));
 });
 
