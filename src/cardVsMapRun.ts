@@ -49,7 +49,7 @@
 // timetable's place at once where live data has it earlier, as nothing is there to ease; what's left is a Train running, which catches up faster than 2 s a second.
 //
 // Held at its Station, a Metro Train waiting at its first for TMB's report to have it leave or one of Renfe's on a long pin, the card has no countdown (#689):
-// `s.held` is those seconds, in `s.reads.none` with a last Station's, `s.held.now` those of them it reads now, which it did for the whole of a long pin and is 0 since, and `s.nowThenIn`
+// `s.held` is those seconds, in `s.reads.none` with a last Station's, `s.held.now` those of them it reads now, as the card shows it, which it did for the whole of a long pin and is 0 since by the card's rule (due()), and `s.nowThenIn`
 // how often a countdown reads now and then a number again for the same Station and time, as when TMB pushed a held Train's time later.
 
 import { rmSync } from 'node:fs';

@@ -157,7 +157,8 @@ function followedOf(bundle: Bundle, on: OnMap): Followed | undefined {
     speed: Math.abs(drawn(now + 0.5) - drawn(now - 0.5)),
     unitType: said?.report.unitType,
     pinnedAt: said?.pin && !(live && stands(said.pin, said.report)) ? said.pin.station : undefined,
-    ...(ease?.hold !== undefined && train.standsAt && { held: true }),
+    // At the Station it's held at, not one before it that it's still catching up from.
+    ...(train.standsAt && ease?.hold !== undefined && calls.find((c) => toLeave(c, time))?.departure === ease.hold && { held: true }),
   };
 }
 
