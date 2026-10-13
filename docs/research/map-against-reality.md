@@ -479,6 +479,31 @@ So the ticket's second question, whether the map should say "no live data" for a
 
 *What's left:* the weekday morning peak the ticket asks for, from Monday 12 October (`npm run record -- <dir> 45`, then count `trip_id` prefixes `20` and `47` in each `vehicle_positions.json` of the run against the Trains the timetable has running), and whether Asturias is back by then.
 
+## 13. Why Madrid's fixes snap (#486)
+
+#486's count, on #329's five recordings (Tue 6 Oct 23:19, Wed 7 Oct 14:03 and 17:47, Sat 10 Oct 10:38 and 11:04), replayed as section 1 has it on origin/main `d19d201a` (13 October, with #565, #485 and the rest) and on the same with #634, which of a Train's first GPS fix after a pin and the next, which no Train could run to from it, keeps the one whose GPS Delay is nearer Renfe's own figure. A snap is a snapshot in which a GPS fix that gives a Delay has the Train drawn more than `JUMP_TIME` (60 s) or the jump distance (1 km) from where it puts it, so that `replay()` puts it there (`far`), the first snapshot left out; of those, the ones this count is for are fixes whose Delay agrees with the GPS Delay before within `CONFIRM` (120 s) and so counts. Each is put down to the first of these that holds:
+
+- **the carry:** the Delay the Train was drawn by at the snapshot before wasn't the fix before's GPS Delay (by more than a second), but one carried (`CARRY`, 30 minutes) from earlier: the fix before didn't count, as a Train's first GPS after a pin doesn't, and the Train went by the Delay it had before the pin;
+- **the gap:** the fix comes 40 s or more after the fix before, by the fetcher's clock, the Train pinned or unreported between;
+- **`passing()` at a Station:** a call of the Trip lies between where the two fixes put the Train along its track, or within 150 m of either, where `passing()` gives a Station's arrival on one side and its departure on the other;
+- **a fix `CONFIRM` takes and `JUMP_TIME` snaps to:** the two GPS Delays are 61 to 120 s apart;
+- **none of these:** a step of a minute or less that snaps by distance, or by a Train the ease had still to bring to the fix before.
+
+| Madrid, the five recordings | With #634 | origin/main |
+|---|---|---|
+| GPS fixes that give a Delay | 6,770 | 6,484 |
+| of them, snaps | 1,620 (23.9%) | 1,585 (24.4%) |
+| of those, a fix that agrees with the fix before | 1,457 | 1,409 |
+| the carry | **558 (38.3%)** | **542 (38.5%)** |
+| the gap | **551 (37.8%)** | **522 (37.0%)** |
+| `passing()` at a Station | 162 (11.1%) | 163 (11.6%) |
+| 61 to 120 s apart (`CONFIRM`, `JUMP_TIME`) | 41 (2.8%) | 41 (2.9%) |
+| none of these | 145 (10.0%) | 141 (10.0%) |
+
+Rodalies, for scale, with #634: 310 such snaps of 6,040 fixes, 254 (82%) the carry, 39 at a Station, 11 the gap and 6 of 61 to 120 s. The causes overlap little: with the gap put first, Madrid's are the gap 594 (40.8%) and the carry 515 (35.3%). Over the seven recordings (with #410's two held out) Madrid's 2,059 are the carry 39.3% and the gap 38.2%. Of the 558 carried, the fix before was the Train's first after a pin in 452, and the Delay carried had counted a median 280 s before (p90 679 s), before the pin; 340 snap the Train forward and 218 back, a median 112 s and 1.3 km.
+
+So two causes are a third or more: the gap, which is Madrid's feed and no rule of the engine's, and the carry, which is one: a pin under `LONG_PIN` carries the Train on the Delay it had before it, and the snap comes when its GPS after the pin counts. By #486's stop rule that rule's change is its own ticket, not built here. Madrid's jumps per Live Train-minute are 0.180 on main and 0.183 with #634 against Rodalies' 0.077 (2.35× and 2.38×; over the seven 2.32× and 2.35×), where milestone 2's exit asks for 1.5× or under. 61–120 s, which #410's probe had at 588 of 1,343, is mostly the carry or the gap here: the step between the two fixes' own Delays is that wide in 418 of the 1,457, and in only 41 is it the first cause that holds.
+
 ## Not measured
 
 - **The truth for a Train no feed names.** Renfe's visor reads Renfe's feed; Adif's and Rodalies' apps weren't reachable, and no one was at a platform. A Scheduled Train that's never named is a phantom only where it doesn't run, which only the platform tells; Renfe's boards locate 6 of the 14 unreported Trains of 15:01 with a Station-level position the open feed lacks, and a Trip's long-distance twin (section 3) is a reason to think it runs, not proof.
@@ -487,7 +512,7 @@ So the ticket's second question, whether the map should say "no live data" for a
 - **Cloudflare's CPU or the browser's frames:** only the engine's counts, on the Mac's Node.
 - **Long distance's reports by Train number (#261, from 13:25 UTC on 10 October):** no recording has them, so what they change in these Networks is read off Renfe's two files once (section 10), not replayed, and the twins of section 3 are by Renfe's timetable of 10 October (which has no 6 or 7 October service: the weekdays' are a proxy), not by what its feeds named then. `npm run record` cut a bundle without the Trips a report names by number until #427, so a recording with them was replayed on its run's whole `bundle.json`; from #427 its `replay.json.gz` keeps them. Euskotren and Ouigo aren't on the map. Asturias' and León's Trains have no or little live data on the Saturday (#409).
 - **Skipped Stations on the weekdays**, but for the first frame's lists (section 6), and FGC's quota-out days.
-- **Why Madrid's fixes snap:** the numbers say where, not which of the engine's rules.
+- **Why Madrid's fixes snap:** section 13 (#486) puts its snaps down to the engine's rules; the drawn Train against where it really was, between fixes, no recording says.
 - **The Metro measures that check one rule each:** Blocks drawn out too soon (#107), Scheduled running in (#108), lag leaving and hidden snaps. Blocks drawn nowhere and twice, stalls and jumps are here.
 - **Boards:** #345's ("Doesn't stop here" for a Scheduled Train at a Station inside a closed Closure, and no departure from the Closure's Stations into it) and #346's. The replay samples Trains, not boards.
 - **The daily build's report** of the Trips it leaves out, for Santander's C3 `6281S71853` and Madrid's two C2 Trains in no timetable: Sevilla's C4 is #365's, Bilbao's C4 #367's and #368's, and the rest #412's.
