@@ -3,7 +3,7 @@
 // #147, #501), which of the basemap's labels it says again (#121), and which of two that collide is
 // placed first (#372).
 import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
-import { closestOnSegment, DEGREE, direction, pointAt, slotAt, type Line, type Place, type Point, type Shape, type Slot } from '../bundle.ts';
+import { closestOnSegment, DEGREE, STRETCH, direction, pointAt, slotAt, type Line, type Place, type Point, type Shape, type Slot, type Track } from '../bundle.ts';
 import { simplify } from '../build/offset.ts';
 
 /** How near up and down a track runs on screen, in degrees, for a name to go right of it rather than above it. */
@@ -122,9 +122,140 @@ export function alongside(
   centrelines = new Map<string, Shape>(),
   everyDot: Point[] = [],
 ): (dot: Point, served?: string[]) => (bearing: number) => Side[] {
+  return alongsideFiled([filed(shapes)], slots, keep, networks, centrelines, everyDot);
+}
+
+/**
+ * alongside() for a track joined from regions' (`tracks`, each a region's shapes, in the joined track's order) at each
+ * join, for these places, by their IDs: worked out again only for the places whose sides the join can move (#733).
+ * Those are the places new or changed, and those within REACH of a region that joined or left, or of a place's dot that
+ * came, went or moved, which is as far as alongside() looks. The others keep the sides they had. `fresh` works every
+ * place out again, as where the regions' IDs aren't their own (splitBy()).
+ */
+export function sidesByJoin() {
+  type Sides = (bearing: number) => Side[];
+  let last: { regions: Filed[]; dots: Map<number, string>; sides: Map<string, { dot: Point; served: string; sides: Sides }> } | undefined;
+  return (
+    tracks: Shape[][],
+    slots: Slot[],
+    keep: (line: string) => number,
+    networks: Pick<Line, 'network' | 'shapes'>[],
+    centrelines: Map<string, Shape>,
+    places: { id: string; dot: Point; served?: string[] }[],
+    fresh = false,
+  ): Sides[] => {
+    const regions = tracks.map(filed);
+    const spots = alongsideFiled(regions, slots, keep, networks, centrelines, places.map((p) => p.dot));
+    // Each cell's dots, as a key that changes where one comes, goes or moves.
+    const dots = new Map<number, string>();
+    for (const { dot } of places) {
+      const key = cell(Math.floor(dot[0] / CELL), Math.floor(dot[1] / CELL));
+      dots.set(key, `${dots.get(key) ?? ''}${dot[0]},${dot[1]};`);
+    }
+    // The cells where the join moved something: those of the regions that joined or left, and of the dots that changed.
+    const moved = new Set<number>();
+    if (last && !fresh) {
+      const was = new Set(last.regions);
+      const now = new Set(regions);
+      for (const region of [...regions.filter((r) => !was.has(r)), ...last.regions.filter((r) => !now.has(r))]) {
+        for (const key of region.cells.keys()) moved.add(key);
+        for (const key of region.straight.keys()) moved.add(key);
+      }
+      for (const key of new Set([...dots.keys(), ...last.dots.keys()])) if (dots.get(key) !== last.dots.get(key)) moved.add(key);
+    }
+    const near = (dot: Point) => {
+      const [cx, cy, wx, wy] = reachOf(dot);
+      for (let x = cx - wx; x <= cx + wx; x++) for (let y = cy - wy; y <= cy + wy; y++) if (moved.has(cell(x, y))) return true;
+      return false;
+    };
+    const sides = new Map<string, { dot: Point; served: string; sides: Sides }>();
+    const made = places.map(({ id, dot, served = [] }) => {
+      const had = !fresh ? last?.sides.get(id) : undefined;
+      const now = { dot, served: served.join(' ') };
+      const kept = had && had.dot[0] === dot[0] && had.dot[1] === dot[1] && had.served === now.served && !near(dot) ? had.sides : spots(dot, served);
+      sides.set(id, { ...now, sides: kept });
+      return kept;
+    });
+    last = { regions, dots, sides };
+    return made;
+  };
+}
+
+/**
+ * The regions' tracks (`parts`) a joined track's names can be worked out from a region at a time (sidesByJoin()): where
+ * `joined` has their shapes, slots, Lines and Networks, in order, as joinTracks() joins them, and each region's IDs are
+ * its own, its Lines and slots on its own shapes. Not where a day of another build was joined in (joinDays()), or a
+ * region names another's shape, Line or Network: then what a region's join moves can lie beyond its own track.
+ */
+export function splitBy(joined: Track, parts: Track[] | undefined): Track[] | undefined {
+  if (!parts) return undefined;
+  const same = <T>(of: (t: Track) => T[]) => {
+    const list = of(joined);
+    let i = 0;
+    for (const part of parts) for (const x of of(part)) if (list[i++] !== x) return false;
+    return i === list.length;
+  };
+  if (!same((t) => t.shapes) || !same((t) => t.slots ?? []) || !same((t) => t.lines) || !same((t) => t.networks)) return undefined;
+  // Each shape, Line and Network of one region only, and no region's slots or Lines on another's shapes.
+  const seen = new Set<string>();
+  for (const { ids } of parts.map(idsOf)) {
+    for (const id of ids) {
+      if (seen.has(id)) return undefined;
+      seen.add(id);
+    }
+  }
+  return parts.every((part) => idsOf(part).elsewhere.every((shape) => !seen.has(shape))) ? parts : undefined;
+}
+
+/** Each region's track's IDs (idsOf()), by the track. */
+const trackIds = new WeakMap<Track, { ids: string[]; elsewhere: string[] }>();
+
+/**
+ * A region's track's IDs, of its shapes, Lines and Networks, each kind its own, and its slots' and Lines' shapes it hasn't
+ * itself, as shapes' IDs: worked out once for each track, as splitBy() looks at every region's at every join.
+ */
+function idsOf(track: Track): { ids: string[]; elsewhere: string[] } {
+  const known = trackIds.get(track);
+  if (known) return known;
+  const shapes = new Set(track.shapes.map((s) => `s ${s.id}`));
+  const on = [...(track.slots ?? []).flatMap((s) => [s.shape, s.on]), ...track.lines.flatMap((l) => l.shapes)].map((shape) => `s ${shape}`);
+  const made = { ids: [...track.shapes.map((s) => `s ${s.id}`), ...track.lines.map((l) => `l ${l.id}`), ...track.networks.map((n) => `n ${n.id}`)], elsewhere: [...new Set(on)].filter((shape) => !shapes.has(shape)) };
+  trackIds.set(track, made);
+  return made;
+}
+
+/**
+ * A track's shapes filed by the cells their segments cross, and simplified by STRAIGHT, as alongside() finds
+ * those near a place: each region's once, for as long as its shapes are kept, however many join (#733). Not
+ * the centrelines of stretches, which a name doesn't go beside.
+ */
+interface Filed {
+  cells: Map<number, [shape: Shape, i: number][]>;
+  straight: Map<number, Straight[]>;
+}
+
+/**
+ * A segment of the shapes simplified by STRAIGHT, from `a` to `b`, and each shape that runs it, `start` to `stop` metres
+ * along it: filed once however many run it, as the shapes of a region share their points where they share track
+ * (ADR-0015), and long distance's 338,544 segments are 60,661 (#733).
+ */
+interface Straight {
+  a: Point;
+  b: Point;
+  on: { shape: Shape; start: number; stop: number }[];
+}
+
+/** Each track's shapes filed (Filed), by the array they come in. */
+const filedTracks = new WeakMap<Shape[], Filed>();
+
+/** A track's shapes filed by the cells their segments cross (Filed), once for each array of them. */
+function filed(shapes: Shape[]): Filed {
+  const known = filedTracks.get(shapes);
+  if (known) return known;
   // Each shape's segments, by the cells their bounding boxes cross.
-  const cells = new Map<number, [shape: Shape, i: number][]>();
+  const cells: Filed['cells'] = new Map();
   for (const shape of shapes) {
+    if (shape.id.startsWith(STRETCH)) continue;
     for (let i = 1; i < shape.coords.length; i++) {
       const [[ax, ay] = [0, 0], [bx, by] = [0, 0]] = [shape.coords[i - 1], shape.coords[i]];
       for (let x = Math.floor(Math.min(ax, bx) / CELL); x <= Math.floor(Math.max(ax, bx) / CELL); x++) {
@@ -137,13 +268,25 @@ export function alongside(
     }
   }
   // And each shape simplified, by STRAIGHT, as segments from `a` to `b`, `start` to `stop` metres along it, by the cells their bounding boxes cross.
-  const straight = new Map<number, { shape: Shape; a: Point; b: Point; start: number; stop: number }[]>();
+  const straight: Filed['straight'] = new Map();
+  // Each segment filed, by its ends.
+  const from = new Map<Point, Map<Point, Straight>>();
   for (const shape of shapes) {
+    if (shape.id.startsWith(STRETCH)) continue;
     const index = new Map(shape.coords.map((p, i) => [p, i]));
     const kept = simplify(shape.coords, STRAIGHT / DEGREE);
     for (let i = 1; i < kept.length; i++) {
       const [a = [0, 0], b = [0, 0]] = [kept[i - 1], kept[i]];
-      const segment = { shape, a, b, start: shape.dist[index.get(a) ?? 0] ?? 0, stop: shape.dist[index.get(b) ?? 0] ?? 0 };
+      const on = { shape, start: shape.dist[index.get(a) ?? 0] ?? 0, stop: shape.dist[index.get(b) ?? 0] ?? 0 };
+      const to = from.get(a) ?? new Map<Point, Straight>();
+      from.set(a, to);
+      const known = to.get(b);
+      if (known) {
+        known.on.push(on);
+        continue;
+      }
+      const segment: Straight = { a, b, on: [on] };
+      to.set(b, segment);
       for (let x = Math.floor(Math.min(a[0], b[0]) / CELL); x <= Math.floor(Math.max(a[0], b[0]) / CELL); x++) {
         for (let y = Math.floor(Math.min(a[1], b[1]) / CELL); y <= Math.floor(Math.max(a[1], b[1]) / CELL); y++) {
           const list = straight.get(cell(x, y));
@@ -153,6 +296,20 @@ export function alongside(
       }
     }
   }
+  const made = { cells, straight };
+  filedTracks.set(shapes, made);
+  return made;
+}
+
+/** alongside(), for tracks filed (Filed) a region at a time, in the order the track joined from them has its shapes. */
+function alongsideFiled(
+  regions: Filed[],
+  slots: Slot[],
+  keep: (line: string) => number,
+  networks: Pick<Line, 'network' | 'shapes'>[],
+  centrelines: Map<string, Shape>,
+  everyDot: Point[],
+): (dot: Point, served?: string[]) => (bearing: number) => Side[] {
   // Each place's dot, by its cell.
   const dotCells = new Map<number, Point[]>();
   for (const p of everyDot) {
@@ -168,6 +325,22 @@ export function alongside(
     else slotsOf.set(s.shape, [s]);
   }
   const networkOf = new Map(networks.flatMap((l) => l.shapes.map((shape) => [shape, l.network])));
+  // The Lines drawn along each simplified segment, by the side of it they're drawn, worked out once for every place near it.
+  // By `key`, the Lines and side, a shape's are the same as another's that runs the segment.
+  const linesAlong = new Map<Straight['on'][number], { lines: string[]; side: number; key: string }[]>();
+  const linesOn = (on: Straight['on'][number]) => {
+    const known = linesAlong.get(on);
+    if (known) return known;
+    const { shape, start, stop } = on;
+    // Each Line's side of the track, where the line its stroke is drawn along runs back the other way.
+    const sides = (slotsOf.get(shape.id) ?? []).filter((s) => s.from <= stop && start <= s.to).map((s) => ({ line: s.line, side: slotAt(s, start).way * s.side }));
+    const made = [...new Set(sides.map((s) => s.side))].map((side) => {
+      const lines = sides.filter((s) => s.side === side).map((s) => s.line);
+      return { lines, side, key: `${side} ${lines.join(' ')}` };
+    });
+    linesAlong.set(on, made);
+    return made;
+  };
   return (dot, served = []) => {
     const own = new Set(served);
     const kx = DEGREE * Math.cos((dot[1] * Math.PI) / 180);
@@ -176,7 +349,7 @@ export function alongside(
     const [cx, cy] = [Math.floor(dot[0] / CELL), Math.floor(dot[1] / CELL)];
     for (let x = cx - 1; x <= cx + 1; x++) {
       for (let y = cy - 1; y <= cy + 1; y++) {
-        for (const [shape, i] of cells.get(cell(x, y)) ?? []) {
+        for (const region of regions) for (const [shape, i] of region.cells.get(cell(x, y)) ?? []) {
           const [a, b, start = 0, stop = 0] = [shape.coords[i - 1], shape.coords[i], shape.dist[i - 1], shape.dist[i]];
           if (!a || !b) continue;
           const [t, metres] = closestOnSegment(a, b, dot, kx);
@@ -198,8 +371,6 @@ export function alongside(
     const tracks = near.filter((n) => nearest && n.metres <= nearest.metres + ALONGSIDE_METRES && Math.abs(Math.cos(((n.heading - nearest.heading) * Math.PI) / 180)) >= Math.cos((ALONGSIDE_DEGREES * Math.PI) / 180));
     // A point's metres east and north of the dot.
     const local = ([lon, lat]: Point): [number, number] => [(lon - dot[0]) * kx, (lat - dot[1]) * DEGREE];
-    // The Lines drawn along a track from `from` to `to` metres along it.
-    const drawnOn = (shape: Shape, from: number, to: number) => (slotsOf.get(shape.id) ?? []).filter((s) => s.from <= to && from <= s.to);
     // The tracks with Lines drawn along them, by their segments within REACH of the dot: those not
     // alongside its own, those alongside but its own, which a name near its dot can lie on, and where
     // its own or one alongside bends away from beside the dot, the rest of it, which can come back under the name.
@@ -207,25 +378,35 @@ export function alongside(
     const [crossings, besides]: [Spot['crossing'], Spot['crossing']] = [[], []];
     // Which way each track alongside runs by the dot.
     const besideHeading = new Map(tracks.map((n) => [n.shape, n.heading]));
-    const [wx, wy] = [Math.ceil(REACH / (CELL * kx)), Math.ceil(REACH / (CELL * DEGREE))];
+    const [, , wx, wy] = reachOf(dot);
     for (let x = cx - wx; x <= cx + wx; x++) {
       for (let y = cy - wy; y <= cy + wy; y++) {
-        for (const { shape, a, b, start, stop } of straight.get(cell(x, y)) ?? []) {
-          if (!slotsOf.has(shape.id)) continue;
-          // A segment crossing several cells is filed in each: take it in the first of them looked in.
-          if (x !== Math.max(cx - wx, Math.floor(Math.min(a[0], b[0]) / CELL)) || y !== Math.max(cy - wy, Math.floor(Math.min(a[1], b[1]) / CELL))) continue;
-          const d = closestOnSegment(a, b, dot, kx)[1];
-          if (d > REACH) continue;
-          const drawn = drawnOn(shape, start, stop);
-          // Its own or one alongside, where it runs much the same way as by the dot, lies beside it.
-          // ponytail: a track that runs out and back along the same rails counts its way back as crossing. Take that as beside too if names flip over one.
-          const [[ae, an], [be, bn], heading] = [local(a), local(b), besideHeading.get(shape)];
-          const beside = heading !== undefined && Math.cos(Math.atan2(be - ae, bn - an) - (heading * Math.PI) / 180) >= Math.cos((ALONGSIDE_DEGREES * Math.PI) / 180);
-          if (!drawn.length || (beside && shape === nearest?.shape)) continue;
-          // Each Line's side of the track, where the line its stroke is drawn along runs back the other way.
-          const sides = drawn.map((s) => ({ line: s.line, side: slotAt(s, start).way * s.side }));
-          for (const side of new Set(sides.map((s) => s.side))) {
-            (beside ? besides : crossings).push({ lines: sides.filter((s) => s.side === side).map((s) => s.line), a: local(a), b: local(b), side, d });
+        for (const region of regions) {
+          for (const { a, b, on } of region.straight.get(cell(x, y)) ?? []) {
+            // A segment crossing several cells is filed in each: take it in the first of them looked in.
+            if (x !== Math.max(cx - wx, Math.floor(Math.min(a[0], b[0]) / CELL)) || y !== Math.max(cy - wy, Math.floor(Math.min(a[1], b[1]) / CELL))) continue;
+            const d = closestOnSegment(a, b, dot, kx)[1];
+            if (d > REACH) continue;
+            const [la, lb] = [local(a), local(b)];
+            // The Lines of each shape that runs it, once for each side they're drawn, beside or crossing: more of the same
+            // lie under a name no more than one (underName()).
+            const taken: string[] = [];
+            for (const runs of on) {
+              const { shape } = runs;
+              if (!slotsOf.has(shape.id)) continue;
+              const drawn = linesOn(runs);
+              // Its own or one alongside, where it runs much the same way as by the dot, lies beside it.
+              // ponytail: a track that runs out and back along the same rails counts its way back as crossing. Take that as beside too if names flip over one.
+              const heading = besideHeading.get(shape);
+              const beside = heading !== undefined && Math.cos(Math.atan2(lb[0] - la[0], lb[1] - la[1]) - (heading * Math.PI) / 180) >= Math.cos((ALONGSIDE_DEGREES * Math.PI) / 180);
+              if (!drawn.length || (beside && shape === nearest?.shape)) continue;
+              for (const { lines, side, key } of drawn) {
+                const kind = `${beside} ${key}`;
+                if (taken.includes(kind)) continue;
+                taken.push(kind);
+                (beside ? besides : crossings).push({ lines, a: la, b: lb, side, d });
+              }
+            }
           }
         }
       }
@@ -433,6 +614,12 @@ export function rightOf(heading: number, bearing: number): [x: number, y: number
   // The track runs `a` clockwise from up on screen, and its right is a quarter turn on.
   const a = ((heading - bearing) * Math.PI) / 180;
   return [Math.cos(a), Math.sin(a)];
+}
+
+/** The cell of a place's dot, and how many cells either way from it east to west and north to south alongside() looks, to find what lies within REACH. */
+function reachOf(dot: Point): [x: number, y: number, wx: number, wy: number] {
+  const kx = DEGREE * Math.cos((dot[1] * Math.PI) / 180);
+  return [Math.floor(dot[0] / CELL), Math.floor(dot[1] / CELL), Math.ceil(REACH / (CELL * kx)), Math.ceil(REACH / (CELL * DEGREE))];
 }
 
 /** The key of the cell `x` cells east and `y` north of 0°, 0°: one of its own, as `y` stays within 18,000 cells of the equator. */
