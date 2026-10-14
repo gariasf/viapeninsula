@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { along, BANDS, coveredIn, cutIn, GRAPH_BAND, inBand, smoothId, type DayFiles, type DayTrips, type Line, type Shape, type Stroke, type Track } from '../bundle.ts';
-import { byRegion, drawnLines, type Drawing } from './lines.ts';
+import { byRegion, drawnFrom, drawnLines, type Drawing } from './lines.ts';
 import { daysAsTheyCome, joinedFrom, regionLoader } from './regions.ts';
 
 /** A region's track of one Station and no Lines, named for it. */
@@ -88,4 +88,38 @@ test("draws Media Distancia's and long distance's Lines under the other regions'
   expect(order).toEqual(['R15 in a tunnel', 'Avant', 'Alvia', 'R15', 'C1', 'R2']);
   // Their names are still placed in the manifest's order, long distance's last.
   expect(features.map((f) => f.rank)).toEqual([0, 0, 0, 1, 15, 16]);
+});
+
+test("draws long distance's and Media Distancia's Networks from every zoom, Metro's and TRAM's from zoom 10, and the rest from zoom 7, by their Lines' kinds (#781)", () => {
+  const from = drawnFrom([
+    { network: 'ave-larga-distancia', kind: 'long-distance' },
+    { network: 'media-distancia-avant', kind: 'regional' },
+    // Rodalies runs regional Lines too, but mostly commuter ones.
+    { network: 'rodalies', kind: 'commuter' },
+    { network: 'rodalies', kind: 'regional' },
+    // FGC's funicular and rack Lines don't make it local.
+    { network: 'fgc', kind: 'commuter' },
+    { network: 'fgc', kind: 'funicular' },
+    // The Metro's Montjuïc funicular doesn't take it from zoom 10.
+    { network: 'metro', kind: 'metro' },
+    { network: 'metro', kind: 'funicular' },
+    { network: 'tram', kind: 'tram' },
+    // Cercanías Cádiz's T1 is a tram.
+    { network: 'cercanias-cadiz', kind: 'commuter' },
+    { network: 'cercanias-cadiz', kind: 'tram' },
+  ]);
+  expect(Object.fromEntries(from)).toEqual({ 'ave-larga-distancia': 0, 'media-distancia-avant': 0, rodalies: 7, fgc: 7, metro: 10, tram: 10, 'cercanias-cadiz': 7 });
+});
+
+test("leaves a Line's strokes out of the bands below its Network's zoom: Metro's and TRAM's below zoom 10 (#781)", () => {
+  const shape: Shape = { id: 'a', coords: [[2, 41], [2.01, 41]], dist: [0, 1000] };
+  const lines = new Map<string, Line>([
+    ['L1', { id: 'L1', network: 'metro', name: 'L1', colour: '#f00', shapes: ['a'], kind: 'metro' }],
+    ['R1', { id: 'R1', network: 'rodalies', name: 'R1', colour: '#0f0', shapes: ['a'], kind: 'commuter' }],
+  ]);
+  const strokes = ['L1', 'R1'].flatMap((line) => BANDS.map((_, band) => ({ line, shape: 'a', from: 0, to: 1000, side: 0, band }) as Stroke));
+  const features = drawnLines(strokes, { shapes: new Map([['a', shape]]), lines, lettering: () => undefined, rank: 0, nameSize: 12, shownFrom: drawnFrom(lines.values()) });
+  const bands = (line: string) => features.filter((f) => f.properties?.line === line).map((f) => BANDS[f.properties?.band]);
+  expect(bands('L1')).toEqual([10, 11, 12, 13, 14]);
+  expect(bands('R1')).toEqual(BANDS);
 });

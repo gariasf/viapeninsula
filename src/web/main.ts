@@ -12,7 +12,7 @@ import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabe
 import { rounded } from './curve.ts';
 import { getJson, lookAgainSoon, RETRY, STALL } from './files.ts';
 import { daysAsTheyCome, firstLook, forgetJoined, joinedFrom, regionLoader, regionsCame, regionsNeeded } from './regions.ts';
-import { byRegion, drawnLines } from './lines.ts';
+import { byRegion, drawnFrom, drawnLines } from './lines.ts';
 import { linesAt, popupRoom } from './tap.ts';
 import { callsIn, fileShapes, hidesTowns, nameOffset, nameSort, nearestSide, rightOf, sidesByJoin, splitBy, underName, type Side, type Spot } from './names.ts';
 import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
@@ -189,7 +189,8 @@ const CLOSURE_COATS: { kind: Shown['kind']; colour: 'line' | 'casing'; width: nu
  */
 const FADE = 0.5;
 // Below the first band's zoom, Lines side by side can't be read: each Network's track is drawn once
-// instead, in its colour (#190), and only long distance's Trains, as dots (ADR-0010, #262).
+// instead, in its colour (#190), only long distance's and Media Distancia's (drawnFrom(), #781), and only
+// long distance's Trains, as dots (ADR-0010, #262).
 const linesZoom = BANDS[0] ?? 7;
 /**
  * Zoomed out, where it draws each Network's track once and no Lines, the map is a globe, and it
@@ -774,6 +775,8 @@ let [searched, searchedLines]: [Found[], Map<string, NonNullable<ZoomedOut['line
 let linkWaits = false;
 /** Each Network's track, drawn once zoomed out (#190), which the banner goes by for a Network with no Trips today (bannerNetworks()). */
 let shownTracks: NetworkTrack[] = [];
+/** The zoom each of those Networks' tracks is drawn from (drawnFrom()), which the banner names one with no Trips today from (#781). */
+let tracksFrom = new Map<string, number>();
 
 let nextPoll: ReturnType<typeof setTimeout> | undefined;
 document.addEventListener('visibilitychange', () => {
@@ -828,7 +831,7 @@ let placeOfStation = new Map<string, Place>();
  * its curves (zones()), and which side its Trains keep to, 1 right and -1 left; and where each Closure
  * shown on the track goes, along its stretches and on its rails, by closureKey(), once worked out (#341).
  */
-let placing = { shapes: new Map<string, Shape>(), slots: new Map<string, Slot[]>(), curves: new Map<string, Zone[]>(), keep: new Map<string, number>(), closures: new Map<string, [GeoJSON.Feature[], GeoJSON.Feature[]]>() };
+let placing = { shapes: new Map<string, Shape>(), slots: new Map<string, Slot[]>(), curves: new Map<string, Zone[]>(), keep: new Map<string, number>(), from: new Map<string, number>(), closures: new Map<string, [GeoJSON.Feature[], GeoJSON.Feature[]]>() };
 /** The Closures the map shows now (closuresAt()), which a tap on one names. */
 let shownClosures: Shown[] = [];
 /** Those of them that hide Trains (hiding(), #345): within whose closed ones Scheduled Trains aren't drawn, and boards show them not stopping. */
@@ -1050,6 +1053,8 @@ map.addLayer({
   type: 'circle',
   source: 'stations',
   minzoom: linesZoom,
+  // Only from the zoom its first Network is drawn from (show(), #781).
+  filter: ['>=', ['zoom'], ['get', 'from']],
   layout: { 'circle-sort-key': ['get', 'larger'] },
   paint: {
     'circle-radius': byZoom(DOT, (px) => ['+', px, ['get', 'larger']]),
@@ -1336,7 +1341,8 @@ requestAnimationFrame(function move(now) {
   // where Search finds Train numbers, where their Trains are (#471).
   if ((following || boardPlace || nearMe || (searching && numberQuery(query))) && performance.now() - panelShown > panelDue) showPanel();
   // Which Networks the banner names changes as Trains and the view move, and the banner with it.
-  // Zoomed out, only those drawn there, long distance's, can be in view (#247).
+  // Zoomed out, only those drawn there, long distance's, can be in view (#247), and a Network with no Trips today only
+  // where its track is drawn: long distance's and Media Distancia's below zoom 7, the Metro's and TRAM's from zoom 10 (#781).
   // ponytail: in view by the map's bounds, which on a turned or tilted map take in some of the map
   // around the view too, as followRandom()'s do. Test where each Train and stretch of track is on
   // screen, as keepInView() does, if a banner for a Network just out of view ever shows.
@@ -1344,7 +1350,7 @@ requestAnimationFrame(function move(now) {
     bannerChecked = now;
     const drawnTrains = drawing.features.filter((f) => map.getZoom() >= f.properties?.dotZoom).map((f) => ({ network: f.properties?.network, at: f.geometry.coordinates as Point }));
     const followedNetwork = drawing.features.find((f) => f.properties?.followed)?.properties?.network;
-    const named = bannerNetworks({ unavailable: unavailable(bundle, Date.now(), received), noTrips: noTripsIds }, { trains: drawnTrains, followedNetwork, tracks: shownTracks }, map.getBounds().toArray());
+    const named = bannerNetworks({ unavailable: unavailable(bundle, Date.now(), received), noTrips: noTripsIds }, { trains: drawnTrains, followedNetwork, tracks: shownTracks.filter(({ network }) => map.getZoom() >= (tracksFrom.get(network) ?? 0)) }, map.getBounds().toArray());
     if (JSON.stringify(named) !== JSON.stringify(bannerIds)) {
       bannerIds = named;
       showBanner();
@@ -1401,10 +1407,12 @@ function show(days: Track | Bundle, tripsOnly = false) {
     else slots.set(`${s.line} ${s.shape}`, [s]);
   }
   const keep = new Map(days.networks.map((n) => [n.id, n.runningSide === 'left' ? -1 : 1]));
-  placing = { shapes, slots, curves: zones(days.strokes), keep: new Map(days.lines.map((l) => [l.id, keep.get(l.network) ?? 1])), closures: new Map() };
+  // Each Network's Lines, Trains, Stations and Closures from the zoom its Lines' kinds of service have them drawn from (#781).
+  const shownFrom = drawnFrom(days.lines);
+  placing = { shapes, slots, curves: zones(days.strokes), keep: new Map(days.lines.map((l) => [l.id, keep.get(l.network) ?? 1])), from: shownFrom, closures: new Map() };
   // A track built before #241 names no kinds of service and no pill zooms: its Trains are round pills from zoom 10.
   const pillZoom = new Map(days.networks.map((n) => [n.id, n.pillZoom]));
-  pills = new Map(days.lines.map((l) => [l.id, pillOf(l, pillZoom.get(l.network) ?? 10)]));
+  pills = new Map(days.lines.map((l) => [l.id, pillOf(l, pillZoom.get(l.network) ?? 10, shownFrom.get(l.network) ?? linesZoom)]));
   const networks = new Map(days.networks.map((n) => [n.id, n]));
   topSpeeds = new Map(days.lines.map((l) => [l.id, profiled(networks.get(l.network), l)?.profile.topSpeed ?? 0]));
   // Lines drawn already, as at the map's second look: the new ones are handed over a frame later (below).
@@ -1419,7 +1427,7 @@ function show(days: Track | Bundle, tripsOnly = false) {
     // that reorders the regions under a track the map keeps leaves them in the old order; make them again if it does.
     // Long distance's and Media Distancia y Avant's by their IDs, not long distance's missing extent, which no region has in
     // a manifest from before #266 (#736, #787).
-    const how = { shapes, lines, lettering, rank: Math.max(0, manifest?.regions?.findIndex((r) => r.id === id) ?? 0), under: id === 'long-distance' || id === 'media-distancia-avant', nameSize: NAME_SIZE };
+    const how = { shapes, lines, lettering, rank: Math.max(0, manifest?.regions?.findIndex((r) => r.id === id) ?? 0), under: id === 'long-distance' || id === 'media-distancia-avant', nameSize: NAME_SIZE, shownFrom };
     return regionLines.made(track, () => ({ lines: drawnLines(track.strokes, how), rails: drawnLines(track.rails, how, rounded) }));
   });
   // The Lines go to MapLibre as objects, never as a blob: URL, which it fetches, parses and copies on the page's thread
@@ -1435,17 +1443,19 @@ function show(days: Track | Bundle, tripsOnly = false) {
     }
   };
   if (!again) handOver();
-  showZoomedOut(zoomedOut ?? { networks: days.networks, tracks: networkTracks(days) });
+  showZoomedOut(zoomedOut ?? { networks: days.networks, tracks: networkTracks(days), lines: days.lines });
   const tiered = [...shownPlaces.values()].map((p) => {
     const tier = TIERS.find((t) => t.places.includes(p.id));
     const { nameZoom, larger, size } = tier ?? UNTIERED;
-    return { ...p, nameZoom, tier: tier !== undefined, larger, style: { bold: BOLD.has(p.id), size } };
+    // A place's dot and name from the zoom the first of its Networks is drawn from: one only the Metro or TRAM serve from zoom 10 (#781).
+    const from = p.networks.length ? Math.min(...p.networks.map((n) => shownFrom.get(n) ?? linesZoom)) : linesZoom;
+    return { ...p, from, nameZoom: Math.max(nameZoom, from), tier: tier !== undefined, larger, style: { bold: BOLD.has(p.id), size } };
   });
   // Where a place is named after its town, the town's label goes once the place's name shows (#121).
   hideTowns(placeLabels, tiered);
   map.getSource<GeoJSONSource>('stations')?.setData({
     type: 'FeatureCollection',
-    features: tiered.map(({ id, larger, lon, lat }) => ({ type: 'Feature', properties: { id, larger }, geometry: { type: 'Point', coordinates: [lon, lat] } })),
+    features: tiered.map(({ id, larger, from, lon, lat }) => ({ type: 'Feature', properties: { id, larger, from }, geometry: { type: 'Point', coordinates: [lon, lat] } })),
   });
   drawClosures();
   // The places' names a frame after the Lines are handed over: for a large track, putting them beside their tracks
@@ -1484,16 +1494,18 @@ function show(days: Track | Bundle, tripsOnly = false) {
 }
 
 /**
- * Draws each Network's track below zoom 7 (#190), and credits the Networks and names them in the
+ * Draws long distance's and Media Distancia's tracks below zoom 7 (#190, #781), and credits the Networks and names them in the
  * banner: every region's, from the file below zoom 7 (#266), so that zoomed out the map needs no region
  * loaded, or until that file has come, or where the manifest names none, the days on the map's.
  */
-function showZoomedOut({ networks, tracks }: Pick<ZoomedOut, 'networks' | 'tracks'>) {
+function showZoomedOut({ networks, tracks, lines }: Pick<ZoomedOut, 'networks' | 'tracks' | 'lines'>) {
   const colours = new Map(networks.map((n) => [n.id, n.colour]));
+  // Only the Networks drawn at every zoom, long distance's and Media Distancia's, or, from a file that names no Lines, every one (#781).
+  tracksFrom = drawnFrom(lines ?? []);
   shownTracks = tracks;
   map.getSource<GeoJSONSource>('tracks')?.setData({
     type: 'FeatureCollection',
-    features: tracks.map(({ network, coordinates }) => ({ type: 'Feature', properties: { colour: colours.get(network) }, geometry: { type: 'LineString', coordinates } })),
+    features: tracks.filter(({ network }) => (tracksFrom.get(network) ?? 0) < linesZoom).map(({ network, coordinates }) => ({ type: 'Feature', properties: { colour: colours.get(network) }, geometry: { type: 'LineString', coordinates } })),
   });
   credited = networks;
   showCredits();
@@ -1541,7 +1553,8 @@ function placeClosure({ line: id, stations }: Shown): [GeoJSON.Feature[], GeoJSO
   const placed = line && a && b ? placeOn([a, b], line.shapes.flatMap((shape) => placing.shapes.get(shape) ?? [])) : [];
   const feature = (coordinates: Point[], properties: object): GeoJSON.Feature => ({ type: 'Feature', properties: { ...properties, colour: line?.colour }, geometry: { type: 'LineString', coordinates } });
   const [first] = placed;
-  const strokes = first ? closureStrokes(id, first, placing.slots.get(`${id} ${first.shape}`) ?? [], placing.curves) : [];
+  // Not in the bands below its Network's zoom, where its Line isn't drawn (#781).
+  const strokes = first && line ? closureStrokes(id, first, placing.slots.get(`${id} ${first.shape}`) ?? [], placing.curves).filter(({ band = GRAPH_BAND }) => (BANDS[band] ?? 0) >= (placing.from.get(line.network) ?? 0)) : [];
   return [
     strokes.flatMap(({ shape: on, from, to, side, band = GRAPH_BAND }) => {
       const centreline = inBand(placing.shapes, on, band);
@@ -1767,17 +1780,17 @@ interface Pill {
   /** What its Line's colour letters its name in, rings its Scheduled Trains and colours its Trains' arrows in: on the dark basemap, lettering(). */
   lettering: string;
   zoom: number;
-  /** The zoom its Trains are drawn from, as dots: a long-distance Line's at every zoom, as ADR-0010 has AVE y Larga Distancia's (#262), and every other's from linesZoom, where the Lines are. */
+  /** The zoom its Trains are drawn from, as dots: a long-distance Line's at every zoom, as ADR-0010 has AVE y Larga Distancia's (#262), and every other's from linesZoom, where the Lines are, or from its Network's zoom where that's later, as the Metro's and TRAM's (drawnFrom(), #781). */
   dotZoom: number;
   box: [number, number];
   followedBox: [number, number];
 }
 
 /** How a Line's Trains are drawn as pills from a zoom, its Network's, outlined by its kind of service. */
-function pillOf({ name, colour, kind }: Line, zoom: number): Pill {
+function pillOf({ name, colour, kind }: Line, zoom: number, shownFrom: number): Pill {
   const outline = outlineOf(kind);
   const width = textWidth(name, `bold ${PILL_TEXT}px ${TYPEFACE}`);
-  return { name, outline, dark: darkInk(colour), lettering: darkBasemap ? lettering(colour, paper) : colour, zoom, dotZoom: kind === 'long-distance' ? 0 : linesZoom, box: boxOf(outline, width, PILL_TEXT), followedBox: boxOf(outline, width, FOLLOWED_TEXT) };
+  return { name, outline, dark: darkInk(colour), lettering: darkBasemap ? lettering(colour, paper) : colour, zoom, dotZoom: kind === 'long-distance' ? 0 : Math.max(linesZoom, shownFrom), box: boxOf(outline, width, PILL_TEXT), followedBox: boxOf(outline, width, FOLLOWED_TEXT) };
 }
 
 /** How wide a place's name, or a line of it, is, in px, in its style. */

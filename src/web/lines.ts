@@ -1,7 +1,7 @@
 // The Lines' and rails' features the map hands MapLibre, made once for each region's track and handed over once,
 // so that a region joining costs its own Lines, not every region's loaded (#733).
 
-import { along, APART, BANDS, coveredIn, cutIn, GRAPH_BAND, inBand, pieces, smoothId, type Line, type Point, type Shape, type Stroke, type Track } from '../bundle.ts';
+import { along, APART, BANDS, coveredIn, cutIn, GRAPH_BAND, inBand, pieces, smoothId, type Kind, type Line, type Point, type Shape, type Stroke, type Track } from '../bundle.ts';
 
 /**
  * How much a region's place in the manifest raises its Lines in MapLibre's `line-sort-key` (`sort`), over a Line's
@@ -13,6 +13,23 @@ import { along, APART, BANDS, coveredIn, cutIn, GRAPH_BAND, inBand, pieces, smoo
  */
 export const RANK_STEP = 1 / 64;
 
+/** The kinds of service a Network runs country-wide, and those it runs only within a city. */
+const [COUNTRY_WIDE, IN_A_CITY] = [new Set<Kind>(['long-distance', 'regional']), new Set<Kind>(['metro', 'tram', 'funicular'])];
+
+/**
+ * The zoom each Network's track, Lines, Trains and Stations are drawn from, by its Lines' kinds of service (#781, the
+ * maintainer's pick of 14 Oct 2026): a Network whose Lines all run long distance or regional, as AVE y Larga Distancia,
+ * Ouigo and Media Distancia y Avant, at every zoom; one whose Lines all run in a city, as the Metro and TRAM, from zoom
+ * 10, where the bands share one graph (GRAPH_BAND); every other, as Rodalies, FGC and the Cercanías, from zoom 7, where
+ * the Lines start.
+ */
+export function drawnFrom(lines: Iterable<Pick<Line, 'network' | 'kind'>>): Map<string, number> {
+  const kinds = new Map<string, Kind[]>();
+  for (const { network, kind } of lines) kinds.set(network, [...(kinds.get(network) ?? []), kind]);
+  const all = (of: Kind[], set: Set<Kind>) => of.every((kind) => set.has(kind));
+  return new Map([...kinds].map(([network, of]) => [network, all(of, COUNTRY_WIDE) ? 0 : all(of, IN_A_CITY) ? (BANDS[GRAPH_BAND] ?? 10) : (BANDS[0] ?? 7)]));
+}
+
 /** A region's Lines' and rails' features, with IDs unique among those the map makes, which MapLibre takes them off by. */
 export interface Drawing {
   lines: GeoJSON.Feature[];
@@ -23,11 +40,12 @@ export interface Drawing {
  * The features MapLibre draws strokes as, of a region's track: a stroke cut back for curves, or along a centreline
  * smoothed for a zoom band, once for each band it's drawn in, as it is there, or once for them all where it's alike in
  * each; a curve in its pieces. `rank` is the region's place in the manifest (RANK_STEP), `under` whether it's Media
- * Distancia y Avant's or long distance's, drawn under the others' (#736, #787), and `round` rounds a Line's bends where it's on its own rails (#203).
+ * Distancia y Avant's or long distance's, drawn under the others' (#736, #787), `shownFrom` the zoom each Network's Lines are
+ * drawn from (drawnFrom()), and `round` rounds a Line's bends where it's on its own rails (#203).
  */
 export function drawnLines(
   strokes: Stroke[],
-  { shapes, lines, lettering, rank, under: below = false, nameSize }: { shapes: Map<string, Shape>; lines: Map<string, Line>; lettering: (line: string) => string | undefined; rank: number; under?: boolean; nameSize: number },
+  { shapes, lines, lettering, rank, under: below = false, nameSize, shownFrom }: { shapes: Map<string, Shape>; lines: Map<string, Line>; lettering: (line: string) => string | undefined; rank: number; under?: boolean; nameSize: number; shownFrom?: Map<string, number> },
   round?: (coordinates: Point[]) => Point[],
 ): GeoJSON.Feature[] {
   return strokes
@@ -52,6 +70,7 @@ export function drawnLines(
     .flatMap(({ line: id, shape: shapeId, from, to, side, band, shared, under, covered, crowded }): GeoJSON.Feature[] => {
       const [line, shape] = [lines.get(id), band === undefined ? shapes.get(shapeId) : inBand(shapes, shapeId, band)];
       if (!line || !shape) return [];
+      if (band !== undefined && (BANDS[band] ?? 0) < (shownFrom?.get(line.network) ?? 0)) return [];
       const properties = {
         // Which Lines a tap on it names (linesAt()).
         line: id,
