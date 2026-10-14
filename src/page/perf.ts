@@ -14,7 +14,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { Browser, Page } from 'playwright-core';
+import type { Browser, CDPSession, Page } from 'playwright-core';
 import { addDays, daysOf, LIVE_URL, madridDate, type Manifest } from '../bundle.ts';
 import budget from './budget.json' with { type: 'json' };
 import { build, DEVICES, launch, openMap, ready, type Device } from './page.ts';
@@ -34,7 +34,10 @@ export interface Run {
   renders: number[];
   /** The live files the page read, by their path, with when each came (page ms). */
   files: { file: string; end: number }[];
+  /** The JS heap at the scenario's end after a full GC, MB: what the page holds (#779). */
   heapMB: number;
+  /** The JS heap's peak over the run, read each second, garbage V8 hasn't collected yet included, MB: reported, not budgeted. */
+  heapPeakMB?: number;
   /** The workers' busy ms in the first 15 s, from the trace (S2). */
   workerMs?: number;
   errors: string[];
@@ -207,7 +210,7 @@ export function metrics(run: Run): Record<string, number | undefined> {
     out.gapAfterLines = lines === undefined ? undefined : max(gapsIn(run.frames, lines, b.t));
     out.workerFirst15s = run.workerMs;
   }
-  if (run.scenario === 'S3') out.heapMB = run.heapMB;
+  if (run.scenario === 'S3') [out.heapMB, out.heapPeakMB] = [run.heapMB, run.heapPeakMB];
   const mainMsPerS = Math.round(((b.task - a.task) * 1000) / secs);
   const fps = +(within(run.frames, (t) => t, a.t, b.t).length / secs).toFixed(1);
   if (run.scenario === 'S5bcn') {
@@ -265,15 +268,21 @@ function workerBusy(trace: { traceEvents: { name: string; ph: string; pid: numbe
   return Math.round(busy / 1000);
 }
 
+/** The JS heap after a full GC, MB, rather than as it stands, which is mostly garbage V8 hasn't collected yet (#775, #779). */
+export async function heapAfterGC(cdp: Pick<CDPSession, 'send'>) {
+  await cdp.send('HeapProfiler.collectGarbage');
+  return Math.round((await cdp.send('Performance.getMetrics')).metrics.find((x) => x.name === 'JSHeapUsedSize')!.value / 1e6);
+}
+
 async function measure(browser: Browser, name: string, o: { device: Device; dist: string; tree: string; out?: string; slow: boolean; run: number }): Promise<Run> {
   const sc = SCENARIOS[name]!;
   const manifest = sc.clock && ((o.out ? JSON.parse(fs.readFileSync(path.join(o.out, 'manifest.json'), 'utf8')) : await (await fetch(`${LIVE_URL}/manifest.json`)).json()) as Manifest);
   const clock = manifest ? sc.clock!(manifest) : undefined;
   const m = await openMap(browser, { device: o.device, dist: o.dist, hash: sc.view, out: o.out, slow: o.slow, clock, abort: clock ? [/\/snapshot\.json/] : [], throttle: true });
-  const run: Run = { scenario: name, device: o.device, tree: o.tree, run: o.run, clock, marks: [], frames: [], setData: [], renders: [], files: [], heapMB: 0, errors: m.errors };
+  const run: Run = { scenario: name, device: o.device, tree: o.tree, run: o.run, clock, marks: [], frames: [], setData: [], renders: [], files: [], heapMB: 0, heapPeakMB: 0, errors: m.errors };
   const metric = async (key: string) => (await m.cdp.send('Performance.getMetrics')).metrics.find((x) => x.name === key)!.value;
   const mark = async (n: string) => void run.marks.push({ name: n, t: await m.page.evaluate((n) => (performance.mark(`perf:${n}`), performance.now()), n), task: await metric('TaskDuration') });
-  const heap = setInterval(() => metric('JSHeapUsedSize').then((h) => (run.heapMB = Math.max(run.heapMB, Math.round(h / 1e6))), () => {}), 1000);
+  const heap = setInterval(() => metric('JSHeapUsedSize').then((h) => (run.heapPeakMB = Math.max(run.heapPeakMB!, Math.round(h / 1e6))), () => {}), 1000);
   try {
     if (sc.trace) await browser.startTracing(m.page, { categories: ['toplevel', 'blink.user_timing'] });
     await m.go();
@@ -289,6 +298,8 @@ async function measure(browser: Browser, name: string, o: { device: Device; dist
       }), LIVE_URL),
     );
     if (sc.trace) run.workerMs = workerBusy(JSON.parse((await browser.stopTracing()).toString()), run.marks[0]!.t, run.marks[0]!.t, run.marks[0]!.t + 15_000);
+    clearInterval(heap);
+    run.heapMB = await heapAfterGC(m.cdp);
   } finally {
     clearInterval(heap);
     await m.close();
@@ -342,6 +353,7 @@ if (import.meta.main) {
       console.log(`| ${c.check} | ${c.scenario} | ${Math.round(c.value * 10) / 10} | ${c.atLeast ? '≥' : '≤'} ${c.limit} | ${c.breach ? 'BREACH' : 'ok'} |`);
       breached ||= c.breach;
     }
+    for (const name of scenarios) if (medians[name]!.heapPeakMB !== undefined) console.log(`| JS heap's peak, garbage included, MB (not budgeted) | ${name} | ${medians[name]!.heapPeakMB} | | |`);
   }
   process.exit(breached ? 1 : 0);
 }

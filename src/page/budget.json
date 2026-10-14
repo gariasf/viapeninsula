@@ -9,6 +9,6 @@
   { "check": "At rest: MapLibre's redraws beyond the Trains' draws, /s", "metric": "restExtraRedrawsPerS", "scenarios": ["S5bcn"], "desktop": 2, "phone": 2 },
   { "check": "Following a Train: main thread, ms/s", "metric": "followMainMsPerS", "scenarios": ["S8"], "desktop": 400, "phone": 700 },
   { "check": "Following a Train: fps", "metric": "followFps", "scenarios": ["S8"], "desktop": 110, "phone": 55, "atLeast": true },
-  { "check": "JS heap, every region loaded, MB", "metric": "heapMB", "scenarios": ["S3"], "desktop": 500, "phone": 300 },
+  { "check": "JS heap after a forced GC, every region loaded, MB", "metric": "heapMB", "scenarios": ["S3"], "desktop": 500, "phone": 300 },
   { "check": "Workers busy in a cold load's first 15 s, ms", "metric": "workerFirst15s", "scenarios": ["S2"], "desktop": 1500, "phone": null }
 ]
