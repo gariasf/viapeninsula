@@ -486,6 +486,9 @@ test("the place labels' filters are set again only when the places change, unval
   expect(setFilter).toHaveBeenCalledTimes(4);
   hide(labels, [named('Vic', 10), named('Manlleu', 10, 5000)]);
   expect(setFilter).toHaveBeenCalledTimes(6);
+  // A place that moves.
+  hide(labels, [named('Vic', 10), named('Manlleu', 10, 5000, 100)]);
+  expect(setFilter).toHaveBeenCalledTimes(8);
 });
 
 test("a town's label with a place's name, within 2 km of it, goes from the zoom the place's name shows", () => {

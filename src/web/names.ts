@@ -780,9 +780,9 @@ export function namedTwice(places: (Pick<Place, 'name' | 'lon' | 'lat'> & { name
 
 /**
  * Hides, through `setFilter`, each of the basemap's place `labels` (its layers' IDs, with their own filters) that
- * namedTwice() these places, keeping its own filter too (#121). Only when the places differ from the last call's, and
- * unvalidated, as the filter is ours and tested: MapLibre validating and parsing it again at each join took 0.3–0.5 s
- * of a phone's (#778).
+ * namedTwice() these places, keeping its own filter too (#121). Unvalidated, as the filter is ours and tested: at a join
+ * whose places differ, MapLibre validating and parsing it took 0.3–0.5 s of a phone's, about 64% of it validating
+ * (#775). Where the places are the last call's, not at all, rather than building it and MapLibre deep-comparing it (#778).
  */
 export function hidesTowns(setFilter: (id: string, filter: FilterSpecification, options: { validate: false }) => void) {
   let last: string | undefined;
@@ -790,9 +790,9 @@ export function hidesTowns(setFilter: (id: string, filter: FilterSpecification, 
     // What namedTwice() reads of each place.
     const key = JSON.stringify(places.map(({ name, nameZoom, lon, lat }) => [name, nameZoom, lon, lat]));
     if (key === last) return;
-    last = key;
     const once: ExpressionSpecification = ['!', namedTwice(places)];
     for (const [id, filter] of labels) setFilter(id, ['all', filter ?? true, once], { validate: false });
+    last = key;
   };
 }
 
