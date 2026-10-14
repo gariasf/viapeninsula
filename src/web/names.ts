@@ -2,7 +2,7 @@
 // running along it and of other places' dots, on the side where that's nearest the dot (#120, #143,
 // #147, #501), which of the basemap's labels it says again (#121), and which of two that collide is
 // placed first (#372).
-import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
+import type { ExpressionFilterSpecification, ExpressionSpecification, FilterSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { closestOnSegment, DEGREE, STRETCH, direction, pointAt, slotAt, type Line, type Place, type Point, type Shape, type Slot, type Track } from '../bundle.ts';
 import { simplify } from '../build/offset.ts';
 
@@ -776,6 +776,24 @@ export function namedTwice(places: (Pick<Place, 'name' | 'lon' | 'lat'> & { name
   const [first, ...rest] = [...near].map(([name, where]): [string, ExpressionSpecification] => [name, ['any', ...where]]);
   // A match takes one name at least.
   return ['match', ['get', 'class'], TOWNS, ['match', ['downcase', ['to-string', ['get', 'name']]], ...(first ?? ['', false]), ...rest.flat(), false], false];
+}
+
+/**
+ * Hides, through `setFilter`, each of the basemap's place `labels` (its layers' IDs, with their own filters) that
+ * namedTwice() these places, keeping its own filter too (#121). Unvalidated, as the filter is ours and tested: at a join
+ * whose places differ, MapLibre validating and parsing it took 0.3–0.5 s of a phone's, about 64% of it validating
+ * (#775). Where the places are the last call's, not at all, rather than building it and MapLibre deep-comparing it (#778).
+ */
+export function hidesTowns(setFilter: (id: string, filter: FilterSpecification, options: { validate: false }) => void) {
+  let last: string | undefined;
+  return (labels: ReadonlyMap<string, ExpressionFilterSpecification | undefined>, places: Parameters<typeof namedTwice>[0]) => {
+    // What namedTwice() reads of each place.
+    const key = JSON.stringify(places.map(({ name, nameZoom, lon, lat }) => [name, nameZoom, lon, lat]));
+    if (key === last) return;
+    const once: ExpressionSpecification = ['!', namedTwice(places)];
+    for (const [id, filter] of labels) setFilter(id, ['all', filter ?? true, once], { validate: false });
+    last = key;
+  };
 }
 
 /**

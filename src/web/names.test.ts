@@ -1,8 +1,8 @@
-import { featureFilter, type Feature, type ICanonicalTileID } from '@maplibre/maplibre-gl-style-spec';
+import { featureFilter, type ExpressionFilterSpecification, type Feature, type ICanonicalTileID } from '@maplibre/maplibre-gl-style-spec';
 import { assert, expect, test, vi } from 'vitest';
 import { stationsOf } from '../build/track.ts';
 import { DEGREE, joinTracks, places, type Place, type Point, type Shape, type Slot, type Station, type Stroke, type Track } from '../bundle.ts';
-import { alongside, callsIn, CAP, DOT_COST, namedTwice, nameOffset, nameSort, nearestSide, sidesByJoin, splitBy, underName, type Side, type Spot } from './names.ts';
+import { alongside, callsIn, CAP, DOT_COST, hidesTowns, namedTwice, nameOffset, nameSort, nearestSide, sidesByJoin, splitBy, underName, type Side, type Spot } from './names.ts';
 
 // Made up, on the equator, where a degree is DEGREE metres both ways, but for the one test of #501's cells.
 /** The point so many metres east and north of 0°, 0°. */
@@ -469,6 +469,27 @@ function shows(places: ReturnType<typeof named>[], zoom: number, properties: Rec
     warn.mockRestore();
   }
 }
+
+test("the place labels' filters are set again only when the places change, unvalidated (#778)", () => {
+  const setFilter = vi.fn();
+  const hide = hidesTowns(setFilter);
+  const labels = new Map<string, ExpressionFilterSpecification | undefined>([['town', ['==', ['get', 'class'], 'town']], ['village', undefined]]);
+  hide(labels, [named('Vic', 9)]);
+  expect(setFilter).toHaveBeenCalledTimes(2);
+  expect(setFilter).toHaveBeenCalledWith('town', ['all', ['==', ['get', 'class'], 'town'], ['!', namedTwice([named('Vic', 9)])]], { validate: false });
+  expect(setFilter).toHaveBeenCalledWith('village', ['all', true, ['!', namedTwice([named('Vic', 9)])]], { validate: false });
+  // The same places, in new objects, as each join makes them.
+  hide(labels, [named('Vic', 9)]);
+  expect(setFilter).toHaveBeenCalledTimes(2);
+  // A place whose name shows from another zoom, or another place.
+  hide(labels, [named('Vic', 10)]);
+  expect(setFilter).toHaveBeenCalledTimes(4);
+  hide(labels, [named('Vic', 10), named('Manlleu', 10, 5000)]);
+  expect(setFilter).toHaveBeenCalledTimes(6);
+  // A place that moves.
+  hide(labels, [named('Vic', 10), named('Manlleu', 10, 5000, 100)]);
+  expect(setFilter).toHaveBeenCalledTimes(8);
+});
 
 test("a town's label with a place's name, within 2 km of it, goes from the zoom the place's name shows", () => {
   const vic = [named('Vic', 9)];

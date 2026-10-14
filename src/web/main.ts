@@ -14,7 +14,7 @@ import { getJson, lookAgainSoon, RETRY, STALL } from './files.ts';
 import { daysAsTheyCome, firstLook, forgetJoined, joinedFrom, regionLoader, regionsCame, regionsNeeded } from './regions.ts';
 import { byRegion, drawnLines, RANK_STEP } from './lines.ts';
 import { linesAt, popupRoom } from './tap.ts';
-import { callsIn, fileShapes, namedTwice, nameOffset, nameSort, nearestSide, rightOf, sidesByJoin, splitBy, underName, type Side, type Spot } from './names.ts';
+import { callsIn, fileShapes, hidesTowns, nameOffset, nameSort, nearestSide, rightOf, sidesByJoin, splitBy, underName, type Side, type Spot } from './names.ts';
 import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
 import { atMostEvery, drifted, letsGo, outsideMiddle, pointersDown, tapZooms } from './centre.ts';
 import { fastestInView } from './pace.ts';
@@ -397,6 +397,8 @@ map.on('moveend', atMostEvery(1000, keepShownView));
 document.addEventListener('visibilitychange', () => document.hidden && keepShownView());
 /** The basemap's place labels, by their layers' IDs, with the filters it gives them, which show() adds to. */
 const placeLabels = new Map<string, ExpressionFilterSpecification | undefined>();
+/** Sets placeLabels' filters, at a join where the places change (#778). */
+const hideTowns = hidesTowns((id, filter, options) => map.setFilter(id, filter, options));
 /** The basemap's layers of cities' labels, as its style gives them, which are drawn again over the Lines' names below CITY_ZOOM (#525). */
 const cityLabels = new Map<string, SymbolLayerSpecification>();
 // OpenFreeMap's positron, or its dark basemap where the system's setting is dark, fetched here rather than by
@@ -1433,8 +1435,7 @@ function show(days: Track | Bundle, tripsOnly = false) {
     return { ...p, nameZoom, tier: tier !== undefined, larger, style: { bold: BOLD.has(p.id), size } };
   });
   // Where a place is named after its town, the town's label goes once the place's name shows (#121).
-  const once: ExpressionSpecification = ['!', namedTwice(tiered)];
-  for (const [id, filter] of placeLabels) map.setFilter(id, ['all', filter ?? true, once]);
+  hideTowns(placeLabels, tiered);
   map.getSource<GeoJSONSource>('stations')?.setData({
     type: 'FeatureCollection',
     features: tiered.map(({ id, larger, lon, lat }) => ({ type: 'Feature', properties: { id, larger }, geometry: { type: 'Point', coordinates: [lon, lat] } })),
