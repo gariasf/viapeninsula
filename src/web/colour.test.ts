@@ -87,10 +87,13 @@ test("white stays on the Lines it reads on better than ink does, as on Bilbao's 
   expect(darkInk('#0F8C2D')).toBe(false);
 });
 
-test("Media Distancia y Avant's black has a light grey stand-in for the dark basemap, and no other Network's colour changes (#263)", () => {
+test("Media Distancia y Avant's black has a light grey stand-in for its Lines on the dark basemap, a mid grey for its track below zoom 7, and no other Network's colour changes (#263, #781)", () => {
   const file = { networks: [{ id: 'media-distancia-avant', colour: '#000000' }, { id: 'fgc', colour: '#F26100' }], lines: [{ network: 'media-distancia-avant', colour: '#000000' }, { network: 'fgc', colour: '#000000' }] };
-  expect(standIn(file)).toEqual({ networks: [{ id: 'media-distancia-avant', colour: '#D0D0D0' }, { id: 'fgc', colour: '#F26100' }], lines: [{ network: 'media-distancia-avant', colour: '#D0D0D0' }, { network: 'fgc', colour: '#000000' }] });
+  expect(standIn(file)).toEqual({ networks: [{ id: 'media-distancia-avant', colour: '#707070' }, { id: 'fgc', colour: '#F26100' }], lines: [{ network: 'media-distancia-avant', colour: '#D0D0D0' }, { network: 'fgc', colour: '#000000' }] });
   expect(contrast('#D0D0D0', '#0c0c0c')).toBeGreaterThan(12);
+  // Its track reads on the paper and apart from the basemap's roads, but less than Ouigo's pink (#781).
+  expect(contrast('#707070', '#3a3a3a')).toBeGreaterThan(2);
+  expect(contrast('#707070', '#0c0c0c')).toBeLessThan(contrast('#E50A70', '#0c0c0c'));
   // A Trips file, with neither, as it is.
   expect(standIn({ trips: [] })).toEqual({ trips: [] });
 });

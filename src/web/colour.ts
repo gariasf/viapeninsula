@@ -50,14 +50,23 @@ export function darkInk(colour: string): boolean {
  * light grey, its track below zoom 7, its Lines and its Trains, and stays black on the light basemap (#263, the
  * maintainer's pick of 14 Oct 2026). #D0D0D0 reads at 12.7:1 on the paper and 6.9:1 on the Lines' casing, and is
  * ΔE 10.5 from the nearest Line's colour, FGC's R6 (#b3b3b3), and 28 from Madrid's C8 (#868584): #B0B0B0 was ΔE 1.1 from R6.
- * FGC's MM, black too, keeps its colour and casing, as before.
+ * FGC's MM, black too, keeps its colour and casing, as before. Its track below zoom 7 has DARK_TRACK_STAND_INS' instead.
  */
 export const DARK_STAND_INS: Record<string, string> = { 'media-distancia-avant': '#D0D0D0' };
+
+/**
+ * The Networks' tracks below zoom 7 on the dark basemap, where their Lines' stand-in (DARK_STAND_INS) won't do: Media
+ * Distancia y Avant's in a mid grey, which sits under AVE y Larga Distancia's magenta there, as its black does on the
+ * light basemap, rather than the brightest stroke on the map (#781, the maintainer's pick of 14 Oct 2026). #707070 reads
+ * at 4.0:1 on the paper (#0c0c0c), under Ouigo's pink (4.3:1), and at 2.3:1 on the basemap's roads (#3a3a3a), which
+ * #555555 was too near (1.5:1); AVE y Larga Distancia's #81005E is 2.0:1, but stands out by its colour.
+ */
+export const DARK_TRACK_STAND_INS: Record<string, string> = { 'media-distancia-avant': '#707070' };
 
 /** A file's Networks and Lines with their stand-ins on the dark basemap (DARK_STAND_INS), in place, as it comes. */
 export function standIn<T>(file: T): T {
   const { networks, lines } = file as { networks?: { id: string; colour: string }[]; lines?: { network: string; colour: string }[] };
-  for (const n of networks ?? []) n.colour = DARK_STAND_INS[n.id] ?? n.colour;
+  for (const n of networks ?? []) n.colour = DARK_TRACK_STAND_INS[n.id] ?? DARK_STAND_INS[n.id] ?? n.colour;
   for (const l of lines ?? []) l.colour = DARK_STAND_INS[l.network] ?? l.colour;
   return file;
 }
