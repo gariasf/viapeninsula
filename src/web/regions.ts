@@ -40,13 +40,21 @@ export function regionsNeeded(
 }
 
 /**
+ * The regions with an extent that the map loads only at its second look all the same: Media Distancia y Avant's,
+ * whose extent is most of the peninsula, so that it's in every view from zoom 7, and whose track file is 1.1 MB
+ * brotli on 14 Oct 2026 (#263, the maintainer's pick of 14 Oct 2026).
+ * ponytail: one region by its ID; split it by area if milestone 1's phone budget breaks at a city's zoom 12.
+ */
+const SECOND_LOOK = ['media-distancia-avant'];
+
+/**
  * Of the regions the map needs (regionsNeeded()), those it loads at its first look: all but those with no extent,
  * as long distance's, which every view needs and whose track file is larger than any view's own (1.5 MB brotli
- * against Catalonia's 0.4 MB on 11 Oct 2026). They come at its second, so that they hold back neither the first
- * Lines in view nor, zoomed out, the Network tracks, which wait for the first look's track (#262).
+ * against Catalonia's 0.4 MB on 11 Oct 2026), and those of SECOND_LOOK. They come at its second, so that they hold
+ * back neither the first Lines in view nor, zoomed out, the Network tracks, which wait for the first look's track (#262).
  */
 export function firstLook(regions: Pick<ManifestRegion, 'id' | 'extent'>[], needed: string[]): string[] {
-  return needed.filter((id) => regions.find((r) => r.id === id)?.extent);
+  return needed.filter((id) => !SECOND_LOOK.includes(id) && regions.find((r) => r.id === id)?.extent);
 }
 
 /** What joins the names of the files a track was joined from, in `joined`'s keys. */

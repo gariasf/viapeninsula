@@ -20,7 +20,7 @@ import { atMostEvery, drifted, letsGo, outsideMiddle, pointersDown, tapZooms } f
 import { fastestInView } from './pace.ts';
 import { keepView, lastView, markOf, openingView, tiltPressed, toggledPitch } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
-import { darkInk, INK, lettering } from './colour.ts';
+import { darkInk, INK, lettering, standIn } from './colour.ts';
 import { ago, boardAsks, boardList, cardAlerts, countdownTo, due, inNameOrder, linesOnBoard, linkedTrip, linkedWords, minutesTo, nearbyRows, nextOnItsWay, passedPlace, progress, tripsState, untilTick, whereabouts, type CardAlert, type Whereabouts } from './cards.ts';
 import { ARROW_GAP, boxOf, FOLLOWED_TEXT, LINE_HEIGHT, OUTLINE_SIZES, outlineOf, PILL_EDGE, PILL_PADDING, PILL_TEXT, pillReach, type Outline } from './pill.ts';
 import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, tappedRows, type Shown } from './closures.ts';
@@ -39,6 +39,8 @@ setWorkerUrl(workerUrl);
 const darkScheme = matchMedia('(prefers-color-scheme: dark)');
 const darkBasemap = darkScheme.matches;
 darkScheme.addEventListener('change', () => location.reload());
+/** A file as it comes, with its Networks' and Lines' stand-ins on the dark basemap (standIn(), #263). */
+const inScheme = <T>(file: T): T => (darkBasemap ? standIn(file) : file);
 
 /** The map's lettering, by the basemap's own font names, which FONT_FACES letters in Nunito Sans. */
 const FONT = ['Noto Sans Regular'];
@@ -720,7 +722,7 @@ const joinedTracks = new Map<string, Track>();
 let [shown, looking] = ['', false];
 /** Whether the map is to look for the days it needs again once it has, as a look was asked for meanwhile, as when the map comes onto a region. */
 let lookAgain = false;
-/** Whether the map has looked for the days it needs yet: a region with no extent, long distance's, comes at its second look (firstLook()). */
+/** Whether the map has looked for the days it needs yet: a region with no extent, long distance's, and Media Distancia y Avant's come at its second look (firstLook()). */
 let lookedOnce = false;
 /**
  * Whether the last look for the days the map needs had a region's file fail to come, which the map looks
@@ -3448,7 +3450,7 @@ async function neededDays(): Promise<{ track: Promise<Track | undefined>; arriva
   // A file of the look fails once no bytes of any of them have come for STALL, not of its own: one asked behind others waits its turn while theirs come (getJson(), #721).
   const progress = { at: 0 };
   const get = <T>(key: string) => {
-    const file = fetched.get(key) ?? getJson<T>(`${LIVE_URL}/${key}`, { stall: STALL, progress });
+    const file = fetched.get(key) ?? getJson<T>(`${LIVE_URL}/${key}`, { stall: STALL, progress }).then(inScheme);
     fetched.set(key, file);
     file.catch(() => fetched.delete(key));
     return file as Promise<T>;
@@ -3604,7 +3606,7 @@ function openWaitingLink() {
 function getZoomedOut({ zoomedOut: key }: Manifest) {
   if (!key || key === zoomedOutKey) return;
   zoomedOutKey = key;
-  getJson<ZoomedOut>(`${LIVE_URL}/${key}`, { stall: STALL }).then(
+  getJson<ZoomedOut>(`${LIVE_URL}/${key}`, { stall: STALL }).then(inScheme).then(
     (file) => {
       if (zoomedOutKey !== key) return;
       zoomedOut = file;

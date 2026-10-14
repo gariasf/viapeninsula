@@ -186,7 +186,8 @@ export function sharedTrack(lines: Line[], shapes: Shape[], regionOf: (line: Lin
         stack.push(...(next.get(i) ?? []));
       }
     }
-    const first = pieces[Math.min(...on)];
+    // Not Math.min(...on): Media Distancia y Avant shares more pieces with the núcleos than a call takes arguments (#263).
+    const first = pieces[[...on].reduce((a, b) => Math.min(a, b))];
     return {
       regions: pair,
       stretches,

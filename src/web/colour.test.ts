@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { contrast, darkInk, INK, lettering } from './colour.ts';
+import { contrast, darkInk, INK, lettering, standIn } from './colour.ts';
 
 /** The dark basemap's paper, OpenFreeMap's dark style's background. */
 const PAPER = '#0c0c0c';
@@ -85,4 +85,12 @@ test("white stays on the Lines it reads on better than ink does, as on Bilbao's 
   for (const colour of ['#CE1126', '#0074E8', '#2C2A86', '#000000']) expect(darkInk(colour)).toBe(false);
   // Bilbao's C2 is 4.37:1 with white and 4.32 with ink.
   expect(darkInk('#0F8C2D')).toBe(false);
+});
+
+test("Media Distancia y Avant's black has a light grey stand-in for the dark basemap, and no other Network's colour changes (#263)", () => {
+  const file = { networks: [{ id: 'media-distancia-avant', colour: '#000000' }, { id: 'fgc', colour: '#F26100' }], lines: [{ network: 'media-distancia-avant', colour: '#000000' }, { network: 'fgc', colour: '#000000' }] };
+  expect(standIn(file)).toEqual({ networks: [{ id: 'media-distancia-avant', colour: '#D0D0D0' }, { id: 'fgc', colour: '#F26100' }], lines: [{ network: 'media-distancia-avant', colour: '#D0D0D0' }, { network: 'fgc', colour: '#000000' }] });
+  expect(contrast('#D0D0D0', '#0c0c0c')).toBeGreaterThan(12);
+  // A Trips file, with neither, as it is.
+  expect(standIn({ trips: [] })).toEqual({ trips: [] });
 });

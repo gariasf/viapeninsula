@@ -8,7 +8,7 @@ import { afterAll, afterEach, expect, test, vi } from 'vitest';
 import { places, type Point } from '../bundle.ts';
 import { AVE_LARGA_DISTANCIA, CERCANIAS_ASTURIAS, CERCANIAS_BILBAO, CERCANIAS_SANTANDER, CERCANIAS_ZARAGOZA, MEDIA_DISTANCIA_AVANT, NETWORKS, RODALIES, TRAM, type NetworkConfig } from '../networks.ts';
 import { dirSource, rows, seconds, zipFile, zipSource, type Source } from './gtfs.ts';
-import { copyOf, FGC_FEED, joinParts, meeting, METRO_FEED, onFgcRails, onMetroRails, onRails, onRodaliesRails, ownRails, readFeed, readTimetables, RODALIES_FEED, TRAMBAIX_FEED, twinned, unlisted, untaken, updatedOn, type Feed } from './networks.ts';
+import { copyOf, FGC_FEED, joinParts, meeting, METRO_FEED, onFgcRails, onMetroRails, onRails, onRodaliesRails, ownRails, readFeed, readTimetables, rest, RODALIES_FEED, TRAMBAIX_FEED, twinned, unlisted, untaken, updatedOn, type Feed } from './networks.ts';
 import type { Found } from './report.ts';
 import type { Snippet } from './snippet.ts';
 import { nearest, traceShapes } from './track.ts';
@@ -447,7 +447,47 @@ test('draws the Stations TMB groups in one station as one place, at the middle o
 // which Rodalies runs on its RT2 and this feed lists as a Regional. The feed has no shapes.
 const longDistance = dirSource(fileURLToPath(new URL('fixtures/long-distance', import.meta.url)));
 const AVE_FEED: Feed = { network: AVE_LARGA_DISTANCIA, ...AVE_LARGA_DISTANCIA.timetables[0] };
-const MD_FEED: Feed = { network: MEDIA_DISTANCIA_AVANT, ...MEDIA_DISTANCIA_AVANT.timetables[0] };
+// Without the Stations its config has run by road, as Jaén and Vilches, which 18030 calls at (#263): the test below has them.
+const MD_FEED: Feed = { network: { ...MEDIA_DISTANCIA_AVANT, byRoad: undefined }, ...MEDIA_DISTANCIA_AVANT.timetables[0] };
+
+test("leaves out whole, logs and gives back a Train that calls at a Station its Network's config has run by road, as MD 18030 at Jaén, its first such Station, every Trip it's listed in, and no other Train (#562, #263)", async () => {
+  const log: string[] = [];
+  const all = await readFeed(longDistance, '2026-10-13', MD_FEED, () => {});
+  const { trips, left } = await readFeed(longDistance, '2026-10-13', { ...MD_FEED, network: MEDIA_DISTANCIA_AVANT }, (l) => log.push(l));
+  expect(all.trips.map((t) => t.number)).toContain('18030');
+  expect(trips.map((t) => t.number)).toEqual(all.trips.map((t) => t.number).filter((n) => n !== '18030'));
+  const text = "Media Distancia y Avant's 18030 is left out: it calls at Jaén, which is run by road (https://www.horajaen.com/2026/09/07/renfe-autobuses-alternativos-jaen-linares-baeza/, https://andaluciainforma.eldiario.es/?p=34775)";
+  expect(left).toEqual([text]);
+  expect(log).toContain(text);
+});
+
+test("leaves the calls another timetable's Trips make of a Train it lists too to them, and makes each run of two or more calls left a Trip of its own, so that no call is in two Trips (#547)", () => {
+  const call = (station: string, minute: number) => ({ station, arrival: minute * 60, departure: minute * 60 });
+  const trip = (id: string, number: string, calls: FeedTrip['calls']): FeedTrip => ({ id, line: 'l', shape: '', headsign: '', number, calls });
+  // León's C1 lists the Bilbao–León train's last 3 calls, under its number: the rest is long distance's.
+  const md = trip('md:71876', '71876', [call('a', 0), call('b', 10), call('c', 20), call('d', 30), call('e', 40), call('f', 50)]);
+  const leon = trip('leon:71876', '71876', [call('d', 30), call('e', 40), call('f', 50)]);
+  const listed = [new Map([['71876', new Set(['d', 'e', 'f'])]])];
+  expect(rest([md], listed, [leon]).map((t) => [t.id, t.calls.map((c) => c.station)])).toEqual([['md:71876', ['a', 'b', 'c']]]);
+  // 17050, whose first parts Zaragoza's and Rodalies' 30550 make at the same minutes under their own number:
+  // a call between them is one alone, which runs nowhere, and two after them a Trip of their own.
+  const c1 = trip('c1:30550', '30550', [call('delicias', 0), call('miraflores', 10)]);
+  const r15 = trip('r15:30550', '30550', [call('quinto', 30), call('capcanes', 90)]);
+  const t17050 = trip('md:17050', '17050', [call('delicias', 0), call('miraflores', 10), call('fuentes', 20), call('quinto', 30), call('capcanes', 90), call('reus', 100), call('franca', 180)]);
+  expect(rest([t17050], [], [c1, r15]).map((t) => [t.id, t.calls.map((c) => c.station)])).toEqual([['md:17050', ['reus', 'franca']]]);
+  // One whose middle another timetable makes is two Trips.
+  const middle = trip('md:1', '1', [call('a', 0), call('b', 10), call('c', 20), call('d', 30), call('e', 40)]);
+  expect(rest([middle], [new Map([['1', new Set(['c'])]])], []).map((t) => [t.id, t.calls.map((c) => c.station)])).toEqual([['md:1', ['a', 'b']], ['md:1:2', ['d', 'e']]]);
+  // A Trip that crosses it, making one of its calls in the same minute, as on single track, takes none of them.
+  const crossing = trip('bilbao:1', '1', [call('z', 5), call('b', 10), call('y', 15)]);
+  expect(rest([md], listed, [leon, crossing]).map((t) => [t.id, t.calls.map((c) => c.station)])).toEqual([['md:71876', ['a', 'b', 'c']]]);
+  // A Train none lists is as it was, though another Trip calls at one of its Stations in the same minute.
+  const own = trip('md:2', '2', [call('delicias', 0), call('x', 10)]);
+  expect(rest([own], listed, [c1])).toEqual([own]);
+  // And one another lists whole goes, as unlisted() has it.
+  expect(rest([leon], listed, [leon])).toEqual([]);
+});
+
 
 test("splits Renfe's long-distance timetable into its two Networks, whose Lines are named as Renfe names them in public rather than in the feed's capitals and typo, and coloured as their config says, as the feed gives every route F2F5F5", async () => {
   const lines = async (feed: Feed) => (await readFeed(longDistance, '2026-10-10', feed)).lines.map(({ id, colour, kind, shapes }) => ({ id, colour, kind, shapes }));

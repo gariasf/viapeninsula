@@ -68,6 +68,14 @@ export interface NetworkConfig extends Omit<Network, 'credit'> {
    * file of 10 October 2026: a Trip that skipped it would run its Line on beyond the Network again.
    */
   beyond?: string[];
+  /**
+   * Stations its operator runs by road, by ID, each group with the notice that says so, where its
+   * timetable lists the Trains as rail all the same and no Alert informs its Lines, as Renfe's
+   * long-distance one does Zaragoza–Teruel–Sagunto's (#562). A Train that calls at one isn't drawn: a
+   * bus isn't a Train. It's left out whole, every Trip its timetable lists it in, and logged with the
+   * notice and reported, as `beyond`'s are.
+   */
+  byRoad?: { stations: string[]; source: string }[];
 }
 
 /**
@@ -685,9 +693,8 @@ const RENFE_LONG_DISTANCE = 'https://ssl.renfe.com/gtransit/Fichero_AV_LD/google
 // it names no others, but written as Renfe writes them in public, rather than in the feed's capitals,
 // and their colours are their config's, as the feed gives every route F2F5F5. As the timetable has no
 // shapes, each Line runs on the rails of its gauge, STANDARD, BOTH, IBERIAN or METRE above (#259,
-// docs/research/high-speed.md). AVE y Larga Distancia is on the map (#262). Media Distancia y Avant's
-// Trains are read and traced, but not on the map until they're drawn (#263), so it has only what reading
-// them, tracing them and running them needs: how they run (#260), with the rest to come with #263.
+// docs/research/high-speed.md). Both are on the map: AVE y Larga Distancia at every view (#262), and
+// Media Distancia y Avant from zoom 7, where the view reaches it (#263).
 
 /**
  * How the engine reads Renfe's long-distance live data (#260), by what #260's triage found of it on 4
@@ -783,11 +790,20 @@ export const AVE_LARGA_DISTANCIA: NetworkConfig = {
 /** Avant's and Avant Exp's: high speed on the same track as AVE's, at 250 km/h and 0.5 m/s². */
 const AVANT = { acceleration: 0.5, braking: 0.5, topSpeed: 250 / 3.6 };
 
-export const MEDIA_DISTANCIA_AVANT: Pick<NetworkConfig, 'id' | 'name' | 'short' | 'region' | 'profile' | 'live' | 'runningSide' | 'timetables' | 'lines'> = {
+/**
+ * Black, as MD's lines are on Renfe's own map ("mapa general", May 2024), for Media Distancia y Avant's
+ * track below zoom 7 and its Lines: Avant's plum there, about #66145E, would read as AVE y Larga
+ * Distancia's purple on the high-speed track they share (#263).
+ */
+const MD_BLACK = '#000000';
+
+export const MEDIA_DISTANCIA_AVANT: NetworkConfig = {
   id: 'media-distancia-avant',
   name: 'Media Distancia y Avant',
   short: 'Media Distancia',
-  region: EVERYWHERE,
+  // A region of its own, its ID, loaded once the view reaches it from zoom 7, as a núcleo's is, and
+  // not long distance's, which every view loads: its Trains show only from zoom 7, and its files are
+  // 2.3–2.7 times AVE y Larga Distancia's (#263, ADR-0014).
   // Rodalies' 160 km/h at 1 m/s², which #260's triage found fits 99% of MD's hops on Monday 5 October
   // 2026, as traced, the misses being road legs. The ex-FEVE regionals, which the feed names REGIONAL
   // too, stay on it. Avant's and Avant Exp's hops fit 250 km/h at 0.5 m/s² (below), as run crudely on
@@ -799,6 +815,11 @@ export const MEDIA_DISTANCIA_AVANT: Pick<NetworkConfig, 'id' | 'name' | 'short' 
   live: RENFE_LONG_DISTANCE_LIVE,
   // As AVE y Larga Distancia's, though its Trains on FEVE's lines keep left too.
   runningSide: 'right',
+  colour: MD_BLACK,
+  // Its Trains are drawn from zoom 7, as pills, where its region loads and its Lines are (ADR-0010).
+  pillZoom: 7,
+  // Its Lines' runs are traced on the rails of their gauges, as AVE y Larga Distancia's are.
+  rails: { railway: ['rail', 'narrow_gauge'] },
   // The ex-FEVE regionals, whose route IDs end VRFV, are named REGIONAL too, but run on metre gauge.
   timetables: [
     {
@@ -818,17 +839,47 @@ export const MEDIA_DISTANCIA_AVANT: Pick<NetworkConfig, 'id' | 'name' | 'short' 
     names: { AVANT: 'Avant', 'AVANT EXP': 'Avant Exp', REGIONAL: 'Regional', 'REG.EXP.': 'Reg.Exp.', PROXIMDAD: 'Proximidad' },
     // As MD's lines are on Renfe's own map ("mapa general", May 2024): Avant's plum there would read as
     // AVE y Larga Distancia's purple on the high-speed track they share (#263).
-    colour: '#000000',
+    colour: MD_BLACK,
     profiles: { Avant: AVANT, 'Avant Exp': AVANT },
     gauges: { Avant: STANDARD, 'Avant Exp': STANDARD, MD: IBERIAN, Regional: IBERIAN, 'Reg.Exp.': IBERIAN, Proximidad: IBERIAN },
   },
+  // Renfe's, as every Network of Renfe's credits it, so that the map credits Renfe once (ADR-0010).
+  credit: RENFE,
+  // A Station two Networks list is one Station, as the first has it, so those another Network puts
+  // elsewhere go here too (#367): Medina del Campo AV as AVE y Larga Distancia has it (#476), Maliaño as
+  // Cercanías Santander has it (#494), and Dosante Cidad, which Renfe has 614 m from FEVE's track, where
+  // the Bilbao–León train stops, at OpenStreetMap's stop 2 m from it (#368, #547).
+  stations: {
+    'adif:08240': AVE_LARGA_DISTANCIA.stations!['adif:08240']!,
+    'adif:14220': { lon: -3.8420976, lat: 43.4173678, source: 'https://www.openstreetmap.org/node/2337169285' },
+    'adif:05736': { lon: -3.7558646, lat: 43.0113013, source: 'https://www.openstreetmap.org/node/12495839165' },
+  },
+  // Renfe's long-distance timetable of 14 October 2026 lists these Trains as rail, though Renfe runs them
+  // by road, and no Alert informs its Lines: on 14 Oct, Zaragoza–Teruel–Sagunto's MD 18502, 18504,
+  // 18506, 18511, 18515, 18523 and Regional 18500 and 18517, at the Stations only they call at (#562);
+  // Madrid–Jaén's MD 18030 to 18037 between Almuradiel and Jaén since 6 Sep 2026, at Vilches, which only
+  // they and two Alvias call at, Linares-Baeza and Jaén having other Trains; and Sevilla–Mérida's MD
+  // 35807 and 35902 and Reg.Exp. 18773 and 18779 between Los Rosales and Cazalla-Constantina, at Tocina
+  // and Pedroso (AVISO_512188, whose words name only Cercanías Sevilla's C3). The same notice as
+  // Almuradiel–Jaén's has Linares-Baeza–Almería by road since 6 Sep 2026: MD 35276 and 35279, at Jódar-Úbeda,
+  // Cabra del Santo Cristo y Alicún and Moreda, which only they call at. And Córdoba–Jaén has been by road
+  // since 26 Jan 2026, until autumn 2027, with Córdoba–Villa del Río's Proximidad too: MD 13001 to 13083,
+  // 13331, 13337 and 35001 to 35083, which Renfe lists as Trains from Córdoba to Jaén, direct or by
+  // Villa del Río and Andújar, and the Proximidad Trains to Villa del Río, at Jaén, Andújar and Villa del Río,
+  // which no Train by rail calls at on 14 Oct. Each Train is left out whole, its stretches by rail too, as
+  // Bilbao's beyond its `beyond` are (#263).
+  byRoad: [
+    {
+      stations: ['67004', '67007', '67009', '67010', '67011', '67013', '67014', '67015', '67016', '67017', '67018', '67019', '67020', '67021', '67100', '67101', '67103', '67105', '67107', '67113', '67200', '67203', '67205', '67206', '67207', '67208', '67215'].map((id) => `adif:${id}`),
+      source: 'https://www.grupo.renfe.com/es/es/sala-de-prensa/avisos/2026/febrero/pat-zaragoza-teruel-sagunto-y-c5-valencia',
+    },
+    { stations: ['adif:50207', 'adif:03100', 'adif:56004', 'adif:56009', 'adif:56100'], source: 'https://www.horajaen.com/2026/09/07/renfe-autobuses-alternativos-jaen-linares-baeza/' },
+    { stations: ['adif:03100', 'adif:50403', 'adif:50407'], source: 'https://andaluciainforma.eldiario.es/?p=34775' },
+    { stations: ['adif:40122', 'adif:40115'], source: 'AVISO_512188' },
+  ],
 };
 
-/**
- * The Networks of Renfe's long-distance timetable, whose routes they take between them by name (#401):
- * AVE y Larga Distancia, on the map (#262), and Media Distancia y Avant, whose Trains the daily build
- * reads, traces and logs, but doesn't draw yet (#263).
- */
+/** The Networks of Renfe's long-distance timetable, whose routes they take between them by name (#401). */
 export const LONG_DISTANCE = [AVE_LARGA_DISTANCIA, MEDIA_DISTANCIA_AVANT];
 
 /**
@@ -858,6 +909,7 @@ export const NETWORKS = [
   CERCANIAS_SAN_SEBASTIAN,
   CERCANIAS_SANTANDER,
   CERCANIAS_ZARAGOZA,
+  MEDIA_DISTANCIA_AVANT,
   AVE_LARGA_DISTANCIA,
 ];
 

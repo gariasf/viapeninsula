@@ -44,3 +44,20 @@ export const INK = '#111';
 export function darkInk(colour: string): boolean {
   return contrast(colour, INK) > contrast(colour, '#ffffff');
 }
+
+/**
+ * Colours the dark basemap's paper (#0c0c0c) swallows, by Network: Media Distancia y Avant's black is drawn there in a
+ * light grey, its track below zoom 7, its Lines and its Trains, and stays black on the light basemap (#263, the
+ * maintainer's pick of 14 Oct 2026). #D0D0D0 reads at 12.7:1 on the paper and 6.9:1 on the Lines' casing, and is
+ * ΔE 10.5 from the nearest Line's colour, FGC's R6 (#b3b3b3), and 28 from Madrid's C8 (#868584): #B0B0B0 was ΔE 1.1 from R6.
+ * FGC's MM, black too, keeps its colour and casing, as before.
+ */
+export const DARK_STAND_INS: Record<string, string> = { 'media-distancia-avant': '#D0D0D0' };
+
+/** A file's Networks and Lines with their stand-ins on the dark basemap (DARK_STAND_INS), in place, as it comes. */
+export function standIn<T>(file: T): T {
+  const { networks, lines } = file as { networks?: { id: string; colour: string }[]; lines?: { network: string; colour: string }[] };
+  for (const n of networks ?? []) n.colour = DARK_STAND_INS[n.id] ?? n.colour;
+  for (const l of lines ?? []) l.colour = DARK_STAND_INS[l.network] ?? l.colour;
+  return file;
+}

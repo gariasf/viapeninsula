@@ -37,7 +37,7 @@ export function ownRails(rails: OsmWay[], network: Pick<NetworkConfig, 'rails'>)
 }
 
 /** One of a Network's timetables, to read as that Network's. */
-export type Feed = Timetable & { network: Pick<NetworkConfig, 'id' | 'name' | 'lines' | 'stations' | 'stationNames' | 'beyond'> };
+export type Feed = Timetable & { network: Pick<NetworkConfig, 'id' | 'name' | 'lines' | 'stations' | 'stationNames' | 'beyond' | 'byRoad'> };
 
 // ponytail: today's Networks' timetables and rails, by the names networks.test.ts imports, kept so it
 // runs unchanged (#240); they can go once it reads src/networks.ts.
@@ -101,7 +101,7 @@ export async function readFeed(
   day: string,
   feed: Feed,
   log = console.log,
-): Promise<{ lines: Line[]; stations: Station[]; shapes: FeedShape[]; trips: FeedTrip[]; buses: FeedBus[]; listed: Map<string, Set<string>>; found: Found[]; left: string[] }> {
+): Promise<{ lines: Line[]; stations: Station[]; shapes: FeedShape[]; trips: FeedTrip[]; buses: FeedBus[]; listed: Map<string, Set<string>>; found: Found[]; left: string[]; road: FeedTrip[] }> {
   const { network, prefix, operator } = feed;
   const pattern = feed.number && new RegExp(feed.number);
   const services = await serviceIdsOn(gtfs, day);
@@ -314,6 +314,25 @@ export async function readFeed(
       return each;
     });
   });
+  // A Train that calls at a Station its operator runs by road is left out whole, every Trip it's listed in (#562).
+  // A Station two notices have by road, as Jaén, names both.
+  const byRoad = new Map<string, string>();
+  for (const { stations: ids, source } of network.byRoad ?? []) for (const id of ids) byRoad.set(id, byRoad.has(id) ? `${byRoad.get(id)}, ${source}` : source);
+  const road: FeedTrip[] = []; // the Trips of the Trains left out so, which other Networks' Trips can still twin (#488)
+  const onRail = (all: FeedTrip[]) => {
+    const away = new Map<string, string>();
+    for (const t of all) {
+      const at = t.calls.find((c) => byRoad.has(c.station))?.station;
+      if (at && !away.has(t.number ?? t.id)) away.set(t.number ?? t.id, at);
+    }
+    for (const [train, at] of away) {
+      const text = `${network.name}'s ${train} is left out: it calls at ${stations.get(at)?.name ?? at}, which is run by road (${byRoad.get(at)})`;
+      log(text);
+      left.push(text);
+    }
+    road.push(...all.filter((t) => away.has(t.number ?? t.id)));
+    return all.filter((t) => !away.has(t.number ?? t.id));
+  };
   return {
     lines: [...lines].map(([name, line]) => ({
       id: `${network.id}:${name}`,
@@ -326,7 +345,7 @@ export async function readFeed(
     })),
     stations: [...stations.values()],
     shapes,
-    trips: feed.parts ? joinParts(trips, stations, day, log) : trips,
+    trips: feed.parts ? joinParts(onRail(trips), stations, day, log) : onRail(trips),
     buses: [...dayBuses.values()].map((bus) => ({
       ...bus,
       // A stop only buses call at is none of the Network's Stations, but the report names it.
@@ -338,6 +357,7 @@ export async function readFeed(
     listed: dayTrips.size ? listed : everyDay,
     found,
     left,
+    road: feed.parts ? joinParts(road, stations, day, () => {}) : road,
   };
 }
 
@@ -457,6 +477,43 @@ export function unlisted(trips: FeedTrip[], listed: Map<string, Set<string>>[]):
   return trips.filter((t) => !listed.some((l) => t.calls.some((c) => l.get(t.number ?? '')?.has(c.station))));
 }
 
+/**
+ * Trips less the calls other timetables' Trips make (CONTEXT.md, #547): of a Train another timetable
+ * lists too, by its number and one of its Stations (unlisted()), or that one of its Trips makes all of
+ * whose calls are at the same minutes under another number (twinned()), each call that a Trip of that
+ * number makes at its Station, or that one of `others` makes there in the same minute, arriving or
+ * leaving, where it makes two or more of its calls so, is left out, and each run of two or more of its calls left between is a Trip of its own, the
+ * second on named `<id>:2`, and so on. So the Bilbao–León train that León's C1 lists the last 17 calls
+ * of is a Trip from Bilbao la Concordia to Santibáñez de la Peña, and 17050 leaves Rodalies' and
+ * Zaragoza's 30550 their calls. A Trip that makes one of its calls in the same minute, as a Train it
+ * crosses on single track does, takes none: it would cut the Bilbao–León train in four. A Train no
+ * other timetable lists is as it was.
+ */
+export function rest(trips: FeedTrip[], listed: Map<string, Set<string>>[], others: FeedTrip[]): FeedTrip[] {
+  const twins = new Set(twinned(others, trips).flatMap((t) => t.twins ?? []));
+  const minute = (time: number) => Math.floor(time / 60);
+  const same = (a: FeedTrip['calls'][number], b: FeedTrip['calls'][number]) => a.station === b.station && (minute(a.arrival) === minute(b.arrival) || minute(a.departure) === minute(b.departure));
+  const byStation = new Map<string, FeedTrip[]>();
+  for (const o of others) for (const c of o.calls) byStation.get(c.station)?.push(o) ?? byStation.set(c.station, [o]);
+  return trips.flatMap((t) => {
+    const number = t.number ?? '';
+    if (!twins.has(number) && unlisted([t], listed).length) return [t];
+    // The calls of each Trip that makes two or more of its calls at the same minutes.
+    const made = new Set<FeedTrip['calls'][number]>();
+    for (const o of new Set(t.calls.flatMap((c) => byStation.get(c.station) ?? []))) {
+      const shared = t.calls.filter((c) => o.calls.some((oc) => same(c, oc)));
+      if (shared.length > 1) for (const c of shared) made.add(c);
+    }
+    const taken = (c: FeedTrip['calls'][number]) => listed.some((l) => l.get(number)?.has(c.station)) || made.has(c);
+    const runs: FeedTrip['calls'][] = [[]];
+    for (const c of t.calls) {
+      if (taken(c)) runs.push([]);
+      else runs.at(-1)?.push(c);
+    }
+    return runs.filter((r) => r.length > 1).map((calls, i) => ({ ...t, ...(i && { id: `${t.id}:${i + 1}` }), calls }));
+  });
+}
+
 /** The folder readTimetables() keeps its copies in unless given another, so the one copyOf() names too. */
 const CACHE = '.cache';
 
@@ -475,7 +532,7 @@ export function copyOf({ prefix }: Timetable, cache = CACHE): string {
  * its copy was kept.
  */
 export async function readTimetables<T extends { lines: unknown[][] }>(
-  network: Pick<NetworkConfig, 'id' | 'name' | 'timetables' | 'lines' | 'stations' | 'stationNames' | 'beyond'>,
+  network: Pick<NetworkConfig, 'id' | 'name' | 'timetables' | 'lines' | 'stations' | 'stationNames' | 'beyond' | 'byRoad'>,
   failed: unknown,
   read: (feeds: (Feed & { gtfs: Source; readOn: string })[]) => Promise<T>,
   report: (found: Found) => void,
