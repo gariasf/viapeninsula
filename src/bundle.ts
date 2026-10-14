@@ -357,8 +357,8 @@ export interface Credit {
   text: string;
   url: string;
   /** Its data's licence, where its terms ask for it to be named. */
-  licence?: 'CC BY 4.0';
-  /** The day it last updated its timetable (YYYY-MM-DD), where its terms ask the map to show it: its feed's start date, or where its feed has none, the day the build read it, or its copy was kept. */
+  licence?: 'CC BY 4.0' | 'LDA MITRAMS';
+  /** The day it last updated its timetable (YYYY-MM-DD), where its terms ask the map to show it: its feed's start date, or where its feed has none, the day the build read it, or its copy was kept, or NAP's date for its file. */
   updated?: string;
 }
 

@@ -505,9 +505,11 @@ export function onOwnTrack(networks: { stations: Station[]; shapes: Shape[] }[])
 /**
  * Every Network's Stations, each once, as onOwnTrack() places them: a Station two Networks share, as
  * both Renfe timetables have Sants as `adif:71801`, is one Station, as the first of them has it, naming
- * every Network whose Trains stop there (#243).
+ * every Network whose Trains stop there (#243). A Scheduled-only Network's go after the others', so that
+ * Ouigo's Stations, which its MERITS export names in capitals, are Renfe's where Renfe has them too (#264).
  */
-export function stationsOf(networks: { network: Pick<Network, 'id'>; stations: Station[]; shapes: Shape[] }[]): Station[] {
+export function stationsOf(given: { network: Pick<Network, 'id' | 'live'>; stations: Station[]; shapes: Shape[] }[]): Station[] {
+  const networks = given.toSorted((a, b) => Number(!a.network.live) - Number(!b.network.live));
   const byId = new Map<string, Station & { networks: string[] }>();
   for (const [n, stations] of onOwnTrack(networks).entries()) {
     const id = networks[n]?.network.id ?? '';
