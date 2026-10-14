@@ -257,9 +257,9 @@ export async function readFeed(
     if (!s || !all.has(key) || stations.has(key)) continue;
     // Where the Station is a Line's own stop, as the Metro's are, the station grouping it is its place.
     const place = s.parent_station && `${operator}:${s.parent_station}`;
-    // Where the Network's config says it is (#367), or else its timetable's points (#259), if its timetable puts it elsewhere.
+    // Where the Network's config says it is (#367), if its timetable puts it elsewhere.
     const at = network.stations?.[key];
-    const [lon, lat] = at ? [at.lon, at.lat] : (feed.points?.[s.stop_id] ?? [Number(s.stop_lon), Number(s.stop_lat)]);
+    const [lon, lat] = at ? [at.lon, at.lat] : [Number(s.stop_lon), Number(s.stop_lat)];
     // And as its config spells its name (#571), where its timetable shortens it.
     stations.set(key, { id: key, name: network.stationNames?.[key]?.name ?? s.stop_name, lon, lat, ...(place && { place }) });
   }

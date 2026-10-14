@@ -45,8 +45,7 @@ export interface NetworkConfig extends Omit<Network, 'credit'> {
    * Entrego at a FEVE station 0.4 km from Adif's (#367), with where they do stop and the source that
    * says so: the URL of an OpenStreetMap node, or of the operator's own map. The daily build lists those
    * it applies. A Station two Networks list is one Station, as the first of them has it, a Scheduled-only
-   * Network's after the others (stationsOf()), so it goes in each Network that lists it. A timetable's `points` (#259) put a Station elsewhere the
-   * same way, by stop_id, with no source and no line in the log, and these win where both name one.
+   * Network's after the others (stationsOf()), so it goes in each Network that lists it.
    */
   stations?: Record<string, { lon: number; lat: number; source: string }>;
   /**
@@ -166,8 +165,6 @@ export interface Timetable {
    * that was kept, or NAP's own date for its file, its fechaActualizacion (`'nap'`, updatedOn()).
    */
   updated?: true | 'read' | 'nap';
-  /** Where some of its Stations are, by stop_id, where it has them too far from their rails to trace (#259). */
-  points?: Record<string, [lon: number, lat: number]>;
   /**
    * Its shapes leap in a straight line where they haven't the track, and run on from there, as
    * Euskotren's do (#265): a stretch between two Stations across a leap (track.ts's LEAP) isn't one
@@ -789,12 +786,6 @@ const RENFE_LONG_DISTANCE_LIVE = { delay: 'gps', near: 'pinned', snap: 60, numbe
 const HIGH_SPEED = { topSpeed: 300 / 3.6 };
 
 /**
- * Renfe has Antequera AV 430 m north of its platforms, beyond the 200 m a Station's rails may be: it's
- * at their middle, on the high-speed line to Granada, and 25 m from its Iberian-gauge tracks.
- */
-const RENFE_LONG_DISTANCE_POINTS: Timetable['points'] = { '02030': [-4.56158, 37.02951] };
-
-/**
  * Renfe's purple, AVE's since 2022 and on renfe.com, for AVE y Larga Distancia's track below zoom 7 and its
  * Lines, rather than the magenta of Renfe's 2025 AVE map, about #DA055C, which can't be told from Ouigo's
  * #E50A70 (#262).
@@ -838,7 +829,6 @@ export const AVE_LARGA_DISTANCIA: NetworkConfig = {
       shortNames: true,
       parts: true,
       shapeless: true,
-      points: RENFE_LONG_DISTANCE_POINTS,
     },
   ],
   // Renfe's, as every Network of Renfe's credits it, so that the map credits Renfe once (ADR-0010).
@@ -855,9 +845,13 @@ export const AVE_LARGA_DISTANCIA: NetworkConfig = {
   // Renfe's long-distance timetable of 10 October 2026 has Medina del Campo AV at the old Medina del Campo
   // station, 2 m from its Iberian-gauge tracks and 1.5 km from any standard-gauge one, where it's 3.1 km
   // south-west, on the high-speed line to Zamora: Avlo's and Alvia's Trips from Zamora had no path to it, 5
-  // to 7 a day left out, and Alvia's to Salamanca were traced through the old station (#476).
+  // to 7 a day left out, and Alvia's to Salamanca were traced through the old station (#476). And it has
+  // Antequera AV 430 m north of its platforms, beyond the 200 m a Station's rails may be: it's at their
+  // middle, between platform ways 1144921235 and 1144921236, on the high-speed line to Granada, and 25 m
+  // from its Iberian-gauge tracks (#259, #496).
   stations: {
     'adif:08240': { lon: -4.9229291, lat: 41.2912358, source: 'https://www.openstreetmap.org/node/6329564866' },
+    'adif:02030': { lon: -4.56158, lat: 37.02951, source: 'https://www.openstreetmap.org/way/1144921235' },
   },
 };
 
@@ -905,7 +899,6 @@ export const MEDIA_DISTANCIA_AVANT: NetworkConfig = {
       shortNames: true,
       parts: true,
       shapeless: true,
-      points: RENFE_LONG_DISTANCE_POINTS,
     },
   ],
   lines: {
@@ -920,11 +913,20 @@ export const MEDIA_DISTANCIA_AVANT: NetworkConfig = {
   // Renfe's, as every Network of Renfe's credits it, so that the map credits Renfe once (ADR-0010).
   credit: RENFE,
   // A Station two Networks list is one Station, as the first has it, so those another Network puts
-  // elsewhere go here too (#367): Medina del Campo AV as AVE y Larga Distancia has it (#476), Maliaño as
-  // Cercanías Santander has it (#494), and Dosante Cidad, which Renfe has 614 m from FEVE's track, where
-  // the Bilbao–León train stops, at OpenStreetMap's stop 2 m from it (#368, #547).
+  // elsewhere go here too (#367): Medina del Campo AV and Antequera AV as AVE y Larga Distancia has them
+  // (#476, #496), Maliaño as Cercanías Santander has it (#494), and Dosante Cidad, which Renfe has 614 m
+  // from FEVE's track, where the Bilbao–León train stops, at OpenStreetMap's stop 2 m from it (#368, #547).
+  // And its own, from Renfe's long-distance timetable of 14 October 2026 (#476): Callosa de Segura-Cox,
+  // which it has at the old Callosa de Segura station, on Iberian-gauge track 1 km from the high-speed
+  // line Avant Alicante–Murcia calls on, 1.6 km north; El Carrión, 313 m from its line; and Los Rosales,
+  // which it has on the Sevilla–Córdoba line's platforms, 0.2 km from the Mérida line's, where MD and
+  // Reg.Exp. from Tocina call (#493).
   stations: {
     'adif:08240': AVE_LARGA_DISTANCIA.stations!['adif:08240']!,
+    'adif:02030': AVE_LARGA_DISTANCIA.stations!['adif:02030']!,
+    'adif:03412': { lon: -0.8750933, lat: 38.1370147, source: 'https://www.openstreetmap.org/node/11393157285' },
+    'adif:14117': { lon: -4.4958622, lat: 42.1167509, source: 'https://www.openstreetmap.org/node/1732357750' },
+    'adif:50700': { lon: -5.7282079, lat: 37.5903189, source: 'https://www.openstreetmap.org/node/7758141441' },
     'adif:14220': { lon: -3.8420976, lat: 43.4173678, source: 'https://www.openstreetmap.org/node/2337169285' },
     'adif:05736': { lon: -3.7558646, lat: 43.0113013, source: 'https://www.openstreetmap.org/node/12495839165' },
   },
