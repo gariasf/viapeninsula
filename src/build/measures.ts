@@ -62,8 +62,8 @@ const HAIRPIN = 120;
  * there, in LOOSE_ZOOM's band, and in the measures of nodes, at each zoom in BANDS (ADR-0007, #186).
  * `kinks`: curves shorter than LENGTH × their side change × the band's line width. `weaves`: a Line's
  * strokes shorter than the room() of the nodes at their ends, where it changes side at either.
- * `hidden`: strokes still drawn along a Stretch a node absorbed, within a stretch of centreline that a
- * curve of the band takes over whole from a stroke of its own Line, which its node absorbed (#708).
+ * `hidden`: strokes still drawn along a Stretch a node absorbed, read as those within another Line's stroke
+ * on their centreline that isn't drawn in the band (#708): a Stretch none of whose strokes is cut isn't seen.
  * `wiggles`: curves that, drawn with the strokes they join, turn TURN degrees one way and back the
  * other, an S-bend, or turn back on themselves, within WIGGLE line widths, where they turn on the curve (#206).
  * `hairpins`: curves whose first and last segments, those of at least ROUNDING, head HAIRPIN degrees or
@@ -439,16 +439,16 @@ function nodes(strokes: Stroke[], shapes: Shape[], lines: Line[]): Pick<Measures
     // The strokes a node absorbed, not drawn in the band: a curve that starts or ends on one has no front there, as its Line ends inside the node.
     const hidden = new Map<string, Stroke[]>();
     for (const s of drawn) if (cutIn(s, band).reduce((a, b) => a + b) >= s.to - s.from) hidden.set(`${s.line} ${s.shape}`, [...(hidden.get(`${s.line} ${s.shape}`) ?? []), s]);
-    const takenOver = (line: string, [shape, start, end]: [string, number, number]) => hidden.get(`${line} ${shape}`)?.some((s) => s.from - 1 <= Math.min(start, end) && Math.max(start, end) <= s.to + 1);
-    // Where a curve takes over a stroke its node absorbed, any other stroke along it, of any Line, is one the node absorbed too, and isn't drawn.
-    const absorbed = curves.flatMap((c) => (c.across ?? []).filter((part) => takenOver(c.line, part)));
-    found.hidden[zoom] = drawn.filter((s) => !hidden.get(`${s.line} ${s.shape}`)?.includes(s) && absorbed.some(([shape, start, end]) => shape === s.shape && Math.min(start, end) - 1 <= s.from && s.to <= Math.max(start, end) + 1)).length;
+    // A stroke within one a node absorbed, of another Line along the same centreline, is one it absorbed too, and isn't drawn.
+    const cutOn = new Map<string, Stroke[]>();
+    for (const s of [...hidden.values()].flat()) cutOn.set(s.shape, [...(cutOn.get(s.shape) ?? []), s]);
+    found.hidden[zoom] = drawn.filter((s) => !hidden.get(`${s.line} ${s.shape}`)?.includes(s) && cutOn.get(s.shape)?.some((t) => t.from - 1 <= s.from && s.to <= t.to + 1)).length;
     for (const c of curves) {
       const parts = c.across ?? [];
       const ends = [parts[0], parts.at(-1)].flatMap((part, i) => {
         if (!part) return [];
         const [shape, start, end] = part;
-        if (takenOver(c.line, part)) return [];
+        if (hidden.get(`${c.line} ${shape}`)?.some((s) => s.from - 1 <= Math.min(start, end) && Math.max(start, end) <= s.to + 1)) return [];
         // The node is at the curve's end on the Stretch it leaves, at its start on the one it comes onto.
         const [at, other] = i ? [start, end] : [end, start];
         const way = Math.sign(other - at) || (at < (byId.get(shape)?.dist.at(-1) ?? 0) / 2 ? 1 : -1);

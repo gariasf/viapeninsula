@@ -340,6 +340,9 @@ test('counts the strokes still drawn along a Stretch a node absorbed, where a cu
     }).hidden;
   expect(hidden([0, 0])).toEqual(every(1));
   expect(hidden([40, 0])).toEqual(none);
+  // Or with no curve along it, as where every way of its Lines passes it by.
+  const alone = measures({ shapes: [east('b', 40)], strokes: [{ ...stroke('R2', 'b', 0, 40, 0), cut: BANDS.map(() => [40, 0]) }, stroke('R11', 'b', 0, 40, 1)] }).hidden;
+  expect(alone).toEqual(every(1));
 });
 
 /**

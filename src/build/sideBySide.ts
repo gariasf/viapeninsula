@@ -408,14 +408,14 @@ function wayAlong(s: Step, pieces: Piece[], drawn: number, wayOn: Map<number, nu
 }
 
 /** The Stretches a shape goes along, in order, each where its pieces are drawn. */
-function visits(shape: Step[], pieces: Piece[], drawer: number[], edgeOf: Map<number, [edge: number, at: number]>, wayOn?: Map<number, number>): Visit[] {
+function visits(shape: Step[], pieces: Piece[], drawer: number[], edgeOf: Map<number, [edge: number, at: number]>, wayOn: Map<number, number>): Visit[] {
   const found: Visit[] = [];
   for (const [i, s] of shape.entries()) {
     const drawn = drawer[s.piece] ?? s.piece;
     const [edge, middle] = edgeOf.get(drawn) ?? [];
     if (edge === undefined || middle === undefined) continue;
-    // Which way it goes, where `wayOn` is given, else none (#599).
-    const way = wayOn ? wayAlong(s, pieces, drawn, wayOn) : 0;
+    // Which way it goes (#599).
+    const way = wayAlong(s, pieces, drawn, wayOn);
     const length = pieces[s.piece]?.length ?? 0;
     const v = found.at(-1);
     if (v?.edge === edge) [v.last, v.length, v.steps[1], v.ways[1]] = [middle, v.length + length, i + 1, way];
@@ -771,11 +771,7 @@ export function sidesOf(legs: Leg[], hidden: (s: Stroke) => boolean): [number, n
     // Looking the way it goes: the first leg is left at its end, the rest come in at theirs. Of legs as long, the first in the
     // stroke's own order, which is the same from either end.
     const looking = legs.map(({ stroke, end }, i) => ({ stroke, side: stroke.side * (i ? (end ? -1 : 1) : end ? 1 : -1) }));
-    const key = ({ stroke: s }: (typeof looking)[number]) => [s.to - s.from, s.shape, s.from] as const;
-    const [longest] = looking.toSorted((a, b) => {
-      const [[la, sa, fa], [lb, sb, fb]] = [key(a), key(b)];
-      return lb - la || sa.localeCompare(sb) || fa - fb;
-    });
+    const [longest] = looking.toSorted(({ stroke: a }, { stroke: b }) => b.to - b.from - (a.to - a.from) || a.shape.localeCompare(b.shape) || a.from - b.from || a.side - b.side);
     return [longest?.side ?? stop, longest?.side ?? stop];
   }
   if (first && hidden(first.stroke)) return [stop, stop];
