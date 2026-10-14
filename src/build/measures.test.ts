@@ -150,7 +150,7 @@ test("doesn't count Lines stepping side by side the same way as a swap", () => {
 test('measures nothing amiss for Lines side by side on one track, each drawn once', () => {
   const found = measures({ shapes: [east('a', 2000), east('b', 2000)], strokes: [stroke('R2', 'a', 0, 2000, -0.5), stroke('R11', 'b', 0, 2000, 0.5)] });
   const zero = Object.fromEntries(BANDS.map((zoom) => [zoom, 0]));
-  expect(found).toEqual({ breaks: { steps: 0, stubs: 0, swaps: 0, joins: 0 }, twice: 0, alone: 0, over: 0, folds: zero, covered: zero, dangling: 0, kinks: zero, weaves: zero, wiggles: zero, hairpins: zero, inside: zero, largest: Object.fromEntries(BANDS.map((zoom) => [zoom, []])) });
+  expect(found).toEqual({ breaks: { steps: 0, stubs: 0, swaps: 0, joins: 0 }, twice: 0, alone: 0, over: 0, folds: zero, covered: zero, dangling: 0, kinks: zero, weaves: zero, hidden: zero, wiggles: zero, hairpins: zero, inside: zero, largest: Object.fromEntries(BANDS.map((zoom) => [zoom, []])) });
 });
 
 test('measures a Line drawn twice, where its two directions have tracks of their own and different sides', () => {
@@ -325,6 +325,26 @@ test("counts a Line's stroke shorter than the room the nodes at its ends need, w
   expect(weaves(50, 0)).toEqual(none);
 });
 
+test('counts the strokes still drawn along a Stretch a node absorbed, where a curve takes over a stroke of its own Line, as hidden (#708)', () => {
+  // R2 crosses the node from 'a' along 'b', 40 m, onto 'c' on one curve; R11's stroke along 'b' is cut whole, or still drawn.
+  const hidden = (cut: [number, number]) =>
+    measures({
+      shapes: [east('a', 1000), east('b', 40), east('c', 1000), east(`${LINK}0`, 100)],
+      strokes: [
+        stroke('R2', 'a', 0, 1000, 0),
+        { ...stroke('R2', 'b', 0, 40, 0), cut: BANDS.map(() => [40, 0]) },
+        ...BANDS.map((_, band): Stroke => ({ ...stroke('R2', `${LINK}0`, 0, 100, 0), band, across: [['a', 970, 1000], ['b', 0, 40], ['c', 0, 30]] })),
+        stroke('R2', 'c', 0, 1000, 0),
+        { ...stroke('R11', 'b', 0, 40, 1), cut: BANDS.map(() => cut) },
+      ],
+    }).hidden;
+  expect(hidden([0, 0])).toEqual(every(1));
+  expect(hidden([40, 0])).toEqual(none);
+  // Or with no curve along it, as where every way of its Lines passes it by.
+  const alone = measures({ shapes: [east('b', 40)], strokes: [{ ...stroke('R2', 'b', 0, 40, 0), cut: BANDS.map(() => [40, 0]) }, stroke('R11', 'b', 0, 40, 1)] }).hidden;
+  expect(alone).toEqual(every(1));
+});
+
 /**
  * R2 drawn along 'a' up to 1000 m east, across a node on a curve through points, in each band from
  * GRAPH_BAND on, and on along 'b', which runs east so many metres north, from where the curve ends.
@@ -435,6 +455,7 @@ test('reports the measures as one spot with each of their numbers, in metres, an
     dangling: 30,
     kinks: { 7: 0, 8: 1 },
     weaves: { 7: 2, 8: 0 },
+    hidden: { 7: 1, 8: 0 },
     wiggles: { 7: 0, 8: 1 },
     hairpins: { 7: 2, 8: 0 },
     inside: { 7: 9395, 8: 14055.5 },
@@ -470,6 +491,8 @@ test('reports the measures as one spot with each of their numbers, in metres, an
         'kinks 8': 1,
         'weaves 7': 2,
         'weaves 8': 0,
+        'hidden 7': 1,
+        'hidden 8': 0,
         'wiggles 7': 0,
         'wiggles 8': 1,
         'hairpins 7': 2,

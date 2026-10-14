@@ -62,6 +62,8 @@ const HAIRPIN = 120;
  * there, in LOOSE_ZOOM's band, and in the measures of nodes, at each zoom in BANDS (ADR-0007, #186).
  * `kinks`: curves shorter than LENGTH × their side change × the band's line width. `weaves`: a Line's
  * strokes shorter than the room() of the nodes at their ends, where it changes side at either.
+ * `hidden`: strokes still drawn along a Stretch a node absorbed, read as those within another Line's stroke
+ * on their centreline that isn't drawn in the band (#708): a Stretch none of whose strokes is cut isn't seen.
  * `wiggles`: curves that, drawn with the strokes they join, turn TURN degrees one way and back the
  * other, an S-bend, or turn back on themselves, within WIGGLE line widths, where they turn on the curve (#206).
  * `hairpins`: curves whose first and last segments, those of at least ROUNDING, head HAIRPIN degrees or
@@ -81,6 +83,7 @@ export interface Measures {
   dangling: number;
   kinks: Record<number, number>;
   weaves: Record<number, number>;
+  hidden: Record<number, number>;
   wiggles: Record<number, number>;
   hairpins: Record<number, number>;
   inside: Record<number, number>;
@@ -126,10 +129,10 @@ function joined(strokes: Stroke[]): Stroke[] {
 }
 
 /** Measures in a line for the build's log. */
-export function summary({ breaks: b, twice, alone, over, folds: f, covered, dangling: loose, kinks, weaves, wiggles, hairpins, inside, largest }: Measures): string {
+export function summary({ breaks: b, twice, alone, over, folds: f, covered, dangling: loose, kinks, weaves, hidden, wiggles, hairpins, inside, largest }: Measures): string {
   const km = (m: number) => `${(m / 1000).toFixed(1)} km`;
   const per = (found: Record<number, number>, as: (n: number) => string = String) => Object.entries(found).map(([zoom, n]) => `${as(n)} at zoom ${zoom}`).join(', ');
-  return `${total(b)} breaks (${b.steps} steps, ${b.stubs} stubs, ${b.swaps} swaps, ${b.joins} joins), ${km(twice)} drawn twice, ${km(alone)} off a track they have alone, ${Math.round(over)} m over each other, folds ${per(f)}, covered ${per(covered, (m) => `${(m / 1000).toFixed(1)} km`)}, ${loose} dangling ends, kinks ${per(kinks)}, weaves ${per(weaves)}, wiggles ${per(wiggles)}, hairpins ${per(hairpins)}, off track inside nodes ${per(inside, (m) => `${Math.round(m)} m`)}${Object.entries(largest).map(([zoom, list]) => `\n  largest nodes at zoom ${zoom}, in line widths: ${list.map(({ size, at: [lon, lat] }) => `${size.toFixed(1)} at ${lat.toFixed(5)},${lon.toFixed(5)}`).join(', ')}`).join('')}`;
+  return `${total(b)} breaks (${b.steps} steps, ${b.stubs} stubs, ${b.swaps} swaps, ${b.joins} joins), ${km(twice)} drawn twice, ${km(alone)} off a track they have alone, ${Math.round(over)} m over each other, folds ${per(f)}, covered ${per(covered, (m) => `${(m / 1000).toFixed(1)} km`)}, ${loose} dangling ends, kinks ${per(kinks)}, weaves ${per(weaves)}, hidden strokes drawn ${per(hidden)}, wiggles ${per(wiggles)}, hairpins ${per(hairpins)}, off track inside nodes ${per(inside, (m) => `${Math.round(m)} m`)}${Object.entries(largest).map(([zoom, list]) => `\n  largest nodes at zoom ${zoom}, in line widths: ${list.map(({ size, at: [lon, lat] }) => `${size.toFixed(1)} at ${lat.toFixed(5)},${lon.toFixed(5)}`).join(', ')}`).join('')}`;
 }
 
 /**
@@ -151,6 +154,7 @@ export function reported(m: Measures, text: string): Found[] {
     ...each('covered', m.covered),
     ...each('kinks', m.kinks),
     ...each('weaves', m.weaves),
+    ...each('hidden', m.hidden),
     ...each('wiggles', m.wiggles),
     ...each('hairpins', m.hairpins),
     ...each('inside', m.inside),
@@ -407,13 +411,13 @@ function covered(strokes: Stroke[], shapes: Shape[], one: (line: string) => stri
   return found;
 }
 
-/** At each zoom in BANDS, the kinks, weaves and metres off track inside nodes (see Measures). */
-function nodes(strokes: Stroke[], shapes: Shape[], lines: Line[]): Pick<Measures, 'kinks' | 'weaves' | 'inside' | 'largest'> {
+/** At each zoom in BANDS, the kinks, weaves, hidden strokes drawn and metres off track inside nodes (see Measures). */
+function nodes(strokes: Stroke[], shapes: Shape[], lines: Line[]): Pick<Measures, 'kinks' | 'weaves' | 'hidden' | 'inside' | 'largest'> {
   const byId = new Map(shapes.map((s) => [s.id, s]));
   const flat = ([lon, lat]: Point): [x: number, y: number] => [lon * KX, lat * DEGREE];
   const own = new Map(lines.map((l) => [l.id, l.shapes.flatMap((id) => byId.get(id)?.coords.map(flat) ?? [])]));
   const offOwn = new Map([...own].map(([id, track]) => [id, offTrack(track)]));
-  const found: Pick<Measures, 'kinks' | 'weaves' | 'inside' | 'largest'> = { kinks: {}, weaves: {}, inside: {}, largest: {} };
+  const found: Pick<Measures, 'kinks' | 'weaves' | 'hidden' | 'inside' | 'largest'> = { kinks: {}, weaves: {}, hidden: {}, inside: {}, largest: {} };
   for (const [band, zoom] of BANDS.entries()) {
     const width = atZoom(APART, zoom) * pixelMetres(zoom, LATITUDE);
     const drawn = strokes.filter((s) => !s.shape.startsWith(LINK) && drawnIn(s, band));
@@ -435,6 +439,10 @@ function nodes(strokes: Stroke[], shapes: Shape[], lines: Line[]): Pick<Measures
     // The strokes a node absorbed, not drawn in the band: a curve that starts or ends on one has no front there, as its Line ends inside the node.
     const hidden = new Map<string, Stroke[]>();
     for (const s of drawn) if (cutIn(s, band).reduce((a, b) => a + b) >= s.to - s.from) hidden.set(`${s.line} ${s.shape}`, [...(hidden.get(`${s.line} ${s.shape}`) ?? []), s]);
+    // A stroke within one a node absorbed, of another Line along the same centreline, is one it absorbed too, and isn't drawn.
+    const cutOn = new Map<string, Stroke[]>();
+    for (const s of [...hidden.values()].flat()) cutOn.set(s.shape, [...(cutOn.get(s.shape) ?? []), s]);
+    found.hidden[zoom] = drawn.filter((s) => !hidden.get(`${s.line} ${s.shape}`)?.includes(s) && cutOn.get(s.shape)?.some((t) => t.from - 1 <= s.from && s.to <= t.to + 1)).length;
     for (const c of curves) {
       const parts = c.across ?? [];
       const ends = [parts[0], parts.at(-1)].flatMap((part, i) => {
