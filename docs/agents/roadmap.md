@@ -11,9 +11,9 @@ GitHub milestones order the work. Each milestone's description is the source of 
 
 Read it with `gh api repos/{owner}/{repo}/milestones`.
 
-Milestones are numbered, and each is in one of three states:
-- **Now**: milestones 0, 1 and 2. Build only from these.
-- **Next**: 3, 4 and 5.
+Milestones are numbered, and each is in one of three states, which the last line of its description names:
+- **Now**: build only from these. Since 14 Oct 2026 they are milestones 1 and 5; 0 and 2 have closed.
+- **Next**: 3 and 4.
 - **Later**: the icebox.
 
 Rules:
