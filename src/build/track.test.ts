@@ -40,7 +40,7 @@ const station = (id: string, x: number, y: number): Station => {
   return { id, name: id, lon, lat };
 };
 
-type FeedIn = { id: string; line?: string; feed: [number, number][]; stations: string; gauges?: Gauges };
+type FeedIn = { id: string; line?: string; feed: [number, number][]; stations: string; gauges?: Gauges; leaps?: true };
 
 function trace(rails: OsmWay[], stations: Station[], ...shapes: FeedIn[]) {
   return traceKeeping('right', rails, stations, ...shapes);
@@ -50,7 +50,7 @@ function trace(rails: OsmWay[], stations: Station[], ...shapes: FeedIn[]) {
 function traceKeeping(side: 'left' | 'right', rails: OsmWay[], stations: Station[], ...shapes: FeedIn[]) {
   const [log, found]: [string[], Found[]] = [[], []];
   const traced = traceShapes(
-    shapes.map((s) => ({ id: s.id, line: s.line ?? 'line', coords: s.feed.map(([x, y]) => at(x, y)), stations: s.stations.split(' '), ...(s.gauges && { gauges: s.gauges }) })),
+    shapes.map((s) => ({ id: s.id, line: s.line ?? 'line', coords: s.feed.map(([x, y]) => at(x, y)), stations: s.stations.split(' '), ...(s.gauges && { gauges: s.gauges }), ...(s.leaps && { leaps: s.leaps }) })),
     stations,
     rails,
     side,
@@ -439,6 +439,22 @@ test("reports each traced shape's length against the feed's, and fails when one 
       { id: 'line', feed: [[0, 1], [4000, 1]], stations: 'A B' },
     );
   expect(detour).toThrow("line's traced track is 3.9 km against the feed's 3.0 km (+29.6%)");
+});
+
+test("counts no leg across a leap in a shape of a feed whose shapes leap as one where the feed has the track, as Euskotren's E3 leaps 4 km from Sondika to Lutxana and runs back (#265)", () => {
+  // Its points are 250 m apart, but from B it leaps 3 km north and runs back down to C, 4 km where
+  // the rails take 1.
+  const along = (from: Point, to: Point): Point[] => [0, 0.25, 0.5, 0.75].map((f) => [from[0] + f * (to[0] - from[0]), from[1] + f * (to[1] - from[1])]);
+  const feed: Point[] = [...along([0, 1], [1000, 1]), [1000, 1], ...along([1000, 3000], [1000, 1000]), ...along([1000, 1000], [2000, 1]), ...along([2000, 1], [3000, 1]), [3000, 1]];
+  const traced = (leaps?: true) =>
+    trace(
+      rails({ a: [0, 0], b: [1000, 0], c: [2000, 0], d: [3000, 0] }, 'a b c d'),
+      [station('A', 0, 10), station('B', 1000, 10), station('C', 2000, 10), station('D', 3000, 10)],
+      { id: 'line', feed, stations: 'A B C D', ...(leaps && { leaps }) },
+    );
+  expect(traced(true).log).toEqual(['line: 3.0 km long. Where the feed has the track: 2.0 km traced against its 2.0 km (-0.8%)']);
+  // Another feed's shape can run kilometres between its points on straight track, so there it's held to its length.
+  expect(() => traced()).toThrow("line's traced track is 3.0 km against the feed's 8.4 km (-64.3%)");
 });
 
 test("doesn't fail a short shape for stopping at the near side of a Station's rails, as the Montjuïc funicular does", () => {
