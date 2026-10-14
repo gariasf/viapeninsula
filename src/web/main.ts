@@ -12,7 +12,7 @@ import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabe
 import { rounded } from './curve.ts';
 import { getJson, lookAgainSoon, RETRY, STALL } from './files.ts';
 import { daysAsTheyCome, firstLook, forgetJoined, joinedFrom, regionLoader, regionsCame, regionsNeeded } from './regions.ts';
-import { byRegion, drawnLines, RANK_STEP } from './lines.ts';
+import { byRegion, drawnLines } from './lines.ts';
 import { linesAt, popupRoom } from './tap.ts';
 import { callsIn, fileShapes, hidesTowns, nameOffset, nameSort, nearestSide, rightOf, sidesByJoin, splitBy, underName, type Side, type Spot } from './names.ts';
 import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
@@ -895,7 +895,7 @@ setInterval(refreshDays, 60_000);
 // Track goes under the basemap's labels; Stations and names go on top of everything.
 const firstLabel = map.getStyle().layers.find((l) => l.type === 'symbol')?.id;
 /** How each Line's stroke is laid out, and its casing alike, so that MapLibre builds their geometry once. */
-const lineLayout: LineLayerSpecification['layout'] = { 'line-cap': 'round', 'line-join': 'round', 'line-sort-key': ['+', ['get', 'above'], ['*', ['get', 'rank'], RANK_STEP]] };
+const lineLayout: LineLayerSpecification['layout'] = { 'line-cap': 'round', 'line-join': 'round', 'line-sort-key': ['get', 'sort'] };
 /** The colour each Line's stroke is drawn in. */
 const lineColour: ExpressionSpecification = ['case', ['to-boolean', ['get', 'shared']], SHARED, ['get', 'colour']];
 /** How far right of its track each Line's stroke is drawn, and its casing: `side` line widths, zoomed out. */
@@ -1409,12 +1409,15 @@ function show(days: Track | Bundle, tripsOnly = false) {
   const again = shownStrokes.length > 0;
   shownStrokes = days.strokes;
   // Each region's Lines and rails are made once, for its track, and handed over once (#733); a region's place in the
-  // manifest keeps them in its order (RANK_STEP). Zoomed in, on its own rails, a Line's bends are rounded (#203).
+  // manifest keeps them in its order, but long distance's, with no extent, under the others' (RANK_STEP). Zoomed in, on
+  // its own rails, a Line's bends are rounded (#203).
   const lettering = (line: string) => pills.get(line)?.lettering;
   const drawings = (joinedFrom(days) ?? [{ id: '', track: days }]).map(({ id, track }) => {
     // ponytail: the region's place in the manifest when its Lines are made, kept for as long as its track is. A manifest
     // that reorders the regions under a track the map keeps leaves them in the old order; make them again if it does.
-    const how = { shapes, lines, lettering, rank: Math.max(0, manifest?.regions?.findIndex((r) => r.id === id) ?? 0), nameSize: NAME_SIZE };
+    const rank = Math.max(0, manifest?.regions?.findIndex((r) => r.id === id) ?? 0);
+    const region = manifest?.regions?.[rank];
+    const how = { shapes, lines, lettering, rank, under: region?.id === id && !region.extent, nameSize: NAME_SIZE };
     return regionLines.made(track, () => ({ lines: drawnLines(track.strokes, how), rails: drawnLines(track.rails, how, rounded) }));
   });
   // The Lines go to MapLibre as objects, never as a blob: URL, which it fetches, parses and copies on the page's thread
