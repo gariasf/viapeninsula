@@ -292,6 +292,14 @@ const STRINGS = {
     gl: 'Iryo non publica ningún dato dos seus trens, así que non aparecen no mapa.',
     en: "Iryo publishes no data on its trains, so they aren't on the map.",
   },
+  // After noIryo: that Ouigo's Trains are only ever Scheduled, as Ouigo publishes no live data (ADR-0010, #264).
+  noLiveOuigo: {
+    ca: "Ouigo no publica dades en temps real dels seus trens, de manera que surten al mapa només segons l'horari.",
+    es: 'Ouigo no publica datos en tiempo real de sus trenes, así que aparecen en el mapa solo según su horario.',
+    eu: 'Ouigok ez du bere trenei buruzko denbora errealeko daturik argitaratzen, eta, beraz, mapan ordutegiaren arabera bakarrik agertzen dira.',
+    gl: 'Ouigo non publica datos en tempo real dos seus trens, así que aparecen no mapa só segundo o seu horario.',
+    en: 'Ouigo publishes no live data on its trains, so the map shows them by their timetable alone.',
+  },
   // After estimates: what a Train's pill says zoomed in, as pillOf() outlines it.
   outlines: {
     ca: 'Amb el mapa ampliat, cada tren és una etiqueta amb el nom de la seva línia, i la seva forma indica el tipus de servei: arrodonida per a les línies de rodalia i les suburbanes, acabada en punta als dos extrems per a les regionals, tallada en diagonal als dos extrems per a les de llarga distància, i quadrada amb les cantonades arrodonides per a les del metro de TMB, del TRAM, del tren-tramvia de Cadis, del cremallera i dels funiculars.',

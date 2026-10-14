@@ -50,8 +50,8 @@ export async function buildRegion<N>(
   }: {
     /** The service days, today's first. */
     dates: string[];
-    /** One of the region's Networks built from its timetables. */
-    network: (config: N) => Promise<BuiltNetwork>;
+    /** One of the region's Networks built from its timetables, or none where it's left out of the region (`optional`, #264). */
+    network: (config: N) => Promise<BuiltNetwork | undefined>;
     /** Writes a file under a name starting with `prefix`, and gives its key. */
     write: (prefix: string, content: object, what: string) => Promise<string>;
     log?: (line: string) => void;
@@ -61,14 +61,18 @@ export async function buildRegion<N>(
   },
 ): Promise<{ track: Track; days: ManifestDay[] }> {
   const networks: BuiltNetwork[] = [];
-  for (const config of region.networks) networks.push(await network(config));
-  const eachDay = dayTrips(dates, networks, log, report, last);
+  for (const config of region.networks) {
+    const built = await network(config);
+    if (built) networks.push(built);
+  }
+  const stations = stationsOf(networks);
+  const eachDay = dayTrips(dates, networks.map((n) => ({ ...n, trips: headedFor(n, stations) })), log, report, last);
   const [lines, traced] = [networks.flatMap((n) => n.lines), networks.flatMap((n) => n.shapes)];
   const { strokes, centrelines, rails, slots, tracks } = await sideBySide(lines, traced, region.id);
   const track: Track = {
     networks: networks.map((n) => n.network),
     lines,
-    stations: stationsOf(networks),
+    stations,
     shapes: [...traced, ...centrelines],
     strokes,
     rails,
@@ -83,6 +87,23 @@ export async function buildRegion<N>(
     }),
   );
   return { track, days };
+}
+
+/**
+ * A Network's Trips on each day, each headed for its last Station by the name it has in the region
+ * (`stations`, stationsOf()) where it's headed for it by the name its Network's own copy has, as
+ * Ouigo's MERITS export heads its Trips for "MADRID-PUERTA DE ATOCHA", Renfe's Madrid-Puerta de
+ * Atocha - Almudena Grandes (#264).
+ */
+export function headedFor({ stations: own, trips }: Pick<BuiltNetwork, 'stations' | 'trips'>, stations: Station[]): Trip[][] {
+  const [ownName, name] = [new Map(own.map((s) => [s.id, s.name])), new Map(stations.map((s) => [s.id, s.name]))];
+  return trips.map((day) =>
+    day.map((trip) => {
+      const end = trip.calls.at(-1)?.station ?? '';
+      const named = name.get(end);
+      return named !== undefined && trip.headsign === ownName.get(end) ? { ...trip, headsign: named } : trip;
+    }),
+  );
 }
 
 /**

@@ -21,8 +21,8 @@
 // nor the manifest, the file below zoom 7 or the report. A change whose effects cross regions, as long
 // distance's Lines share Stretches with Catalonia's, needs a full run. Long distance's region reads the
 // Networks before it too, for the Trains they list, which it leaves to them (unlisted()).
-// The secrets a timetable's URL needs, as TMB's TMB_APP_ID and TMB_APP_KEY, come from the
-// environment, which `npm run daily` loads from .env.local.
+// The secrets a timetable's URL needs, as TMB's TMB_APP_ID and TMB_APP_KEY, and NAP's NAP_API_KEY for
+// Ouigo's, come from the environment, which `npm run daily` loads from .env.local.
 
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -33,7 +33,7 @@ import { brotliCompressSync, constants } from 'node:zlib';
 import { addDays, LIVE_URL, madridDate, profiled, type Manifest, type Network } from '../bundle.ts';
 import { MEDIA_DISTANCIA_AVANT, NETWORKS, regionsOf, type NetworkConfig, type Timetable } from '../networks.ts';
 import { decodeTrack, type TrackFile } from '../pieces.ts';
-import { download, type Source } from './gtfs.ts';
+import { download, NAP_KEY, secret, type Source } from './gtfs.ts';
 import { manifestOf } from './manifest.ts';
 import { ownRails, RAILWAYS, readFeed, readTimetables, rest, twinned, untaken, updatedOn, type Feed } from './networks.ts';
 import { crop, toBorder } from './border.ts';
@@ -104,7 +104,8 @@ const results = await buildRegions(
     return buildRegion(region, {
       dates: DAYS,
       async network({ network, failed }) {
-        const read = (network.id === md.id && longRead) || (await readTimetables(network, failed, readDays, report.add));
+        const read = (network.id === md.id && longRead) || (await readTimetables(network, failed, readDays, report.add).catch((error: unknown) => left(network, error)));
+        if (!read) return undefined;
         // The route names of Renfe's long-distance timetable that no Network takes (#401).
         if (read === longRead) for (const found of longRead.routes) report.add(found);
         // Built before its own Train numbers are listed: one whose timetable has no shapes leaves to a
@@ -114,6 +115,8 @@ const results = await buildRegions(
         // routes' names (#401): AVE y Larga Distancia's Trains are none of Media Distancia y Avant's (#263).
         try {
           return build(network, read);
+        } catch (error) {
+          return left(network, error);
         } finally {
           if (!network.timetables.every((t) => t.shapeless)) addListed(network.name, read);
         }
@@ -282,6 +285,19 @@ function build(config: NetworkConfig, { published, days }: Awaited<ReturnType<ty
   };
 }
 
+/**
+ * Nothing, for a Network whose region builds without it (`optional`) where its timetables can't be read,
+ * nor their copy, or it can't be built from them, as Ouigo's (#264), which is logged and reported; any
+ * other's failure, its region's.
+ */
+function left(network: NetworkConfig, error: unknown): undefined {
+  if (!network.optional) throw error;
+  const text = `${network.name} is left out of its region: ${`${error instanceof Error ? error.message : error}`.replace(/\n.*/s, '')}`;
+  console.warn(text);
+  report.add({ kind: 'copy', network: network.id, text: [text] });
+  return undefined;
+}
+
 /** The Train numbers a Network's timetables list on each of DAYS, as long distance leaves those Trains to it (unlisted()). */
 function addListed(network: string, read: Awaited<ReturnType<typeof readDays>>) {
   for (const [i, parts] of read.days.entries()) listed[i]?.push({ network, listed: parts.map((p) => p.listed), trips: parts.flatMap((p) => p.trips) });
@@ -330,19 +346,12 @@ async function lastPublished<T>(file: string, otherwise: string): Promise<T | un
 
 /** A Network once its timetables are downloaded, with why one couldn't be, where one couldn't. */
 async function downloaded<N extends Pick<NetworkConfig, 'timetables'>>(network: N): Promise<{ network: N; failed: unknown }> {
-  return { network, failed: await Promise.all(network.timetables.map(async (t) => download(address(t), t.prefix, { cache: dryRun ? join(FEEDS, today) : undefined }))).then(() => undefined, (error: unknown) => error) };
+  return { network, failed: await Promise.all(network.timetables.map(async (t) => download(address(t), t.prefix, { cache: dryRun ? join(FEEDS, today) : undefined, ...(t.nap && { key: secret(NAP_KEY) }) }))).then(() => undefined, (error: unknown) => error) };
 }
 
 /** A timetable's URL, with the secrets its query needs. */
 function address({ url, query }: Timetable): string {
   return query ? `${url}?${new URLSearchParams(Object.entries(query).map(([param, name]) => [param, secret(name)]))}` : url;
-}
-
-/** A secret from the environment, which must never be printed. */
-function secret(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} isn't set`);
-  return value;
 }
 
 /**

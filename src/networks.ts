@@ -44,8 +44,8 @@ export interface NetworkConfig extends Omit<Network, 'credit'> {
    * The Stations its timetables put where their Trains don't stop, by ID, as Renfe's put Asturias' El
    * Entrego at a FEVE station 0.4 km from Adif's (#367), with where they do stop and the source that
    * says so: the URL of an OpenStreetMap node, or of the operator's own map. The daily build lists those
-   * it applies. A Station two Networks list is one Station, as the first of them has it (stationsOf()),
-   * so it goes in each Network that lists it. A timetable's `points` (#259) put a Station elsewhere the
+   * it applies. A Station two Networks list is one Station, as the first of them has it, a Scheduled-only
+   * Network's after the others (stationsOf()), so it goes in each Network that lists it. A timetable's `points` (#259) put a Station elsewhere the
    * same way, by stop_id, with no source and no line in the log, and these win where both name one.
    */
   stations?: Record<string, { lon: number; lat: number; source: string }>;
@@ -54,8 +54,8 @@ export interface NetworkConfig extends Omit<Network, 'credit'> {
    * "Ciutadella|V.O." (#571), with the name as its operator's own site spells them, and the page that
    * does. The daily build lists those it applies. It's the Station's name wherever the build gives one,
    * a Trip's headsign too, where its timetable has none and it's headed for its last Station. A
-   * Station two Networks list is one Station, as the first of them has it (stationsOf()), so it goes
-   * in each Network that lists it.
+   * Station two Networks list is one Station, as the first of them has it, a Scheduled-only Network's
+   * after the others (stationsOf()), so it goes in each Network that lists it.
    */
   stationNames?: Record<string, { name: string; source: string }>;
   /**
@@ -76,6 +76,13 @@ export interface NetworkConfig extends Omit<Network, 'credit'> {
    * notice and reported, as `beyond`'s are.
    */
   byRoad?: { stations: string[]; source: string }[];
+  /**
+   * Its region builds without it where its timetables can't be read, nor their copy, or it can't be
+   * built from them: it's left out,
+   * logged and reported, rather than fail the region, as Ouigo's, behind NAP's key, mustn't keep AVE y
+   * Larga Distancia's region on its last build's files (ADR-0010).
+   */
+  optional?: true;
 }
 
 /**
@@ -110,10 +117,22 @@ export interface Timetable {
   url: string;
   /** The secrets its URL's query needs, by parameter: the environment variable holding each. */
   query?: Record<string, string>;
+  /**
+   * Its URL is NAP's downloadLink for its file (Spain's National Access Point, nap.transportes.gob.es),
+   * which answers a request with NAP_API_KEY in an ApiKey header with the file's link, as NAP's API
+   * marks its one-step /download/ obsolete; and NAP lists the file in its dataset of this ID, which gives
+   * the day NAP last updated it, its fechaActualizacion (`updated: 'nap'`).
+   */
+  nap?: { dataset: number };
   /** What its Trips' and shapes' IDs start with, as in `rodalies:<trip_id>`. */
   prefix: string;
   /** What its Stations' IDs start with: whoever runs them, as in `adif:<stop_id>` for Renfe's. */
   operator: string;
+  /**
+   * What its stop_ids start with before its Stations' own IDs, which is dropped: Ouigo's MERITS export
+   * gives Adif's codes after `0071`, UIC's code for Spain's railways, so that it calls at Renfe's Stations.
+   */
+  stopPrefix?: string;
   /** A stop's Station is its parent station, where the feed makes each platform a stop of its own. */
   parents?: true;
   /**
@@ -144,9 +163,9 @@ export interface Timetable {
    * Its terms ask the map to show the day it was last updated, in its credit: its feed's start date
    * (`true`, from its feed_info.txt), or, where its feed has none, as TRAM's hasn't, the day it was read
    * (`'read'`): the day the build downloaded it, or where the Network is built from its copy, the day
-   * that was kept (updatedOn()).
+   * that was kept, or NAP's own date for its file, its fechaActualizacion (`'nap'`, updatedOn()).
    */
-  updated?: true | 'read';
+  updated?: true | 'read' | 'nap';
   /** Where some of its Stations are, by stop_id, where it has them too far from their rails to trace (#259). */
   points?: Record<string, [lon: number, lat: number]>;
 }
@@ -879,6 +898,62 @@ export const MEDIA_DISTANCIA_AVANT: NetworkConfig = {
   ],
 };
 
+/**
+ * Ouigo's timetable on NAP, file 1766, a MERITS export, which is all Ouigo publishes: no live data
+ * (ADR-0010). The Mobility Database's keyless mirror of it, mdb-2785, was byte-identical on 4 Oct 2026,
+ * and the tests read it (fixtures/ouigo), but the build reads NAP's, as its licence asks for the data
+ * "siempre actualizada" (#264).
+ */
+const OUIGO_TIMETABLE = 'https://nap.transportes.gob.es/api/Fichero/downloadLink/1766';
+
+export const OUIGO: NetworkConfig = {
+  id: 'ouigo',
+  name: 'Ouigo',
+  // Built and loaded with AVE y Larga Distancia, at every view, as its Trains show at every zoom (ADR-0010,
+  // ADR-0014), but left out where its timetable can't be read, nor its copy, rather than fail that region.
+  region: EVERYWHERE,
+  optional: true,
+  // AVE's, as it runs on the same high-speed lines, at 300 km/h (AVE y Larga Distancia's `profiles`).
+  profile: { acceleration: 0.5, braking: 0.5, topSpeed: 300 / 3.6, dwell: 30 },
+  runningSide: 'right',
+  // Ouigo's pink, its logo's (#264): AVE y Larga Distancia's purple is Renfe's rather than the magenta of
+  // Renfe's AVE map so that the two can be told apart (#262).
+  colour: '#E50A70',
+  // Its Trains are drawn at every zoom, as AVE y Larga Distancia's are (ADR-0010).
+  pillZoom: 7,
+  rails: { railway: ['rail'] },
+  timetables: [
+    {
+      url: OUIGO_TIMETABLE,
+      // NAP's dataset Ouigo, 1515, has the one file, 1766.
+      nap: { dataset: 1515 },
+      prefix: 'ouigo',
+      operator: 'adif',
+      // Its stops are Adif's Stations after UIC's 0071, as 007160000 is Madrid-Puerta de Atocha, 60000.
+      // Their stop_timezone is Europe/Amsterdam, and its agency's Europe/Paris, both Madrid's offset, so its
+      // times are read as Madrid's, as every timetable's are.
+      stopPrefix: '0071',
+      // A Trip's trip_short_name is "TGV" and its Train number, as TGV 6477.
+      number: '\\d+',
+      shortNames: true,
+      // It has no shapes.txt.
+      shapeless: true,
+      updated: 'nap',
+    },
+  ],
+  // As NAP's licence asks (nap.transportes.gob.es/licencia-datos): "Powered by MITRAMS", linking the
+  // ministry, whether the data is raw or processed ("explotados", as the map's are), the licence, and
+  // the day NAP last updated the file.
+  credit: { text: 'Powered by MITRAMS (datos explotados)', url: 'https://www.transportes.gob.es/', licence: 'LDA MITRAMS' },
+  lines: {
+    kind: 'long-distance',
+    // Its timetable names every route TGV, route type 101, high-speed rail: its one Line is OUIGO.
+    names: { TGV: 'OUIGO' },
+    colour: '#E50A70',
+    gauges: { OUIGO: STANDARD },
+  },
+};
+
 /** The Networks of Renfe's long-distance timetable, whose routes they take between them by name (#401). */
 export const LONG_DISTANCE = [AVE_LARGA_DISTANCIA, MEDIA_DISTANCIA_AVANT];
 
@@ -888,7 +963,9 @@ export const LONG_DISTANCE = [AVE_LARGA_DISTANCIA, MEDIA_DISTANCIA_AVANT];
  * region's own, in this order (zoomedOut(), #262). So AVE y Larga Distancia is last, its track over every
  * other Network's, and its region, built last, finds every Train a Network before it lists too
  * (unlisted()). Media Distancia y Avant goes before it, its track under AVE y Larga Distancia's and over
- * the Cercanías Networks' and Catalonia's (#263).
+ * the Cercanías Networks' and Catalonia's (#263), and Ouigo, in AVE y Larga Distancia's region, between
+ * them, its track under AVE y Larga Distancia's (#264). A Station two Networks list is the first's, but
+ * for a Scheduled-only Network's, as Ouigo's, which goes after any other's (stationsOf()).
  */
 export const NETWORKS = [
   RODALIES,
@@ -910,6 +987,7 @@ export const NETWORKS = [
   CERCANIAS_SANTANDER,
   CERCANIAS_ZARAGOZA,
   MEDIA_DISTANCIA_AVANT,
+  OUIGO,
   AVE_LARGA_DISTANCIA,
 ];
 

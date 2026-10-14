@@ -6,8 +6,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, expect, test, vi } from 'vitest';
 import { places, type Point } from '../bundle.ts';
-import { AVE_LARGA_DISTANCIA, CERCANIAS_ASTURIAS, CERCANIAS_BILBAO, CERCANIAS_SANTANDER, CERCANIAS_ZARAGOZA, MEDIA_DISTANCIA_AVANT, NETWORKS, RODALIES, TRAM, type NetworkConfig } from '../networks.ts';
-import { dirSource, rows, seconds, zipFile, zipSource, type Source } from './gtfs.ts';
+import { AVE_LARGA_DISTANCIA, CERCANIAS_ASTURIAS, CERCANIAS_BILBAO, CERCANIAS_SANTANDER, CERCANIAS_ZARAGOZA, MEDIA_DISTANCIA_AVANT, NETWORKS, OUIGO, RODALIES, TRAM, type NetworkConfig } from '../networks.ts';
+import { dirSource, napDate, rows, seconds, zipFile, zipSource, type Source } from './gtfs.ts';
 import { copyOf, FGC_FEED, joinParts, meeting, METRO_FEED, onFgcRails, onMetroRails, onRails, onRodaliesRails, ownRails, readFeed, readTimetables, rest, RODALIES_FEED, TRAMBAIX_FEED, twinned, unlisted, untaken, updatedOn, type Feed } from './networks.ts';
 import type { Found } from './report.ts';
 import type { Snippet } from './snippet.ts';
@@ -370,6 +370,7 @@ test("asks for the day a timetable was last updated of TMB's and TRAM's two, who
     ['tram:TBX', 'read'],
     ['tram:TBS', 'read'],
     ['metro', true],
+    ['ouigo', 'nap'],
   ]);
 });
 
@@ -999,9 +1000,50 @@ test("gives each long-distance Trip the rails its Line runs on, and a Regional w
 });
 
 test('gives every long-distance Line the rails it runs on, so that none of its Trips goes untraced', () => {
-  for (const { timetables, lines } of [AVE_LARGA_DISTANCIA, MEDIA_DISTANCIA_AVANT]) {
+  for (const { timetables, lines } of [AVE_LARGA_DISTANCIA, MEDIA_DISTANCIA_AVANT, OUIGO]) {
     for (const route of timetables[0].routes?.names ?? []) expect(lines.gauges?.[lines.names?.[route] ?? route], route).toBeDefined();
   }
+});
+
+// Ouigo's timetable, NAP's file 1766, as the Mobility Database mirrors it (mdb-2785, SHA1 dc0d7323…, NAP's
+// file of 2 Jul 2026), but for its transfers.txt and two files of MERITS' own.
+const ouigo = dirSource(fileURLToPath(new URL('fixtures/ouigo', import.meta.url)));
+const OUIGO_FEED: Feed = { network: OUIGO, ...OUIGO.timetables[0] };
+
+test("reads Ouigo's timetable as one Line, OUIGO, of route type 101, its Stations as Adif's without UIC's 0071, and its Train numbers from its trip_short_names (#264)", async () => {
+  const { lines, stations, trips } = await readFeed(ouigo, '2026-10-14', OUIGO_FEED, () => {});
+  expect(lines).toEqual([{ id: 'ouigo:OUIGO', network: 'ouigo', name: 'OUIGO', colour: '#E50A70', shapes: [], kind: 'long-distance' }]);
+  expect(stations).toHaveLength(16);
+  // Madrid-Puerta de Atocha and Barcelona-Sants, as Renfe's timetables have them.
+  expect(stations.map((s) => s.id)).toEqual(expect.arrayContaining(['adif:60000', 'adif:71801']));
+  // Every Trip of the Wednesday, each a Train of its own, on its Line's standard gauge.
+  expect(trips).toHaveLength(36);
+  expect(new Set(trips.map((t) => t.number)).size).toBe(36);
+  expect(trips[0]).toEqual({
+    id: 'ouigo:1',
+    line: 'ouigo:OUIGO',
+    headsign: 'MADRID-PUERTA DE ATOCHA',
+    number: '10465',
+    gauges: OUIGO.lines.gauges?.OUIGO,
+    shape: 'ouigo:',
+    // Sevilla-Santa Justa at 17:02, Córdoba from 17:44 to 17:47 and Atocha at 19:42, read as Madrid's times.
+    calls: [
+      { station: 'adif:51003', arrival: seconds('17:02:00'), departure: seconds('17:02:00') },
+      { station: 'adif:50500', arrival: seconds('17:44:00'), departure: seconds('17:47:00') },
+      { station: 'adif:60000', arrival: seconds('19:42:00'), departure: seconds('19:42:00') },
+    ],
+  });
+});
+
+test("gives the day NAP last updated Ouigo's file, its fechaActualizacion, for its credit, and none where NAP's API doesn't answer (#264)", async () => {
+  const feeds = [{ ...OUIGO_FEED, gtfs: ouigo, readOn: '2026-10-14' }];
+  expect(await updatedOn(feeds, async (url, dataset) => (url === OUIGO.timetables[0].url && dataset === 1515 ? '2026-07-02' : 'wrong'))).toBe('2026-07-02');
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+  expect(await updatedOn(feeds, async () => Promise.reject(new Error('HTTP 503')))).toBeUndefined();
+  // NAP's dataset gives each of its files with the day it was last updated: Ouigo's, 1515, as NAP's API gave it on 14 Oct 2026, and one made up.
+  const dataset = { ficherosDto: [{ ficheroId: 1765, fechaActualizacion: '2026-01-01T00:00:00' }, { ficheroId: 1766, fechaActualizacion: '2026-07-02T08:17:54.925407' }] };
+  expect(napDate(dataset, 1766)).toBe('2026-07-02');
+  expect(() => napDate(dataset, 1767)).toThrow('NAP gives no date for its file 1767');
 });
 
 // Rows cut verbatim from Renfe's long-distance feed of 2026-10-10, without the spaces it pads each line

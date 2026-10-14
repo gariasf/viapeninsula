@@ -25,12 +25,13 @@ const underway = new Map<string, Promise<Buffer>>();
  * Timetables downloading one URL at once share its download, tried with the first one's `limit` and
  * `again`, as every Cercanías núcleo shares Renfe's one file, and each is told why it failed. With a
  * `cache`, a URL whose file is kept there is read from it, not downloaded, and one that's downloaded
- * is kept there, as a dry run keeps the day's feeds (#730).
+ * is kept there, as a dry run keeps the day's feeds (#730). With NAP's `key`, the URL is NAP's
+ * downloadLink, which gives the file's link, and both are tried as one (napLink()).
  */
-export async function download(url: string, prefix: string, { limit = TRY.limit, again = TRY.again, cache }: { limit?: number; again?: number; cache?: string } = {}): Promise<void> {
+export async function download(url: string, prefix: string, { limit = TRY.limit, again = TRY.again, cache, key }: { limit?: number; again?: number; cache?: string; key?: string } = {}): Promise<void> {
   let zip = underway.get(url);
   if (!zip) {
-    zip = (cache ? cached(url, cache, () => downloaded(url, limit, again)) : downloaded(url, limit, again)).finally(() => underway.delete(url));
+    zip = (cache ? cached(url, cache, () => downloaded(url, limit, again, key)) : downloaded(url, limit, again, key)).finally(() => underway.delete(url));
     underway.set(url, zip);
   }
   await writeFile(zipFile(prefix), await zip);
@@ -57,11 +58,11 @@ async function cached(url: string, dir: string, get: () => Promise<Buffer>): Pro
 }
 
 /** A URL's file, as download() tries it. */
-async function downloaded(url: string, limit: number, again: number): Promise<Buffer> {
+async function downloaded(url: string, limit: number, again: number, key?: string): Promise<Buffer> {
   for (let tries = 1; ; tries++) {
     let failed: unknown;
     try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(limit) });
+      const res = await fetch(key ? await napLink(url, key, limit) : url, { signal: AbortSignal.timeout(limit) });
       if (res.ok) return Buffer.from(await res.arrayBuffer());
       failed = `HTTP ${res.status}`;
     } catch (error) {
@@ -72,6 +73,53 @@ async function downloaded(url: string, limit: number, again: number): Promise<Bu
     if (tries === 2) throw new Error(`${url.split('?')[0]}: ${failed}`);
     await wait(again);
   }
+}
+
+/**
+ * The link to a file on NAP, Spain's National Access Point, from its downloadLink (`url`), which takes
+ * the key in an ApiKey header and answers with the link. The link isn't printed.
+ */
+async function napLink(url: string, key: string, limit: number): Promise<string> {
+  const res = await fetch(url, { headers: { ApiKey: key }, signal: AbortSignal.timeout(limit) });
+  if (!res.ok) throw new Error(`HTTP ${res.status} for its link`);
+  // Plain text, as on 14 Oct 2026, though its API's description says a JSON string: either is read.
+  const link = (await res.text()).trim().replace(/^"(.*)"$/, '$1');
+  if (!URL.canParse(link)) throw new Error('No link to the file in its answer');
+  return link;
+}
+
+/** The secret that NAP's API takes in an ApiKey header, from the environment. */
+export const NAP_KEY = 'NAP_API_KEY';
+
+/**
+ * The day NAP last updated a file (YYYY-MM-DD), its fechaActualizacion, from the dataset that lists it,
+ * which NAP's API gives at /api/Fichero/<dataset>, beside the file's downloadLink (`url`), as the file of
+ * that ID. NAP answers /api/Fichero/<file> with nothing.
+ */
+export async function napUpdated(url: string, dataset: number, key: string): Promise<string> {
+  const [api, id] = url.split('/downloadLink/');
+  const res = await fetch(`${api}/${dataset}`, { headers: { ApiKey: key }, signal: AbortSignal.timeout(TRY.limit) });
+  if (!res.ok) throw new Error(`NAP's dataset ${dataset} has no date: HTTP ${res.status}`);
+  return napDate((await res.json()) as NapDataset, Number(id));
+}
+
+/** A dataset as NAP's API gives it (its ConjuntoDatoAPI): what napDate() reads of it. */
+export interface NapDataset {
+  ficherosDto?: { ficheroId: number; fechaActualizacion: string }[] | null;
+}
+
+/** The day NAP last updated a dataset's file of an ID (YYYY-MM-DD), by its fechaActualizacion. */
+export function napDate(dataset: NapDataset, id: number): string {
+  const day = dataset.ficherosDto?.find((f) => f.ficheroId === id)?.fechaActualizacion?.match(/^\d{4}-\d{2}-\d{2}/)?.[0];
+  if (!day) throw new Error(`NAP gives no date for its file ${id}`);
+  return day;
+}
+
+/** A secret from the environment, which must never be printed. */
+export function secret(name: string): string {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} isn't set`);
+  return value;
 }
 
 /** Where download() keeps a timetable's GTFS zip, in the system's temporary folder, until that's cleared. */

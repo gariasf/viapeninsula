@@ -124,6 +124,29 @@ test("builds a region's Networks into one track file and a Trips file for each d
   expect(JSON.parse(JSON.stringify(track))).toEqual(JSON.parse(JSON.stringify(built.track)));
 });
 
+test("leaves out of a region a Network its build gives none of, and names a Station a Scheduled-only Network shares as the other Network has it, heading its Trips there by that name, as Ouigo's at Atocha are Renfe's (#264)", async () => {
+  const ave = network('ave', [0, 5000], 0, [[300], [300], [300]]);
+  ave.network.live = { delay: 'gps', near: 'pinned' };
+  // Ouigo's, on AVE's track, calling at AVE's Stations, which its timetable names in capitals, and headed for the last.
+  const own = network('ave', [0, 5000], 0, [[400], [400], [400]]);
+  const capitals = own.stations.map((s) => ({ ...s, name: s.name.toUpperCase() }));
+  const ouigo: BuiltNetwork = {
+    ...own,
+    network: { ...own.network, id: 'ouigo', name: 'ouigo' },
+    lines: own.lines.map((l) => ({ ...l, id: 'ouigo:OUIGO', network: 'ouigo' })),
+    stations: capitals,
+    trips: own.trips.map((day) => day.map((t) => ({ ...t, id: `ouigo:${t.id}`, line: 'ouigo:OUIGO', headsign: 'AVE 2' }))),
+  };
+  const { deps: d, files } = deps({ ouigo, ave });
+  const built = await buildRegion({ id: 'long-distance', networks: [{ id: 'ouigo' }, { id: 'gone' }, { id: 'ave' }] }, { ...d, network: async ({ id }) => (id === 'gone' ? undefined : d.network({ id })) });
+  const track = decodeTrack(files[0]?.content as StoredTrack);
+  expect(track.networks.map((n) => n.id)).toEqual(['ouigo', 'ave']);
+  expect(track.stations.map((s) => [s.name, s.networks])).toEqual([['ave 1', ['ave', 'ouigo']], ['ave 2', ['ave', 'ouigo']]]);
+  const today = files[1]?.content as { trips: Trip[] };
+  expect(today.trips.map((t) => [t.line, t.headsign])).toEqual([['ouigo:OUIGO', 'ave 2'], ['ave:C1', '']]);
+  expect(built.days[0]?.noTrips).toBeUndefined();
+});
+
 test("builds a region whose Networks have no Trips today as the others, its track and an empty day, and names them, rather than failing it", async () => {
   const table = { 'cercanias-cadiz': network('cercanias-cadiz', [0, 3000], 0, [[], [300], [300]]) };
   const { deps: d, log, found } = deps(table);

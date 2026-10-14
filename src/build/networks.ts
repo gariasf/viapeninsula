@@ -4,7 +4,7 @@ import { copyFile, mkdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { madridDate, type Line, type Station } from '../bundle.ts';
 import { FGC, LONG_DISTANCE, METRO, NETWORKS, RODALIES, TRAM, type Gauges, type NetworkConfig, type Rails, type Timetable } from '../networks.ts';
-import { feedStart, rows, seconds, serviceIdsOn, zipFile, zipSource, type Source } from './gtfs.ts';
+import { feedStart, NAP_KEY, napUpdated, rows, secret, seconds, serviceIdsOn, zipFile, zipSource, type Source } from './gtfs.ts';
 import type { OsmWay } from './osm.ts';
 import type { Found } from './report.ts';
 import { eachWay, fine, type FeedShape } from './track.ts';
@@ -49,8 +49,11 @@ export const onRodaliesRails = onRails(RODALIES.rails);
 export const onFgcRails = onRails(FGC.rails);
 export const onMetroRails = onRails(METRO.rails);
 
-/** The route types that run Trains: tram, metro, rail and funicular. Buses (3) and cable cars (6) don't. */
-const RAIL = new Set(['0', '1', '2', '7']);
+/**
+ * The route types that run Trains: tram, metro, rail and funicular, and high-speed rail (101), as Ouigo's
+ * MERITS export gives every route. Buses (3) and cable cars (6) don't.
+ */
+const RAIL = new Set(['0', '1', '2', '7', '101']);
 
 /**
  * Whether a timetable takes a route as its Network's: its route_id starts as `routes.idPrefix` says, and
@@ -107,7 +110,8 @@ export async function readFeed(
   const services = await serviceIdsOn(gtfs, day);
   const routes = new Map<string, { name: string; colour: string; gauges?: Gauges }>();
   const busRoutes = new Map<string, string>(); // each bus route's name
-  for await (const r of rows(gtfs, 'routes.txt', ['route_id', 'route_short_name', 'route_type', 'route_color'])) {
+  // Ouigo's has no route_color, as its Line's colour is its config's.
+  for await (const r of rows(gtfs, 'routes.txt', ['route_id', 'route_short_name', 'route_type', 'route_color'], { blank: ['route_color'] })) {
     if (!takes(feed, r)) continue;
     const name = network.lines.names?.[r.route_short_name] ?? r.route_short_name;
     const gauges = Object.entries(feed.routes?.gauges ?? {}).find(([end]) => r.route_id.endsWith(end))?.[1] ?? network.lines.gauges?.[name];
@@ -124,7 +128,9 @@ export async function readFeed(
     const own = stops.get(stop);
     return (feed.parents && own?.parent_station && stops.get(own.parent_station)) || own;
   };
-  const station = (stop: string) => `${operator}:${stationOf(stop)?.stop_id ?? stop}`;
+  // Less what its stop_ids start with before its Stations' own IDs, as Ouigo's 0071 (`stopPrefix`).
+  const own = (id: string) => (feed.stopPrefix && id.startsWith(feed.stopPrefix) ? id.slice(feed.stopPrefix.length) : id);
+  const station = (stop: string) => `${operator}:${own(stationOf(stop)?.stop_id ?? stop)}`;
 
   // The Trips that call at a Station beyond the Network, each with the first such Station it calls at (#368).
   // ponytail: a second pass over stop_times.txt each time a day is read, 2 s on top of the 3 s Bilbao's
@@ -147,8 +153,9 @@ export async function readFeed(
   const lines = new Map<string, { colour: string; shapes: Set<string> }>();
   const dayTrips = new Map<string, Omit<FeedTrip, 'calls'> & { calls: (FeedTrip['calls'][number] & { seq: number })[] }>();
   const dayBuses = new Map<string, Omit<FeedBus, 'calls'> & { calls: { seq: number; stop: string; arrival: number; departure: number }[] }>();
-  // Renfe's and TRAM's feeds publish no headsigns, and only Renfe's long-distance one trip_short_names.
-  for await (const t of rows(gtfs, 'trips.txt', ['route_id', 'service_id', 'trip_id', 'trip_headsign', 'trip_short_name', 'shape_id'], { blank: ['trip_headsign', 'trip_short_name'] })) {
+  // Renfe's and TRAM's feeds publish no headsigns, and only Renfe's long-distance one and Ouigo's
+  // trip_short_names. Ouigo's has no shape_id, as it has no shapes.
+  for await (const t of rows(gtfs, 'trips.txt', ['route_id', 'service_id', 'trip_id', 'trip_headsign', 'trip_short_name', 'shape_id'], { blank: ['trip_headsign', 'trip_short_name', 'shape_id'] })) {
     const bus = busRoutes.get(t.route_id);
     if (bus && named.has(bus) && services.has(t.service_id)) dayBuses.set(t.trip_id, { id: `${prefix}:${t.trip_id}`, line: `${network.id}:${bus}`, calls: [] });
     const route = routes.get(t.route_id);
@@ -575,15 +582,23 @@ export async function readTimetables<T extends { lines: unknown[][] }>(
 /**
  * The day a Network's timetables were last updated, where its terms ask the map to show it (`updated`):
  * its feed's start date, from its feed_info.txt, which fails where there's none, or, as TRAM's feeds
- * have none, the day it was read (#537).
+ * have none, the day it was read (#537), or NAP's date for its file (`'nap'`, napUpdated(), #264), which
+ * where NAP's API doesn't give it is logged, and the credit goes without a date.
+ * ponytail: NAP's date is asked for as the build reads the file, so where it's built from its copy, it's
+ * the date of NAP's file then, which may be newer than the copy: keep the date with the copy if NAP's
+ * file ever changes while its download fails.
  * ponytail: that is when the map last had TRAM's data, not when TRAM changed it, and it moves each day,
  * so Catalonia's track file and the file below zoom 7, which hold the credits, are renamed each day
  * (450,891 and 25,372 bytes brotli on 12 Oct 2026); date it by the day a download last differed from
  * its copy, less its calendar_dates.txt, which rolls, kept across builds, if that ever costs more than
  * it's worth.
  */
-export async function updatedOn(feeds: (Pick<Feed, 'updated'> & { gtfs: Source; readOn: string })[]): Promise<string | undefined> {
+export async function updatedOn(
+  feeds: (Pick<Feed, 'updated' | 'url' | 'nap'> & { gtfs: Source; readOn: string })[],
+  nap = async (url: string, dataset: number) => napUpdated(url, dataset, secret(NAP_KEY)),
+): Promise<string | undefined> {
   const dated = feeds.find((f) => f.updated);
+  if (dated?.updated === 'nap') return nap(dated.url, dated.nap?.dataset ?? NaN).catch((error: unknown) => void console.warn(`${dated.url.split('/downloadLink/')[0]}: ${error instanceof Error ? error.message : error}, so its credit has no date`));
   return dated?.updated === 'read' ? dated.readOn : dated && feedStart(dated.gtfs);
 }
 

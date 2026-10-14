@@ -363,6 +363,8 @@ const byLive = (live: string | number | ExpressionSpecification, scheduled: stri
 /** Each licence a source's data can be under, with the link to its text that it asks for. */
 const LICENCES: Record<NonNullable<Credit['licence']>, string> = {
   'CC BY 4.0': '<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>',
+  // NAP's: the Ministry of Transport's open-data licence, LDA (#264).
+  'LDA MITRAMS': '<a href="https://nap.transportes.gob.es/licencia-datos">LDA MITRAMS</a>',
 };
 
 /**
@@ -3310,8 +3312,8 @@ function showBanner() {
 
 /**
  * Fills the About dialog, in the viewer's language, as it opens: in a machine-translated language, that
- * it is (#327); what the map shows and that its positions are estimates, and that Iryo's Trains aren't
- * on it, as Iryo publishes nothing (ADR-0010); Reading the map, with the pills
+ * it is (#327); what the map shows and that its positions are estimates, that Iryo's Trains aren't
+ * on it, as Iryo publishes nothing, and that Ouigo's are only Scheduled (ADR-0010); Reading the map, with the pills
  * a Train is drawn as, Live and Scheduled, and its outlines, drawn with the first of the map's Lines of
  * each kind of outline; the credits showCredits() lists there; the code and its licence; and privacy.
  */
@@ -3334,6 +3336,7 @@ function showAbout() {
       ...(machineTranslated ? [el('p', { className: 'subtitle' }, ...linked(machineTranslated, 'GitHub', 'https://github.com/gariasf/viapeninsula/issues'))] : []),
       el('p', { textContent: t('estimates') }),
       el('p', { textContent: t('noIryo') }),
+      el('p', { textContent: t('noLiveOuigo') }),
       el('h3', { className: 'label', textContent: t('readingTheMap') }),
       el(
         'ul',

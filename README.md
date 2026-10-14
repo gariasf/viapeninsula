@@ -6,7 +6,7 @@ The domain language is in [CONTEXT.md](CONTEXT.md), the decisions in [docs/adr](
 
 ## Working on it
 
-You need Node 24 or later, the `unzip` command and osmium-tool (`brew install osmium-tool`). The daily build reads TMB's timetable with TMB's key: copy `.env.example` to `.env.local` and fill in `TMB_APP_ID` and `TMB_APP_KEY`, which `npm run daily` loads from there.
+You need Node 24 or later, the `unzip` command and osmium-tool (`brew install osmium-tool`). The daily build reads TMB's timetable with TMB's key: copy `.env.example` to `.env.local` and fill in `TMB_APP_ID` and `TMB_APP_KEY`, and NAP's `NAP_API_KEY` for Ouigo's timetable, which `npm run daily` loads from there.
 
 ```sh
 npm install
@@ -61,10 +61,10 @@ done
 
 ## The daily build in Actions
 
-`.github/workflows/daily.yml` runs `npm run daily` in GitHub Actions and publishes to R2. The fetcher's Worker starts it at 00:30 UTC through GitHub's workflow dispatch, GitHub's own schedule starts it at 03:30 UTC in case that one doesn't come, and the Run workflow button in the Actions tab starts it whenever it's wanted. Running it again for the same days publishes the same files, so the second run each day is harmless. Its secrets, fed from `.env.local` without being printed: TMB's key and the R2 token as Actions secrets, the R2 token under the name Wrangler reads there, and the dispatch token as the fetcher's secret:
+`.github/workflows/daily.yml` runs `npm run daily` in GitHub Actions and publishes to R2. The fetcher's Worker starts it at 00:30 UTC through GitHub's workflow dispatch, GitHub's own schedule starts it at 03:30 UTC in case that one doesn't come, and the Run workflow button in the Actions tab starts it whenever it's wanted. Running it again for the same days publishes the same files, so the second run each day is harmless. Its secrets, fed from `.env.local` without being printed: TMB's key, NAP's and the R2 token as Actions secrets, the R2 token under the name Wrangler reads there, and the dispatch token as the fetcher's secret:
 
 ```sh
-for name in TMB_APP_ID TMB_APP_KEY; do
+for name in TMB_APP_ID TMB_APP_KEY NAP_API_KEY; do
   node --env-file=.env.local -e "process.stdout.write(process.env.$name)" | gh secret set $name
 done
 node --env-file=.env.local -e "process.stdout.write(process.env.R2_API_TOKEN)" | gh secret set CLOUDFLARE_API_TOKEN
