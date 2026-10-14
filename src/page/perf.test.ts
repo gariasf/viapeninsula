@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import budget from './budget.json' with { type: 'json' };
-import { compare, median, metrics, secondDayAt, type Run } from './perf.ts';
+import { compare, heapAfterGC, median, metrics, secondDayAt, type Run } from './perf.ts';
 
 /** Frames every 8 ms over [from, to), but for each gap given as [from the first frame at or after, ms]. */
 const frames = (from: number, to: number, gaps: [number, number][] = []) => {
@@ -12,8 +12,20 @@ const frames = (from: number, to: number, gaps: [number, number][] = []) => {
   }
   return out;
 };
-const run = (r: Partial<Run>): Run => ({ scenario: 'S2', device: 'desktop', tree: '.', run: 1, marks: [], frames: [], setData: [], renders: [], files: [], heapMB: 0, errors: [], ...r });
+const run = (r: Partial<Run>): Run => ({ scenario: 'S2', device: 'desktop', tree: '.', run: 1, marks: [], frames: [], setData: [], renders: [], files: [], errors: [], ...r });
 const mark = (name: string, t: number, task = 0) => ({ name, t, task });
+
+describe('heapAfterGC', () => {
+  it('reads the JS heap after a full GC, in MB (#779)', async () => {
+    const sent: string[] = [];
+    const send = async (method: string) => {
+      sent.push(method);
+      return { metrics: [{ name: 'TaskDuration', value: 3 }, { name: 'JSHeapUsedSize', value: 341_400_000 }] };
+    };
+    expect(await heapAfterGC({ send } as never)).toBe(341);
+    expect(sent).toEqual(['HeapProfiler.collectGarbage', 'Performance.getMetrics']);
+  });
+});
 
 describe('metrics', () => {
   it("reads a cold load's first Lines and Trains from the setData calls, from navigation's start, its gap after the Lines, its workers, and long distance's join (S6)", () => {
@@ -36,12 +48,13 @@ describe('metrics', () => {
         marks: [mark('zoomStart', 1000), mark('z11', 3000), mark('z10', 5000), mark('z9', 12_000), mark('end', 14_000)],
         frames: frames(0, 14_000, [[2000, 30], [5400, 200], [6000, 120], [11_000, 60], [13_000, 40]]),
         files: [{ file: 'days/2026-10-12-abc.json', end: 5100 }, { file: 'snapshot.json', end: 2000 }],
-        heapMB: 1600,
+        heapMB: 400,
+        heapPeakMB: 1600,
       }),
     );
     // The join's window, 5.1 to 10.1 s, freezes 200 + 120 ms; the 60 ms gap at 11 s is in the step from 5 s, which the window
     // overlaps, and the 40 ms one at 13 s in the wait before `end`, no step.
-    expect(m).toMatchObject({ joinMaxGap: 200, joinFrozen: 320, stepMaxGap: 30, heapMB: 1600 });
+    expect(m).toMatchObject({ joinMaxGap: 200, joinFrozen: 320, stepMaxGap: 30, heapMB: 400, heapPeakMB: 1600 });
   });
 
   it("counts a gap in the window its frame ends in, so a gap across a mark isn't lost", () => {
