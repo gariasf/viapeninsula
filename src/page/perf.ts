@@ -34,8 +34,8 @@ export interface Run {
   renders: number[];
   /** The live files the page read, by their path, with when each came (page ms). */
   files: { file: string; end: number }[];
-  /** The JS heap at the scenario's end after a full GC, MB: what the page holds (#779). */
-  heapMB: number;
+  /** The JS heap at S3's end after a full GC, MB: what the page holds (#779). */
+  heapMB?: number;
   /** The JS heap's peak over the run, read each second, garbage V8 hasn't collected yet included, MB: reported, not budgeted. */
   heapPeakMB?: number;
   /** The workers' busy ms in the first 15 s, from the trace (S2). */
@@ -279,7 +279,7 @@ async function measure(browser: Browser, name: string, o: { device: Device; dist
   const manifest = sc.clock && ((o.out ? JSON.parse(fs.readFileSync(path.join(o.out, 'manifest.json'), 'utf8')) : await (await fetch(`${LIVE_URL}/manifest.json`)).json()) as Manifest);
   const clock = manifest ? sc.clock!(manifest) : undefined;
   const m = await openMap(browser, { device: o.device, dist: o.dist, hash: sc.view, out: o.out, slow: o.slow, clock, abort: clock ? [/\/snapshot\.json/] : [], throttle: true });
-  const run: Run = { scenario: name, device: o.device, tree: o.tree, run: o.run, clock, marks: [], frames: [], setData: [], renders: [], files: [], heapMB: 0, heapPeakMB: 0, errors: m.errors };
+  const run: Run = { scenario: name, device: o.device, tree: o.tree, run: o.run, clock, marks: [], frames: [], setData: [], renders: [], files: [], heapPeakMB: 0, errors: m.errors };
   const metric = async (key: string) => (await m.cdp.send('Performance.getMetrics')).metrics.find((x) => x.name === key)!.value;
   const mark = async (n: string) => void run.marks.push({ name: n, t: await m.page.evaluate((n) => (performance.mark(`perf:${n}`), performance.now()), n), task: await metric('TaskDuration') });
   const heap = setInterval(() => metric('JSHeapUsedSize').then((h) => (run.heapPeakMB = Math.max(run.heapPeakMB!, Math.round(h / 1e6))), () => {}), 1000);
@@ -299,7 +299,8 @@ async function measure(browser: Browser, name: string, o: { device: Device; dist
     );
     if (sc.trace) run.workerMs = workerBusy(JSON.parse((await browser.stopTracing()).toString()), run.marks[0]!.t, run.marks[0]!.t, run.marks[0]!.t + 15_000);
     clearInterval(heap);
-    run.heapMB = await heapAfterGC(m.cdp);
+    // Only S3's is budgeted; a GC of a heap near 1 GB on the phone would only lengthen the others' runs.
+    if (name === 'S3') run.heapMB = await heapAfterGC(m.cdp).catch((e) => void run.errors.push(`heapAfterGC ${String(e)}`));
   } finally {
     clearInterval(heap);
     await m.close();

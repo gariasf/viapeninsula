@@ -12,7 +12,7 @@ const frames = (from: number, to: number, gaps: [number, number][] = []) => {
   }
   return out;
 };
-const run = (r: Partial<Run>): Run => ({ scenario: 'S2', device: 'desktop', tree: '.', run: 1, marks: [], frames: [], setData: [], renders: [], files: [], heapMB: 0, errors: [], ...r });
+const run = (r: Partial<Run>): Run => ({ scenario: 'S2', device: 'desktop', tree: '.', run: 1, marks: [], frames: [], setData: [], renders: [], files: [], errors: [], ...r });
 const mark = (name: string, t: number, task = 0) => ({ name, t, task });
 
 describe('heapAfterGC', () => {
