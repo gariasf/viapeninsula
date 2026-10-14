@@ -578,10 +578,10 @@ function traceShape(graph: Graph, feed: FeedShape, stations: Station[], log: (li
   }
   const waypoints = all.filter((w) => !branch(w));
   const length = { traced: 0, feed: 0 };
-  // Where along the feed's shape it leaps, which a leg across isn't one where the feed has the track.
+  // Where along the feed's shape it leaps, from and to, which a leg across, or partly, isn't one where the feed has the track.
   const along = distances(feed.coords);
-  const leaps = feed.leaps ? along.filter((d, i) => i > 0 && d - (along[i - 1] ?? 0) > LEAP) : [];
-  const across = (from: Waypoint, to: Waypoint) => leaps.some((d) => d > Math.min(from.along, to.along) && d <= Math.max(from.along, to.along));
+  const leaps = feed.leaps ? along.flatMap((d, i) => (i > 0 && d - (along[i - 1] ?? 0) > LEAP ? [[along[i - 1] ?? 0, d] as const] : [])) : [];
+  const across = (from: Waypoint, to: Waypoint) => leaps.some(([start, end]) => start < Math.max(from.along, to.along) && end > Math.min(from.along, to.along));
   if (waypoints.length < 2) {
     const line = `${feed.id} keeps the feed's shape: its Trips serve fewer than two Stations`;
     log(line);

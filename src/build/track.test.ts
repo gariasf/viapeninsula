@@ -449,10 +449,11 @@ test("counts no leg across a leap in a shape of a feed whose shapes leap as one 
   const traced = (leaps?: true) =>
     trace(
       rails({ a: [0, 0], b: [1000, 0], c: [2000, 0], d: [3000, 0] }, 'a b c d'),
-      [station('A', 0, 10), station('B', 1000, 10), station('C', 2000, 10), station('D', 3000, 10)],
+      // South of the track, off the leap, which a Station on it would leave out of the legs beside it too.
+      [station('A', 0, -10), station('B', 1000, -10), station('C', 2000, -10), station('D', 3000, -10)],
       { id: 'line', feed, stations: 'A B C D', ...(leaps && { leaps }) },
     );
-  expect(traced(true).log).toEqual(['line: 3.0 km long. Where the feed has the track: 2.0 km traced against its 2.0 km (-0.8%)']);
+  expect(traced(true).log).toEqual(['line: 3.0 km long. Where the feed has the track: 2.0 km traced against its 2.0 km (+0.0%)']);
   // Another feed's shape can run kilometres between its points on straight track, so there it's held to its length.
   expect(() => traced()).toThrow("line's traced track is 3.0 km against the feed's 8.4 km (-64.3%)");
 });
