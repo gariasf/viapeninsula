@@ -834,6 +834,12 @@ export const AVE_LARGA_DISTANCIA: NetworkConfig = {
   ],
   // Renfe's, as every Network of Renfe's credits it, so that the map credits Renfe once (ADR-0010).
   credit: RENFE,
+  // Renfe's long-distance timetable of 14 October 2026 lists Intercity 11092, 11093, 11182 and 11183,
+  // Albacete–Cartagena by Hellín, Cieza and Archena-Fortuna, the only Trains calling at Archena, as rail.
+  // But Adif has the Chinchilla line shut to Trains between Murcia Mercancías and Murcia del Carmen for the
+  // high-speed works at Murcia's station, which OpenStreetMap tags railway=construction, and Renfe has run
+  // the Trains by Archena by road since September 2022: no path along the rails (#478).
+  byRoad: [{ stations: ['adif:61015'], source: 'https://televisionhellin.com/2026/05/07/adif-contradice-su-version-sobre-la-linea-de-tren-y-confirma-que-esta-operativa/' }],
   lines: {
     kind: 'long-distance',
     names: { AVLO: 'Avlo', ALVIA: 'Alvia', EUROMED: 'Euromed', 'AVE INT': 'AVE Int', TRENCELTA: 'Trencelta' },
