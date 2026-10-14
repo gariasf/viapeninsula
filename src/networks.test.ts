@@ -1,11 +1,12 @@
 import { expect, test } from 'vitest';
 import { AVE_LARGA_DISTANCIA, EVERYWHERE, NETWORKS, regionOf, regionsOf } from './networks.ts';
 
-test("puts Catalonia's four Networks in one region, AVE y Larga Distancia in long distance's, which every view loads, and each other Network in a region of its own, its ID", () => {
+test("puts Catalonia's four Networks in one region, AVE y Larga Distancia in long distance's, which every view loads, and each other Network in a region of its own, its ID, Media Distancia y Avant too, which loads by the area in view (#263)", () => {
   const regions = regionsOf(NETWORKS).map((r) => [r.id, r.networks.map((n) => n.id)]);
   expect(regions[0]).toEqual(['catalonia', ['rodalies', 'fgc', 'tram', 'metro']]);
-  // The 14 other núcleos, one region each, and long distance's, which makes 16.
-  expect(regions).toHaveLength(16);
+  // The 14 other núcleos, one region each, Media Distancia y Avant's and long distance's, which makes 17.
+  expect(regions).toHaveLength(17);
+  expect(regions.at(-2)).toEqual(['media-distancia-avant', ['media-distancia-avant']]);
   expect(regions.slice(1, -1).every(([id, networks]) => networks?.length === 1 && networks[0] === id)).toBe(true);
   expect(regions.at(-1)).toEqual([EVERYWHERE, ['ave-larga-distancia']]);
 });

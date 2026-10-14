@@ -196,9 +196,9 @@ test("says in About what a Train's outline says of its Line's kind of service, l
   );
 });
 
-test("says in About that the map shows Renfe's AVE and long-distance trains, and that Iryo's aren't on it as Iryo publishes nothing, in each language (ADR-0010)", () => {
+test("says in About that the map shows Renfe's AVE, long-distance, Media Distancia and Avant trains (#263), and that Iryo's aren't on it as Iryo publishes nothing, in each language (ADR-0010)", () => {
   expect(t('estimates', 'en')).toBe(
-    "Via Península shows Catalonia's trains, metros and trams, Renfe's Cercanías trains in the rest of Spain, and Renfe's AVE and long-distance trains, as they run. Their positions are estimates derived from the operators' data, built from timetables and live data.",
+    "Via Península shows Catalonia's trains, metros and trams, Renfe's Cercanías trains in the rest of Spain, and Renfe's AVE, long-distance, Media Distancia and Avant trains, as they run. Their positions are estimates derived from the operators' data, built from timetables and live data.",
   );
   expect(t('noIryo', 'ca')).toBe('Iryo no publica cap dada dels seus trens, de manera que no surten al mapa.');
   expect(t('noIryo', 'es')).toBe('Iryo no publica ningún dato de sus trenes, así que no aparecen en el mapa.');
