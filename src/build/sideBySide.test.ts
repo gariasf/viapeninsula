@@ -3,7 +3,7 @@ import { expect, test } from 'vitest';
 import { along, APART, atZoom, BANDS, beside, cutIn, DEGREE, drawnIn, GRAPH_BAND, inBand, LINK, onStroke, pieces, zones, pixelMetres, pointAt, SMOOTH, STRETCH, type Line, type Shape, type Stroke, type Track } from '../bundle.ts';
 import { measures } from './measures.ts';
 import { offset } from './offset.ts';
-import { across, crossing, end, KX, notTwice, sharedTrack, sideBySide, type Leg } from './sideBySide.ts';
+import { across, crossing, end, KX, notTwice, sharedTrack, sideBySide, sidesOf, type Leg } from './sideBySide.ts';
 
 // Track drawn in metres east (x) and north (y) of a point in Barcelona.
 const M = (6_371_008.8 * Math.PI) / 180; // metres in a degree of latitude
@@ -592,11 +592,9 @@ test("takes L1's and R4's stroke along the 36 m Stretch at Auditori/Teatre Nacio
   }
 });
 
-test("leaves the bands below zoom 10 on graphs of their own as they were where a shape goes over a Stretch of one piece, so that L1's and R4's stroke on Auditori/Teatre Nacional's 36 m is still drawn there (#599)", async () => {
-  // Which way a shape goes over a Stretch of one piece is only known on the graph every band from zoom 10 up
-  // shares: taking the stroke in below moves the nodes' rooms, and on Catalonia's graph of zoom 9 a Stretch of
-  // 1.76 km that R1, R4 and L1 share stops being absorbed and the 7 curves beside it get a hairpin each. Under a
-  // third of a pixel there: widen it only with a look at why, as graphed()'s ponytail note says.
+test("takes L1's and R4's stroke on Auditori/Teatre Nacional's 36 m into a curve on the bands below zoom 10's graphs of their own too, as from zoom 10 up (#709)", async () => {
+  // Which way a shape goes over a Stretch of one piece is known on every graph: on Catalonia's of zoom 9 that moves
+  // the nodes' rooms, and 7 curves beside it got a hairpin each on 12 Oct's feeds, for the look-first cluster's sheet (#622).
   const { lines, shapes } = JSON.parse(readFileSync(new URL('fixtures/auditori.json', import.meta.url), 'utf8')) as Pick<Track, 'lines' | 'shapes'>;
   const { strokes, centrelines } = await sideBySide(lines, shapes);
   const below = BANDS.slice(0, GRAPH_BAND).map((zoom, band) => {
@@ -608,14 +606,14 @@ test("leaves the bands below zoom 10 on graphs of their own as they were where a
       return [short !== undefined, stroke ? cutIn(stroke, band).reduce((sum, d) => sum + d, 0) : NaN, named.length];
     });
   });
-  expect(below).toEqual(BANDS.slice(0, GRAPH_BAND).map(() => [[true, 0, 0], [true, 0, 0]]));
+  expect(below).toEqual(BANDS.slice(0, GRAPH_BAND).map(() => [[true, 36, 1], [true, 36, 1]]));
 });
 
 test("draws a Line's curve across a node once, where one of its shapes goes by a Stretch of one piece and its other doesn't, as Cádiz's T1 does by 37 m at its junction with C1 (#599)", async () => {
   // C1 and T1 on 12 Oct 2026 (fixtures/cadiz.json). T1's shape from Cádiz goes by a Stretch of one piece, 37 m,
   // beside the trunk it leaves, and its other shape doesn't. With the way it goes over that piece known, the way
   // through it is a way across the node of its own, and its curve has the very same points as the other's: one
-  // wiggle counted twice, at zoom 10 and 12. The stroke stays drawn, as it was, beside the curve.
+  // wiggle counted twice, at zoom 10 and 12. The stroke isn't drawn either: the way across without it stays (#708).
   const { lines, shapes } = JSON.parse(readFileSync(new URL('fixtures/cadiz.json', import.meta.url), 'utf8')) as Pick<Track, 'lines' | 'shapes'>;
   const { strokes, centrelines } = await sideBySide(lines, shapes);
   const byId = new Map([...shapes, ...centrelines].map((c) => [c.id, c]));
@@ -630,7 +628,7 @@ test("draws a Line's curve across a node once, where one of its shapes goes by a
     const points = curves.map((s) => JSON.stringify(byId.get(s.shape)?.coords));
     return [[band, curves.length - new Set(points).size, curves.filter((s) => s.across?.some(([id]) => id === short)).length, cutIn(stub, band).reduce((sum, d) => sum + d, 0)]];
   });
-  expect(each).toEqual(BANDS.flatMap((_, band) => (band < GRAPH_BAND ? [] : [[band, 0, 0, 0]])));
+  expect(each).toEqual(BANDS.flatMap((_, band) => (band < GRAPH_BAND ? [] : [[band, 0, 0, 37]])));
 });
 
 test("takes C3, C4 and C5 across the node by Madrid-Atocha without hooking back, where the stroke a node hides runs on past their next Stretch's start (#311)", async () => {
@@ -752,6 +750,22 @@ test('leaves a Line the one way across a node where it has two between the same 
   // Through two other strokes, found in either order or way round, it's the same way: the one without the stroke of one piece stays.
   const [two, twoBack] = [[first, { stroke: long, end: 0 as const }, { stroke: short, end: 0 as const }, { stroke: longer, end: 0 as const }, last], [{ stroke: b, end: 0 as const }, { stroke: longer, end: 1 as const }, { stroke: long, end: 1 as const }, { stroke: a, end: 1 as const }]];
   expect(notTwice([two, twoBack], isShort, id)).toEqual([twoBack]);
+});
+
+test("gives a way hidden at both ends its longest leg's side, so that it's the same line made from either end (#649)", () => {
+  // As Madrid's C4a: -1.5 along the trunk, 0.5 on the 141 m Stretch beside it, and another hidden leg between.
+  const stroke = (shape: string, to: number, side: number): Stroke => ({ line: 'C4a', shape, from: 0, to, side });
+  const [trunk, beside, short] = [stroke('trunk', 900, -1.5), stroke('beside', 141, 0.5), stroke('short', 40, 2)];
+  const hidden = () => true;
+  const forth: Leg[] = [{ stroke: beside, end: 1 }, { stroke: short, end: 0 }, { stroke: trunk, end: 0 }];
+  // The same way the other way round, as across() keeps it: reversed, each leg between at its other end.
+  const back: Leg[] = [{ stroke: trunk, end: 0 }, { stroke: short, end: 1 }, { stroke: beside, end: 1 }];
+  const [start, stop] = sidesOf(forth, hidden);
+  expect([start, stop]).toEqual([-1.5, -1.5]);
+  expect(sidesOf(back, hidden)).toEqual([-stop, -start]);
+  // Made from its end, a way hidden at one end only keeps its other end's side, as before.
+  expect(sidesOf(forth, (s) => s !== trunk)).toEqual([-1.5, -1.5]);
+  expect(sidesOf(forth, (s) => s !== beside)).toEqual([0.5, 0.5]);
 });
 
 test('leaves out a shape\'s track round a node only where it follows the Stretch it left along one centreline, left it beyond REACH from its end and doesn\'t come back onto it (#353)', () => {

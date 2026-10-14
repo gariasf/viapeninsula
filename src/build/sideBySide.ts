@@ -257,9 +257,10 @@ async function graphed(
   // Less where a shape only crosses a node along its centreline (#353), on the graph every band from zoom 10 up
   // shares. ponytail: not on a band's own below it, where it fixes no hairpin and moves other Lines' strokes,
   // SHORT being in metres and a line width there 250 m to 690 m: scale it with the band if a hook shows there.
-  // Nor which way it goes over a Stretch of one piece (#599) there, a stroke of under a pixel whose joins move the
-  // nodes' rooms: 7 hairpins more at zoom 9, a Stretch of 1.76 km no longer absorbed. Find why before widening it.
-  const seen = every.map((shape) => visits(shape, pieces, drawer, edgeOf, own === undefined ? wayOn : undefined));
+  // Which way it goes over a Stretch of one piece (#599) on every graph, so that a node takes in a stroke of one
+  // piece its Line goes along (#709): at zoom 9 round Auditori that's 7 hairpins more on 12 Oct's feeds, which
+  // the look-first cluster's sheet (#622) calls a fault or not.
+  const seen = every.map((shape) => visits(shape, pieces, drawer, edgeOf, wayOn));
   const walked = every.map((shape, k) => ({ line: shape[0]?.line ?? -1, visits: own === undefined ? crossing(seen[k] ?? [], found) : (seen[k] ?? []) }));
   const byId = new Map(centrelines.map((c) => [c.id, c]));
   const orders = await order(prior, graph(found, walked.map((w) => ({ ...w, line: lane[w.line] ?? w.line })), byId));
@@ -670,7 +671,9 @@ function curves(joins: Join[], found: Stretch[], onStretch: Map<string, Stroke[]
       if (!short.length) {
         for (const s of edgeOf.keys()) {
           const length = s.to - s.from;
-          const [start, end] = hidden(s) && made.some((legs) => legs.some((l) => l.stroke === s)) ? [length, 0] : [Math.min(length, cut(s, 0)), Math.min(length - Math.min(length, cut(s, 0)), cut(s, 1))];
+          // A hidden stroke isn't drawn: a curve takes it over where a way of its Line goes along it, and where none
+          // does, its Line's Trains there ride a centreline no curve names, about half a pixel off a stroke (#708).
+          const [start, end] = hidden(s) ? [length, 0] : [Math.min(length, cut(s, 0)), Math.min(length - Math.min(length, cut(s, 0)), cut(s, 1))];
           if (!start && !end && !s.cut) continue;
           // Indexed as cutIn() reads it, from the stroke's first band.
           s.cut ??= bands.map(() => [0, 0]);
@@ -758,11 +761,23 @@ function curves(joins: Join[], found: Stretch[], onStretch: Map<string, Stroke[]
 /**
  * A Line's side as it leaves a node and as it comes in, looking the way it goes. Where it ends inside
  * the node, on a `hidden` stroke, it keeps the side it has at its other end: there's no stroke to
- * meet, and no room to change side on.
+ * meet, and no room to change side on. Where it ends inside the node at both, it keeps its longest
+ * leg's side, so that the way drawn from either end is the same line (#649).
  */
-function sidesOf(legs: Leg[], hidden: (s: Stroke) => boolean): [number, number] {
+export function sidesOf(legs: Leg[], hidden: (s: Stroke) => boolean): [number, number] {
   const [first, last] = [legs[0], legs.at(-1)];
   const [start, stop] = [(first?.stroke.side ?? 0) * (first?.end ? 1 : -1), (last?.stroke.side ?? 0) * (last?.end ? -1 : 1)];
+  if (first && last && hidden(first.stroke) && hidden(last.stroke)) {
+    // Looking the way it goes: the first leg is left at its end, the rest come in at theirs. Of legs as long, the first in the
+    // stroke's own order, which is the same from either end.
+    const looking = legs.map(({ stroke, end }, i) => ({ stroke, side: stroke.side * (i ? (end ? -1 : 1) : end ? 1 : -1) }));
+    const key = ({ stroke: s }: (typeof looking)[number]) => [s.to - s.from, s.shape, s.from] as const;
+    const [longest] = looking.toSorted((a, b) => {
+      const [[la, sa, fa], [lb, sb, fb]] = [key(a), key(b)];
+      return lb - la || sa.localeCompare(sb) || fa - fb;
+    });
+    return [longest?.side ?? stop, longest?.side ?? stop];
+  }
   if (first && hidden(first.stroke)) return [stop, stop];
   return [start, last && hidden(last.stroke) ? start : stop];
 }
