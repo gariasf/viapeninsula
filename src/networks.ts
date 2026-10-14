@@ -43,9 +43,10 @@ export interface NetworkConfig extends Omit<Network, 'credit'> {
   /**
    * The Stations its timetables put where their Trains don't stop, by ID, as Renfe's put Asturias' El
    * Entrego at a FEVE station 0.4 km from Adif's (#367), with where they do stop and the source that
-   * says so: the URL of an OpenStreetMap node, or of a platform way beside it, or of the operator's own map. The daily build lists those
-   * it applies. A Station two Networks list is one Station, as the first of them has it, a Scheduled-only
-   * Network's after the others (stationsOf()), so it goes in each Network that lists it.
+   * says so: the URL of an OpenStreetMap node, or of a platform way beside it, or of the operator's own
+   * map. The daily build lists those it applies. A Station two Networks list is one Station, as the first
+   * of them has it, a Scheduled-only Network's after the others (stationsOf()), so it goes in each
+   * Network that lists it.
    */
   stations?: Record<string, { lon: number; lat: number; source: string }>;
   /**
