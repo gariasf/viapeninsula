@@ -1409,14 +1409,15 @@ function show(days: Track | Bundle, tripsOnly = false) {
   const again = shownStrokes.length > 0;
   shownStrokes = days.strokes;
   // Each region's Lines and rails are made once, for its track, and handed over once (#733); a region's place in the
-  // manifest keeps them in its order, but long distance's under the others' (RANK_STEP). Zoomed in, on
+  // manifest keeps them in its order, but long distance's and Media Distancia's under the others' (RANK_STEP). Zoomed in, on
   // its own rails, a Line's bends are rounded (#203).
   const lettering = (line: string) => pills.get(line)?.lettering;
   const drawings = (joinedFrom(days) ?? [{ id: '', track: days }]).map(({ id, track }) => {
     // ponytail: the region's place in the manifest when its Lines are made, kept for as long as its track is. A manifest
     // that reorders the regions under a track the map keeps leaves them in the old order; make them again if it does.
-    // Long distance's by its ID (networks.ts' EVERYWHERE), not its missing extent, which no region has in a manifest from before #266.
-    const how = { shapes, lines, lettering, rank: Math.max(0, manifest?.regions?.findIndex((r) => r.id === id) ?? 0), under: id === 'long-distance', nameSize: NAME_SIZE };
+    // Long distance's and Media Distancia y Avant's by their IDs, not long distance's missing extent, which no region has in
+    // a manifest from before #266 (#736, #787).
+    const how = { shapes, lines, lettering, rank: Math.max(0, manifest?.regions?.findIndex((r) => r.id === id) ?? 0), under: id === 'long-distance' || id === 'media-distancia-avant', nameSize: NAME_SIZE };
     return regionLines.made(track, () => ({ lines: drawnLines(track.strokes, how), rails: drawnLines(track.rails, how, rounded) }));
   });
   // The Lines go to MapLibre as objects, never as a blob: URL, which it fetches, parses and copies on the page's thread

@@ -6,10 +6,10 @@ import { along, APART, BANDS, coveredIn, cutIn, GRAPH_BAND, inBand, pieces, smoo
 /**
  * How much a region's place in the manifest raises its Lines in MapLibre's `line-sort-key` (`sort`), over a Line's
  * `above`, whose steps are whole: so that, as when every region's Lines were one list in the manifest's order, a
- * region's are drawn over those of the regions before it, whichever joined first. But long distance's, though last,
- * go one step below the first's: under every other region's Lines where they share track, but over those in tunnels
- * (#736, ADR-0014).
- * ponytail: under 1 for up to 63 regions, the manifest has 16; past that, a smaller step.
+ * region's are drawn over those of the regions before it, whichever joined first. But Media Distancia y Avant's and long
+ * distance's, though last, go a whole step down, still in the manifest's order: under every other region's Lines where
+ * they share track, but over those in tunnels (#736, #787, ADR-0014).
+ * ponytail: under 1 for up to 63 regions, the manifest has 17; past that, a smaller step.
  */
 export const RANK_STEP = 1 / 64;
 
@@ -22,8 +22,8 @@ export interface Drawing {
 /**
  * The features MapLibre draws strokes as, of a region's track: a stroke cut back for curves, or along a centreline
  * smoothed for a zoom band, once for each band it's drawn in, as it is there, or once for them all where it's alike in
- * each; a curve in its pieces. `rank` is the region's place in the manifest (RANK_STEP), `under` whether it's long
- * distance's, drawn under the others' (#736), and `round` rounds a Line's bends where it's on its own rails (#203).
+ * each; a curve in its pieces. `rank` is the region's place in the manifest (RANK_STEP), `under` whether it's Media
+ * Distancia y Avant's or long distance's, drawn under the others' (#736, #787), and `round` rounds a Line's bends where it's on its own rails (#203).
  */
 export function drawnLines(
   strokes: Stroke[],
@@ -63,7 +63,7 @@ export function drawnLines(
         lettering: lettering(id),
         // Zoomed right in, where Lines share track, Barcelona's commuter lines (R1–R8) are drawn over the regional ones.
         // And those in tunnels below the rest, the deeper the lower (#178).
-        sort: (/^R\d[NS]?$/.test(line.name) ? 1 : 0) - 2 * (under ?? 0) + (below ? -1 : rank) * RANK_STEP,
+        sort: (/^R\d[NS]?$/.test(line.name) ? 1 : 0) - 2 * (under ?? 0) + (below ? rank - 1 / RANK_STEP : rank) * RANK_STEP,
         // Its names are placed in the manifest's order (RANK_STEP).
         rank,
         side,

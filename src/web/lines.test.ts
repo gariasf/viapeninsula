@@ -77,15 +77,15 @@ test('draws a stroke cut back alike in every band from GRAPH_BAND once, band-les
   expect(features.map((f) => f.properties?.band)).toEqual([undefined, ...graph, ...graph, GRAPH_BAND, GRAPH_BAND, GRAPH_BAND, ...graph.slice(1), ...graph, GRAPH_BAND]);
 });
 
-test("draws long distance's Lines under the other regions' where they share track, but over those in tunnels, and keeps the others in the manifest's order, names and all (#736)", () => {
+test("draws Media Distancia's and long distance's Lines under the other regions' where they share track, but over those in tunnels, and keeps every region in the manifest's order, names and all (#736, #787)", () => {
   const shapes = new Map<string, Shape>([['s', { id: 's', coords: [[2, 41], [2.01, 41]], dist: [0, 840] }]]);
-  const lines = new Map<string, Line>(['R15', 'R2', 'C1', 'Alvia'].map((name): [string, Line] => [name, { id: name, network: 'n', name, colour: '#f00', shapes: [], kind: 'regional' } as Line]));
+  const lines = new Map<string, Line>(['R15', 'R2', 'C1', 'Avant', 'Alvia'].map((name): [string, Line] => [name, { id: name, network: 'n', name, colour: '#f00', shapes: [], kind: 'regional' } as Line]));
   const stroke = (line: string, under?: number): Stroke => ({ line, shape: 's', from: 0, to: 840, side: 0, band: GRAPH_BAND, ...(under && { under }) });
   const drawn = (strokes: Stroke[], rank: number, under = false) => drawnLines(strokes, { shapes, lines, lettering: () => '#fff', rank, under, nameSize: 12 }).map((f) => f.properties as { line: string; sort: number; rank: number });
-  // Catalonia first in the manifest, Madrid next, long distance last.
-  const features = [...drawn([stroke('R15'), stroke('R2'), stroke('R15', 1)], 0), ...drawn([stroke('C1')], 1), ...drawn([stroke('Alvia')], 15, true)];
+  // Catalonia first in the manifest, Madrid next, Media Distancia y Avant just before long distance, last.
+  const features = [...drawn([stroke('R15'), stroke('R2'), stroke('R15', 1)], 0), ...drawn([stroke('C1')], 1), ...drawn([stroke('Avant')], 15, true), ...drawn([stroke('Alvia')], 16, true)];
   const order = features.toSorted((a, b) => a.sort - b.sort).map((f) => `${f.line}${f === features[2] ? ' in a tunnel' : ''}`);
-  expect(order).toEqual(['R15 in a tunnel', 'Alvia', 'R15', 'C1', 'R2']);
+  expect(order).toEqual(['R15 in a tunnel', 'Avant', 'Alvia', 'R15', 'C1', 'R2']);
   // Their names are still placed in the manifest's order, long distance's last.
-  expect(features.map((f) => f.rank)).toEqual([0, 0, 0, 1, 15]);
+  expect(features.map((f) => f.rank)).toEqual([0, 0, 0, 1, 15, 16]);
 });
