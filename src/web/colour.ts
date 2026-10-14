@@ -47,10 +47,10 @@ export function darkInk(colour: string): boolean {
 
 /**
  * Colours the dark basemap's paper (#0c0c0c) swallows, by Network: Media Distancia y Avant's black is drawn there in a
- * light grey, its track below zoom 7, its Lines and its Trains, and stays black on the light basemap (#263, the
+ * light grey, its Lines and its Trains, and stays black on the light basemap (#263, the
  * maintainer's pick of 14 Oct 2026). #D0D0D0 reads at 12.7:1 on the paper and 6.9:1 on the Lines' casing, and is
  * ΔE 10.5 from the nearest Line's colour, FGC's R6 (#b3b3b3), and 28 from Madrid's C8 (#868584): #B0B0B0 was ΔE 1.1 from R6.
- * FGC's MM, black too, keeps its colour and casing, as before. Its track below zoom 7 has DARK_TRACK_STAND_INS' instead.
+ * Its track below zoom 7 is DARK_TRACK_STAND_INS' mid grey instead (#781). FGC's MM, black too, keeps its colour and casing, as before.
  */
 export const DARK_STAND_INS: Record<string, string> = { 'media-distancia-avant': '#D0D0D0' };
 

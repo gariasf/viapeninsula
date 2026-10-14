@@ -775,6 +775,8 @@ let [searched, searchedLines]: [Found[], Map<string, NonNullable<ZoomedOut['line
 let linkWaits = false;
 /** Each Network's track, drawn once zoomed out (#190), which the banner goes by for a Network with no Trips today (bannerNetworks()). */
 let shownTracks: NetworkTrack[] = [];
+/** The zoom each of those Networks' tracks is drawn from (drawnFrom()), which the banner names one with no Trips today from (#781). */
+let tracksFrom = new Map<string, number>();
 
 let nextPoll: ReturnType<typeof setTimeout> | undefined;
 document.addEventListener('visibilitychange', () => {
@@ -829,7 +831,7 @@ let placeOfStation = new Map<string, Place>();
  * its curves (zones()), and which side its Trains keep to, 1 right and -1 left; and where each Closure
  * shown on the track goes, along its stretches and on its rails, by closureKey(), once worked out (#341).
  */
-let placing = { shapes: new Map<string, Shape>(), slots: new Map<string, Slot[]>(), curves: new Map<string, Zone[]>(), keep: new Map<string, number>(), closures: new Map<string, [GeoJSON.Feature[], GeoJSON.Feature[]]>() };
+let placing = { shapes: new Map<string, Shape>(), slots: new Map<string, Slot[]>(), curves: new Map<string, Zone[]>(), keep: new Map<string, number>(), from: new Map<string, number>(), closures: new Map<string, [GeoJSON.Feature[], GeoJSON.Feature[]]>() };
 /** The Closures the map shows now (closuresAt()), which a tap on one names. */
 let shownClosures: Shown[] = [];
 /** Those of them that hide Trains (hiding(), #345): within whose closed ones Scheduled Trains aren't drawn, and boards show them not stopping. */
@@ -1339,7 +1341,8 @@ requestAnimationFrame(function move(now) {
   // where Search finds Train numbers, where their Trains are (#471).
   if ((following || boardPlace || nearMe || (searching && numberQuery(query))) && performance.now() - panelShown > panelDue) showPanel();
   // Which Networks the banner names changes as Trains and the view move, and the banner with it.
-  // Zoomed out, only those drawn there, long distance's, can be in view (#247).
+  // Zoomed out, only those drawn there, long distance's, can be in view (#247), and a Network with no Trips today only
+  // where its track is drawn: long distance's and Media Distancia's below zoom 7, the Metro's and TRAM's from zoom 10 (#781).
   // ponytail: in view by the map's bounds, which on a turned or tilted map take in some of the map
   // around the view too, as followRandom()'s do. Test where each Train and stretch of track is on
   // screen, as keepInView() does, if a banner for a Network just out of view ever shows.
@@ -1347,7 +1350,7 @@ requestAnimationFrame(function move(now) {
     bannerChecked = now;
     const drawnTrains = drawing.features.filter((f) => map.getZoom() >= f.properties?.dotZoom).map((f) => ({ network: f.properties?.network, at: f.geometry.coordinates as Point }));
     const followedNetwork = drawing.features.find((f) => f.properties?.followed)?.properties?.network;
-    const named = bannerNetworks({ unavailable: unavailable(bundle, Date.now(), received), noTrips: noTripsIds }, { trains: drawnTrains, followedNetwork, tracks: shownTracks }, map.getBounds().toArray());
+    const named = bannerNetworks({ unavailable: unavailable(bundle, Date.now(), received), noTrips: noTripsIds }, { trains: drawnTrains, followedNetwork, tracks: shownTracks.filter(({ network }) => map.getZoom() >= (tracksFrom.get(network) ?? 0)) }, map.getBounds().toArray());
     if (JSON.stringify(named) !== JSON.stringify(bannerIds)) {
       bannerIds = named;
       showBanner();
@@ -1404,11 +1407,11 @@ function show(days: Track | Bundle, tripsOnly = false) {
     else slots.set(`${s.line} ${s.shape}`, [s]);
   }
   const keep = new Map(days.networks.map((n) => [n.id, n.runningSide === 'left' ? -1 : 1]));
-  placing = { shapes, slots, curves: zones(days.strokes), keep: new Map(days.lines.map((l) => [l.id, keep.get(l.network) ?? 1])), closures: new Map() };
+  // Each Network's Lines, Trains, Stations and Closures from the zoom its Lines' kinds of service have them drawn from (#781).
+  const shownFrom = drawnFrom(days.lines);
+  placing = { shapes, slots, curves: zones(days.strokes), keep: new Map(days.lines.map((l) => [l.id, keep.get(l.network) ?? 1])), from: shownFrom, closures: new Map() };
   // A track built before #241 names no kinds of service and no pill zooms: its Trains are round pills from zoom 10.
   const pillZoom = new Map(days.networks.map((n) => [n.id, n.pillZoom]));
-  // Each Network's Lines, Trains and Stations from the zoom its Lines' kinds of service have them drawn from (#781).
-  const shownFrom = drawnFrom(days.lines);
   pills = new Map(days.lines.map((l) => [l.id, pillOf(l, pillZoom.get(l.network) ?? 10, shownFrom.get(l.network) ?? linesZoom)]));
   const networks = new Map(days.networks.map((n) => [n.id, n]));
   topSpeeds = new Map(days.lines.map((l) => [l.id, profiled(networks.get(l.network), l)?.profile.topSpeed ?? 0]));
@@ -1498,11 +1501,11 @@ function show(days: Track | Bundle, tripsOnly = false) {
 function showZoomedOut({ networks, tracks, lines }: Pick<ZoomedOut, 'networks' | 'tracks' | 'lines'>) {
   const colours = new Map(networks.map((n) => [n.id, n.colour]));
   // Only the Networks drawn at every zoom, long distance's and Media Distancia's, or, from a file that names no Lines, every one (#781).
-  const shownFrom = drawnFrom(lines ?? []);
+  tracksFrom = drawnFrom(lines ?? []);
   shownTracks = tracks;
   map.getSource<GeoJSONSource>('tracks')?.setData({
     type: 'FeatureCollection',
-    features: tracks.filter(({ network }) => (shownFrom.get(network) ?? 0) < linesZoom).map(({ network, coordinates }) => ({ type: 'Feature', properties: { colour: colours.get(network) }, geometry: { type: 'LineString', coordinates } })),
+    features: tracks.filter(({ network }) => (tracksFrom.get(network) ?? 0) < linesZoom).map(({ network, coordinates }) => ({ type: 'Feature', properties: { colour: colours.get(network) }, geometry: { type: 'LineString', coordinates } })),
   });
   credited = networks;
   showCredits();
@@ -1550,7 +1553,8 @@ function placeClosure({ line: id, stations }: Shown): [GeoJSON.Feature[], GeoJSO
   const placed = line && a && b ? placeOn([a, b], line.shapes.flatMap((shape) => placing.shapes.get(shape) ?? [])) : [];
   const feature = (coordinates: Point[], properties: object): GeoJSON.Feature => ({ type: 'Feature', properties: { ...properties, colour: line?.colour }, geometry: { type: 'LineString', coordinates } });
   const [first] = placed;
-  const strokes = first ? closureStrokes(id, first, placing.slots.get(`${id} ${first.shape}`) ?? [], placing.curves) : [];
+  // Not in the bands below its Network's zoom, where its Line isn't drawn (#781).
+  const strokes = first && line ? closureStrokes(id, first, placing.slots.get(`${id} ${first.shape}`) ?? [], placing.curves).filter(({ band = GRAPH_BAND }) => (BANDS[band] ?? 0) >= (placing.from.get(line.network) ?? 0)) : [];
   return [
     strokes.flatMap(({ shape: on, from, to, side, band = GRAPH_BAND }) => {
       const centreline = inBand(placing.shapes, on, band);
