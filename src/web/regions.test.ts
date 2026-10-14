@@ -343,6 +343,9 @@ test("loads a region with no extent, as long distance's, which every view needs 
   expect(firstLook(everywhere, ['catalonia', 'long-distance'])).toEqual(['catalonia']);
   // Zoomed out, where no region is in view, none.
   expect(firstLook(everywhere, ['long-distance'])).toEqual([]);
+  // Nor Media Distancia y Avant's, which has an extent, but one as large as the peninsula (#263).
+  const md = [...everywhere, { id: 'media-distancia-avant', extent: [-8.77, 36.126, 3.162, 43.745] as ManifestRegion['extent'] }];
+  expect(firstLook(md, ['catalonia', 'media-distancia-avant', 'long-distance'])).toEqual(['catalonia']);
   // Nor any of a manifest that names no extents, as one before #266, whose regions all come at the second.
   expect(firstLook(REGIONS.map(({ id }) => ({ id })), ['catalonia', 'cercanias-madrid'])).toEqual([]);
 });

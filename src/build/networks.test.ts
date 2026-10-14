@@ -447,16 +447,16 @@ test('draws the Stations TMB groups in one station as one place, at the middle o
 // which Rodalies runs on its RT2 and this feed lists as a Regional. The feed has no shapes.
 const longDistance = dirSource(fileURLToPath(new URL('fixtures/long-distance', import.meta.url)));
 const AVE_FEED: Feed = { network: AVE_LARGA_DISTANCIA, ...AVE_LARGA_DISTANCIA.timetables[0] };
-// Without the Stations its config has run by road, as Vilches, which 18030 calls at (#263): the test below has them.
+// Without the Stations its config has run by road, as Jaén and Vilches, which 18030 calls at (#263): the test below has them.
 const MD_FEED: Feed = { network: { ...MEDIA_DISTANCIA_AVANT, byRoad: undefined }, ...MEDIA_DISTANCIA_AVANT.timetables[0] };
 
-test("leaves out whole, logs and gives back a Train that calls at a Station its Network's config has run by road, as MD 18030 at Vilches, between Almuradiel and Jaén, every Trip it's listed in, and no other Train (#562, #263)", async () => {
+test("leaves out whole, logs and gives back a Train that calls at a Station its Network's config has run by road, as MD 18030 at Jaén, its first such Station, every Trip it's listed in, and no other Train (#562, #263)", async () => {
   const log: string[] = [];
   const all = await readFeed(longDistance, '2026-10-13', MD_FEED, () => {});
   const { trips, left } = await readFeed(longDistance, '2026-10-13', { ...MD_FEED, network: MEDIA_DISTANCIA_AVANT }, (l) => log.push(l));
   expect(all.trips.map((t) => t.number)).toContain('18030');
   expect(trips.map((t) => t.number)).toEqual(all.trips.map((t) => t.number).filter((n) => n !== '18030'));
-  const text = "Media Distancia y Avant's 18030 is left out: it calls at Vilches, which is run by road (https://www.horajaen.com/2026/09/07/renfe-autobuses-alternativos-jaen-linares-baeza/)";
+  const text = "Media Distancia y Avant's 18030 is left out: it calls at Jaén, which is run by road (https://andaluciainforma.eldiario.es/?p=34775)";
   expect(left).toEqual([text]);
   expect(log).toContain(text);
 });

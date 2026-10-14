@@ -860,14 +860,21 @@ export const MEDIA_DISTANCIA_AVANT: NetworkConfig = {
   // Madrid–Jaén's MD 18030 to 18037 between Almuradiel and Jaén since 6 Sep 2026, at Vilches, which only
   // they and two Alvias call at, Linares-Baeza and Jaén having other Trains; and Sevilla–Mérida's MD
   // 35807 and 35902 and Reg.Exp. 18773 and 18779 between Los Rosales and Cazalla-Constantina, at Tocina
-  // and Pedroso (AVISO_512188, whose words name only Cercanías Sevilla's C3). Each Train is left out
-  // whole, its stretches by rail too, as Bilbao's beyond its `beyond` are (#263).
+  // and Pedroso (AVISO_512188, whose words name only Cercanías Sevilla's C3). The same notice as
+  // Almuradiel–Jaén's has Linares-Baeza–Almería by road since 6 Sep 2026: MD 35276 and 35279, at Jódar-Úbeda,
+  // Cabra del Santo Cristo y Alicún and Moreda, which only they call at. And Córdoba–Jaén has been by road
+  // since 26 Jan 2026, until autumn 2027, with Córdoba–Villa del Río's Proximidad too: MD 13001 to 13083,
+  // 13331, 13337 and 35001 to 35083, which Renfe lists as Trains from Córdoba to Jaén, direct or by
+  // Villa del Río and Andújar, and the Proximidad Trains to Villa del Río, at Jaén, Andújar and Villa del Río,
+  // which no Train by rail calls at on 14 Oct. Each Train is left out whole, its stretches by rail too, as
+  // Bilbao's beyond its `beyond` are (#263).
   byRoad: [
     {
       stations: ['67004', '67007', '67009', '67010', '67011', '67013', '67014', '67015', '67016', '67017', '67018', '67019', '67020', '67021', '67100', '67101', '67103', '67105', '67107', '67113', '67200', '67203', '67205', '67206', '67207', '67208', '67215'].map((id) => `adif:${id}`),
       source: 'https://www.grupo.renfe.com/es/es/sala-de-prensa/avisos/2026/febrero/pat-zaragoza-teruel-sagunto-y-c5-valencia',
     },
-    { stations: ['adif:50207'], source: 'https://www.horajaen.com/2026/09/07/renfe-autobuses-alternativos-jaen-linares-baeza/' },
+    { stations: ['adif:50207', 'adif:56004', 'adif:56009', 'adif:56100'], source: 'https://www.horajaen.com/2026/09/07/renfe-autobuses-alternativos-jaen-linares-baeza/' },
+    { stations: ['adif:03100', 'adif:50403', 'adif:50407'], source: 'https://andaluciainforma.eldiario.es/?p=34775' },
     { stations: ['adif:40122', 'adif:40115'], source: 'AVISO_512188' },
   ],
 };
