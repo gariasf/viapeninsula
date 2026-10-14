@@ -1,0 +1,10 @@
+atocha-laptop-light.png {"ouigoFeatures":117,"layers":["lines-6-through","lines-6","line-6-casing","lines-5-through","lines-5","line-5-casing"],"board":2}
+about-light {"ouigo":"Ouigo no publica datos en tiempo real de sus trenes, así que aparecen en el mapa solo según su horario.","credits":["Powered by MITRAMS (datos explotados) (se abre en una pestaña nueva), LDA MITRAMS (se abre en una pestaña nueva), actualizado el 2 jul 2026"]}
+atocha-phone-light.png {"ouigoFeatures":128,"layers":["line-5-names","lines-6-through","lines-6","line-6-casing","lines-5-through","lines-5","line-5-casing"],"board":2}
+atocha-laptop-dark.png {"ouigoFeatures":117,"layers":["lines-6-through","lines-6","line-6-casing","lines-5-through","lines-5","line-5-casing"],"board":2}
+about-dark {"ouigo":"Ouigo no publica datos en tiempo real de sus trenes, así que aparecen en el mapa solo según su horario.","credits":["Powered by MITRAMS (datos explotados) (se abre en una pestaña nueva), LDA MITRAMS (se abre en una pestaña nueva), actualizado el 2 jul 2026"]}
+sants-laptop-light.png {"ouigoFeatures":84,"layers":["lines-6-through","lines-6","line-6-casing","lines-5-through","lines-5","line-5-casing"],"board":1}
+sants-phone-light.png {"ouigoFeatures":50,"layers":["lines-6-through","lines-6","line-6-casing","lines-5-through","lines-5","line-5-casing"],"board":1}
+sants-laptop-dark.png {"ouigoFeatures":84,"layers":["lines-6-through","lines-6","line-6-casing","lines-5-through","lines-5","line-5-casing"],"board":1}
+spain-z6-laptop-light.png {"ouigoFeatures":0,"layers":[],"board":0}
+spain-z6-laptop-dark.png {"ouigoFeatures":0,"layers":[],"board":0}
