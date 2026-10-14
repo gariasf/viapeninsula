@@ -456,7 +456,7 @@ test("leaves out whole, logs and gives back a Train that calls at a Station its 
   const { trips, left } = await readFeed(longDistance, '2026-10-13', { ...MD_FEED, network: MEDIA_DISTANCIA_AVANT }, (l) => log.push(l));
   expect(all.trips.map((t) => t.number)).toContain('18030');
   expect(trips.map((t) => t.number)).toEqual(all.trips.map((t) => t.number).filter((n) => n !== '18030'));
-  const text = "Media Distancia y Avant's 18030 is left out: it calls at Jaén, which is run by road (https://andaluciainforma.eldiario.es/?p=34775)";
+  const text = "Media Distancia y Avant's 18030 is left out: it calls at Jaén, which is run by road (https://www.horajaen.com/2026/09/07/renfe-autobuses-alternativos-jaen-linares-baeza/, https://andaluciainforma.eldiario.es/?p=34775)";
   expect(left).toEqual([text]);
   expect(log).toContain(text);
 });

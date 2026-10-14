@@ -64,8 +64,9 @@ if (dryRun) for (const day of await readdir(FEEDS).catch(() => [])) if (day !== 
 // doesn't stop the others, and its Network's are read from their copy (readTimetables()). And Media
 // Distancia y Avant's once more, which every region's build reads before its own, for the Trips its
 // Trains run under other numbers (twins, #488).
+// Downloaded once, where its region is wanted too, so that two writes of its copy don't race.
 const longDistance = downloaded(MEDIA_DISTANCIA_AVANT);
-const downloads = await Promise.all([...listers, ...wanted.flatMap((r) => r.networks)].map(downloaded));
+const downloads = await Promise.all([...listers, ...wanted.flatMap((r) => r.networks)].map((n) => (n === MEDIA_DISTANCIA_AVANT ? longDistance : downloaded(n))));
 // The rails of every kind any Network runs on, the nodes where Trains change gauge on them, and Spain's border.
 const { rails, changers, border } = await osm(RAILWAYS);
 // The last build's manifest names the files of a region whose build fails, and yesterday's bundle,
@@ -89,7 +90,9 @@ for (const { network, failed } of downloads.slice(0, listers.length)) if (!netwo
 // ponytail: not AVE y Larga Distancia's, which twin none of them on 13 and 17 Oct 2026, and are read in its
 // own region's build, after the others; read them here too if one shows up as a Trip's twin.
 const { network: md, failed: mdFailed } = await longDistance;
-const longRead = await readTimetables(md, mdFailed, readLong, () => {}).catch((error: unknown) => (console.warn(`${md.name}'s Trains aren't read, so they twin no Trip: ${error instanceof Error ? error.message : error}`), undefined));
+// Its problems, as a copy read where the download failed, are reported where its region is built, which takes this read.
+const mdWanted = wanted.some((r) => r.networks.includes(md));
+const longRead = await readTimetables(md, mdFailed, readLong, mdWanted ? report.add : () => {}).catch((error: unknown) => (console.warn(`${md.name}'s Trains aren't read, so they twin no Trip: ${error instanceof Error ? error.message : error}`), undefined));
 // With those it leaves out as run by road (#562), whose stretches by rail a Trip of another Network can be, as Sevilla's C3 34772 is 18773's.
 const twins = DAYS.map((_, i) => (longRead?.days[i] ?? []).flatMap((p) => [...p.trips, ...p.road]));
 // Each region, one after another: its Networks read and built, its Lines drawn side by side, and its
@@ -294,11 +297,12 @@ function unlistedTrains(network: Pick<NetworkConfig, 'name'>, days: { trips: Fee
     const trips = parts.flatMap((p) => p.trips);
     const listers = listed[i] ?? [];
     const kept = rest(trips, listers.flatMap((l) => l.listed), listers.flatMap((l) => l.trips));
-    const whole = kept.filter((t) => trips.includes(t));
-    console.log(`${network.name}'s Trains on ${DAYS[i]}: ${whole.length}, and ${trips.length - whole.length} the Networks on the map list too`);
+    const all = new Set(trips);
+    const whole = new Set(kept.filter((t) => all.has(t)));
+    console.log(`${network.name}'s Trains on ${DAYS[i]}: ${whole.size}, and ${trips.length - whole.size} the Networks on the map list too`);
     // The Trips and calls it keeps of those, by the Networks that list them (#547).
     const by = new Map<string, [trips: number, calls: number]>();
-    for (const t of kept.filter((k) => !whole.includes(k))) {
+    for (const t of kept.filter((k) => !whole.has(k))) {
       const train = trips.find((o) => o.number === t.number) ?? t;
       const names = listers.filter((l) => l.listed.some((m) => m.get(t.number ?? '')?.size) || twinned(l.trips, [train]).some((o) => o.twins)).map((l) => l.network);
       const key = names.join(' and ') || 'none';

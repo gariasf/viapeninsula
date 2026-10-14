@@ -315,7 +315,9 @@ export async function readFeed(
     });
   });
   // A Train that calls at a Station its operator runs by road is left out whole, every Trip it's listed in (#562).
-  const byRoad = new Map(network.byRoad?.flatMap(({ stations: ids, source }) => ids.map((id): [string, string] => [id, source])));
+  // A Station two notices have by road, as Jaén, names both.
+  const byRoad = new Map<string, string>();
+  for (const { stations: ids, source } of network.byRoad ?? []) for (const id of ids) byRoad.set(id, byRoad.has(id) ? `${byRoad.get(id)}, ${source}` : source);
   const road: FeedTrip[] = []; // the Trips of the Trains left out so, which other Networks' Trips can still twin (#488)
   const onRail = (all: FeedTrip[]) => {
     const away = new Map<string, string>();

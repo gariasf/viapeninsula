@@ -873,7 +873,7 @@ export const MEDIA_DISTANCIA_AVANT: NetworkConfig = {
       stations: ['67004', '67007', '67009', '67010', '67011', '67013', '67014', '67015', '67016', '67017', '67018', '67019', '67020', '67021', '67100', '67101', '67103', '67105', '67107', '67113', '67200', '67203', '67205', '67206', '67207', '67208', '67215'].map((id) => `adif:${id}`),
       source: 'https://www.grupo.renfe.com/es/es/sala-de-prensa/avisos/2026/febrero/pat-zaragoza-teruel-sagunto-y-c5-valencia',
     },
-    { stations: ['adif:50207', 'adif:56004', 'adif:56009', 'adif:56100'], source: 'https://www.horajaen.com/2026/09/07/renfe-autobuses-alternativos-jaen-linares-baeza/' },
+    { stations: ['adif:50207', 'adif:03100', 'adif:56004', 'adif:56009', 'adif:56100'], source: 'https://www.horajaen.com/2026/09/07/renfe-autobuses-alternativos-jaen-linares-baeza/' },
     { stations: ['adif:03100', 'adif:50403', 'adif:50407'], source: 'https://andaluciainforma.eldiario.es/?p=34775' },
     { stations: ['adif:40122', 'adif:40115'], source: 'AVISO_512188' },
   ],
