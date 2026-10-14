@@ -284,6 +284,7 @@ export async function readFeed(
       coords: pts.sort((a, b) => a.seq - b.seq).map((p) => [p.lon, p.lat]),
       stations: [...(served.get(id) ?? [])],
       ...(gaugesOf.has(id) && { gauges: gaugesOf.get(id) }),
+      ...(feed.leaps && { leaps: true as const }),
     })),
     [...stations.values()],
     [...ends].map(([id, { first, last }]) => ({ shape: `${prefix}:${shapeOf.get(id)}`, from: first[1], to: last[1] })),

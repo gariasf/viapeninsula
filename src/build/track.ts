@@ -15,6 +15,8 @@ export interface FeedShape {
   stations: string[];
   /** The rails its Line runs on, where its Network's config names them, as a Network of two gauges does (`lines.gauges`, #366): else the Network's. */
   gauges?: Gauges;
+  /** It leaps where it hasn't the track, as its timetable's config says (Timetable's `leaps`, #265). */
+  leaps?: true;
 }
 
 /** A Trip, by its shape and its first and last Stations. */
@@ -66,6 +68,15 @@ export function eachWay(shapes: FeedShape[], stations: Station[], trips: TripEnd
  */
 const REACH = 200;
 const BAND = 50;
+
+/**
+ * Where a feed's shapes leap (Timetable's `leaps`), one that runs further than this between two of its
+ * points in a straight line hasn't the track there: Euskotren's of 14 October 2026 leap 4 km from
+ * Sondika to Lutxana and run back along E3a's track, and 0.8–1 km at Donostia and by Durango, while
+ * every other step of its shapes is under 400 m (#265). Other feeds' shapes can have points kilometres
+ * apart along straight track.
+ */
+const LEAP = 500;
 
 /** A Station is on the feed's shape within 300 m of it: its Stations are within 160 m, and the ones it lacks are kilometres away. */
 const ON_FEED = 300;
@@ -567,6 +578,10 @@ function traceShape(graph: Graph, feed: FeedShape, stations: Station[], log: (li
   }
   const waypoints = all.filter((w) => !branch(w));
   const length = { traced: 0, feed: 0 };
+  // Where along the feed's shape it leaps, from and to, which a leg across, or partly, isn't one where the feed has the track.
+  const along = distances(feed.coords);
+  const leaps = feed.leaps ? along.flatMap((d, i) => (i > 0 && d - (along[i - 1] ?? 0) > LEAP ? [[along[i - 1] ?? 0, d] as const] : [])) : [];
+  const across = (from: Waypoint, to: Waypoint) => leaps.some(([start, end]) => start < Math.max(from.along, to.along) && end > Math.min(from.along, to.along));
   if (waypoints.length < 2) {
     const line = `${feed.id} keeps the feed's shape: its Trips serve fewer than two Stations`;
     log(line);
@@ -597,7 +612,7 @@ function traceShape(graph: Graph, feed: FeedShape, stations: Station[], log: (li
         log(line);
         report({ kind: 'turn', line: feed.line, shape: feed.id, stations: at ? [at.station] : [], text: [line] });
       }
-      if (!from || !to || from.metres > ON_FEED || to.metres > ON_FEED) continue;
+      if (!from || !to || from.metres > ON_FEED || to.metres > ON_FEED || across(from, to)) continue;
       length.traced += a.edges.reduce((sum, e) => sum + (graph.metres[e] ?? 0), 0);
       length.feed += to.along - from.along;
     }

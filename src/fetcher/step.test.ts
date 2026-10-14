@@ -1180,6 +1180,44 @@ test('fetches the Metro no more often than every 30 s, the rate declared to TMB:
   expect(seconds(METRO_NOW, metroRuns(METRO_NOW, 3, TIMEOUT))).toEqual([0, 40, 80, 120, 160]);
 });
 
+// Euskotren's trip updates as Moveuskadi had them at 16:20 on Wednesday 14 October 2026, written at
+// 16:18:01, cut down to its trains' 16 running Trips, three of theirs yet to start and two running trams.
+const EUSKOTREN = { status: 200, body: new Uint8Array(readFileSync(new URL('fixtures/euskotren/trip_updates.pb', import.meta.url))) };
+
+/** When the run fetched them. */
+const EUSKOTREN_NOW = Date.parse('2026-10-14T16:20:30+02:00');
+
+const euskotrenRun = () => step(START.state, { euskotren: EUSKOTREN }, EUSKOTREN_NOW);
+
+test("reports Euskotren's trains that were running when its trip updates were written, each by the Station it comes to next (#265)", () => {
+  const { reports } = euskotrenRun().snapshot;
+  // Not the three yet to start, nor the trams, whose routes aren't its trains'.
+  expect(reports).toHaveLength(16);
+  // An E4 Trip for Matiko expected at Zuhatzu-Galdakao (2598) at 16:20, as of its update at 16:18.
+  expect(reports[0]).toEqual({
+    trip: 'euskotren:ES:Euskotren:Journey:15267730:',
+    at: Date.parse('2026-10-14T16:18:00+02:00'),
+    position: { next: { station: 'euskotren:2598:', at: Date.parse('2026-10-14T16:20:00+02:00') } },
+  });
+});
+
+test("fails a try that finds Euskotren's trip updates not updated since the last, keeping the last try's reports, and fetches them every sixth run (#265)", () => {
+  const good = euskotrenRun();
+  const later = EUSKOTREN_NOW + 120_000;
+  const failed = step(good.state, { euskotren: EUSKOTREN }, later);
+  expect(failed.snapshot.feeds).toEqual({ euskotren: { lastSuccess: EUSKOTREN_NOW, lastAttempt: later, status: 'trip_updates: not updated since 14:18:01 UTC', every: 120_000 } });
+  expect(failed.snapshot.reports).toEqual(good.snapshot.reports);
+  // The fetcher's runs every 20 s for 6 minutes fetch it on every sixth, 2 minutes apart.
+  const fetched: { at: number }[] = [];
+  let stored = START;
+  for (let t = EUSKOTREN_NOW; t < EUSKOTREN_NOW + 6 * 60_000; t += 20_000) {
+    const due = stored.due.includes('euskotren');
+    if (due) fetched.push({ at: t });
+    stored = step(stored.state, due ? { euskotren: EUSKOTREN } : {}, t);
+  }
+  expect(seconds(EUSKOTREN_NOW, fetched)).toEqual([0, 120, 240]);
+});
+
 /** The Worker's secrets, made up. */
 const SECRETS: Record<string, string> = { TRAM_CLIENT_ID: 'tram-id', TRAM_CLIENT_SECRET: 'tram-secret', TMB_APP_ID: 'tmb-id', TMB_APP_KEY: 'tmb-key' };
 
@@ -1223,6 +1261,7 @@ test("asks each source for what its adapter needs, with the Worker's secrets its
       'POST https://opendata.tram.cat/connect/token grant_type=client_credentials&client_id=tram-id&client_secret=tram-secret',
       ...TRAM_DATA,
       'GET https://api.tmb.cat/v1/itransit/metro/estacions?app_id=tmb-id&app_key=tmb-key',
+      'GET https://opendata.euskadi.eus/transport/moveuskadi/euskotren/gtfsrt_euskotren_trip_updates.pb',
     ].sort(),
   );
   // TMB's key goes in the query, so it's taken out of the error, which the snapshot's status repeats.

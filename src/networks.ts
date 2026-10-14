@@ -168,6 +168,12 @@ export interface Timetable {
   updated?: true | 'read' | 'nap';
   /** Where some of its Stations are, by stop_id, where it has them too far from their rails to trace (#259). */
   points?: Record<string, [lon: number, lat: number]>;
+  /**
+   * Its shapes leap in a straight line where they haven't the track, and run on from there, as
+   * Euskotren's do (#265): a stretch between two Stations across a leap (track.ts's LEAP) isn't one
+   * whose traced length is held to the feed's, where the trace, through the Stations, is right.
+   */
+  leaps?: true;
 }
 
 /** OpenStreetMap's names for FGC, as the operator of its rails. */
@@ -681,6 +687,55 @@ export const CERCANIAS_ZARAGOZA: NetworkConfig = {
   lines: { kind: 'commuter' },
 };
 
+/** Euskotren's open data, on Moveuskadi, Euskadi's: its timetable each day, and its live data. */
+const MOVEUSKADI = 'https://opendata.euskadi.eus/transport/moveuskadi/euskotren';
+
+export const EUSKOTREN: NetworkConfig = {
+  id: 'euskotren',
+  name: 'Euskotren',
+  // Half its stretches in its timetable of 14 October 2026 run at 37 km/h or less, and nine in ten at 54
+  // or less, in whole minutes, as its Stations are close: its Units run at 90 km/h. Most Stations get no
+  // time of their own in its timetable.
+  profile: { acceleration: 1, braking: 1, topSpeed: 90 / 3.6, dwell: 30 },
+  // As Bilbao's metre-gauge lines keep left, FEVE's and the Metro's. OpenStreetMap tags no
+  // railway:preferred_direction on its trains' ways to measure it by (seen 14 October 2026), only on Vitoria's trams'.
+  runningSide: 'left',
+  // The blue that leads its logo (#265).
+  colour: '#004494',
+  pillZoom: 10,
+  // Euskal Trenbide Sarea's metre gauge, underground through Bilbao and Donostia too, where OpenStreetMap
+  // tags it subway.
+  rails: { railway: ['rail', 'narrow_gauge', 'subway'], gauge: ['1000'] },
+  timetables: [
+    {
+      // Moveuskadi's copy, each day, of Euskotren's feed, which makes each platform a stop of its own: its
+      // Stations are its StopPlaces, by their numbers, as ES:Euskotren:StopPlace:2597: is euskotren:2597:.
+      url: `${MOVEUSKADI}/gtfs_euskotren.zip`,
+      prefix: 'euskotren',
+      operator: 'euskotren',
+      parents: true,
+      stopPrefix: 'ES:Euskotren:StopPlace:',
+      // Its trains, E1–E4 and E3a, and FCC, as it names the through Trains that run from one of them onto
+      // another, such as Bermeo–Lezama. Not L3, Bilbao's metro line, nor its trams or the funicular
+      // (ADR-0010).
+      routes: { names: ['E1', 'E2', 'E3', 'E3a', 'E4', 'FCC'] },
+      // Its timetable of 14 October 2026 has E3's shapes leap 4 km from Sondika to Lutxana and run back
+      // along E3a's track, and others 0.8–1 km at Donostia and by Durango: traced through their Stations,
+      // they're 6–42% shorter there, and right.
+      leaps: true,
+      // Euskadi's open-data terms ask for the day it was last updated: its feed's start date, the day
+      // Moveuskadi wrote it.
+      updated: true,
+    },
+  ],
+  // Moveuskadi's dataset is CC BY 4.0, and its timetable's attributions.txt names Eusko Trenbideak.
+  credit: { text: 'Eusko Trenbideak', url: 'https://opendata.euskadi.eus/catalogo/-/moveuskadi-datos-de-la-red-de-transporte-publico-de-euskadi-operadores-horarios-paradas-calendario-tarifas-etc/', licence: 'CC BY 4.0' },
+  // Its live data is trip updates alone, so its Trains are Live by the Station they come to next, as
+  // the Metro's are, and late by when they're expected there.
+  live: { delay: 'operator', near: 'standing' },
+  lines: { kind: 'commuter' },
+};
+
 /**
  * The region every view loads, wherever the map is and at every zoom (ADR-0014), as AVE y Larga
  * Distancia's Trains show at every zoom (ADR-0010): long distance's, whose Networks name it (#262). The
@@ -986,6 +1041,7 @@ export const NETWORKS = [
   CERCANIAS_SAN_SEBASTIAN,
   CERCANIAS_SANTANDER,
   CERCANIAS_ZARAGOZA,
+  EUSKOTREN,
   MEDIA_DISTANCIA_AVANT,
   OUIGO,
   AVE_LARGA_DISTANCIA,
@@ -1062,6 +1118,17 @@ export type LiveSource = {
   | { format: 'fgc'; urls: { positions: string; lookup: string } }
   | { format: 'tram'; urls: { token: string; positions: string; updates: string } }
   | { format: 'tmb'; urls: { predictions: string } }
+  /**
+   * GTFS-RT's trip updates, as protocol buffers, as Euskotren's: their Trips' Network is by the start of
+   * each Trip's route_id, and a Trip that isn't running when the file was written, as most it lists
+   * haven't started yet, gets no report.
+   */
+  | {
+      format: 'gtfs-rt';
+      urls: { updates: string };
+      /** The Station each of its stops is at, as the bundle names it: the stop_ids this matches, made over by String's replace(). */
+      stations: [RegExp, string];
+    }
 );
 
 /** FGC's open data. */
@@ -1166,5 +1233,20 @@ export const LIVE_SOURCES: LiveSource[] = [
     // Every other run, as often as keeps to the one request every 30 s declared to TMB.
     every: 40_000,
     networks: { '': METRO.id },
+  },
+  {
+    // Euskotren's trip updates, on Moveuskadi, with no rate limit stated, which have its trams' and the
+    // funicular's too: only its trains' routes are its Network's (EUSKOTREN). Its positions file is empty.
+    id: 'euskotren',
+    format: 'gtfs-rt',
+    urls: { updates: `${MOVEUSKADI}/gtfsrt_euskotren_trip_updates.pb` },
+    // Its stops are platforms, each of a StopPlace, as its timetable has them (EUSKOTREN's `parents`):
+    // ES:Euskotren:Quay:2597_Plataforma_Q1: is at ES:Euskotren:StopPlace:2597:, euskotren:2597: in the bundle.
+    stations: [/^ES:Euskotren:Quay:(\d+)_.*$/, 'euskotren:$1:'],
+    // Every sixth run: its header moves every 2 minutes exactly (4 October 2026), so a try sooner would
+    // find it not updated since, and fail, as every other one would every third run.
+    every: 120_000,
+    // Its trains' routes: E1, E2, E3, E3a, E4 and FCC.
+    networks: Object.fromEntries(['11', '12', '8', '44', '10', 'Inf-56'].map((line) => [`ES:Euskotren:Line:${line}:`, EUSKOTREN.id])),
   },
 ];

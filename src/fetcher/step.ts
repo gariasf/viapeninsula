@@ -592,13 +592,13 @@ interface Geotren {
 }
 
 /**
- * A feed of trip updates, as FGC and TRAM publish them: when it was written, in seconds since 1970,
- * and for each Trip, when it was updated, the Unit running it where it says, and the first stop it
- * gives a time for, by its platform, such as FGC's PC1, with when the Train is expected there.
+ * A feed of trip updates, as FGC, TRAM and Euskotren publish them: when it was written, in seconds
+ * since 1970, and for each Trip, its route where it says, when it was updated, the Unit running it
+ * where it says, and the stops it gives a time for, in order, by their platforms, such as FGC's PC1.
  */
 interface TripUpdates {
   written: number;
-  trips: { id: string; updated?: number; unit?: string; platform?: string; expected?: number }[];
+  trips: { id: string; route?: string; updated?: number; unit?: string; stops: Stop[] }[];
 }
 
 /**
@@ -608,8 +608,8 @@ interface TripUpdates {
  */
 function fgcReports(source: LiveSource, positions: Geotren, updates: TripUpdates): Report[] {
   const reports = new Map<string, Report>();
-  for (const { id, updated, platform, expected } of updates.trips) {
-    const network = networkOf(source, id);
+  for (const { id, updated, stops: [first] } of updates.trips) {
+    const [network, platform, expected] = [networkOf(source, id), first?.platform, first?.time];
     if (!network) continue;
     // A platform is named for its Station, such as PC1 at Plaça Catalunya (PC): the Station's code, then the platform's number.
     const station = platform?.replace(/\d+$/, '');
@@ -859,12 +859,43 @@ function metroReports(source: LiveSource, { timestamp, linies }: ITransit): Repo
   });
 }
 
+/** GTFS-RT's trip updates alone, as Euskotren's. */
+const gtfsRtAdapter: LiveAdapter<SourceOf<'gtfs-rt'>, Fetched<Uint8Array>> = {
+  fetch: ({ source: { urls }, get }) => get(urls.updates, asBytes),
+  read: (updates, { source }) => ({
+    reports(said) {
+      const feed = gtfsRt('trip_updates', updates);
+      said('trip_updates', feed.written * 1000);
+      return runningReports(source, feed);
+    },
+  }),
+};
+
+/**
+ * The Trains of a feed of trip updates that were running when it was written: between the first and
+ * the last stop it gives a time for, as most Trips it lists haven't started yet (docs/research/
+ * live-at-scale.md). Each gets one report, as of when its update was: the Station it comes to next,
+ * the first of its stops whose time is still to come, and when it's expected there, as the Metro's
+ * are. Its Network is by its route, and a Trip of a route the source's config names none for gets none,
+ * nor does one whose next stop its config can't name the Station of.
+ */
+function runningReports(source: SourceOf<'gtfs-rt'>, { written, trips }: TripUpdates): Report[] {
+  const [stop, station] = source.stations;
+  return trips.flatMap(({ id, route, updated, stops }) => {
+    const network = networkOf(source, route ?? '');
+    const at = updated ?? written;
+    const next = stops.find((s) => (s.time ?? 0) >= at);
+    const running = network && next?.time && (stops[0]?.time ?? Infinity) <= at && stop.test(next.platform ?? '');
+    return running ? [{ trip: `${network}:${id}`, at: at * 1000, position: { next: { station: next.platform!.replace(stop, station), at: next.time! * 1000 } } }] : [];
+  });
+}
+
 /** Each format's adapter. */
-const ADAPTERS = { renfe, fgc, tram, tmb };
+const ADAPTERS = { renfe, fgc, tram, tmb, 'gtfs-rt': gtfsRtAdapter };
 
 /**
  * The parts of a GTFS-RT feed of trip updates the step reads, from its protocol buffers in a response:
- * its header's time, and each trip update's Trip, time, Unit and first stop with a time (field
+ * its header's time, and each trip update's Trip, route, time, Unit and stops with a time (field
  * numbers as GTFS-RT's). Or an error that says why it can't be read.
  */
 function gtfsRt(file: string, fetched: Fetched<Uint8Array>): TripUpdates {
@@ -881,21 +912,22 @@ function feedMessage(field: number, feed: TripUpdates, pbf: PbfReader) {
     if (field === 3) header.timestamp = pbf.readVarint();
   }, { timestamp: 0 }).timestamp;
   if (field === 2) pbf.readMessage((field) => {
-    if (field === 3) feed.trips.push(pbf.readMessage(tripUpdate, { id: '' }));
+    if (field === 3) feed.trips.push(pbf.readMessage(tripUpdate, { id: '', stops: [] }));
   }, null);
 }
 
 function tripUpdate(field: number, update: TripUpdates['trips'][number], pbf: PbfReader) {
-  if (field === 1) update.id = pbf.readMessage((field, trip: { id: string }) => {
+  if (field === 1) Object.assign(update, pbf.readMessage((field, trip: { id: string; route?: string }) => {
     if (field === 1) trip.id = pbf.readString();
-  }, { id: '' }).id;
+    if (field === 5) trip.route = pbf.readString();
+  }, { id: '' }));
   if (field === 4) update.updated = pbf.readVarint();
   if (field === 3) update.unit = pbf.readMessage((field, vehicle: { id?: string }) => {
     if (field === 1) vehicle.id = pbf.readString();
   }, {}).id;
-  if (field === 2 && !update.expected) {
+  if (field === 2) {
     const stop = pbf.readMessage<Stop>(stopTimeUpdate, {});
-    if (stop.time) [update.platform, update.expected] = [stop.platform, stop.time];
+    if (stop.time) update.stops.push(stop);
   }
 }
 

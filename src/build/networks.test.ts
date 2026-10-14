@@ -365,11 +365,12 @@ test("gives each Line its kind of service: its Network's, but for the Lines it n
   expect(await kinds(tmb, METRO_FEED)).toEqual({ L11: 'metro', FM: 'funicular' });
 });
 
-test("asks for the day a timetable was last updated of TMB's and TRAM's two, whose terms ask the map to show it, TRAM's from the day they were read, as neither feed has a feed_info.txt (#537)", () => {
+test("asks for the day a timetable was last updated of TMB's, TRAM's two and Euskotren's, whose terms ask the map to show it, TRAM's from the day they were read, as neither feed has a feed_info.txt (#537, #265)", () => {
   expect(NETWORKS.flatMap((n) => n.timetables.filter((t) => t.updated).map((t) => [t.prefix, t.updated]))).toEqual([
     ['tram:TBX', 'read'],
     ['tram:TBS', 'read'],
     ['metro', true],
+    ['euskotren', true],
     ['ouigo', 'nap'],
   ]);
 });
