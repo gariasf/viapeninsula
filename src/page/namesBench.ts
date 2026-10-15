@@ -94,7 +94,7 @@ async function variant(src: string, bearing: number) {
     const tiered = B.places(days.stations).map((p: any) => {
       const tier = C.TIERS.find((t: any) => t.places.includes(p.id));
       const { nameZoom, larger, size } = tier ?? C.UNTIERED;
-      return { ...p, nameZoom, larger, style: { bold: C.BOLD.has(p.id), size } };
+      return { ...p, nameZoom, listed: tier?.places.indexOf(p.id), larger, style: { bold: C.BOLD.has(p.id), size } };
     });
     // The regions split and their shapes filed a frame before putNames(), where the src does so (fileShapes(), #770).
     const filing = performance.now();
@@ -107,9 +107,9 @@ async function variant(src: string, bearing: number) {
     const where = tiered.map(({ id, networks, lon, lat }: any) => ({ id, dot: [lon, lat], served: networks }));
     const sides = placeSides(regions ?? [days], (days.slots ?? []).filter((s: any) => s.band === undefined), (line: string) => keep.get(line) ?? 1, days.lines, centrelines, where, !regions);
     const t1 = performance.now();
-    const names = tiered.map(({ id, name, nameZoom, stations, larger, style, lon, lat }: any, i: number) => {
+    const names = tiered.map(({ id, name, nameZoom, listed, stations, larger, style, lon, lat }: any, i: number) => {
       const rows = nameLines(name, style);
-      return { id, dot: [lon, lat], sides: sides[i] ?? (() => []), name: rows.join('\n'), size: [Math.max(...rows.map(width)), rows.length * P.LINE_HEIGHT * style.size], nameZoom, stations, larger, style };
+      return { id, dot: [lon, lat], sides: sides[i] ?? (() => []), name: rows.join('\n'), size: [Math.max(...rows.map(width)), rows.length * P.LINE_HEIGHT * style.size], nameZoom, listed, stations, larger, style };
     });
     // showNames().
     const t2 = performance.now();

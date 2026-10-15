@@ -209,7 +209,8 @@ const PROJECTION: ProjectionSpecification = { type: ['interpolate', ['linear'], 
  * The places drawn larger than the rest and named from further out, by their IDs in places(), as the
  * maintainer picks them: each tier's dots are `larger` px larger in radius than a place's in neither,
  * and its names show from zoom `nameZoom`, before a lower tier's where they collide, `size` px large,
- * a little larger by tier, as railisland's (TIER_STYLE). A place in
+ * a little larger by tier, as railisland's (TIER_STYLE). Where two of a tier's names collide, the one it
+ * lists first wins (nameSort(), #424). A place in
  * neither, as every Metro and TRAM place is and one that opens later will be, is drawn as UNTIERED
  * says.
  * ponytail: by ID, so a listed place whose operator renumbers it drops to UNTIERED unnoticed. Have
@@ -1033,15 +1034,15 @@ let spreadState: { group?: Group; moved: Map<string, number>; easing: boolean } 
 let standingPills: { id: string; at: Point; heading: number; box: [number, number]; standsAt: string }[] = [];
 /**
  * Each place's name: its place's ID, whose board a tap on it opens (#618), its dot, the sides of its track it can go, once the map's bearing is known, broken
- * into its lines, how wide and high those are, in px, the zoom it shows from,
+ * into its lines, how wide and high those are, in px, the zoom it shows from, where its tier lists it,
  * its Stations, how much larger its dot is, and how it's lettered.
  */
-let names: { id: string; dot: Point; sides: (bearing: number) => Side[]; name: string; size: [width: number, height: number]; nameZoom: number; stations: string[]; larger: number; style: NameStyle }[] = [];
+let names: { id: string; dot: Point; sides: (bearing: number) => Side[]; name: string; size: [width: number, height: number]; nameZoom: number; listed?: number; stations: string[]; larger: number; style: NameStyle }[] = [];
 /** The map's bearing when the names were last put beside their tracks. */
 let namesBearing = NaN;
 /**
  * How many times Trains call at each Station in the Trips of the days shown (callsIn()), once they've
- * come: they rank the names of places shown from one zoom where they collide, the busier's first (#372, #424).
+ * come: those of places in no tier rank their names where they collide, the busier's first (#372).
  * Counted here, not by the build into each region's track, where the count changes with the day of the
  * week and would make Catalonia's 615 KB track a new file in each daily build, for 6 KB of brotli.
  */
@@ -1277,8 +1278,8 @@ map.addLayer(
   'line-names',
 );
 // Each place's name beside its track (showNames()), from its tier's zoom, and where names collide, the
-// one named from further out, and of those named from one zoom, the one with more calls a day (#372, #424). Right of
-// a track, a name's lines line up along the track's side.
+// one named from further out, of a tier's, the one it lists first (#424), and of those in no tier, the
+// one with more calls a day (#372). Right of a track, a name's lines line up along the track's side.
 map.addLayer({
   id: 'station-names',
   type: 'symbol',
@@ -1619,7 +1620,7 @@ function show(days: Track | Bundle, tripsOnly = false) {
     const { nameZoom, larger, size } = tier ?? UNTIERED;
     // A place's dot and name from the zoom the first of its Networks is drawn from: one only the Metro or TRAM serve from zoom 10 (#781).
     const from = p.networks.length ? Math.min(...p.networks.map((n) => shownFrom.get(n) ?? linesZoom)) : linesZoom;
-    return { ...p, from, nameZoom: Math.max(nameZoom, from), larger, style: { bold: BOLD.has(p.id), size } };
+    return { ...p, from, nameZoom: Math.max(nameZoom, from), listed: tier?.places.indexOf(p.id), larger, style: { bold: BOLD.has(p.id), size } };
   });
   // Where a place is named after its town, the town's label goes once the place's name shows (#121).
   hideTowns(placeLabels, tiered);
@@ -1642,9 +1643,9 @@ function show(days: Track | Bundle, tripsOnly = false) {
     // A track built before #243 names no Station's Networks: its names go beside the nearest track of any.
     const where = tiered.map(({ id, networks, lon, lat }) => ({ id, dot: [lon, lat] as Point, served: networks }));
     const sides = placeSides(regions ?? [days], (days.slots ?? []).filter((s) => s.band === undefined), (line) => placing.keep.get(line) ?? 1, days.lines, centrelines, where, !regions);
-    names = tiered.map(({ id, name, nameZoom, stations, larger, style, lon, lat }, i) => {
+    names = tiered.map(({ id, name, nameZoom, listed, stations, larger, style, lon, lat }, i) => {
       const rows = nameLines(name, style);
-      return { id, dot: [lon, lat], sides: sides[i] ?? (() => []), name: rows.join('\n'), size: [Math.max(...rows.map((row) => placeWidth(row, style))), rows.length * LINE_HEIGHT * style.size], nameZoom, stations, larger, style };
+      return { id, dot: [lon, lat], sides: sides[i] ?? (() => []), name: rows.join('\n'), size: [Math.max(...rows.map((row) => placeWidth(row, style))), rows.length * LINE_HEIGHT * style.size], nameZoom, listed, stations, larger, style };
     });
     showNames();
   };
@@ -1860,8 +1861,8 @@ function showNames() {
   const { where } = laidOut;
   map.getSource<GeoJSONSource>('station-names')?.setData({
     type: 'FeatureCollection',
-    features: names.map(({ id, dot, name, nameZoom, stations, style }, i): GeoJSON.Feature => {
-      const sort = nameSort({ nameZoom, stations }, calls);
+    features: names.map(({ id, dot, name, nameZoom, listed, stations, style }, i): GeoJSON.Feature => {
+      const sort = nameSort({ nameZoom, listed, stations }, calls);
       return { type: 'Feature', properties: { id, name, nameZoom, sort, ...style, ...where[i] }, geometry: { type: 'Point', coordinates: dot } };
     }),
   });

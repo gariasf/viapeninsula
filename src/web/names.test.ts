@@ -542,7 +542,7 @@ test("counts the calls at each Station in some Trips, a Trip that calls at one t
   expect(callsIn([])).toEqual(new Map());
 });
 
-test("sorts a place's name by the zoom it shows from, and by its calls after that, the busier first and none as far as the next zoom's", () => {
+test("sorts a place's name by its tier's zoom, and one in no tier by its calls after that, the busier first and none as far as the next zoom's", () => {
   // Bilbao-Abando's 287 calls against San Mamés' 181 and La Concordia's 61, a Station each, and two that call alike.
   const calls = new Map([
     ['abando', 287],
@@ -567,18 +567,19 @@ test("sorts a place's name by the zoom it shows from, and by its calls after tha
   expect(sort('san-mames', 'concordia')).toBeLessThan(sort('san-mames'));
 });
 
-test("sorts a tier's names by their calls a day too, the busier first, and every one before the next tier's and those in none (#424)", () => {
-  // Madrid-Atocha's 1032 calls against Nuevos Ministerios' 738, both named from zoom 9, as the maintainer picked them.
+test("sorts a tier's names by where the tier lists them, the first listed first whatever its calls, and every one before the next tier's and those in none (#424)", () => {
+  // Madrid-Atocha, listed in the zoom 9 tier just before Chamartín, which Trains call at more: 1,179 times a day to its 1,075.
   const calls = new Map([
-    ['atocha', 1032],
-    ['nuevos-ministerios', 738],
+    ['atocha', 1075],
+    ['chamartin', 1179],
     ['x', 1_000_000],
   ]);
-  const sort = (nameZoom: number, ...stations: string[]) => nameSort({ nameZoom, stations }, calls);
-  expect(sort(9, 'atocha')).toBeLessThan(sort(9, 'nuevos-ministerios'));
-  // A place no Trip calls at, in the zoom 9 tier, before the busiest of the zoom 11 tier's, and one in that, before the busiest in none.
-  expect(sort(9, 'nobody')).toBeLessThan(sort(11, 'x'));
-  expect(sort(11, 'nobody')).toBeLessThan(nameSort({ nameZoom: 12, stations: ['x'] }, calls));
+  const sort = (nameZoom: number, listed: number, ...stations: string[]) => nameSort({ nameZoom, listed, stations }, calls);
+  expect(sort(9, 16, 'atocha')).toBeLessThan(sort(9, 17, 'chamartin'));
+  expect(sort(9, 0, 'nobody')).toBeLessThan(sort(9, 1, 'x'));
+  // However far down a long list, a tier's names come before the next tier's, and the zoom 11 tier's before the busiest in none.
+  expect(sort(9, 1000, 'nobody')).toBeLessThan(sort(11, 0, 'x'));
+  expect(sort(11, 1000, 'nobody')).toBeLessThan(nameSort({ nameZoom: 12, stations: ['x'] }, calls));
 });
 
 test("lists each place in TIERS once: a place is drawn as the first tier that lists it says, so a second listing of it, in that tier or the next, is one nobody sees (#424)", () => {
