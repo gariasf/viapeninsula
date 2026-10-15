@@ -725,9 +725,9 @@ const call = (id: string, stations: string, gauges: Gauges, line = 'AVE'): FeedT
 });
 
 /** Traces each day's Trips, keeping right, and gives each Trip's traced track. */
-function runs(rails: OsmWay[], stations: Station[], days: FeedTrip[][], changers = new Set<number>()) {
+function runs(rails: OsmWay[], stations: Station[], days: FeedTrip[][], changers = new Set<number>(), turnBacks: Station[] = []) {
   const [log, found]: [string[], Found[]] = [[], []];
-  const traced = traceRuns(days, stations, rails, changers, 'right', (line) => log.push(line), (f) => found.push(f));
+  const traced = traceRuns(days, stations, rails, changers, 'right', (line) => log.push(line), (f) => found.push(f), turnBacks);
   const track = (trip: string) => {
     const shape = traced.shapes.find((s) => s.id === traced.days.flat().find((t) => t.id === trip)?.shape);
     if (!shape) throw new Error(`No track for ${trip}`);
@@ -833,6 +833,19 @@ test('traces each run of Stations once for all its Trips, and leaves out, logs a
     { kind: 'trip', why: 'off', trip: 'ae', line: 'MD', stations: [{ id: 'E' }], text: [text[1]], day: 0 },
   ]);
 });
+
+test("turns a run back at a Station its Network's config names, though it doesn't call there, as Intercity 01460 and 01463 turn back at Sant Gabriel (#795)", () => {
+  // As at Sant Gabriel (L), where the line from Elche (T) meets the one into Alicante (U) heading away
+  // from it: a Train from T must run past L, turn back, and go on to U. Without L, there's no path.
+  const ways = rails({ a: [0, 0], j: [2000, 0], c: [20000, 0], k: [2600, 300], t: [2600, 1500] }, 'a j c', 'j k t');
+  const stations = [station('T', 2610, 1400), station('U', 19500, 10)];
+  const L = station('L', 1600, 10);
+  const days = [[call('01463', 'T U', IBERIAN, 'Intercity')]];
+  expect(runs(ways, stations, days).log).toEqual(['01463 is left out: T → U has no path along the rails']);
+  const { track, log } = runs(ways, stations, days, new Set(), [L]);
+  expect(points(track('01463'))).toEqual([[2600, 1400], [2600, 300], [2000, 0], [1600, 0], [2000, 0], [19500, 0]]);
+  expect(log).toContain('Intercity:1: T → U turns back at L');
+}, 60_000);
 
 test("runs AVE on both gauges all the way where a stretch has no path on standard gauge, as one can't tell where it must change till a later stretch: into Ourense through Taboadela's changer, on to Santiago", () => {
   // B has a standard-gauge track from A, and an Iberian-gauge one from A through a changer at k, on which
