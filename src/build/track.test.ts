@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import { pointAt, type Point, type Shape, type Station } from '../bundle.ts';
-import { CERCANIAS_ASTURIAS, CERCANIAS_MADRID, CERCANIAS_SANTANDER, CERCANIAS_SEVILLA, CERCANIAS_VALENCIA, RODALIES, type Gauges, type NetworkConfig } from '../networks.ts';
+import { AVE_LARGA_DISTANCIA, CERCANIAS_ASTURIAS, CERCANIAS_MADRID, CERCANIAS_SANTANDER, CERCANIAS_SEVILLA, CERCANIAS_VALENCIA, RODALIES, type Gauges, type NetworkConfig } from '../networks.ts';
 import { ownRails } from './networks.ts';
 import type { OsmWay } from './osm.ts';
 import { collect, diff, type Found } from './report.ts';
@@ -710,7 +710,6 @@ test('drops the points a way carries on straight through, and keeps its ends, it
 // rails of its gauges (#259), as each Line of a Network of two gauges is on its own (#366). Standard
 // gauge is 1435 mm, Iberian 1668 and metre 1000.
 const STANDARD: Gauges = { railway: ['rail'], gauges: ['1435'], orElse: ['1668'] };
-const BOTH: Gauges = { railway: ['rail'], gauges: ['1435', '1668'] };
 const IBERIAN: Gauges = { railway: ['rail'], gauges: ['1668'] };
 const METRE: Gauges = { railway: ['rail', 'narrow_gauge'], gauges: ['1000'] };
 
@@ -776,11 +775,9 @@ test("runs AVE on Iberian gauge too where a stretch has no path on standard gaug
   expect(points(track('ave'))).toEqual([[0, 0], [2000, 0], [3000, 800], [5000, 0]]);
 });
 
-test('runs Alvia on both gauges, the shorter way, and changes gauge only at a changer, which it logs', () => {
-  const alvia = runs(twoLines(), [station('A', -10, 0), station('B', 4010, 0)], [[call('alvia', 'A B', BOTH, 'Alvia')]]);
-  expect(points(alvia.track('alvia'))).toEqual([[0, 0], [4000, 0]]);
+test('runs Alvia as AVE, changing gauge only at a changer, which it logs', () => {
   const { ways, changers, stations } = changer();
-  const { track, log } = runs(ways, stations, [[call('alvia', 'A B C', BOTH, 'Alvia')]], changers);
+  const { track, log } = runs(ways, stations, [[call('alvia', 'A B C', STANDARD, 'Alvia')]], changers);
   expect(points(track('alvia'))).toEqual([[0, 0], [2000, 0], [3000, 800], [5000, 0]]);
   expect(log).toEqual(['Alvia:1: A → C, 5.4 km long, 1.08× the straight line through its 3 Stations, changing gauge between B and C']);
 });
@@ -871,6 +868,20 @@ test("keeps AVE to standard gauge as far as it can where a later stretch has no 
   expect(log).toEqual(['AVE:1: A → C, 15.2 km long, 1.01× the straight line through its 3 Stations, changing gauge between B and C']);
 });
 
+test("keeps each of a Line of both gauges' runs, as Alvia's, to standard gauge as far as it can where the Iberian-gauge line runs beside it, a little shorter, and changes gauge at the same changer each way, as its Madrid–Santander and Madrid–Irun runs didn't", () => {
+  // As AVE's above: from A, standard-gauge track runs to B by m, and Iberian-gauge track, 0.2 km shorter, leaves it
+  // at a changer, k, for B too. Only Iberian-gauge track runs on from B to C, through a changer, l, beyond B.
+  const layout: Record<string, [number, number]> = { a: [0, 0], k: [500, 0], m: [5000, 1000], b: [10000, 0], j: [5000, -200], i: [10000, -20], l: [11000, -10], c: [15000, -10] };
+  const ways = rails(layout, ['a k', { gauge: '1435' }], ['k m b l', { gauge: '1435' }], 'k j i l', 'l c');
+  const changers = new Set(['k', 'l'].map((v) => Object.keys(layout).indexOf(v) + 1));
+  const alvia = AVE_LARGA_DISTANCIA.lines.gauges?.Alvia ?? IBERIAN;
+  const { track, log } = runs(ways, [station('A', -10, 0), station('B', 10000, -10), station('C', 15010, -10)], [[call('down', 'A B C', alvia, 'Alvia'), call('up', 'C B A', alvia, 'Alvia')]], changers);
+  const byM = [[0, 0], [500, 0], [5000, 1000], [10000, 0], [11000, -10], [15000, -10]];
+  expect(points(track('down'))).toEqual(byM);
+  expect(points(track('up'))).toEqual(byM.toReversed());
+  expect(log.map((line) => line.replace(/.*,/, ''))).toEqual([' changing gauge between B and C', ' changing gauge between C and B']);
+});
+
 test("sets off from another of a Station's tracks of its gauge where OpenStreetMap has none that leads on from the one it comes in on, as at Alcázar de San Juan, and says so and reports it, with how far it jumps across", () => {
   // A's line comes into S on its north track, which ends there, and C's leaves from its south track, 10 m off.
   const ways = rails({ a: [0, 0], n: [3000, 0], w: [2000, -10], s: [5000, -10], c: [8000, -10] }, 'a n', 'w s c');
@@ -889,7 +900,7 @@ test("comes into a Station on each gauge it can, as an Alvia must come into Sevi
   const { track, log } = runs(
     ways,
     [station('A', -10, 0), station('S', 4010, 5), station('C', 3000, -3010)],
-    [[call('alvia', 'A S C', BOTH, 'Alvia')]],
+    [[call('alvia', 'A S C', STANDARD, 'Alvia')]],
     new Set([Object.keys(layout).indexOf('k') + 1]),
   );
   expect(points(track('alvia')).slice(0, 4)).toEqual([[0, 0], [1000, 0], [2000, 2000], [4000, 10]]);
