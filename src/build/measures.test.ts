@@ -407,20 +407,23 @@ test('counts a curve whose ends head opposite ways as a hairpin, in each band it
   expect(hairpins([1000, 0], [1060, 0], [1100, 40])).toEqual(none);
 });
 
-test("counts a hairpin where its Line's own Trains turn back as a turn-back, not a hairpin, by its Line and how far from where they do, and reports it with why (#622)", () => {
-  // The hairpin above, its middle 6 m from Ermua's Station, for E1, whose short workings from Eibar end and start
-  // there, and for FCC, whose Trains go on round the town's loop.
-  const ermua = (line: string) => crossing(through([1000, 0], [1060, 0], [1060, 20], [1000, 20]), 0, 0, line, [-2.50103 - 1060 / kx, 43.18524]);
-  expect(ermua('euskotren:FCC').hairpins).toEqual(every(1));
-  const named = ermua('euskotren:E1');
+test("counts a hairpin where its Line's own Trains turn back as a turn-back, not a hairpin, by its Line and how far from where they do, and reports it with why, never as a problem spot (#622)", () => {
+  // The hairpin above, its middle 10 m from Alcázar de San Juan's Station, for MD, some of whose Trains turn back
+  // there, and for the Regional, whose Trains don't.
+  const alcazar = (line: string) => crossing(through([1000, 0], [1060, 0], [1060, 20], [1000, 20]), 0, 0, line, [-3.20574 - 1060 / kx, 39.39563]);
+  expect(alcazar('media-distancia-avant:Regional').hairpins).toEqual(every(1));
+  const named = alcazar('media-distancia-avant:MD');
   expect(named.hairpins).toEqual(none);
-  const spots = reported(named, summary(named)).filter((s) => s.kind === 'turnback');
-  expect(spots.map((s) => [s.zoom, s.line, s.text[0]?.slice(0, 26)])).toEqual(BANDS.flatMap((zoom, band) => (band < GRAPH_BAND ? [] : [[zoom, 'euskotren:E1', "Ermua: E1's short workings"]])));
-  // The others, by their Lines, as far from their Stations as the curves there are: Santiago's 305 m, L'Aldea's 611 m.
+  const report = collect();
+  for (const f of reported(named, summary(named))) report.add(f);
+  const spots = report.spots().filter((s) => s.kind === 'turnback');
+  expect(spots.map((s) => [s.zoom, s.line, s.text[0]?.slice(0, 19)])).toEqual(BANDS.flatMap((zoom, band) => (band < GRAPH_BAND ? [] : [[zoom, 'media-distancia-avant:MD', 'Alcázar de San Juan']])));
+  expect(comment(undefined, spots, 'run')).toBeUndefined();
+  // Santiago's, by its Lines, as far from its Station as the curves there are, about 300 m; and not L'Aldea's
+  // Reg.Exp. nor Ermua's E1, whose hairpins there aren't where their Trains turn back.
   const at = (line: string, lon: number, lat: number) => turnBack(line, [lon, lat]) !== undefined;
   expect(['AVE', 'Alvia', 'Avlo', 'Intercity'].map((name) => at(`ave-larga-distancia:${name}`, -8.5477, 42.8692))).toEqual([true, true, true, false]);
-  expect([at('media-distancia-avant:MD', -3.2049, 39.3957), at('media-distancia-avant:MD', -3.2059, 39.3957), at('media-distancia-avant:Regional', -3.2049, 39.3957)]).toEqual([true, true, false]);
-  expect([at('media-distancia-avant:Reg.Exp.', 0.6077, 40.7513), at('media-distancia-avant:Avant Exp', 0.6077, 40.7513), at('media-distancia-avant:Reg.Exp.', 0.6077, 40.73)]).toEqual([true, false, false]);
+  expect([at('media-distancia-avant:MD', -3.2059, 39.3957), at('media-distancia-avant:Reg.Exp.', 0.6077, 40.7513), at('euskotren:E1', -2.5006, 43.184)]).toEqual([true, false, false]);
 });
 
 test("doesn't count the rounding of a curve's ends as turning it back (#353)", () => {

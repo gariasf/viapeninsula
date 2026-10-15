@@ -45,8 +45,11 @@ const LOOKS = 4;
 const HAIRPIN = 120;
 /**
  * Where a Line's own Trains turn back, so that its curve there turns back too, as a hairpin does: left out of
- * `hairpins`, and listed in the report as turn-backs, with why (#622). Each by its Line and how far from a point,
- * as a curve's middle can be hundreds of metres from where its Trips reverse: Santiago's 222–300 m, L'Aldea's 600 m.
+ * `hairpins`, and listed in the report as turn-backs, with why (#622). Each by its Line and how far from its Station,
+ * as a curve's middle can be hundreds of metres from it: Santiago's are 302 m away. Only where the curve is where they
+ * turn: Reg.Exp.'s Trains turn back at L'Aldea too, and E1's Trips from Eibar end at Ermua, but their hairpins there
+ * are the touch by L'Aldea's Station that Avant Exp's curve has too below zoom 10, and the curve across Ermua's
+ * horseshoe that FCC's has too, neither of which those Trains turn on, so they aren't named.
  */
 const TURN_BACKS: { line: string; at: Point; within: number; why: string }[] = [
   ...['AVE', 'Alvia', 'Avlo'].map((name) => ({
@@ -56,8 +59,6 @@ const TURN_BACKS: { line: string; at: Point; within: number; why: string }[] = [
     why: "Santiago de Compostela-Daniel Castelao: AVE's, Alvia's and Avlo's Trains between Vigo and Madrid turn back here, as AVE 04254, 04464, 04475 and 04565, Alvia 00621 and 00622 and Avlo 04494 and 04975 did on 15 Oct 2026",
   })),
   { line: 'media-distancia-avant:MD', at: [-3.20574, 39.39563], within: 600, why: 'Alcázar de San Juan: MD 18081, 18083, 18181 and 18183 turned back here on 15 Oct 2026' },
-  { line: 'media-distancia-avant:Reg.Exp.', at: [0.61431, 40.75356], within: 800, why: "L'Aldea-Amposta-Tortosa: Reg.Exp. 14016, 14018, 14020 and 14022 between Tortosa and Ulldecona turn back here, as R16's do (ADR-0004, #63)" },
-  { line: 'euskotren:E1', at: [-2.50103, 43.18524], within: 600, why: "Ermua: E1's short workings from and to Eibar end and start here, 47 Trips on 15 Oct 2026" },
 ];
 
 /**
