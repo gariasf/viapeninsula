@@ -470,8 +470,11 @@ const DETOUR = 2;
  * it keeps to the coast, and no AVE's, Avlo's or AVE Int's run moves off its track of 1.5.
  * ponytail: walk()'s limit is on the price, so a stretch on another gauge alone has a path only within 2.4 times its
  * straight line and 8 km, not 3 times and 10 km: on 11–13 Oct 2026 AVE's, Avlo's and AVE Int's hops would come
- * within 64% of that all on another gauge (Ourense–Vilagarcía de Arousa). Hold the limit to the length if one
- * ever doesn't.
+ * within 64% of that all on another gauge (Ourense–Vilagarcía de Arousa), and on 15 Oct 2026 Alvia's, Euromed's,
+ * Intercity's and Trencelta's, which run whole stretches on Iberian gauge alone, within 71% (Vitoria-Gasteiz–Zumarraga).
+ * Hold the limit to the length if one ever doesn't. On 15 Oct's rails every value from 1.1 to 1.4 keeps Intercity's
+ * Barcelona–València run on the coast and changes Madrid ↔ Santander's and Madrid ↔ Irun's runs at one place each
+ * way, with no AVE's, Avlo's or AVE Int's run moving off its track, so 1.25 sits in the middle of that.
  */
 const OTHER_GAUGE = 1.25;
 
