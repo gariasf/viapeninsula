@@ -543,6 +543,15 @@ test("calls at another of a Station's tracks within 200 m where none of its own 
   expect(points(shape('C1'))).toEqual([[-9000, 0], [1000, 0], [1500, 0], [3000, 0]]);
 });
 
+test("keeps to a Station's own track where it leads on to the next Station, though another of its tracks within 200 m is the shorter way there, on a shape's trace and a run's (#622)", () => {
+  // S's own track, 10 m from its point, runs on to N round a bend 2 km south; another, 140 m from it, runs straight there.
+  const ways = rails({ a: [-5000, 0], b: [0, 0], c: [2500, -2000], d: [5000, 0], e: [0, 150] }, 'a b c d', 'a e d');
+  const stations = [station('W', -5000, 10), station('S', 0, 10), station('N', 5000, 10)];
+  const bend: [number, number][] = [[-5000, 0], [0, 0], [2500, -2000], [5000, 0]];
+  expect(points(trace(ways, stations, { id: 'line', feed: bend, stations: 'W S N' }).shape('line'))).toEqual(bend);
+  expect(points(runs(ways, stations, [[call('run', 'W S N', IBERIAN, 'MD')]]).track('run'))).toEqual(bend);
+});
+
 test("doesn't detour into a siding beside a Station", () => {
   const { shape } = trace(
     rails(
