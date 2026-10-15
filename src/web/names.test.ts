@@ -542,7 +542,7 @@ test("counts the calls at each Station in some Trips, a Trip that calls at one t
   expect(callsIn([])).toEqual(new Map());
 });
 
-test("sorts a place's name by the zoom it shows from, and by its calls after that, the busier first and none as far as the next zoom's", () => {
+test("sorts a place's name by its tier's zoom, and one in no tier by its calls after that, the busier first and none as far as the next zoom's", () => {
   // Bilbao-Abando's 287 calls against San Mamés' 181 and La Concordia's 61, a Station each, and two that call alike.
   const calls = new Map([
     ['abando', 287],
