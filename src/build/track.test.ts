@@ -522,6 +522,27 @@ test('arrives at a junction Station on the track the line leaves it by', () => {
   expect(passes(shape('line'), 1000, 60)).toBe(true);
 });
 
+// As at Los Rosales: from W, 10 km off, too far to turn back at, the line forks at a switch, J, 500 m short of S.
+// S's own track, 30 m from its point, goes on to E, and the line to T leaves J on a track 176 m from S, with no
+// switch between the two beyond J.
+const LOS_ROSALES = rails({ w: [-10000, 0], j: [1000, 0], e: [3000, 0], k: [1200, 206], t: [4000, 206] }, 'w j e', 'j k t');
+
+test("calls at another of a Station's tracks within 200 m where none of its own leads on to the next Station but by turning back at a switch, either way, as C3 does at Los Rosales on the Mérida line, 176 m from Renfe's point, but nowhere else (#622)", () => {
+  const { shape, log } = trace(
+    LOS_ROSALES,
+    [station('W', -9000, 10), station('S', 1500, 30), station('E', 3000, 10), station('T', 4000, 216)],
+    { id: 'C3', feed: [[-9000, 0], [1000, 0], [1200, 206], [4000, 206]], stations: 'W S T' },
+    { id: 'C3 back', feed: [[4000, 206], [1200, 206], [1000, 0], [-9000, 0]], stations: 'T S W' },
+    { id: 'C1', feed: [[-9000, 0], [3000, 0]], stations: 'W S E' },
+  );
+  expect(log.filter((line) => line.includes("keeps the feed's shape"))).toEqual([]);
+  // By S's other track, which has no point of its own where the trace runs straight through.
+  expect(points(shape('C3'))).toEqual([[-9000, 0], [1000, 0], [1200, 206], [4000, 206]]);
+  expect(points(shape('C3 back'))).toEqual([[4000, 206], [1200, 206], [1000, 0], [-9000, 0]]);
+  // C1's own track leads on, so it calls there.
+  expect(points(shape('C1'))).toEqual([[-9000, 0], [1000, 0], [1500, 0], [3000, 0]]);
+});
+
 test("doesn't detour into a siding beside a Station", () => {
   const { shape } = trace(
     rails(
@@ -892,6 +913,14 @@ test("sets off from another of a Station's tracks of its gauge where OpenStreetM
   const text = 'MD:1: S → C sets off from another track than it came in on, 10 m across';
   expect(log).toEqual(['MD:1: A → C, 8.0 km long, 1.00× the straight line through its 3 Stations', text]);
   expect(found).toMatchObject([{ kind: 'across', line: 'MD', shape: 'MD:1', stations: [{ id: 'S' }], text: [text], numbers: { metres: 10 } }]);
+});
+
+test("calls at another of a Station's tracks within 200 m on a run's trace too, where none of its own leads on to the next Station, either way, as at Los Rosales (#622)", () => {
+  const stations = [station('W', -10010, 0), station('S', 1500, 30), station('T', 4010, 206)];
+  const { track, log } = runs(LOS_ROSALES, stations, [[call('there', 'W S T', IBERIAN, 'MD'), call('back', 'T S W', IBERIAN, 'MD')]]);
+  expect(log.filter((line) => line.includes('left out'))).toEqual([]);
+  expect(points(track('there'))).toEqual([[-10000, 0], [1000, 0], [1200, 206], [4000, 206]]);
+  expect(points(track('back'))).toEqual([[4000, 206], [1200, 206], [1000, 0], [-10000, 0]]);
 });
 
 test("comes into a Station on each gauge it can, as an Alvia must come into Sevilla on Iberian gauge, through Majarabique's changer, to go on to Jerez, though standard gauge is the shorter way in", () => {
