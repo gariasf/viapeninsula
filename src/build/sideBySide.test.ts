@@ -811,15 +811,20 @@ test("leaves out the one piece a shape touches of another centreline's Stretch, 
   expect(crossing([come, through, go], [stretch('c0', 0, 1000), stretch('c1', 0, 50), stretch('c2', 0, 1000)])).toEqual([come, through, go]);
 });
 
-test("joins a Line's stroke to the one it comes from and to the one it goes on to where those two meet end to end on one centreline, as the Regional's by León do (#622)", () => {
+test("joins a Line's stroke to the one it comes from and to the one it goes on to where those two meet end to end on one centreline, as the Regional's by León do, but below zoom 10 only to the one it comes from, as C4a's and C4b's by Chamartín (#622)", () => {
   // Stretches 0 and 1 of c0 meet at 773 m. The shape comes along 1 towards its start, touches one piece of c1, 8 m, and
   // goes on along 0: the stroke along 1 starts at 773, the one along 0 ends there, and the stroke along c1 joins both.
   const found = [stretch('c0', 0, 773), stretch('c0', 773, 21495), stretch('c1', 0, 127716)];
   const stroke = (shape: string, from: number, to: number): Stroke => ({ line: 'Regional', shape, from, to, side: 0 });
   const [x, y, z] = [stroke('c0', 773, 21495), stroke('c1', 70, 78), stroke('c0', 0, 773)];
   const onStretch = new Map([['1 0', [x]], ['2 0', [y]], ['0 0', [z]]]);
-  const joins = ports([{ line: 0, visits: [visit(1, 21475, 837, 20638), visit(2, 74, 74, 8), visit(0, 751, 25, 726)] }], found, onStretch);
-  expect(joins.map((j) => [j.from, j.out, j.to, j.into])).toEqual([[x, 0, y, 0], [y, 0, z, 1]]);
+  const walked = [{ line: 0, visits: [visit(1, 21475, 837, 20638), visit(2, 74, 74, 8), visit(0, 751, 25, 726)] }];
+  const joins = (byEnd?: boolean) => ports(walked, found, onStretch, byEnd).map((j) => [j.from, j.out, j.to, j.into]);
+  expect(joins()).toEqual([[x, 0, y, 0], [y, 0, z, 1]]);
+  // Below zoom 10 the second is taken for the first, as before: joined through by Chamartín on 15 Oct 2026, C4a's and
+  // C4b's way across the node at zoom 9 went from their side south of it to theirs north, 2.5 line widths over, and for
+  // that room the node took in another 2 km of their bundle, towards Nuevos Ministerios.
+  expect(joins(false)).toEqual([[x, 0, y, 0]]);
 });
 
 test("keeps a Line's way across a node from the end whose strokes' numbers come first as numbers, not as strings, so that it's the same end however many strokes are numbered before them (#448)", () => {

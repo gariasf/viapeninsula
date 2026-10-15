@@ -296,7 +296,7 @@ async function graphed(
       return made;
     }),
   );
-  const joins = ports(walked, found, onStretch);
+  const joins = ports(walked, found, onStretch, own === undefined);
   together(found, onStretch, joins);
   const smooth = smoothed(centrelines, drawn, bands);
   for (const c of smooth) byId.set(c.id, c);
@@ -472,9 +472,12 @@ interface Join {
 /**
  * Each time a Line's shape goes from one Stretch to the next, the strokes it goes from and to, once each: each
  * stroke by its end, as two of a Line's strokes can meet end to end on one centreline, where the one's join and
- * the other's would be taken for one (#622).
+ * the other's would be taken for one (#622), but only `byEnd`, from zoom 10 up. ponytail: below it they're still
+ * taken for one, and the Line's way there stops at the stroke between them, as by Chamartín, where C4a's and C4b's,
+ * joined through, went 2.5 line widths over at zoom 9 and the node took in another 2 km of their bundle for the
+ * room (#622); key them by end there too once a node there can hold that without taking in the bundle.
  */
-export function ports(walked: { line: number; visits: Visit[] }[], found: Stretch[], onStretch: Map<string, Stroke[]>): Join[] {
+export function ports(walked: { line: number; visits: Visit[] }[], found: Stretch[], onStretch: Map<string, Stroke[]>, byEnd = true): Join[] {
   const joins = new Map<string, Join>();
   const nearest = (strokes: Stroke[], end: 0 | 1, at: number) => strokes.toSorted((a, b) => Math.abs((end ? a.to : a.from) - at) - Math.abs((end ? b.to : b.from) - at))[0];
   for (const { line, visits } of walked) {
@@ -485,7 +488,7 @@ export function ports(walked: { line: number; visits: Visit[] }[], found: Stretc
       const [from, to] = [nearest(onStretch.get(`${v.edge} ${line}`) ?? [], out, v.last), nearest(onStretch.get(`${w.edge} ${line}`) ?? [], into, w.first)];
       // Only where its strokes are: on a Stretch it's on but not drawn along there, it joins nothing.
       if (!from || !to || Math.abs((out ? from.to : from.from) - v.last) > REACH || Math.abs((into ? to.to : to.from) - w.first) > REACH) continue;
-      const ends = [`${from.shape} ${out ? from.to : from.from} ${out}`, `${to.shape} ${into ? to.to : to.from} ${into}`];
+      const ends = [`${from.shape} ${out ? from.to : from.from}${byEnd ? ` ${out}` : ''}`, `${to.shape} ${into ? to.to : to.from}${byEnd ? ` ${into}` : ''}`];
       const key = `${line} ${ends.sort().join(' ')}`;
       if (!joins.has(key)) joins.set(key, { line, from, out, to, into });
     }
