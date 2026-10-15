@@ -6,6 +6,7 @@ import { decodeTrack, type TrackFile } from '../pieces.ts';
 import { folded, offset, simplify, TOLERANCE } from './offset.ts';
 import type { Found } from './report.ts';
 import { aside, KX, lanes, LATITUDE, room, sideBySide, type Front, type Part } from './sideBySide.ts';
+import { metres } from './track.ts';
 
 /** Strokes shorter than this, in metres, are stubs: sideBySide()'s SHORT before #138. */
 const STUB = 150;
@@ -671,8 +672,8 @@ function hairpins(strokes: Stroke[], shapes: Shape[]): Curve[] {
 }
 
 /** Why a Line's curve whose middle is at a point turns back, where its Trains do (TURN_BACKS). */
-export function turnBack(line: string, [lon, lat]: Point): { why: string } | undefined {
-  return TURN_BACKS.find((t) => t.line === line && Math.hypot((lon - t.at[0]) * DEGREE * Math.cos((lat * Math.PI) / 180), (lat - t.at[1]) * DEGREE) <= t.within);
+export function turnBack(line: string, at: Point): { why: string } | undefined {
+  return TURN_BACKS.find((t) => t.line === line && metres(at, t.at) <= t.within);
 }
 
 /**
