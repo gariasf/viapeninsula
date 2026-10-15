@@ -447,10 +447,17 @@ function núcleo(code: string, prefix: string): Timetable {
 // (#366), and for long distance's, whose timetable has no shapes (#259): standard gauge is 1435 mm,
 // Iberian 1668 and metre 1000.
 
-/** AVE's rails: standard gauge, and Iberian gauge too, through a changer, for a run with a stretch with no path on standard gauge alone. */
+/**
+ * AVE's rails: standard gauge, and Iberian gauge too, through a changer, for a run with a stretch with no
+ * path on standard gauge alone. The Trains that change gauge, as Alvia's, run on them too, rather than on
+ * both gauges at one price, as they did till 15 Oct 2026: then each run took the cheaper of two ways a few
+ * hundred metres apart where the high-speed line and the old Iberian-gauge one run side by side, and on
+ * 11–13 Oct Alvia Madrid → Santander changed gauge at Villamuriel, between Valladolid and Palencia, but
+ * Santander → Madrid between Valladolid and Madrid, and Madrid → Irun's runs one between Segovia and
+ * Valladolid, another between Burgos and Miranda de Ebro. Priced as AVE's, a run keeps to high-speed track
+ * as far as it can and changes at the last changer it can, the same each way, as the maintainer picked (#667).
+ */
 const STANDARD: Gauges = { railway: ['rail'], gauges: ['1435'], orElse: ['1668'] };
-/** The rails of the Trains that change gauge, as Alvia's: both gauges, changing at a changer. */
-const BOTH: Gauges = { railway: ['rail'], gauges: ['1435', '1668'] };
 const IBERIAN: Gauges = { railway: ['rail'], gauges: ['1668'] };
 /** FEVE's lines, which OpenStreetMap tags narrow_gauge almost everywhere, and rail on 111 km in Spain (seen 4 Oct 2026). */
 const METRE: Gauges = { railway: ['rail', 'narrow_gauge'], gauges: ['1000'] };
@@ -777,7 +784,7 @@ const RENFE_LONG_DISTANCE = 'https://ssl.renfe.com/gtransit/Fichero_AV_LD/google
 // takes the routes named as its Lines are. Their Lines are the names the timetable gives its Trips, as
 // it names no others, but written as Renfe writes them in public, rather than in the feed's capitals,
 // and their colours are their config's, as the feed gives every route F2F5F5. As the timetable has no
-// shapes, each Line runs on the rails of its gauge, STANDARD, BOTH, IBERIAN or METRE above (#259,
+// shapes, each Line runs on the rails of its gauge, STANDARD, IBERIAN or METRE above (#259,
 // docs/research/high-speed.md). Both are on the map: AVE y Larga Distancia at every view (#262), and
 // Media Distancia y Avant from zoom 7, where the view reaches it (#263).
 
@@ -883,8 +890,8 @@ export const AVE_LARGA_DISTANCIA: NetworkConfig = {
     colour: AVE_PURPLE,
     // High speed's 300 km/h, where the Network's 250 is Alvia's, Euromed's, Intercity's and Trencelta's.
     profiles: { AVE: HIGH_SPEED, Avlo: HIGH_SPEED, 'AVE Int': HIGH_SPEED },
-    // AVE Int, AVE's trains to France, as AVE. The rest change gauge.
-    gauges: { AVE: STANDARD, Avlo: STANDARD, 'AVE Int': STANDARD, Alvia: BOTH, Euromed: BOTH, Intercity: BOTH, Trencelta: BOTH },
+    // AVE Int, AVE's trains to France, as AVE. The rest change gauge, and keep to standard gauge as AVE does (#667).
+    gauges: { AVE: STANDARD, Avlo: STANDARD, 'AVE Int': STANDARD, Alvia: STANDARD, Euromed: STANDARD, Intercity: STANDARD, Trencelta: STANDARD },
   },
   // Renfe's long-distance timetable of 14 October 2026 lists Intercity 01460 and 01463, Cartagena–València,
   // as calling at Elche/Elx-Parc and then at Alicante/Alacant-Terminal. OpenStreetMap has the coastal line

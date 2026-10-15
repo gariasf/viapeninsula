@@ -1011,12 +1011,12 @@ test("lists every day's Train numbers on a day it has none of its Trips, so that
 });
 
 test("gives each long-distance Trip the rails its Line runs on, and a Regional whose route's ID ends VRFV, as the ex-FEVE regionals' do, metre gauge", async () => {
-  const [standard, both, iberian] = [{ railway: ['rail'], gauges: ['1435'], orElse: ['1668'] }, { railway: ['rail'], gauges: ['1435', '1668'] }, { railway: ['rail'], gauges: ['1668'] }];
+  const [standard, iberian] = [{ railway: ['rail'], gauges: ['1435'], orElse: ['1668'] }, { railway: ['rail'], gauges: ['1668'] }];
   const gauges = async (gtfs: Source, day: string, feed: Feed) => Object.fromEntries((await readFeed(gtfs, day, feed, () => {})).trips.map((t) => [`${t.line} ${t.number}`, t.gauges]));
   expect(await gauges(longDistance, '2026-10-10', AVE_FEED)).toEqual({
-    'ave-larga-distancia:Alvia 00190': both,
-    'ave-larga-distancia:Alvia 00622': both,
-    'ave-larga-distancia:Euromed 01072': both,
+    'ave-larga-distancia:Alvia 00190': standard,
+    'ave-larga-distancia:Alvia 00622': standard,
+    'ave-larga-distancia:Euromed 01072': standard,
     'ave-larga-distancia:Avlo 05095': standard,
   });
   // RT2's 15210, which this timetable files as a Regional, as if on a route of the ex-FEVE regionals'.
