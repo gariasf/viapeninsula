@@ -570,6 +570,8 @@ test("reports each hairpin as a spot too, as C10's south of Madrid-Atocha at zoo
     ['wiggle 13 40.402 -3.684 cercanias-madrid:C10', 0],
     ['wiggle 9 40.404 -3.688 cercanias-madrid:C10', 0],
   ]);
+  // Never a problem spot, as a wiggle isn't.
+  expect(comment(undefined, spots, 'run')).toBeUndefined();
 });
 
 test('measures Lines the same whichever shape comes first in the track, however far off (#277)', () => {
