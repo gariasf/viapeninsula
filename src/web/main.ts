@@ -240,6 +240,56 @@ const TIERS: { nameZoom: number; larger: number; size: number; places: string[] 
       'adif:78600', // Manresa
       'adif:77109', // Vic
       'adif:65400', // Tortosa
+      // Cercanías Madrid's and the 13 other núcleos', by núcleo: where the most Lines call or end, and each main city's Station (#424).
+      // Cercanías Madrid
+      'adif:18000', // Madrid-Atocha Cercanías
+      'adif:17000', // Madrid-Chamartín-Clara Campoamor
+      'adif:18002', // Madrid-Nuevos Ministerios
+      'adif:10000', // Madrid-Príncipe Pío
+      'adif:37001', // Madrid-Villaverde Alto
+      'adif:10200', // Villalba de Guadarrama
+      'adif:70103', // Alcalá de Henares
+      'adif:70200', // Guadalajara
+      'adif:60200', // Aranjuez
+      // Asturias
+      'adif:15211', // Oviedo
+      'adif:15410', // Gijón-Sanz Crespo
+      'adif:16403', // Avilés
+      // Bilbao
+      'adif:13200', // Bilbao-Intermod. Abando Indalecio Prieto
+      'adif:13400', // Desertu-Barakaldo
+      // Cádiz
+      'adif:51405', // Cádiz
+      'adif:51300', // Jerez de la Frontera
+      // Cartagena
+      'adif:05951', // Cartagena-Plaza Bastarreche
+      // Ferrol
+      'adif:21010', // Ferrol
+      // León
+      'adif:05803', // La Asunción Universidad
+      // Málaga
+      'adif:54500', // Málaga M.Z. Cercanías
+      'adif:54516', // Fuengirola
+      // Murcia/Alicante
+      'adif:60911', // Alicante/Alacant-Terminal
+      'adif:61200', // Murcia del Carmen
+      'adif:62103', // Elche/Elx-Parc
+      // San Sebastián
+      'adif:11511', // San Sebastián-Donostia
+      'adif:11600', // Irun
+      'adif:11400', // Zumarraga
+      // Santander
+      'adif:14223', // Santander
+      'adif:05621', // Torrelavega-Centro
+      // Sevilla
+      'adif:51003', // Sevilla-Santa Justa
+      'adif:51200', // Utrera
+      // Valencia
+      'adif:65000', // València-Estació del Nord
+      'adif:65300', // Castelló de la Plana
+      'adif:69110', // Gandia
+      // Zaragoza
+      'adif:04040', // Zaragoza Delicias
     ],
   },
   {
@@ -296,6 +346,126 @@ const TIERS: { nameZoom: number; larger: number; size: number; places: string[] 
       'adif:76004', // Valls
       'adif:78408', // Tàrrega
       'adif:71300', // Móra la Nova
+      // Cercanías Madrid's and the 13 other núcleos', by núcleo: their other main Stations, where their Lines part and end, and each other town's main Station (#424).
+      // Cercanías Madrid
+      'adif:18101', // Sol
+      'adif:18003', // Méndez Álvaro P.V.
+      'adif:60100', // Madrid-Villaverde Bajo
+      'adif:10100', // Pinar de las Rozas
+      'adif:10005', // Las Rozas
+      'adif:97100', // Pitis
+      'adif:98003', // Fuente de la Mora
+      'adif:17009', // Universidad-Cantoblanco
+      'adif:35002', // Fuenlabrada
+      'adif:35607', // Móstoles-El Soto
+      'adif:35012', // Humanes
+      'adif:37012', // Parla
+      'adif:98305', // Madrid-Aeropuerto T4
+      'adif:19003', // Alcobendas-San Sebastián de los Reyes
+      'adif:17005', // Colmenar Viejo
+      'adif:10203', // El Escorial
+      'adif:12006', // Cercedilla
+      'adif:37002', // Getafe-Centro
+      'adif:35001', // Leganés
+      // Asturias
+      'adif:15217', // La Corredoria
+      'adif:15301', // Villabona de Asturias
+      'adif:15400', // Veriña
+      'adif:05509', // El Berrón
+      'adif:15208', // Soto de Rey
+      'adif:15205', // Ablaña
+      'adif:05325', // Pravia
+      'adif:15203', // Mieres-Puente
+      'adif:15122', // Pola de Lena
+      'adif:16011', // El Entrego
+      'adif:05443', // Laviana
+      'adif:16405', // San Juan de Nieva
+      'adif:05245', // Cudillero
+      'adif:05389', // Collanzo
+      'adif:05534', // Infiesto Apeadero
+      // Bilbao
+      'adif:13206', // Ametzola
+      'adif:05451', // Bilbao la Concordia
+      'adif:05473', // Aranguren
+      'adif:13405', // Santurtzi
+      'adif:13506', // Muskiz
+      'adif:13100', // Orduña
+      'adif:13106', // Llodio
+      'adif:05485', // La Calzada
+      'adif:05497', // Karrantza
+      // Cádiz
+      'adif:51419', // Río Arillo
+      'adif:51415', // Las Aletas
+      'adif:51416', // Universidad de Cádiz
+      'adif:51450', // Pelagatos
+      'adif:51400', // Puerto de Santa María
+      'adif:51406', // San Fernando-Bahía Sur
+      'adif:51205', // Aeropuerto de Jerez
+      // Cartagena
+      'adif:05977', // Los Nietos
+      'adif:05965', // La Unión
+      // Ferrol
+      'adif:05139', // Ortigueira
+      'adif:05115', // San Sadurniño
+      // León
+      'adif:05770', // Matallana
+      'adif:05761', // Cistierna
+      'adif:05753', // Guardo Apeadero
+      // Málaga
+      'adif:54517', // Málaga-Centro Alameda
+      'adif:54501', // Victoria Kent
+      'adif:54505', // Málaga-Aeropuerto
+      'adif:54509', // Torremolinos
+      'adif:54511', // Benalmádena-Arroyo de la Miel
+      'adif:54405', // Álora
+      // Murcia/Alicante
+      'adif:60913', // Sant Vicent Centre
+      'adif:60914', // Universidad de Alicante
+      'adif:62002', // Orihuela-Miguel Hernández
+      'adif:62003', // Callosa de Segura
+      // San Sebastián
+      'adif:11305', // Brinkola
+      'adif:11500', // Tolosa
+      'adif:11404', // Beasain
+      'adif:11505', // Andoain
+      'adif:11508', // Hernani
+      'adif:11515', // Pasaia
+      // Santander
+      'adif:05602', // Valdecilla la Marga
+      'adif:05663', // Orejo
+      'adif:05671', // Liérganes
+      'adif:05658', // La Cantábrica
+      'adif:05623', // Puente San Miguel
+      'adif:05637', // Cabezón de la Sal
+      'adif:14213', // Torrelavega
+      'adif:14210', // Los Corrales de Buelna
+      'adif:14202', // Reinosa
+      // Sevilla
+      'adif:51100', // San Bernardo
+      'adif:51110', // Virgen del Rocío
+      'adif:51113', // Jardines de Hércules
+      'adif:51103', // Dos Hermanas
+      'adif:50700', // Los Rosales
+      'adif:43000', // San Jerónimo
+      'adif:51050', // Cartuja
+      'adif:50600', // Lora del Río
+      'adif:43005', // Benacazón
+      'adif:51203', // Lebrija
+      // Valencia
+      'adif:64100', // Xàtiva
+      'adif:64200', // Silla
+      'adif:65002', // València-La Font de Sant Lluís
+      'adif:64006', // L'Alcúdia de Crespins
+      'adif:66206', // Buñol
+      'adif:66212', // València-Sant Isidre
+      'adif:65312', // Vinaròs
+      'adif:65200', // Sagunt
+      'adif:64104', // Alzira
+      'adif:69104', // Cullera
+      // Zaragoza
+      'adif:70806', // Zaragoza-Portillo
+      'adif:71100', // Zaragoza-Miraflores
+      'adif:70800', // Casetas
     ],
   },
 ];
@@ -330,8 +500,8 @@ for (let zoom = Math.min(...TIERS.map((tier) => tier.nameZoom)); zoom <= NAME_ZO
 
 /**
  * Below this zoom, the basemap's cities' labels are placed before the Lines' names, which give way where one
- * falls on a city's: below zoom 12 a city's name is the only name of a place outside Catalonia, and a Line is
- * told by its colour where its name goes. The map's own layers are above the basemap's, so MapLibre places
+ * falls on a city's: below zoom 12 a city's name is the only name of most places, as TIERS names only the main
+ * Stations before it, and a Line is told by its colour where its name goes. The map's own layers are above the basemap's, so MapLibre places
  * their names first. From this zoom the cities' labels are the basemap's, under the Lines' names. The zoom is
  * the ticket's (#525).
  */

@@ -1,4 +1,5 @@
 import { featureFilter, type ExpressionFilterSpecification, type Feature, type ICanonicalTileID } from '@maplibre/maplibre-gl-style-spec';
+import { readFileSync } from 'node:fs';
 import { assert, expect, test, vi } from 'vitest';
 import { stationsOf } from '../build/track.ts';
 import { DEGREE, joinTracks, places, type Place, type Point, type Shape, type Slot, type Station, type Stroke, type Track } from '../bundle.ts';
@@ -569,6 +570,14 @@ test("sorts a place's name by its tier's zoom, and one in no tier by its calls a
   expect(tiered('abando')).toBe(11);
   expect(tiered('nobody')).toBe(11);
   expect(tiered('nobody')).toBeLessThan(nameSort({ nameZoom: 12, tier: false, stations: ['x'] }, new Map([['x', 1_000_000]])));
+});
+
+test("lists each place in TIERS once: a place is drawn as the first tier that lists it says, so a second listing of it, in that tier or the next, is one nobody sees (#424)", () => {
+  // main.ts builds the whole page as it loads, so no test can import it: TIERS is read from its text as namesBench.ts reads it.
+  const main = readFileSync(new URL('./main.ts', import.meta.url), 'utf8');
+  const tiers: { places: string[] }[] = new Function(`return ${/^const TIERS\b[^=]*=\s*([\s\S]*?);\n(?=\S)/m.exec(main)?.[1]}`)();
+  const ids = tiers.flatMap((tier) => tier.places);
+  expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([]);
 });
 
 /** Each place's sides at a few bearings, as they'd go to JSON. */
