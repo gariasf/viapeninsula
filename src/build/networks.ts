@@ -330,22 +330,23 @@ export async function readFeed(
   // But a Trip's first or last calls at Stations a notice has by road at its Trains' ends, as Almería's, are
   // dropped, the run of them at that end, each logged and reported, and the Train kept to the last Station
   // it reaches by rail (#792). A Trip that calls at none but them is left out whole, as one that calls at
-  // one in the middle of its run is.
+  // one in the middle of its run is, and its Train's calls dropped so aren't logged.
   const roadEnds = new Set((network.byRoad ?? []).flatMap((r) => (r.ends ? r.stations : [])));
-  const cut = (t: FeedTrip): FeedTrip => {
+  const cut = (t: FeedTrip): [FeedTrip, Found[]] => {
     const kept = t.calls.map((c) => !roadEnds.has(c.station));
     const [a, b] = [kept.indexOf(true), kept.lastIndexOf(true)];
-    if (b <= a || (a === 0 && b === t.calls.length - 1)) return t;
+    if (b <= a || (a === 0 && b === t.calls.length - 1)) return [t, []];
+    const dropping: Found[] = [];
     for (const [run, dropped] of [[t.calls.slice(0, a + 1), t.calls.slice(0, a)], [t.calls.slice(b), t.calls.slice(b + 1)]] as const) {
       if (!dropped.length) continue;
       const text = dropped.map((c) => `${network.name}'s ${t.number ?? t.id} drops its call at ${stations.get(c.station)?.name ?? c.station} at ${clock(c.arrival).slice(0, 5)}, which is run by road (${byRoad.get(c.station)})`);
-      text.forEach((l) => log(l));
-      found.push({ kind: 'bus', line: t.line, trip: t.id, stations: run.flatMap((c) => stations.get(c.station) ?? []), text });
+      dropping.push({ kind: 'bus', line: t.line, trip: t.id, stations: run.flatMap((c) => stations.get(c.station) ?? []), text });
     }
-    return { ...t, calls: t.calls.slice(a, b + 1) };
+    return [{ ...t, calls: t.calls.slice(a, b + 1) }, dropping];
   };
   const onRail = (uncut: FeedTrip[]) => {
-    const all = uncut.map(cut);
+    const cuts = uncut.map(cut);
+    const all = cuts.map(([t]) => t);
     const away = new Map<string, string>();
     for (const t of all) {
       const at = t.calls.find((c) => byRoad.has(c.station))?.station;
@@ -355,6 +356,11 @@ export async function readFeed(
       const text = `${network.name}'s ${train} is left out: it calls at ${stations.get(at)?.name ?? at}, which is run by road (${byRoad.get(at)})`;
       log(text);
       left.push(text);
+    }
+    for (const [t, dropping] of cuts) {
+      if (away.has(t.number ?? t.id)) continue;
+      for (const f of dropping) f.text.forEach((l) => log(l));
+      found.push(...dropping);
     }
     road.push(...all.filter((t) => away.has(t.number ?? t.id)));
     return all.filter((t) => !away.has(t.number ?? t.id));

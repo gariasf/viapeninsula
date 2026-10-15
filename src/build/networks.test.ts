@@ -482,11 +482,15 @@ test("drops a Trip's first or last calls at Stations its Network's config has ru
   expect(log).toContain(text);
   expect(ave.found).toContainEqual(expect.objectContaining({ kind: 'bus', line: 'ave-larga-distancia:Alvia', text: [text], stations: [expect.objectContaining({ id: 'adif:56310' }), expect.objectContaining({ id: 'adif:56312' })] }));
   expect(log).toContain(`AVE y Larga Distancia's 02087 drops its call at Almería at 07:54, which is run by road (${ALMERIA})`);
-  const md = await readFeed(almeria, '2026-10-16', { ...MD_FEED, network: MEDIA_DISTANCIA_AVANT }, () => {});
+  const mdLog: string[] = [];
+  const md = await readFeed(almeria, '2026-10-16', { ...MD_FEED, network: MEDIA_DISTANCIA_AVANT }, (l) => mdLog.push(l));
   expect(ends('13940', md.trips)).toEqual([['adif:05000', 'adif:56310']]);
   expect(ends('13951', md.trips)).toEqual([['adif:56310', 'adif:05000']]);
   // 35276 still calls at Jódar-Úbeda, by road from Linares-Baeza, once Almería's call is dropped.
   expect(md.trips.map((t) => t.number)).not.toContain('35276');
+  // Its call at Almería isn't logged as dropped, nor reported: the Train isn't drawn.
+  expect(mdLog.filter((l) => l.includes(' 35276 drops'))).toEqual([]);
+  expect(md.found.filter((f) => f.text.some((l) => l.includes(' 35276 ')))).toEqual([]);
   expect(md.left).toEqual(["Media Distancia y Avant's 35276 is left out: it calls at Jódar-Úbeda, which is run by road (https://www.horajaen.com/2026/09/07/renfe-autobuses-alternativos-jaen-linares-baeza/)"]);
   // Guadix, in the middle of 13940's run, were it by road at a Trip's ends: 13940 is left out whole.
   const middle = { ...MEDIA_DISTANCIA_AVANT, byRoad: [{ stations: ['adif:56200'], source: 's', ends: true as const }] };
