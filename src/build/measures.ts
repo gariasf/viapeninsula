@@ -5,7 +5,7 @@ import { along, APART, atZoom, bandAt, BANDS, beside, cutIn, DEGREE, direction, 
 import { decodeTrack, type TrackFile } from '../pieces.ts';
 import { folded, offset, simplify, TOLERANCE } from './offset.ts';
 import type { Found } from './report.ts';
-import { KX, lanes, LATITUDE, room, sideBySide, type Front } from './sideBySide.ts';
+import { aside, KX, lanes, LATITUDE, room, sideBySide, type Front, type Part } from './sideBySide.ts';
 
 /** Strokes shorter than this, in metres, are stubs: sideBySide()'s SHORT before #138. */
 const STUB = 150;
@@ -72,6 +72,7 @@ const HAIRPIN = 120;
  * `inside`: metres of curve drawn further off its Line's own track, by more than half a line width,
  * than at either of its ends. `largest`: the LARGEST largest nodes, how far apart their fronts are in
  * the band's line widths, and where their middle is, so that a node that absorbed too much shows (#187).
+ * `curves`: each curve that wiggles, and each hairpin, which the report lists one by one (#520).
  */
 export interface Measures {
   breaks: Breaks;
@@ -88,6 +89,16 @@ export interface Measures {
   hairpins: Record<number, number>;
   inside: Record<number, number>;
   largest: Record<number, { size: number; at: Point }[]>;
+  curves: Curve[];
+}
+
+/** A curve that wiggles or is a hairpin, in its band: its zoom, its Line, where its middle is, and how far its chain steps aside, in the band's line widths (aside()). */
+export interface Curve {
+  kind: 'wiggle' | 'hairpin';
+  zoom: number;
+  line: string;
+  at: Point;
+  aside: number;
 }
 
 /** The measures of a day's track; `inside` only for the Lines given, and in `over` and `covered`, the Lines given in one lane as one Line. */
@@ -99,7 +110,9 @@ export function measures({ shapes, strokes: pieces, lines = [] }: Pick<Track, 's
   const lane = lanes(lines);
   const first = new Map(lines.map((l, i) => [l.id, lines[lane[i] ?? i]?.id ?? l.id]));
   const one = (line: string) => first.get(line) ?? line;
-  return { breaks: breaks(graph, shapes), ...faithful(graph, shapes, one), folds: folds(drawn, shapes), covered: covered(strokes, shapes, one), dangling: dangling(strokes, shapes), ...nodes(strokes, shapes, lines), wiggles: wiggles(strokes, shapes), hairpins: hairpins(strokes, shapes) };
+  const curves = [...wiggles(strokes, shapes), ...hairpins(strokes, shapes)];
+  const count = (kind: Curve['kind']) => Object.fromEntries(BANDS.map((zoom) => [zoom, curves.filter((c) => c.kind === kind && c.zoom === zoom).length]));
+  return { breaks: breaks(graph, shapes), ...faithful(graph, shapes, one), folds: folds(drawn, shapes), covered: covered(strokes, shapes, one), dangling: dangling(strokes, shapes), ...nodes(strokes, shapes, lines), wiggles: count('wiggle'), hairpins: count('hairpin'), curves };
 }
 
 /**
@@ -137,8 +150,9 @@ export function summary({ breaks: b, twice, alone, over, folds: f, covered, dang
 
 /**
  * The measures as the build reports them, given the log's text of them, which ends in summary()'s:
- * one spot with each of their numbers, in whole metres where they're metres, and its first line, and
- * one for each of the largest nodes, with its zoom's line.
+ * one spot with each of their numbers, in whole metres where they're metres, and its first line, one
+ * for each of the largest nodes, with its zoom's line, and one for each curve that wiggles and each
+ * hairpin, with how far its chain steps aside, which the log doesn't print (#520).
  */
 export function reported(m: Measures, text: string): Found[] {
   const [first = '', ...zooms] = text.split('\n');
@@ -163,7 +177,8 @@ export function reported(m: Measures, text: string): Found[] {
   const nodes = Object.entries(m.largest).flatMap(([zoom, list], i) =>
     list.map(({ size, at }): Found => ({ kind: 'node', zoom: Number(zoom), point: at, text: [zooms[i]?.trim() ?? ''], numbers: { size } })),
   );
-  return [{ kind: 'measures', text: [first], numbers }, ...nodes];
+  const curves = m.curves.map(({ kind, zoom, line, at, aside }): Found => ({ kind, zoom, line, point: at, text: [], numbers: { aside } }));
+  return [{ kind: 'measures', text: [first], numbers }, ...nodes, ...curves];
 }
 
 /** Every break, of each kind. */
@@ -552,15 +567,15 @@ export function offTrack(track: [number, number][]): (p: [number, number]) => nu
 }
 
 /**
- * At each zoom in BANDS, how many curves wiggle (see Measures), each as the map draws it in the band:
+ * At each zoom in BANDS, the curves that wiggle (see Measures), each as the map draws it in the band:
  * in pieces, simplified by TOLERANCE px, offset along its joins' miters, from WIGGLE line widths along the
  * stroke it leaves to WIGGLE widths along the one it comes onto. Its heading is looked at LOOKS times
  * a line width.
  */
-function wiggles(strokes: Stroke[], shapes: Shape[]): Record<number, number> {
+function wiggles(strokes: Stroke[], shapes: Shape[]): Curve[] {
   const byId = new Map(shapes.map((s) => [s.id, s]));
   const flat = ([lon, lat]: Point): [x: number, y: number] => [lon * KX, lat * DEGREE];
-  const found: Record<number, number> = {};
+  const found: Curve[] = [];
   for (const [band, zoom] of BANDS.entries()) {
     const px = pixelMetres(zoom, LATITUDE);
     const width = atZoom(APART, zoom) * px;
@@ -589,27 +604,30 @@ function wiggles(strokes: Stroke[], shapes: Shape[]): Record<number, number> {
       }
       return [];
     };
-    found[zoom] = strokes.filter((c) => {
+    for (const c of strokes) {
       const [first, last] = [c.across?.[0], c.across?.at(-1)];
-      if (!c.shape.startsWith(LINK) || c.band !== band || !first || !last) return false;
+      if (!c.shape.startsWith(LINK) || c.band !== band || !first || !last) continue;
       const [before = [], curve = [], after = []] = [joining(c.line, first, true), pieces(c).flatMap((p) => drawn(c.shape, p.from, p.to, p.side)), joining(c.line, last, false)].map((points) => spaced(points, width / LOOKS));
       const h = headings([...before, ...curve, ...after]);
       // Where the curve is among the headings, which start LOOKS / 2 points along the line.
-      return turnsBack(h, Math.max(0, before.length - LOOKS / 2), Math.min(h.length - 1, before.length + curve.length - 1 - LOOKS / 2), LOOKS * WIGGLE);
-    }).length;
+      if (turnsBack(h, Math.max(0, before.length - LOOKS / 2), Math.min(h.length - 1, before.length + curve.length - 1 - LOOKS / 2), LOOKS * WIGGLE)) found.push(curveOf('wiggle', c, band, byId, byShape));
+    }
   }
   return found;
 }
 
 /**
- * At each zoom in BANDS, how many curves turn back on themselves (see Measures): their first and last
+ * At each zoom in BANDS, the curves that turn back on themselves (see Measures): their first and last
  * segments, each taken to its first point at least ROUNDING from the end, which the track's rounding of
  * its points would turn any way, head HAIRPIN degrees or more apart.
  */
-function hairpins(strokes: Stroke[], shapes: Shape[]): Record<number, number> {
+function hairpins(strokes: Stroke[], shapes: Shape[]): Curve[] {
   const byId = new Map(shapes.map((s) => [s.id, s]));
   const flat = ([lon, lat]: Point): [x: number, y: number] => [lon * KX, lat * DEGREE];
-  const found: Record<number, number> = Object.fromEntries(BANDS.map((zoom) => [zoom, 0]));
+  const found: Curve[] = [];
+  // Each Line's strokes on each shape, in every band, for how far a curve's chain steps aside.
+  const byShape = new Map<string, Stroke[]>();
+  for (const s of strokes) if (!s.shape.startsWith(LINK)) byShape.set(`${s.line} ${s.shape}`, [...(byShape.get(`${s.line} ${s.shape}`) ?? []), s]);
   /** Which way a line through points heads from its first, in degrees anticlockwise from east: none where it's all within ROUNDING of it. */
   const heading = (points: [number, number][]) => {
     const [p = [0, 0]] = points;
@@ -622,11 +640,31 @@ function hairpins(strokes: Stroke[], shapes: Shape[]): Record<number, number> {
     const points = along(shape, c.from, c.to).map(flat);
     // Looking back from its end, it heads half a turn the other way to the way it goes there.
     const [start, back] = [heading(points), heading(points.toReversed())];
-    const zoom = BANDS[c.band];
-    if (start === undefined || back === undefined || zoom === undefined) continue;
-    if (Math.abs(((back + 180 - start + 540) % 360) - 180) >= HAIRPIN) found[zoom] = (found[zoom] ?? 0) + 1;
+    if (start === undefined || back === undefined) continue;
+    if (Math.abs(((back + 180 - start + 540) % 360) - 180) >= HAIRPIN) found.push(curveOf('hairpin', c, c.band, byId, byShape));
   }
   return found;
+}
+
+/**
+ * A curve that wiggles or is a hairpin as the measures report it (see Curve): where the middle of its
+ * line is, and how far its chain steps aside (aside()), read off its `across` and the strokes of its
+ * Line, by Line and shape, that the band draws. A part of the stroke it leaves or comes onto that's cut
+ * back by nothing has no length, so the chain goes along that stroke the way the stroke lies from it.
+ */
+function curveOf(kind: Curve['kind'], c: Stroke, band: number, byId: Map<string, Shape>, byShape: Map<string, Stroke[]>): Curve {
+  const zoom = BANDS[band] ?? 0;
+  const width = atZoom(APART, zoom) * pixelMetres(zoom, LATITUDE);
+  const parts = (c.across ?? []).map(([id, start, end], i): Part => {
+    const [line, own] = [inBand(byId, id, band) ?? { coords: [], dist: [] }, (byShape.get(`${c.line} ${id}`) ?? []).filter((s) => drawnIn(s, band))];
+    // A stroke the node absorbed is cut whole (#708).
+    if (start !== end) return { line, from: start, to: end, hidden: own.some((s) => cutIn(s, band)[0] + cutIn(s, band)[1] >= s.to - s.from && s.from - 1 <= Math.min(start, end) && Math.max(start, end) <= s.to + 1) };
+    const s = own.find((s) => Math.abs(s.from - start) <= 1 || Math.abs(s.to - start) <= 1);
+    const other = !s ? start : Math.abs(s.from - start) <= 1 ? s.to : s.from;
+    return { line, from: i ? start : other, to: i ? other : start, hidden: false };
+  });
+  const [lon = 0, lat = 0] = pointAt(byId.get(c.shape) ?? { coords: [], dist: [] }, (c.from + c.to) / 2);
+  return { kind, zoom, line: c.line, at: [Math.round(lon * 1e5) / 1e5, Math.round(lat * 1e5) / 1e5], aside: Math.round((aside(parts, width) / width) * 10) / 10 };
 }
 
 /** Points along a line through points, from its first, every `step` metres. */

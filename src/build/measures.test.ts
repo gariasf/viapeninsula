@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import { BANDS, cutIn, GRAPH_BAND, LINK, STRETCH, type Line, type Shape, type Stroke, type Track } from '../bundle.ts';
 import { breaks, measures, offTrack, reported, summary, type Measures } from './measures.ts';
-import { collect } from './report.ts';
+import { collect, comment, diff, type Spot } from './report.ts';
 import { room, sideBySide, type Front } from './sideBySide.ts';
 
 const degree = (6_371_008.8 * Math.PI) / 180;
@@ -150,7 +150,7 @@ test("doesn't count Lines stepping side by side the same way as a swap", () => {
 test('measures nothing amiss for Lines side by side on one track, each drawn once', () => {
   const found = measures({ shapes: [east('a', 2000), east('b', 2000)], strokes: [stroke('R2', 'a', 0, 2000, -0.5), stroke('R11', 'b', 0, 2000, 0.5)] });
   const zero = Object.fromEntries(BANDS.map((zoom) => [zoom, 0]));
-  expect(found).toEqual({ breaks: { steps: 0, stubs: 0, swaps: 0, joins: 0 }, twice: 0, alone: 0, over: 0, folds: zero, covered: zero, dangling: 0, kinks: zero, weaves: zero, hidden: zero, wiggles: zero, hairpins: zero, inside: zero, largest: Object.fromEntries(BANDS.map((zoom) => [zoom, []])) });
+  expect(found).toEqual({ breaks: { steps: 0, stubs: 0, swaps: 0, joins: 0 }, twice: 0, alone: 0, over: 0, folds: zero, covered: zero, dangling: 0, kinks: zero, weaves: zero, hidden: zero, wiggles: zero, hairpins: zero, inside: zero, largest: Object.fromEntries(BANDS.map((zoom) => [zoom, []])), curves: [] });
 });
 
 test('measures a Line drawn twice, where its two directions have tracks of their own and different sides', () => {
@@ -460,6 +460,7 @@ test('reports the measures as one spot with each of their numbers, in metres, an
     hairpins: { 7: 2, 8: 0 },
     inside: { 7: 9395, 8: 14055.5 },
     largest: { 7: [{ size: 15.1, at: [-3.67716, 40.45778] }], 8: [{ size: 24.5, at: [-3.6773, 40.45782] }, { size: 19.1, at: [2.15024, 41.38278] }] },
+    curves: [],
   };
   const [first, seven, eight] = `Lines drawn: ${summary(found)}`.split('\n').map((line) => line.trim());
   expect([seven, eight]).toEqual([
@@ -504,6 +505,48 @@ test('reports the measures as one spot with each of their numbers, in metres, an
     { kind: 'node', key: 'node 7 40.458 -3.677', point: [-3.67716, 40.45778], zoom: 7, text: [seven], numbers: { size: 15.1 } },
     { kind: 'node', key: 'node 8 40.458 -3.677', point: [-3.6773, 40.45782], zoom: 8, text: [eight], numbers: { size: 24.5 } },
     { kind: 'node', key: 'node 8 41.383 2.150', point: [2.15024, 41.38278], zoom: 8, text: [eight], numbers: { size: 19.1 } },
+  ]);
+});
+
+/** The curves that wiggle and the hairpins of a fixture's Lines as sideBySide() draws them, as the report's spots, and the measures. */
+async function curveSpots(name: string): Promise<{ spots: Spot[]; found: Measures }> {
+  const { lines, shapes } = JSON.parse(readFileSync(new URL(`fixtures/${name}.json`, import.meta.url), 'utf8')) as Pick<Track, 'lines' | 'shapes'>;
+  const { strokes, centrelines } = await sideBySide(lines, shapes);
+  const found = measures({ shapes: [...shapes, ...centrelines], strokes, lines });
+  const report = collect();
+  for (const f of reported(found, `Lines drawn: ${summary(found)}`)) report.add(f);
+  return { spots: report.spots().filter((s) => s.kind === 'wiggle' || s.kind === 'hairpin'), found };
+}
+
+test("reports each curve that wiggles as a spot of its own, keyed by its zoom, its middle and its Line, with how far its chain steps aside, never a problem spot, as R1's at Auditori (#520)", async () => {
+  // L1, R1 and R4 round Auditori/Teatre Nacional on 6 Oct 2026 (fixtures/auditori.json): one curve wiggles, R1's at
+  // zoom 12, where it changes side along the one Stretch, so its chain steps nowhere aside.
+  const { spots, found } = await curveSpots('auditori');
+  expect(found.wiggles).toEqual({ ...Object.fromEntries(BANDS.map((zoom) => [zoom, 0])), 12: 1 });
+  expect(spots).toEqual([{ kind: 'wiggle', key: 'wiggle 12 41.395 2.185 rodalies:R1', line: 'rodalies:R1', point: [2.18505, 41.39485], zoom: 12, text: [], numbers: { aside: 0 } }]);
+  // The Build report issue hears of none, but the run's summary shows one that comes or goes.
+  expect(comment(undefined, spots, 'run')).toBeUndefined();
+  expect(diff(spots, [])).toContain('#### Gone\n\n- `wiggle 12 41.395 2.185 rodalies:R1` · [map](https://viapeninsula.gariasf.com/#map=12/41.39485/2.18505&mark=41.39485,2.18505)');
+});
+
+test("reports each hairpin as a spot too, as C10's south of Madrid-Atocha at zoom 7 and 8, with how far each curve's chain steps aside, as C3's to C5's 1.6 line widths at zoom 13 (#520, #385)", async () => {
+  // The Lines round Madrid-Atocha Cercanías on 9 Oct 2026 (fixtures/atocha.json). From `stretch:2` at zoom 13, the
+  // chain of C3, C4, C4a, C4b and C5 steps 41 m aside onto `stretch:3`, which the node absorbs (#385).
+  const { spots, found } = await curveSpots('atocha');
+  expect([found.wiggles, found.hairpins]).toEqual([
+    { 7: 0, 8: 0, 9: 1, 10: 0, 11: 0, 12: 0, 13: 6, 14: 0 },
+    { 7: 1, 8: 1, 9: 0, 10: 0, 11: 0, 12: 0, 13: 0, 14: 0 },
+  ]);
+  expect(spots.map(({ key, numbers }) => [key, numbers?.aside])).toEqual([
+    ['hairpin 7 40.403 -3.687 cercanias-madrid:C10', 0],
+    ['hairpin 8 40.401 -3.683 cercanias-madrid:C10', 0],
+    ['wiggle 13 40.401 -3.683 cercanias-madrid:C3', 1.6],
+    ['wiggle 13 40.401 -3.683 cercanias-madrid:C4', 1.6],
+    ['wiggle 13 40.401 -3.683 cercanias-madrid:C4a', 1.6],
+    ['wiggle 13 40.401 -3.683 cercanias-madrid:C4b', 1.6],
+    ['wiggle 13 40.401 -3.683 cercanias-madrid:C5', 1.6],
+    ['wiggle 13 40.402 -3.684 cercanias-madrid:C10', 0],
+    ['wiggle 9 40.404 -3.688 cercanias-madrid:C10', 0],
   ]);
 });
 

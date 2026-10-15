@@ -18,10 +18,10 @@ export interface Spot {
    * Network with no Trips on a day, a Network's Trips on each day of the week, which names those its
    * config leaves out too, a Network's Closures today, a Network built from the
    * copy of its timetables that last built it, a region whose build failed, which keeps the files of
-   * its last one, a traced shape's length against the feed's, one of the largest nodes at a zoom, or
-   * the line measures.
+   * its last one, a traced shape's length against the feed's, one of the largest nodes at a zoom, a
+   * curve that wiggles or a hairpin at a zoom, or the line measures.
    */
-  kind: 'kept' | 'turn' | 'branch' | 'detour' | 'across' | 'trip' | 'sequence' | 'route' | 'bus' | 'notrips' | 'trips' | 'closures' | 'copy' | 'region' | 'length' | 'node' | 'measures';
+  kind: 'kept' | 'turn' | 'branch' | 'detour' | 'across' | 'trip' | 'sequence' | 'route' | 'bus' | 'notrips' | 'trips' | 'closures' | 'copy' | 'region' | 'length' | 'node' | 'wiggle' | 'hairpin' | 'measures';
   /** What the next build knows it by too (keyOf()): never a Trip's ID nor a date. */
   key: string;
   network?: string;
@@ -43,7 +43,7 @@ export interface Spot {
    * Trips left out, or whose stop numbers don't run 1…n, or buses, on any one day, a Network's Trips
    * on each day of the week and how many of today's its config leaves out, its Closures today, how
    * many days of its last build's files the manifest still names for a region whose build failed, a
-   * node's size in line widths, or each of the measures.
+   * node's size in line widths, how far a curve's chain steps aside in line widths, or each of the measures.
    */
   numbers?: Record<string, number>;
 }
@@ -67,7 +67,7 @@ export interface Found extends Omit<Spot, 'key' | 'stations'> {
   route?: string;
   /** The day a Network has no Trips, a Trip is left out or its stop numbers don't run 1…n, or a bus runs, as days after today. */
   day?: number;
-  /** The zoom a node is at, which keys it, and which the map shows it at. */
+  /** The zoom a node is at, or a curve is drawn at, which keys it, and which the map shows it at. */
   zoom?: number;
   /** What the map fits in view to show it, where its Stations don't say: a shape. */
   extent?: Point[];
@@ -130,7 +130,8 @@ export function collect() {
  * A spot's key: its kind, its Line or Network, and its Stations, those at either end in order of ID,
  * so that the same spot traced the other way, or on the feed's own shape the other way, is keyed the
  * same. A shape traced the other way has the length of the one it's traced from, a node is known by
- * its zoom and where it is, to about 100 m, and a route name no Network takes by the name, as written.
+ * its zoom and where it is, to about 100 m, a curve that wiggles or a hairpin by those and its Line,
+ * and a route name no Network takes by the name, as written.
  * This is the list of the keys: docs/research/build-report.md's section 3 has the eight kinds of
  * #219's design, and the kinds since are keyed here alone.
  */
@@ -154,6 +155,8 @@ function keyOf({ kind, network, region, line, why, shape, route, day, zoom, poin
     region: [region],
     length: [line, shape?.replace(/:back$/, '')],
     node: [zoom, point?.[1].toFixed(3), point?.[0].toFixed(3)],
+    wiggle: [zoom, point?.[1].toFixed(3), point?.[0].toFixed(3), line],
+    hairpin: [zoom, point?.[1].toFixed(3), point?.[0].toFixed(3), line],
     measures: [],
   }[kind];
   return [kind, ...parts].join(' ');
@@ -202,9 +205,9 @@ export function diff(last: Spot[] | undefined, spots: Spot[]): string {
 /**
  * Whether a kind of spot is a problem on the map: not a Network's Trips, which the summary names where
  * they dropped (moved()), nor its Closures, nor buses where their Line has no track, which no fix
- * upstream draws (ADR-0012), nor a length, a node or the measures, which move with any change to it.
+ * upstream draws (ADR-0012), nor a length, a node, a curve or the measures, which move with any change to it.
  */
-const PROBLEM: Record<Spot['kind'], boolean> = { kept: true, turn: true, branch: true, detour: true, across: true, trip: true, sequence: true, route: true, bus: false, notrips: true, trips: false, closures: false, copy: true, region: true, length: false, node: false, measures: false };
+const PROBLEM: Record<Spot['kind'], boolean> = { kept: true, turn: true, branch: true, detour: true, across: true, trip: true, sequence: true, route: true, bus: false, notrips: true, trips: false, closures: false, copy: true, region: true, length: false, node: false, wiggle: false, hairpin: false, measures: false };
 
 /** The most characters a GitHub comment holds, counted here as UTF-8's bytes, which are never fewer however GitHub counts them. */
 const COMMENT = 65536;
