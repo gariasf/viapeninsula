@@ -748,8 +748,9 @@ function closest(line: Pick<Shape, 'coords' | 'dist'>, from: number, to: number,
  * from its point nearest where the chain left the part before to its point nearest where the next part
  * starts, the first looked for only up to the second, so that the chain doesn't turn back along it.
  * Where a hidden stroke runs on beside the next leg, past where that starts, as C4's does at
- * Madrid-Atocha, the chain would run to its end and back, and so would its curve (#311). Either end,
- * as the legs are kept whichever way round has its strokes' numbers first (across()).
+ * Madrid-Atocha, the chain would run to its end and back, and so would its curve (#311). Each part comes
+ * turned the way the chain goes, by partsOf() or the measures' curveOf(), as across() keeps the legs whichever
+ * way round has its strokes' numbers first.
  */
 function spans(parts: Part[]): [on: number, off: number][] {
   const spanned: [number, number][] = [];

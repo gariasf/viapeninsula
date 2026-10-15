@@ -346,8 +346,9 @@ test('counts the strokes still drawn along a Stretch a node absorbed, where a cu
 });
 
 /**
- * R2 drawn along 'a' up to 1000 m east, across a node on a curve through points, in each band from
- * GRAPH_BAND on, and on along 'b', which runs east so many metres north, from where the curve ends.
+ * R2, or another Line, drawn along 'a' up to 1000 m east, across a node on a curve through points, in each
+ * band from GRAPH_BAND on, and on along 'b', which runs east so many metres north, from where the curve ends:
+ * all from a point in Barcelona, or another point, as where a Line's Trains turn back (TURN_BACKS).
  */
 function crossing(points: [number, number][], north = 0, ease = 0, line = 'R2', [lon, lat]: [number, number] = [2.17, 41.39]): Measures {
   const link = shape(`${LINK}0`, points);
