@@ -3,7 +3,7 @@ import { expect, test } from 'vitest';
 import { along, APART, atZoom, BANDS, beside, cutIn, DEGREE, drawnIn, GRAPH_BAND, inBand, LINK, onStroke, pieces, zones, pixelMetres, pointAt, SMOOTH, STRETCH, type Line, type Shape, type Stroke, type Track } from '../bundle.ts';
 import { measures } from './measures.ts';
 import { offset } from './offset.ts';
-import { across, crossing, end, KX, notTwice, sharedTrack, sideBySide, sidesOf, type Leg } from './sideBySide.ts';
+import { across, crossing, end, KX, notTwice, ports, sharedTrack, sideBySide, sidesOf, type Leg } from './sideBySide.ts';
 
 // Track drawn in metres east (x) and north (y) of a point in Barcelona.
 const M = (6_371_008.8 * Math.PI) / 180; // metres in a degree of latitude
@@ -809,6 +809,17 @@ test("leaves out the one piece a shape touches of another centreline's Stretch, 
   // A Stretch of one piece it goes through, in at one end and out at the other, stays (#599).
   const through = { ...visit(1, 25, 25, 50), ways: [1, 1] as [number, number] };
   expect(crossing([come, through, go], [stretch('c0', 0, 1000), stretch('c1', 0, 50), stretch('c2', 0, 1000)])).toEqual([come, through, go]);
+});
+
+test("joins a Line's stroke to the one it comes from and to the one it goes on to where those two meet end to end on one centreline, as the Regional's by León do (#622)", () => {
+  // Stretches 0 and 1 of c0 meet at 773 m. The shape comes along 1 towards its start, touches one piece of c1, 8 m, and
+  // goes on along 0: the stroke along 1 starts at 773, the one along 0 ends there, and the stroke along c1 joins both.
+  const found = [stretch('c0', 0, 773), stretch('c0', 773, 21495), stretch('c1', 0, 127716)];
+  const stroke = (shape: string, from: number, to: number): Stroke => ({ line: 'Regional', shape, from, to, side: 0 });
+  const [x, y, z] = [stroke('c0', 773, 21495), stroke('c1', 70, 78), stroke('c0', 0, 773)];
+  const onStretch = new Map([['1 0', [x]], ['2 0', [y]], ['0 0', [z]]]);
+  const joins = ports([{ line: 0, visits: [visit(1, 21475, 837, 20638), visit(2, 74, 74, 8), visit(0, 751, 25, 726)] }], found, onStretch);
+  expect(joins.map((j) => [j.from, j.out, j.to, j.into])).toEqual([[x, 0, y, 0], [y, 0, z, 1]]);
 });
 
 test("keeps a Line's way across a node from the end whose strokes' numbers come first as numbers, not as strings, so that it's the same end however many strokes are numbered before them (#448)", () => {

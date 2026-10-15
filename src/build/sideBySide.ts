@@ -468,8 +468,12 @@ interface Join {
   into: 0 | 1;
 }
 
-/** Each time a Line's shape goes from one Stretch to the next, the strokes it goes from and to, once each. */
-function ports(walked: { line: number; visits: Visit[] }[], found: Stretch[], onStretch: Map<string, Stroke[]>): Join[] {
+/**
+ * Each time a Line's shape goes from one Stretch to the next, the strokes it goes from and to, once each: each
+ * stroke by its end, as two of a Line's strokes can meet end to end on one centreline, where the one's join and
+ * the other's would be taken for one (#622).
+ */
+export function ports(walked: { line: number; visits: Visit[] }[], found: Stretch[], onStretch: Map<string, Stroke[]>): Join[] {
   const joins = new Map<string, Join>();
   const nearest = (strokes: Stroke[], end: 0 | 1, at: number) => strokes.toSorted((a, b) => Math.abs((end ? a.to : a.from) - at) - Math.abs((end ? b.to : b.from) - at))[0];
   for (const { line, visits } of walked) {
@@ -480,7 +484,7 @@ function ports(walked: { line: number; visits: Visit[] }[], found: Stretch[], on
       const [from, to] = [nearest(onStretch.get(`${v.edge} ${line}`) ?? [], out, v.last), nearest(onStretch.get(`${w.edge} ${line}`) ?? [], into, w.first)];
       // Only where its strokes are: on a Stretch it's on but not drawn along there, it joins nothing.
       if (!from || !to || Math.abs((out ? from.to : from.from) - v.last) > REACH || Math.abs((into ? to.to : to.from) - w.first) > REACH) continue;
-      const ends = [`${from.shape} ${out ? from.to : from.from}`, `${to.shape} ${into ? to.to : to.from}`];
+      const ends = [`${from.shape} ${out ? from.to : from.from} ${out}`, `${to.shape} ${into ? to.to : to.from} ${into}`];
       const key = `${line} ${ends.sort().join(' ')}`;
       if (!joins.has(key)) joins.set(key, { line, from, out, to, into });
     }
