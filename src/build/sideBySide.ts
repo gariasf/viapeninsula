@@ -474,8 +474,8 @@ interface Join {
  * stroke by its end, as two of a Line's strokes can meet end to end on one centreline, where the one's join and
  * the other's would be taken for one (#622), but only `byEnd`, from zoom 10 up. ponytail: below it they're still
  * taken for one, and the Line's way there stops at the stroke between them, as by Chamartín, where C4a's and C4b's,
- * joined through, went 2.5 line widths over at zoom 9 and the node took in another 2 km of their bundle for the
- * room (#622); key them by end there too once a node there can hold that without taking in the bundle.
+ * joined through, went 2.5 line widths over at zoom 9 and the node absorbed another 2 km Stretch of theirs for the
+ * room (#622); key them by end there too once a node there can hold that without absorbing such a Stretch.
  */
 export function ports(walked: { line: number; visits: Visit[] }[], found: Stretch[], onStretch: Map<string, Stroke[]>, byEnd = true): Join[] {
   const joins = new Map<string, Join>();

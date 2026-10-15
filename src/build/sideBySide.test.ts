@@ -823,7 +823,7 @@ test("joins a Line's stroke to the one it comes from and to the one it goes on t
   expect(joins()).toEqual([[x, 0, y, 0], [y, 0, z, 1]]);
   // Below zoom 10 the second is taken for the first, as before: joined through by Chamartín on 15 Oct 2026, C4a's and
   // C4b's way across the node at zoom 9 went from their side south of it to theirs north, 2.5 line widths over, and for
-  // that room the node took in another 2 km of their bundle, towards Nuevos Ministerios.
+  // that room the node absorbed another 2 km Stretch of theirs, towards Nuevos Ministerios.
   expect(joins(false)).toEqual([[x, 0, y, 0]]);
 });
 
