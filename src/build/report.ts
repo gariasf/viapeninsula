@@ -21,7 +21,7 @@ export interface Spot {
    * its last one, a traced shape's length against the feed's, one of the largest nodes at a zoom, a
    * curve that wiggles or a hairpin at a zoom, or the line measures.
    */
-  kind: 'kept' | 'turn' | 'branch' | 'detour' | 'across' | 'trip' | 'sequence' | 'route' | 'bus' | 'notrips' | 'trips' | 'closures' | 'copy' | 'region' | 'length' | 'node' | 'wiggle' | 'hairpin' | 'measures';
+  kind: 'kept' | 'turn' | 'branch' | 'detour' | 'across' | 'trip' | 'sequence' | 'route' | 'bus' | 'notrips' | 'trips' | 'closures' | 'copy' | 'region' | 'length' | 'node' | 'wiggle' | 'hairpin' | 'turnback' | 'measures';
   /** What the next build knows it by too (keyOf()): never a Trip's ID nor a date. */
   key: string;
   network?: string;
@@ -157,6 +157,7 @@ function keyOf({ kind, network, region, line, why, shape, route, day, zoom, poin
     node: [zoom, point?.[1].toFixed(3), point?.[0].toFixed(3)],
     wiggle: [zoom, point?.[1].toFixed(3), point?.[0].toFixed(3), line],
     hairpin: [zoom, point?.[1].toFixed(3), point?.[0].toFixed(3), line],
+    turnback: [zoom, point?.[1].toFixed(3), point?.[0].toFixed(3), line],
     measures: [],
   }[kind];
   return [kind, ...parts].join(' ');
@@ -207,7 +208,7 @@ export function diff(last: Spot[] | undefined, spots: Spot[]): string {
  * they dropped (moved()), nor its Closures, nor buses where their Line has no track, which no fix
  * upstream draws (ADR-0012), nor a length, a node, a curve or the measures, which move with any change to it.
  */
-const PROBLEM: Record<Spot['kind'], boolean> = { kept: true, turn: true, branch: true, detour: true, across: true, trip: true, sequence: true, route: true, bus: false, notrips: true, trips: false, closures: false, copy: true, region: true, length: false, node: false, wiggle: false, hairpin: false, measures: false };
+const PROBLEM: Record<Spot['kind'], boolean> = { kept: true, turn: true, branch: true, detour: true, across: true, trip: true, sequence: true, route: true, bus: false, notrips: true, trips: false, closures: false, copy: true, region: true, length: false, node: false, wiggle: false, hairpin: false, turnback: false, measures: false };
 
 /** The most characters a GitHub comment holds, counted here as UTF-8's bytes, which are never fewer however GitHub counts them. */
 const COMMENT = 65536;

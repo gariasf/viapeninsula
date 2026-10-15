@@ -43,6 +43,22 @@ const TURN = 30;
 const LOOKS = 4;
 /** How far apart, in degrees, a curve's first and last segments head, at the least, for it to turn back on itself: a hairpin (#353). More than a branch or a change of side turns one. */
 const HAIRPIN = 120;
+/**
+ * Where a Line's own Trains turn back, so that its curve there turns back too, as a hairpin does: left out of
+ * `hairpins`, and listed in the report as turn-backs, with why (#622). Each by its Line and how far from a point,
+ * as a curve's middle can be hundreds of metres from where its Trips reverse: Santiago's 222–300 m, L'Aldea's 600 m.
+ */
+const TURN_BACKS: { line: string; at: Point; within: number; why: string }[] = [
+  ...['AVE', 'Alvia', 'Avlo'].map((name) => ({
+    line: `ave-larga-distancia:${name}`,
+    at: [-8.5447, 42.87084] as Point,
+    within: 600,
+    why: "Santiago de Compostela-Daniel Castelao: AVE's, Alvia's and Avlo's Trains between Vigo and Madrid turn back here, as AVE 04254, 04464, 04475 and 04565, Alvia 00621 and 00622 and Avlo 04494 and 04975 did on 15 Oct 2026",
+  })),
+  { line: 'media-distancia-avant:MD', at: [-3.20574, 39.39563], within: 600, why: 'Alcázar de San Juan: MD 18081, 18083, 18181 and 18183 turned back here on 15 Oct 2026' },
+  { line: 'media-distancia-avant:Reg.Exp.', at: [0.61431, 40.75356], within: 800, why: "L'Aldea-Amposta-Tortosa: Reg.Exp. 14016, 14018, 14020 and 14022 between Tortosa and Ulldecona turn back here, as R16's do (ADR-0004, #63)" },
+  { line: 'euskotren:E1', at: [-2.50103, 43.18524], within: 600, why: "Ermua: E1's short workings from and to Eibar end and start here, 47 Trips on 15 Oct 2026" },
+];
 
 /**
  * How the Lines are drawn. `breaks`: how often they break up. `twice`: metres where a Line shows
@@ -68,7 +84,7 @@ const HAIRPIN = 120;
  * other, an S-bend, or turn back on themselves, within WIGGLE line widths, where they turn on the curve (#206).
  * `hairpins`: curves whose first and last segments, those of at least ROUNDING, head HAIRPIN degrees or
  * more apart, so that they run back along themselves, hooking onto the Stretch they leave or the one
- * they come onto (#353).
+ * they come onto (#353), but where their Line's Trains turn back (TURN_BACKS, #622).
  * `inside`: metres of curve drawn further off its Line's own track, by more than half a line width,
  * than at either of its ends. `largest`: the LARGEST largest nodes, how far apart their fronts are in
  * the band's line widths, and where their middle is, so that a node that absorbed too much shows (#187).
@@ -92,9 +108,13 @@ export interface Measures {
   curves: Curve[];
 }
 
-/** A curve that wiggles or is a hairpin, in its band: its zoom, its Line, where its middle is, and how far its chain steps aside, in the band's line widths (aside()). */
+/**
+ * A curve that wiggles or is a hairpin, in its band: its zoom, its Line, where its middle is, and how far its chain
+ * steps aside, in the band's line widths (aside()). A hairpin where its Line's Trains turn back is a turn-back, with why (#622).
+ */
 export interface Curve {
-  kind: 'wiggle' | 'hairpin';
+  kind: 'wiggle' | 'hairpin' | 'turnback';
+  why?: string;
   zoom: number;
   line: string;
   at: Point;
@@ -152,7 +172,7 @@ export function summary({ breaks: b, twice, alone, over, folds: f, covered, dang
  * The measures as the build reports them, given the log's text of them, which ends in summary()'s:
  * one spot with each of their numbers, in whole metres where they're metres, and its first line, one
  * for each of the largest nodes, with its zoom's line, and one for each curve that wiggles and each
- * hairpin, with how far its chain steps aside, which the log doesn't print (#520).
+ * hairpin, with how far its chain steps aside, which the log doesn't print (#520), and each turn-back, with why (#622).
  */
 export function reported(m: Measures, text: string): Found[] {
   const [first = '', ...zooms] = text.split('\n');
@@ -177,7 +197,7 @@ export function reported(m: Measures, text: string): Found[] {
   const nodes = Object.entries(m.largest).flatMap(([zoom, list], i) =>
     list.map(({ size, at }): Found => ({ kind: 'node', zoom: Number(zoom), point: at, text: [zooms[i]?.trim() ?? ''], numbers: { size } })),
   );
-  const curves = m.curves.map(({ kind, zoom, line, at, aside }): Found => ({ kind, zoom, line, point: at, text: [], numbers: { aside } }));
+  const curves = m.curves.map(({ kind, zoom, line, at, aside, why }): Found => ({ kind, zoom, line, point: at, text: why ? [why] : [], numbers: { aside } }));
   return [{ kind: 'measures', text: [first], numbers }, ...nodes, ...curves];
 }
 
@@ -641,9 +661,17 @@ function hairpins(strokes: Stroke[], shapes: Shape[]): Curve[] {
     // Looking back from its end, it heads half a turn the other way to the way it goes there.
     const [start, back] = [heading(points), heading(points.toReversed())];
     if (start === undefined || back === undefined) continue;
-    if (Math.abs(((back + 180 - start + 540) % 360) - 180) >= HAIRPIN) found.push(curveOf('hairpin', c, c.band, byId, byShape));
+    if (Math.abs(((back + 180 - start + 540) % 360) - 180) < HAIRPIN) continue;
+    const curve = curveOf('hairpin', c, c.band, byId, byShape);
+    const why = turnBack(curve.line, curve.at)?.why;
+    found.push(why ? { ...curve, kind: 'turnback', why } : curve);
   }
   return found;
+}
+
+/** Why a Line's curve whose middle is at a point turns back, where its Trains do (TURN_BACKS). */
+export function turnBack(line: string, [lon, lat]: Point): { why: string } | undefined {
+  return TURN_BACKS.find((t) => t.line === line && Math.hypot((lon - t.at[0]) * DEGREE * Math.cos((lat * Math.PI) / 180), (lat - t.at[1]) * DEGREE) <= t.within);
 }
 
 /**

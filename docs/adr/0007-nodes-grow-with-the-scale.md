@@ -24,7 +24,7 @@ LOOM, which ADR-0006 follows, builds its line graph once and draws it at each zo
 
 - #160's measures gain, in each band, kinks (curves shorter than LENGTH × their side change), weaves (side changes on a Stretch shorter than its nodes' room), both to be zero, and metres drawn off a Line's own track inside nodes, reported, which grows as the map zooms out.
 - #206 adds wiggles, in each band: curves that, drawn with the strokes they join, turn 30° one way and back, or turn back on themselves, within 6 line widths.
-- #353 adds hairpins, in each band: curves whose first and last segments head 120° or more apart, so that they run back along themselves; and counts a stroke end as loose where the only stroke of its Line within LOOSE of it is the one that goes on from its other end, as a stub's is from its curve.
+- #353 adds hairpins, in each band: curves whose first and last segments head 120° or more apart, so that they run back along themselves, but for those where the Line's own Trains turn back, which `measures.ts` names, each by its Line and how far from its Station, with why, and the report lists as turn-backs (#622); and counts a stroke end as loose where the only stroke of its Line within LOOSE of it is the one that goes on from its other end, as a stub's is from its curve.
 - A Line strays from its track inside a node by up to about the node's size, a line width or so at the band's zoom.
 - The bundle carries more bands, each only where it differs.
 - The slots (#176) put a Train crossing a node on its curve, however many Stretches the node absorbed.

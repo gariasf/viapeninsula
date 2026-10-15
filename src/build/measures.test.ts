@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import { BANDS, cutIn, GRAPH_BAND, LINK, STRETCH, type Line, type Shape, type Stroke, type Track } from '../bundle.ts';
-import { breaks, measures, offTrack, reported, summary, type Measures } from './measures.ts';
+import { breaks, measures, offTrack, reported, summary, turnBack, type Measures } from './measures.ts';
 import { collect, comment, diff, type Spot } from './report.ts';
 import { room, sideBySide, type Front } from './sideBySide.ts';
 
@@ -349,16 +349,18 @@ test('counts the strokes still drawn along a Stretch a node absorbed, where a cu
  * R2 drawn along 'a' up to 1000 m east, across a node on a curve through points, in each band from
  * GRAPH_BAND on, and on along 'b', which runs east so many metres north, from where the curve ends.
  */
-function crossing(points: [number, number][], north = 0, ease = 0): Measures {
+function crossing(points: [number, number][], north = 0, ease = 0, line = 'R2', [lon, lat]: [number, number] = [2.17, 41.39]): Measures {
   const link = shape(`${LINK}0`, points);
   const [x = 0] = points.at(-1) ?? [];
   const across: Stroke['across'] = [['a', 1000, 1000 + x / 2], ['b', x / 2, x]];
+  // Drawn from another point than Barcelona's, where given.
+  const moved = (s: Shape): Shape => ({ ...s, coords: s.coords.map(([x, y]) => [x - 2.17 + lon, y - 41.39 + lat]) });
   return measures({
-    shapes: [east('a', 4000), east('b', 4000, 0, north), link],
+    shapes: [east('a', 4000), east('b', 4000, 0, north), link].map(moved),
     strokes: [
-      stroke('R2', 'a', 0, 1000, 0),
-      ...BANDS.flatMap((_, band) => (band < GRAPH_BAND ? [] : [{ ...stroke('R2', link.id, 0, link.dist.at(-1) ?? 0, 0), ease, band, across }])),
-      stroke('R2', 'b', x, 4000, ease),
+      stroke(line, 'a', 0, 1000, 0),
+      ...BANDS.flatMap((_, band) => (band < GRAPH_BAND ? [] : [{ ...stroke(line, link.id, 0, link.dist.at(-1) ?? 0, 0), ease, band, across }])),
+      stroke(line, 'b', x, 4000, ease),
     ],
   });
 }
@@ -403,6 +405,22 @@ test('counts a curve whose ends head opposite ways as a hairpin, in each band it
   expect(hairpins([1000, 0], [1060, 0], [1020, 40])).toEqual(every(1));
   expect(hairpins([1000, 0], [1060, 0], [1060, 60])).toEqual(none);
   expect(hairpins([1000, 0], [1060, 0], [1100, 40])).toEqual(none);
+});
+
+test("counts a hairpin where its Line's own Trains turn back as a turn-back, not a hairpin, by its Line and how far from where they do, and reports it with why (#622)", () => {
+  // The hairpin above, its middle 6 m from Ermua's Station, for E1, whose short workings from Eibar end and start
+  // there, and for FCC, whose Trains go on round the town's loop.
+  const ermua = (line: string) => crossing(through([1000, 0], [1060, 0], [1060, 20], [1000, 20]), 0, 0, line, [-2.50103 - 1060 / kx, 43.18524]);
+  expect(ermua('euskotren:FCC').hairpins).toEqual(every(1));
+  const named = ermua('euskotren:E1');
+  expect(named.hairpins).toEqual(none);
+  const spots = reported(named, summary(named)).filter((s) => s.kind === 'turnback');
+  expect(spots.map((s) => [s.zoom, s.line, s.text[0]?.slice(0, 26)])).toEqual(BANDS.flatMap((zoom, band) => (band < GRAPH_BAND ? [] : [[zoom, 'euskotren:E1', "Ermua: E1's short workings"]])));
+  // The others, by their Lines, as far from their Stations as the curves there are: Santiago's 305 m, L'Aldea's 611 m.
+  const at = (line: string, lon: number, lat: number) => turnBack(line, [lon, lat]) !== undefined;
+  expect(['AVE', 'Alvia', 'Avlo', 'Intercity'].map((name) => at(`ave-larga-distancia:${name}`, -8.5477, 42.8692))).toEqual([true, true, true, false]);
+  expect([at('media-distancia-avant:MD', -3.2049, 39.3957), at('media-distancia-avant:MD', -3.2059, 39.3957), at('media-distancia-avant:Regional', -3.2049, 39.3957)]).toEqual([true, true, false]);
+  expect([at('media-distancia-avant:Reg.Exp.', 0.6077, 40.7513), at('media-distancia-avant:Avant Exp', 0.6077, 40.7513), at('media-distancia-avant:Reg.Exp.', 0.6077, 40.73)]).toEqual([true, false, false]);
 });
 
 test("doesn't count the rounding of a curve's ends as turning it back (#353)", () => {
