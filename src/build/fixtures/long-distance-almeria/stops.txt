@@ -1,0 +1,17 @@
+stop_id,stop_code,stop_name,stop_desc,stop_lat,stop_lon,zone_id,stop_url,location_type,parent_station,stop_timezone,wheelchair_boarding
+60000,,Madrid-Puerta de Atocha-Almudena Grandes,,40.4064420,-3.6908860,,,,,Europe/Madrid,1
+50500,,Córdoba-Julio Anguita,,37.8882910,-4.7894530,,,,,Europe/Madrid,1
+50300,,Linares-Baeza,,38.0688640,-3.5893960,,,,,Europe/Madrid,1
+05000,,Granada,,37.1840380,-3.6091540,,,,,Europe/Madrid,1
+02030,,Antequera AV,,37.0334437,-4.5612901,,,,,Europe/Madrid,1
+56312,,Almería,,36.8349510,-2.4555190,,,,,Europe/Madrid,1
+56200,,Guadix,,37.3168730,-3.1272090,,,,,Europe/Madrid,2
+56310,,Huercal-Viator,,36.8851550,-2.4367180,,,,,Europe/Madrid,2
+56308,,Gádor,,36.9516240,-2.4876580,,,,,Europe/Madrid,2
+56305,,Gérgal,,37.1088470,-2.5915560,,,,,Europe/Madrid,2
+56301,,Fiñana,,37.1846470,-2.8397570,,,,,Europe/Madrid,2
+56103,,Benalúa de Guadix,,37.3452770,-3.1631770,,,,,Europe/Madrid,2
+57003,,Iznalloz,,37.3958520,-3.5279470,,,,,Europe/Madrid,2
+56100,,Moreda,,37.4312160,-3.3105160,,,,,Europe/Madrid,2
+56009,,Cabra del Santo Cristo y Alicún,,37.6567129,-3.2626230,,,,,Europe/Madrid,2
+56004,,Jódar-Úbeda,,37.9133430,-3.3489200,,,,,Europe/Madrid,2

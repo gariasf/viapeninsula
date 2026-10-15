@@ -73,9 +73,13 @@ export interface NetworkConfig extends Omit<Network, 'credit'> {
    * timetable lists the Trains as rail all the same and no Alert informs its Lines, as Renfe's
    * long-distance one does Zaragoza–Teruel–Sagunto's (#562). A Train that calls at one isn't drawn: a
    * bus isn't a Train. It's left out whole, every Trip its timetable lists it in, and logged with the
-   * notice and reported, as `beyond`'s are.
+   * notice and reported, as `beyond`'s are. A group marked `ends` is a road leg at the end of its
+   * Trains' runs, as Huércal-Viator–Almería's (#792): a Trip's first or last calls at its Stations, the
+   * run of them at that end, are dropped, each logged with the notice and reported, and the Train is
+   * kept on rail to the last Station it reaches by rail. A Train that calls at one in the middle of its
+   * run is still left out whole.
    */
-  byRoad?: { stations: string[]; source: string }[];
+  byRoad?: { stations: string[]; source: string; ends?: true }[];
   /**
    * Stations its Trains turn back at without calling there, by ID, with where they are and the sources
    * that say so, as Intercity 01460 and 01463 run from Elche into Sant Gabriel, reverse and go on into
@@ -802,6 +806,18 @@ const HIGH_SPEED = { topSpeed: 300 / 3.6 };
  */
 const AVE_PURPLE = '#81005E';
 
+/**
+ * Huércal-Viator–Almería, by road since 5 March 2024 for every Train Renfe's long-distance timetable lists
+ * to or from Almería, which it lists as calling there all the same, as Alvia 02087's 7:54 to Huércal-Viator's
+ * 8:25 on 14 Oct 2026: the line into Almería is shut while Adif builds its underground line and station,
+ * planned for 2026–27 (#792). Each of the timetable's Networks has it.
+ */
+const ALMERIA_BY_ROAD: NonNullable<NetworkConfig['byRoad']>[number] = {
+  stations: ['adif:56312'],
+  source: 'https://www.adifaltavelocidad.es/w/hu%C3%A9rcal-viator-se-convierte-en-punto-de-transferencia-de-viajeros-desde-el-5-de-marzo-para-los-trenes-con-origen-y-destino-almer%C3%ADa',
+  ends: true,
+};
+
 export const AVE_LARGA_DISTANCIA: NetworkConfig = {
   id: 'ave-larga-distancia',
   name: 'AVE y Larga Distancia',
@@ -848,13 +864,18 @@ export const AVE_LARGA_DISTANCIA: NetworkConfig = {
   // But Adif has the Chinchilla line shut to Trains between Murcia Mercancías and Murcia del Carmen for the
   // high-speed works at Murcia's station (the second source, Adif's reply of May 2026), which OpenStreetMap
   // tags railway=construction (way 922727787), and Renfe has run them by road from Cartagena to Albacete
-  // since September 2022 (the first): no path along the rails (#478).
+  // since September 2022 (the first): no path along the rails (#478). And it has Alvia 02087 and 02366
+  // start and end at Almería, from and to Huércal-Viator, 6 km out, where no Train has reached Almería
+  // since 5 March 2024, Huércal-Viator being the transfer point while Adif builds the city's underground
+  // line and station (Adif's notice, ALMERIA_BY_ROAD), and every track into it OpenStreetMap has is
+  // railway=construction: their calls at Almería are dropped, the Trains kept to Huércal-Viator (#792).
   byRoad: [
     {
       stations: ['adif:61015'],
       source:
         'https://www.orm.es/informativos/noticias-2022/renfe-suprime-los-trenes-por-archena-y-habilita-autobuses-hasta-albacete/, https://televisionhellin.com/2026/05/07/adif-contradice-su-version-sobre-la-linea-de-tren-y-confirma-que-esta-operativa/',
     },
+    ALMERIA_BY_ROAD,
   ],
   lines: {
     kind: 'long-distance',
@@ -991,6 +1012,9 @@ export const MEDIA_DISTANCIA_AVANT: NetworkConfig = {
     { stations: ['adif:50207', 'adif:03100', 'adif:56004', 'adif:56009', 'adif:56100'], source: 'https://www.horajaen.com/2026/09/07/renfe-autobuses-alternativos-jaen-linares-baeza/' },
     { stations: ['adif:03100', 'adif:50403', 'adif:50407'], source: 'https://andaluciainforma.eldiario.es/?p=34775' },
     { stations: ['adif:40122', 'adif:40115'], source: 'AVISO_512188' },
+    // Granada–Almería's MD 13940 to 13957, 37087 and 37366, kept to Huércal-Viator, as AVE y Larga
+    // Distancia's Alvias are (#792).
+    ALMERIA_BY_ROAD,
   ],
 };
 

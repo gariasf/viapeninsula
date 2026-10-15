@@ -463,6 +463,41 @@ test("leaves out whole, logs and gives back a Train that calls at a Station its 
   expect(log).toContain(text);
 });
 
+// Rows cut from Renfe's long-distance feed of 2026-10-15, without the spaces it pads each line with: the
+// Trips of Alvia 02087 Almería–Madrid, with its part from Granada, and 02366 Madrid–Almería, of MD 13940
+// Granada–Almería and 13951 Almería–Granada, and of MD 35276 Linares-Baeza–Almería, all run by road
+// beyond Huércal-Viator, and 35276 from Linares-Baeza too, between their first periods' first days and 3 Nov.
+const almeria = dirSource(fileURLToPath(new URL('fixtures/long-distance-almeria', import.meta.url)));
+const ALMERIA = 'https://www.adifaltavelocidad.es/w/hu%C3%A9rcal-viator-se-convierte-en-punto-de-transferencia-de-viajeros-desde-el-5-de-marzo-para-los-trenes-con-origen-y-destino-almer%C3%ADa';
+
+test("drops a Trip's first or last calls at Stations its Network's config has run by road at a Trip's ends, Almería's, and keeps its Train to Huércal-Viator, logging and reporting each call dropped with its source, where a Train that calls at one in the middle of its run is left out whole (#792)", async () => {
+  const log: string[] = [];
+  const ave = await readFeed(almeria, '2026-10-16', AVE_FEED, (l) => log.push(l));
+  const ends = (number: string, trips: FeedTrip[]) => trips.filter((t) => t.number === number).map((t) => [t.calls[0]?.station, t.calls.at(-1)?.station]);
+  expect(ave.trips.flatMap((t) => t.calls).map((c) => c.station)).not.toContain('adif:56312');
+  expect(ends('02087', ave.trips)).toEqual([['adif:56310', 'adif:60000']]);
+  expect(ends('02366', ave.trips)).toEqual([['adif:60000', 'adif:56310']]);
+  expect(ave.left).toEqual([]);
+  const text = `AVE y Larga Distancia's 02366 drops its call at Almería at 23:30, which is run by road (${ALMERIA})`;
+  expect(log).toContain(text);
+  expect(ave.found).toContainEqual(expect.objectContaining({ kind: 'bus', line: 'ave-larga-distancia:Alvia', text: [text], stations: [expect.objectContaining({ id: 'adif:56310' }), expect.objectContaining({ id: 'adif:56312' })] }));
+  expect(log).toContain(`AVE y Larga Distancia's 02087 drops its call at Almería at 07:54, which is run by road (${ALMERIA})`);
+  const mdLog: string[] = [];
+  const md = await readFeed(almeria, '2026-10-16', { ...MD_FEED, network: MEDIA_DISTANCIA_AVANT }, (l) => mdLog.push(l));
+  expect(ends('13940', md.trips)).toEqual([['adif:05000', 'adif:56310']]);
+  expect(ends('13951', md.trips)).toEqual([['adif:56310', 'adif:05000']]);
+  // 35276 still calls at Jódar-Úbeda, by road from Linares-Baeza, once Almería's call is dropped.
+  expect(md.trips.map((t) => t.number)).not.toContain('35276');
+  // Its call at Almería isn't logged as dropped, nor reported: the Train isn't drawn.
+  expect(mdLog.filter((l) => l.includes(' 35276 drops'))).toEqual([]);
+  expect(md.found.filter((f) => f.text.some((l) => l.includes(' 35276 ')))).toEqual([]);
+  expect(md.left).toEqual(["Media Distancia y Avant's 35276 is left out: it calls at Jódar-Úbeda, which is run by road (https://www.horajaen.com/2026/09/07/renfe-autobuses-alternativos-jaen-linares-baeza/)"]);
+  // Guadix, in the middle of 13940's run, were it by road at a Trip's ends: 13940 is left out whole.
+  const middle = { ...MEDIA_DISTANCIA_AVANT, byRoad: [{ stations: ['adif:56200'], source: 's', ends: true as const }] };
+  const guadix = await readFeed(almeria, '2026-10-16', { ...MD_FEED, network: middle }, () => {});
+  expect(guadix.left).toContain("Media Distancia y Avant's 13940 is left out: it calls at Guadix, which is run by road (s)");
+});
+
 test("leaves the calls another timetable's Trips make of a Train it lists too to them, and makes each run of two or more calls left a Trip of its own, so that no call is in two Trips (#547)", () => {
   const call = (station: string, minute: number) => ({ station, arrival: minute * 60, departure: minute * 60 });
   const trip = (id: string, number: string, calls: FeedTrip['calls']): FeedTrip => ({ id, line: 'l', shape: '', headsign: '', number, calls });

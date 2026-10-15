@@ -14,8 +14,9 @@ export interface Spot {
    * two Stations traced much longer than its straight line, a Station a Line's trace sets off from on
    * another track than it came in on, Trips left out, a Line's Trips whose stop numbers don't run 1…n,
    * a route name in Renfe's long-distance timetable that neither of its Networks takes, replacement buses where their
-   * Line has no track, a Network with no Trips on a day, a Network's Trips on each day of the week,
-   * which names those its config leaves out too, a Network's Closures today, a Network built from the
+   * Line has no track, or for a Trip's first or last calls its Network's config has by road (#792), a
+   * Network with no Trips on a day, a Network's Trips on each day of the week, which names those its
+   * config leaves out too, a Network's Closures today, a Network built from the
    * copy of its timetables that last built it, a region whose build failed, which keeps the files of
    * its last one, a traced shape's length against the feed's, one of the largest nodes at a zoom, or
    * the line measures.
