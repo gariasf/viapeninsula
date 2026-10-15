@@ -427,7 +427,9 @@ function visits(shape: Step[], pieces: Piece[], drawer: number[], edgeOf: Map<nu
 /**
  * A shape's visits less those where it only crosses a node along its centreline (#353): one piece of the
  * Stretch next to the one it comes from or goes on to, on one centreline, which its track only brushes as
- * it comes onto the centreline's; and those under SHORT between two on Stretches that follow one another,
+ * it comes onto the centreline's, or of a Stretch of another centreline that it comes in and goes out of at one
+ * end, between two other Stretches, as the northbound track south of Valladolid brushes the southbound's for 84 m
+ * between its own Stretch and the next (#622); and those under SHORT between two on Stretches that follow one another,
  * where it left the first further than REACH from its end, which are a track of its own round the node, as
  * the westbound track of a double track has on a bridge. A join to either runs back onto the Stretch the
  * shape doesn't go along, which hooks, or leaves the track round the node with an end in the air. Not the
@@ -442,7 +444,9 @@ export function crossing(all: Visit[], found: Stretch[]): Visit[] {
     const next = a.edge + (end(a, found, false) ? 1 : -1);
     return b?.edge === next && found[next]?.steps[0]?.shape === found[a.edge]?.steps[0]?.shape;
   };
-  const touch = (v: Visit, i: number) => i > 0 && i < all.length - 1 && v.first === v.last && v.length < SHORT && (follows(v, all[i + 1]) || follows(v, all[i - 1]));
+  /** Whether v comes in and goes out at one end of its Stretch, between two others: it only brushes that end. */
+  const brushes = (v: Visit, i: number) => end(v, found, true) === end(v, found, false) && all[i - 1]?.edge !== all[i + 1]?.edge;
+  const touch = (v: Visit, i: number) => i > 0 && i < all.length - 1 && v.first === v.last && v.length < SHORT && (follows(v, all[i + 1]) || follows(v, all[i - 1]) || brushes(v, i));
   const kept = all.filter((v, i) => !touch(v, i));
   for (let i = 1; i < kept.length - 1; i++) {
     let j = i;

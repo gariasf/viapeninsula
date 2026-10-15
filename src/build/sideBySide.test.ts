@@ -798,6 +798,19 @@ test('leaves out the one piece a shape touches of the Stretch it goes on along, 
   expect(crossing([touch, on], found)).toEqual([touch, on]);
 });
 
+test("leaves out the one piece a shape touches of another centreline's Stretch, coming in and going out at one end of it, between two other Stretches, as the northbound track south of Valladolid touches the southbound's for 84 m (#622)", () => {
+  // Three centrelines: the shape comes along c0, touches one piece of a Stretch of c1 of two pieces, at its start, and goes on along c2.
+  const two = { steps: [{ line: -1, piece: 0, shape: 'c1', way: 1, from: 0, to: 50 }, { line: -1, piece: 1, shape: 'c1', way: 1, from: 50, to: 100 }], lines: [] };
+  const found = [stretch('c0', 0, 1000), two, stretch('c2', 0, 1000)];
+  const [come, touch, go] = [visit(0, 900, 990, 90), visit(1, 25, 25, 84), visit(2, 10, 900, 890)];
+  expect(crossing([come, touch, go], found)).toEqual([come, go]);
+  // Back onto the Stretch it came from, a spur, it stays.
+  expect(crossing([come, touch, come], found)).toEqual([come, touch, come]);
+  // A Stretch of one piece it goes through, in at one end and out at the other, stays (#599).
+  const through = { ...visit(1, 25, 25, 50), ways: [1, 1] as [number, number] };
+  expect(crossing([come, through, go], [stretch('c0', 0, 1000), stretch('c1', 0, 50), stretch('c2', 0, 1000)])).toEqual([come, through, go]);
+});
+
 test("keeps a Line's way across a node from the end whose strokes' numbers come first as numbers, not as strings, so that it's the same end however many strokes are numbered before them (#448)", () => {
   // One way, from the end of S onto the start of T, which across() finds from either. Numbered 9 and 12 its
   // two ends' strings are "9.1 12.0" and "12.0 9.1", of which the second sorts first, though 9 comes before 12;
