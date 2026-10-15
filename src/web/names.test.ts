@@ -584,7 +584,9 @@ test("sorts a tier's names by their calls a day too, the busier first, and every
 test("lists each place in TIERS once: a place is drawn as the first tier that lists it says, so a second listing of it, in that tier or the next, is one nobody sees (#424)", () => {
   // main.ts builds the whole page as it loads, so no test can import it: TIERS is read from its text as namesBench.ts reads it.
   const main = readFileSync(new URL('./main.ts', import.meta.url), 'utf8');
-  const tiers: { places: string[] }[] = new Function(`return ${/^const TIERS\b[^=]*=\s*([\s\S]*?);\n(?=\S)/m.exec(main)?.[1]}`)();
+  const found = /^const TIERS\b[^=]*=\s*([\s\S]*?);\n(?=\S)/m.exec(main);
+  assert(found, 'No TIERS in main.ts');
+  const tiers: { places: string[] }[] = new Function(`return ${found[1]}`)();
   const ids = tiers.flatMap((tier) => tier.places);
   expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([]);
 });
