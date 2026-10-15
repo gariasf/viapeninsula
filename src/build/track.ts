@@ -418,10 +418,10 @@ function traceRun(graph: Graph, run: Run, log: (line: string) => void, report: (
  * with no path there. At each Station it can set off again from another of its tracks of the gauge it
  * came in on, at a cost (ACROSS), as where OpenStreetMap has no switch between them: at Alcázar de San
  * Juan none of the tracks MD's Trains from Manzanares come in on leads on to Campo de Criptana. It
- * can turn back at each of these Stations, and at `passed` too, which it doesn't call at (#795).
+ * can turn back at each of these Stations, and at `turnBacks` too, which it doesn't call at (#795).
  */
-function walk(graph: Graph, stations: Station[], passed: Station[], layers?: number, own = layers): Arrival[] | { a: Station; b: Station } {
-  const turnBacks = new Set([...stations, ...passed].flatMap((s) => graph.near.get(s.id) ?? []));
+function walk(graph: Graph, stations: Station[], turnBacks: Station[], layers?: number, own = layers): Arrival[] | { a: Station; b: Station } {
+  const turnAt = new Set([...stations, ...turnBacks].flatMap((s) => graph.near.get(s.id) ?? []));
   const layerOf = (v: number) => graph.layer[graph.out[v]?.[0] ?? -1] ?? 0;
   let reached: Arrival[] = (graph.near.get(stations[0]?.id ?? '') ?? []).map((vertex) => ({ vertex, edge: -1, cost: 0, waypoint: 0, edges: [] }));
   for (const [i, b] of stations.entries()) {
@@ -439,7 +439,7 @@ function walk(graph: Graph, stations: Station[], passed: Station[], layers?: num
     // Ourense Turístico at Ourense's, is reached where that one was.
     const to = graph.near.get(b.id) ?? [];
     const here = reached.filter((r) => to.includes(r.vertex)).map((r) => ({ ...r, from: r, edges: [] }));
-    const next = here.length ? here : [...new Set(to.map(layerOf))].flatMap((layer) => paths(graph, [...reached, ...across], new Set(to.filter((v) => layerOf(v) === layer)), limit, turnBacks, layers, own));
+    const next = here.length ? here : [...new Set(to.map(layerOf))].flatMap((layer) => paths(graph, [...reached, ...across], new Set(to.filter((v) => layerOf(v) === layer)), limit, turnAt, layers, own));
     if (!next.length) return { a, b };
     reached = next.map((arrival) => ({ ...arrival, waypoint: i }));
   }
