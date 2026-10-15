@@ -874,7 +874,9 @@ test("keeps each of a Line of both gauges' runs, as Alvia's, to standard gauge a
   const layout: Record<string, [number, number]> = { a: [0, 0], k: [500, 0], m: [5000, 1000], b: [10000, 0], j: [5000, -200], i: [10000, -20], l: [11000, -10], c: [15000, -10] };
   const ways = rails(layout, ['a k', { gauge: '1435' }], ['k m b l', { gauge: '1435' }], 'k j i l', 'l c');
   const changers = new Set(['k', 'l'].map((v) => Object.keys(layout).indexOf(v) + 1));
+  // Alvia's gauges in the real config, which are AVE's.
   const alvia = AVE_LARGA_DISTANCIA.lines.gauges?.Alvia ?? IBERIAN;
+  expect(alvia).toEqual(STANDARD);
   const { track, log } = runs(ways, [station('A', -10, 0), station('B', 10000, -10), station('C', 15010, -10)], [[call('down', 'A B C', alvia, 'Alvia'), call('up', 'C B A', alvia, 'Alvia')]], changers);
   const byM = [[0, 0], [500, 0], [5000, 1000], [10000, 0], [11000, -10], [15000, -10]];
   expect(points(track('down'))).toEqual(byM);
