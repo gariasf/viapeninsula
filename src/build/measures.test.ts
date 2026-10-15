@@ -425,6 +425,8 @@ test("counts a hairpin where its Line's own Trains turn back as a turn-back, not
   const at = (line: string, lon: number, lat: number) => turnBack(line, [lon, lat]) !== undefined;
   expect(['AVE', 'Alvia', 'Avlo', 'Intercity'].map((name) => at(`ave-larga-distancia:${name}`, -8.5477, 42.8692))).toEqual([true, true, true, false]);
   expect([at('media-distancia-avant:MD', -3.2059, 39.3957), at('media-distancia-avant:Reg.Exp.', 0.6077, 40.7513), at('euskotren:E1', -2.5006, 43.184)]).toEqual([true, false, false]);
+  // València's C3 by La Font de Sant Lluís, 79 m from its Station, but not C6, which calls there too.
+  expect([at('cercanias-valencia:C3', -0.3723, 39.4415), at('cercanias-valencia:C6', -0.3723, 39.4415)]).toEqual([true, false]);
 });
 
 test("doesn't count the rounding of a curve's ends as turning it back (#353)", () => {

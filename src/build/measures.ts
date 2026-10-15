@@ -60,6 +60,7 @@ const TURN_BACKS: { line: string; at: Point; within: number; why: string }[] = [
     why: "Santiago de Compostela-Daniel Castelao: AVE's, Alvia's and Avlo's Trains between Vigo and Madrid turn back here, as AVE 04254, 04464, 04475 and 04565, Alvia 00621 and 00622 and Avlo 04494 and 04975 did on 15 Oct 2026",
   })),
   { line: 'media-distancia-avant:MD', at: [-3.20574, 39.39563], within: 600, why: 'Alcázar de San Juan: MD 18081, 18083, 18181 and 18183 turned back here on 15 Oct 2026' },
+  { line: 'cercanias-valencia:C3', at: [-0.371422, 39.4416052], within: 300, why: "València-La Font de Sant Lluís: C3's Trips between València Nord and Buñol call here and turn back, as Renfe's shape does, the line from Nord joining the one to Sant Isidre facing this way, as the 06:10 from Nord and the 23:04 from Sant Isidre did on 15 Oct 2026" },
 ];
 
 /**
