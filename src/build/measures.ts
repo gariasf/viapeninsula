@@ -45,12 +45,12 @@ const LOOKS = 4;
 /** How far apart, in degrees, a curve's first and last segments head, at the least, for it to turn back on itself: a hairpin (#353). More than a branch or a change of side turns one. */
 const HAIRPIN = 120;
 /**
- * Where a Line's own Trains turn back, so that its curve there turns back too, as a hairpin does: left out of
- * `hairpins`, and listed in the report as turn-backs, with why (#622). Each by its Line and how far from its Station,
- * as a curve's middle can be hundreds of metres from it: Santiago's are 302 m away. Only where the curve is where they
- * turn: Reg.Exp.'s Trains turn back at L'Aldea too, and E1's Trips from Eibar end at Ermua, but their hairpins there
- * are the touch by L'Aldea's Station that Avant Exp's curve has too below zoom 10, and the curve across Ermua's
- * horseshoe that FCC's has too, neither of which those Trains turn on, so they aren't named.
+ * Where a Line's own Trains turn back, or its track turns back on itself, as on a horseshoe its Trains run round
+ * without reversing, so that its curve there turns back too, as a hairpin does: left out of `hairpins`, and listed in
+ * the report as turn-backs, with why (#622). Each by its Line and how far from its Station, as a curve's middle can
+ * be hundreds of metres from it: Santiago's are 302 m away, Ermua's up to 514 m. Only where the curve is where they
+ * turn: Reg.Exp.'s Trains turn back at L'Aldea too, but its hairpin there is the touch by L'Aldea's Station that
+ * Avant Exp's curve has too below zoom 10, which those Trains don't turn on, so it isn't named.
  */
 const TURN_BACKS: { line: string; at: Point; within: number; why: string }[] = [
   ...['AVE', 'Alvia', 'Avlo'].map((name) => ({
@@ -61,6 +61,12 @@ const TURN_BACKS: { line: string; at: Point; within: number; why: string }[] = [
   })),
   { line: 'media-distancia-avant:MD', at: [-3.20574, 39.39563], within: 600, why: 'Alcázar de San Juan: MD 18081, 18083, 18181 and 18183 turned back here on 15 Oct 2026' },
   { line: 'cercanias-valencia:C3', at: [-0.371422, 39.4416052], within: 300, why: "València-La Font de Sant Lluís: C3's Trips between València Nord and Buñol call here and turn back, as Renfe's shape does, the line from Nord joining the one to Sant Isidre facing this way, as the 06:10 from Nord and the 23:04 from Sant Isidre did on 15 Oct 2026" },
+  ...['E1', 'FCC'].map((name) => ({
+    line: `euskotren:${name}`,
+    at: [-2.501026, 43.185235] as Point,
+    within: 600,
+    why: "Ermua: the line's horseshoe round the town, about 180° in 600 m, which the node takes whole below zoom 11, so that E1's and FCC's curve there turns back as their track does, though their Trains run round it without reversing",
+  })),
 ];
 
 /**
@@ -87,7 +93,7 @@ const TURN_BACKS: { line: string; at: Point; within: number; why: string }[] = [
  * other, an S-bend, or turn back on themselves, within WIGGLE line widths, where they turn on the curve (#206).
  * `hairpins`: curves whose first and last segments, those of at least ROUNDING, head HAIRPIN degrees or
  * more apart, so that they run back along themselves, hooking onto the Stretch they leave or the one
- * they come onto (#353), but where their Line's Trains turn back (TURN_BACKS, #622).
+ * they come onto (#353), but where their Line's Trains turn back or its track turns back on itself (TURN_BACKS, #622).
  * `inside`: metres of curve drawn further off its Line's own track, by more than half a line width,
  * than at either of its ends. `largest`: the LARGEST largest nodes, how far apart their fronts are in
  * the band's line widths, and where their middle is, so that a node that absorbed too much shows (#187).
@@ -113,7 +119,8 @@ export interface Measures {
 
 /**
  * A curve that wiggles or is a hairpin, in its band: its zoom, its Line, where its middle is, and how far its chain
- * steps aside, in the band's line widths (aside()). A hairpin where its Line's Trains turn back is a turn-back, with why (#622).
+ * steps aside, in the band's line widths (aside()). A hairpin where its Line's Trains turn back, or its track turns back on
+ * itself, is a turn-back, with why (#622).
  */
 export interface Curve {
   kind: 'wiggle' | 'hairpin' | 'turnback';
@@ -672,7 +679,7 @@ function hairpins(strokes: Stroke[], shapes: Shape[]): Curve[] {
   return found;
 }
 
-/** Why a Line's curve whose middle is at a point turns back, where its Trains do (TURN_BACKS). */
+/** Why a Line's curve whose middle is at a point turns back, where its Trains or its track do (TURN_BACKS). */
 export function turnBack(line: string, at: Point): { why: string } | undefined {
   return TURN_BACKS.find((t) => t.line === line && metres(at, t.at) <= t.within);
 }

@@ -348,7 +348,7 @@ test('counts the strokes still drawn along a Stretch a node absorbed, where a cu
 /**
  * R2, or another Line, drawn along 'a' up to 1000 m east, across a node on a curve through points, in each
  * band from GRAPH_BAND on, and on along 'b', which runs east so many metres north, from where the curve ends:
- * all from a point in Barcelona, or another point, as where a Line's Trains turn back (TURN_BACKS).
+ * all from a point in Barcelona, or another point, as where a Line turns back (TURN_BACKS).
  */
 function crossing(points: [number, number][], north = 0, ease = 0, line = 'R2', [lon, lat]: [number, number] = [2.17, 41.39]): Measures {
   const link = shape(`${LINK}0`, points);
@@ -421,12 +421,18 @@ test("counts a hairpin where its Line's own Trains turn back as a turn-back, not
   expect(spots.map((s) => [s.zoom, s.line, s.text[0]?.slice(0, 19)])).toEqual(BANDS.flatMap((zoom, band) => (band < GRAPH_BAND ? [] : [[zoom, 'media-distancia-avant:MD', 'Alcázar de San Juan']])));
   expect(comment(undefined, spots, 'run')).toBeUndefined();
   // Santiago's, by its Lines, as far from its Station as the curves there are, about 300 m; and not L'Aldea's
-  // Reg.Exp. nor Ermua's E1, whose hairpins there aren't where their Trains turn back.
+  // Reg.Exp., whose hairpin there isn't where its Trains turn back.
   const at = (line: string, lon: number, lat: number) => turnBack(line, [lon, lat]) !== undefined;
   expect(['AVE', 'Alvia', 'Avlo', 'Intercity'].map((name) => at(`ave-larga-distancia:${name}`, -8.5477, 42.8692))).toEqual([true, true, true, false]);
-  expect([at('media-distancia-avant:MD', -3.2059, 39.3957), at('media-distancia-avant:Reg.Exp.', 0.6077, 40.7513), at('euskotren:E1', -2.5006, 43.184)]).toEqual([true, false, false]);
+  expect([at('media-distancia-avant:MD', -3.2059, 39.3957), at('media-distancia-avant:Reg.Exp.', 0.6077, 40.7513)]).toEqual([true, false]);
   // València's C3 by La Font de Sant Lluís, 79 m from its Station, but not C6, which calls there too.
   expect([at('cercanias-valencia:C3', -0.3723, 39.4415), at('cercanias-valencia:C6', -0.3723, 39.4415)]).toEqual([true, false]);
+});
+
+test("counts E1's and FCC's curve across Ermua's horseshoe as a turn-back, where their track turns back on itself though their Trains run on round it, up to 600 m from its Station, as the zoom 7 curve's middle is 514 m away (#622)", () => {
+  // The hairpin above, its middle 490 m south of Ermua's Station, and 690 m.
+  const ermua = (line: string, south: number) => crossing(through([1000, 0], [1060, 0], [1060, 20], [1000, 20]), 0, 0, line, [-2.501026 - 1060 / kx, 43.185235 - south / degree]).hairpins;
+  expect([ermua('euskotren:E1', 500), ermua('euskotren:FCC', 500), ermua('euskotren:E1', 700)]).toEqual([none, none, every(1)]);
 });
 
 test("doesn't count the rounding of a curve's ends as turning it back (#353)", () => {

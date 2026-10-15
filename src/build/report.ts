@@ -19,7 +19,7 @@ export interface Spot {
    * config leaves out too, a Network's Closures today, a Network built from the
    * copy of its timetables that last built it, a region whose build failed, which keeps the files of
    * its last one, a traced shape's length against the feed's, one of the largest nodes at a zoom, a
-   * curve that wiggles or a hairpin at a zoom, a hairpin where its Line's Trains turn back (a `turnback`,
+   * curve that wiggles or a hairpin at a zoom, a hairpin where its Line's Trains or track turn back (a `turnback`,
    * not the `turn` of a trace), or the line measures.
    */
   kind: 'kept' | 'turn' | 'branch' | 'detour' | 'across' | 'trip' | 'sequence' | 'route' | 'bus' | 'notrips' | 'trips' | 'closures' | 'copy' | 'region' | 'length' | 'node' | 'wiggle' | 'hairpin' | 'turnback' | 'measures';
