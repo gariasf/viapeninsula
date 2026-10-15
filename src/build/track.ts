@@ -219,7 +219,9 @@ interface Untraced {
  * traced before it, as traceShapes() traces a shape. A run with a Station off those rails, or a stretch
  * with no path along them, isn't drawn straight across the country: its Trips are left out, logged and
  * reported. Gives the traced runs, and each day's other Trips, each with its run as its shape. A Trip
- * whose rails aren't given isn't traced, nor given back: src/networks.ts gives every Line's.
+ * whose rails aren't given isn't traced, nor given back: src/networks.ts gives every Line's. A run can
+ * turn back at `turnBacks` too, the Stations its Network's config has its Trains turn back at without
+ * calling there, as at Sant Gabriel (#795).
  */
 export function traceRuns(
   days: FeedTrip[][],
@@ -229,6 +231,7 @@ export function traceRuns(
   side: Network['runningSide'],
   log = console.log,
   report: (found: Found) => void = () => {},
+  turnBacks: Station[] = [],
 ): { shapes: Shape[]; days: FeedTrip[][] } {
   const { runs, ran } = runsOf(
     days.map((trips) => trips.filter((t): t is FeedTrip & { gauges: Gauges } => !!t.gauges)),
@@ -246,8 +249,8 @@ export function traceRuns(
   for (const all of onRails.values()) {
     const [first] = all;
     if (!first) continue;
-    const graph = railGraph(fine(layered(rails, first.gauges, changers)), [...new Set(all.flatMap((r) => r.stations))], side);
-    for (const run of all) traced.set(run, traceRun(graph, run, log, report));
+    const graph = railGraph(fine(layered(rails, first.gauges, changers)), [...new Set([...all.flatMap((r) => r.stations), ...turnBacks])], side);
+    for (const run of all) traced.set(run, traceRun(graph, run, log, report, turnBacks));
   }
   return { shapes: shapesOf(traced), days: ridden(ran, traced, log, report) };
 }
@@ -340,15 +343,15 @@ function ridden(ran: { trip: FeedTrip; run: Run }[][], traced: Map<Run, Shape | 
  * it, to go on to Santiago. Or why it can't be: a Station off the rails, or a stretch with no path.
  * Where it turns back on the way, a hop is much longer than its straight line, or it sets off from
  * another of a Station's tracks than it came in on (ACROSS), it logs and reports; its length, and where
- * it changes gauge, it only logs.
+ * it changes gauge, it only logs. It can turn back at `turnBacks` too, though it doesn't call there (traceRuns()).
  */
-function traceRun(graph: Graph, run: Run, log: (line: string) => void, report: (found: Found) => void): Shape | Untraced {
+function traceRun(graph: Graph, run: Run, log: (line: string) => void, report: (found: Found) => void, turnBacks: Station[] = []): Shape | Untraced {
   const { stations } = run;
   const off = stations.find((s) => !graph.near.has(s.id));
   if (off) return { why: 'off', stations: [off], reason: `${off.name} is off the network` };
   const { gauges, orElse = [] } = run.gauges ?? {};
-  let reached = walk(graph, stations, gauges?.length);
-  if (!Array.isArray(reached) && orElse.length) reached = walk(graph, stations, Infinity, gauges?.length);
+  let reached = walk(graph, stations, turnBacks, gauges?.length);
+  if (!Array.isArray(reached) && orElse.length) reached = walk(graph, stations, turnBacks, Infinity, gauges?.length);
   if (!Array.isArray(reached)) {
     const { a, b } = reached;
     return { why: 'nopath', stations: [a, b], reason: `${a.name} → ${b.name} has no path along the rails` };
@@ -394,7 +397,7 @@ function traceRun(graph: Graph, run: Run, log: (line: string) => void, report: (
     }
     // Where it turns back on the way, as traceShape() reports it.
     for (const v of turnsBack(graph, a.edges)) {
-      const at = stations.find((s) => graph.near.get(s.id)?.includes(v));
+      const at = [...stations, ...turnBacks].find((s) => graph.near.get(s.id)?.includes(v));
       const text = `${run.id}: ${from.name} → ${to.name} turns back at ${at?.name}`;
       log(text);
       report({ kind: 'turn', line: run.line, shape: run.id, stations: at ? [at] : [], text: [text] });
@@ -414,10 +417,11 @@ function traceRun(graph: Graph, run: Run, log: (line: string) => void, report: (
  * layers of track, those beyond its `own` first at OTHER_GAUGE times their length, or the first stretch
  * with no path there. At each Station it can set off again from another of its tracks of the gauge it
  * came in on, at a cost (ACROSS), as where OpenStreetMap has no switch between them: at Alcázar de San
- * Juan none of the tracks MD's Trains from Manzanares come in on leads on to Campo de Criptana.
+ * Juan none of the tracks MD's Trains from Manzanares come in on leads on to Campo de Criptana. It
+ * can turn back at each of these Stations, and at `passed` too, which it doesn't call at (#795).
  */
-function walk(graph: Graph, stations: Station[], layers?: number, own = layers): Arrival[] | { a: Station; b: Station } {
-  const turnBacks = new Set(stations.flatMap((s) => graph.near.get(s.id) ?? []));
+function walk(graph: Graph, stations: Station[], passed: Station[], layers?: number, own = layers): Arrival[] | { a: Station; b: Station } {
+  const turnBacks = new Set([...stations, ...passed].flatMap((s) => graph.near.get(s.id) ?? []));
   const layerOf = (v: number) => graph.layer[graph.out[v]?.[0] ?? -1] ?? 0;
   let reached: Arrival[] = (graph.near.get(stations[0]?.id ?? '') ?? []).map((vertex) => ({ vertex, edge: -1, cost: 0, waypoint: 0, edges: [] }));
   for (const [i, b] of stations.entries()) {

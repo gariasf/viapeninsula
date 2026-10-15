@@ -77,6 +77,15 @@ export interface NetworkConfig extends Omit<Network, 'credit'> {
    */
   byRoad?: { stations: string[]; source: string }[];
   /**
+   * Stations its Trains turn back at without calling there, by ID, with where they are and the sources
+   * that say so, as Intercity 01460 and 01463 run from Elche into Sant Gabriel, reverse and go on into
+   * Alicante/Alacant-Terminal from the west, the coastal line from Sant Gabriel into Alicante being razed
+   * (#795). A run's trace can turn back at its own Stations (walk()) and at these, at REVERSE's cost, but
+   * at no other: a long-distance run can't turn back wherever it passes a Station. A Network whose
+   * timetables have no shapes traces its runs with them (traceRuns()); the daily build lists those it applies.
+   */
+  turnBacks?: Record<string, { name: string; lon: number; lat: number; source: string }>;
+  /**
    * Its region builds without it where its timetables can't be read, nor their copy, or it can't be
    * built from them: it's left out,
    * logged and reported, rather than fail the region, as Ouigo's, behind NAP's key, mustn't keep AVE y
@@ -855,6 +864,22 @@ export const AVE_LARGA_DISTANCIA: NetworkConfig = {
     profiles: { AVE: HIGH_SPEED, Avlo: HIGH_SPEED, 'AVE Int': HIGH_SPEED },
     // AVE Int, AVE's trains to France, as AVE. The rest change gauge.
     gauges: { AVE: STANDARD, Avlo: STANDARD, 'AVE Int': STANDARD, Alvia: BOTH, Euromed: BOTH, Intercity: BOTH, Trencelta: BOTH },
+  },
+  // Renfe's long-distance timetable of 14 October 2026 lists Intercity 01460 and 01463, Cartagena–València,
+  // as calling at Elche/Elx-Parc and then at Alicante/Alacant-Terminal. OpenStreetMap has the coastal line
+  // from Sant Gabriel into Alicante razed (way 403284480), its rails ending in buffers 780 m short of the
+  // terminal, and so has it right: Trains from Elche run into Sant Gabriel, reverse and go north onto the
+  // Madrid line into Alicante from the west, as Alicante Plaza says ("terminar con la inversión de la
+  // marcha en San Gabriel") and Cercanías' C1 does (its shape 41_C1 of Renfe's Cercanías timetable
+  // reverses there). The Intercity doesn't call at Sant Gabriel, so the trace had no path: 2 Trips a day
+  // left out (#478, #795). Its point is Renfe's, of Cercanías' timetable.
+  turnBacks: {
+    'adif:62109': {
+      name: 'Sant Gabriel',
+      lon: -0.5086866,
+      lat: 38.3290647,
+      source: `https://alicanteplaza.es/alicanteplaza/podem-insta-a-los-ayuntamientos-a-reivindicar-inversiones-en-el-cercanias-entre-alicante-y-murcia, ${RENFE_CERCANIAS} (shape 41_C1)`,
+    },
   },
   // Renfe's long-distance timetable of 10 October 2026 has Medina del Campo AV at the old Medina del Campo
   // station, 2 m from its Iberian-gauge tracks and 1.5 km from any standard-gauge one, where it's 3.1 km

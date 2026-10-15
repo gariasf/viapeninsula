@@ -238,6 +238,11 @@ function build(config: NetworkConfig, { published, days }: Awaited<ReturnType<ty
   for (const [stationId, { name: spelt, source }] of Object.entries(config.stationNames ?? {})) {
     console.log(stations.some((s) => s.id === stationId) ? `${name} spells ${stationId} as ${spelt}: ${source}` : `${name}'s timetables have no Station ${stationId}, so its spelling of its name isn't applied`);
   }
+  // The Stations its runs can turn back at without calling there (traceRuns(), #795).
+  const turnBacks = Object.entries(config.turnBacks ?? {}).map(([stationId, { name: at, lon, lat, source }]) => {
+    console.log(`${name}'s runs can turn back at ${at} (${stationId}) without calling there: ${source}`);
+    return { id: stationId, name: at, lon, lat };
+  });
   const shapeless = config.timetables.every((t) => t.shapeless);
   const own = ownRails(rails, config);
   const near = railsBeside(own, stations);
@@ -265,7 +270,7 @@ function build(config: NetworkConfig, { published, days }: Awaited<ReturnType<ty
   // beyond it, and its Trips placed on their runs' traces (#259, #262). A Trip of a timetable with shapes that
   // doesn't fit its feed's shape runs on a trace through its own Stations, which its Line has too (#280).
   const placed = shapeless
-    ? placeRuns(traceRuns(toBorder(border, stations, unlistedTrains(config, days)), stations, rails, changers, runningSide, console.log, found), stations, topSpeed, console.log, found)
+    ? placeRuns(traceRuns(toBorder(border, stations, unlistedTrains(config, days)), stations, rails, changers, runningSide, console.log, found, turnBacks), stations, topSpeed, console.log, found)
     : placeDays(cropped.days, shapes, stations, topSpeed, (unfit) => traceOwn(unfit, feeds, stations, graphs, console.log, found), console.log, found);
   for (const f of unserved(branches, placed.days, placed.shapes)) found(f);
   const traces = crop(border, stations, placed.shapes, []).shapes;
