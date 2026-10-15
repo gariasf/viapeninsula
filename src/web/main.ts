@@ -208,9 +208,9 @@ const PROJECTION: ProjectionSpecification = { type: ['interpolate', ['linear'], 
 /**
  * The places drawn larger than the rest and named from further out, by their IDs in places(), as the
  * maintainer picks them: each tier's dots are `larger` px larger in radius than a place's in neither,
- * and its names show from zoom `nameZoom`, before a lower tier's where they collide, and where two of
- * its own collide, the one it lists first (nameSort(), #424), `size` px large, a little larger by tier,
- * as railisland's (TIER_STYLE). A place in
+ * and its names show from zoom `nameZoom`, before a lower tier's where they collide, `size` px large,
+ * a little larger by tier, as railisland's (TIER_STYLE). Where two of a tier's names collide, the one it
+ * lists first wins (nameSort(), #424). A place in
  * neither, as every Metro and TRAM place is and one that opens later will be, is drawn as UNTIERED
  * says.
  * ponytail: by ID, so a listed place whose operator renumbers it drops to UNTIERED unnoticed. Have
