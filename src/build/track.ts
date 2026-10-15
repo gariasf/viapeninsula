@@ -69,8 +69,10 @@ export function eachWay(shapes: FeedShape[], stations: Station[], trips: TripEnd
  * tracks within 200 m instead (Graph's `other`), as C3's does at Los Rosales, on the Mérida line 176 m from
  * Renfe's point, where the Córdoba line's platforms lead on only by turning back at a switch 491 m west (#622).
  * Only there, as setting off from any track within 200 m changed 21 of 15 Oct 2026's 1,088 traces, and not
- * Los Rosales'. ponytail: not on the way out of a trace's first Station, which no stretch leads into; start
- * there on its other tracks too if a trace ever needs it.
+ * Los Rosales'. ponytail: not on the way out of a Station no traced stretch leads into, a trace's first or the
+ * first after a stretch that keeps the feed's shape, nor out of two Stations in a row, as the stretch into the
+ * second is traced again only from the tracks the first was reached on; start there on their other tracks too
+ * if a trace ever needs it.
  */
 const REACH = 200;
 const BAND = 50;
@@ -441,7 +443,7 @@ function walk(graph: Graph, stations: Station[], turnBacks: Station[], layers?: 
     return [...new Set(to.map(layerOf))].flatMap((layer) => paths(graph, from, new Set(to.filter((v) => layerOf(v) === layer)), limit, turnAt, layers, own)).map((arrival) => ({ ...arrival, waypoint: k }));
   };
   let reached: Arrival[] = (graph.near.get(stations[0]?.id ?? '') ?? []).map((vertex) => ({ vertex, edge: -1, cost: 0, waypoint: 0, edges: [] }));
-  let before: Arrival[] = []; // where the stretch to the last Station reached set off
+  let before: Arrival[] = []; // what was reached at the Station before the last one reached
   for (const [i, b] of stations.entries()) {
     const a = stations[i - 1];
     if (!a) continue;
@@ -665,7 +667,7 @@ function traceShape(graph: Graph, feed: FeedShape, stations: Station[], log: (li
   let keeping: { why: Cause; stations: Station[]; text: string[] } | undefined;
   const reportKept = () => keeping && report({ kind: 'kept', line: feed.line, shape: feed.id, ...keeping });
   let reached = starts(0);
-  let before: Arrival[] = []; // where the stretch to the last waypoint reached set off, while it's traced on
+  let before: Arrival[] = []; // what was reached at the waypoint before the last one reached, while it's traced on
   for (const [i, b] of waypoints.entries()) {
     const a = waypoints[i - 1];
     if (!a) continue;
