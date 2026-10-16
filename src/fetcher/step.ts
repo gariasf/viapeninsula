@@ -872,20 +872,29 @@ const gtfsRtAdapter: LiveAdapter<SourceOf<'gtfs-rt'>, Fetched<Uint8Array>> = {
 };
 
 /**
- * The Trains of a feed of trip updates that were running when it was written: between the first and
- * the last stop it gives a time for, as most Trips it lists haven't started yet (docs/research/
- * live-at-scale.md). Each gets one report, as of when its update was: the Station it comes to next,
- * the first of its stops whose time is still to come, and when it's expected there, as the Metro's
- * are. Its Network is by its route, and a Trip of a route the source's config names none for gets none,
- * nor does one whose next stop its config can't name the Station of.
+ * The Trains of a feed of trip updates that were running when it was written, as most Trips it lists
+ * haven't started yet (docs/research/live-at-scale.md): each that has started and has a stop still to
+ * come. One has started where the first stop its update gives a time for is already past, or isn't its
+ * first, as Euskotren's feed drops the stops a Train has passed (#818). Each gets one report, as of
+ * when its update was: the Station it comes to next, the first of its stops whose time is still to
+ * come, and when it's expected there, as the Metro's are. Its Network is by its route, and a Trip of
+ * a route the source's config names none for gets none, nor does one whose next stop its config can't
+ * name the Station of.
  */
 function runningReports(source: SourceOf<'gtfs-rt'>, { written, trips }: TripUpdates): Report[] {
   const [stop, station] = source.stations;
   return trips.flatMap(({ id, route, updated, stops }) => {
     const network = networkOf(source, route ?? '');
     const at = updated ?? written;
-    const next = stops.find((s) => (s.time ?? 0) >= at);
-    const running = network && next?.time && (stops[0]?.time ?? Infinity) <= at && stop.test(next.platform ?? '');
+    const [first, next] = [stops[0], stops.find((s) => (s.time ?? 0) >= at)];
+    // ponytail: a Trip's first stop is taken to be its stop_sequence 1, as it is for each of Euskotren's
+    // trains' Trips in its timetable, and its update to give a time for every stop from where it starts,
+    // as Euskotren's do. A feed that numbers its stops from 0 would leave a Train between its first two
+    // Scheduled. One that numbers them by tens, or gives no time for a Trip's first stops or leaves them
+    // out, would report Trains before they leave, and would need the timetable's first stop, which the
+    // fetcher doesn't load.
+    const started = (first?.time ?? Infinity) <= at || (first?.sequence ?? 0) > 1;
+    const running = network && next?.time && started && stop.test(next.platform ?? '');
     return running ? [{ trip: `${network}:${id}`, at: at * 1000, position: { next: { station: next.platform!.replace(stop, station), at: next.time! * 1000 } } }] : [];
   });
 }
@@ -931,10 +940,14 @@ function tripUpdate(field: number, update: TripUpdates['trips'][number], pbf: Pb
   }
 }
 
-/** A stop, by its platform, and when the Train is expected there, in seconds since 1970: at its arrival, or where it gives none, its departure. */
-type Stop = { platform?: string; time?: number };
+/**
+ * A stop, by its number in its Trip (its stop_sequence) and its platform, and when the Train is expected
+ * there, in seconds since 1970: at its arrival, or where it gives none, its departure.
+ */
+type Stop = { sequence?: number; platform?: string; time?: number };
 
 function stopTimeUpdate(field: number, stop: Stop, pbf: PbfReader) {
+  if (field === 1) stop.sequence = pbf.readVarint();
   if (field === 4) stop.platform = pbf.readString();
   if ((field === 2 || field === 3) && !stop.time) stop.time = pbf.readMessage((field, event: { time?: number }) => {
     if (field === 2) event.time = pbf.readVarint(true);
