@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { Kind } from '../bundle.ts';
-import { boxOf, FOLLOWED_TEXT, haloScale, outlineOf, OUTLINES_OF, outlinePath, PILL_TEXT, pillReach, pillText, pulse, DASHED_RING, targetRings } from './pill.ts';
+import { boxOf, dashedDot, dashedOutline, dashesAcross, FOLLOWED_TEXT, haloScale, outlineOf, OUTLINES_OF, outlinePath, PILL_TEXT, pillReach, pillText, pulse, DASHED_RING, targetRings } from './pill.ts';
 
 /** A Line's name as wide as textWidth() has it where there's no canvas to measure it on: 6 px a letter, at PILL_TEXT. */
 const width = (name: string) => name.length * 6;
@@ -96,4 +96,39 @@ test('its pulse goes out from its outer ring 11 px further every 1.6 s, fading f
 test("below zoom 12 a Live Train's halo is 0.6 of its size, and from 12 as large, or on the dark basemap 1.6 times as large, as a glow (#519)", () => {
   expect([haloScale(11.9, false), haloScale(11.9, true)]).toEqual([0.6, 0.6]);
   expect([haloScale(12, false), haloScale(14, true)]).toEqual([1, 1.6]);
+});
+
+test("a Scheduled pill's dashed outline is the pill's own with its straight sides as long as the most whole dashes they hold, which MapLibre stretches the rest of the way, less than a dash's step (#519)", () => {
+  // R1's round pill holds 1, its straight sides 7 px; R2N's pointed one 4 at 10 px, of 20, and 3 at 8 px, of 16.4; and L's badge none.
+  for (const [outline, name, size, n] of [['round', 'R1', PILL_TEXT, 1], ['pointed', 'R2N', PILL_TEXT, 4], ['pointed', 'R2N', 8, 3], ['badge', 'L', PILL_TEXT, 0]] as const) {
+    expect(dashesAcross(outline, boxOf(outline, width(name), size))).toBe(n);
+  }
+});
+
+/** The field a dashed outline's image reads at a point, x right and y down in px from its middle, 0 to 1, as MapLibre takes it: from 0.75 its fill, from 0.5 its ring, under it nothing. */
+const fieldAt = ({ width: w, height: h, data }: { width: number; height: number; data: Uint8ClampedArray }, x: number, y: number) => data[(Math.floor(h / 2 + 2 * y) * w + Math.floor(w / 2 + 2 * x)) * 4 + 3]! / 255;
+
+test("a dashed outline's image is filled within its outline, and just outside it ringed in 3 px dashes and 2 px gaps, a gap at the middle of its top, where MapLibre stretches it", () => {
+  const image = dashedOutline('badge', 2);
+  // A badge 15 px high with 10 px more of straight side: its top 7.5 px up, from 12.5 px left of its middle to 12.5 right.
+  expect(fieldAt(image, 0.25, 0)).toBeGreaterThan(0.75);
+  expect(fieldAt(image, 0.25, -7.25)).toBeGreaterThan(0.75);
+  // Just outside its top: a gap at its middle, ±1 px, then a dash from 1 to 4 px either way, and a gap from 4 to 6.
+  expect(fieldAt(image, 0.25, -8.25)).toBeLessThan(0.5);
+  expect(fieldAt(image, 2.25, -8.25)).toBeGreaterThan(0.5);
+  expect(fieldAt(image, -2.75, -8.25)).toBeGreaterThan(0.5);
+  expect(fieldAt(image, 4.75, -8.25)).toBeLessThan(0.5);
+  expect(fieldAt(image, 2.25, -8.25)).toBeLessThan(0.75);
+  // Beyond the ring's 2 px, nothing.
+  expect(fieldAt(image, 2.25, -10.25)).toBeLessThan(0.5);
+  expect(image.stretchX).toEqual([[image.width / 2 - 2, image.width / 2 + 2]]);
+});
+
+test("a Scheduled dot's ring is DOT_DASHES dashes round a dot, out to half its radius beyond it, with nothing within it, drawn with no halo", () => {
+  const image = dashedDot(10);
+  expect(fieldAt(image, 0.25, 0.25)).toBeLessThan(0.7);
+  // Its first dash straddles the top, 12.5 px up: the ring's middle.
+  expect(fieldAt(image, 0.25, -12.25)).toBeGreaterThan(0.75);
+  // And a gap half a step round, 22.5° from the top.
+  expect(fieldAt(image, 12.5 * Math.sin(Math.PI / 8), -12.5 * Math.cos(Math.PI / 8))).toBeLessThan(0.7);
 });
