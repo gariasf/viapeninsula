@@ -1560,12 +1560,13 @@ button.result {
     background: Canvas;
   }
 
-  .marker,
+  /* The legend's markers by their own rules' selectors, which a bare .marker loses to, leaving them in the page's ink (#519). */
+  .legend .marker,
   .dot {
     border-color: CanvasText;
   }
 
-  .marker.live,
+  .legend .marker.live,
   .dot.live,
   .bar::before,
   .strip li::before,
