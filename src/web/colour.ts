@@ -37,8 +37,8 @@ export function lettering(colour: string, paper: string): string {
   return towards ? '#ffffff' : '#000000';
 }
 
-/** The dark lettering for a Line's colour that white doesn't read on. */
-export const INK = '#111';
+/** The dark lettering for a Line's colour that white doesn't read on: to the eye #111, and dark enough that Bilbao's C2 (#0F8C2D) reads in it at 4.5:1 (#632). */
+export const INK = '#0a0a0a';
 
 /** Whether INK reads better on a colour than white does, by WCAG's contrast ratio. */
 export function darkInk(colour: string): boolean {
