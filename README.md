@@ -53,7 +53,7 @@ npm run cors
 The history's bucket, with no domain, and its lifecycle rule, which deletes what's under `history/` 7 days after it's put (#806):
 
 ```sh
-npx wrangler r2 bucket create viapeninsula-history
+npx wrangler r2 bucket create viapeninsula-history --location weur --update-config=false
 npx wrangler r2 bucket lifecycle add viapeninsula-history expire-history history/ --expire-days 7 --force
 ```
 

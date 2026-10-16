@@ -48,7 +48,7 @@ function nameOf(slot: number) {
 const gzip = (text: string) => new Response(new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
 
 /** Puts an object in a bucket, or gives up after WAIT. A pending timer keeps the run going, so it's cleared once the bucket answers. */
-async function put(bucket: Bucket, name: string, body: ArrayBuffer) {
+async function putWithin(bucket: Bucket, name: string, body: ArrayBuffer) {
   let timer!: ReturnType<typeof setTimeout>;
   const silent = new Promise<never>((_, reject) => (timer = setTimeout(() => reject(new Error(`no answer in ${WAIT / 1000} s`)), WAIT)));
   try {
@@ -65,24 +65,26 @@ async function put(bucket: Bucket, name: string, body: ArrayBuffer) {
 export async function keepSnapshot(storage: Rows, bucket: Bucket, snapshot: string, now: number) {
   let name: string | undefined;
   try {
-    await storage.put(keyOf(now), snapshot);
     // The rows of the slots before this run's, oldest first: none on most runs.
     const ended = [...(await storage.list({ prefix: ROWS, end: keyOf(startOf(now)) }))];
     const last = ended.at(-1);
-    if (!last) return;
+    if (!last) return await storage.put(keyOf(now), snapshot);
     const slot = slotOf(last[0]);
     const older = ended.filter(([key]) => slotOf(key) < slot);
     // Beside this run's, one slot is held at most, so that a bucket that refuses writes can't grow the storage
-    // for ever: the older go, and the logs say how many runs' snapshots they had.
+    // for ever: the older go, before this run's is held, and the logs say how many runs' snapshots they had.
+    // ponytail: the oldest goes with no last try, so a bucket that refuses writes for 5 to 10 minutes loses a slot;
+    // hold more slots if outages grow longer.
     if (older.length) {
       await storage.delete(older.map(([key]) => key));
       console.log(JSON.stringify({ history: nameOf(slotOf(older[0]![0])), dropped: older.length }));
     }
+    await storage.put(keyOf(now), snapshot);
     const rows = ended.slice(older.length);
     name = nameOf(slot);
     // ponytail: while the bucket refuses writes, each run gzips the held slot again, about 7 ms of CPU at midday;
     // hold its gzipped bytes instead if outages grow long.
-    await put(bucket, name, await gzip(rows.map(([, line]) => `${line}\n`).join('')));
+    await putWithin(bucket, name, await gzip(rows.map(([, line]) => `${line}\n`).join('')));
     await storage.delete(rows.map(([key]) => key));
   } catch (error) {
     console.log(JSON.stringify({ history: name ?? null, error: String(error) }));

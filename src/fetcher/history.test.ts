@@ -18,7 +18,7 @@ class Storage implements Rows {
 }
 
 /** The history's bucket, which keeps every object it's given, once it has refused as many writes as it's told to, as R2 might while it's down. */
-class Kept implements Bucket {
+class FakeBucket implements Bucket {
   objects = new Map<string, ArrayBuffer>();
   refusals: number;
   constructor(refusals = 0) {
@@ -57,7 +57,7 @@ afterEach(() => {
 
 test("holds each run's snapshot until its 5-minute slot ends, then puts the slot's as one gzipped object, a line for each run, named by the slot's day and start in UTC, and deletes them", async () => {
   const storage = new Storage();
-  const bucket = new Kept();
+  const bucket = new FakeBucket();
   // 23:55 to 23:59:45 UTC on 24 October is 01:55 to 01:59:45 in Madrid on the 25th.
   const slot = every20s('2026-10-24T23:55:05Z', 15);
   await runs(storage, bucket, slot);
@@ -72,7 +72,7 @@ test("holds each run's snapshot until its 5-minute slot ends, then puts the slot
 test('holds a slot whose put failed for the next run, which puts it, and never fails the run', async () => {
   const log = vi.spyOn(console, 'log').mockImplementation(() => {});
   const storage = new Storage();
-  const bucket = new Kept(1);
+  const bucket = new FakeBucket(1);
   const slot = every20s('2026-10-16T12:00:05Z', 15);
   await runs(storage, bucket, slot);
   const [refused, next] = every20s('2026-10-16T12:05:05Z', 2) as [number, number];
@@ -88,7 +88,7 @@ test('holds a slot whose put failed for the next run, which puts it, and never f
 test("never holds more than two slots' rows while the bucket refuses every write: a third slot drops the oldest, and the logs say so", async () => {
   const log = vi.spyOn(console, 'log').mockImplementation(() => {});
   const storage = new Storage();
-  const bucket = new Kept(Infinity);
+  const bucket = new FakeBucket(Infinity);
   for (const at of every20s('2026-10-16T12:00:05Z', 60)) {
     await keepSnapshot(storage, bucket, snapshotAt(at), at);
     const times = held(storage).map((row) => (JSON.parse(row) as { generated: number }).generated);
@@ -104,7 +104,7 @@ test("gives up on a bucket that doesn't answer, so that a run that waited as lon
   const log = vi.spyOn(console, 'log').mockImplementation(() => {});
   const storage = new Storage();
   const slot = every20s('2026-10-16T12:00:05Z', 15);
-  await runs(storage, new Kept(), slot);
+  await runs(storage, new FakeBucket(), slot);
   let asked!: () => void;
   const putAsked = new Promise<void>((resolve) => (asked = resolve));
   const silent: Bucket = {
@@ -126,6 +126,6 @@ test("never fails the run, though the Durable Object's storage fails too, and th
   const log = vi.spyOn(console, 'log').mockImplementation(() => {});
   const broken = Object.assign(new Storage(), { put: () => Promise.reject(new Error('Durable Object storage operation exceeded timeout')) });
   const at = Date.parse('2026-10-16T12:05:05Z');
-  await expect(keepSnapshot(broken, new Kept(), snapshotAt(at), at)).resolves.toBeUndefined();
+  await expect(keepSnapshot(broken, new FakeBucket(), snapshotAt(at), at)).resolves.toBeUndefined();
   expect(log).toHaveBeenCalledWith(expect.stringContaining('exceeded timeout'));
 });
