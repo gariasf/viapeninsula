@@ -22,7 +22,7 @@ import { keepView, lastView, markOf, openingView, tiltPressed, toggledPitch } fr
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { darkInk, INK, lettering, standIn } from './colour.ts';
 import { ago, boardAsks, boardList, cardAlerts, countdownTo, due, inNameOrder, linesOnBoard, linkedTrip, linkedWords, minutesTo, nearbyRows, nextOnItsWay, passedPlace, progress, tripsState, untilTick, whereabouts, type CardAlert, type Whereabouts } from './cards.ts';
-import { ARROW_GAP, boxOf, dashedDot, dashedOutline, dashesAcross, FOLLOWED_TEXT, haloScale, LINE_HEIGHT, LOCAL_PILL_ZOOM, OUTLINE_SIZES, outlineOf, PILL_EDGE, PILL_PADDING, PILL_TEXT, pillReach, pillText, pulse, DASHED_RING, SMALL_TEXT, targetRings, type Outline } from './pill.ts';
+import { ARROW_GAP, boxOf, DASHED_RING, dashedDot, dashedOutline, dashesAcross, field, fitOf, FOLLOWED_TEXT, haloScale, LINE_HEIGHT, LOCAL_PILL_ZOOM, OUTLINE_SIZES, outlineOf, PILL_PADDING, PILL_TEXT, pillReach, pillText, pulse, SMALL_TEXT, TARGET, targetRings, type Outline } from './pill.ts';
 import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, tappedRows, type Shown } from './closures.ts';
 import { currentTab, type Tab } from './tabs.ts';
 import { keyboardRise, networkNames, numbered, numberQuery, results, searchPlaces, type Found } from './search.ts';
@@ -65,7 +65,7 @@ const FONT_FACES: FontFacesSpecification = {
   'Noto Sans Italic': [{ url: nunitoSansItalic, 'unicode-range': LATIN }],
 };
 const NAME_SIZE = 12;
-/** How wide the edge drawn round a pill is, in px. */
+/** How wide the edge drawn round a Live pill is, in px; a Scheduled one's dashed ring is DASHED_RING. */
 const PILL_HALO = 1.5;
 /**
  * A Live Train's halo (#91): how many times its dot's radius it reaches, how far beyond the corners of
@@ -1255,7 +1255,7 @@ map.addLayer({
   type: 'circle',
   source: 'trains',
   filter: ['all', DRAWN, AS_DOT],
-  // A Live Train is filled with its Line's colour; a Scheduled one is only ringed with it.
+  // A Live Train is filled with its Line's colour and edged in white; a Scheduled one is filled with the paper, and train-dot-dashes rings it.
   layout: { 'circle-sort-key': ['case', ['get', 'followed'], 1, 0] },
   // The Train the map follows is drawn larger, over the rest.
   paint: {
@@ -1355,8 +1355,8 @@ map.addLayer({ id: 'mark', type: 'circle', source: 'mark', paint: { 'circle-radi
 // Line, as the map sends each image it draws to its worker each time it draws the Trains.
 for (const [id, outline] of Object.entries(OUTLINES)) addOutline(id, outline);
 map.setMissingStyleImageResolver((id) => {
-  const [, outline, n] = /^train-(round|pointed|slanted|badge)-dashed-(\d+)$/.exec(id) ?? [];
-  if (!outline || !n) return;
+  const [, outline, n] = /^train-(\w+)-dashed-(\d+)$/.exec(id) ?? [];
+  if (!outline || !n || !(outline in OUTLINE_SIZES)) return;
   const { width, height, data, ...fit } = dashedOutline(outline as Outline, Number(n));
   map.addImage(id, { width, height, data }, { sdf: true, pixelRatio: 2, ...fit });
 });
@@ -1371,9 +1371,9 @@ for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', tr
       filter: ['all', DRAWN, ['get', 'followed']],
       paint: { 'circle-radius': radius, 'circle-opacity': 0, 'circle-stroke-width': width, 'circle-stroke-color': ['get', 'lettering'], 'circle-stroke-opacity': opacity, 'circle-pitch-scale': 'viewport' },
     });
-    map.addLayer(ring('train-pulse', ['get', 'pulseRadius'], 2, ['get', 'pulseOpacity']));
-    map.addLayer(ring('train-target-outer', ['get', 'outerRing'], 2, 0.3));
-    map.addLayer(ring('train-target', ['get', 'innerRing'], 2.5, 0.9));
+    map.addLayer(ring('train-pulse', ['get', 'pulseRadius'], TARGET.outer.width, ['get', 'pulseOpacity']));
+    map.addLayer(ring('train-target-outer', ['get', 'outerRing'], TARGET.outer.width, TARGET.outer.opacity));
+    map.addLayer(ring('train-target', ['get', 'innerRing'], TARGET.inner.width, TARGET.inner.opacity));
   }
   map.addLayer({
     id: `train-arrows${suffix}`,
@@ -1847,7 +1847,6 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
         type: 'Feature',
         properties: {
           id: trip.id,
-          line: trip.line,
           colour: line?.colour,
           lettering: pill?.lettering,
           // Which Network's banner it shows (bannerNetworks()).
@@ -2088,14 +2087,8 @@ function hatching(colour: string) {
  * draws where the field reads 0.75, and takes a px as 1/8 of it.
  */
 function addOutline(id: string, { w, h, across, outside }: (typeof OUTLINES)[keyof typeof OUTLINES]) {
-  const [width, height] = [(w + 6) * 2, (h + 6) * 2];
-  const data = new Uint8ClampedArray(width * height * 4);
-  for (let row = 0; row < height; row++) {
-    for (let col = 0; col < width; col++) data[(row * width + col) * 4 + 3] = 255 * (0.75 - outside((col + 0.5 - width / 2) / 2, (row + 0.5 - height / 2) / 2) / 8);
-  }
-  const [x, y, high] = [width / 2, height / 2, h - 2 * PILL_EDGE];
-  const fit = across === undefined ? {} : { stretchX: [[x - 2, x + 2]] as [number, number][], stretchY: [[y - 2, y + 2]] as [number, number][], content: [x - across, y - high, x + across, y + high] as [number, number, number, number] };
-  map.addImage(`train-${id}`, { width, height, data }, { sdf: true, pixelRatio: 2, ...fit });
+  const image = field(w, h, outside);
+  map.addImage(`train-${id}`, { width: image.width, height: image.height, data: image.data }, { sdf: true, pixelRatio: 2, ...(across === undefined ? {} : fitOf(image, h, across)) });
 }
 
 /** Shows the interface in the viewer's language: on start, and again each time they switch it. */

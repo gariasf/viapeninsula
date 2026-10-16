@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { Kind } from '../bundle.ts';
-import { boxOf, dashedDot, dashedOutline, dashesAcross, FOLLOWED_TEXT, haloScale, outlineOf, OUTLINES_OF, outlinePath, PILL_TEXT, pillReach, pillText, pulse, DASHED_RING, targetRings } from './pill.ts';
+import { boxOf, DASHED_RING, dashedDot, dashedOutline, dashesAcross, FOLLOWED_TEXT, haloScale, outlineOf, OUTLINES_OF, outlinePath, PILL_TEXT, pillReach, pillText, pulse, targetRings } from './pill.ts';
 
 /** A Line's name as wide as textWidth() has it where there's no canvas to measure it on: 6 px a letter, at PILL_TEXT. */
 const width = (name: string) => name.length * 6;

@@ -607,7 +607,7 @@ body {
   clip-path: polygon(7px 0, calc(100% - 7px) 0, 100% 50%, calc(100% - 7px) 100%, 7px 100%, 0 50%);
 }
 
-/* A pointed or slanted pill has no border, so its ring, its lettering round its inner fill, is cut into dashes across. */
+/* A pointed or slanted pill has no border, so its ring, its lettering round its inner fill, is cut into dashes across, 3 px and 2 px apart, as the map's (pill.ts's DASH and GAP). */
 .pill.pointed.scheduled,
 .pill.slanted.scheduled {
   background: repeating-linear-gradient(90deg, var(--lettering, #555) 0 3px, transparent 3px 5px);
