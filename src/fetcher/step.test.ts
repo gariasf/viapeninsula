@@ -1182,7 +1182,9 @@ test('fetches the Metro no more often than every 30 s, the rate declared to TMB:
 
 // Euskotren's trip updates as Moveuskadi had them at 16:20 on Wednesday 14 October 2026, written at
 // 16:18:01, cut down to its trains' 16 running Trips, three of theirs yet to start and two running trams.
-const EUSKOTREN = { status: 200, body: new Uint8Array(readFileSync(new URL('fixtures/euskotren/trip_updates.pb', import.meta.url))) };
+// And all 329 Trips of those it wrote at 14:34:01 on Friday 16 October, 194 of them its trains'.
+const euskotrenRecorded = (file: string) => ({ status: 200, body: new Uint8Array(readFileSync(new URL(`fixtures/euskotren/${file}`, import.meta.url))) });
+const EUSKOTREN = euskotrenRecorded('trip_updates.pb');
 
 /** When the run fetched them. */
 const EUSKOTREN_NOW = Date.parse('2026-10-14T16:20:30+02:00');
@@ -1201,19 +1203,20 @@ test("reports Euskotren's trains that were running when its trip updates were wr
   });
 });
 
-test("reports Euskotren's trains that have left their first stop by the Station each comes to next, though their trip updates list no stop they've passed, but not those yet to leave it (#818)", () => {
-  // Its trip updates as Moveuskadi wrote them at 14:34:01 on Friday 16 October 2026, all 329 Trips, 194 of them its trains'.
-  const updates = { status: 200, body: new Uint8Array(readFileSync(new URL('fixtures/euskotren/trip_updates-2026-10-16.pb', import.meta.url))) };
-  const { reports } = step(START.state, { euskotren: updates }, Date.parse('2026-10-16T14:35:00+02:00')).snapshot;
-  // The 22 whose updates list a stop already past, and the 11 whose updates start past their first stop, as the feed drops the stops a Train has passed.
+test("reports Euskotren's trains that have left their first Station by the Station each comes to next, though their trip updates list no Station they've passed, but not those yet to leave it (#818)", () => {
+  const { reports } = step(START.state, { euskotren: euskotrenRecorded('trip_updates-2026-10-16.pb') }, Date.parse('2026-10-16T14:35:00+02:00')).snapshot;
+  // The 22 whose updates list a Station already past, and 11 more that list none but start past
+  // their first, as Euskotren's feed drops the Stations a Train has passed.
   expect(reports).toHaveLength(22 + 11);
-  // An E1 Trip for Matiko that left Elgoibar (2622), its first stop, at 14:31: its update at 14:34 starts at its second, Azitain-Eibar (2640), at 14:39.
+  // An E1 Trip for Matiko that left Elgoibar (2622), its first Station, at 14:31: its update at 14:34
+  // starts at its second, Azitain-Eibar (2640), at 14:39.
   expect(reports.find((r) => r.trip === 'euskotren:ES:Euskotren:Journey:15303940:')).toEqual({
     trip: 'euskotren:ES:Euskotren:Journey:15303940:',
     at: Date.parse('2026-10-16T14:34:00+02:00'),
     position: { next: { station: 'euskotren:2640:', at: Date.parse('2026-10-16T14:39:00+02:00') } },
   });
-  // Not an E3 Trip for Lezama due to leave Kukullaga-Etxebarri (2639), its first stop, at 14:36, where its update starts.
+  // Not an E3 Trip for Lezama due to leave Kukullaga-Etxebarri (2639), its first Station, at 14:36,
+  // where its update starts.
   expect(reports.find((r) => r.trip === 'euskotren:ES:Euskotren:Journey:15304870:')).toBeUndefined();
 });
 

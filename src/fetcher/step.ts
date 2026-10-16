@@ -873,9 +873,9 @@ const gtfsRtAdapter: LiveAdapter<SourceOf<'gtfs-rt'>, Fetched<Uint8Array>> = {
 
 /**
  * The Trains of a feed of trip updates that were running when it was written, as most Trips it lists
- * haven't started yet (docs/research/live-at-scale.md): each that has left its first stop and has one
- * still to come. It has left where the first stop its update gives a time for is already past, or
- * isn't its first, as the feed drops the stops a Train has passed (#818). Each gets one report, as of
+ * haven't started yet (docs/research/live-at-scale.md): each that has started and has a stop still to
+ * come. One has started where the first stop its update gives a time for is already past, or isn't its
+ * first, as Euskotren's feed drops the stops a Train has passed (#818). Each gets one report, as of
  * when its update was: the Station it comes to next, the first of its stops whose time is still to
  * come, and when it's expected there, as the Metro's are. Its Network is by its route, and a Trip of
  * a route the source's config names none for gets none, nor does one whose next stop its config can't
@@ -886,12 +886,15 @@ function runningReports(source: SourceOf<'gtfs-rt'>, { written, trips }: TripUpd
   return trips.flatMap(({ id, route, updated, stops }) => {
     const network = networkOf(source, route ?? '');
     const at = updated ?? written;
-    const next = stops.find((s) => (s.time ?? 0) >= at);
-    // ponytail: a Trip's first stop is its stop_sequence 1, as it is for each of Euskotren's trains' Trips in
-    // its timetable. A feed that numbers its stops from 0 would leave a Train between its first two Scheduled,
-    // and one that numbers them by tens would need the timetable's first, which the fetcher doesn't load.
-    const left = (stops[0]?.time ?? Infinity) <= at || (stops[0]?.sequence ?? 0) > 1;
-    const running = network && next?.time && left && stop.test(next.platform ?? '');
+    const [first, next] = [stops[0], stops.find((s) => (s.time ?? 0) >= at)];
+    // ponytail: a Trip's first stop is taken to be its stop_sequence 1, as it is for each of Euskotren's
+    // trains' Trips in its timetable, and its update to give a time for every stop from where it starts,
+    // as Euskotren's do. A feed that numbers its stops from 0 would leave a Train between its first two
+    // Scheduled. One that numbers them by tens, or gives no time for a Trip's first stops or leaves them
+    // out, would report Trains before they leave, and would need the timetable's first stop, which the
+    // fetcher doesn't load.
+    const started = (first?.time ?? Infinity) <= at || (first?.sequence ?? 0) > 1;
+    const running = network && next?.time && started && stop.test(next.platform ?? '');
     return running ? [{ trip: `${network}:${id}`, at: at * 1000, position: { next: { station: next.platform!.replace(stop, station), at: next.time! * 1000 } } }] : [];
   });
 }
