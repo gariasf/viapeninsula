@@ -120,7 +120,7 @@ export function markedNetworks(networks: string[], everywhere: (network: string)
 }
 
 /** Where a Station's Trips call, by Line and shape, and how far along the shape. */
-export type Call = { line: string; shape: string; dist: number };
+export type LineCall = { line: string; shape: string; dist: number };
 
 /**
  * Where a Station's dot goes in a zoom band: on the centreline most of its own Lines are drawn along there, its point
@@ -129,7 +129,7 @@ export type Call = { line: string; shape: string; dist: number };
  * ponytail: by the centreline's point, not where a node's curve takes a Line across it (zones()), so in a node a
  * Station's dot can be up to a line width off its Lines (ADR-0007). Take the curve's point there if that shows.
  */
-export function onLines(calls: Call[], slots: Map<string, Slot[]>, shapes: Map<string, Shape>, band: number): { point: Point; heading: number; side: number } | undefined {
+export function onLines(calls: LineCall[], slots: Map<string, Slot[]>, shapes: Map<string, Shape>, band: number): { point: Point; heading: number; side: number } | undefined {
   const found = calls.flatMap(({ line, shape, dist }) => {
     const slot = slots.get(`${line} ${shape}`)?.find((s) => s.from <= dist && dist <= s.to && drawnIn(s, band));
     return slot ? [{ slot, at: slotAt(slot, dist).at }] : [];

@@ -46,6 +46,8 @@ export interface Run {
 
 type Mark = (name: string) => Promise<void>;
 const at = (z: number, [lat, lon]: readonly number[]) => `#map=${z}/${lat}/${lon}`;
+/** 60 s at rest at Barcelona at a zoom, after 20 s to load. */
+const rest = (zoom: number) => ({ view: at(zoom, BCN), window: ['idleStart', 'end'] as [string, string], act: async (_: Page, mark: Mark) => (await sleep(20_000), await mark('idleStart'), await sleep(60_000), mark('end')) });
 const [BCN, MAD, VLC] = [[41.3874, 2.1686], [40.4168, -3.7038], [39.4699, -0.3763]] as const;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -92,9 +94,9 @@ const SCENARIOS: Record<string, Scenario> = {
     },
     joins: () => /^days\//,
   },
-  S5bcn: { view: at(12, BCN), window: ['idleStart', 'end'], act: async (_, mark) => (await sleep(20_000), await mark('idleStart'), await sleep(60_000), mark('end')) },
-  S5z10: { view: at(10, BCN), window: ['idleStart', 'end'], act: async (_, mark) => (await sleep(20_000), await mark('idleStart'), await sleep(60_000), mark('end')) },
-  S5z13: { view: at(13, BCN), window: ['idleStart', 'end'], act: async (_, mark) => (await sleep(20_000), await mark('idleStart'), await sleep(60_000), mark('end')) },
+  S5bcn: rest(12),
+  S5z10: rest(10),
+  S5z13: rest(13),
   // The map looks for the days it needs each minute, so it joins the next day within ~60 s of the clock passing its moment.
   S7: {
     view: at(12, BCN),
