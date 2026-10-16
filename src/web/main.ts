@@ -1300,8 +1300,8 @@ function onRails(zoom: number): number {
   return ramp(zoom, RAILS - 0.01, 0, RAILS, 1);
 }
 /** fewer()'s places, from FEW_ZOOM, fading in by the next zoom. */
-function few(zoom: number): ExpressionSpecification {
-  return ['case', ['get', 'few'], ramp(zoom, FEW_ZOOM, 0, FEW_ZOOM + 1, 1), 1];
+function fewIn(zoom: number): number {
+  return ramp(zoom, FEW_ZOOM, 0, FEW_ZOOM + 1, 1);
 }
 // The places as #210's pick has them (#572): below zoom 13, each Station's dot in the middle of its own Lines' strokes in
 // each zoom band, a tier's larger than the rest and the top tier's a square, over them where they meet, the Metro's and
@@ -1326,26 +1326,31 @@ const placeLayers = (() => {
     if (!span) return;
     const { from, to, minzoom, maxzoom, zooms } = span;
     const inside = (zoom: number) => (zoom >= from && zoom < to ? 1 : 0);
-    map.addLayer({
-      id: `stations-${band}`,
-      type: 'symbol',
-      source: 'stations',
-      minzoom,
-      maxzoom,
-      // Only from the zoom its first Network is drawn from (show(), #781).
-      filter: ['all', ['==', ['get', 'band'], band], ['>=', ['zoom'], ['get', 'from']]],
-      layout: {
-        ...symbol,
-        'symbol-sort-key': ['get', 'larger'],
-        'icon-image': ['get', 'image'],
-        'icon-rotate': ['get', 'heading'],
-        'icon-rotation-alignment': 'map',
-        'icon-size': ['interpolate', ['linear'], ['zoom'], ...zooms.flatMap((zoom) => [zoom, size(zoom)])] as ExpressionSpecification,
-        'icon-offset': ['interpolate', ['linear'], ['zoom'], ...zooms.flatMap((zoom) => [zoom, ['array', 'number', 2, ['get', `o${zoom}`]]])] as ExpressionSpecification,
-      },
-      paint: { 'icon-opacity': placeOpacity([few, (zoom) => 1 - signIn(zoom), inside], [from - 0.01, from, to - 0.01, to].filter((zoom) => zoom > 0)) },
-    });
-    layers.push(`stations-${band}`);
+    // fewer()'s in a layer of their own, only in the bands from FEW_ZOOM, so that no layer's opacity is a feature's: one of
+    // the zoom alone is quicker for the map to draw with, each time it draws.
+    for (const few of to > FEW_ZOOM ? [false, true] : [false]) {
+      const id = few ? `stations-${band}-few` : `stations-${band}`;
+      map.addLayer({
+        id,
+        type: 'symbol',
+        source: 'stations',
+        minzoom: few ? Math.max(minzoom, FEW_ZOOM) : minzoom,
+        maxzoom,
+        // Only from the zoom its first Network is drawn from (show(), #781).
+        filter: ['all', ['==', ['get', 'band'], band], ['==', ['get', 'few'], few], ['>=', ['zoom'], ['get', 'from']]],
+        layout: {
+          ...symbol,
+          'symbol-sort-key': ['get', 'larger'],
+          'icon-image': ['get', 'image'],
+          'icon-rotate': ['get', 'heading'],
+          'icon-rotation-alignment': 'map',
+          'icon-size': ['interpolate', ['linear'], ['zoom'], ...zooms.flatMap((zoom) => [zoom, size(zoom)])] as ExpressionSpecification,
+          'icon-offset': ['interpolate', ['linear'], ['zoom'], ...zooms.flatMap((zoom) => [zoom, ['array', 'number', 2, ['get', `o${zoom}`]]])] as ExpressionSpecification,
+        },
+        paint: { 'icon-opacity': placeOpacity([few ? fewIn : () => 1, (zoom) => 1 - signIn(zoom), inside], [from - 0.01, from, to - 0.01, to].filter((zoom) => zoom > 0)) },
+      });
+      layers.push(id);
+    }
   });
   // Each Station's own mark on its own track, from RAILS, as the Trains go back on their rails there.
   map.addLayer({ id: 'stations-rails', type: 'symbol', source: 'stations', minzoom: RAILS - 1, filter: ['==', ['get', 'band'], -1], layout: { ...symbol, 'icon-image': ['get', 'image'], 'icon-size': byZoom(SIGN_SIZE, (px) => px) }, paint: { 'icon-opacity': placeOpacity([onRails]) } });
