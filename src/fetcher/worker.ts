@@ -1,15 +1,19 @@
 // The fetcher's Worker: a Durable Object that wakes about every 20 s, fetches the live sources and
 // the operators' alerts that are due, and writes the snapshot to R2, and alerts.json when it changes,
-// where viewers read them through the CDN (ADR-0003). It's thin glue around the fetcher step and the
-// alerts' (alerts.ts).
+// where viewers read them through the CDN (ADR-0003), and keeps each snapshot for the Delay history in
+// a bucket of its own (#806). It's thin glue around the fetcher step, the alerts' (alerts.ts) and the
+// history's (history.ts).
 
 import { DurableObject } from 'cloudflare:workers';
 import { ALERTS_START, fetchAlerts, readAlerts, type AlertsState } from './alerts.ts';
+import { keepSnapshot } from './history.ts';
 import { EVERY, fetchDue, START, step, TIMEOUT, type Fetched, type Stored } from './step.ts';
 
 interface Env {
   FETCHER: DurableObjectNamespace<Fetcher>;
   LIVE: R2Bucket;
+  /** Where each 5 minutes' snapshots go, for the daily job that works out each Call's Delay: a bucket with no public domain (#806). */
+  HISTORY: R2Bucket;
   /** A fine-grained GitHub token that can only start this repository's Actions, as a Worker secret. */
   GITHUB_DISPATCH_TOKEN?: string;
   /** The Worker secrets the live sources in src/networks.ts name, such as TRAM's and TMB's credentials for their APIs. */
@@ -64,7 +68,8 @@ export class Fetcher extends DurableObject<Env> {
     // last reports, goes in the Worker's logs, which count how often Renfe's files drop Madrid's (#248).
     if (Object.keys(run.missed).length) console.log(JSON.stringify({ missing: run.missed }));
     await this.ctx.storage.put(STORED, { state: run.state, due: run.due } satisfies Stored);
-    await this.env.LIVE.put('snapshot.json', JSON.stringify(run.snapshot), {
+    const snapshot = JSON.stringify(run.snapshot);
+    await this.env.LIVE.put('snapshot.json', snapshot, {
       httpMetadata: { contentType: 'application/json', cacheControl: 'public, max-age=15' },
     });
     const alertsRun = readAlerts(alertsKept, alertAnswers, now);
@@ -75,6 +80,8 @@ export class Fetcher extends DurableObject<Env> {
       });
     }
     await this.ctx.storage.put(ALERTS, alertsRun.state);
+    // Last, so that the history's bucket, failing or hanging, never holds the snapshot back (#806).
+    await keepSnapshot(this.ctx.storage, this.env.HISTORY, snapshot, now);
   }
 }
 
