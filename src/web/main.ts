@@ -6,7 +6,7 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import nunitoSans from '@fontsource/nunito-sans/files/nunito-sans-latin-400-normal.woff2?url';
 import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-normal.woff2?url';
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
-import { along, APART, atZoom, BANDS, bandZooms, GRAPH_BAND, STRETCH, inBand, onStroke, profiled, zones, type Zone, daysNeeded, daysOf, DEGREE, EARTH, joinTracks, LIVE_URL, madridDate, networkTracks, places, type Alerts, type Bundle, type Credit, type Call, type DayFiles, type Place, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH, type ZoomedOut } from '../bundle.ts';
+import { along, APART, atZoom, BANDS, bandZooms, GRAPH_BAND, STRETCH, inBand, onStroke, pointAt, profiled, zones, type Zone, daysNeeded, daysOf, DEGREE, EARTH, joinTracks, LIVE_URL, madridDate, networkTracks, places, type Alerts, type Bundle, type Credit, type Call, type DayFiles, type Place, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH, type ZoomedOut } from '../bundle.ts';
 import { boardAt, comingAt, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, tripsAt, unavailable, type Coming, type Departure, type Followed, type Received, type Train, type TripNow } from '../engine.ts';
 import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, earlierStations, followDeparture, language, LANGUAGES, leavesAt, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, placedBy, setLanguage, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
@@ -14,6 +14,7 @@ import { getJson, lookAgainSoon, RETRY, STALL } from './files.ts';
 import { daysAsTheyCome, firstLook, forgetJoined, joinedFrom, regionLoader, regionsCame, regionsNeeded } from './regions.ts';
 import { byRegion, drawnFrom, drawnLines } from './lines.ts';
 import { linesAt, popupRoom } from './tap.ts';
+import { drawnAt as placeShownAt, FEW_ZOOM, fewer, interchangesOf, markedNetworks, onLines, RAILS, SIGN_ZOOM, type LineCall, type Drawn as PlaceDrawn, type Interchange } from './stations.ts';
 import { callsIn, fileShapes, hidesTowns, nameOffset, nameSort, nearestSide, rightOf, sidesByJoin, splitBy, underName, type Side, type Spot } from './names.ts';
 import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
 import { atMostEvery, drifted, letsGo, outsideMiddle, pointersDown, tapZooms } from './centre.ts';
@@ -93,7 +94,7 @@ const OUTLINES: Record<Outline | 'arrow', { w: number; h: number; across?: numbe
   // Its ends cut slanting the same way, 6 px across its height, leaning forward as italics do.
   slanted: { ...OUTLINE_SIZES.slanted, outside: (x, y) => Math.max(Math.abs(y) - 7.5, (Math.abs(x + 0.4 * y) - 4.5) / Math.hypot(1, 0.4)) },
   // A square with corners rounded 3 px, which a name of two letters leaves nearly square, like the Metro's and TRAM's Line badges.
-  badge: { ...OUTLINE_SIZES.badge, outside: roundedSquare(7.5, 3) },
+  square: { ...OUTLINE_SIZES.square, outside: roundedSquare(7.5, 3) },
   // Its tip 4.5 px ahead of its middle, and its base 2.25 px behind and 6 px across.
   arrow: { ...OUTLINE_SIZES.arrow, outside: (x, y) => Math.max(y - 2.25, (6.75 * Math.abs(x) - 3 * (y + 4.5)) / Math.hypot(3, 6.75)) },
 };
@@ -160,6 +161,42 @@ const [STROKE_NEAREST, STROKE_TAP] = [5, 22];
 const DOT: [zoom: number, px: number][] = [[7, 1.5], [14, 5]];
 /** The width of the ring round a place's dot, in px at each zoom. */
 const RING: [zoom: number, px: number][] = [[7, 0.5], [14, 1.5]];
+/** How large a Network's mark is drawn at each zoom, of its full size (#572): 0.8 at SIGN_ZOOM, full at 15. */
+const SIGN_SIZE: [zoom: number, size: number][] = [[12.5, 0.75], [SIGN_ZOOM, 0.8], [15, 1]];
+/** A mark's height, its ring's width and its letters' size, in px at its full size; and a badge's padding and ring. */
+const [MARK, MARK_RING, MARK_TEXT, BADGE_PAD, BADGE_RING] = [16, 2, 9.5, 2.5, 1.5];
+/** How large an interchange's name under its badge is, in px: the top tier's names' size. */
+const BADGE_TEXT = 12;
+/** The device pixels a px of the places' images is drawn at. */
+const IMAGE_RATIO = Math.max(2, Math.ceil(devicePixelRatio));
+/** The images drawn so far, by ID, with how to draw each, to draw the marks again once their font has come. */
+const painted = new Map<string, [w: number, h: number, paint: (c: CanvasRenderingContext2D) => void]>();
+// The marks' font, Nunito Sans Bold, which a canvas draws in only once it has come: the marks drawn before, again.
+void document.fonts.load(`bold ${MARK_TEXT}px "Nunito Sans"`).then(() => {
+  for (const [id, [w, h, paint]] of painted) map.updateImage(id, canvasImage(w, h, paint));
+});
+/** Each Network's mark, by its ID: our own plain letters, not the operators' logos (#20). Others take their name's first letter. */
+const MARKS: Record<string, string> = { metro: 'M', fgc: 'FGC', tram: 'T', rodalies: 'R' };
+/** A Network's mark: its letters (lettersOf()) and its colour. */
+type Mark = { letters: string; colour: string };
+/** The colour of a Network's mark that names none. */
+const NO_COLOUR = '#666666';
+/** How much larger the top tier's dots are (TIERS), which are drawn as squares. */
+const TOP = 2;
+/** How many times as large as its dot with its ring the top tier's square is drawn: railisland's, a fifth larger (#572). */
+const SQUARE = 1.2;
+/** The nameboard's ink (#212), which rings the top tier's square on both basemaps, as the board's heading is in it. */
+const BOARD_INK = '#14305a';
+/** How wide the white of the link between an interchange's Stations on the rails is, in px, inside its ring. */
+const LINK_WIDTH = 2;
+/** The top tier's square's size at a zoom, of its image's: SQUARE times its dot with its ring, which the image's 18 px stand for. */
+const squareSize = (zoom: number) => (SQUARE * (2 * (atZoom(DOT, zoom) + 2) + 2 * atZoom(RING, zoom))) / 18;
+/** A Network's mark's letters. */
+const lettersOf = (network: string, names: Map<string, string>) => MARKS[network] ?? (names.get(network) ?? network).charAt(0).toUpperCase();
+/** How wide a mark is, in px at its full size: a disc for one letter, longer for more. */
+const markWidthOf = (letters: string) => MARK + (letters.length - 1) * 6;
+/** How wide these marks are side by side, in px at their full size. */
+const marksWidth = (letters: string[]) => letters.reduce((sum, l, i) => sum + markWidthOf(l) + (i ? 2 : 0), 0);
 /** A Train's dot's radius, in px at each zoom, and the followed Train's, which is larger. */
 const TRAIN_DOT: [zoom: number, px: number, followed: number][] = [[7, 2.5, 5], [14, 6, 10]];
 /** How long a line of a place's name can be, in ems, as MapLibre wraps names. */
@@ -168,6 +205,8 @@ const PLACE_WRAP = 10;
 interface NameStyle {
   bold: boolean;
   size: number;
+  /** An interchange's place's, which gives way to its badge's from SIGN_ZOOM till the rails (#572). */
+  badged?: boolean;
 }
 /** How wide the halo round places' names is, in px (#144). */
 const NAME_HALO = 2.5;
@@ -1001,6 +1040,14 @@ let bundle: Bundle | undefined;
 let stationNames = new Map<string, string>();
 /** Where the map shows the Stations, by their IDs in places(). */
 let shownPlaces = new Map<string, Place>();
+/** The interchanges among them (interchangesOf()). */
+let interchanges: Interchange[] = [];
+/** Each interchange's board, by its ID: one place of all its places' Stations (ADR-0005). */
+let boards = new Map<string, Place>();
+/** Each of an interchange's places' interchange, by their IDs, whose board a tap on it or a link to its Stations opens. */
+let boardOfPlace = new Map<string, string>();
+/** What drawPlaces() draws: the places as tiered, with their marks' Networks (`marked`), the Networks, and fewer()'s places. */
+let drawnPlaces: { tiered: (Place & { larger: number; from: number; marked: string[] })[]; networks: Map<string, Network>; few: Set<string> } = { tiered: [], networks: new Map(), few: new Set() };
 /** Each Station's place in shownPlaces, for the buttons that open its board (#322). */
 let placeOfStation = new Map<string, Place>();
 /**
@@ -1043,7 +1090,7 @@ let standingPills: { id: string; at: Point; heading: number; box: [number, numbe
  * into its lines, how wide and high those are, in px, the zoom it shows from, where its tier lists it,
  * its Stations, how much larger its dot is, and how it's lettered.
  */
-let names: { id: string; dot: Point; sides: (bearing: number) => Side[]; name: string; size: [width: number, height: number]; nameZoom: number; listed?: number; stations: string[]; larger: number; style: NameStyle }[] = [];
+let names: { id: string; dot: Point; sides: (bearing: number) => Side[]; name: string; size: [width: number, height: number]; nameZoom: number; listed?: number; stations: string[]; larger: number; marks: number; style: NameStyle }[] = [];
 /** The map's bearing when the names were last put beside their tracks. */
 let namesBearing = NaN;
 /**
@@ -1062,7 +1109,7 @@ map.addSource('lines', { type: 'geojson', data: { type: 'FeatureCollection', fea
 // Simplified less than MapLibre's default 0.375 px, which would facet their curves again (#203).
 map.addSource('rails', { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, tolerance: 0.1 });
 map.addSource('tracks', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-map.addSource('stations', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+for (const id of ['stations', 'places', 'interchanges', 'station-links']) map.addSource(id, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 map.addSource('station-names', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 // Today's Lines and Stations are drawn as soon as its track comes, before the Trips, which are most of the bundle.
 // Where no region's track comes, as where the one region in view fails to, the map opens without, and the next
@@ -1223,23 +1270,107 @@ const closureLayers = layered.flatMap(({ id, zooms, opacity, below }) =>
 drawClosures = showClosures;
 liftClosures = hideClosures;
 drawClosures();
-// A tier's dots are larger than the rest, and drawn over them where they meet. Not below zoom 7, where
-// the map draws each Network's track alone, every region's, as it loads none there for the view (#266).
-map.addLayer({
-  id: 'stations',
-  type: 'circle',
-  source: 'stations',
-  minzoom: linesZoom,
-  // Only from the zoom its first Network is drawn from (show(), #781).
-  filter: ['>=', ['zoom'], ['get', 'from']],
-  layout: { 'circle-sort-key': ['get', 'larger'] },
-  paint: {
-    'circle-radius': byZoom(DOT, (px) => ['+', px, ['get', 'larger']]),
-    'circle-color': '#fff',
-    'circle-stroke-color': dotRing,
-    'circle-stroke-width': byZoom(RING, (px) => px),
-  },
-});
+/** An opacity as each part has it at these zooms and a few more, multiplied, going linearly between: ['zoom'] can't be inside a feature's value. */
+function placeOpacity(parts: ((zoom: number) => number | ExpressionSpecification)[], zooms: number[] = []): ExpressionSpecification {
+  const all = [...new Set([0, 10, FEW_ZOOM, FEW_ZOOM + 1, SIGN_ZOOM - 0.5, SIGN_ZOOM, 14, RAILS - 0.01, RAILS, 22, ...zooms])].sort((a, b) => a - b);
+  return ['interpolate', ['linear'], ['zoom'], ...all.flatMap((zoom) => [zoom, ['*', 1, 1, ...parts.map((part) => part(zoom))] as ExpressionSpecification])];
+}
+/**
+ * The zooms a band's dots are drawn over, `from` to `to`, below SIGN_ZOOM, where the marks take over, and the whole zooms
+ * their layer spans (placeLayers): none for a band from SIGN_ZOOM on.
+ */
+function dotBand(band: number): { from: number; to: number; minzoom: number; maxzoom: number; zooms: number[] } | undefined {
+  const [from, to] = [bandZooms(band)[0], Math.min(bandZooms(band)[1], SIGN_ZOOM)];
+  if (from >= to) return undefined;
+  const [minzoom, maxzoom] = [Math.max(linesZoom, Math.floor(from)), Math.ceil(to)];
+  return { from, to, minzoom, maxzoom, zooms: Array.from({ length: maxzoom - minzoom + 1 }, (_, i) => minzoom + i) };
+}
+/** A value going linearly from `a` at `from` to `b` at `to`, held either side. */
+function ramp(zoom: number, from: number, a: number, to: number, b: number): number {
+  return zoom <= from ? a : zoom >= to ? b : a + ((b - a) * (zoom - from)) / (to - from);
+}
+/** The marks fading in over the half zoom before SIGN_ZOOM, as the dots fade out. */
+function signIn(zoom: number): number {
+  return ramp(zoom, SIGN_ZOOM - 0.5, 0, SIGN_ZOOM, 1);
+}
+/** The rails' marks and links, in at RAILS at once, as the Trains go back on their rails there and the Lines' names switch: a Train standing at a Station stays on its mark. */
+function onRails(zoom: number): number {
+  return ramp(zoom, RAILS - 0.01, 0, RAILS, 1);
+}
+/** fewer()'s places, from FEW_ZOOM, fading in by the next zoom. */
+function fewIn(zoom: number): number {
+  return ramp(zoom, FEW_ZOOM, 0, FEW_ZOOM + 1, 1);
+}
+// The places as #210's pick has them (#572): below zoom 13, each Station's dot in the middle of its own Lines' strokes in
+// each zoom band, a tier's larger than the rest and the top tier's a square, over them where they meet, the Metro's and
+// TRAM's places in neither tier only from zoom 11 (fewer()); from 13, each place as its Networks' marks, and an
+// interchange as one badge of them; from 15, each Station's own mark on its own track, linked to its place's and its
+// interchange's others. Not below zoom 7, where the map draws each Network's track alone, every region's, as it loads
+// none there for the view (#266). Each is a symbol layer over whole zooms, cut to its own by its opacity: MapLibre lays
+// a symbol layer out in the tiles of the whole zoom its bounds fall in without placing it there, so icons allowed to
+// overlap seemed to come and go at each placement, and the map faded them, drawing every frame (#210's review).
+const placeLayers = (() => {
+  const symbol = { 'icon-allow-overlap': true, 'icon-ignore-placement': true } as const;
+  const layers: string[] = [];
+  // The links between an interchange's Stations, and a place's several, on the rails: white, ringed as the dots are.
+  for (const [id, colour, more] of [['station-links-casing', dotRing, 2], ['station-links', '#fff', 0]] as const) {
+    map.addLayer({ id, type: 'line', source: 'station-links', minzoom: RAILS - 1, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': colour, 'line-width': byZoom(RING, (px) => LINK_WIDTH + more * px), 'line-opacity': placeOpacity([onRails]) } });
+    layers.push(id);
+  }
+  BANDS.forEach((_, band) => {
+    const span = dotBand(band);
+    if (!span) return;
+    const { from, to, minzoom, maxzoom, zooms } = span;
+    const inside = (zoom: number) => (zoom >= from && zoom < to ? 1 : 0);
+    // The rest as circles, which MapLibre doesn't place, so their layers can start and end where the band does; fewer()'s
+    // in layers of their own, in the bands from FEW_ZOOM, so that no layer's opacity is a feature's.
+    for (const few of to > FEW_ZOOM ? [false, true] : [false]) {
+      const id = few ? `stations-${band}-few` : `stations-${band}`;
+      map.addLayer({
+        id,
+        type: 'circle',
+        source: 'stations',
+        minzoom: Math.max(linesZoom, from, few ? FEW_ZOOM : 0),
+        maxzoom: to,
+        filter: ['all', ['==', ['get', 'band'], band], ['!=', ['get', 'larger'], TOP], ['==', ['get', 'few'], few], ['>=', ['zoom'], ['get', 'from']]],
+        layout: { 'circle-sort-key': ['get', 'larger'] },
+        paint: {
+          'circle-radius': byZoom(DOT, (px) => ['+', px, ['get', 'larger']]),
+          'circle-color': '#fff',
+          'circle-stroke-color': dotRing,
+          'circle-stroke-width': byZoom(RING, (px) => px),
+          'circle-opacity': placeOpacity([few ? fewIn : () => 1, (zoom) => 1 - signIn(zoom)]),
+          'circle-stroke-opacity': placeOpacity([few ? fewIn : () => 1, (zoom) => 1 - signIn(zoom)]),
+        },
+      });
+      layers.push(id);
+    }
+    // Over them, the top tier's squares, offset feature by feature, as a symbol layer over whole zooms cut to the band by its opacity.
+    map.addLayer({
+      id: `stations-${band}-squares`,
+      type: 'symbol',
+      source: 'stations',
+      minzoom,
+      maxzoom,
+      // Only from the zoom its first Network is drawn from (show(), #781).
+      filter: ['all', ['==', ['get', 'band'], band], ['==', ['get', 'larger'], TOP], ['>=', ['zoom'], ['get', 'from']]],
+      layout: {
+        ...symbol,
+        'icon-image': ['get', 'image'],
+        'icon-rotate': ['get', 'heading'],
+        'icon-rotation-alignment': 'map',
+        'icon-size': ['interpolate', ['linear'], ['zoom'], ...zooms.flatMap((zoom) => [zoom, squareSize(zoom)])] as ExpressionSpecification,
+        'icon-offset': ['interpolate', ['linear'], ['zoom'], ...zooms.flatMap((zoom) => [zoom, ['array', 'number', 2, ['get', `o${zoom}`]]])] as ExpressionSpecification,
+      },
+      paint: { 'icon-opacity': placeOpacity([(zoom) => 1 - signIn(zoom), inside], [from - 0.01, from, to - 0.01, to].filter((zoom) => zoom > 0)) },
+    });
+    layers.push(`stations-${band}-squares`);
+  });
+  // Each Station's own mark on its own track, from RAILS, as the Trains go back on their rails there.
+  map.addLayer({ id: 'stations-rails', type: 'symbol', source: 'stations', minzoom: RAILS - 1, filter: ['==', ['get', 'band'], -1], layout: { ...symbol, 'icon-image': ['get', 'image'], 'icon-size': byZoom(SIGN_SIZE, (px) => px) }, paint: { 'icon-opacity': placeOpacity([onRails]) } });
+  layers.push('stations-rails');
+  return layers;
+})();
 /** A Train's dot's radius at a zoom, in px (TRAIN_DOT), or the followed Train's. */
 const dotAt = (zoom: number, followed: boolean) => atZoom(TRAIN_DOT.map(([z, px, larger]) => [z, followed ? larger : px]), zoom);
 /** A Train's dot's radius, in px, as an expression (TRAIN_DOT). */
@@ -1310,7 +1441,8 @@ map.addLayer({
   id: 'station-names',
   type: 'symbol',
   source: 'station-names',
-  filter: ['>=', ['zoom'], ['get', 'nameZoom']],
+  // An interchange's places' names give way to its badge's from SIGN_ZOOM till the rails (#572).
+  filter: ['all', ['>=', ['zoom'], ['get', 'nameZoom']], ['any', ['!', ['to-boolean', ['get', 'badged']]], ['<', ['zoom'], SIGN_ZOOM], ['>=', ['zoom'], RAILS]]],
   layout: {
     'symbol-sort-key': ['get', 'sort'],
     'text-field': ['get', 'name'],
@@ -1333,7 +1465,7 @@ map.addLayer({
 for (const layer of cityLabels.values()) {
   const over = `${layer.id}-over`;
   // With the filter show() has put on the original by now, as it ran above, and the original's own kept in placeLabels for it to do the same again.
-  map.addLayer({ ...structuredClone(layer), id: over, minzoom: Math.max(layer.minzoom ?? 0, linesZoom), maxzoom: Math.min(layer.maxzoom ?? CITY_ZOOM, CITY_ZOOM), filter: map.getFilter(layer.id) ?? undefined }, 'stations');
+  map.addLayer({ ...structuredClone(layer), id: over, minzoom: Math.max(layer.minzoom ?? 0, linesZoom), maxzoom: Math.min(layer.maxzoom ?? CITY_ZOOM, CITY_ZOOM), filter: map.getFilter(layer.id) ?? undefined }, placeLayers[0]);
   // Where a place is named after its town, the town's label goes (#121), the copy's too: show() adds its filter to both from here on.
   placeLabels.set(over, layer.filter as ExpressionFilterSpecification | undefined);
 }
@@ -1433,6 +1565,65 @@ for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', tr
 const strokeLayers = layered.map((l) => l.id);
 /** Where a tap names the Lines drawn there, or what closes a Closure. Each tap closes the last one's. */
 const linesPopup = new Popup({ closeButton: false, closeOnClick: false, className: 'lines-at', maxWidth: 'none' });
+// From SIGN_ZOOM, each place's marks, over the Trains' dots, which are pills by then, and under the names, but where
+// its Stations' own go on their tracks, on the rails. An interchange's badge, from SIGN_ZOOM to the rails, with its name in
+// bold under it, over the places' names, so that MapLibre places it first, as an interchange's ranks with its highest
+// tier's (#119): under them, Plaça Catalunya's gave way to Universitat's at zoom 13 (#210's review). Its name only from
+// SIGN_ZOOM's tiles, where the badge is drawn whole: hidden, it would still push the places' names aside.
+// Those whose Stations have their own marks on their tracks in a layer of their own, which ends at the rails, so that
+// neither layer's opacity is a feature's: one of the zoom alone is quicker for the map to draw with, each time it draws.
+for (const [id, railed] of [['station-marks', false], ['station-marks-railed', true]] as const) {
+  map.addLayer(
+    {
+      id,
+      type: 'symbol',
+      source: 'places',
+      minzoom: SIGN_ZOOM - 1,
+      ...(railed && { maxzoom: RAILS }),
+      filter: ['all', ['!', ['get', 'inBadge']], ['==', ['get', 'railed'], railed]],
+      layout: { 'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-image': ['get', 'image'], 'icon-size': byZoom(SIGN_SIZE, (px) => px) },
+      paint: { 'icon-opacity': placeOpacity([signIn]) },
+    },
+    'station-names',
+  );
+}
+map.addLayer(
+  {
+    id: 'station-badges',
+    type: 'symbol',
+    source: 'interchanges',
+    minzoom: SIGN_ZOOM - 1,
+    maxzoom: RAILS,
+    layout: {
+      // ponytail: its icon isn't placed, so another place's name can lie over a badge, as over a dot: placed, following a
+      // Train at zoom 14 on the phone drew 8–12% fewer frames than main's. Place it if that shows more than its cost.
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+      'icon-image': ['get', 'image'],
+      'icon-size': byZoom(SIGN_SIZE, (px) => px),
+      'text-field': ['step', ['zoom'], '', SIGN_ZOOM, ['get', 'name']],
+      'text-font': ['Noto Sans Bold'],
+      'text-size': BADGE_TEXT,
+      'text-anchor': 'top',
+      'text-offset': byZoom(SIGN_SIZE, (px) => ['literal', [0, (px * (MARK + 2 * BADGE_PAD)) / 2 / BADGE_TEXT + 0.15]]),
+      'text-max-width': PLACE_WRAP,
+      'text-optional': true,
+    },
+    paint: { 'icon-opacity': placeOpacity([signIn]), 'text-opacity': placeOpacity([signIn]), 'text-color': nameColour, 'text-halo-color': halo, 'text-halo-width': NAME_HALO },
+  },
+  'train-pills',
+);
+/** The layers that draw the places, which take a tap and the pointer where they're drawn (placeShownAt()): the badges first, over the rest. */
+const placeTaken = ['station-badges', 'station-marks', 'station-marks-railed', ...placeLayers.filter((id) => id.startsWith('stations'))];
+/** Of the places' drawings within a box, those drawn at the zoom, by their place's or interchange's ID, topmost first. */
+function placesDrawn(box: [[number, number], [number, number]] | [number, number]): string[] {
+  const zoom = map.getZoom();
+  return map.queryRenderedFeatures(box, { layers: placeTaken }).flatMap(({ properties: p, layer }) => {
+    const drawn: PlaceDrawn =
+      layer.id === 'station-badges' ? { kind: 'badge' } : layer.id.startsWith('station-marks') ? { kind: 'mark', railed: layer.id === 'station-marks-railed' } : p.band === -1 ? { kind: 'rails' } : { kind: 'dot', band: Number(p.band), few: !!p.few };
+    return placeShownAt(drawn, zoom) && typeof p.id === 'string' ? [p.id] : [];
+  });
+}
 /** How far in from the map's sides the tap's popup keeps, and from the cards over the map's top and the buttons over its bottom, in px (fitPopup()). */
 const GUTTER = 16;
 /** The Lines a tap names, and whether their Alerts are shown, which their fold hides, until the next tap (#341). */
@@ -1450,7 +1641,7 @@ map.on('click', ({ point: { x, y }, lngLat }) => {
   // Where pills overlap, the one under the tap, the topmost, before one near it.
   const under: unknown = within(0, ['train-pills-followed', 'train-pills'])[0]?.properties.id;
   // A place's dot near the tap, or failing that its name under it.
-  const [train, place] = [under ?? near('train-pills-followed') ?? near('train-pills') ?? near('trains'), near('stations') ?? within(0, ['station-names'])[0]?.properties.id];
+  const [train, place] = [under ?? near('train-pills-followed') ?? near('train-pills') ?? near('trains'), placesDrawn([[x - 10, y - 10], [x + 10, y + 10]])[0] ?? within(0, ['station-names'])[0]?.properties.id];
   // A tap on a pill standing over others spreads them, and while they're spread, any tap but on one of them folds them (#129).
   const { group } = spreadState;
   const inGroup = typeof train === 'string' && group?.ids.has(train);
@@ -1492,8 +1683,9 @@ map.on('moveend', () => {
 // mouse, a drag's too, not a `mouseenter` and a `mouseleave` for each layer: those ran in the order
 // the layers were added, so a pointer moving onto a layer added before the one it left, as onto a
 // name from a stroke, had its pointer taken off again by the `mouseleave` that came after (#618).
-const pointed = ['trains', 'train-pills', 'train-pills-followed', 'stations', 'station-names', ...strokeLayers];
-map.on('mousemove', ({ point }) => (map.getCanvas().style.cursor = map.queryRenderedFeatures(point, { layers: pointed }).length ? 'pointer' : ''));
+// The places' only where they're drawn (placesDrawn()), as their layers span whole zooms.
+const pointed = ['trains', 'train-pills', 'train-pills-followed', 'station-names', ...strokeLayers];
+map.on('mousemove', ({ point }) => (map.getCanvas().style.cursor = map.queryRenderedFeatures(point, { layers: pointed }).length || placesDrawn([point.x, point.y]).length ? 'pointer' : ''));
 // Escape closes the About dialog on its own, if it's open.
 document.addEventListener('keydown', (e) => e.key === 'Escape' && !about.open && (following || boardPlace || nearMe || searching) && closePanel());
 
@@ -1611,6 +1803,8 @@ function show(days: Track | Bundle, tripsOnly = false) {
   // ponytail: so a Line or Station only the earlier build of a day has isn't drawn, and its Trains are drawn with
   // no colour, until the last step lays the days out. Lay the day that came out as well if that shows.
   if (days.stations === shownStations || (tripsOnly && shownStations?.length)) {
+    // The Stations' dots go on their Lines once their Trips say where they call (drawPlaces()).
+    if ('trips' in days) drawPlaces();
     if ('trips' in days && !namesDue) showNames();
     return drawClosures();
   }
@@ -1666,19 +1860,44 @@ function show(days: Track | Bundle, tripsOnly = false) {
   };
   if (!again) handOver();
   showZoomedOut(zoomedOut ?? { networks: days.networks, tracks: networkTracks(days), lines: days.lines });
-  const tiered = [...shownPlaces.values()].map((p) => {
+  // A place's marks are its own Networks', but long distance's and Media Distancia's where it has others (markedNetworks()).
+  const everywhere = (network: string) => (shownFrom.get(network) ?? linesZoom) < linesZoom;
+  const ranked = [...shownPlaces.values()].map((p) => {
     const tier = TIERS.find((t) => t.places.includes(p.id));
     const { nameZoom, larger, size } = tier ?? UNTIERED;
     // A place's dot and name from the zoom the first of its Networks is drawn from: one only the Metro or TRAM serve from zoom 10 (#781).
     const from = p.networks.length ? Math.min(...p.networks.map((n) => shownFrom.get(n) ?? linesZoom)) : linesZoom;
-    return { ...p, from, nameZoom: Math.max(nameZoom, from), listed: tier?.places.indexOf(p.id), larger, style: { bold: BOLD.has(p.id), size } };
+    return { ...p, from, nameZoom: Math.max(nameZoom, from), listed: tier?.places.indexOf(p.id), larger, marked: markedNetworks(p.networks, everywhere), style: { bold: BOLD.has(p.id), size } as NameStyle };
+  });
+  interchanges = interchangesOf(ranked.map((p) => ({ ...p, networks: p.marked })));
+  // Every interchange made, for the sign-off of a change to the rule or the hand list (INTERCHANGES).
+  if (import.meta.env.DEV) console.debug('interchanges', interchanges.map((i) => `${i.name} (${i.how}): ${i.places.join(' ')}`));
+  const byId = new Map(ranked.map((p) => [p.id, p]));
+  // One board for each interchange, as one place of all its places' Stations (ADR-0005).
+  boards = new Map(
+    interchanges.map((i) => {
+      const of = i.places.flatMap((id) => byId.get(id) ?? []);
+      const all = (key: 'stations' | 'networks' | 'lines') => [...new Set(of.flatMap((p) => p[key]))];
+      return [i.id, { id: i.id, name: i.name, stations: all('stations'), networks: all('networks'), lines: all('lines').sort(), lon: i.lon, lat: i.lat }];
+    }),
+  );
+  boardOfPlace = new Map(interchanges.flatMap((i) => i.places.map((id): [string, string] => [id, i.id])));
+  // An interchange is named once, by its name, where its highest tier's place is, and from SIGN_ZOOM by its badge till the
+  // rails, where that one name goes beside its track again: its places' names give way to it (`badged`), the others' for good.
+  const named = new Map(interchanges.map((i) => [i.named, i]));
+  const letters = networkNames(days.networks);
+  const tiered = ranked.map((p) => {
+    const i = named.get(p.id);
+    const of = i?.places.flatMap((id) => byId.get(id) ?? []) ?? [];
+    const marks = marksWidth(p.marked.map((n) => lettersOf(n, letters)));
+    if (i) return { ...p, marks, name: i.name, nameZoom: Math.min(...of.map((q) => q.nameZoom)), style: { bold: of.some((q) => q.style.bold), size: Math.max(...of.map((q) => q.style.size)), badged: true } };
+    if (boardOfPlace.has(p.id)) return { ...p, marks, nameZoom: 99, style: { ...p.style, badged: true } };
+    return { ...p, marks };
   });
   // Where a place is named after its town, the town's label goes once the place's name shows (#121).
   hideTowns(placeLabels, tiered);
-  map.getSource<GeoJSONSource>('stations')?.setData({
-    type: 'FeatureCollection',
-    features: tiered.map(({ id, larger, from, lon, lat }) => ({ type: 'Feature', properties: { id, larger, from }, geometry: { type: 'Point', coordinates: [lon, lat] } })),
-  });
+  drawnPlaces = { tiered, networks: new Map(days.networks.map((n) => [n.id, n])), few: fewer(tiered, new Map(days.networks.map((n) => [n.id, n.pillZoom ?? 10]))) };
+  drawPlaces();
   drawClosures();
   // The places' names a frame after the Lines are handed over: for a large track, putting them beside their tracks
   // takes about as long as making the Lines, and in one task with those the page drew no frame for 2 s at Barcelona at
@@ -1694,9 +1913,9 @@ function show(days: Track | Bundle, tripsOnly = false) {
     // A track built before #243 names no Station's Networks: its names go beside the nearest track of any.
     const where = tiered.map(({ id, networks, lon, lat }) => ({ id, dot: [lon, lat] as Point, served: networks }));
     const sides = placeSides(regions ?? [days], (days.slots ?? []).filter((s) => s.band === undefined), (line) => placing.keep.get(line) ?? 1, days.lines, centrelines, where, !regions);
-    names = tiered.map(({ id, name, nameZoom, listed, stations, larger, style, lon, lat }, i) => {
+    names = tiered.map(({ id, name, nameZoom, listed, stations, larger, marks, style, lon, lat }, i) => {
       const rows = nameLines(name, style);
-      return { id, dot: [lon, lat], sides: sides[i] ?? (() => []), name: rows.join('\n'), size: [Math.max(...rows.map((row) => placeWidth(row, style))), rows.length * LINE_HEIGHT * style.size], nameZoom, listed, stations, larger, style };
+      return { id, dot: [lon, lat], sides: sides[i] ?? (() => []), name: rows.join('\n'), size: [Math.max(...rows.map((row) => placeWidth(row, style))), rows.length * LINE_HEIGHT * style.size], nameZoom, listed, stations, larger, marks, style };
     });
     showNames();
   };
@@ -1713,6 +1932,167 @@ function show(days: Track | Bundle, tripsOnly = false) {
       later(fileNames);
     });
   } else later(fileNames);
+}
+
+/**
+ * Draws the places (#572): each Station's dot in each zoom band in the middle of its own Lines' strokes (onLines()), or
+ * where none of its place's is, as before their Trips have come or for a place with none, a dot at the place; from the
+ * rails, each Station's own mark where its Trips call on its own track, the one nearest its own point, linked to its
+ * place's and interchange's others; each place's marks at its point, and each interchange's badge at its places' middle.
+ */
+function drawPlaces() {
+  const { tiered, networks, few: fewOnes } = drawnPlaces;
+  const began = performance.now();
+  // Where each Station's Trips call along their shapes, once for each Line and shape.
+  const calls = new Map<string, Map<string, LineCall>>();
+  for (const trip of bundle?.trips ?? []) {
+    for (const { station, dist } of trip.calls) {
+      const of = calls.get(station) ?? new Map<string, LineCall>();
+      of.set(`${trip.line} ${trip.shape}`, { line: trip.line, shape: trip.shape, dist });
+      calls.set(station, of);
+    }
+  }
+  const stations = new Map((shownStations ?? []).map((s) => [s.id, s]));
+  const short = networkNames([...networks.values()]);
+  const marksOf = (of: string[]): Mark[] => of.map((n) => ({ letters: lettersOf(n, short), colour: networks.get(n)?.colour ?? NO_COLOUR }));
+  const markOf = (of: string[]) => markImage(marksOf(of));
+  const { slots, shapes } = placing;
+  const railsAt = new Map<string, Point>();
+  const features: GeoJSON.Feature[] = [];
+  for (const p of tiered) {
+    const props = { id: p.id, larger: p.larger, from: p.from, few: fewOnes.has(p.id), ...(p.larger === TOP && { image: squareImage() }) };
+    const own = p.stations.map((id) => ({ id, calls: [...(calls.get(id)?.values() ?? [])] }));
+    BANDS.forEach((_, band) => {
+      const zooms = dotBand(band)?.zooms;
+      if (!zooms) return;
+      const placed = own.flatMap(({ calls: c }) => onLines(c, slots, shapes, band) ?? []);
+      for (const { point, heading, side } of placed.length ? placed : [{ point: [p.lon, p.lat] as Point, heading: 0, side: 0 }]) {
+        if (p.larger === TOP) {
+          // How far right of its centreline, in the image's px, which its size scales.
+          const offsets = Object.fromEntries(zooms.map((zoom) => [`o${zoom}`, [(side * atZoom(APART, zoom)) / squareSize(zoom), 0]]));
+          features.push({ type: 'Feature', properties: { ...props, band, heading, ...offsets }, geometry: { type: 'Point', coordinates: point } });
+          continue;
+        }
+        // A dot's a circle, which can't be offset feature by feature: its point is as far right of its centreline, in
+        // metres, as the middle of its Lines' strokes is at its band's own zoom.
+        // ponytail: so half a zoom either side, it's up to a third of that off the middle of its Lines' strokes, about a px
+        // beside four Lines. Lay each band's dots out at its half zooms too if that shows.
+        const zoom = BANDS[band] ?? 10;
+        const metres = side * atZoom(APART, zoom) * pixelMetres(zoom) * Math.cos((point[1] * Math.PI) / 180);
+        const h = (heading * Math.PI) / 180;
+        const at: Point = [point[0] + (metres * Math.cos(h)) / (DEGREE * Math.cos((point[1] * Math.PI) / 180)), point[1] - (metres * Math.sin(h)) / DEGREE];
+        features.push({ type: 'Feature', properties: { ...props, band }, geometry: { type: 'Point', coordinates: at } });
+      }
+    });
+    for (const { id, calls: c } of own) {
+      const at = stations.get(id);
+      const near = (q: Point) => (at ? Math.hypot(q[0] - at.lon, q[1] - at.lat) : 0);
+      const rails = c.flatMap(({ shape, dist }) => {
+        const on = shapes.get(shape);
+        return on ? [pointAt(on, dist)] : [];
+      }).filter((q) => q.every(Number.isFinite)).sort((a, b) => near(a) - near(b))[0];
+      if (!rails) continue;
+      railsAt.set(id, rails);
+      features.push({ type: 'Feature', properties: { id: p.id, band: -1, image: markOf(markedNetworks(at?.networks ?? p.marked, (n) => !p.marked.includes(n))) }, geometry: { type: 'Point', coordinates: rails } });
+    }
+  }
+  map.getSource<GeoJSONSource>('stations')?.setData({ type: 'FeatureCollection', features });
+  const inBadge = new Set(interchanges.flatMap((i) => i.places));
+  map.getSource<GeoJSONSource>('places')?.setData({
+    type: 'FeatureCollection',
+    features: tiered.map((p) => ({ type: 'Feature', properties: { id: p.id, inBadge: inBadge.has(p.id), railed: p.stations.some((s) => railsAt.has(s)), image: markOf(p.marked) }, geometry: { type: 'Point', coordinates: [p.lon, p.lat] } })),
+  });
+  map.getSource<GeoJSONSource>('interchanges')?.setData({
+    type: 'FeatureCollection',
+    features: interchanges.map((i) => ({ type: 'Feature', properties: { id: i.id, name: i.name, image: badgeImage(marksOf(i.networks)) }, geometry: { type: 'Point', coordinates: [i.lon, i.lat] } })),
+  });
+  // On the rails, an interchange's Stations linked, and a place's several, in a line along the two furthest apart.
+  const groups = [...interchanges.map((i) => tiered.filter((p) => i.places.includes(p.id))), ...tiered.filter((p) => p.stations.length > 1 && !inBadge.has(p.id)).map((p) => [p])];
+  map.getSource<GeoJSONSource>('station-links')?.setData({
+    type: 'FeatureCollection',
+    features: groups.flatMap((g) => {
+      const points = g.flatMap((p) => p.stations.flatMap((s): Point[] => { const at = railsAt.get(s); return at ? [at] : []; }));
+      return points.length > 1 ? [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: inLine(points) } }] : [];
+    }),
+  });
+  // For the measures' scripts: how long each drawing took the main thread.
+  if (import.meta.env.DEV) performance.measure('places-draw', { start: began });
+}
+
+/** Points in the order they lie along the line joining the two furthest apart, for a link along them. */
+function inLine(points: Point[]): Point[] {
+  let [a, b]: [Point, Point] = [points[0] ?? [0, 0], points[1] ?? [0, 0]];
+  for (const p of points) for (const q of points) if (Math.hypot(p[0] - q[0], p[1] - q[1]) > Math.hypot(a[0] - b[0], a[1] - b[1])) [a, b] = [p, q];
+  const along = (p: Point) => (p[0] - a[0]) * (b[0] - a[0]) + (p[1] - a[1]) * (b[1] - a[1]);
+  return points.toSorted((p, q) => along(p) - along(q));
+}
+
+/** An image `w`×`h` px, drawn at the screen's pixel ratio. */
+function canvasImage(w: number, h: number, paint: (c: CanvasRenderingContext2D) => void): ImageData {
+  const canvas = document.createElement('canvas');
+  [canvas.width, canvas.height] = [Math.ceil(w * IMAGE_RATIO), Math.ceil(h * IMAGE_RATIO)];
+  const c = canvas.getContext('2d');
+  if (!c) return new ImageData(canvas.width, canvas.height);
+  c.scale(IMAGE_RATIO, IMAGE_RATIO);
+  paint(c);
+  return c.getImageData(0, 0, canvas.width, canvas.height);
+}
+/** Adds an image to the map as `id`, once. */
+function image(id: string, w: number, h: number, paint: (c: CanvasRenderingContext2D) => void): string {
+  if (map.hasImage(id)) return id;
+  painted.set(id, [w, h, paint]);
+  map.addImage(id, canvasImage(w, h, paint), { pixelRatio: IMAGE_RATIO });
+  return id;
+}
+/** The top tier's square, railisland's, white, ringed in the nameboard's ink on both basemaps, as #212's board heading is. */
+function squareImage(): string {
+  return image('place-square', 20, 20, (c) => {
+    c.beginPath();
+    c.roundRect(2, 2, 16, 16, 4);
+    c.fillStyle = '#fff';
+    c.fill();
+    c.lineWidth = 2;
+    c.strokeStyle = BOARD_INK;
+    c.stroke();
+  });
+}
+/** Draws Networks' marks side by side from `x`, their middles at `y`: white, ringed and lettered in their colour darkened to read on white (lettering()). */
+function paintMarks(c: CanvasRenderingContext2D, marks: Mark[], x: number, y: number) {
+  for (const { letters, colour } of marks) {
+    const [w, ink] = [markWidthOf(letters), lettering(colour, '#ffffff')];
+    c.beginPath();
+    c.roundRect(x + MARK_RING / 2, y - MARK / 2 + MARK_RING / 2, w - MARK_RING, MARK - MARK_RING, (MARK - MARK_RING) / 2);
+    c.fillStyle = '#fff';
+    c.fill();
+    c.lineWidth = MARK_RING;
+    c.strokeStyle = ink;
+    c.stroke();
+    c.fillStyle = ink;
+    c.font = `bold ${letters.length > 1 ? MARK_TEXT - 1 : MARK_TEXT + 0.5}px "Nunito Sans"`;
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText(letters, x + w / 2, y + 0.5);
+    x += w + 2;
+  }
+}
+/** A place's marks, its Networks' side by side. */
+function markImage(marks: Mark[]): string {
+  const w = marksWidth(marks.map((m) => m.letters));
+  return image(`place-mark-${marks.map((m) => m.letters + m.colour).join('+')}`, w + 2, MARK + 2, (c) => paintMarks(c, marks, 1, (MARK + 2) / 2));
+}
+/** An interchange's badge: its Networks' marks side by side in a white rounded box ringed as the dots are. */
+function badgeImage(marks: Mark[]): string {
+  const [w, h] = [marksWidth(marks.map((m) => m.letters)) + 2 * BADGE_PAD, MARK + 2 * BADGE_PAD];
+  return image(`place-badge-${marks.map((m) => m.letters + m.colour).join('+')}`, w + 2, h + 2, (c) => {
+    c.beginPath();
+    c.roundRect(1, 1, w, h, h / 2);
+    c.fillStyle = '#fff';
+    c.fill();
+    c.lineWidth = BADGE_RING;
+    c.strokeStyle = dotRing;
+    c.stroke();
+    paintMarks(c, marks, 1 + BADGE_PAD, 1 + h / 2);
+  });
 }
 
 /**
@@ -1894,9 +2274,9 @@ function showNames() {
     const was = laidOut;
     const pillsAsWere = was !== undefined && was.bearing === namesBearing && [...pills].every(([line, p]) => samePill(was.pills.get(line), p));
     const before = new Map(pillsAsWere ? was.names.map((n, i) => [n.sides, { n, where: was.where[i] }]) : []);
-    const where = names.map(({ dot, sides, size, nameZoom, larger, style }) => {
+    const where = names.map(({ dot, sides, size, nameZoom, larger, marks, style }) => {
       const had = before.get(sides);
-      if (had?.where && had.n.size[0] === size[0] && had.n.size[1] === size[1] && had.n.nameZoom === nameZoom && had.n.larger === larger && had.n.style.size === style.size) return had.where;
+      if (had?.where && had.n.size[0] === size[0] && had.n.size[1] === size[1] && had.n.nameZoom === nameZoom && had.n.larger === larger && had.n.marks === marks && had.n.style.size === style.size) return had.where;
       const at = sides(namesBearing);
       const properties = NAME_ZOOMS.flatMap((zoom) => {
         // MapLibre lays names out at whole zooms, so a track crossing its own lies under one from this zoom to the next, at half the metres a px.
@@ -1908,7 +2288,7 @@ function showNames() {
         // Below the zoom it shows from, no name lies anywhere; from it, fewest under it first, with a place's dot near it
         // costing it Lines (DOT_COST), then fewest within NAME_GAP.
         const under = (s: Spot, far: number) => (zoom < nameZoom ? 0 : 1000 * underAt(s, far, 0) + underAt(s, far, NAME_GAP));
-        const { spot, far } = nearestSide(at, (s) => clearance(s, larger, zoom), under);
+        const { spot, far } = nearestSide(at, (s) => clearance(s, drawnLarger(larger, marks, zoom), zoom), under);
         // MapLibre offsets names in ems.
         return [
           [`anchor${zoom}`, spot.anchor],
@@ -1927,6 +2307,17 @@ function showNames() {
       return { type: 'Feature', properties: { id, name, nameZoom, sort, ...style, ...where[i] }, geometry: { type: 'Point', coordinates: dot } };
     }),
   });
+}
+
+/**
+ * How much larger than a dot in neither tier a place is drawn at a zoom, in px, for its name to clear it (#572): as
+ * MapLibre lays names out at whole zooms, as far as at the next, from SIGN_ZOOM its marks half as wide as they are, and
+ * below it, the top tier's square, reaching a fifth further than its dot, and its corners a little more.
+ */
+function drawnLarger(larger: number, marks: number, zoom: number): number {
+  const next = zoom + 1;
+  if (next >= SIGN_ZOOM) return Math.max(larger, (atZoom(SIGN_SIZE, next) * marks) / 2 - atZoom(DOT, next));
+  return larger === TOP ? larger + 0.4 * (atZoom(DOT, next) + 2 + atZoom(RING, next)) : larger;
 }
 
 /** Whether a Line's Trains' pill is as large, and from the same zoom, as it was, or it had none: where a name clears it, it goes where it went (clearance()). */
@@ -2265,9 +2656,15 @@ function easeOnto(at: Point) {
   map.easeTo({ center: at, zoom: Math.max(map.getZoom(), FOLLOW_ZOOM), padding: panelPadding() });
 }
 
-/** Shows a place's board, by its ID in places(), following no Train. */
+/** The place whose board this is, by its ID in places(), or the interchange, as one place of all its places' Stations. */
+function boardOf(id: string): Place | undefined {
+  return boards.get(id) ?? shownPlaces.get(id);
+}
+
+/** Shows a place's board, by its ID in places() or its interchange's, following no Train. */
 function showBoard(place: string) {
-  [following, boardPlace, nearMe, searching, back] = [undefined, place, undefined, false, undefined];
+  // An interchange's place's is the interchange's (ADR-0005).
+  [following, boardPlace, nearMe, searching, back] = [undefined, boardOfPlace.get(place) ?? place, undefined, false, undefined];
   trainSource?.setData(trains());
   openPanel(false);
   writeLink();
@@ -2420,7 +2817,7 @@ function writeLink() {
   params.delete('station');
   if (!marked) params.delete('mark');
   if (following) params.set('train', `${following.day}/${following.trip}`);
-  const station = boardPlace && shownPlaces.get(boardPlace)?.stations[0];
+  const station = boardPlace && boardOf(boardPlace)?.stations[0];
   if (station) params.set('station', station);
   history.replaceState(history.state, '', `#${decodeURIComponent(params.toString())}`);
 }
@@ -2806,7 +3203,7 @@ function comingPanel({ trip, live, delay, upcoming, within }: Coming, up: boolea
 function backButton(): Node[] {
   // ponytail: two engine passes a second while Back goes to a Train; cache the check if a phone shows it.
   if (!back) return [];
-  const where = back.to === 'train' ? undefined : back.to === 'board' ? shownPlaces.get(back.place)?.name : t('nearby');
+  const where = back.to === 'train' ? undefined : back.to === 'board' ? boardOf(back.place)?.name : t('nearby');
   if (back.to === 'train' ? !(bundle && (trainAt(bundle, Date.now(), received, back.day === bundle.serviceDay ? back.trip : `${back.day}/${back.trip}`, hidingClosures) || comingAt(bundle, Date.now(), received, back.day === bundle.serviceDay ? back.trip : `${back.day}/${back.trip}`, hidingClosures))) : !where) return [];
   const label = back.to === 'train' ? backToTrain(back.headsign) : backTo(where ?? '');
   return [el('button', { type: 'button', className: 'back', onclick: goBack }, icon('back'), el('span', { textContent: label }))];
@@ -3121,7 +3518,7 @@ function alertRow({ lines: named, header, description, from, by }: CardAlert, by
  * day's, which it asks for once its own regions' have come, have (#597, #596).
  */
 function boardPanel(id: string, up: boolean): Panel | undefined {
-  const place = shownPlaces.get(id);
+  const place = boardOf(id);
   if (!place) return undefined;
   const now = Date.now();
   const mapNow = mapTime(now, received);
@@ -3558,7 +3955,7 @@ function showBanner() {
  */
 function showAbout() {
   const machineTranslated = MACHINE_TRANSLATED[language()];
-  const [round, pointed, slanted, badge] = (['round', 'pointed', 'slanted', 'badge'] as const).map((outline) => [...pills].find(([, p]) => p.outline === outline)?.[0]);
+  const [round, pointed, slanted, square] = (['round', 'pointed', 'slanted', 'square'] as const).map((outline) => [...pills].find(([, p]) => p.outline === outline)?.[0]);
   // On a phone, About's handle closes it, as dragging it down does: a pointer's, as its close button is the keyboard's.
   const aboutHandle = el('button', { type: 'button', className: 'handle', tabIndex: -1, onclick: () => about.close() }, el('span'));
   aboutHandle.setAttribute('aria-hidden', 'true');
@@ -3583,7 +3980,7 @@ function showAbout() {
         el('li', {}, round ? pill(round) : '', el('span', {}, el('b', { textContent: t('live') }), `: ${t('liveMeans')}`)),
         el('li', {}, round ? pill(round, { live: false }) : '', el('span', {}, el('b', { textContent: t('scheduled') }), `: ${t('scheduledMeans')}`)),
       ),
-      el('p', { className: 'shapes' }, ...[round, pointed, slanted, badge].flatMap((line) => (line ? [pill(line)] : []))),
+      el('p', { className: 'shapes' }, ...[round, pointed, slanted, square].flatMap((line) => (line ? [pill(line)] : []))),
       el('p', { textContent: t('outlines') }),
       el('h3', { className: 'label', textContent: t('credits') }),
       aboutCredits,

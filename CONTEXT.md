@@ -73,7 +73,7 @@ A place where Trains stop for passengers, as published by whoever runs it (Adif 
 _Avoid_: Stop, halt
 
 **Interchange**:
-Places of other Networks that people change between on foot, as Passeig de Gràcia's Rodalies Station and its Metro place. The map draws an interchange as one badge of its Networks' marks, named once, and its places share one board (ADR-0005).
+Places of other Networks that people change between on foot, as Passeig de Gràcia's Rodalies Station and its Metro place. The map draws an interchange as one badge of its Networks' marks, named once, and its places share one board (ADR-0005). A **badge** on the map is always an interchange's.
 _Avoid_: Transfer, connection, hub, station complex
 
 ### Live data
@@ -120,4 +120,4 @@ _Avoid_: Trip (that's the timetable's), journey, run
 
 **Stamp**:
 What Rides earn in a Passport: one for each Line, kind of service and Network ridden, dated by its first Ride. It's filled once one of its Rides was seen Live, and ringed while none was.
-_Avoid_: Badge (a Line's name on the map, ADR-0008), achievement, medal
+_Avoid_: Badge (an interchange's, on the map, since #572; ADR-0008's Line badges were never built), achievement, medal

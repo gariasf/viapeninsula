@@ -8,7 +8,7 @@
 // - S2: a cold load, its first 30 s, and long distance's join in it (S6).
 // - S3: zoom out to z4 a level at a time, a second apart, then into Madrid z12.
 // - S4: drag Madrid to Valencia to Barcelona at z9.5.
-// - S5bcn: 60 s at rest.
+// - S5bcn: 60 s at rest; S5z10 and S5z13 the same at z10 and z13 (#572).
 // - S7: the next day's join, the clock set 20 s before the map needs it, and the snapshot blocked.
 // - S8: following a moving Train at z14 for 30 s.
 import fs from 'node:fs';
@@ -46,6 +46,8 @@ export interface Run {
 
 type Mark = (name: string) => Promise<void>;
 const at = (z: number, [lat, lon]: readonly number[]) => `#map=${z}/${lat}/${lon}`;
+/** 60 s at rest at Barcelona at a zoom, after 20 s to load. */
+const rest = (zoom: number) => ({ view: at(zoom, BCN), window: ['idleStart', 'end'] as [string, string], act: async (_: Page, mark: Mark) => (await sleep(20_000), await mark('idleStart'), await sleep(60_000), mark('end')) });
 const [BCN, MAD, VLC] = [[41.3874, 2.1686], [40.4168, -3.7038], [39.4699, -0.3763]] as const;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -92,7 +94,9 @@ const SCENARIOS: Record<string, Scenario> = {
     },
     joins: () => /^days\//,
   },
-  S5bcn: { view: at(12, BCN), window: ['idleStart', 'end'], act: async (_, mark) => (await sleep(20_000), await mark('idleStart'), await sleep(60_000), mark('end')) },
+  S5bcn: rest(12),
+  S5z10: rest(10),
+  S5z13: rest(13),
   // The map looks for the days it needs each minute, so it joins the next day within ~60 s of the clock passing its moment.
   S7: {
     view: at(12, BCN),
@@ -213,8 +217,8 @@ export function metrics(run: Run): Record<string, number | undefined> {
   if (run.scenario === 'S3') [out.heapMB, out.heapPeakMB] = [run.heapMB, run.heapPeakMB];
   const mainMsPerS = Math.round(((b.task - a.task) * 1000) / secs);
   const fps = +(within(run.frames, (t) => t, a.t, b.t).length / secs).toFixed(1);
-  if (run.scenario === 'S5bcn') {
-    out.restMainMsPerS = mainMsPerS;
+  if (run.scenario.startsWith('S5')) {
+    [out.restMainMsPerS, out.restFps] = [mainMsPerS, fps];
     const trainDraws = within(run.setData, ([t]) => t, a.t, b.t).filter(([, id]) => id === 'trains').length;
     out.restExtraRedrawsPerS = +((within(run.renders, (t) => t, a.t, b.t).length - trainDraws) / secs).toFixed(1);
   }

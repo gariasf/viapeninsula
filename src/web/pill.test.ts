@@ -9,12 +9,12 @@ const width = (name: string) => name.length * 6;
 const LAT = 41.4;
 
 test("a followed pill reaches half its width either side of its Train: its outline's, or its Line's name and its padding where that's wider", () => {
-  // R1's round pill, R2S's pointed one and L3's badge, as the followed Train's, lettered at 12 px.
+  // R1's round pill, R2S's pointed one and L3's square, as the followed Train's, lettered at 12 px.
   expect(boxOf('round', width('R1'), FOLLOWED_TEXT)[0]).toBeCloseTo(12.2, 5);
   expect(boxOf('pointed', width('R2S'), FOLLOWED_TEXT)[0]).toBeCloseTo(17.8, 5);
-  expect(boxOf('badge', width('L3'), FOLLOWED_TEXT)[0]).toBeCloseTo(10.2, 5);
-  // A name too short to fill its outline leaves the outline's own width: half of a badge's 15 px.
-  expect(boxOf('badge', width('L'), FOLLOWED_TEXT)[0]).toBe(7.5);
+  expect(boxOf('square', width('L3'), FOLLOWED_TEXT)[0]).toBeCloseTo(10.2, 5);
+  // A name too short to fill its outline leaves the outline's own width: half of a square's 15 px.
+  expect(boxOf('square', width('L'), FOLLOWED_TEXT)[0]).toBe(7.5);
 });
 
 test('a pill reaches above and below its Train as far as its Line\'s name is high, and its edge', () => {
@@ -23,8 +23,8 @@ test('a pill reaches above and below its Train as far as its Line\'s name is hig
 });
 
 test("Lines are outlined by their kinds of service, long distance's slanted at both ends, and those of a track that names no kinds are round", () => {
-  expect(OUTLINES_OF).toEqual({ commuter: 'round', regional: 'pointed', 'long-distance': 'slanted', metro: 'badge', tram: 'badge', rack: 'badge', funicular: 'badge' });
-  expect(['commuter', 'regional', 'long-distance', 'metro', undefined].map((kind) => outlineOf(kind as Kind))).toEqual(['round', 'pointed', 'slanted', 'badge', 'round']);
+  expect(OUTLINES_OF).toEqual({ commuter: 'round', regional: 'pointed', 'long-distance': 'slanted', metro: 'square', tram: 'square', rack: 'square', funicular: 'square' });
+  expect(['commuter', 'regional', 'long-distance', 'metro', undefined].map((kind) => outlineOf(kind as Kind))).toEqual(['round', 'pointed', 'slanted', 'square', 'round']);
 });
 
 test("a long-distance pill is 2 px wider than a regional one with the same name, its slanted ends a pixel longer than a pointed one's, and as high", () => {
@@ -43,7 +43,7 @@ test("the followed pill's reach along its track is 130 m at zoom 13 for a region
 });
 
 test("below the zoom its Line's Trains are pills from, no pill is drawn, so its reach goes no further than at that zoom", () => {
-  const box = boxOf('badge', width('L1'), FOLLOWED_TEXT);
+  const box = boxOf('square', width('L1'), FOLLOWED_TEXT);
   // The Metro's Trains are pills from zoom 12.
   expect(pillReach(box, 9, 12, LAT)).toBe(pillReach(box, 12, 12, LAT));
   expect(pillReach(box, 12, 12, LAT)).toBe(pillReach(box, 12, 10, LAT));
@@ -61,7 +61,7 @@ test("long distance's and Media Distancia's pills, from zoom 9, are lettered at 
 const extent = (path: [number, number][]) => [Math.max(...path.map(([x]) => Math.abs(x))), Math.max(...path.map(([, y]) => Math.abs(y)))];
 
 test("a Scheduled pill's outline, which its dashes ring, reaches as far as its box, whatever its outline, and lettered at 8, 10 or 12 px (#519)", () => {
-  for (const outline of ['round', 'pointed', 'slanted', 'badge'] as const) {
+  for (const outline of ['round', 'pointed', 'slanted', 'square'] as const) {
     for (const size of [8, PILL_TEXT, FOLLOWED_TEXT]) {
       const box = boxOf(outline, width('R2N'), size);
       const [x, y] = extent(outlinePath(outline, box));
@@ -99,8 +99,8 @@ test("below zoom 12 a Live Train's halo is 0.6 of its size, and from 12 as large
 });
 
 test("a Scheduled pill's dashed outline is the pill's own with its straight sides as long as the most whole dashes they hold, which MapLibre stretches the rest of the way, less than a dash's step (#519)", () => {
-  // R1's round pill holds 1, its straight sides 7 px; R2N's pointed one 4 at 10 px, of 20, and 3 at 8 px, of 16.4; and L's badge none.
-  for (const [outline, name, size, n] of [['round', 'R1', PILL_TEXT, 1], ['pointed', 'R2N', PILL_TEXT, 4], ['pointed', 'R2N', 8, 3], ['badge', 'L', PILL_TEXT, 0]] as const) {
+  // R1's round pill holds 1, its straight sides 7 px; R2N's pointed one 4 at 10 px, of 20, and 3 at 8 px, of 16.4; and L's square none.
+  for (const [outline, name, size, n] of [['round', 'R1', PILL_TEXT, 1], ['pointed', 'R2N', PILL_TEXT, 4], ['pointed', 'R2N', 8, 3], ['square', 'L', PILL_TEXT, 0]] as const) {
     expect(dashesAcross(outline, boxOf(outline, width(name), size))).toBe(n);
   }
 });
@@ -109,8 +109,8 @@ test("a Scheduled pill's dashed outline is the pill's own with its straight side
 const fieldAt = ({ width: w, height: h, data }: { width: number; height: number; data: Uint8ClampedArray }, x: number, y: number) => data[(Math.floor(h / 2 + 2 * y) * w + Math.floor(w / 2 + 2 * x)) * 4 + 3]! / 255;
 
 test("a dashed outline's image is filled within its outline, and just outside it ringed in 3 px dashes and 2 px gaps, a gap at the middle of its top, where MapLibre stretches it", () => {
-  const image = dashedOutline('badge', 2);
-  // A badge 15 px high with 10 px more of straight side: its top 7.5 px up, from 12.5 px left of its middle to 12.5 right.
+  const image = dashedOutline('square', 2);
+  // A square 15 px high with 10 px more of straight side: its top 7.5 px up, from 12.5 px left of its middle to 12.5 right.
   expect(fieldAt(image, 0.25, 0)).toBeGreaterThan(0.75);
   expect(fieldAt(image, 0.25, -7.25)).toBeGreaterThan(0.75);
   // Just outside its top: a gap at its middle, ±1 px, then a dash from 1 to 4 px either way, and a gap from 4 to 6.
