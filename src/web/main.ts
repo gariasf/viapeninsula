@@ -1269,6 +1269,16 @@ function placeOpacity(parts: ((zoom: number) => number | ExpressionSpecification
   const all = [...new Set([0, 10, FEW_ZOOM, FEW_ZOOM + 1, SIGN_ZOOM - 0.5, SIGN_ZOOM, 14, RAILS - 0.01, RAILS, 22, ...zooms])].sort((a, b) => a - b);
   return ['interpolate', ['linear'], ['zoom'], ...all.flatMap((zoom) => [zoom, ['*', 1, 1, ...parts.map((part) => part(zoom))] as ExpressionSpecification])];
 }
+/**
+ * The zooms a band's dots are drawn over, `from` to `to`, below SIGN_ZOOM, where the marks take over, and the whole zooms
+ * their layer spans (placeLayers): none for a band from SIGN_ZOOM on.
+ */
+function dotBand(band: number): { from: number; to: number; minzoom: number; maxzoom: number; zooms: number[] } | undefined {
+  const [from, to] = [bandZooms(band)[0], Math.min(bandZooms(band)[1], SIGN_ZOOM)];
+  if (from >= to) return undefined;
+  const [minzoom, maxzoom] = [Math.max(linesZoom, Math.floor(from)), Math.ceil(to)];
+  return { from, to, minzoom, maxzoom, zooms: Array.from({ length: maxzoom - minzoom + 1 }, (_, i) => minzoom + i) };
+}
 /** A value going linearly from `a` at `from` to `b` at `to`, held either side. */
 function ramp(zoom: number, from: number, a: number, to: number, b: number): number {
   return zoom <= from ? a : zoom >= to ? b : a + ((b - a) * (zoom - from)) / (to - from);
@@ -1304,9 +1314,9 @@ const placeLayers = (() => {
     layers.push(id);
   }
   BANDS.forEach((_, band) => {
-    const [from, to] = [bandZooms(band)[0], Math.min(bandZooms(band)[1], RAILS)];
-    const [minzoom, maxzoom] = [Math.max(linesZoom, Math.floor(from)), Math.ceil(to)];
-    const zooms = Array.from({ length: maxzoom - minzoom + 1 }, (_, i) => minzoom + i);
+    const span = dotBand(band);
+    if (!span) return;
+    const { from, to, minzoom, maxzoom, zooms } = span;
     const inside = (zoom: number) => (zoom >= from && zoom < to ? 1 : 0);
     map.addLayer({
       id: `stations-${band}`,
@@ -1533,18 +1543,23 @@ const linesPopup = new Popup({ closeButton: false, closeOnClick: false, classNam
 // bold under it, over the places' names, so that MapLibre places it first, as an interchange's ranks with its highest
 // tier's (#119): under them, Plaça Catalunya's gave way to Universitat's at zoom 13 (#210's review). Its name only from
 // SIGN_ZOOM's tiles, where the badge is drawn whole: hidden, it would still push the places' names aside.
-map.addLayer(
-  {
-    id: 'station-marks',
-    type: 'symbol',
-    source: 'places',
-    minzoom: SIGN_ZOOM - 1,
-    filter: ['!', ['get', 'inBadge']],
-    layout: { 'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-image': ['get', 'image'], 'icon-size': byZoom(SIGN_SIZE, (px) => px) },
-    paint: { 'icon-opacity': placeOpacity([signIn, (zoom) => ['case', ['get', 'railed'], 1 - onRails(zoom), 1]]) },
-  },
-  'station-names',
-);
+// Those whose Stations have their own marks on their tracks in a layer of their own, which ends at the rails, so that
+// neither layer's opacity is a feature's: one of the zoom alone is quicker for the map to draw with, each time it draws.
+for (const [id, railed] of [['station-marks', false], ['station-marks-railed', true]] as const) {
+  map.addLayer(
+    {
+      id,
+      type: 'symbol',
+      source: 'places',
+      minzoom: SIGN_ZOOM - 1,
+      ...(railed && { maxzoom: RAILS }),
+      filter: ['all', ['!', ['get', 'inBadge']], ['==', ['get', 'railed'], railed]],
+      layout: { 'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-image': ['get', 'image'], 'icon-size': byZoom(SIGN_SIZE, (px) => px) },
+      paint: { 'icon-opacity': placeOpacity([signIn]) },
+    },
+    'station-names',
+  );
+}
 map.addLayer(
   {
     id: 'station-badges',
@@ -1570,13 +1585,13 @@ map.addLayer(
   'train-pills',
 );
 /** The layers that draw the places, which take a tap and the pointer where they're drawn (placeShownAt()): the badges first, over the rest. */
-const placeTaken = ['station-badges', 'station-marks', ...placeLayers.filter((id) => id.startsWith('stations'))];
+const placeTaken = ['station-badges', 'station-marks', 'station-marks-railed', ...placeLayers.filter((id) => id.startsWith('stations'))];
 /** Of the places' drawings within a box, those drawn at the zoom, by their place's or interchange's ID, topmost first. */
 function placesDrawn(box: [[number, number], [number, number]] | [number, number]): string[] {
   const zoom = map.getZoom();
   return map.queryRenderedFeatures(box, { layers: placeTaken }).flatMap(({ properties: p, layer }) => {
     const drawn: PlaceDrawn =
-      layer.id === 'station-badges' ? { kind: 'badge' } : layer.id === 'station-marks' ? { kind: 'mark', railed: !!p.railed } : p.band === -1 ? { kind: 'rails' } : { kind: 'dot', band: Number(p.band), few: !!p.few };
+      layer.id === 'station-badges' ? { kind: 'badge' } : layer.id.startsWith('station-marks') ? { kind: 'mark', railed: layer.id === 'station-marks-railed' } : p.band === -1 ? { kind: 'rails' } : { kind: 'dot', band: Number(p.band), few: !!p.few };
     return placeShownAt(drawn, zoom) && typeof p.id === 'string' ? [p.id] : [];
   });
 }
@@ -1917,8 +1932,8 @@ function drawPlaces() {
     const props = { id: p.id, larger: p.larger, from: p.from, few: few.has(p.id), image };
     const own = p.stations.map((id) => ({ id, calls: [...(calls.get(id)?.values() ?? [])] }));
     BANDS.forEach((_, band) => {
-      const [from, to] = [bandZooms(band)[0], Math.min(bandZooms(band)[1], RAILS)];
-      const zooms = Array.from({ length: Math.ceil(to) - Math.max(linesZoom, Math.floor(from)) + 1 }, (_, i) => Math.max(linesZoom, Math.floor(from)) + i);
+      const zooms = dotBand(band)?.zooms;
+      if (!zooms) return;
       const placed = own.flatMap(({ calls: c }) => onLines(c, slots, shapes, band) ?? []);
       for (const { point, heading, side } of placed.length ? placed : [{ point: [p.lon, p.lat] as Point, heading: 0, side: 0 }]) {
         // How far right of its centreline, in the image's px, which its size scales.
