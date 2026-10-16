@@ -847,7 +847,7 @@ export const AVE_LARGA_DISTANCIA: NetworkConfig = {
   runningSide: 'right',
   colour: AVE_PURPLE,
   // Its Trains are drawn at every zoom, as dots below 9 and smaller pills from 9 (pillText()), so that at 7–8,
-  // where the Lines are, they don't bury the local Lines' dots, and from 10 they give way to their pills (ADR-0010, #780).
+  // where the Lines are, they don't bury the local Lines' dots, and from 10 they give way to the local Lines' pills (ADR-0010, #780).
   pillZoom: 9,
   // Its Lines' runs are traced on the rails of their gauges (`lines.gauges`), and a way with no gauge tag
   // is every gauge's for them (#259): these are only the ways the report names a Station on.

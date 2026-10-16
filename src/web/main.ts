@@ -69,12 +69,12 @@ const NAME_SIZE = 12;
 const PILL_HALO = 1.5;
 /**
  * A Live Train's halo (#91): how many times its dot's radius it reaches, how far beyond the corners of
- * its pill's box, in px, how softly it fades out, from blurred through to its middle (1), and how
+ * a two-letter round pill's box, in px (HALO_PILL), how softly it fades out, from blurred through to its middle (1), and how
  * strongly it's coloured.
  */
 const [HALO_DOT, HALO_BEYOND, HALO_BLUR, HALO_OPACITY] = [2, 4, 0.6, 0.6];
-/** A pill's halo's radius, every pill's whatever its Network or name (#780): a two-letter round pill's, as C5's, HALO_BEYOND beyond the corners of its box, 17.3 px. */
-const PILL_GLOW = Math.hypot(...boxOf('round', 12, PILL_TEXT)) + HALO_BEYOND;
+/** A pill's halo's radius, every pill's whatever its Network or name (#780): a two-letter round pill's, as C5's, its name 12 px wide, HALO_BEYOND beyond the corners of its box, 17.3 px. */
+const HALO_PILL = Math.hypot(...boxOf('round', 12, PILL_TEXT)) + HALO_BEYOND;
 /**
  * The outlines a Train is drawn with, as pill.ts sizes them, `w`×`h` px around their middles: how far
  * `outside` each a point is, in px (x right, y down), or inside where negative. A pill's outline
@@ -1265,12 +1265,13 @@ map.addLayer({
 // that it's Live and sets it further apart from a Scheduled one, which has none (#91): on the dark
 // basemap, and on the light one only round the followed Train, where every other's read as a smudge
 // larger than its pill (#780). A dot's grows with the dot, the followed Train's too, and every pill's
-// is one size, PILL_GLOW, so a long name glows no more than a short one. trains() works its radius out
+// is one size, HALO_PILL, so a long name glows no more than a short one. trains() works its radius out
 // for the zoom: a plain number for each Train is quicker for the map to draw with, each time it draws
 // Trains, than an expression of the zoom. It lies under the Lines' names, which it would veil, and the
 // places' dots, which it would blur. On a tilted map it keeps its size, as a pill does more than a circle.
 // ponytail: a circle, so under a pill longer than a two-letter one it shows above and below it and not
-// past its ends, whatever its outline. Blur each outline, drawn larger, if that shows.
+// past its ends, whatever its outline, and round an 8 px pill (pillText()) further than round a local one.
+// Blur each outline, drawn larger, if that shows.
 map.addLayer(
   {
     id: 'train-halos',
@@ -1340,7 +1341,7 @@ for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', tr
       'icon-text-fit-padding': [0, PILL_PADDING, 0, PILL_PADDING],
       'text-field': ['get', 'name'],
       'text-font': ['Noto Sans Bold'],
-      // Long distance's and Media Distancia's smaller, as pillText() has them, but the followed Train's (#780).
+      // Long distance's, Ouigo's and Media Distancia's smaller, as pillText() has them, but the followed Train's (#780).
       'text-size': followed ? size : ['case', ['<', ['get', 'pillZoom'], LOCAL_PILL_ZOOM], SMALL_TEXT, size],
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
@@ -1810,8 +1811,8 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
           pillZoom: pill?.zoom,
           dotZoom: pill?.dotZoom ?? linesZoom,
           reach: box && reach(box, heading - bearing),
-          // Its halo's radius: HALO_DOT times its dot's, or from its Line's pill zoom, every pill's PILL_GLOW.
-          haloRadius: pill && zoom >= pill.zoom ? PILL_GLOW : HALO_DOT * dotAt(zoom, trip.id === followed),
+          // Its halo's radius: HALO_DOT times its dot's, or from its Line's pill zoom, every pill's HALO_PILL.
+          haloRadius: pill && zoom >= pill.zoom ? HALO_PILL : HALO_DOT * dotAt(zoom, trip.id === followed),
         },
         geometry: { type: 'Point', coordinates },
       };
