@@ -1,6 +1,6 @@
 # Lines are named by badges where they join and leave, and on tap
 
-**Only the tap is built (#193).** The maintainer closed the badges, #191, as not planned on 7 Oct 2026: built in PR #201, they crowded in among the Trains' pills at zooms 10 to 12. The PR is closed unmerged, and its branch `191-badges` is kept. Until they're taken up again, Lines keep their names along their strokes.
+**Only the tap is built (#193).** The maintainer closed the badges, #191, as not planned on 7 Oct 2026: built in PR #201, they crowded in among the Trains' pills at zooms 10 to 12. The PR is closed unmerged, and its branch `191-badges` is kept. Until they're taken up again, Lines keep their names along their strokes. Since #572, "badge" on the map is an interchange's (CONTEXT.md's **Interchange**, ADR-0005), and the Metro's and TRAM's pill outline that was called one is a `square`: a Line badge, if this is ever taken up, needs another name.
 
 Each Line's name is laid along its own stroke, in its colour, haloed white (since #519, on the light basemap its colour darkened to read at 4.5:1 on white, as a Scheduled Train's ring and name are). Where Lines run side by side the names come in a row, MapLibre leaves many out, and it isn't clear which name is which stroke's. The names should be there to find, without being what the map is about.
 
