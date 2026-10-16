@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import { BANDS, cutIn, GRAPH_BAND, LINK, STRETCH, type Line, type Shape, type Stroke, type Track } from '../bundle.ts';
-import { breaks, measures, offTrack, reported, summary, type Measures } from './measures.ts';
-import { collect } from './report.ts';
+import { breaks, measures, offTrack, reported, summary, turnBack, type Measures } from './measures.ts';
+import { collect, comment, diff, type Spot } from './report.ts';
 import { room, sideBySide, type Front } from './sideBySide.ts';
 
 const degree = (6_371_008.8 * Math.PI) / 180;
@@ -150,7 +150,7 @@ test("doesn't count Lines stepping side by side the same way as a swap", () => {
 test('measures nothing amiss for Lines side by side on one track, each drawn once', () => {
   const found = measures({ shapes: [east('a', 2000), east('b', 2000)], strokes: [stroke('R2', 'a', 0, 2000, -0.5), stroke('R11', 'b', 0, 2000, 0.5)] });
   const zero = Object.fromEntries(BANDS.map((zoom) => [zoom, 0]));
-  expect(found).toEqual({ breaks: { steps: 0, stubs: 0, swaps: 0, joins: 0 }, twice: 0, alone: 0, over: 0, folds: zero, covered: zero, dangling: 0, kinks: zero, weaves: zero, hidden: zero, wiggles: zero, hairpins: zero, inside: zero, largest: Object.fromEntries(BANDS.map((zoom) => [zoom, []])) });
+  expect(found).toEqual({ breaks: { steps: 0, stubs: 0, swaps: 0, joins: 0 }, twice: 0, alone: 0, over: 0, folds: zero, covered: zero, dangling: 0, kinks: zero, weaves: zero, hidden: zero, wiggles: zero, hairpins: zero, inside: zero, largest: Object.fromEntries(BANDS.map((zoom) => [zoom, []])), curves: [] });
 });
 
 test('measures a Line drawn twice, where its two directions have tracks of their own and different sides', () => {
@@ -346,19 +346,22 @@ test('counts the strokes still drawn along a Stretch a node absorbed, where a cu
 });
 
 /**
- * R2 drawn along 'a' up to 1000 m east, across a node on a curve through points, in each band from
- * GRAPH_BAND on, and on along 'b', which runs east so many metres north, from where the curve ends.
+ * R2, or another Line, drawn along 'a' up to 1000 m east, across a node on a curve through points, in each
+ * band from GRAPH_BAND on, and on along 'b', which runs east so many metres north, from where the curve ends:
+ * all from a point in Barcelona, or another point, as where a Line turns back (TURN_BACKS).
  */
-function crossing(points: [number, number][], north = 0, ease = 0): Measures {
+function crossing(points: [number, number][], north = 0, ease = 0, line = 'R2', [lon, lat]: [number, number] = [2.17, 41.39]): Measures {
   const link = shape(`${LINK}0`, points);
   const [x = 0] = points.at(-1) ?? [];
   const across: Stroke['across'] = [['a', 1000, 1000 + x / 2], ['b', x / 2, x]];
+  // Drawn from another point than Barcelona's, where given.
+  const moved = (s: Shape): Shape => ({ ...s, coords: s.coords.map(([x, y]) => [x - 2.17 + lon, y - 41.39 + lat]) });
   return measures({
-    shapes: [east('a', 4000), east('b', 4000, 0, north), link],
+    shapes: [east('a', 4000), east('b', 4000, 0, north), link].map(moved),
     strokes: [
-      stroke('R2', 'a', 0, 1000, 0),
-      ...BANDS.flatMap((_, band) => (band < GRAPH_BAND ? [] : [{ ...stroke('R2', link.id, 0, link.dist.at(-1) ?? 0, 0), ease, band, across }])),
-      stroke('R2', 'b', x, 4000, ease),
+      stroke(line, 'a', 0, 1000, 0),
+      ...BANDS.flatMap((_, band) => (band < GRAPH_BAND ? [] : [{ ...stroke(line, link.id, 0, link.dist.at(-1) ?? 0, 0), ease, band, across }])),
+      stroke(line, 'b', x, 4000, ease),
     ],
   });
 }
@@ -403,6 +406,33 @@ test('counts a curve whose ends head opposite ways as a hairpin, in each band it
   expect(hairpins([1000, 0], [1060, 0], [1020, 40])).toEqual(every(1));
   expect(hairpins([1000, 0], [1060, 0], [1060, 60])).toEqual(none);
   expect(hairpins([1000, 0], [1060, 0], [1100, 40])).toEqual(none);
+});
+
+test("counts a hairpin where its Line's own Trains turn back as a turn-back, not a hairpin, by its Line and how far from where they do, and reports it with why, never as a problem spot (#622)", () => {
+  // The hairpin above, its middle 10 m from Alcázar de San Juan's Station, for MD, some of whose Trains turn back
+  // there, and for the Regional, whose Trains don't.
+  const alcazar = (line: string) => crossing(through([1000, 0], [1060, 0], [1060, 20], [1000, 20]), 0, 0, line, [-3.20574 - 1060 / kx, 39.39563]);
+  expect(alcazar('media-distancia-avant:Regional').hairpins).toEqual(every(1));
+  const named = alcazar('media-distancia-avant:MD');
+  expect(named.hairpins).toEqual(none);
+  const report = collect();
+  for (const f of reported(named, summary(named))) report.add(f);
+  const spots = report.spots().filter((s) => s.kind === 'turnback');
+  expect(spots.map((s) => [s.zoom, s.line, s.text[0]?.slice(0, 19)])).toEqual(BANDS.flatMap((zoom, band) => (band < GRAPH_BAND ? [] : [[zoom, 'media-distancia-avant:MD', 'Alcázar de San Juan']])));
+  expect(comment(undefined, spots, 'run')).toBeUndefined();
+  // Santiago's, by its Lines, as far from its Station as the curves there are, about 300 m; and not L'Aldea's
+  // Reg.Exp., whose hairpin there isn't where its Trains turn back.
+  const at = (line: string, lon: number, lat: number) => turnBack(line, [lon, lat]) !== undefined;
+  expect(['AVE', 'Alvia', 'Avlo', 'Intercity'].map((name) => at(`ave-larga-distancia:${name}`, -8.5477, 42.8692))).toEqual([true, true, true, false]);
+  expect([at('media-distancia-avant:MD', -3.2059, 39.3957), at('media-distancia-avant:Reg.Exp.', 0.6077, 40.7513)]).toEqual([true, false]);
+  // València's C3 by La Font de Sant Lluís, 79 m from its Station, but not C6, which calls there too.
+  expect([at('cercanias-valencia:C3', -0.3723, 39.4415), at('cercanias-valencia:C6', -0.3723, 39.4415)]).toEqual([true, false]);
+});
+
+test("counts E1's and FCC's curve across Ermua's horseshoe as a turn-back, where their track turns back on itself though their Trains run on round it, up to 600 m from its Station, as the zoom 7 curve's middle is 514 m away (#622)", () => {
+  // The hairpin above, its middle 490 m south of Ermua's Station, and 690 m.
+  const ermua = (line: string, south: number) => crossing(through([1000, 0], [1060, 0], [1060, 20], [1000, 20]), 0, 0, line, [-2.501026 - 1060 / kx, 43.185235 - south / degree]).hairpins;
+  expect([ermua('euskotren:E1', 500), ermua('euskotren:FCC', 500), ermua('euskotren:E1', 700)]).toEqual([none, none, every(1)]);
 });
 
 test("doesn't count the rounding of a curve's ends as turning it back (#353)", () => {
@@ -460,6 +490,7 @@ test('reports the measures as one spot with each of their numbers, in metres, an
     hairpins: { 7: 2, 8: 0 },
     inside: { 7: 9395, 8: 14055.5 },
     largest: { 7: [{ size: 15.1, at: [-3.67716, 40.45778] }], 8: [{ size: 24.5, at: [-3.6773, 40.45782] }, { size: 19.1, at: [2.15024, 41.38278] }] },
+    curves: [],
   };
   const [first, seven, eight] = `Lines drawn: ${summary(found)}`.split('\n').map((line) => line.trim());
   expect([seven, eight]).toEqual([
@@ -505,6 +536,50 @@ test('reports the measures as one spot with each of their numbers, in metres, an
     { kind: 'node', key: 'node 8 40.458 -3.677', point: [-3.6773, 40.45782], zoom: 8, text: [eight], numbers: { size: 24.5 } },
     { kind: 'node', key: 'node 8 41.383 2.150', point: [2.15024, 41.38278], zoom: 8, text: [eight], numbers: { size: 19.1 } },
   ]);
+});
+
+/** The curves that wiggle and the hairpins of a fixture's Lines as sideBySide() draws them, as the report's spots, and the measures. */
+async function curveSpots(name: string): Promise<{ spots: Spot[]; found: Measures }> {
+  const { lines, shapes } = JSON.parse(readFileSync(new URL(`fixtures/${name}.json`, import.meta.url), 'utf8')) as Pick<Track, 'lines' | 'shapes'>;
+  const { strokes, centrelines } = await sideBySide(lines, shapes);
+  const found = measures({ shapes: [...shapes, ...centrelines], strokes, lines });
+  const report = collect();
+  for (const f of reported(found, `Lines drawn: ${summary(found)}`)) report.add(f);
+  return { spots: report.spots().filter((s) => s.kind === 'wiggle' || s.kind === 'hairpin'), found };
+}
+
+test("reports each curve that wiggles as a spot of its own, keyed by its zoom, its middle and its Line, with how far its chain steps aside, never a problem spot, as R1's at Auditori (#520)", async () => {
+  // L1, R1 and R4 round Auditori/Teatre Nacional on 6 Oct 2026 (fixtures/auditori.json): one curve wiggles, R1's at
+  // zoom 12, where it changes side along the one Stretch, so its chain steps nowhere aside.
+  const { spots, found } = await curveSpots('auditori');
+  expect(found.wiggles).toEqual({ ...Object.fromEntries(BANDS.map((zoom) => [zoom, 0])), 12: 1 });
+  expect(spots).toEqual([{ kind: 'wiggle', key: 'wiggle 12 41.395 2.185 rodalies:R1', line: 'rodalies:R1', point: [2.18505, 41.39485], zoom: 12, text: [], numbers: { aside: 0 } }]);
+  // The Build report issue hears of none, but the run's summary shows one that comes or goes.
+  expect(comment(undefined, spots, 'run')).toBeUndefined();
+  expect(diff(spots, [])).toContain('#### Gone\n\n- `wiggle 12 41.395 2.185 rodalies:R1` · [map](https://viapeninsula.gariasf.com/#map=12/41.39485/2.18505&mark=41.39485,2.18505)');
+});
+
+test("reports each hairpin as a spot too, as C10's south of Madrid-Atocha at zoom 7 and 8, with how far each curve's chain steps aside, as C3's to C5's 1.6 line widths at zoom 13 (#520, #385)", async () => {
+  // The Lines round Madrid-Atocha Cercanías on 9 Oct 2026 (fixtures/atocha.json). From `stretch:2` at zoom 13, the
+  // chain of C3, C4, C4a, C4b and C5 steps 41 m aside onto `stretch:3`, which the node absorbs (#385).
+  const { spots, found } = await curveSpots('atocha');
+  expect([found.wiggles, found.hairpins]).toEqual([
+    { 7: 0, 8: 0, 9: 1, 10: 0, 11: 0, 12: 0, 13: 6, 14: 0 },
+    { 7: 1, 8: 1, 9: 0, 10: 0, 11: 0, 12: 0, 13: 0, 14: 0 },
+  ]);
+  expect(spots.map(({ key, numbers }) => [key, numbers?.aside])).toEqual([
+    ['hairpin 7 40.403 -3.687 cercanias-madrid:C10', 0],
+    ['hairpin 8 40.401 -3.683 cercanias-madrid:C10', 0],
+    ['wiggle 13 40.401 -3.683 cercanias-madrid:C3', 1.6],
+    ['wiggle 13 40.401 -3.683 cercanias-madrid:C4', 1.6],
+    ['wiggle 13 40.401 -3.683 cercanias-madrid:C4a', 1.6],
+    ['wiggle 13 40.401 -3.683 cercanias-madrid:C4b', 1.6],
+    ['wiggle 13 40.401 -3.683 cercanias-madrid:C5', 1.6],
+    ['wiggle 13 40.402 -3.684 cercanias-madrid:C10', 0],
+    ['wiggle 9 40.404 -3.688 cercanias-madrid:C10', 0],
+  ]);
+  // Never a problem spot, as a wiggle isn't.
+  expect(comment(undefined, spots, 'run')).toBeUndefined();
 });
 
 test('measures Lines the same whichever shape comes first in the track, however far off (#277)', () => {

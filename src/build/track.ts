@@ -64,7 +64,15 @@ export function eachWay(shapes: FeedShape[], stations: Station[], trips: TripEnd
 
 /**
  * A Station is on the rails that pass within 50 m of its nearest one, if that is within 200 m. Renfe's
- * coordinates can sit 130 m from the platforms, and a big station's tracks spread over 50 m.
+ * coordinates can sit 130 m from the platforms, and a big station's tracks spread over 50 m. Where a trace
+ * finds no path along those on to the next Station, or in from the last, it calls at another of the Station's
+ * tracks within 200 m instead (Graph's `other`), as C3's does at Los Rosales, on the Mérida line 176 m from
+ * Renfe's point, where the Córdoba line's platforms lead on only by turning back at a switch 491 m west (#622).
+ * Only there, as setting off from any track within 200 m changed 21 of 15 Oct 2026's 1,088 traces, and not
+ * Los Rosales'. ponytail: not on the way out of a Station no traced stretch leads into, a trace's first or the
+ * first after a stretch that keeps the feed's shape, nor out of two Stations in a row, as the stretch into the
+ * second is traced again only from the tracks the first was reached on; start there on their other tracks too
+ * if a trace ever needs it.
  */
 const REACH = 200;
 const BAND = 50;
@@ -370,6 +378,9 @@ function traceRun(graph: Graph, run: Run, log: (line: string) => void, report: (
       if (last === undefined || target(graph, last) !== from) {
         vertices.push(from);
         levels.push(level);
+      } else if (throughAside(graph, last, e)) {
+        vertices.pop();
+        levels.pop();
       }
       vertices.push(target(graph, e));
       levels.push(level);
@@ -423,12 +434,19 @@ function traceRun(graph: Graph, run: Run, log: (line: string) => void, report: (
 function walk(graph: Graph, stations: Station[], turnBacks: Station[], layers?: number, own = layers): Arrival[] | { a: Station; b: Station } {
   const turnAt = new Set([...stations, ...turnBacks].flatMap((s) => graph.near.get(s.id) ?? []));
   const layerOf = (v: number) => graph.layer[graph.out[v]?.[0] ?? -1] ?? 0;
+  // The cheapest ways from arrivals onto vertices of each gauge, as the stretch to the k-th Station. A path much
+  // longer than the crow flies is no path, as in traceShape().
+  const go = (from: Arrival[], to: number[] = [], k: number): Arrival[] => {
+    const [a, b] = [stations[k - 1], stations[k]];
+    if (!a || !b) return [];
+    const limit = 3 * metres([a.lon, a.lat], [b.lon, b.lat]) + 10_000;
+    return [...new Set(to.map(layerOf))].flatMap((layer) => paths(graph, from, new Set(to.filter((v) => layerOf(v) === layer)), limit, turnAt, layers, own)).map((arrival) => ({ ...arrival, waypoint: k }));
+  };
   let reached: Arrival[] = (graph.near.get(stations[0]?.id ?? '') ?? []).map((vertex) => ({ vertex, edge: -1, cost: 0, waypoint: 0, edges: [] }));
+  let before: Arrival[] = []; // what was reached at the Station before the last one reached
   for (const [i, b] of stations.entries()) {
     const a = stations[i - 1];
     if (!a) continue;
-    // A path much longer than the crow flies is no path, as in traceShape().
-    const limit = 3 * metres([a.lon, a.lat], [b.lon, b.lat]) + 10_000;
     const across = (graph.near.get(a.id) ?? []).flatMap((vertex): Arrival[] => {
       const best = reached.filter((r) => r.edge >= 0 && layerOf(r.vertex) === layerOf(vertex)).reduce<Arrival | undefined>((x, r) => (!x || r.cost < x.cost ? r : x), undefined);
       return best ? [{ ...best, vertex, edge: -1, cost: best.cost + ACROSS }] : [];
@@ -439,9 +457,12 @@ function walk(graph: Graph, stations: Station[], turnBacks: Station[], layers?: 
     // Ourense Turístico at Ourense's, is reached where that one was.
     const to = graph.near.get(b.id) ?? [];
     const here = reached.filter((r) => to.includes(r.vertex)).map((r) => ({ ...r, from: r, edges: [] }));
-    const next = here.length ? here : [...new Set(to.map(layerOf))].flatMap((layer) => paths(graph, [...reached, ...across], new Set(to.filter((v) => layerOf(v) === layer)), limit, turnAt, layers, own));
+    let next = here.length ? here : go([...reached, ...across], to, i);
+    // Where none leads on, onto another of b's tracks within REACH, or from another of a's, the stretch to a traced to it again.
+    if (!next.length) next = go([...reached, ...across], graph.other.get(b.id), i);
+    if (!next.length && before.length) next = go(go(before, graph.other.get(a.id), i - 1), to, i);
     if (!next.length) return { a, b };
-    reached = next.map((arrival) => ({ ...arrival, waypoint: i }));
+    [before, reached] = [reached, next.map((arrival) => ({ ...arrival, waypoint: i }))];
   }
   return reached;
 }
@@ -609,9 +630,10 @@ function traceShape(graph: Graph, feed: FeedShape, stations: Station[], log: (li
     const stretches = cheapest(reached);
     const edges = stretches.flatMap((a) => a.edges);
     const [first] = edges;
+    const kept = edges.filter((e, k) => !throughAside(graph, e, edges[k + 1]));
     if (first !== undefined) {
-      coords.push(...[source(graph, first), ...edges.map((e) => target(graph, e))].map((v) => point(graph, v)));
-      levels.push(...[first, ...edges].map((e) => graph.level[e] ?? ''));
+      coords.push(...[source(graph, first), ...kept.map((e) => target(graph, e))].map((v) => point(graph, v)));
+      levels.push(...[first, ...kept].map((e) => graph.level[e] ?? ''));
     }
     for (const e of edges) graph.shared.add(e);
     for (const a of stretches) {
@@ -633,18 +655,28 @@ function traceShape(graph: Graph, feed: FeedShape, stations: Station[], log: (li
   // ponytail: at any of them, not only where its Trips do; tell them apart if a trace ever turns back
   // where no Trip does.
   const turnBacks = new Set(waypoints.flatMap((w) => graph.near.get(w.station.id) ?? []));
+  // The paths from arrivals onto vertices, as the stretch to the k-th waypoint. One much longer than the crow flies
+  // is no path: most likely the rails between them are missing.
+  const go = (from: Arrival[], to: number[] = [], k: number): Arrival[] => {
+    const [a, b] = [waypoints[k - 1]?.station, waypoints[k]?.station];
+    if (!a || !b || !to.length) return [];
+    const limit = 3 * metres([a.lon, a.lat], [b.lon, b.lat]) + 10_000;
+    return paths(graph, from, new Set(to), limit, turnBacks).map((arrival) => ({ ...arrival, waypoint: k }));
+  };
   // The run of legs keeping the feed's shape that the last leg to keep it is in, reported once it ends.
   let keeping: { why: Cause; stations: Station[]; text: string[] } | undefined;
   const reportKept = () => keeping && report({ kind: 'kept', line: feed.line, shape: feed.id, ...keeping });
   let reached = starts(0);
+  let before: Arrival[] = []; // what was reached at the waypoint before the last one reached, while it's traced on
   for (const [i, b] of waypoints.entries()) {
     const a = waypoints[i - 1];
     if (!a) continue;
-    // A path much longer than the crow flies is no path: most likely the rails between them are missing.
-    const limit = 3 * metres([a.station.lon, a.station.lat], [b.station.lon, b.station.lat]) + 10_000;
-    const next = paths(graph, reached, new Set(graph.near.get(b.station.id)), limit, turnBacks).map((arrival) => ({ ...arrival, waypoint: i }));
+    let next = go(reached, graph.near.get(b.station.id), i);
+    // Where none leads on, onto another of b's tracks within REACH, or from another of a's, the stretch to a traced to it again.
+    if (!next.length) next = go(reached, graph.other.get(b.station.id), i);
+    if (!next.length && before.length) next = go(go(before, graph.other.get(a.station.id), i - 1), graph.near.get(b.station.id), i);
     if (next.length) {
-      reached = next;
+      [before, reached] = [reached, next];
       continue;
     }
     draw(reached);
@@ -665,7 +697,7 @@ function traceShape(graph: Graph, feed: FeedShape, stations: Station[], log: (li
       reportKept();
       keeping = { why, stations: [a.station, b.station], text: [line] };
     }
-    reached = starts(i);
+    [before, reached] = [[], starts(i)];
   }
   reportKept();
   draw(reached);
@@ -766,6 +798,10 @@ interface Graph {
   out: number[][];
   /** The vertices on the rails beside each Station. */
   near: Map<string, number[]>;
+  /** The vertices on each Station's other tracks, within REACH of it, which a trace calls at only where its rails lead nowhere (#622). */
+  other: Map<string, number[]>;
+  /** The vertices only Stations' other tracks have, which a trace that runs straight through leaves out of its points. */
+  aside: Set<number>;
   /** The edges of the shapes traced so far, each the way it was run. */
   shared: Set<number>;
   /** For each edge, whether it's the wrong track of a double track to run the way it runs. */
@@ -797,6 +833,11 @@ function target(graph: Graph, e: number): number {
   return graph.to[e] ?? -1;
 }
 
+/** Whether a trace runs straight on through an aside vertex from edge e onto f, as if it weren't there. */
+function throughAside(graph: Graph, e: number, f?: number): boolean {
+  return f !== undefined && f !== (e ^ 1) && source(graph, f) === target(graph, e) && graph.aside.has(target(graph, e));
+}
+
 /** A way on one layer of track (layered()). */
 type Layered = OsmWay & { layer?: number };
 
@@ -822,7 +863,7 @@ function layered(rails: OsmWay[], { railway, gauges, orElse = [] }: Gauges, chan
  * track (layered()), for Trains keeping to one side.
  */
 function railGraph(rails: Layered[], stations: Station[], side: Network['runningSide']): Graph {
-  const graph: Graph = { at: [], to: [], metres: [], out: [], near: new Map(), shared: new Set(), wrong: [], tagged: [], level: [], layer: [], keep: side === 'left' ? 1 : -1 };
+  const graph: Graph = { at: [], to: [], metres: [], out: [], near: new Map(), other: new Map(), aside: new Set(), shared: new Set(), wrong: [], tagged: [], level: [], layer: [], keep: side === 'left' ? 1 : -1 };
   const vertices = new Map<number, number>(); // each OpenStreetMap node's vertex
   const add = (p: Point) => {
     graph.at.push(p);
@@ -842,11 +883,13 @@ function railGraph(rails: Layered[], stations: Station[], side: Network['running
     }
   };
 
-  // Where each Station comes closest to each way near it, on each layer: segment i, a fraction t along it.
-  const cuts = new Map<OsmWay, { i: number; t: number; station: string }[]>();
+  // Where each Station comes closest to each way within REACH of it, on each layer: segment i, a fraction t along
+  // it, and whether the way is one of its rails, those beside its nearest.
+  const cuts = new Map<OsmWay, { i: number; t: number; station: string; own: boolean }[]>();
   for (const layer of new Set(rails.map((way) => way.layer ?? 0))) {
-    for (const [station, near] of railsBeside(rails.filter((way) => (way.layer ?? 0) === layer), stations)) {
-      for (const { way, i, t } of near) cuts.set(way, [...(cuts.get(way) ?? []), { i, t, station }]);
+    for (const [station, near] of railsBeside(rails.filter((way) => (way.layer ?? 0) === layer), stations, REACH)) {
+      const first = Math.min(...near.map((c) => c.metres));
+      for (const { way, i, t, metres: d } of near) cuts.set(way, [...(cuts.get(way) ?? []), { i, t, station, own: d <= first + BAND }]);
     }
   }
 
@@ -863,17 +906,22 @@ function railGraph(rails: Layered[], stations: Station[], side: Network['running
       const v0 = nodes[i - 1];
       if (v0 === undefined) continue;
       const [a, b] = [point(graph, v0), point(graph, v1)];
-      let prev = v0;
+      // The last vertex so far, and the last but those aside, which a Station's own cut takes as it would without them.
+      let [prev, kept] = [v0, v0];
       for (const cut of wayCuts.filter((c) => c.i === i - 1)) {
         const p = lerp(a, b, cut.t);
         // A cut within a metre of a vertex is that vertex, so turns at a junction's node keep its rules.
-        let v = metres(p, b) < 1 ? v1 : metres(p, point(graph, prev)) < 1 ? prev : -1;
+        const last = cut.own ? kept : prev;
+        let v = metres(p, b) < 1 ? v1 : metres(p, point(graph, last)) < 1 ? last : -1;
         if (v < 0) {
           v = add(p);
           link(prev, v, tagged, onLevel, layer);
           prev = v;
+          if (cut.own) kept = v;
+          else graph.aside.add(v);
         }
-        graph.near.set(cut.station, [...(graph.near.get(cut.station) ?? []), v]);
+        const of = cut.own ? graph.near : graph.other;
+        of.set(cut.station, [...(of.get(cut.station) ?? []), v]);
       }
       link(prev, v1, tagged, onLevel, layer);
     }
@@ -883,10 +931,10 @@ function railGraph(rails: Layered[], stations: Station[], side: Network['running
 }
 
 /**
- * The ways each Station is on (see REACH), and where it comes closest to each: segment i, a fraction t
- * along it. A Station off the rails has none.
+ * The ways each Station is on (see REACH), and any others within `reach` of it, and where it comes closest
+ * to each: segment i, a fraction t along it. A Station off the rails has none.
  */
-export function railsBeside(rails: OsmWay[], stations: Station[]): Map<string, ({ way: OsmWay } & ReturnType<typeof nearest>)[]> {
+export function railsBeside(rails: OsmWay[], stations: Station[], reach = 0): Map<string, ({ way: OsmWay } & ReturnType<typeof nearest>)[]> {
   const polylines = rails.map((way) => ({ way, polyline: way.geometry.map((g): Point => [g.lon, g.lat]) }));
   const boxes = polylines.map(({ polyline }) => [0, 1].map((k) => [Math.min(...polyline.map((p) => p[k] ?? 0)), Math.max(...polyline.map((p) => p[k] ?? 0))]));
   const found = new Map<string, ({ way: OsmWay } & ReturnType<typeof nearest>)[]>();
@@ -901,7 +949,7 @@ export function railsBeside(rails: OsmWay[], stations: Station[]): Map<string, (
       })
       .map(({ way, polyline }) => ({ way, ...nearest(polyline, [s.lon, s.lat]) }));
     const first = Math.min(...closest.map((c) => c.metres));
-    if (first <= REACH) found.set(s.id, closest.filter((c) => c.metres <= first + BAND));
+    if (first <= REACH) found.set(s.id, closest.filter((c) => c.metres <= Math.max(first + BAND, reach)));
   }
   return found;
 }
