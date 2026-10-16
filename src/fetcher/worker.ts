@@ -26,12 +26,15 @@ const STORED = 'sources';
 const ALERTS = 'alerts';
 
 /**
- * The fetcher's Durable Object, by its name. It's made in Western Europe, near the live sources, all of them in
- * Spain: Euskadi's servers don't answer Cloudflare reliably from outside Europe, and Cloudflare had put the first
- * fetcher, `fetcher`, made with no location hint, about as far from Madrid as Seattle, where none of Euskotren's
- * tries worked (#803). A hint counts only when an object is made, hence a new name.
+ * Where the fetcher's Durable Object is made: in Western Europe, near the live sources, all of them in Spain, as
+ * Moveuskadi's servers don't answer Cloudflare reliably from outside Europe (ADR-0003, #803).
+ * ponytail: a location hint is a preference, and only when an object is made; the EU jurisdiction would keep it
+ * there, once workerd implements it.
  */
-const NAME = 'fetcher-weur';
+const HINT = 'weur';
+
+/** The fetcher's Durable Object, by its name: a hint counts only when an object is made, so a new hint takes a new name. */
+const NAME = `fetcher-${HINT}`;
 
 /** The cron trigger that starts the daily build, as wrangler.jsonc has it. */
 const DAILY = '30 0 * * *';
@@ -79,7 +82,7 @@ export default {
   // Every minute, as one cron trigger has it, and once a day, as the other does.
   async scheduled(controller, env) {
     if (controller.cron === DAILY) await dispatchDaily(env);
-    else await env.FETCHER.getByName(NAME, { locationHint: 'weur' }).start();
+    else await env.FETCHER.getByName(NAME, { locationHint: HINT }).start();
   },
 } satisfies ExportedHandler<Env>;
 
