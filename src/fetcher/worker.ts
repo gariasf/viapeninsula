@@ -25,6 +25,17 @@ const STORED = 'sources';
 /** Where it stores what it keeps of the operators' alerts between runs. */
 const ALERTS = 'alerts';
 
+/**
+ * Where the fetcher's Durable Object is made: in Western Europe, near the live sources, all of them in Spain, as
+ * Moveuskadi's servers don't answer Cloudflare reliably from outside Europe (ADR-0003, #803).
+ * ponytail: a location hint is a preference, and only when an object is made; the EU jurisdiction would keep it
+ * there, once workerd implements it.
+ */
+const HINT = 'weur';
+
+/** The fetcher's Durable Object, by its name: a hint counts only when an object is made, so a new hint takes a new name. */
+const NAME = `fetcher-${HINT}`;
+
 /** The cron trigger that starts the daily build, as wrangler.jsonc has it. */
 const DAILY = '30 0 * * *';
 
@@ -39,6 +50,8 @@ export class Fetcher extends DurableObject<Env> {
 
   /** One run. Cloudflare evicts the object between runs, so all it keeps between them is in its storage. */
   async alarm() {
+    // One by another name, as the first fetcher, deletes what it kept and sets no next run, so nothing wakes it again.
+    if (!this.ctx.id.equals(this.env.FETCHER.idFromName(NAME))) return this.ctx.storage.deleteAll();
     // The next run is set first, so that a failed run never stops them.
     await this.ctx.storage.setAlarm(Date.now() + EVERY);
     const stored = (await this.ctx.storage.get<Stored>(STORED)) ?? START;
@@ -69,7 +82,7 @@ export default {
   // Every minute, as one cron trigger has it, and once a day, as the other does.
   async scheduled(controller, env) {
     if (controller.cron === DAILY) await dispatchDaily(env);
-    else await env.FETCHER.getByName('fetcher').start();
+    else await env.FETCHER.getByName(NAME, { locationHint: HINT }).start();
   },
 } satisfies ExportedHandler<Env>;
 
