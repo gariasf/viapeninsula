@@ -219,7 +219,7 @@ body {
   white-space: nowrap;
 }
 
-/* As the map draws a Train's pill, with no name: Live filled, Scheduled ringed in a dash, wider, so that its dashes read as a ring rather than a broken box (#519). */
+/* As the map draws a Train's pill, with no name: Live filled, Scheduled ringed. The Scheduled one is ringed in dots, not the map's dashes, which at 18×10 px read as a broken box: the maintainer's pick of 16 Oct 2026, over a wider dashed marker (#519). */
 .legend .marker {
   box-sizing: border-box;
   width: 18px;
@@ -233,9 +233,8 @@ body {
 }
 
 .legend .marker.scheduled {
-  width: 24px;
   margin-left: 4px;
-  border-style: dashed;
+  border-style: dotted;
 }
 
 .legend .icon {
@@ -1561,12 +1560,13 @@ button.result {
     background: Canvas;
   }
 
-  .marker,
+  /* The legend's markers by their own rules' selectors, which a bare .marker loses to, leaving them in the page's ink (#519). */
+  .legend .marker,
   .dot {
     border-color: CanvasText;
   }
 
-  .marker.live,
+  .legend .marker.live,
   .dot.live,
   .bar::before,
   .strip li::before,
