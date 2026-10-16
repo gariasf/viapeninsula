@@ -73,6 +73,9 @@ const PILL_HALO = 1.5;
  * strongly it's coloured.
  */
 const [HALO_DOT, HALO_BEYOND, HALO_BLUR, HALO_OPACITY] = [2, 4, 0.6, 0.6];
+/** #780's variant A (`?trains=a`, not to merge): every Network's Trains pills from zoom 10, and every pill's glow one size, a two-letter round pill's. */
+const VARIANT_A = new URLSearchParams(location.search).get('trains') === 'a';
+const ONE_GLOW = Math.hypot(11, 7.5) + 4;
 /**
  * The outlines a Train is drawn with, as pill.ts sizes them, `w`×`h` px around their middles: how far
  * `outside` each a point is, in px (x right, y down), or inside where negative. A pill's outline
@@ -1583,7 +1586,7 @@ function show(days: Track | Bundle, tripsOnly = false) {
   placing = { shapes, slots, curves: zones(days.strokes), keep: new Map(days.lines.map((l) => [l.id, keep.get(l.network) ?? 1])), from: shownFrom, closures: new Map() };
   // A track built before #241 names no kinds of service and no pill zooms: its Trains are round pills from zoom 10.
   const pillZoom = new Map(days.networks.map((n) => [n.id, n.pillZoom]));
-  pills = new Map(days.lines.map((l) => [l.id, pillOf(l, pillZoom.get(l.network) ?? 10, shownFrom.get(l.network) ?? linesZoom)]));
+  pills = new Map(days.lines.map((l) => [l.id, pillOf(l, VARIANT_A ? Math.max(pillZoom.get(l.network) ?? 10, 10) : (pillZoom.get(l.network) ?? 10), shownFrom.get(l.network) ?? linesZoom)]));
   const networks = new Map(days.networks.map((n) => [n.id, n]));
   topSpeeds = new Map(days.lines.map((l) => [l.id, profiled(networks.get(l.network), l)?.profile.topSpeed ?? 0]));
   // Lines drawn already, as at the map's second look: the new ones are handed over a frame later (below).
@@ -1806,7 +1809,7 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
           dotZoom: pill?.dotZoom ?? linesZoom,
           reach: box && reach(box, heading - bearing),
           // Its halo's radius: HALO_DOT times its dot's, or from its Line's pill zoom, out to the corners of its pill's box and HALO_BEYOND beyond.
-          haloRadius: pill && box && zoom >= pill.zoom ? Math.hypot(...box) + HALO_BEYOND : HALO_DOT * dotAt(zoom, trip.id === followed),
+          haloRadius: pill && box && zoom >= pill.zoom ? (VARIANT_A ? ONE_GLOW : Math.hypot(...box) + HALO_BEYOND) : HALO_DOT * dotAt(zoom, trip.id === followed),
         },
         geometry: { type: 'Point', coordinates },
       };
