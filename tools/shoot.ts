@@ -24,7 +24,7 @@ const code = await withSlots(1, async () => {
   const browser = await launch();
   try {
     const [lat0, lon0] = PLACES[places[0]!]!;
-    const m = await openMap(browser, { device, scheme, dist, hash: `${query}#map=9/${lat0}/${lon0}` });
+    const m = await openMap(browser, { device, scheme, dist, out: process.env.OUT, hash: `${query}#map=9/${lat0}/${lon0}` });
     await m.go();
     await ready(m.page, 6000);
     for (const place of places) {
