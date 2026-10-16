@@ -74,6 +74,13 @@ const PILL_HALO = 1.5;
  */
 const [HALO_DOT, HALO_BEYOND, HALO_BLUR, HALO_OPACITY] = [2, 4, 0.6, 0.6];
 /**
+ * #780's variant B (`?trains=b`, not to merge): long distance's and Media Distancia's Trains dots below zoom 9, and their
+ * pills, but the followed Train's, lettered at SMALL_TEXT px, smaller than the local Lines', their glow with them.
+ */
+const VARIANT_B = new URLSearchParams(location.search).get('trains') === 'b';
+const LONG = ['ave-larga-distancia', 'media-distancia-avant', 'ouigo'];
+const SMALL_TEXT = 8;
+/**
  * The outlines a Train is drawn with, as pill.ts sizes them, `w`×`h` px around their middles: how far
  * `outside` each a point is, in px (x right, y down), or inside where negative. A pill's outline
  * stretches across its middle 2 px both ways to fit its Line's name over its middle `across` px, and all
@@ -1336,7 +1343,7 @@ for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', tr
       'icon-text-fit-padding': [0, PILL_PADDING, 0, PILL_PADDING],
       'text-field': ['get', 'name'],
       'text-font': ['Noto Sans Bold'],
-      'text-size': size,
+      'text-size': VARIANT_B && !followed ? ['case', ['in', ['get', 'network'], ['literal', LONG]], SMALL_TEXT, size] : size,
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
       'text-allow-overlap': true,
@@ -1583,7 +1590,7 @@ function show(days: Track | Bundle, tripsOnly = false) {
   placing = { shapes, slots, curves: zones(days.strokes), keep: new Map(days.lines.map((l) => [l.id, keep.get(l.network) ?? 1])), from: shownFrom, closures: new Map() };
   // A track built before #241 names no kinds of service and no pill zooms: its Trains are round pills from zoom 10.
   const pillZoom = new Map(days.networks.map((n) => [n.id, n.pillZoom]));
-  pills = new Map(days.lines.map((l) => [l.id, pillOf(l, pillZoom.get(l.network) ?? 10, shownFrom.get(l.network) ?? linesZoom)]));
+  pills = new Map(days.lines.map((l) => [l.id, pillOf(l, VARIANT_B && LONG.includes(l.network) ? Math.max(pillZoom.get(l.network) ?? 10, 9) : (pillZoom.get(l.network) ?? 10), shownFrom.get(l.network) ?? linesZoom)]));
   const networks = new Map(days.networks.map((n) => [n.id, n]));
   topSpeeds = new Map(days.lines.map((l) => [l.id, profiled(networks.get(l.network), l)?.profile.topSpeed ?? 0]));
   // Lines drawn already, as at the map's second look: the new ones are handed over a frame later (below).
@@ -1958,10 +1965,10 @@ interface Pill {
 }
 
 /** How a Line's Trains are drawn as pills from a zoom, its Network's, outlined by its kind of service. */
-function pillOf({ name, colour, kind }: Line, zoom: number, shownFrom: number): Pill {
+function pillOf({ name, colour, kind, network }: Line, zoom: number, shownFrom: number): Pill {
   const outline = outlineOf(kind);
   const width = textWidth(name, `bold ${PILL_TEXT}px ${TYPEFACE}`);
-  return { name, outline, dark: darkInk(colour), lettering: darkBasemap ? lettering(colour, paper) : colour, zoom, dotZoom: kind === 'long-distance' ? 0 : Math.max(linesZoom, shownFrom), box: boxOf(outline, width, PILL_TEXT), followedBox: boxOf(outline, width, FOLLOWED_TEXT) };
+  return { name, outline, dark: darkInk(colour), lettering: darkBasemap ? lettering(colour, paper) : colour, zoom, dotZoom: kind === 'long-distance' ? 0 : Math.max(linesZoom, shownFrom), box: boxOf(outline, width, VARIANT_B && LONG.includes(network) ? SMALL_TEXT : PILL_TEXT), followedBox: boxOf(outline, width, FOLLOWED_TEXT) };
 }
 
 /** How wide a place's name, or a line of it, is, in px, in its style. */
