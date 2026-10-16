@@ -530,7 +530,7 @@ export type Leg = { stroke: Stroke; end: 0 | 1 };
  * leg starts, not from end to end, so that it doesn't run on past the next leg's start and back (#311).
  * Where it neither moves over nor changes side, the Line goes on without a curve.
  */
-function curves(joins: Join[], found: Stretch[], onStretch: Map<string, Stroke[]>, byId: Map<string, Shape>, bands: number[], prefix: string): { shapes: Shape[]; strokes: Stroke[] } {
+export function curves(joins: Join[], found: Stretch[], onStretch: Map<string, Stroke[]>, byId: Map<string, Shape>, bands: number[], prefix: string): { shapes: Shape[]; strokes: Stroke[] } {
   const shapeOf = (s: Stroke, band: number) => inBand(byId, s.shape, band) ?? { coords: [], dist: [] };
   const flat = ([lon, lat]: Point): [number, number] => [lon * KX, lat * DEGREE];
   const ends = (s: Stroke, end: 0 | 1) => (end ? s.to : s.from);
@@ -562,7 +562,7 @@ function curves(joins: Join[], found: Stretch[], onStretch: Map<string, Stroke[]
       fronts.set(key, front);
       return front;
     };
-    // The Stretches absorbed, and strokes along only part of a Stretch, too short for their curves, hidden on their own.
+    // The Stretches absorbed, and strokes along only part of a Stretch, too short for their curves, hidden on their own, with those within them.
     const [absorbed, alone] = [new Set<number>(), new Set<Stroke>()];
     const hidden = (s: Stroke) => absorbed.has(edgeOf.get(s) ?? -1) || alone.has(s);
     /**
@@ -647,7 +647,8 @@ function curves(joins: Join[], found: Stretch[], onStretch: Map<string, Stroke[]
       for (const [s, e] of short) {
         const steps = found[e]?.steps ?? [];
         if (s.from - (steps[0]?.from ?? 0) < 1 && (steps.at(-1)?.to ?? 0) - s.to < 1) absorbed.add(e);
-        else alone.add(s);
+        // The node takes in the part of the Stretch the stroke runs along, and so every Line's stroke within it there (#804).
+        else for (const t of (found[e]?.lines ?? []).flatMap((l) => onStretch.get(`${e} ${l}`) ?? [])) if (s.from - 1 <= t.from && t.to <= s.to + 1) alone.add(t);
       }
     }
     for (const legs of made) {
