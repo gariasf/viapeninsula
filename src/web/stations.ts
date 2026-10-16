@@ -12,6 +12,8 @@ export type Tiered = Pick<Place, 'id' | 'name' | 'networks' | 'stations' | 'lon'
 export interface Interchange {
   id: string;
   name: string;
+  /** The place named for it all, below SIGN_ZOOM and on the rails. */
+  named: string;
   places: string[];
   networks: string[];
   lon: number;
@@ -103,7 +105,7 @@ export function interchangesOf(places: Tiered[], hand = INTERCHANGES): Interchan
     const ids = group.map((p) => p.id).sort();
     const name = ids.map((id) => hand.names[id]).find((n) => n !== undefined) ?? named.name.replace(/^Barcelona\s*-?\s*/, '');
     const how = group.length === 1 ? 'one place' : group.some((p) => byHand.has(p.id)) ? 'hand' : 'rule';
-    return [{ id: `interchange:${ids[0]}`, name, places: ids, networks, lon: group.reduce((s, p) => s + p.lon, 0) / group.length, lat: group.reduce((s, p) => s + p.lat, 0) / group.length, how }];
+    return [{ id: `interchange:${ids[0]}`, name, named: named.id, places: ids, networks, lon: group.reduce((s, p) => s + p.lon, 0) / group.length, lat: group.reduce((s, p) => s + p.lat, 0) / group.length, how }];
   });
 }
 

@@ -50,7 +50,7 @@ test("one Network's places together aren't an interchange, but one place several
     // One Station two Networks' Trains call at.
     place('adif:15400', 'Matallana', ['cercanias-leon', 'cercanias-bilbao'], [20000, 0]),
   ];
-  expect(interchangesOf(places, none)).toEqual([{ id: 'interchange:fgc:MC', name: 'Martorell Central', places: ['fgc:MC'], networks: ['rodalies', 'fgc'], lon: places[2]?.lon, lat: places[2]?.lat, how: 'one place' }]);
+  expect(interchangesOf(places, none)).toEqual([{ id: 'interchange:fgc:MC', name: 'Martorell Central', named: 'fgc:MC', places: ['fgc:MC'], networks: ['rodalies', 'fgc'], lon: places[2]?.lon, lat: places[2]?.lat, how: 'one place' }]);
 });
 
 test("a place is marked by its own Networks, not long distance's or Media Distancia's, unless they're all it has", () => {
