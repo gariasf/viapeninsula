@@ -1595,9 +1595,10 @@ map.addLayer(
     minzoom: SIGN_ZOOM - 1,
     maxzoom: RAILS,
     layout: {
-      // Always drawn, and placed, so that the places' names, placed after it, clear it.
+      // ponytail: its icon isn't placed, so another place's name can lie over a badge, as over a dot: placed, following a
+      // Train at zoom 14 on the phone drew 8–12% fewer frames than main's. Place it if that shows more than its cost.
       'icon-allow-overlap': true,
-      'icon-ignore-placement': false,
+      'icon-ignore-placement': true,
       'icon-image': ['get', 'image'],
       'icon-size': byZoom(SIGN_SIZE, (px) => px),
       'text-field': ['step', ['zoom'], '', SIGN_ZOOM, ['get', 'name']],
