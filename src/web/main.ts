@@ -1,6 +1,6 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
-import type { BackgroundLayerSpecification, ExpressionFilterSpecification, ExpressionSpecification, FontFacesSpecification, LineLayerSpecification, ProjectionSpecification, StyleSpecification, SymbolLayerSpecification } from '@maplibre/maplibre-gl-style-spec';
+import type { BackgroundLayerSpecification, CircleLayerSpecification, ExpressionFilterSpecification, ExpressionSpecification, FontFacesSpecification, LineLayerSpecification, ProjectionSpecification, StyleSpecification, SymbolLayerSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { MapLibreMap, Popup, setWorkerUrl, type GeoJSONSource, type LngLat } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import nunitoSans from '@fontsource/nunito-sans/files/nunito-sans-latin-400-normal.woff2?url';
@@ -22,7 +22,7 @@ import { keepView, lastView, markOf, openingView, tiltPressed, toggledPitch } fr
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { darkInk, INK, lettering, standIn } from './colour.ts';
 import { ago, boardAsks, boardList, cardAlerts, countdownTo, due, inNameOrder, linesOnBoard, linkedTrip, linkedWords, minutesTo, nearbyRows, nextOnItsWay, passedPlace, progress, tripsState, untilTick, whereabouts, type CardAlert, type Whereabouts } from './cards.ts';
-import { ARROW_GAP, boxOf, FOLLOWED_TEXT, LINE_HEIGHT, LOCAL_PILL_ZOOM, OUTLINE_SIZES, outlineOf, PILL_EDGE, PILL_PADDING, PILL_TEXT, pillReach, pillText, SMALL_TEXT, type Outline } from './pill.ts';
+import { ARROW_GAP, boxOf, DASH, FOLLOWED_TEXT, GAP, haloScale, LINE_HEIGHT, LOCAL_PILL_ZOOM, OUTLINE_SIZES, outlineOf, outlinePath, PILL_EDGE, PILL_PADDING, PILL_TEXT, pillReach, pillText, pulse, DASHED_RING, SMALL_TEXT, targetRings, type Outline } from './pill.ts';
 import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, tappedRows, type Shown } from './closures.ts';
 import { currentTab, type Tab } from './tabs.ts';
 import { keyboardRise, networkNames, numbered, numberQuery, results, searchPlaces, type Found } from './search.ts';
@@ -73,6 +73,12 @@ const PILL_HALO = 1.5;
  * strongly it's coloured.
  */
 const [HALO_DOT, HALO_BEYOND, HALO_BLUR, HALO_OPACITY] = [2, 4, 0.6, 0.6];
+/** On the dark basemap, the halo is a glow, as railisland's: blurred right through, and stronger (#519). */
+const [GLOW_BLUR, GLOW_OPACITY] = [1, 0.95];
+/** How many dashes ring a Scheduled Train's dot, how much of each step along the ring they take, and the radius of the dot their image is drawn round, in px, the largest a dot is (#519). */
+const [DOT_DASHES, DOT_DASH, DOT_RADIUS] = [8, 0.6, 10];
+/** The device pixels a px of an image of a Scheduled Train's ring is drawn at. */
+const IMAGE_RATIO = Math.max(2, Math.ceil(devicePixelRatio));
 /** A pill's halo's radius, every pill's whatever its Network or name (#780): a two-letter round pill's, as C5's, its name 12 px wide, HALO_BEYOND beyond the corners of its box, 17.3 px. */
 const HALO_PILL = Math.hypot(...boxOf('round', 12, PILL_TEXT)) + HALO_BEYOND;
 /**
@@ -1257,15 +1263,30 @@ map.addLayer({
   paint: {
     'circle-radius': trainDot,
     'circle-color': byLive(['get', 'colour'], scheduledFill),
-    'circle-stroke-color': byLive('#fff', ['get', 'lettering']),
-    'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 7, byLive(0.5, 1.5), 14, byLive(1.5, 3)],
+    'circle-stroke-color': '#fff',
+    'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 7, byLive(0.5, 0), 14, byLive(1.5, 0)],
+  },
+});
+// A Scheduled Train's dot is ringed in 8 dashes of its Line's lettering (#519), as wide as a solid ring
+// was, half the dot's radius: an image for each colour (scheduledImage()), sized with the dot.
+map.addLayer({
+  id: 'train-dot-dashes',
+  type: 'symbol',
+  source: 'trains',
+  filter: ['all', DRAWN, AS_DOT, ['!', ['get', 'live']]],
+  layout: {
+    'icon-image': ['concat', 'dash-dot ', ['get', 'lettering']],
+    'icon-size': ['interpolate', ['linear'], ['zoom'], ...TRAIN_DOT.flatMap(([zoom, px, followed]): (number | ExpressionSpecification)[] => [zoom, ['/', ['case', ['get', 'followed'], followed, px], DOT_RADIUS]])],
+    'icon-allow-overlap': true,
+    'icon-ignore-placement': true,
   },
 });
 // A Live Train has a soft halo in its Line's colour under its marker, dot or pill, which says again
 // that it's Live and sets it further apart from a Scheduled one, which has none (#91): on the dark
-// basemap, and on the light one only round the followed Train, where every other's read as a smudge
+// basemap, as a glow (GLOW_BLUR), and on the light one only round the followed Train, where every other's read as a smudge
 // larger than its pill (#780). A dot's grows with the dot, the followed Train's too, and every pill's
-// is one size, HALO_PILL, so a long name glows no more than a short one. trains() works its radius out
+// is one size, HALO_PILL, so a long name glows no more than a short one, all smaller zoomed out from
+// 12, where they heap up, and larger from it on dark (haloScale(), #519). trains() works its radius out
 // for the zoom: a plain number for each Train is quicker for the map to draw with, each time it draws
 // Trains, than an expression of the zoom. It lies under the Lines' names, which it would veil, and the
 // places' dots, which it would blur. On a tilted map it keeps its size, as a pill does more than a circle.
@@ -1278,7 +1299,7 @@ map.addLayer(
     type: 'circle',
     source: 'trains',
     filter: ['all', DRAWN, ['get', 'live'], darkBasemap || ['get', 'followed']],
-    paint: { 'circle-radius': ['get', 'haloRadius'], 'circle-color': ['get', 'colour'], 'circle-blur': HALO_BLUR, 'circle-opacity': HALO_OPACITY, 'circle-pitch-scale': 'viewport' },
+    paint: { 'circle-radius': ['get', 'haloRadius'], 'circle-color': ['get', 'colour'], 'circle-blur': darkBasemap ? GLOW_BLUR : HALO_BLUR, 'circle-opacity': darkBasemap ? GLOW_OPACITY : HALO_OPACITY, 'circle-pitch-scale': 'viewport' },
   },
   'line-names',
 );
@@ -1323,38 +1344,30 @@ map.addSource('mark', { type: 'geojson', data: { type: 'FeatureCollection', feat
 map.addLayer({ id: 'mark', type: 'circle', source: 'mark', paint: { 'circle-radius': 20, 'circle-opacity': 0, 'circle-stroke-width': 3, 'circle-stroke-color': nameColour } }, 'station-names');
 // Zoomed in (pillOf()), each Train is a pill with its Line's name, over the Stations' names too,
 // outlined by its Line's kind of service: a Live one's filled with its Line's colour and edged in
-// white, a Scheduled one's white, or the dark basemap's paper, ringed and lettered in its Line's colour
-// (Pill's `lettering`). Just outside it, an arrow points the way the Train runs, and turns with the
-// map. The Train the map follows has its own pill and arrow, larger, over every other Train's:
-// MapLibre draws a layer's names after all its pills.
+// white, a Scheduled one's white, or the dark basemap's paper, ringed in a dash and lettered in its
+// Line's lettering (Pill's `lettering`, #519). Under it, so that no Train's arrow lies on another's pill, an arrow points the way the Train runs,
+// just outside it, and turns with the map. The Train the map follows has its own pill and arrow,
+// larger, over every other Train's, ringed as a target (targetRings()): MapLibre draws a layer's names after all its pills.
+// A Live pill is its outline as a signed distance field, which MapLibre fits to the name and edges in
+// white, and a Scheduled one an image of its own Line's pill, dashes and all (scheduledImage()), as a
+// field's edge can't be dashed and one layer can't mix the two: so each Train is in one pill layer,
+// and the dashes cost the map no more symbols to lay out each time it draws the Trains.
 for (const [id, outline] of Object.entries(OUTLINES)) addOutline(id, outline);
 for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', true, FOLLOWED_TEXT]] as const) {
   const filter: ExpressionSpecification = ['all', AS_PILL, ['==', ['get', 'followed'], followed]];
-  map.addLayer({
-    id: `train-pills${suffix}`,
-    type: 'symbol',
-    source: 'trains',
-    filter,
-    layout: {
-      'icon-image': ['concat', 'train-', ['get', 'outline']],
-      'icon-text-fit': 'both',
-      'icon-text-fit-padding': [0, PILL_PADDING, 0, PILL_PADDING],
-      'text-field': ['get', 'name'],
-      'text-font': ['Noto Sans Bold'],
-      // Long distance's, Ouigo's and Media Distancia's smaller, as pillText() has them, but the followed Train's (#780).
-      'text-size': followed ? size : ['case', ['<', ['get', 'pillZoom'], LOCAL_PILL_ZOOM], SMALL_TEXT, size],
-      'icon-allow-overlap': true,
-      'icon-ignore-placement': true,
-      'text-allow-overlap': true,
-      'text-ignore-placement': true,
-    },
-    paint: {
-      'icon-color': byLive(['get', 'colour'], scheduledFill),
-      'icon-halo-color': byLive('#fff', ['get', 'lettering']),
-      'icon-halo-width': PILL_HALO,
-      'text-color': byLive(['case', ['get', 'dark'], INK, '#fff'], ['get', 'lettering']),
-    },
-  });
+  if (followed) {
+    // The target: two rings round the followed Train, dot or pill, in its Line's lettering, and its colour pulsing out from the outer one (pulse()).
+    const ring = (id: string, radius: ExpressionSpecification, width: number, opacity: number | ExpressionSpecification): CircleLayerSpecification => ({
+      id,
+      type: 'circle',
+      source: 'trains',
+      filter: ['all', DRAWN, ['get', 'followed']],
+      paint: { 'circle-radius': radius, 'circle-opacity': 0, 'circle-stroke-width': width, 'circle-stroke-color': ['get', 'lettering'], 'circle-stroke-opacity': opacity, 'circle-pitch-scale': 'viewport' },
+    });
+    map.addLayer(ring('train-pulse', ['get', 'pulseRadius'], 2, ['get', 'pulseOpacity']));
+    map.addLayer(ring('train-target-outer', ['get', 'outerRing'], 2, 0.3));
+    map.addLayer(ring('train-target', ['get', 'innerRing'], 2.5, 0.9));
+  }
   map.addLayer({
     id: `train-arrows${suffix}`,
     type: 'symbol',
@@ -1371,7 +1384,51 @@ for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', tr
     },
     paint: { 'icon-color': ['get', 'lettering'], 'icon-halo-color': halo, 'icon-halo-width': 1 },
   });
+  const name: SymbolLayerSpecification['layout'] = {
+    'text-field': ['get', 'name'],
+    'text-font': ['Noto Sans Bold'],
+    // Long distance's, Ouigo's and Media Distancia's smaller, as pillText() has them, but the followed Train's (#780).
+    'text-size': followed ? size : ['case', ['<', ['get', 'pillZoom'], LOCAL_PILL_ZOOM], SMALL_TEXT, size],
+    'icon-allow-overlap': true,
+    'icon-ignore-placement': true,
+    'text-allow-overlap': true,
+    'text-ignore-placement': true,
+  };
+  // Scheduled under Live, which reads first.
+  map.addLayer({
+    id: `train-pills${suffix}-scheduled`,
+    type: 'symbol',
+    source: 'trains',
+    filter: [...filter, ['!', ['get', 'live']]],
+    layout: { ...name, 'icon-image': ['concat', `scheduled${suffix} `, ['get', 'line']] },
+    paint: { 'text-color': ['get', 'lettering'] },
+  });
+  map.addLayer({
+    id: `train-pills${suffix}`,
+    type: 'symbol',
+    source: 'trains',
+    filter: [...filter, ['get', 'live']],
+    layout: {
+      ...name,
+      'icon-image': ['concat', 'train-', ['get', 'outline']],
+      'icon-text-fit': 'both',
+      'icon-text-fit-padding': [0, PILL_PADDING, 0, PILL_PADDING],
+    },
+    paint: {
+      'icon-color': ['get', 'colour'],
+      'icon-halo-color': '#fff',
+      'icon-halo-width': PILL_HALO,
+      'text-color': ['case', ['get', 'dark'], INK, '#fff'],
+    },
+  });
 }
+/** The layers a Train's pill is drawn in, the followed Train's first, as it's drawn over the rest. */
+const PILL_LAYERS = ['train-pills-followed', 'train-pills-followed-scheduled', 'train-pills', 'train-pills-scheduled'];
+// A Scheduled Train's dashed rings, each made the first time the map asks for it.
+map.setMissingStyleImageResolver((id) => {
+  const image = scheduledImage(id);
+  if (image) map.addImage(id, image, { pixelRatio: IMAGE_RATIO });
+});
 
 // Tapping a Train follows it, and tapping a Station shows its board. Both are small, so a tap near one
 // will do, and a Train standing at a Station is the one tapped. A place's name shows its board too,
@@ -1403,9 +1460,9 @@ map.on('click', ({ point: { x, y }, lngLat }) => {
   const within = (r: number, layers: string[]) => map.queryRenderedFeatures([[x - r, y - r], [x + r, y + r]], { layers });
   const near = (layer: string): unknown => within(10, [layer])[0]?.properties.id;
   // Where pills overlap, the one under the tap, the topmost, before one near it.
-  const under: unknown = within(0, ['train-pills-followed', 'train-pills'])[0]?.properties.id;
+  const under: unknown = within(0, PILL_LAYERS)[0]?.properties.id;
   // A place's dot near the tap, or failing that its name under it.
-  const [train, place] = [under ?? near('train-pills-followed') ?? near('train-pills') ?? near('trains'), near('stations') ?? within(0, ['station-names'])[0]?.properties.id];
+  const [train, place] = [under ?? PILL_LAYERS.map(near).find((id) => id !== undefined) ?? near('trains'), near('stations') ?? within(0, ['station-names'])[0]?.properties.id];
   // A tap on a pill standing over others spreads them, and while they're spread, any tap but on one of them folds them (#129).
   const { group } = spreadState;
   const inGroup = typeof train === 'string' && group?.ids.has(train);
@@ -1447,7 +1504,7 @@ map.on('moveend', () => {
 // mouse, a drag's too, not a `mouseenter` and a `mouseleave` for each layer: those ran in the order
 // the layers were added, so a pointer moving onto a layer added before the one it left, as onto a
 // name from a stroke, had its pointer taken off again by the `mouseleave` that came after (#618).
-const pointed = ['trains', 'train-pills', 'train-pills-followed', 'stations', 'station-names', ...strokeLayers];
+const pointed = ['trains', ...PILL_LAYERS, 'stations', 'station-names', ...strokeLayers];
 map.on('mousemove', ({ point }) => (map.getCanvas().style.cursor = map.queryRenderedFeatures(point, { layers: pointed }).length ? 'pointer' : ''));
 // Escape closes the About dialog on its own, if it's open.
 document.addEventListener('keydown', (e) => e.key === 'Escape' && !about.open && (following || boardPlace || nearMe || searching) && closePanel());
@@ -1794,16 +1851,21 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
       const coordinates: Point = out && onScreen ? (map.unproject([onScreen[0] + out * right[0], onScreen[1] + out * right[1]]).toArray() as Point) : at;
       if (following && trip.id === followed) [following.at, following.zoom] = [coordinates, zoom];
       const line = lines.get(trip.line);
+      const isFollowed = trip.id === followed;
+      // The followed Train's target, out from its pill's box or its dot (targetRings()), and where its pulse is now, which stands still where the viewer prefers less motion.
+      const [innerRing, outerRing] = isFollowed ? targetRings(pill && box && zoom >= pill.zoom ? Math.hypot(...box) : dotAt(zoom, true)) : [];
+      const [pulseRadius, pulseOpacity] = outerRing === undefined ? [] : lessMotion.matches ? [outerRing, 0] : pulse(outerRing, Date.now());
       return {
         type: 'Feature',
         properties: {
           id: trip.id,
+          line: trip.line,
           colour: line?.colour,
           lettering: pill?.lettering,
           // Which Network's banner it shows (bannerNetworks()).
           network: line?.network,
           live,
-          followed: trip.id === followed,
+          followed: isFollowed,
           heading,
           name: pill?.name,
           outline: pill?.outline,
@@ -1811,8 +1873,12 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
           pillZoom: pill?.zoom,
           dotZoom: pill?.dotZoom ?? linesZoom,
           reach: box && reach(box, heading - bearing),
-          // Its halo's radius: HALO_DOT times its dot's, or from its Line's pill zoom, every pill's HALO_PILL.
-          haloRadius: pill && zoom >= pill.zoom ? HALO_PILL : HALO_DOT * dotAt(zoom, trip.id === followed),
+          // Its halo's radius: HALO_DOT times its dot's, or from its Line's pill zoom, every pill's HALO_PILL, by the zoom (haloScale()).
+          haloRadius: (pill && zoom >= pill.zoom ? HALO_PILL : HALO_DOT * dotAt(zoom, isFollowed)) * haloScale(zoom, darkBasemap),
+          innerRing,
+          outerRing,
+          pulseRadius,
+          pulseOpacity,
         },
         geometry: { type: 'Point', coordinates },
       };
@@ -1954,7 +2020,7 @@ interface Pill {
   name: string;
   outline: Outline;
   dark: boolean;
-  /** What its Line's colour letters its name in, rings its Scheduled Trains and colours its Trains' arrows in: on the dark basemap, lettering(). */
+  /** What its Line's colour letters its name in, rings its Scheduled Trains, colours its Trains' arrows and letters its name along its stroke in: lettered to read at 4.5:1 on a Scheduled Train's fill, the dark basemap's paper or white (lettering(), #519). */
   lettering: string;
   zoom: number;
   /** The zoom its Trains are drawn from, as dots: a long-distance Line's at every zoom, as ADR-0010 has AVE y Larga Distancia's (#262), and every other's from linesZoom, where the Lines are, or from its Network's zoom where that's later, as the Metro's and TRAM's (drawnFrom(), #781). */
@@ -1967,7 +2033,7 @@ interface Pill {
 function pillOf({ name, colour, kind }: Line, zoom: number, shownFrom: number): Pill {
   const outline = outlineOf(kind);
   const width = textWidth(name, `bold ${PILL_TEXT}px ${TYPEFACE}`);
-  return { name, outline, dark: darkInk(colour), lettering: darkBasemap ? lettering(colour, paper) : colour, zoom, dotZoom: kind === 'long-distance' ? 0 : Math.max(linesZoom, shownFrom), box: boxOf(outline, width, pillText(zoom)), followedBox: boxOf(outline, width, FOLLOWED_TEXT) };
+  return { name, outline, dark: darkInk(colour), lettering: lettering(colour, scheduledFill), zoom, dotZoom: kind === 'long-distance' ? 0 : Math.max(linesZoom, shownFrom), box: boxOf(outline, width, pillText(zoom)), followedBox: boxOf(outline, width, FOLLOWED_TEXT) };
 }
 
 /** How wide a place's name, or a line of it, is, in px, in its style. */
@@ -2024,6 +2090,49 @@ function hatching(colour: string) {
   const rgb = [1, 3, 5].map((i) => parseInt(colour.slice(i, i + 2), 16));
   for (let i = 0; i < width * height; i++) if (((i % width) + Math.floor(i / width)) % height < 6) data.set([...rgb, 255], i * 4);
   return { width, height, data };
+}
+
+/**
+ * A Scheduled Train's ring as an image, by the name the map asks for it by (#519): `dash-dot <colour>`, a
+ * dot's ring in DOT_DASHES dashes, as wide as half the dot's radius, round a dot DOT_RADIUS px across,
+ * which `train-dot-dashes` sizes with the dot; or `scheduled <Line>` and `scheduled-followed <Line>`, a
+ * Line's pill, filled as a Scheduled Train is and ringed just outside its outline (outlinePath()) in
+ * dashes DASHED_RING px wide of its lettering, at its own size or the followed Train's. Undefined for any
+ * other name, or a Line with no pill.
+ */
+function scheduledImage(id: string): ImageData | undefined {
+  const [kind = '', key = ''] = [id.slice(0, id.indexOf(' ')), id.slice(id.indexOf(' ') + 1)];
+  const pill = pills.get(key);
+  if (kind !== 'dash-dot' && !(pill && (kind === 'scheduled' || kind === 'scheduled-followed'))) return undefined;
+  const [halfWidth, halfHeight] = pill ? (kind === 'scheduled' ? pill.box : pill.followedBox) : [DOT_RADIUS, DOT_RADIUS];
+  const reach = kind === 'dash-dot' ? DOT_RADIUS / 2 : DASHED_RING;
+  const [width, height] = [Math.ceil(2 * (halfWidth + reach) + 2), Math.ceil(2 * (halfHeight + reach) + 2)];
+  const ctx = new OffscreenCanvas(width * IMAGE_RATIO, height * IMAGE_RATIO).getContext('2d');
+  if (!ctx) return undefined;
+  ctx.scale(IMAGE_RATIO, IMAGE_RATIO);
+  ctx.translate(width / 2, height / 2);
+  if (!pill) {
+    const middle = DOT_RADIUS + reach / 2;
+    const step = (2 * Math.PI * middle) / DOT_DASHES;
+    ctx.setLineDash([step * DOT_DASH, step * (1 - DOT_DASH)]);
+    ctx.lineWidth = reach;
+    ctx.strokeStyle = key;
+    ctx.beginPath();
+    ctx.arc(0, 0, middle, 0, 2 * Math.PI);
+    ctx.stroke();
+  } else {
+    const shape = new Path2D();
+    for (const [x, y] of outlinePath(pill.outline, [halfWidth, halfHeight])) shape.lineTo(x, y);
+    shape.closePath();
+    // Dashed across the outline, twice as wide as the ring, and the fill over its inner half.
+    ctx.setLineDash([DASH, GAP]);
+    ctx.lineWidth = 2 * DASHED_RING;
+    ctx.strokeStyle = pill.lettering;
+    ctx.stroke(shape);
+    ctx.fillStyle = scheduledFill;
+    ctx.fill(shape);
+  }
+  return ctx.getImageData(0, 0, width * IMAGE_RATIO, height * IMAGE_RATIO);
 }
 
 /**
@@ -3734,7 +3843,7 @@ function onScreen(then: () => void) {
     then();
   };
   const check = () => {
-    const trains = !bundle || map.queryRenderedFeatures({ layers: ['trains', 'train-pills'] }).length > 0;
+    const trains = !bundle || map.queryRenderedFeatures({ layers: ['trains', 'train-pills', 'train-pills-scheduled'] }).length > 0;
     if ((zoomedOut || !manifest?.zoomedOut) && trains && ['lines', 'tracks'].every((id) => map.isSourceLoaded(id))) done();
   };
   const cap = setTimeout(done, 5000);

@@ -71,3 +71,63 @@ export function boxOf(outline: Outline, width: number, size: number): [number, n
 export function pillReach([halfWidth]: [number, number], zoom: number, pillZoom: number, lat: number): number {
   return halfWidth * pixelMetres(Math.max(zoom, pillZoom), lat);
 }
+
+/** How wide a Scheduled Train's dashed ring is, just outside its pill's outline, and its dashes and the gaps between them, in px (#519). */
+export const [DASHED_RING, DASH, GAP] = [2, 3, 2];
+
+/** The outlines' corners, as main.ts's OUTLINES draws them `w`×`h` px: the rounded ones' radii, and the rest's corners clockwise from the top left. */
+const CORNERS: Record<Outline, number | [number, number][]> = {
+  round: 6.5,
+  badge: 3,
+  // Its ends 5 px long, to a point 2 px across.
+  pointed: [[-1, -7.5], [1, -7.5], [6, -1], [6, 1], [1, 7.5], [-1, 7.5], [-6, 1], [-6, -1]],
+  // Its ends cut slanting the same way, 6 px across its height.
+  slanted: [[-1.5, -7.5], [7.5, -7.5], [1.5, 7.5], [-7.5, 7.5]],
+};
+
+/**
+ * A pill's outline round its middle, clockwise, in px (x right, y down), stretched to its `box` as
+ * MapLibre fits main.ts's outline to the name: across its middle, and above and below it, or squeezed
+ * there where the name is lower than the outline, as an 8 px one (pillText()).
+ * ponytail: squeezes the slanted ends' slant too, as MapLibre leaves an outline's fixed part as it is.
+ * Within a pixel, under the dashes.
+ */
+export function outlinePath(outline: Outline, [halfWidth, halfHeight]: [number, number]): [number, number][] {
+  const { w, h } = OUTLINE_SIZES[outline];
+  const corners = CORNERS[outline];
+  const path: [number, number][] =
+    typeof corners === 'number'
+      ? [
+          [1, -1],
+          [1, 1],
+          [-1, 1],
+          [-1, -1],
+        ].flatMap(([sx = 0, sy = 0], quarter) =>
+          Array.from({ length: 7 }, (_, i): [number, number] => {
+            const angle = ((quarter - 1 + i / 6) * Math.PI) / 2;
+            return [sx * (w / 2 - corners) + corners * Math.cos(angle), sy * (h / 2 - corners) + corners * Math.sin(angle)];
+          }),
+        )
+      : corners;
+  const [across, up] = [halfWidth - w / 2, halfHeight - h / 2];
+  return path.map(([x, y]) => [x + Math.sign(x) * across, up < 0 ? (y * halfHeight) / (h / 2) : y + Math.sign(y) * up]);
+}
+
+/** How far out the followed Train's target rings it, its inner ring and its outer, in px from its middle, given how far its pill's box reaches to its corners, or its dot's radius (#519). */
+export function targetRings(reach: number): [number, number] {
+  return [reach + 11, reach + 17];
+}
+
+/** How long the target's pulse takes to go out, in ms, and how much further out it goes from its outer ring, in px. */
+const [PULSE, PULSE_OUT] = [1600, 11];
+
+/** Where the target's pulse is at a time, in ms: its radius, from its outer ring's `outer` px, and its opacity, fading out from 35%. */
+export function pulse(outer: number, time: number): [radius: number, opacity: number] {
+  const phase = (time % PULSE) / PULSE;
+  return [outer + PULSE_OUT * phase, 0.35 * (1 - phase)];
+}
+
+/** How large a Live Train's halo is drawn at a zoom, against its size (#519): 0.6 of it below zoom 12, where halos heap up, and from 12 as large, or on the dark basemap 1.6 times, as a glow. */
+export function haloScale(zoom: number, dark: boolean): number {
+  return zoom < 12 ? 0.6 : dark ? 1.6 : 1;
+}

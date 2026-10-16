@@ -219,7 +219,7 @@ body {
   white-space: nowrap;
 }
 
-/* As the map draws a Train's pill, with no name: Live filled, Scheduled ringed. */
+/* As the map draws a Train's pill, with no name: Live filled, Scheduled ringed in a dash, wider, so that its dashes read as a ring rather than a broken box (#519). */
 .legend .marker {
   box-sizing: border-box;
   width: 18px;
@@ -233,7 +233,9 @@ body {
 }
 
 .legend .marker.scheduled {
+  width: 24px;
   margin-left: 4px;
+  border-style: dashed;
 }
 
 .legend .icon {
@@ -564,7 +566,7 @@ body {
   color: var(--ink-soft);
 }
 
-/* A Line's name as its Trains' pill on the map, outlined by its kind: filled with its colour when Live, ringed in it when Scheduled. */
+/* A Line's name as its Trains' pill on the map, outlined by its kind: filled with its colour when Live, ringed in a dash of its lettering when Scheduled, as the map rings it (#519). */
 .pill {
   position: relative;
   isolation: isolate;
@@ -592,6 +594,8 @@ body {
 }
 
 .pill.scheduled {
+  border-style: dashed;
+  border-color: var(--lettering, #555);
   background: var(--card);
 }
 
@@ -601,6 +605,12 @@ body {
   border-radius: 0;
   background: var(--line, #555);
   clip-path: polygon(7px 0, calc(100% - 7px) 0, 100% 50%, calc(100% - 7px) 100%, 7px 100%, 0 50%);
+}
+
+/* A pointed or slanted pill has no border, so its ring, its lettering round its inner fill, is cut into dashes across. */
+.pill.pointed.scheduled,
+.pill.slanted.scheduled {
+  background: repeating-linear-gradient(90deg, var(--lettering, #555) 0 3px, transparent 3px 5px);
 }
 
 .pill.pointed.scheduled::before {
@@ -1025,6 +1035,10 @@ button.result {
 
 .dot.live {
   background: var(--ink);
+}
+
+.dot.scheduled {
+  border-style: dashed;
 }
 
 .next-station {
@@ -1539,7 +1553,7 @@ button.result {
 
   .pill.pointed.scheduled,
   .pill.slanted.scheduled {
-    background: CanvasText;
+    background: repeating-linear-gradient(90deg, CanvasText 0 3px, transparent 3px 5px);
   }
 
   .pill.pointed.scheduled::before,

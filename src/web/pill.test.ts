@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { Kind } from '../bundle.ts';
-import { boxOf, FOLLOWED_TEXT, outlineOf, OUTLINES_OF, PILL_TEXT, pillReach, pillText } from './pill.ts';
+import { boxOf, FOLLOWED_TEXT, haloScale, outlineOf, OUTLINES_OF, outlinePath, PILL_TEXT, pillReach, pillText, pulse, DASHED_RING, targetRings } from './pill.ts';
 
 /** A Line's name as wide as textWidth() has it where there's no canvas to measure it on: 6 px a letter, at PILL_TEXT. */
 const width = (name: string) => name.length * 6;
@@ -55,4 +55,45 @@ test("long distance's and Media Distancia's pills, from zoom 9, are lettered at 
   expect(2 * boxOf('slanted', width('AVE'), pillText(9))[1]).toBeCloseTo(12.6, 5);
   // Euromed's, slanted, 49.6 px long rather than 58 px at 10 px.
   expect([pillText(9), PILL_TEXT].map((size) => 2 * boxOf('slanted', width('Euromed'), size)[0])).toEqual([expect.closeTo(49.6, 5), 58]);
+});
+
+/** The furthest a path reaches either side of its middle and above and below it. */
+const extent = (path: [number, number][]) => [Math.max(...path.map(([x]) => Math.abs(x))), Math.max(...path.map(([, y]) => Math.abs(y)))];
+
+test("a Scheduled pill's outline, which its dashes ring, reaches as far as its box, whatever its outline, and lettered at 8, 10 or 12 px (#519)", () => {
+  for (const outline of ['round', 'pointed', 'slanted', 'badge'] as const) {
+    for (const size of [8, PILL_TEXT, FOLLOWED_TEXT]) {
+      const box = boxOf(outline, width('R2N'), size);
+      const [x, y] = extent(outlinePath(outline, box));
+      expect(x).toBeCloseTo(box[0], 5);
+      expect(y).toBeCloseTo(box[1], 5);
+    }
+  }
+});
+
+test("a pointed outline's ends are points 2 px across, and a slanted one's top is ahead of its bottom, leaning forward as italics do", () => {
+  const box = boxOf('pointed', width('R2N'), PILL_TEXT);
+  const tips = outlinePath('pointed', box).filter(([x]) => x === box[0]);
+  expect(tips.map(([, y]) => y).sort((a, b) => a - b)).toEqual([-1, 1]);
+  const slanted = outlinePath('slanted', boxOf('slanted', width('AVE'), PILL_TEXT));
+  const rightmost = (wanted: number) => Math.max(...slanted.filter(([, y]) => y === wanted).map(([x]) => x));
+  expect(rightmost(-7.5) - rightmost(7.5)).toBeCloseTo(6, 5);
+});
+
+test("the followed Train's target rings it 11 and 17 px out from its pill's box, so that a three-letter pill isn't cut and the inner ring clears its dashes (#519)", () => {
+  const box = boxOf('pointed', width('R2N'), FOLLOWED_TEXT);
+  const corner = Math.hypot(...box);
+  expect(targetRings(corner)).toEqual([corner + 11, corner + 17]);
+  expect(targetRings(corner)[0] - 2.5 / 2).toBeGreaterThan(corner + DASHED_RING);
+});
+
+test('its pulse goes out from its outer ring 11 px further every 1.6 s, fading from 35%', () => {
+  expect(pulse(30, 0)).toEqual([30, 0.35]);
+  expect(pulse(30, 800)).toEqual([35.5, 0.175]);
+  expect(pulse(30, 1600)).toEqual([30, 0.35]);
+});
+
+test("below zoom 12 a Live Train's halo is 0.6 of its size, and from 12 as large, or on the dark basemap 1.6 times as large, as a glow (#519)", () => {
+  expect([haloScale(11.9, false), haloScale(11.9, true)]).toEqual([0.6, 0.6]);
+  expect([haloScale(12, false), haloScale(14, true)]).toEqual([1, 1.6]);
 });
