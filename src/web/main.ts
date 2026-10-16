@@ -74,6 +74,12 @@ const PILL_HALO = 1.5;
  */
 const [HALO_DOT, HALO_BEYOND, HALO_BLUR, HALO_OPACITY] = [2, 4, 0.6, 0.6];
 /**
+ * #780's variant C (`?trains=c`, not to merge): a glow only on the dark basemap, and on the light one only round the
+ * followed Train, every pill's one size, a two-letter round pill's, whatever its Network or name.
+ */
+const VARIANT_C = new URLSearchParams(location.search).get('trains') === 'c';
+const ONE_GLOW = Math.hypot(11, 7.5) + 4;
+/**
  * The outlines a Train is drawn with, as pill.ts sizes them, `w`×`h` px around their middles: how far
  * `outside` each a point is, in px (x right, y down), or inside where negative. A pill's outline
  * stretches across its middle 2 px both ways to fit its Line's name over its middle `across` px, and all
@@ -1272,7 +1278,7 @@ map.addLayer(
     id: 'train-halos',
     type: 'circle',
     source: 'trains',
-    filter: ['all', DRAWN, ['get', 'live']],
+    filter: ['all', DRAWN, ['get', 'live'], VARIANT_C && !darkBasemap ? ['get', 'followed'] : true],
     paint: { 'circle-radius': ['get', 'haloRadius'], 'circle-color': ['get', 'colour'], 'circle-blur': HALO_BLUR, 'circle-opacity': HALO_OPACITY, 'circle-pitch-scale': 'viewport' },
   },
   'line-names',
@@ -1806,7 +1812,7 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
           dotZoom: pill?.dotZoom ?? linesZoom,
           reach: box && reach(box, heading - bearing),
           // Its halo's radius: HALO_DOT times its dot's, or from its Line's pill zoom, out to the corners of its pill's box and HALO_BEYOND beyond.
-          haloRadius: pill && box && zoom >= pill.zoom ? Math.hypot(...box) + HALO_BEYOND : HALO_DOT * dotAt(zoom, trip.id === followed),
+          haloRadius: pill && box && zoom >= pill.zoom ? (VARIANT_C ? ONE_GLOW : Math.hypot(...box) + HALO_BEYOND) : HALO_DOT * dotAt(zoom, trip.id === followed),
         },
         geometry: { type: 'Point', coordinates },
       };
