@@ -530,7 +530,7 @@ export type Leg = { stroke: Stroke; end: 0 | 1 };
  * leg starts, not from end to end, so that it doesn't run on past the next leg's start and back (#311).
  * Where it neither moves over nor changes side, the Line goes on without a curve.
  */
-function curves(joins: Join[], found: Stretch[], onStretch: Map<string, Stroke[]>, byId: Map<string, Shape>, bands: number[], prefix: string): { shapes: Shape[]; strokes: Stroke[] } {
+export function curves(joins: Join[], found: Stretch[], onStretch: Map<string, Stroke[]>, byId: Map<string, Shape>, bands: number[], prefix: string): { shapes: Shape[]; strokes: Stroke[] } {
   const shapeOf = (s: Stroke, band: number) => inBand(byId, s.shape, band) ?? { coords: [], dist: [] };
   const flat = ([lon, lat]: Point): [number, number] => [lon * KX, lat * DEGREE];
   const ends = (s: Stroke, end: 0 | 1) => (end ? s.to : s.from);
@@ -562,8 +562,9 @@ function curves(joins: Join[], found: Stretch[], onStretch: Map<string, Stroke[]
       fronts.set(key, front);
       return front;
     };
-    // The Stretches absorbed, and strokes along only part of a Stretch, too short for their curves, hidden on their own.
-    const [absorbed, alone] = [new Set<number>(), new Set<Stroke>()];
+    // The Stretches absorbed, and strokes along only part of a Stretch, too short for their curves, hidden on their own, with every Line's
+    // strokes within them, each by the one too short, whose node they're in (#804).
+    const [absorbed, alone] = [new Set<number>(), new Map<Stroke, Stroke>()];
     const hidden = (s: Stroke) => absorbed.has(edgeOf.get(s) ?? -1) || alone.has(s);
     /**
      * The chain's parts along its legs: each leg's line in the band, and its stroke end to end the way the
@@ -608,7 +609,7 @@ function curves(joins: Join[], found: Stretch[], onStretch: Map<string, Stroke[]
         if (!first || !last) continue;
         const keys = [keyOf(first), keyOf(last)];
         // One node for every Line across a Stretch absorbed, or a stroke hidden.
-        for (const { stroke } of legs) if (hidden(stroke)) unite(keys[0] ?? '', alone.has(stroke) ? `alone ${id.get(stroke)}` : `absorbed ${edgeOf.get(stroke)}`);
+        for (const { stroke } of legs) if (hidden(stroke)) unite(keys[0] ?? '', alone.has(stroke) ? `alone ${id.get(alone.get(stroke) ?? stroke)}` : `absorbed ${edgeOf.get(stroke)}`);
         unite(keys[0] ?? '', keys[1] ?? '');
         const moves = moved(legs);
         if (!moves && !legs.some((l) => hidden(l.stroke))) continue;
@@ -647,7 +648,8 @@ function curves(joins: Join[], found: Stretch[], onStretch: Map<string, Stroke[]
       for (const [s, e] of short) {
         const steps = found[e]?.steps ?? [];
         if (s.from - (steps[0]?.from ?? 0) < 1 && (steps.at(-1)?.to ?? 0) - s.to < 1) absorbed.add(e);
-        else alone.add(s);
+        // The node takes in the part of the Stretch the stroke runs along, and so every Line's stroke within it there (#804).
+        else for (const t of (found[e]?.lines ?? []).flatMap((l) => onStretch.get(`${e} ${l}`) ?? [])) if (s.from - 1 <= t.from && t.to <= s.to + 1) alone.set(t, s);
       }
     }
     for (const legs of made) {

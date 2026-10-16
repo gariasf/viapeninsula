@@ -3,7 +3,7 @@ import { expect, test } from 'vitest';
 import { along, APART, atZoom, BANDS, beside, cutIn, DEGREE, drawnIn, GRAPH_BAND, inBand, LINK, onStroke, pieces, zones, pixelMetres, pointAt, SMOOTH, STRETCH, type Line, type Shape, type Stroke, type Track } from '../bundle.ts';
 import { measures } from './measures.ts';
 import { offset } from './offset.ts';
-import { across, crossing, end, KX, notTwice, ports, sharedTrack, sideBySide, sidesOf, type Leg } from './sideBySide.ts';
+import { across, crossing, curves, end, KX, notTwice, ports, sharedTrack, sideBySide, sidesOf, type Leg } from './sideBySide.ts';
 
 // Track drawn in metres east (x) and north (y) of a point in Barcelona.
 const M = (6_371_008.8 * Math.PI) / 180; // metres in a degree of latitude
@@ -1049,4 +1049,27 @@ test('counts each run of shared track as a Stretch of its own, and a Line runnin
   const [found] = sharedTrack(lines, shapes, regionOf({ R2: 'a', R2_INV: 'a', C4: 'b' }));
   expect(found?.stretches).toBe(2);
   expect(Math.abs((found?.metres ?? NaN) - 2000)).toBeLessThanOrEqual(100);
+});
+
+test("cuts every Line's stroke within one a node takes in along part of a Stretch, not just that one, as Alvia's, Intercity's and Euromed's within AVE's by València at zoom 7 (#804)", () => {
+  // A and B come in from 'z' onto 'x' at 2300 m, each changing side, so each has a curve there. A leaves
+  // 'x' at 1000 m onto 'y', changing side again; B's stroke ends at 1200 m, where B isn't kept beside the
+  // track for 20 m, then goes on from 1180 m on a stroke of its own, with no curve between them. At zoom 7
+  // A's 1300 m is too short for its two curves' room, and the node takes it in; B's 1100 m, within it, has
+  // room for its one curve, and was still drawn there.
+  const shapes = [shape('x', [0, 0], [5000, 0]), shape('y', [1000, 0], [-1000, -3000]), shape('z', [2300, 0], [4300, 3000])];
+  const stroke = (line: string, on: string, from: number, to: number, side: number): Stroke => ({ line, shape: on, from, to, side, band: 0 });
+  const [ax, ay, az] = [stroke('A', 'x', 1000, 2300, 0), stroke('A', 'y', 0, 3600, 0.5), stroke('A', 'z', 0, 3600, 0.5)];
+  const [bx, bx0, bz] = [stroke('B', 'x', 1200, 2300, 0), stroke('B', 'x', 0, 1180, 0), stroke('B', 'z', 0, 3600, -0.5)];
+  const step = (on: string, to: number) => ({ line: 0, piece: 0, shape: on, way: 1, from: 0, to });
+  const found = [{ steps: [step('x', 5000)], lines: [0, 1] }, { steps: [step('y', 3600)], lines: [0] }, { steps: [step('z', 3600)], lines: [0, 1] }];
+  const onStretch = new Map([['0 0', [ax]], ['0 1', [bx0, bx]], ['1 0', [ay]], ['2 0', [az]], ['2 1', [bz]]]);
+  const joins = [
+    { line: 0, from: az, out: 0 as const, to: ax, into: 1 as const },
+    { line: 0, from: ax, out: 0 as const, to: ay, into: 0 as const },
+    { line: 1, from: bz, out: 0 as const, to: bx, into: 1 as const },
+  ];
+  curves(joins, found, onStretch, new Map(shapes.map((s) => [s.id, s])), [0], LINK);
+  const notDrawn = (s: Stroke) => cutIn(s, 0).reduce((sum, d) => sum + d, 0);
+  expect([notDrawn(ax), notDrawn(bx), notDrawn(bx0)]).toEqual([1300, 1100, 0]);
 });
