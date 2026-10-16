@@ -846,8 +846,9 @@ export const AVE_LARGA_DISTANCIA: NetworkConfig = {
   // a track, a trace follows it (ADR-0004).
   runningSide: 'right',
   colour: AVE_PURPLE,
-  // Its Trains are drawn at every zoom, as dots below 7 and pills from 7, where the Lines are (ADR-0010).
-  pillZoom: 7,
+  // Its Trains are drawn at every zoom, as dots below 9 and smaller pills from 9 (pillText()), so that at 7–8,
+  // where the Lines are, they don't bury the local Lines' dots, and from 10 they give way to the local Lines' pills (ADR-0010, #780).
+  pillZoom: 9,
   // Its Lines' runs are traced on the rails of their gauges (`lines.gauges`), and a way with no gauge tag
   // is every gauge's for them (#259): these are only the ways the report names a Station on.
   rails: { railway: ['rail'] },
@@ -951,8 +952,9 @@ export const MEDIA_DISTANCIA_AVANT: NetworkConfig = {
   // As AVE y Larga Distancia's, though its Trains on FEVE's lines keep left too.
   runningSide: 'right',
   colour: MD_BLACK,
-  // Its Trains are drawn from zoom 7, as pills, where its region loads and its Lines are (ADR-0010).
-  pillZoom: 7,
+  // Its Trains are drawn from zoom 7, where its region loads and its Lines are, as dots, and as smaller pills
+  // from 9, as AVE y Larga Distancia's are (ADR-0010, #780).
+  pillZoom: 9,
   // Its Lines' runs are traced on the rails of their gauges, as AVE y Larga Distancia's are.
   rails: { railway: ['rail', 'narrow_gauge'] },
   // The ex-FEVE regionals, whose route IDs end VRFV, are named REGIONAL too, but run on metre gauge.
@@ -1046,8 +1048,8 @@ export const OUIGO: NetworkConfig = {
   // Ouigo's pink, its logo's (#264): AVE y Larga Distancia's purple is Renfe's rather than the magenta of
   // Renfe's AVE map so that the two can be told apart (#262).
   colour: '#E50A70',
-  // Its Trains are drawn at every zoom, as AVE y Larga Distancia's are (ADR-0010).
-  pillZoom: 7,
+  // Its Trains are drawn at every zoom, as AVE y Larga Distancia's are, pills from 9 (ADR-0010, #780).
+  pillZoom: 9,
   rails: { railway: ['rail'] },
   timetables: [
     {

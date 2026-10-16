@@ -3,8 +3,20 @@
 
 import { pixelMetres, type Kind } from '../bundle.ts';
 
-/** The size of a Line's name on its Trains' pills, in px, and on the followed Train's, which is larger. */
-export const [PILL_TEXT, FOLLOWED_TEXT] = [10, 12];
+/** The size of a Line's name on its Trains' pills, in px, on the followed Train's, which is larger, and on long distance's, Ouigo's and Media Distancia's (pillText()). */
+export const [PILL_TEXT, FOLLOWED_TEXT, SMALL_TEXT] = [10, 12, 8];
+/** The zoom the local Lines' Trains are pills from, Cercanías', Rodalies' and FGC's (networks.ts's `pillZoom`). */
+export const LOCAL_PILL_ZOOM = 10;
+
+/**
+ * The size of a Line's name on its Trains' pills but the followed Train's, in px, by the zoom its Network's
+ * Trains are pills from: a Network's that are pills before the local Lines', long distance's, Ouigo's
+ * and Media Distancia's from zoom 9, are lettered at SMALL_TEXT, so that they give way to the local Lines' where those
+ * are read (#780).
+ */
+export function pillText(pillZoom: number): number {
+  return pillZoom < LOCAL_PILL_ZOOM ? SMALL_TEXT : PILL_TEXT;
+}
 /** How far a pill reaches beyond its Line's name either side, and above and below the name's line, in px. */
 export const [PILL_PADDING, PILL_EDGE] = [2, 1.5];
 /** MapLibre's `text-line-height`, in ems: the height of a line of text, as of the Line's name a pill fits or of a place's name. */

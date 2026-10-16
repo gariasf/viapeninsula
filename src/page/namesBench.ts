@@ -86,9 +86,9 @@ async function variant(src: string, bearing: number) {
   const show = (ids: string[]) => {
     const parts = order.filter((id) => ids.includes(id)).map((id) => tracks.get(id));
     const days = B.joinTracks(parts);
-    // show()'s, for the names.
+    // show()'s, for the names, lettered as pillOf() has them, or at PILL_TEXT in a src from before #780.
     const pillZoom = new Map(days.networks.map((n: any) => [n.id, n.pillZoom]));
-    pills = new Map(days.lines.map((l: any) => [l.id, { zoom: pillZoom.get(l.network) ?? 10, box: P.boxOf(P.outlineOf(l.kind), width(l.name), P.PILL_TEXT) }]));
+    pills = new Map(days.lines.map((l: any) => [l.id, { zoom: pillZoom.get(l.network) ?? 10, box: P.boxOf(P.outlineOf(l.kind), width(l.name), P.pillText?.(pillZoom.get(l.network) ?? 10) ?? P.PILL_TEXT) }]));
     const keepOf = new Map(days.networks.map((n: any) => [n.id, n.runningSide === 'left' ? -1 : 1]));
     const keep = new Map(days.lines.map((l: any) => [l.id, keepOf.get(l.network) ?? 1]));
     const tiered = B.places(days.stations).map((p: any) => {
