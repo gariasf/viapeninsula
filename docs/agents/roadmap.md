@@ -13,7 +13,7 @@ Read it with `gh api repos/{owner}/{repo}/milestones`.
 
 Milestones are numbered, and each is in one of three states, which the last line of its description names:
 - **Now**: build only from these. Since 16 Oct 2026 they are milestones 3 and 6; 0, 1, 2 and 5 have closed.
-- **Next**: 4.
+- **Next**: 7 (Fast at scale), then 4.
 - **Later**: the icebox.
 
 Rules:
@@ -26,7 +26,7 @@ Rules:
 ## Lanes
 
 Two lanes split the code so two sessions can build at once:
-- **The page lane** is milestones 0, 1, 3 and 4: src/web, and the page's loading and drawing.
+- **The page lane** is milestones 0, 1, 3, 4 and 7: src/web, and the page's loading and drawing.
 - **The data lane** is milestones 0, 2, 5 and 6: the fetcher, the engine's live rules, and the build.
 
 At most two sessions build at once, one per lane.
