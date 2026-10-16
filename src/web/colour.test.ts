@@ -52,7 +52,7 @@ test('on a light card, a Line whose colour reads at 4.5:1 is lettered in it, and
   expect(g).toBeGreaterThan(b);
 });
 
-test('a colour written in three digits is the six it stands for, as INK is, #111', () => {
+test('a colour written in three digits is the six it stands for, as #111 is', () => {
   // R2N's yellow-green against it: 12.8:1, which was NaN.
   expect(contrast('#D0DF00', '#111')).toBeCloseTo(12.8, 1);
   expect(contrast('#D0DF00', '#111')).toBe(contrast('#D0DF00', '#111111'));
@@ -80,11 +80,26 @@ test('a Live Train is lettered in dark ink on the Lines white reads worst on, wh
   }
 });
 
-test("white stays on the Lines it reads on better than ink does, as on Bilbao's C2, where neither reaches 4.5:1", () => {
+test("white stays on the Lines it reads on better than ink does", () => {
   // The Metro's L1, TRAM's T3 at 4.50:1, Madrid's C4 and FGC's MM, black.
   for (const colour of ['#CE1126', '#0074E8', '#2C2A86', '#000000']) expect(darkInk(colour)).toBe(false);
-  // Bilbao's C2 is 4.37:1 with white and 4.32 with ink.
-  expect(darkInk('#0F8C2D')).toBe(false);
+});
+
+test("Bilbao's C2, 4.37:1 with white, is lettered in ink, which reads on it at 4.5:1, and is the eye's #111 (#632)", () => {
+  expect(darkInk('#0F8C2D')).toBe(true);
+  expect(contrast('#0F8C2D', INK)).toBeGreaterThanOrEqual(4.5);
+  expect(contrast(INK, '#111111')).toBeLessThan(1.05);
+});
+
+test('on the light basemap, each Line is lettered at 4.5:1 on white, the pale ones darkened no further than that, and those that read already as they are (#519)', () => {
+  // TRAM's T2 at 1.3:1, Rodalies' R2N at 1.5, R4, R17, RT1, R1, R2 at 3.1 and R13 at 4.1, and FGC's S1 and R6, as their feeds and the config give them.
+  for (const colour of ['#80FF80', '#D0DF00', '#F7A30D', '#F3B12E', '#39D4CC', '#7DBCEC', '#26A741', '#E52E87', '#EF7900', '#b3b3b3']) {
+    const lettered = contrast(lettering(colour, '#ffffff'), '#ffffff');
+    expect(lettered).toBeGreaterThanOrEqual(4.5);
+    expect(lettered).toBeLessThan(4.8);
+  }
+  // The Metro's L1 and Madrid's C4 read on white already.
+  for (const colour of ['#CE1126', '#2C2A86']) expect(lettering(colour, '#ffffff')).toBe(colour);
 });
 
 test("Media Distancia y Avant's black has a light grey stand-in for its Lines on the dark basemap, a mid grey for its track below zoom 7, and no other Network's colour changes (#263, #781)", () => {

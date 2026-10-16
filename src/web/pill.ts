@@ -71,3 +71,161 @@ export function boxOf(outline: Outline, width: number, size: number): [number, n
 export function pillReach([halfWidth]: [number, number], zoom: number, pillZoom: number, lat: number): number {
   return halfWidth * pixelMetres(Math.max(zoom, pillZoom), lat);
 }
+
+/** How wide a Scheduled Train's dashed ring is, just outside its pill's outline, and its dashes and the gaps between them, in px (#519). */
+export const [DASHED_RING, DASH, GAP] = [2, 3, 2];
+
+/** The outlines' corners, as main.ts's OUTLINES draws them `w`×`h` px: the rounded ones' radii, and the rest's corners clockwise from the top left. */
+const CORNERS: Record<Outline, number | [number, number][]> = {
+  round: 6.5,
+  badge: 3,
+  // Its ends 5 px long, to a point 2 px across.
+  pointed: [[-1, -7.5], [1, -7.5], [6, -1], [6, 1], [1, 7.5], [-1, 7.5], [-6, 1], [-6, -1]],
+  // Its ends cut slanting the same way, 6 px across its height.
+  slanted: [[-1.5, -7.5], [7.5, -7.5], [1.5, 7.5], [-7.5, 7.5]],
+};
+
+/**
+ * A pill's outline round its middle, clockwise, in px (x right, y down), stretched to its `box` as
+ * MapLibre fits main.ts's outline to the name: across its middle, and above and below it, or squeezed
+ * there where the name is lower than the outline, as an 8 px one (pillText()).
+ * ponytail: squeezes the slanted ends' slant too, where MapLibre leaves an outline's fixed part as it
+ * is, within a pixel. Squeeze only the stretched middle if a dashed slanted pill ever shows it.
+ */
+export function outlinePath(outline: Outline, [halfWidth, halfHeight]: [number, number]): [number, number][] {
+  const { w, h } = OUTLINE_SIZES[outline];
+  const corners = CORNERS[outline];
+  const path: [number, number][] =
+    typeof corners === 'number'
+      ? [
+          [1, -1],
+          [1, 1],
+          [-1, 1],
+          [-1, -1],
+        ].flatMap(([sx = 0, sy = 0], quarter) =>
+          Array.from({ length: 7 }, (_, i): [number, number] => {
+            const angle = ((quarter - 1 + i / 6) * Math.PI) / 2;
+            return [sx * (w / 2 - corners) + corners * Math.cos(angle), sy * (h / 2 - corners) + corners * Math.sin(angle)];
+          }),
+        )
+      : corners;
+  const [across, up] = [halfWidth - w / 2, halfHeight - h / 2];
+  return path.map(([x, y]) => [x + Math.sign(x) * across, up < 0 ? (y * halfHeight) / (h / 2) : y + Math.sign(y) * up]);
+}
+
+/** The followed Train's target, as railisland's (#519): its inner ring and its outer, how far out from its pill's box or dot, how wide and how strong, in px. */
+export const TARGET = { inner: { out: 11, width: 2.5, opacity: 0.9 }, outer: { out: 17, width: 2, opacity: 0.3 } };
+
+/** How far out the followed Train's target rings it, its inner ring and its outer, in px from its middle, given how far its pill's box reaches to its corners, or its dot's radius (#519). */
+export function targetRings(reach: number): [number, number] {
+  return [reach + TARGET.inner.out, reach + TARGET.outer.out];
+}
+
+/** How long the target's pulse takes to go out, in ms, how much further out it goes from its outer ring, in px, and how strong it starts, fading out. */
+const [PULSE, PULSE_OUT, PULSE_OPACITY] = [1600, 11, 0.35];
+
+/** Where the target's pulse is at a time, in ms: its radius, from its outer ring's `outer` px, and its opacity, fading out from PULSE_OPACITY. */
+export function pulse(outer: number, time: number): [radius: number, opacity: number] {
+  const phase = (time % PULSE) / PULSE;
+  return [outer + PULSE_OUT * phase, PULSE_OPACITY * (1 - phase)];
+}
+
+/** The zoom below which halos heap up, how much smaller they're drawn there, and how much larger a glow is from it on the dark basemap (#519). */
+const [HALO_ZOOM, HALO_SMALLER, GLOW_LARGER] = [12, 0.6, 1.6];
+
+/** How large a Live Train's halo is drawn at a zoom, against its size (#519): HALO_SMALLER below HALO_ZOOM, and from it as large, or on the dark basemap GLOW_LARGER, as a glow. */
+export function haloScale(zoom: number, dark: boolean): number {
+  return zoom < HALO_ZOOM ? HALO_SMALLER : dark ? GLOW_LARGER : 1;
+}
+
+/** How many whole dashes, DASH and GAP long, a Scheduled pill's straight sides hold, above and below its name, given its `box` (boxOf()): the straight sides of its dashed outline (dashedOutline()), which MapLibre stretches the rest of the way. */
+export function dashesAcross(outline: Outline, [halfWidth]: [number, number]): number {
+  return Math.max(0, Math.floor((2 * halfWidth - OUTLINE_SIZES[outline].w) / (DASH + GAP) + 1e-9));
+}
+
+/** An image MapLibre reads as a signed distance field, `width`×`height` texels at 2 a px, its field in each texel's alpha, 0.75 at its edge and 1/8 less a px out (main.ts's addOutline()). */
+export interface Field {
+  width: number;
+  height: number;
+  data: Uint8ClampedArray;
+  stretchX?: [number, number][];
+  stretchY?: [number, number][];
+  content?: [number, number, number, number];
+}
+
+/** A field `w`×`h` px round its middle, 3 px more each way, from how far outside its shape each point is, in px (x right, y down). */
+export function field(w: number, h: number, outside: (x: number, y: number) => number): Field {
+  const [width, height] = [(w + 6) * 2, (h + 6) * 2];
+  const data = new Uint8ClampedArray(width * height * 4);
+  for (let row = 0; row < height; row++) {
+    for (let col = 0; col < width; col++) data[(row * width + col) * 4 + 3] = 255 * (0.75 - outside((col + 0.5 - width / 2) / 2, (row + 0.5 - height / 2) / 2) / 8);
+  }
+  return { width, height, data };
+}
+
+/** Where MapLibre stretches a pill's field `h` px high to fit its Line's name (`icon-text-fit`): 2 px across its middle both ways, to fit the name over its middle `across` px and all but PILL_EDGE of its height. */
+export function fitOf({ width, height }: Field, h: number, across: number): Pick<Field, 'stretchX' | 'stretchY' | 'content'> {
+  const [x, y, high] = [width / 2, height / 2, h - 2 * PILL_EDGE];
+  return { stretchX: [[x - 2, x + 2]], stretchY: [[y - 2, y + 2]], content: [x - across, y - high, x + across, y + high] };
+}
+
+/**
+ * A Scheduled pill's outline as a field (#519): filled within, and just outside, as far as the halo
+ * MapLibre draws DASHED_RING px wide, its ring in DASH px dashes and GAP px gaps along it, a gap at the
+ * middle of its top and of its bottom, where MapLibre stretches it to the pill's box, and the dashes
+ * from there meeting at its ends. Its straight sides are `n` dashes longer than its outline's
+ * (dashesAcross()), so that it's stretched by less than a dash.
+ * ponytail: stretched in one gap, which grows by up to a dash's step on a pill wider than its whole
+ * dashes. Stretch it in a gap either side of the middle too if that shows.
+ */
+export function dashedOutline(outline: Outline, n: number): Field {
+  const { w, h, across = 0 } = OUTLINE_SIZES[outline];
+  const longer = n * (DASH + GAP);
+  const path = outlinePath(outline, [(w + longer) / 2, h / 2]);
+  // Each point of the path's distance along it, round from its first.
+  const along = path.map((_, i) => path.slice(0, i).reduce((sum, p, j) => sum + Math.hypot(path[j + 1]![0] - p[0], path[j + 1]![1] - p[1]), 0));
+  const perimeter = along[path.length - 1]! + Math.hypot(path[0]![0] - path[path.length - 1]![0], path[0]![1] - path[path.length - 1]![1]);
+  /** The nearest point of the path to a point: how far it is, and how far round the path. */
+  const nearest = (x: number, y: number) => {
+    let best = { d: Infinity, s: 0 };
+    path.forEach(([ax, ay], i) => {
+      const [bx, by] = path[(i + 1) % path.length]!;
+      const [dx, dy] = [bx - ax, by - ay];
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1)));
+      const d = Math.hypot(ax + t * dx - x, ay + t * dy - y);
+      if (d < best.d) best = { d, s: along[i]! + t * Math.hypot(dx, dy) };
+    });
+    return best;
+  };
+  const [top, bottom] = [nearest(0, -h / 2).s, nearest(0, h / 2).s];
+  const roundAbout = (a: number, b: number) => Math.min(Math.abs(a - b), perimeter - Math.abs(a - b));
+  // Whether a point is inside the path, by the crossings of a ray to its right.
+  const inside = (x: number, y: number) => path.reduce((odd, [ax, ay], i) => {
+    const [bx, by] = path[(i + 1) % path.length]!;
+    return (ay > y) !== (by > y) && x < ax + ((y - ay) * (bx - ax)) / (by - ay) ? !odd : odd;
+  }, false);
+  const image = field(w + longer, h, (x, y) => {
+    const { d, s } = nearest(x, y);
+    if (inside(x, y)) return -d;
+    // From the nearer middle, a gap GAP / 2 either side, then dashes and gaps.
+    const from = Math.min(roundAbout(s, top), roundAbout(s, bottom));
+    return (from - GAP / 2) % (DASH + GAP) < DASH && from >= GAP / 2 ? d : 8;
+  });
+  return { ...image, ...fitOf(image, h, across + longer) };
+}
+
+/** How many dashes ring a Scheduled Train's dot, how much of each step round they take, and how far out from the dot the ring reaches, against its radius, as a solid ring did (#519). */
+const [DOT_DASHES, DOT_DASH, DOT_RING] = [8, 0.6, 0.5];
+
+/** A Scheduled dot's ring as a field: DOT_DASHES dashes, the first straddling its top, round a dot `radius` px across, from its edge to DOT_RING of its radius out, and nothing within. */
+export function dashedDot(radius: number): Field {
+  const step = (2 * Math.PI) / DOT_DASHES;
+  const [outer, middle] = [radius * (1 + DOT_RING), radius * (1 + DOT_RING / 2)];
+  return field(2 * outer, 2 * outer, (x, y) => {
+    const r = Math.hypot(x, y);
+    // How far round from the middle of the nearest dash, in px along the ring's middle.
+    const turn = Math.atan2(x, -y);
+    const off = Math.abs(turn - step * Math.round(turn / step)) * middle;
+    return Math.max(radius - r, r - outer, off - (step * DOT_DASH * middle) / 2);
+  });
+}
