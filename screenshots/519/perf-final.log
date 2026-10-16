@@ -1,0 +1,83 @@
+13:38  up 16 days, 17:06, 8 users, load averages: 4.78 5.31 6.38
+13:38:53 3 browser slots taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+13:40:14 S5bcn phone wt-519-main run 1: load 3.9 4.8 6.1
+13:41:34 S5bcn phone wt-519 run 1: load 3.3 4.4 5.8
+13:41:35 3 browser slots taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+13:42:55 S5bcn phone wt-519-main run 2: load 3.2 4.1 5.6
+13:44:15 S5bcn phone wt-519 run 2: load 2.8 3.8 5.3
+13:44:16 3 browser slots taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+13:45:36 S5bcn phone wt-519-main run 3: load 2.1 3.4 5.0
+13:46:57 S5bcn phone wt-519 run 3: load 2.7 3.3 4.8
+13:46:57 3 browser slots taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+13:48:03 S8 phone wt-519-main run 1: load 2.6 3.1 4.7
+13:49:10 S8 phone wt-519 run 1: load 2.7 3.0 4.5
+13:49:10 3 browser slots taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+13:50:17 S8 phone wt-519-main run 2: load 4.0 3.2 4.5
+13:51:23 S8 phone wt-519 run 2: load 3.4 3.2 4.4
+13:51:23 3 browser slots taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+13:52:30 S8 phone wt-519-main run 3: load 4.6 3.6 4.4
+13:53:36 S8 phone wt-519 run 3: load 3.0 3.3 4.3
+
+/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/65e5a1a8-1b24-447a-b8e9-88fd587627ef/scratchpad/wt-519-main, phone, median of 3:
+| check | scenario | median | limit | |
+|---|---|---|---|---|
+| At rest: main thread, ms/s | S5bcn | 276 | ≤ 400 | ok |
+| At rest: MapLibre's redraws beyond the Trains' draws, /s | S5bcn | 3.8 | ≤ 2 | BREACH |
+| Following a Train: main thread, ms/s | S8 | 996 | ≤ 700 | BREACH |
+| Following a Train: fps | S8 | 53.9 | ≥ 55 | BREACH |
+
+/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/65e5a1a8-1b24-447a-b8e9-88fd587627ef/scratchpad/wt-519, phone, median of 3:
+| check | scenario | median | limit | |
+|---|---|---|---|---|
+| At rest: main thread, ms/s | S5bcn | 294 | ≤ 400 | ok |
+| At rest: MapLibre's redraws beyond the Trains' draws, /s | S5bcn | 5.4 | ≤ 2 | BREACH |
+| Following a Train: main thread, ms/s | S8 | 996 | ≤ 700 | BREACH |
+| Following a Train: fps | S8 | 50.3 | ≥ 55 | BREACH |
+13:53  up 16 days, 17:21, 8 users, load averages: 3.03 3.34 4.25
+13:53:38 3 browser slots taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+13:54:58 S5bcn desktop wt-519-main run 1: load 2.6 3.2 4.1
+13:56:19 S5bcn desktop wt-519 run 1: load 2.7 3.1 4.0
+13:56:19 3 browser slots taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+13:57:39 S5bcn desktop wt-519-main run 2: load 2.2 2.8 3.8
+13:59:00 S5bcn desktop wt-519 run 2: load 3.0 3.0 3.8
+13:59:00 3 browser slots taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+14:00:21 S5bcn desktop wt-519-main run 3: load 3.2 3.0 3.7
+14:01:41 S5bcn desktop wt-519 run 3: load 3.6 3.1 3.7
+14:01:41 3 browser slots taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+14:02:47 S8 desktop wt-519-main run 1: load 5.6 3.7 3.9
+14:03:52 S8 desktop wt-519 run 1: load 5.6 4.0 3.9
+14:03:52 3 browser slots taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+14:04:58 S8 desktop wt-519-main run 2: load 5.0 4.1 4.0
+14:06:03 S8 desktop wt-519 run 2: load 4.7 4.1 4.0
+14:06:03 3 browser slots taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+14:07:09 S8 desktop wt-519-main run 3: load 4.8 4.2 4.0
+14:08:14 S8 desktop wt-519 run 3: load 4.8 4.2 4.1
+
+/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/65e5a1a8-1b24-447a-b8e9-88fd587627ef/scratchpad/wt-519-main, desktop, median of 3:
+| check | scenario | median | limit | |
+|---|---|---|---|---|
+| At rest: main thread, ms/s | S5bcn | 200 | ≤ 100 | BREACH |
+| At rest: MapLibre's redraws beyond the Trains' draws, /s | S5bcn | 13.2 | ≤ 2 | BREACH |
+| Following a Train: main thread, ms/s | S8 | 706 | ≤ 400 | BREACH |
+| Following a Train: fps | S8 | 119.6 | ≥ 110 | ok |
+
+/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/65e5a1a8-1b24-447a-b8e9-88fd587627ef/scratchpad/wt-519, desktop, median of 3:
+| check | scenario | median | limit | |
+|---|---|---|---|---|
+| At rest: main thread, ms/s | S5bcn | 181 | ≤ 100 | BREACH |
+| At rest: MapLibre's redraws beyond the Trains' draws, /s | S5bcn | 12.4 | ≤ 2 | BREACH |
+| Following a Train: main thread, ms/s | S8 | 724 | ≤ 400 | BREACH |
+| Following a Train: fps | S8 | 119.4 | ≥ 110 | ok |
+14:08  up 16 days, 17:35, 8 users, load averages: 4.79 4.25 4.05
