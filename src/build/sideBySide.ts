@@ -562,8 +562,9 @@ export function curves(joins: Join[], found: Stretch[], onStretch: Map<string, S
       fronts.set(key, front);
       return front;
     };
-    // The Stretches absorbed, and strokes along only part of a Stretch, too short for their curves, hidden on their own, with those within them.
-    const [absorbed, alone] = [new Set<number>(), new Set<Stroke>()];
+    // The Stretches absorbed, and strokes along only part of a Stretch, too short for their curves, hidden on their own, with every Line's
+    // strokes within them, each by the one too short, whose node they're in (#804).
+    const [absorbed, alone] = [new Set<number>(), new Map<Stroke, Stroke>()];
     const hidden = (s: Stroke) => absorbed.has(edgeOf.get(s) ?? -1) || alone.has(s);
     /**
      * The chain's parts along its legs: each leg's line in the band, and its stroke end to end the way the
@@ -608,7 +609,7 @@ export function curves(joins: Join[], found: Stretch[], onStretch: Map<string, S
         if (!first || !last) continue;
         const keys = [keyOf(first), keyOf(last)];
         // One node for every Line across a Stretch absorbed, or a stroke hidden.
-        for (const { stroke } of legs) if (hidden(stroke)) unite(keys[0] ?? '', alone.has(stroke) ? `alone ${id.get(stroke)}` : `absorbed ${edgeOf.get(stroke)}`);
+        for (const { stroke } of legs) if (hidden(stroke)) unite(keys[0] ?? '', alone.has(stroke) ? `alone ${id.get(alone.get(stroke) ?? stroke)}` : `absorbed ${edgeOf.get(stroke)}`);
         unite(keys[0] ?? '', keys[1] ?? '');
         const moves = moved(legs);
         if (!moves && !legs.some((l) => hidden(l.stroke))) continue;
@@ -648,7 +649,7 @@ export function curves(joins: Join[], found: Stretch[], onStretch: Map<string, S
         const steps = found[e]?.steps ?? [];
         if (s.from - (steps[0]?.from ?? 0) < 1 && (steps.at(-1)?.to ?? 0) - s.to < 1) absorbed.add(e);
         // The node takes in the part of the Stretch the stroke runs along, and so every Line's stroke within it there (#804).
-        else for (const t of (found[e]?.lines ?? []).flatMap((l) => onStretch.get(`${e} ${l}`) ?? [])) if (s.from - 1 <= t.from && t.to <= s.to + 1) alone.add(t);
+        else for (const t of (found[e]?.lines ?? []).flatMap((l) => onStretch.get(`${e} ${l}`) ?? [])) if (s.from - 1 <= t.from && t.to <= s.to + 1) alone.set(t, s);
       }
     }
     for (const legs of made) {

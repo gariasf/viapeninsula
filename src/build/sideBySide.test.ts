@@ -1060,10 +1060,10 @@ test("cuts every Line's stroke within one a node takes in along part of a Stretc
   const shapes = [shape('x', [0, 0], [5000, 0]), shape('y', [1000, 0], [-1000, -3000]), shape('z', [2300, 0], [4300, 3000])];
   const stroke = (line: string, on: string, from: number, to: number, side: number): Stroke => ({ line, shape: on, from, to, side, band: 0 });
   const [ax, ay, az] = [stroke('A', 'x', 1000, 2300, 0), stroke('A', 'y', 0, 3600, 0.5), stroke('A', 'z', 0, 3600, 0.5)];
-  const [bx, before, bz] = [stroke('B', 'x', 1200, 2300, 0), stroke('B', 'x', 0, 1180, 0), stroke('B', 'z', 0, 3600, -0.5)];
+  const [bx, bx0, bz] = [stroke('B', 'x', 1200, 2300, 0), stroke('B', 'x', 0, 1180, 0), stroke('B', 'z', 0, 3600, -0.5)];
   const step = (on: string, to: number) => ({ line: 0, piece: 0, shape: on, way: 1, from: 0, to });
   const found = [{ steps: [step('x', 5000)], lines: [0, 1] }, { steps: [step('y', 3600)], lines: [0] }, { steps: [step('z', 3600)], lines: [0, 1] }];
-  const onStretch = new Map([['0 0', [ax]], ['0 1', [before, bx]], ['1 0', [ay]], ['2 0', [az]], ['2 1', [bz]]]);
+  const onStretch = new Map([['0 0', [ax]], ['0 1', [bx0, bx]], ['1 0', [ay]], ['2 0', [az]], ['2 1', [bz]]]);
   const joins = [
     { line: 0, from: az, out: 0 as const, to: ax, into: 1 as const },
     { line: 0, from: ax, out: 0 as const, to: ay, into: 0 as const },
@@ -1071,5 +1071,5 @@ test("cuts every Line's stroke within one a node takes in along part of a Stretc
   ];
   curves(joins, found, onStretch, new Map(shapes.map((s) => [s.id, s])), [0], LINK);
   const notDrawn = (s: Stroke) => cutIn(s, 0).reduce((sum, d) => sum + d, 0);
-  expect([notDrawn(ax), notDrawn(bx), notDrawn(before)]).toEqual([1300, 1100, 0]);
+  expect([notDrawn(ax), notDrawn(bx), notDrawn(bx0)]).toEqual([1300, 1100, 0]);
 });
