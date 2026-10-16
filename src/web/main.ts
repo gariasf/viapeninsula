@@ -189,8 +189,6 @@ const SQUARE = 1.2;
 const BOARD_INK = '#14305a';
 /** How wide the white of the link between an interchange's Stations on the rails is, in px, inside its ring. */
 const LINK_WIDTH = 2;
-/** A place's dot's size at a zoom, of its image's at zoom 14 (dotImage()), `larger` px larger than one in neither tier. */
-const dotSize = (zoom: number, larger: number) => (atZoom(DOT, zoom) + larger) / (atZoom(DOT, 14) + larger);
 /** The top tier's square's size at a zoom, of its image's: SQUARE times its dot with its ring, which the image's 18 px stand for. */
 const squareSize = (zoom: number) => (SQUARE * (2 * (atZoom(DOT, zoom) + 2) + 2 * atZoom(RING, zoom))) / 18;
 /** A Network's mark's letters. */
@@ -1314,8 +1312,6 @@ function fewIn(zoom: number): number {
 const placeLayers = (() => {
   const symbol = { 'icon-allow-overlap': true, 'icon-ignore-placement': true } as const;
   const layers: string[] = [];
-  // A place's dot, in px larger than a dot in neither tier (TIERS), or the top tier's square, sized from zoom 14's image.
-  const size = (zoom: number): ExpressionSpecification => ['match', ['get', 'image'], 'place-square', squareSize(zoom), ...[1, 2].flatMap((larger) => [`place-dot-${larger}`, dotSize(zoom, larger)]), dotSize(zoom, 0)];
   // The links between an interchange's Stations, and a place's several, on the rails: white, ringed as the dots are.
   for (const [id, colour, more] of [['station-links-casing', dotRing, 2], ['station-links', '#fff', 0]] as const) {
     map.addLayer({ id, type: 'line', source: 'station-links', minzoom: RAILS - 1, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': colour, 'line-width': byZoom(RING, (px) => LINK_WIDTH + more * px), 'line-opacity': placeOpacity([onRails]) } });
@@ -1326,31 +1322,49 @@ const placeLayers = (() => {
     if (!span) return;
     const { from, to, minzoom, maxzoom, zooms } = span;
     const inside = (zoom: number) => (zoom >= from && zoom < to ? 1 : 0);
-    // fewer()'s in a layer of their own, only in the bands from FEW_ZOOM, so that no layer's opacity is a feature's: one of
-    // the zoom alone is quicker for the map to draw with, each time it draws.
+    // The rest as circles, which MapLibre doesn't place, so their layers can start and end where the band does; fewer()'s
+    // in layers of their own, in the bands from FEW_ZOOM, so that no layer's opacity is a feature's.
     for (const few of to > FEW_ZOOM ? [false, true] : [false]) {
       const id = few ? `stations-${band}-few` : `stations-${band}`;
       map.addLayer({
         id,
-        type: 'symbol',
+        type: 'circle',
         source: 'stations',
-        minzoom: few ? Math.max(minzoom, FEW_ZOOM) : minzoom,
-        maxzoom,
-        // Only from the zoom its first Network is drawn from (show(), #781).
-        filter: ['all', ['==', ['get', 'band'], band], ['==', ['get', 'few'], few], ['>=', ['zoom'], ['get', 'from']]],
-        layout: {
-          ...symbol,
-          'symbol-sort-key': ['get', 'larger'],
-          'icon-image': ['get', 'image'],
-          'icon-rotate': ['get', 'heading'],
-          'icon-rotation-alignment': 'map',
-          'icon-size': ['interpolate', ['linear'], ['zoom'], ...zooms.flatMap((zoom) => [zoom, size(zoom)])] as ExpressionSpecification,
-          'icon-offset': ['interpolate', ['linear'], ['zoom'], ...zooms.flatMap((zoom) => [zoom, ['array', 'number', 2, ['get', `o${zoom}`]]])] as ExpressionSpecification,
+        minzoom: Math.max(linesZoom, from, few ? FEW_ZOOM : 0),
+        maxzoom: to,
+        filter: ['all', ['==', ['get', 'band'], band], ['!=', ['get', 'larger'], TOP], ['==', ['get', 'few'], few], ['>=', ['zoom'], ['get', 'from']]],
+        layout: { 'circle-sort-key': ['get', 'larger'] },
+        paint: {
+          'circle-radius': byZoom(DOT, (px) => ['+', px, ['get', 'larger']]),
+          'circle-color': '#fff',
+          'circle-stroke-color': dotRing,
+          'circle-stroke-width': byZoom(RING, (px) => px),
+          'circle-opacity': placeOpacity([few ? fewIn : () => 1, (zoom) => 1 - signIn(zoom)]),
+          'circle-stroke-opacity': placeOpacity([few ? fewIn : () => 1, (zoom) => 1 - signIn(zoom)]),
         },
-        paint: { 'icon-opacity': placeOpacity([few ? fewIn : () => 1, (zoom) => 1 - signIn(zoom), inside], [from - 0.01, from, to - 0.01, to].filter((zoom) => zoom > 0)) },
       });
       layers.push(id);
     }
+    // Over them, the top tier's squares, offset feature by feature, as a symbol layer over whole zooms cut to the band by its opacity.
+    map.addLayer({
+      id: `stations-${band}-squares`,
+      type: 'symbol',
+      source: 'stations',
+      minzoom,
+      maxzoom,
+      // Only from the zoom its first Network is drawn from (show(), #781).
+      filter: ['all', ['==', ['get', 'band'], band], ['==', ['get', 'larger'], TOP], ['>=', ['zoom'], ['get', 'from']]],
+      layout: {
+        ...symbol,
+        'icon-image': ['get', 'image'],
+        'icon-rotate': ['get', 'heading'],
+        'icon-rotation-alignment': 'map',
+        'icon-size': ['interpolate', ['linear'], ['zoom'], ...zooms.flatMap((zoom) => [zoom, squareSize(zoom)])] as ExpressionSpecification,
+        'icon-offset': ['interpolate', ['linear'], ['zoom'], ...zooms.flatMap((zoom) => [zoom, ['array', 'number', 2, ['get', `o${zoom}`]]])] as ExpressionSpecification,
+      },
+      paint: { 'icon-opacity': placeOpacity([(zoom) => 1 - signIn(zoom), inside], [from - 0.01, from, to - 0.01, to].filter((zoom) => zoom > 0)) },
+    });
+    layers.push(`stations-${band}-squares`);
   });
   // Each Station's own mark on its own track, from RAILS, as the Trains go back on their rails there.
   map.addLayer({ id: 'stations-rails', type: 'symbol', source: 'stations', minzoom: RAILS - 1, filter: ['==', ['get', 'band'], -1], layout: { ...symbol, 'icon-image': ['get', 'image'], 'icon-size': byZoom(SIGN_SIZE, (px) => px) }, paint: { 'icon-opacity': placeOpacity([onRails]) } });
@@ -1945,16 +1959,28 @@ function drawPlaces() {
   const railsAt = new Map<string, Point>();
   const features: GeoJSON.Feature[] = [];
   for (const p of tiered) {
-    const props = { id: p.id, larger: p.larger, from: p.from, few: fewOnes.has(p.id), image: p.larger === TOP ? squareImage() : dotImage(p.larger) };
+    const props = { id: p.id, larger: p.larger, from: p.from, few: fewOnes.has(p.id), ...(p.larger === TOP && { image: squareImage() }) };
     const own = p.stations.map((id) => ({ id, calls: [...(calls.get(id)?.values() ?? [])] }));
     BANDS.forEach((_, band) => {
       const zooms = dotBand(band)?.zooms;
       if (!zooms) return;
       const placed = own.flatMap(({ calls: c }) => onLines(c, slots, shapes, band) ?? []);
       for (const { point, heading, side } of placed.length ? placed : [{ point: [p.lon, p.lat] as Point, heading: 0, side: 0 }]) {
-        // How far right of its centreline, in the image's px, which its size scales.
-        const offsets = Object.fromEntries(zooms.map((zoom) => [`o${zoom}`, [(side * atZoom(APART, zoom)) / (p.larger === TOP ? squareSize(zoom) : dotSize(zoom, p.larger)), 0]]));
-        features.push({ type: 'Feature', properties: { ...props, band, heading, ...offsets }, geometry: { type: 'Point', coordinates: point } });
+        if (p.larger === TOP) {
+          // How far right of its centreline, in the image's px, which its size scales.
+          const offsets = Object.fromEntries(zooms.map((zoom) => [`o${zoom}`, [(side * atZoom(APART, zoom)) / squareSize(zoom), 0]]));
+          features.push({ type: 'Feature', properties: { ...props, band, heading, ...offsets }, geometry: { type: 'Point', coordinates: point } });
+          continue;
+        }
+        // A dot's a circle, which can't be offset feature by feature: its point is as far right of its centreline, in
+        // metres, as the middle of its Lines' strokes is at its band's own zoom.
+        // ponytail: so half a zoom either side, it's up to a third of that off the middle of its Lines' strokes, about a px
+        // beside four Lines. Lay each band's dots out at its half zooms too if that shows.
+        const zoom = BANDS[band] ?? 10;
+        const metres = side * atZoom(APART, zoom) * pixelMetres(zoom) * Math.cos((point[1] * Math.PI) / 180);
+        const h = (heading * Math.PI) / 180;
+        const at: Point = [point[0] + (metres * Math.cos(h)) / (DEGREE * Math.cos((point[1] * Math.PI) / 180)), point[1] - (metres * Math.sin(h)) / DEGREE];
+        features.push({ type: 'Feature', properties: { ...props, band }, geometry: { type: 'Point', coordinates: at } });
       }
     });
     for (const { id, calls: c } of own) {
@@ -2016,20 +2042,6 @@ function image(id: string, w: number, h: number, paint: (c: CanvasRenderingConte
   painted.set(id, [w, h, paint]);
   map.addImage(id, canvasImage(w, h, paint), { pixelRatio: IMAGE_RATIO });
   return id;
-}
-/** A place's dot, at zoom 14's size for its tier, white, ringed as the dots were. */
-function dotImage(larger: number): string {
-  const [r, ring] = [atZoom(DOT, 14) + larger, atZoom(RING, 14)];
-  const size = 2 * (r + ring) + 2;
-  return image(`place-dot-${larger}`, size, size, (c) => {
-    c.beginPath();
-    c.arc(size / 2, size / 2, r + ring / 2, 0, 2 * Math.PI);
-    c.fillStyle = '#fff';
-    c.fill();
-    c.lineWidth = ring;
-    c.strokeStyle = dotRing;
-    c.stroke();
-  });
 }
 /** The top tier's square, railisland's, white, ringed in the nameboard's ink on both basemaps, as #212's board heading is. */
 function squareImage(): string {
