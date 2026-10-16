@@ -22,7 +22,7 @@ import { keepView, lastView, markOf, openingView, tiltPressed, toggledPitch } fr
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
 import { darkInk, INK, lettering, standIn } from './colour.ts';
 import { ago, boardAsks, boardList, cardAlerts, countdownTo, due, inNameOrder, linesOnBoard, linkedTrip, linkedWords, minutesTo, nearbyRows, nextOnItsWay, passedPlace, progress, tripsState, untilTick, whereabouts, type CardAlert, type Whereabouts } from './cards.ts';
-import { ARROW_GAP, boxOf, FOLLOWED_TEXT, LINE_HEIGHT, OUTLINE_SIZES, outlineOf, PILL_EDGE, PILL_PADDING, PILL_TEXT, pillReach, type Outline } from './pill.ts';
+import { ARROW_GAP, boxOf, FOLLOWED_TEXT, LINE_HEIGHT, LOCAL_PILL_ZOOM, OUTLINE_SIZES, outlineOf, PILL_EDGE, PILL_PADDING, PILL_TEXT, pillReach, pillText, SMALL_TEXT, type Outline } from './pill.ts';
 import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, tappedRows, type Shown } from './closures.ts';
 import { currentTab, type Tab } from './tabs.ts';
 import { keyboardRise, networkNames, numbered, numberQuery, results, searchPlaces, type Found } from './search.ts';
@@ -73,6 +73,8 @@ const PILL_HALO = 1.5;
  * strongly it's coloured.
  */
 const [HALO_DOT, HALO_BEYOND, HALO_BLUR, HALO_OPACITY] = [2, 4, 0.6, 0.6];
+/** A pill's halo's radius, every pill's whatever its Network or name (#780): a two-letter round pill's, as C5's, HALO_BEYOND beyond the corners of its box, 17.3 px. */
+const PILL_GLOW = Math.hypot(...boxOf('round', 12, PILL_TEXT)) + HALO_BEYOND;
 /**
  * The outlines a Train is drawn with, as pill.ts sizes them, `w`×`h` px around their middles: how far
  * `outside` each a point is, in px (x right, y down), or inside where negative. A pill's outline
@@ -1260,19 +1262,21 @@ map.addLayer({
   },
 });
 // A Live Train has a soft halo in its Line's colour under its marker, dot or pill, which says again
-// that it's Live and sets it further apart from a Scheduled one, which has none (#91). It grows with
-// the marker, the followed Train's too, as trains() works its radius out for the zoom: a plain
-// number for each Train is quicker for the map to draw with, each time it draws Trains, than an
-// expression of the zoom. It lies under the Lines' names, which it would veil, and the places' dots,
-// which it would blur. On a tilted map it keeps its size, as a pill does more than a circle.
-// ponytail: a circle, so under a long pill it reaches further above and below it than past its ends,
-// whatever its outline. Blur each outline, drawn larger, if that shows.
+// that it's Live and sets it further apart from a Scheduled one, which has none (#91): on the dark
+// basemap, and on the light one only round the followed Train, where every other's read as a smudge
+// larger than its pill (#780). A dot's grows with the dot, the followed Train's too, and every pill's
+// is one size, PILL_GLOW, so a long name glows no more than a short one. trains() works its radius out
+// for the zoom: a plain number for each Train is quicker for the map to draw with, each time it draws
+// Trains, than an expression of the zoom. It lies under the Lines' names, which it would veil, and the
+// places' dots, which it would blur. On a tilted map it keeps its size, as a pill does more than a circle.
+// ponytail: a circle, so under a pill longer than a two-letter one it shows above and below it and not
+// past its ends, whatever its outline. Blur each outline, drawn larger, if that shows.
 map.addLayer(
   {
     id: 'train-halos',
     type: 'circle',
     source: 'trains',
-    filter: ['all', DRAWN, ['get', 'live']],
+    filter: ['all', DRAWN, ['get', 'live'], darkBasemap || ['get', 'followed']],
     paint: { 'circle-radius': ['get', 'haloRadius'], 'circle-color': ['get', 'colour'], 'circle-blur': HALO_BLUR, 'circle-opacity': HALO_OPACITY, 'circle-pitch-scale': 'viewport' },
   },
   'line-names',
@@ -1336,7 +1340,8 @@ for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', tr
       'icon-text-fit-padding': [0, PILL_PADDING, 0, PILL_PADDING],
       'text-field': ['get', 'name'],
       'text-font': ['Noto Sans Bold'],
-      'text-size': size,
+      // Long distance's and Media Distancia's smaller, as pillText() has them, but the followed Train's (#780).
+      'text-size': followed ? size : ['case', ['<', ['get', 'pillZoom'], LOCAL_PILL_ZOOM], SMALL_TEXT, size],
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
       'text-allow-overlap': true,
@@ -1805,8 +1810,8 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
           pillZoom: pill?.zoom,
           dotZoom: pill?.dotZoom ?? linesZoom,
           reach: box && reach(box, heading - bearing),
-          // Its halo's radius: HALO_DOT times its dot's, or from its Line's pill zoom, out to the corners of its pill's box and HALO_BEYOND beyond.
-          haloRadius: pill && box && zoom >= pill.zoom ? Math.hypot(...box) + HALO_BEYOND : HALO_DOT * dotAt(zoom, trip.id === followed),
+          // Its halo's radius: HALO_DOT times its dot's, or from its Line's pill zoom, every pill's PILL_GLOW.
+          haloRadius: pill && zoom >= pill.zoom ? PILL_GLOW : HALO_DOT * dotAt(zoom, trip.id === followed),
         },
         geometry: { type: 'Point', coordinates },
       };
@@ -1957,11 +1962,11 @@ interface Pill {
   followedBox: [number, number];
 }
 
-/** How a Line's Trains are drawn as pills from a zoom, its Network's, outlined by its kind of service. */
+/** How a Line's Trains are drawn as pills from a zoom, its Network's, outlined by its kind of service and lettered as large as pillText() has it for that zoom. */
 function pillOf({ name, colour, kind }: Line, zoom: number, shownFrom: number): Pill {
   const outline = outlineOf(kind);
   const width = textWidth(name, `bold ${PILL_TEXT}px ${TYPEFACE}`);
-  return { name, outline, dark: darkInk(colour), lettering: darkBasemap ? lettering(colour, paper) : colour, zoom, dotZoom: kind === 'long-distance' ? 0 : Math.max(linesZoom, shownFrom), box: boxOf(outline, width, PILL_TEXT), followedBox: boxOf(outline, width, FOLLOWED_TEXT) };
+  return { name, outline, dark: darkInk(colour), lettering: darkBasemap ? lettering(colour, paper) : colour, zoom, dotZoom: kind === 'long-distance' ? 0 : Math.max(linesZoom, shownFrom), box: boxOf(outline, width, pillText(zoom)), followedBox: boxOf(outline, width, FOLLOWED_TEXT) };
 }
 
 /** How wide a place's name, or a line of it, is, in px, in its style. */

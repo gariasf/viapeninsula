@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { Kind } from '../bundle.ts';
-import { boxOf, FOLLOWED_TEXT, outlineOf, OUTLINES_OF, pillReach } from './pill.ts';
+import { boxOf, FOLLOWED_TEXT, outlineOf, OUTLINES_OF, PILL_TEXT, pillReach, pillText } from './pill.ts';
 
 /** A Line's name as wide as textWidth() has it where there's no canvas to measure it on: 6 px a letter, at PILL_TEXT. */
 const width = (name: string) => name.length * 6;
@@ -48,4 +48,11 @@ test("below the zoom its Line's Trains are pills from, no pill is drawn, so its 
   expect(pillReach(box, 9, 12, LAT)).toBe(pillReach(box, 12, 12, LAT));
   expect(pillReach(box, 12, 12, LAT)).toBe(pillReach(box, 12, 10, LAT));
   expect(pillReach(box, 14, 12, LAT)).toBeLessThan(pillReach(box, 12, 12, LAT));
+});
+
+test("long distance's and Media Distancia's pills, from zoom 9, are lettered at 8 px, 12.6 px high, so they give way to the local Lines' from 10 and the Metro's from 12, at 10 px (#780)", () => {
+  expect([9, 10, 12].map(pillText)).toEqual([8, PILL_TEXT, PILL_TEXT]);
+  expect(2 * boxOf('slanted', width('AVE'), pillText(9))[1]).toBeCloseTo(12.6, 5);
+  // Euromed's, slanted, 49.6 px long rather than 58 px at 10 px.
+  expect([pillText(9), PILL_TEXT].map((size) => 2 * boxOf('slanted', width('Euromed'), size)[0])).toEqual([expect.closeTo(49.6, 5), 58]);
 });
