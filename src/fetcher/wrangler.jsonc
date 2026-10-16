@@ -8,7 +8,12 @@
   "preview_urls": false,
   "durable_objects": { "bindings": [{ "name": "FETCHER", "class_name": "Fetcher" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Fetcher"] }],
-  "r2_buckets": [{ "binding": "LIVE", "bucket_name": "viapeninsula-live" }],
+  "r2_buckets": [
+    { "binding": "LIVE", "bucket_name": "viapeninsula-live" },
+    // Each 5 minutes' snapshots, for the Delay history: a bucket of their own, with no public or custom domain, given
+    // TRAM's terms, whose lifecycle rule deletes them 7 days after they're put. It must exist before a deploy (#806).
+    { "binding": "HISTORY", "bucket_name": "viapeninsula-history" }
+  ],
   // Every minute, which starts the fetcher's runs after a deploy and restarts them if they ever stop,
   // and at 00:30 UTC, after midnight in Madrid all year, which starts the daily build (worker.ts's DAILY).
   "triggers": { "crons": ["* * * * *", "30 0 * * *"] },
