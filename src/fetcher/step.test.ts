@@ -1201,6 +1201,22 @@ test("reports Euskotren's trains that were running when its trip updates were wr
   });
 });
 
+test("reports Euskotren's trains that have left their first stop by the Station each comes to next, though their trip updates list no stop they've passed, but not those yet to leave it (#818)", () => {
+  // Its trip updates as Moveuskadi wrote them at 14:34:01 on Friday 16 October 2026, all 329 Trips, 194 of them its trains'.
+  const updates = { status: 200, body: new Uint8Array(readFileSync(new URL('fixtures/euskotren/trip_updates-2026-10-16.pb', import.meta.url))) };
+  const { reports } = step(START.state, { euskotren: updates }, Date.parse('2026-10-16T14:35:00+02:00')).snapshot;
+  // The 22 whose updates list a stop already past, and the 11 whose updates start past their first stop, as the feed drops the stops a Train has passed.
+  expect(reports).toHaveLength(22 + 11);
+  // An E1 Trip for Matiko that left Elgoibar (2622), its first stop, at 14:31: its update at 14:34 starts at its second, Azitain-Eibar (2640), at 14:39.
+  expect(reports.find((r) => r.trip === 'euskotren:ES:Euskotren:Journey:15303940:')).toEqual({
+    trip: 'euskotren:ES:Euskotren:Journey:15303940:',
+    at: Date.parse('2026-10-16T14:34:00+02:00'),
+    position: { next: { station: 'euskotren:2640:', at: Date.parse('2026-10-16T14:39:00+02:00') } },
+  });
+  // Not an E3 Trip for Lezama due to leave Kukullaga-Etxebarri (2639), its first stop, at 14:36, where its update starts.
+  expect(reports.find((r) => r.trip === 'euskotren:ES:Euskotren:Journey:15304870:')).toBeUndefined();
+});
+
 test("fails a try that finds Euskotren's trip updates not updated since the last, keeping the last try's reports, and fetches them every sixth run (#265)", () => {
   const good = euskotrenRun();
   const later = EUSKOTREN_NOW + 120_000;
