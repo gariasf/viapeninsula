@@ -6,8 +6,10 @@
 // (.github/workflows/punctuality.yml). `npm run punctuality` records the service day before today in Madrid, once
 // its last Train has left the map and the fetcher has put the slot it left in, waiting for that; `-- --day
 // <YYYY-MM-DD>` another day; `--dry-run` writes the files to out/punctuality/ (`--out`, so that two runs can be
-// compared) and puts none. Wrangler reads and writes the history's bucket, by the maintainer's login, or in Actions
-// by the daily build's R2 token, as CLOUDFLARE_API_TOKEN.
+// compared) and puts none; `--aggregates` only works out the aggregates again (#808), as when ending TRAM's
+// agreement deletes its records (section 5). Wrangler reads and writes the history's bucket, by the maintainer's
+// login, or in Actions by the daily build's R2 token, as CLOUDFLARE_API_TOKEN, and puts the aggregates in the
+// bundles' bucket.
 
 import { execFile, execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -20,9 +22,10 @@ import { brotliCompressSync, brotliDecompressSync, constants, gunzipSync } from 
 import { addDays, daysOf, joinTracks, joinTrips, LATE, LIVE_URL, madridDate, SOON, type Bundle, type Call, type DayFiles, type DayTrips, type Manifest, type Network, type Report, type Snapshot, type Track, type Trip } from '../bundle.ts';
 import { delaysAt, joinDays, KEEP, namedIn, works, type DelaySource, type Received } from '../engine.ts';
 import { nameOf, SLOT } from '../fetcher/history.ts';
-import { AVE_LARGA_DISTANCIA } from '../networks.ts';
+import { AVE_LARGA_DISTANCIA, NETWORKS } from '../networks.ts';
 import { decodeTrack, type TrackFile } from '../pieces.ts';
 import { unmatched } from '../record.ts';
+import { aggregate, summarize, yearOf, type DaySummary, type LinesFile } from './aggregates.ts';
 
 /** A region's track and Trips files for a day, as the manifest names them. */
 type Files = Pick<DayFiles['regions'][number], 'track' | 'trips'>;
@@ -265,6 +268,9 @@ export function* runsOf(files: string[][]): Generator<Snapshot> {
 /** The history's bucket (#806): not public, as it holds TRAM's data. */
 const BUCKET = 'viapeninsula-history';
 
+/** The bundles' bucket, behind the CDN (LIVE_URL), where the aggregates go (#808). */
+const LIVE_BUCKET = 'viapeninsula-live';
+
 /**
  * What the job writes, under the history's bucket: a service day's record of a Network, and its compacted history,
  * which a lifecycle rule on `compacted/` deletes after 400 days, as #806's deletes `history/` after 7 (pick 2). And
@@ -272,13 +278,18 @@ const BUCKET = 'viapeninsula-history';
  * them once the live manifest doesn't: it names no day before yesterday, and a day's replay joins the day before.
  */
 const KEYS = {
+  /** The aggregates (#808), in the bundles' bucket, public beside the bundles and read through the CDN as the snapshot is (ADR-0011). */
+  lines: 'punctuality/lines.json',
+  linesYear: 'punctuality/lines-year.json',
+  stations: 'punctuality/stations.json',
+  trains: (network: string) => `punctuality/trains/${network}.json`,
   record: (date: string, network: string) => `${date}/${network}.json`,
   compacted: (date: string, network: string) => `compacted/${date}/${network}.ndjson.br`,
   files: (date: string) => `${date}/files.json`,
 };
 
 if (import.meta.main) {
-  const { values } = parseArgs({ options: { day: { type: 'string' }, out: { type: 'string', default: 'out/punctuality' }, 'dry-run': { type: 'boolean' } } });
+  const { values } = parseArgs({ options: { day: { type: 'string' }, out: { type: 'string', default: 'out/punctuality' }, 'dry-run': { type: 'boolean' }, aggregates: { type: 'boolean' } } });
   const [date, out, dryRun] = [values.day ?? addDays(madridDate(new Date()), -1), values.out, !!values['dry-run']];
   const run = promisify(execFile);
   // An object of the history's bucket, or none where it isn't there, or can't be read twice running, which the
@@ -332,6 +343,60 @@ if (import.meta.main) {
       files: new Map(read.flatMap((r) => r.track.networks.map((n) => [n.id, r.files] as const))),
     };
   };
+
+  // Brotli at quality 11 with a 16 MB window, as daily.ts squeezes the bundles but for the window, to say how big
+  // each record is, and at 9 for the compacted day: 11 took more than 8 minutes for 17 October 2026's 279 MB.
+  const brotli = (text: string, quality = 11) => brotliCompressSync(text, { params: { [constants.BROTLI_PARAM_QUALITY]: quality, [constants.BROTLI_PARAM_LGWIN]: 24, [constants.BROTLI_PARAM_SIZE_HINT]: text.length } });
+  const kb = (bytes: number) => `${Math.round(bytes / 1024)} KB`;
+
+  /**
+   * The aggregates (#808) of the 30 days to the service day before today in Madrid, whichever day the job records,
+   * so that a Delay rule's change re-running the last 30 leaves them whole: each day's records as out/ has them,
+   * where this run wrote them, or the bucket, with their Trips, as their Networks' are in their region's Trips
+   * file, and the Lines' year from the year file the CDN serves. Into out/live/, and the bundles' bucket, squeezed.
+   */
+  const aggregates = async () => {
+    const last = addDays(madridDate(new Date()), -1);
+    const summaries: DaySummary[] = [];
+    for (let n = -29; n <= 0; n++) {
+      const day = addDays(last, n);
+      if (!(await filesOf(day))) continue;
+      // A day's records at once, and each Trips file once: Rodalies', FGC's and TRAM's are Catalonia's.
+      const networks = NETWORKS.filter(recorded).map((n) => n.id);
+      const bodies = await Promise.all(networks.map((network) => (existsSync(join(out, KEYS.record(day, network))) ? readFileSync(join(out, KEYS.record(day, network))) : get(KEYS.record(day, network)))));
+      const tripsFiles = new Map<string, Promise<DayTrips>>();
+      for (const [i, network] of networks.entries()) {
+        const body = bodies[i];
+        if (!body) continue;
+        const record = JSON.parse(body.toString()) as DayRecord;
+        const file = tripsFiles.get(record.trips) ?? fetched<DayTrips>(record.trips);
+        tripsFiles.set(record.trips, file);
+        summaries.push(summarize(network, record, (await file).trips.filter((t) => t.line.startsWith(`${network}:`))));
+      }
+    }
+    const { lines, stations, trains } = aggregate(summaries);
+    const res = await fetch(`${LIVE_URL}/${KEYS.linesYear}`, { signal: AbortSignal.timeout(120_000) });
+    if (!res.ok && res.status !== 404) throw new Error(`${KEYS.linesYear}: HTTP ${res.status}`);
+    const files: [string, object][] = [[KEYS.lines, lines], [KEYS.linesYear, yearOf(res.ok ? ((await res.json()) as LinesFile) : undefined, lines)], [KEYS.stations, stations], ...[...trains].map(([network, file]): [string, object] => [KEYS.trains(network), file])];
+    console.log(`The aggregates of ${lines.days.join(', ')}${Object.keys(lines.gaps).length ? `, leaving out ${Object.entries(lines.gaps).map(([network, days]) => `${network}'s ${days.join(', ')}`).join('; ')}` : ''}`);
+    for (const [key, content] of files) {
+      const json = JSON.stringify(content);
+      const br = brotli(json);
+      await mkdir(dirname(join(out, 'live', key)), { recursive: true });
+      await writeFile(join(out, 'live', key), json);
+      await writeFile(join(out, 'live', `${key}.br`), br);
+      console.log(`${key}: ${kb(json.length)}, ${kb(br.length)} with brotli`);
+    }
+    // Rewritten each day, as daily.ts' manifest and report are each build, which the CDN keeps an hour.
+    if (!dryRun) {
+      for (const [key] of files) execFileSync('npx', ['wrangler', 'r2', 'object', 'put', `${LIVE_BUCKET}/${key}`, '--remote', '--file', join(out, 'live', `${key}.br`), '--content-type', 'application/json', '--content-encoding', 'br', '--cache-control', 'public, max-age=3600'], { stdio: 'inherit' });
+    }
+  };
+  if (values.aggregates) {
+    await aggregates();
+    process.exit();
+  }
+
   const [dayBefore, theDay, dayAfter] = await Promise.all(
     [-1, 0, 1].map(async (n) => {
       const files = await filesOf(addDays(date, n));
@@ -420,10 +485,6 @@ if (import.meta.main) {
   const records = recordDay(joined, day, snapshots());
   console.log(`Replayed in ${Math.round((performance.now() - started) / 1000)} s`);
 
-  // Brotli at quality 11 with a 16 MB window, as daily.ts squeezes the bundles but for the window, to say how big
-  // each record is, and at 9 for the compacted day: 11 took more than 8 minutes for 17 October 2026's 279 MB.
-  const brotli = (text: string, quality = 11) => brotliCompressSync(text, { params: { [constants.BROTLI_PARAM_QUALITY]: quality, [constants.BROTLI_PARAM_LGWIN]: 24, [constants.BROTLI_PARAM_SIZE_HINT]: text.length } });
-  const kb = (bytes: number) => `${Math.round(bytes / 1024)} KB`;
   const written: [key: string, contentType: string][] = [];
   const write = async (key: string, body: string | Buffer, contentType: string) => {
     await mkdir(dirname(join(out, key)), { recursive: true });
@@ -445,4 +506,5 @@ if (import.meta.main) {
   if (!dryRun) {
     for (const [key, contentType] of written) execFileSync('npx', ['wrangler', 'r2', 'object', 'put', `${BUCKET}/${key}`, '--remote', '--file', join(out, key), '--content-type', contentType], { stdio: 'inherit' });
   }
+  await aggregates();
 }
