@@ -122,7 +122,38 @@ export function toEdge([halfWidth, halfHeight]: [number, number], angle: number)
   return Math.min(halfWidth / Math.abs(Math.sin(a)), halfHeight / Math.abs(Math.cos(a)));
 }
 
+/** A Train's pill as covered() checks it: where it's drawn, how far its pill reaches with its edge, and its name, either side of it and above and below it, in px. */
+export interface Named extends Pick<Drawn, 'id' | 'at' | 'box'> {
+  name: [number, number];
+}
+
+/**
+ * The Trains whose names a pill drawn over them meets, where they're drawn, by their IDs: MapLibre draws
+ * a layer's names after all its pills, so a covered pill's name would lie on the pill over it (#513). A
+ * pill that only grazes another's outline, clear of its name, leaves the name (the maintainer's pick,
+ * 19 Oct 2026). Drawn over another is the one lower on screen, and of two level the earlier in `drawn`,
+ * as MapLibre draws a layer's symbols that may overlap (symbol-z-order `auto`, by its anchor's y), and the
+ * followed Train's over them all, in its own layer.
+ * ponytail: MapLibre ranks by y rounded to its tile's units (1/16 px at the tile's zoom), so two pills a
+ * hair off level may be ranked the other way. Round `at` to those units if a name is seen over a pill there.
+ * Swept by x, so that only pills near each other across the screen are compared.
+ */
+export function covered(drawn: Named[], followed?: string): Set<string> {
+  const ranked = drawn.map((pill, order) => ({ pill, order, left: pill.at[0] - pill.box[0] })).sort((a, b) => a.left - b.left);
+  const over = (a: (typeof ranked)[number], b: (typeof ranked)[number]) =>
+    b.pill.id !== followed && (a.pill.id === followed || a.pill.at[1] > b.pill.at[1] || (a.pill.at[1] === b.pill.at[1] && a.order < b.order));
+  const under = new Set<string>();
+  ranked.forEach((one, i) => {
+    for (const other of ranked.slice(i + 1)) {
+      if (other.left >= one.pill.at[0] + one.pill.box[0]) break;
+      const [top, bottom] = over(one, other) ? [one, other] : [other, one];
+      if (touches(top.pill, { at: bottom.pill.at, box: bottom.pill.name })) under.add(bottom.pill.id);
+    }
+  });
+  return under;
+}
+
 /** Whether two Trains' pills overlap, where they're drawn. */
-function touches({ at: [ax, ay], box: [aw, ah] }: Drawn, { at: [bx, by], box: [bw, bh] }: Drawn): boolean {
+function touches({ at: [ax, ay], box: [aw, ah] }: Pick<Drawn, 'at' | 'box'>, { at: [bx, by], box: [bw, bh] }: Pick<Drawn, 'at' | 'box'>): boolean {
   return Math.abs(ax - bx) < aw + bw && Math.abs(ay - by) < ah + bh;
 }
