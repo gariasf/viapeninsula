@@ -123,6 +123,8 @@ export interface Gauges {
   railway: string[];
   gauges: string[];
   orElse?: string[];
+  /** The side of double track Trains keep to on these rails, where it isn't their Network's `runningSide`, as on FEVE's metre gauge (ADR-0004, #625). */
+  side?: Network['runningSide'];
 }
 
 /** One of a Network's timetables: where its GTFS feed is, and how to read it. */
@@ -459,8 +461,11 @@ function núcleo(code: string, prefix: string): Timetable {
  */
 const STANDARD: Gauges = { railway: ['rail'], gauges: ['1435'], orElse: ['1668'] };
 const IBERIAN: Gauges = { railway: ['rail'], gauges: ['1668'] };
-/** FEVE's lines, which OpenStreetMap tags narrow_gauge almost everywhere, and rail on 111 km in Spain (seen 4 Oct 2026). */
-const METRE: Gauges = { railway: ['rail', 'narrow_gauge'], gauges: ['1000'] };
+/**
+ * FEVE's lines, which OpenStreetMap tags narrow_gauge almost everywhere, and rail on 111 km in Spain (seen 4 Oct 2026).
+ * They keep left (García Álvarez, ADR-0004), so a Line traced on them does, whatever its Network's side (#625).
+ */
+const METRE: Gauges = { railway: ['rail', 'narrow_gauge'], gauges: ['1000'], side: 'left' };
 
 // As Madrid's, these núcleos' Trains accelerate and brake at 1 m/s² and stand half a minute at
 // small Stations. Each one's top speed covers the fastest stretch its Trips run on 7 October 2026,
@@ -671,8 +676,9 @@ export const CERCANIAS_SANTANDER: NetworkConfig = {
   name: 'Cercanías Santander',
   // Its fastest stretch is Guarnizo to Parbayón, 3.3 km in 2 minutes, 99 km/h.
   profile: { acceleration: 1, braking: 1, topSpeed: 120 / 3.6, dwell: 30 },
-  // C1 runs on Adif's Palencia–Santander, which keeps right, but C2 and C3 on FEVE's lines, which keep
-  // left: there the trace follows OpenStreetMap's railway:preferred_direction tags, where they say so.
+  // C1 runs on Adif's Palencia–Santander, which keeps right. C2 and C3 run on FEVE's lines, which keep
+  // left, and are traced keeping left as METRE's side (#625), but where OpenStreetMap's
+  // railway:preferred_direction tags say otherwise.
   runningSide: 'right',
   // Adif's Iberian gauge for C1, and FEVE's metre gauge for C2 and C3 (ADR-0010).
   rails: { railway: ['rail', 'narrow_gauge'], gauge: ['1668', '1000'] },
@@ -949,7 +955,8 @@ export const MEDIA_DISTANCIA_AVANT: NetworkConfig = {
   // minute, as above.
   profile: { acceleration: 1, braking: 1, topSpeed: 160 / 3.6, dwell: 30 },
   live: RENFE_LONG_DISTANCE_LIVE,
-  // As AVE y Larga Distancia's, though its Trains on FEVE's lines keep left too.
+  // As AVE y Larga Distancia's. Its Trains on FEVE's lines, the ex-FEVE regionals, keep left, and are
+  // traced keeping left as METRE's side (#625).
   runningSide: 'right',
   colour: MD_BLACK,
   // Its Trains are drawn from zoom 7, where its region loads and its Lines are, as dots, and as smaller pills

@@ -637,6 +637,19 @@ test("follows OpenStreetMap's tags for which way Trains run each track, where th
   }
 });
 
+test("keeps to its gauge's side where the gauge has one, whatever its Network's, as Santander's C2 and C3 keep left on FEVE's metre gauge (#625)", () => {
+  const left: Gauges = { railway: ['rail'], gauges: ['1668'], side: 'left' };
+  const stations = [station('A', 0, -12), station('C', 5000, -12)];
+  const { shape } = trace(doubleTrack().ways, stations, { id: 'east', feed: EAST, stations: 'A C', gauges: left }, { id: 'west', feed: EAST.toReversed(), stations: 'A C', gauges: left });
+  // Runs on the same rails whose gauge has no side keep to their Network's, right, in the same trace.
+  const right: Gauges = { railway: ['rail'], gauges: ['1668'] };
+  const ran = runs(doubleTrack().ways, stations, [[call('east', 'A C', left), call('west', 'C A', left), call('east right', 'A C', right)]]);
+  for (const x of [450, 4450]) {
+    expect([passes(shape('east'), x, 2), passes(shape('west'), x, -2)]).toEqual([true, true]);
+    expect([passes(ran.track('east'), x, 2), passes(ran.track('west'), x, -2), passes(ran.track('east right'), x, -2)]).toEqual([true, true, true]);
+  }
+});
+
 test("pays no heed to a tag on one track of a pair alone, as R8's near Castellbisbal", () => {
   const ways = doubleTrack().ways;
   const [north] = ways;

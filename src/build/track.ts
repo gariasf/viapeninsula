@@ -153,7 +153,7 @@ export function railGraphs(shapes: FeedShape[], stations: Station[], rails: OsmW
     let graph = graphs.get(key);
     if (!graph) {
       const served = shapes.filter((s) => JSON.stringify(s.gauges ?? null) === key).flatMap((s) => s.stations);
-      graph = railGraph(gauges ? layered(rails, gauges, new Set()) : rails, [...new Set(served)].flatMap((id) => byId.get(id) ?? []), side);
+      graph = railGraph(gauges ? layered(rails, gauges, new Set()) : rails, [...new Set(served)].flatMap((id) => byId.get(id) ?? []), gauges?.side ?? side);
       graphs.set(key, graph);
     }
     return graph;
@@ -251,13 +251,13 @@ export function traceRuns(
   const onRails = new Map<string, Run<Gauges>[]>();
   for (const run of runs.values()) {
     const { railway, gauges, orElse = [] } = run.gauges;
-    const key = JSON.stringify([railway, [...gauges, ...orElse]]);
+    const key = JSON.stringify([railway, [...gauges, ...orElse], run.gauges.side]);
     onRails.set(key, [...(onRails.get(key) ?? []), run]);
   }
   for (const all of onRails.values()) {
     const [first] = all;
     if (!first) continue;
-    const graph = railGraph(fine(layered(rails, first.gauges, changers)), [...new Set([...all.flatMap((r) => r.stations), ...turnBacks])], side);
+    const graph = railGraph(fine(layered(rails, first.gauges, changers)), [...new Set([...all.flatMap((r) => r.stations), ...turnBacks])], first.gauges.side ?? side);
     for (const run of all) traced.set(run, traceRun(graph, run, log, report, turnBacks));
   }
   return { shapes: shapesOf(traced), days: ridden(ran, traced, log, report) };
@@ -806,7 +806,7 @@ interface Graph {
   shared: Set<number>;
   /** For each edge, whether it's the wrong track of a double track to run the way it runs. */
   wrong: boolean[];
-  /** The side of double track the Network's Trains keep to: 1 left, -1 right. */
+  /** The side of double track the Trains keep to, their gauge's or else their Network's: 1 left, -1 right. */
   keep: number;
   /**
    * For each edge, whether OpenStreetMap tags Trains as running it that way (railway:preferred_direction):
