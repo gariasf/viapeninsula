@@ -148,8 +148,9 @@ export function alongside(
  * alongside() for a track joined from regions' (`tracks`, each a region's track, in the joined track's order) at each
  * join, for these places, by their IDs: worked out again only for the places whose sides the join can move (#733).
  * Those are the places new or changed, and those within REACH of a region that joined or left, or within REACH or their
- * name's `reach` (nameReach()) of a place's dot that came, went or moved, which is as far as alongside() looks (#714). The others keep the sides they had. `fresh` works every
- * place out again, as where the regions' IDs aren't their own (splitBy()).
+ * name's `reach` (nameReach()) of a place's dot that came, went or moved, which is as far as alongside() looks (#714).
+ * The others keep the sides they had. `fresh` works every place out again, as where the regions' IDs aren't their own
+ * (splitBy()).
  * ponytail: a place's sides kept from an earlier join keep that join's slots, dots and Lines along segments too, a set for
  * each join a kept place dates from. Work kept places out again after so many joins if the heap shows it.
  */
@@ -767,7 +768,7 @@ export function underName(spot: Spot, far: number, size: [number, number], metre
   for (const { lines, a, b, side, d } of spot.crossing) {
     if (d / metresPerPx > furthest) break;
     if (lines.every((line) => under.has(line))) continue;
-    // Their strokes, `side` line widths right of the segment on screen: as dotCost()'s screen() has them, in numbers rather than pairs,
+    // Their strokes, `side` line widths right of the segment on screen: as costOfDots()'s screen() has them, in numbers rather than pairs,
     // as underName() goes over every crossing near every name at every zoom (#763).
     const ax = a[0] * cos - a[1] * sin;
     const ay = -(a[1] * cos + a[0] * sin);
