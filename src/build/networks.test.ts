@@ -1028,7 +1028,7 @@ test("gives each long-distance Trip the rails its Line runs on, and a Regional w
     })();
   };
   expect(await gauges(feve, '2026-10-13', MD_FEED)).toEqual({
-    'media-distancia-avant:Regional 15210': { railway: ['rail', 'narrow_gauge'], gauges: ['1000'] },
+    'media-distancia-avant:Regional 15210': { railway: ['rail', 'narrow_gauge'], gauges: ['1000'], side: 'left' },
     'media-distancia-avant:Reg.Exp. 17307': iberian,
     'media-distancia-avant:MD 18030': iberian,
     'media-distancia-avant:Proximidad 38304': iberian,
