@@ -15,7 +15,7 @@ import { daysAsTheyCome, firstLook, forgetJoined, joinedFrom, regionLoader, regi
 import { byRegion, drawnFrom, drawnLines } from './lines.ts';
 import { linesAt, popupRoom } from './tap.ts';
 import { drawnAt as placeShownAt, FEW_ZOOM, fewer, interchangesOf, markedNetworks, onLines, RAILS, SIGN_ZOOM, type LineCall, type Drawn as PlaceDrawn, type Interchange } from './stations.ts';
-import { callsIn, fileShapes, hidesTowns, nameOffset, nameSort, nearestSide, rightOf, sidesByJoin, splitBy, underName, type Side, type Spot } from './names.ts';
+import { callsIn, fileShapes, hidesTowns, nameOffset, nameReach, nameSort, nearestSide, rightOf, sidesByJoin, splitBy, underName, type Side, type Spot } from './names.ts';
 import { covered, groupOf, spreading, toEdge, type Drawn, type Group, type Named } from './spread.ts';
 import { atMostEvery, drifted, letsGo, outsideMiddle, pointersDown, tapZooms } from './centre.ts';
 import { fastestInView } from './pace.ts';
@@ -1929,13 +1929,13 @@ function show(days: Track | Bundle, tripsOnly = false) {
     // Names go beside the track, not the stretches' centrelines, clear of the Trains on their Lines' strokes along those,
     // and of the other places' dots (#501).
     const centrelines = new Map(days.shapes.flatMap((s) => (s.id.startsWith(STRETCH) ? [[s.id, s]] : [])));
-    // A track built before #243 names no Station's Networks: its names go beside the nearest track of any.
-    const where = tiered.map(({ id, networks, lon, lat }) => ({ id, dot: [lon, lat] as Point, served: networks }));
+    const rows = tiered.map(({ name, style }) => nameLines(name, style));
+    const sizes = tiered.map(({ style }, i): [number, number] => [Math.max(...(rows[i] ?? []).map((row) => placeWidth(row, style))), (rows[i]?.length ?? 0) * LINE_HEIGHT * style.size]);
+    // A track built before #243 names no Station's Networks: its names go beside the nearest track of any. Each name
+    // reaches furthest at the zoom it shows from, where the dots under it are looked for (#714).
+    const where = tiered.map(({ id, networks, lon, lat, nameZoom }, i) => ({ id, dot: [lon, lat] as Point, served: networks, reach: nameReach(sizes[i] ?? [0, 0], pixelMetres(nameZoom) * Math.cos((lat * Math.PI) / 180)) }));
     const sides = placeSides(regions ?? [days], (days.slots ?? []).filter((s) => s.band === undefined), (line) => placing.keep.get(line) ?? 1, days.lines, centrelines, where, !regions);
-    names = tiered.map(({ id, name, nameZoom, listed, stations, larger, marks, style, lon, lat }, i) => {
-      const rows = nameLines(name, style);
-      return { id, dot: [lon, lat], sides: sides[i] ?? (() => []), name: rows.join('\n'), size: [Math.max(...rows.map((row) => placeWidth(row, style))), rows.length * LINE_HEIGHT * style.size], nameZoom, listed, stations, larger, marks, style };
-    });
+    names = tiered.map(({ id, nameZoom, listed, stations, larger, marks, style, lon, lat }, i) => ({ id, dot: [lon, lat], sides: sides[i] ?? (() => []), name: (rows[i] ?? []).join('\n'), size: sizes[i] ?? [0, 0], nameZoom, listed, stations, larger, marks, style }));
     showNames();
   };
   // Worked out a region at a time, and at a join only for the places it can move (#733), from the regions' shapes filed a

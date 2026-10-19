@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { assert, expect, test, vi } from 'vitest';
 import { stationsOf } from '../build/track.ts';
 import { DEGREE, joinTracks, places, type Place, type Point, type Shape, type Slot, type Station, type Stroke, type Track } from '../bundle.ts';
-import { alongside, callsIn, CAP, DOT_COST, hidesTowns, namedTwice, nameOffset, nameSort, nearestSide, sidesByJoin, splitBy, underName, type Side, type Spot } from './names.ts';
+import { alongside, callsIn, CAP, DOT_COST, hidesTowns, namedTwice, nameOffset, nameReach, nameSort, nearestSide, sidesByJoin, splitBy, underName, type Side, type Spot } from './names.ts';
 
 // Made up, on the equator, where a degree is DEGREE metres both ways, but for the one test of #501's cells.
 /** The point so many metres east and north of 0°, 0°. */
@@ -259,10 +259,26 @@ test("another place's dot is found away from 0°, 0° too, where a cell of the t
   const [east, north] = [DEGREE * Math.cos((lat * Math.PI) / 180), DEGREE];
   const own: Shape = { id: 'own', coords: [[lon - 0.01, lat], [lon + 0.01, lat]], dist: [0, 0.02 * east] };
   const neighbour: Point = [lon + 40 / east, lat + 20 / north];
-  // And one in the corner of the cells looked in, 3.4 km off, which is further than REACH and not kept.
+  // And one in the corner of the cells looked in, 3.4 km off, which is further than REACH, and kept only where the name reaches it (#714).
   const far: Point = [lon + 2400 / east, lat + 2400 / north];
-  const spot = alongside([own], [], right, [], new Map(), [[lon, lat], neighbour, far])([lon, lat])(0)[0]?.clear ?? assert.fail('no side');
-  expect(spot.neighbours.map((m) => m.map((v) => Math.round(v)))).toEqual([[40, 20]]);
+  const neighbours = (reach?: number) => (alongside([own], [], right, [], new Map(), [[lon, lat], neighbour, far])([lon, lat], [], reach)(0)[0]?.clear ?? assert.fail('no side')).neighbours.map((m) => m.map((v) => Math.round(v)));
+  expect(neighbours()).toEqual([[40, 20]]);
+  expect(neighbours(3500)).toEqual([[40, 20], [2400, 2400]]);
+});
+
+test("a dot further than REACH from a place's dot counts where its name reaches it, as a zoom 9 name does, at 115 m a px (#714)", () => {
+  // The name, 100×20 px, goes above its own track, from 10 to 30 px north and 50 px either way: at 115 m a px, 1,150 to
+  // 3,450 m north and 5,750 m either way. Another place's dot lies 4 km east and 2 km north of it, in that box.
+  const own = track('own', [-20000, 0], [20000, 0]);
+  const reach = nameReach([100, 20], 115);
+  expect(reach).toBeGreaterThan(Math.hypot(5750, 3450));
+  const spots = alongside([own], [], right, [], new Map(), [at(0, 0), at(4000, 2000)]);
+  const name = (spot: Spot) => underName(spot, 10, [100, 20], 115, 0, 0);
+  const [up] = spots(at(0, 0), [], reach)(0);
+  expect(name(up?.clear ?? assert.fail('no side'))).toBe(DOT_COST);
+  expect(nearestSide(spots(at(0, 0), [], reach)(0), () => 10, name).spot.anchor).toBe('top');
+  // Where the name reaches no further than REACH, as at zoom 12, the dot isn't counted.
+  expect(name(spots(at(0, 0))(0)[0]?.clear ?? assert.fail('no side'))).toBe(0);
 });
 
 test('where the dot lies the other side of its track, it goes from the track', () => {
@@ -626,6 +642,22 @@ test("works a joined track's places out a region at a time as alongside() does o
   const fourth = sides([regionA], slots.slice(0, 1), right, networks.slice(0, 1), new Map(), before);
   expect(fourth.map((s, i) => s === fresh[i])).toEqual([true, false, false, false, true]);
   expect(asJson(fourth)).toBe(asJson(first));
+});
+
+test("at a join, a place whose name reaches further than REACH is worked out again where a dot comes within its reach, as alongside() has it (#714)", () => {
+  const a = [track('a', [-3000, 0], [3000, 0])];
+  const slots = drawn(a);
+  const networks = [{ network: 'A', shapes: ['a'] }];
+  const before: { id: string; dot: Point; served?: string[]; reach?: number }[] = [{ id: 'a1', dot: at(0, 0), served: ['A'], reach: 6000 }, { id: 'a2', dot: at(0, 10), served: ['A'] }];
+  // A dot comes 4 km off, beyond REACH of both, but within a1's name's reach.
+  const after = [...before, { id: 'b1', dot: at(4000, 2000) }];
+  const region = { shapes: a };
+  const sides = sidesByJoin();
+  const first = sides([region], slots, right, networks, new Map(), before);
+  const second = sides([region], slots, right, networks, new Map(), after);
+  expect(second.slice(0, 2).map((s, i) => s === first[i])).toEqual([false, true]);
+  const whole = alongside(a, slots, right, networks, new Map(), after.map((p) => p.dot));
+  expect(asJson(second)).toBe(asJson(after.map(({ dot, served, reach }) => whole(dot, served, reach))));
 });
 
 test("a region's crossings kept from an earlier join are worked out again where the tracks its place runs beside change (#763)", () => {

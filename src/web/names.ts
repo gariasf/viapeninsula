@@ -52,6 +52,16 @@ export const DOT_COST = 20;
 /** How many px further from its box than its own dot another place's dot is, at the least, for it to cost a name nothing. */
 const DOT_MARGIN = 3;
 
+/**
+ * How far from its dot another place's dot can cost a name `width`×`height` px, in metres, where a px is so many
+ * (underName()): its box's far corner as far out as twice CAP, and as far again past it. Zoomed out, a tier's name
+ * reaches further than REACH, 11 km at zoom 9 (#714).
+ * ponytail: a name further out than twice CAP, beside a Train's pill, reaches a little further. Count further if dots there show.
+ */
+export function nameReach([width, height]: [number, number], metresPerPx: number): number {
+  return metresPerPx * (Math.hypot(width, height) + 4 * CAP + DOT_MARGIN);
+}
+
 /** Where a place's name goes, beside its own Networks' track nearest its dot, as railisland's do (#120, #143). */
 export interface Spot {
   /**
@@ -85,8 +95,8 @@ export interface Spot {
    */
   crossing: { lines: string[]; a: [east: number, north: number]; b: [east: number, north: number]; side: number; d: number }[];
   /**
-   * The dots of the other places within REACH of its dot, in metres east and north of it, which its name
-   * should lie clear of, or it reads as that place's and hides it (#501).
+   * The dots of the other places within REACH of its dot, or as far as its name reaches (nameReach()), in metres east and
+   * north of it, which its name should lie clear of, or it reads as that place's and hides it (#501, #714).
    */
   neighbours: [east: number, north: number][];
   /** The most line widths either side of any of them its Lines are drawn out to. */
@@ -108,9 +118,9 @@ export interface Side {
 /**
  * Where each place's name goes, for a track's shapes, where its Lines' Trains go along them zoomed out
  * (`Slot`), the side each Line's Trains keep to, 1 right and -1 left, the Lines' Networks and shapes,
- * and the centrelines the Trains go along, and every place's dot (`everyDot`): given a place's dot and the Networks
- * it serves, its own (Place's `networks`), which finds its tracks and the dots of the others near it
- * once, and then the map's bearing, in degrees clockwise from north, as often as the map turns.
+ * and the centrelines the Trains go along, and every place's dot (`everyDot`): given a place's dot, the Networks
+ * it serves, its own (Place's `networks`), and how far its name reaches (nameReach()), which finds its tracks and the
+ * dots of the others near it once, and then the map's bearing, in degrees clockwise from north, as often as the map turns.
  * It leaves out the centrelines of stretches among `shapes`: names go beside the track (#733).
  * ponytail: takes the Trains to be on the centrelines as they are, not as each zoom band smooths them,
  * up to a line width off. Take the band's if names over Trains show.
@@ -122,15 +132,15 @@ export function alongside(
   networks: Pick<Line, 'network' | 'shapes'>[] = [],
   centrelines = new Map<string, Shape>(),
   everyDot: Point[] = [],
-): (dot: Point, served?: string[]) => (bearing: number) => Side[] {
+): (dot: Point, served?: string[], reach?: number) => (bearing: number) => Side[] {
   return alongsideFiled([filed(shapes)], slots, keep, networks, centrelines, everyDot);
 }
 
 /**
  * alongside() for a track joined from regions' (`tracks`, each a region's track, in the joined track's order) at each
  * join, for these places, by their IDs: worked out again only for the places whose sides the join can move (#733).
- * Those are the places new or changed, and those within REACH of a region that joined or left, or of a place's dot that
- * came, went or moved, which is as far as alongside() looks. The others keep the sides they had. `fresh` works every
+ * Those are the places new or changed, and those within REACH of a region that joined or left, or within REACH or their
+ * name's `reach` (nameReach()) of a place's dot that came, went or moved, which is as far as alongside() looks (#714). The others keep the sides they had. `fresh` works every
  * place out again, as where the regions' IDs aren't their own (splitBy()).
  * ponytail: a place's sides kept from an earlier join keep that join's slots, dots and Lines along segments too, a set for
  * each join a kept place dates from. Work kept places out again after so many joins if the heap shows it.
@@ -144,14 +154,14 @@ export function sidesByJoin() {
     memos.set(track, known);
     return known;
   };
-  let last: { tracks: Pick<Track, 'shapes'>[]; dots: Map<number, { key: string; dots: Point[] }>; sides: Map<string, { dot: Point; served: string; sides: Sides }> } | undefined;
+  let last: { tracks: Pick<Track, 'shapes'>[]; dots: Map<number, { key: string; dots: Point[] }>; sides: Map<string, { dot: Point; served: string; reach: number; sides: Sides }> } | undefined;
   return (
     tracks: Pick<Track, 'shapes'>[],
     slots: Slot[],
     keep: (line: string) => number,
     networks: Pick<Line, 'network' | 'shapes'>[],
     centrelines: Map<string, Shape>,
-    places: { id: string; dot: Point; served?: string[] }[],
+    places: { id: string; dot: Point; served?: string[]; reach?: number }[],
     fresh = false,
   ): Sides[] => {
     const regions = tracks.map((t) => filed(t.shapes));
@@ -178,10 +188,10 @@ export function sidesByJoin() {
       }
     }
     // Whether the join can move a place's sides: a segment of a region that joined or left within REACH of its dot, or
-    // one of its shapes as they are within NEAR, or a dot that changed within REACH, as far as alongside() looks (#763).
-    const near = (dot: Point) => {
+    // one of its shapes as they are within NEAR, or a dot that changed within REACH or its name's reach, as far as alongside() looks (#763, #714).
+    const near = (dot: Point, reach: number) => {
       const kx = DEGREE * Math.cos((dot[1] * Math.PI) / 180);
-      if (changed.some(([lon, lat]) => Math.hypot((lon - dot[0]) * kx, (lat - dot[1]) * DEGREE) <= REACH)) return true;
+      if (changed.some(([lon, lat]) => Math.hypot((lon - dot[0]) * kx, (lat - dot[1]) * DEGREE) <= Math.max(REACH, reach))) return true;
       const [cx, cy, wx, wy] = reachOf(dot);
       for (const region of moved) {
         for (let x = cx - wx; x <= cx + wx; x++) {
@@ -193,11 +203,11 @@ export function sidesByJoin() {
       }
       return false;
     };
-    const sides = new Map<string, { dot: Point; served: string; sides: Sides }>();
-    const made = places.map(({ id, dot, served = [] }) => {
+    const sides = new Map<string, { dot: Point; served: string; reach: number; sides: Sides }>();
+    const made = places.map(({ id, dot, served = [], reach = REACH }) => {
       const had = !fresh ? last?.sides.get(id) : undefined;
-      const now = { dot, served: served.join(' ') };
-      const kept = had && had.dot[0] === dot[0] && had.dot[1] === dot[1] && had.served === now.served && !near(dot) ? had.sides : spots(dot, served);
+      const now = { dot, served: served.join(' '), reach };
+      const kept = had && had.dot[0] === dot[0] && had.dot[1] === dot[1] && had.served === now.served && had.reach === reach && !near(dot, reach) ? had.sides : spots(dot, served, reach);
       sides.set(id, { ...now, sides: kept });
       return kept;
     });
@@ -454,7 +464,7 @@ function alongsideFiled(
   centrelines: Map<string, Shape>,
   everyDot: Point[],
   memos: Memo[] = regions.map(newMemo),
-): (dot: Point, served?: string[]) => (bearing: number) => Side[] {
+): (dot: Point, served?: string[], reach?: number) => (bearing: number) => Side[] {
   // Each place's dot, by its cell.
   const dotCells = new Map<number, Point[]>();
   for (const p of everyDot) {
@@ -511,7 +521,7 @@ function alongsideFiled(
     memo.crossingAlong.set(segment, made);
     return made;
   };
-  return (dot, served = []) => {
+  return (dot, served = [], reach = REACH) => {
     const own = new Set(served);
     const kx = DEGREE * Math.cos((dot[1] * Math.PI) / 180);
     // Where each shape within NEAR comes nearest the dot, looking in the dot's cell and those round it, a region at a
@@ -565,7 +575,7 @@ function alongsideFiled(
     // The tracks with Lines drawn along them, by their segments within REACH of the dot: those not
     // alongside its own, those alongside but its own, which a name near its dot can lie on, and where
     // its own or one alongside bends away from beside the dot, the rest of it, which can come back under the name.
-    // ponytail: zoomed out past 12, a name can reach further than REACH, and a track or another place's dot there isn't counted. Look further, by more cells, if names over them show.
+    // ponytail: zoomed out past 12, a name can reach further than REACH, and a track there isn't counted, as its dots are (#714). Look further, by more cells, if names over them show.
     // Each region's, nearest first.
     const [crossings, besides]: [Spot['crossing'][], Spot['crossing'][]] = [[], []];
     // Which way each track alongside runs by the dot.
@@ -622,13 +632,15 @@ function alongsideFiled(
       crossings.push(part.crossings);
       besides.push(part.besides);
     }
-    // The other places' dots within REACH of the dot: not the place's own, nor one at the same point.
+    // The other places' dots within REACH of the dot, or as far as its name reaches: not the place's own, nor one at the same point.
     const neighbours: Spot['neighbours'] = [];
-    for (let x = cx - wx; x <= cx + wx; x++) {
-      for (let y = cy - wy; y <= cy + wy; y++) {
+    const dotsWithin = Math.max(REACH, reach);
+    const [, , dx, dy] = reachOf(dot, dotsWithin);
+    for (let x = cx - dx; x <= cx + dx; x++) {
+      for (let y = cy - dy; y <= cy + dy; y++) {
         for (const p of dotCells.get(cell(x, y)) ?? []) {
           const [east, north] = local(p);
-          if ((east !== 0 || north !== 0) && Math.hypot(east, north) <= REACH) neighbours.push([east, north]);
+          if ((east !== 0 || north !== 0) && Math.hypot(east, north) <= dotsWithin) neighbours.push([east, north]);
         }
       }
     }
@@ -853,10 +865,10 @@ export function rightOf(heading: number, bearing: number): [x: number, y: number
   return [Math.cos(a), Math.sin(a)];
 }
 
-/** The cell of a place's dot, and how many cells either way from it east to west and north to south alongside() looks, to find what lies within REACH. */
-function reachOf(dot: Point): [x: number, y: number, wx: number, wy: number] {
+/** The cell of a place's dot, and how many cells either way from it east to west and north to south alongside() looks, to find what lies within so many metres, REACH unless told. */
+function reachOf(dot: Point, metres = REACH): [x: number, y: number, wx: number, wy: number] {
   const kx = DEGREE * Math.cos((dot[1] * Math.PI) / 180);
-  return [Math.floor(dot[0] / CELL), Math.floor(dot[1] / CELL), Math.ceil(REACH / (CELL * kx)), Math.ceil(REACH / (CELL * DEGREE))];
+  return [Math.floor(dot[0] / CELL), Math.floor(dot[1] / CELL), Math.ceil(metres / (CELL * kx)), Math.ceil(metres / (CELL * DEGREE))];
 }
 
 /** The key of the cell `x` cells east and `y` north of 0°, 0°: one of its own, as `y` stays within 18,000 cells of the equator. */

@@ -104,13 +104,13 @@ async function variant(src: string, bearing: number) {
     const t0 = performance.now();
     const regions = N.fileShapes ? ahead : N.splitBy(days, parts);
     const centrelines = new Map(days.shapes.flatMap((s: any) => (s.id.startsWith(B.STRETCH) ? [[s.id, s]] : [])));
-    const where = tiered.map(({ id, networks, lon, lat }: any) => ({ id, dot: [lon, lat], served: networks }));
+    const rows = tiered.map(({ name, style }: any) => nameLines(name, style));
+    const sizes = tiered.map(({ style }: any, i: number) => [Math.max(...rows[i].map(width)), rows[i].length * P.LINE_HEIGHT * style.size]);
+    // And how far each name reaches, where the src looks for the dots under it so far (nameReach(), #714).
+    const where = tiered.map(({ id, networks, lon, lat, nameZoom }: any, i: number) => ({ id, dot: [lon, lat], served: networks, reach: N.nameReach?.(sizes[i], pixelMetres(nameZoom) * Math.cos((lat * Math.PI) / 180)) }));
     const sides = placeSides(regions ?? [days], (days.slots ?? []).filter((s: any) => s.band === undefined), (line: string) => keep.get(line) ?? 1, days.lines, centrelines, where, !regions);
     const t1 = performance.now();
-    const names = tiered.map(({ id, name, nameZoom, listed, stations, larger, style, lon, lat }: any, i: number) => {
-      const rows = nameLines(name, style);
-      return { id, dot: [lon, lat], sides: sides[i] ?? (() => []), name: rows.join('\n'), size: [Math.max(...rows.map(width)), rows.length * P.LINE_HEIGHT * style.size], nameZoom, listed, stations, larger, style };
-    });
+    const names = tiered.map(({ id, nameZoom, listed, stations, larger, style, lon, lat }: any, i: number) => ({ id, dot: [lon, lat], sides: sides[i] ?? (() => []), name: rows[i].join('\n'), size: sizes[i], nameZoom, listed, stations, larger, style }));
     // showNames().
     const t2 = performance.now();
     const was = laidOut;
