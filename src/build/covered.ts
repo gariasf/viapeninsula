@@ -14,12 +14,12 @@ const PARALLEL = Math.cos(Math.PI / 6);
 type Segment = { line: string; level: number; a: [number, number]; b: [number, number] };
 
 /**
- * The strokes, each `under` one given its `covered`: in each band from GRAPH_BAND it's drawn in, from where to where
- * along its shape, in whole metres, a Line above it lies within a line width of it there, alongside
- * (Stroke's `covered`). Judged every EVERY along the stroke as it's drawn in the band, cut back for
- * its curves, off its centreline by its side, and the Line above as it's drawn there too: not those
- * of the Line itself, nor one as deep, nor a track crossing it. `kx` is the metres a degree of
- * longitude is, and `latitude` the line width's, as sideBySide() draws them.
+ * The strokes, each `under` one given its `covered`: in each band from GRAPH_BAND it's drawn in,
+ * from where to where along its shape, in whole metres, a Line above it lies within a line width of
+ * it there, alongside (Stroke's `covered`). Judged every EVERY along the stroke as it's drawn in the
+ * band, cut back for its curves, off its centreline by its side, and the Line above as it's drawn
+ * there too: not those of the Line itself, nor one as deep, nor a track crossing it. `kx` is the
+ * metres a degree of longitude is, and `latitude` the line width's, as sideBySide() draws them.
  */
 export function markCovered(strokes: Stroke[], shapes: Shape[], kx: number, latitude: number): Stroke[] {
   const byId = new Map(shapes.map((s) => [s.id, s]));
