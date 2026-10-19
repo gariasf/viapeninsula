@@ -22,7 +22,7 @@ import { brotliCompressSync, brotliDecompressSync, constants, gunzipSync } from 
 import { addDays, daysOf, joinTracks, joinTrips, LATE, LIVE_URL, madridDate, SOON, type Bundle, type Call, type DayFiles, type DayTrips, type Manifest, type Network, type Report, type Snapshot, type Track, type Trip } from '../bundle.ts';
 import { delaysAt, joinDays, KEEP, namedIn, works, type DelaySource, type Received } from '../engine.ts';
 import { nameOf, SLOT } from '../fetcher/history.ts';
-import { AVE_LARGA_DISTANCIA, NETWORKS } from '../networks.ts';
+import { AVE_LARGA_DISTANCIA, METRO, NETWORKS } from '../networks.ts';
 import { decodeTrack, type TrackFile } from '../pieces.ts';
 import { unmatched } from '../record.ts';
 import { aggregate, summarize, yearOf, type DaySummary, type LinesFile } from './aggregates.ts';
@@ -94,8 +94,12 @@ const STEP = 20_000;
 /** A day, in ms. */
 const DAY = 86_400_000;
 
-/** Whether a Network's Trips are recorded: those whose live data the map has, but for the Metro's, which has no Delay to show (#103). */
-export const recorded = (network: Network | undefined) => !!network?.live && network.live.delay !== 'none';
+/**
+ * Whether a Network's Trips are recorded: those whose live data the map has, but for the Metro's, whose Delay is
+ * against whichever Trip its Block runs (#103). Euskotren's are, though the map shows none: a disrupted day's
+ * Delays still land in the record (#825).
+ */
+export const recorded = (network: Network | undefined) => !!network?.live && network.id !== METRO.id;
 
 /**
  * Each Network's record of a service day, from the snapshots of it in order, through the engine with a bundle of

@@ -755,8 +755,8 @@ export const EUSKOTREN: NetworkConfig = {
   // Moveuskadi's dataset is CC BY 4.0, and its timetable's attributions.txt names Eusko Trenbideak.
   credit: { text: 'Eusko Trenbideak', url: 'https://opendata.euskadi.eus/catalogo/-/moveuskadi-datos-de-la-red-de-transporte-publico-de-euskadi-operadores-horarios-paradas-calendario-tarifas-etc/', licence: 'CC BY 4.0' },
   // Its live data is trip updates alone, so its Trains are Live by the Station they come to next, as
-  // the Metro's are, and late by when they're expected there.
-  live: { delay: 'operator', near: 'standing' },
+  // the Metro's are. Their times are its timetable's, so a Delay would always read 0 s, on time (#825).
+  live: { delay: 'none', near: 'standing' },
   lines: { kind: 'commuter' },
 };
 
