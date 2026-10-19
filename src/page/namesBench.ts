@@ -123,10 +123,17 @@ async function variant(src: string, bearing: number) {
       const at = sides(bearing);
       const properties = C.NAME_ZOOMS.flatMap((zoom: number) => {
         const metresPerPx = pixelMetres(zoom) * Math.cos((dot[1] * Math.PI) / 180);
-        const underAt = (s: any, far: number, gap: number) => [0, 1].reduce((sum, step) => sum + N.underName(s, far, size, metresPerPx / 2 ** step, B.atZoom(B.APART, zoom + step), gap + B.atZoom(B.WIDTH, zoom + step) / 2), 0);
-        const under = (s: any, far: number) => (zoom < nameZoom ? 0 : 1000 * underAt(s, far, 0) + underAt(s, far, C.NAME_GAP));
-        const { spot, far } = N.nearestSide(at, (s: any) => clearance(s, larger, zoom), under);
-        return [[`anchor${zoom}`, spot.anchor], [`offset${zoom}`, N.nameOffset(spot, far, size).map((px: number) => px / style.size)]];
+        const underStep = (s: any, far: number, gap: number, step: number) => N.underName(s, far, size, metresPerPx / 2 ** step, B.atZoom(B.APART, zoom + step), gap + B.atZoom(B.WIDTH, zoom + step) / 2);
+        const underAt = (s: any, far: number, gap: number) => underStep(s, far, gap, 0) + underStep(s, far, gap, 1);
+        const under = (s: any, far: number, below = Infinity) => {
+          if (zoom < nameZoom) return 0;
+          const first = underStep(s, far, 0, 0);
+          if (1000 * first >= below) return 1000 * first;
+          const close = 1000 * (first + underStep(s, far, 0, 1));
+          return close >= below ? close : close + underAt(s, far, C.NAME_GAP);
+        };
+        const { spot, far } = N.nearestSide(at, (s: any) => clearance(s, larger, zoom), under, N.dotCost && ((s: any, far: number) => N.dotCost(s, far, size, metresPerPx) > 0));
+        return [[`anchor${zoom}`, spot.slid ?? spot.anchor], [`offset${zoom}`, N.nameOffset(spot, far, size).map((px: number) => px / style.size)]];
       });
       return Object.fromEntries(properties);
     });

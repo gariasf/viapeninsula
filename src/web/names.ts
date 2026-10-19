@@ -74,6 +74,11 @@ export interface Spot {
    * where another track crosses that side, its top below the track, or its right left of it.
    */
   anchor: 'bottom' | 'left' | 'top' | 'right';
+  /**
+   * Where it's slid along the track, the corner MapLibre anchors it by instead, at the dot's side along the track: a
+   * left corner's box right of it, a top one's below it (nearestSide(), #713).
+   */
+  slid?: Corner;
   /** The way it goes from the track, on screen: 1 px along the track's normal, x right and y down. */
   normal: [x: number, y: number];
   /** How far behind `from` the place's dot lies, in metres the name's way. */
@@ -96,7 +101,7 @@ export interface Spot {
   crossing: { lines: string[]; a: [east: number, north: number]; b: [east: number, north: number]; side: number; d: number }[];
   /**
    * The dots of the other places within REACH of its dot, or as far as its name reaches (nameReach()), in metres east and
-   * north of it, which its name should lie clear of, or it reads as that place's and hides it (#501, #714).
+   * north of it, nearest first, which its name should lie clear of, or it reads as that place's and hides it (#501, #714).
    */
   neighbours: [east: number, north: number][];
   /** The most line widths either side of any of them its Lines are drawn out to. */
@@ -104,6 +109,9 @@ export interface Spot {
   /** The map's bearing, in degrees clockwise from north, that the spot is for. */
   bearing: number;
 }
+
+/** A corner of a name's box, which MapLibre can anchor it by. */
+type Corner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
 /**
  * A side of its track a place's name can go: clear of every track alongside it and their Trains, or,
@@ -632,18 +640,19 @@ function alongsideFiled(
       crossings.push(part.crossings);
       besides.push(part.besides);
     }
-    // The other places' dots within REACH of the dot, or as far as its name reaches: not the place's own, nor one at the same point.
-    const neighbours: Spot['neighbours'] = [];
+    // The other places' dots within REACH of the dot, or as far as its name reaches, nearest first: not the place's own, nor one at the same point.
+    const dots: [east: number, north: number, metres: number][] = [];
     const dotsWithin = Math.max(REACH, reach);
+    const take = (p: Point) => {
+      const [east, north] = local(p);
+      const metres = Math.hypot(east, north);
+      if ((east !== 0 || north !== 0) && metres <= dotsWithin) dots.push([east, north, metres]);
+    };
+    // By the cells round it, or where those are more than the dots, as for a tier's name at zoom 9, every dot.
     const [, , dx, dy] = reachOf(dot, dotsWithin);
-    for (let x = cx - dx; x <= cx + dx; x++) {
-      for (let y = cy - dy; y <= cy + dy; y++) {
-        for (const p of dotCells.get(cell(x, y)) ?? []) {
-          const [east, north] = local(p);
-          if ((east !== 0 || north !== 0) && Math.hypot(east, north) <= dotsWithin) neighbours.push([east, north]);
-        }
-      }
-    }
+    if ((2 * dx + 1) * (2 * dy + 1) > everyDot.length) everyDot.forEach(take);
+    else for (let x = cx - dx; x <= cx + dx; x++) for (let y = cy - dy; y <= cy + dy; y++) dotCells.get(cell(x, y))?.forEach(take);
+    const neighbours: Spot['neighbours'] = dots.sort((p, q) => p[2] - q[2]).map(([east, north]) => [east, north]);
     const nearCrossings = byNearest(crossings);
     const nearBesides = byNearest([nearCrossings, byNearest(besides)]);
     // Each Line drawn along them there, the point on the line its stroke is drawn beside there, and
@@ -700,22 +709,45 @@ function alongsideFiled(
  * the dot, and how far that is; or, further than CAP on every side, the nearest clear of only its own
  * track's Lines. Where two are as near, the first. Of those, only the sides with the fewest Lines on the
  * tracks crossing its own, or its own bending back, and the least cost of other places' dots, `under` the
- * name (#143, #154, #501). alongside() gives every place a side at least.
+ * name (#143, #154, #501). Where something lies under it on every side, and another place's dot costs a side with the
+ * least under it (`dotted`), it can slide along its track instead, as far out, to start or end at its dot (`slid`),
+ * where that's less under it than any side (#713): `under` can stop counting once it's `below` or more, and say so.
+ * alongside() gives every place a side at least.
  * ponytail: past CAP a name can lie over the Trains on its own track and the Lines alongside it.
  * Clear them too where CAP allows, a side at a time, if names on them show.
  */
-export function nearestSide(sides: Side[], far: (spot: Spot) => number, under: (spot: Spot, far: number) => number = () => 0): { spot: Spot; far: number } {
+export function nearestSide(
+  sides: Side[],
+  far: (spot: Spot) => number,
+  under: (spot: Spot, far: number, below?: number) => number = () => 0,
+  dotted: (spot: Spot, far: number) => boolean = () => true,
+): { spot: Spot; far: number } {
   const nearest = (spots: Spot[]) => spots.map((spot) => ({ spot, far: far(spot) })).reduce((best, s) => (s.far < best.far ? s : best));
   const pick = (among: Side[]) => {
     const clear = nearest(among.map((s) => s.clear));
     return clear.far <= CAP ? clear : nearest(among.map((s) => s.near));
   };
-  const counts = sides.map((side) => {
-    const { spot, far } = pick([side]);
-    return under(spot, far);
-  });
-  return pick(sides.filter((_, i) => counts[i] === Math.min(...counts)));
+  const picked = sides.map((side) => pick([side]));
+  const counts = picked.map(({ spot, far }) => under(spot, far));
+  let least = Math.min(...counts);
+  // Slid where another place's dot costs a side with the least under it: with nothing under it, as most names have, no
+  // slide does better. From each side, the least under it first, whose slides are likeliest less still, so that the
+  // rest stop counting soonest (#713).
+  let slid: { spot: Spot; far: number } | undefined;
+  const sorted = picked.map((p, i) => ({ ...p, count: counts[i] ?? 0 })).sort((p, q) => p.count - q.count);
+  for (const { spot, far } of least > 0 && sorted.some((p) => p.count === least && dotted(p.spot, p.far)) ? sorted : []) {
+    for (const corner of SLIDES[spot.anchor]) {
+      const s = { spot: { ...spot, slid: corner }, far };
+      // Only whether it's less: counted no further once it's `least` or more.
+      const count = under(s.spot, far, least);
+      if (count < least) [slid, least] = [s, count];
+    }
+  }
+  return slid ?? pick(sides.filter((_, i) => counts[i] === Math.min(...counts)));
 }
+
+/** The corners a name can slide to along its track from each side: either way along it, the corners nearest the track. */
+const SLIDES: Record<Spot['anchor'], Corner[]> = { bottom: ['bottom-left', 'bottom-right'], top: ['top-left', 'top-right'], left: ['top-left', 'bottom-left'], right: ['top-right', 'bottom-right'] };
 
 /**
  * How many Lines on the tracks in its spot's `crossing` lie under a name `width`×`height` px, `far` px
@@ -725,50 +757,83 @@ export function nearestSide(sides: Side[], far: (spot: Spot) => number, under: (
  */
 export function underName(spot: Spot, far: number, size: [number, number], metresPerPx: number, apart: number, gap: number): number {
   const [ox, oy] = nameOffset(spot, far, size);
-  const [[x0, x1], [y0, y1]] = extent(spot.anchor, size);
+  const [[x0, x1], [y0, y1]] = extent(spot.slid ?? spot.anchor, size);
   // How far from the dot the box and the widest Lines beside it reach, in px: no segment further off lies under it.
   const furthest = Math.hypot(Math.max(Math.abs(ox + x0), Math.abs(ox + x1)), Math.max(Math.abs(oy + y0), Math.abs(oy + y1))) + spot.widest * apart + gap;
-  // A point's px from the dot on screen, x right and y down.
+  // A point's px from the dot on screen, x right and y down, by these.
   const [cos, sin] = [Math.cos((spot.bearing * Math.PI) / 180) / metresPerPx, Math.sin((spot.bearing * Math.PI) / 180) / metresPerPx];
-  const screen = ([east, north]: [number, number]): [number, number] => [east * cos - north * sin, -(north * cos + east * sin)];
   const under = new Set<string>();
   const [left, top, right, bottom] = [ox + x0 - gap, oy + y0 - gap, ox + x1 + gap, oy + y1 + gap];
   for (const { lines, a, b, side, d } of spot.crossing) {
     if (d / metresPerPx > furthest) break;
     if (lines.every((line) => under.has(line))) continue;
-    // Their strokes, `side` line widths right of the segment on screen: as screen() has them, in numbers rather than pairs,
+    // Their strokes, `side` line widths right of the segment on screen: as dotCost()'s screen() has them, in numbers rather than pairs,
     // as underName() goes over every crossing near every name at every zoom (#763).
     const ax = a[0] * cos - a[1] * sin;
     const ay = -(a[1] * cos + a[0] * sin);
     const bx = b[0] * cos - b[1] * sin;
     const by = -(b[1] * cos + b[0] * sin);
+    // Wholly one side of the box, as far out as its stroke is drawn from it, it can't meet it: as most near a name's (#713).
+    const pad = Math.abs(side * apart);
+    if ((ax < left - pad && bx < left - pad) || (ax > right + pad && bx > right + pad) || (ay < top - pad && by < top - pad) || (ay > bottom + pad && by > bottom + pad)) continue;
     const shift = (side * apart) / (Math.hypot(bx - ax, by - ay) || 1);
     const sx = -(by - ay) * shift;
     const sy = (bx - ax) * shift;
     if (meets(ax + sx, ay + sy, bx + sx, by + sy, left, top, right, bottom)) for (const line of lines) under.add(line);
   }
-  // And each other place's dot, which makes the name read as that place's, as a stroke under it does as that Line's:
-  // as much as DOT_COST at the box, down to nothing as far from it as the name's own dot is (and DOT_MARGIN more).
+  // And each other place's dot, which makes the name read as that place's, as a stroke under it does as that Line's.
+  return under.size + costOfDots(spot, far, metresPerPx, ox, oy, [x0, x1, y0, y1]);
+}
+
+/**
+ * What the other places' dots near a name `width`×`height` px cost it, in Lines, `far` px out from its place's dot as
+ * nameOffset() puts it, where a px is `metresPerPx` metres: as much as DOT_COST at its box, down to nothing as far from
+ * it as the name's own dot is (and DOT_MARGIN more) (#501).
+ */
+export function dotCost(spot: Spot, far: number, size: [number, number], metresPerPx: number): number {
+  const [ox, oy] = nameOffset(spot, far, size);
+  const [[x0, x1], [y0, y1]] = extent(spot.slid ?? spot.anchor, size);
+  return costOfDots(spot, far, metresPerPx, ox, oy, [x0, x1, y0, y1]);
+}
+
+/** dotCost(), for a box offset `ox`, `oy` from the dot and its extent from there, as underName() has them. */
+function costOfDots(spot: Spot, far: number, metresPerPx: number, ox: number, oy: number, [x0, x1, y0, y1]: [number, number, number, number]): number {
+  // A point's px from the dot on screen, x right and y down.
+  const [cos, sin] = [Math.cos((spot.bearing * Math.PI) / 180) / metresPerPx, Math.sin((spot.bearing * Math.PI) / 180) / metresPerPx];
+  const screen = ([east, north]: [number, number]): [number, number] => [east * cos - north * sin, -(north * cos + east * sin)];
   const until = far + DOT_MARGIN;
+  // No dot further from its own than the box's far corner and `until` costs it: as a tier's name looks through hundreds (#714).
+  const reaches = (Math.hypot(Math.max(Math.abs(ox + x0), Math.abs(ox + x1)), Math.max(Math.abs(oy + y0), Math.abs(oy + y1))) + until) * metresPerPx;
   let cost = 0;
   for (const dot of spot.neighbours) {
+    if (Math.hypot(dot[0], dot[1]) > reaches) break;
     const [x, y] = screen(dot);
     const away = Math.hypot(Math.max(ox + x0 - x, 0, x - (ox + x1)), Math.max(oy + y0 - y, 0, y - (oy + y1)));
     if (away < until) cost += DOT_COST * (1 - away / until);
   }
-  return under.size + cost;
+  return cost;
 }
 
 /**
  * Where a name `width`×`height` px goes from its spot, in px, so that it stays `clear` px from the
  * track: its corner nearest the track straight out along the normal, the rest along the track, so
  * that it's as near the dot as it can be; or where the track runs level with a side, that side's middle.
+ * Slid (`slid`), as far out, along the track to start at the dot, the way its corner says, and from that corner.
  */
-export function nameOffset({ anchor, normal: [x, y] }: Spot, clear: number, [width, height]: [number, number]): [x: number, y: number] {
+export function nameOffset({ anchor, normal: [x, y], slid }: Spot, clear: number, [width, height]: [number, number]): [x: number, y: number] {
   const [[x0, x1], [y0, y1]] = extent(anchor, [width, height]);
   // Its point nearest the track, from the anchor.
   const near = (n: number, from: number, to: number) => (Math.abs(n) < LEVEL ? (from + to) / 2 : n > 0 ? from : to);
-  return [clear * x - near(x, x0, x1), clear * y - near(y, y0, y1)];
+  const [ox, oy] = [clear * x - near(x, x0, x1), clear * y - near(y, y0, y1)];
+  if (!slid) return [ox, oy];
+  // Along the track the way the corner says: right of a left corner over or under a track, below a top one beside it.
+  const level = anchor === 'bottom' || anchor === 'top';
+  const way = level ? (slid.endsWith('left') ? 1 : -1) : slid.startsWith('top') ? 1 : -1;
+  const [tx, ty] = (level ? -y : x) * way < 0 ? [y, -x] : [-y, x];
+  // Moved along it, which keeps it as far out, so that it starts at the dot's point along it.
+  const start = (ox + (tx > 0 ? x0 : x1)) * tx + (oy + (ty > 0 ? y0 : y1)) * ty;
+  const [[cx0], [cy0]] = extent(slid, [width, height]);
+  return [ox - start * tx + x0 - cx0, oy - start * ty + y0 - cy0];
 }
 
 /**
@@ -836,14 +901,11 @@ export function nameSort({ nameZoom, listed, stations }: { nameZoom: number; lis
 }
 
 /** A name's box's extent either way from where MapLibre anchors it by `anchor`, in px, x right and y down. */
-function extent(anchor: Spot['anchor'], [width, height]: [number, number]): [x: [number, number], y: [number, number]] {
-  const extents: Record<Spot['anchor'], [[number, number], [number, number]]> = {
-    bottom: [[-width / 2, width / 2], [-height, 0]],
-    top: [[-width / 2, width / 2], [0, height]],
-    left: [[0, width], [-height / 2, height / 2]],
-    right: [[-width, 0], [-height / 2, height / 2]],
-  };
-  return extents[anchor];
+function extent(anchor: Spot['anchor'] | Corner, [width, height]: [number, number]): [x: [number, number], y: [number, number]] {
+  // Worked out, not looked up in a table made at each call, as underName() asks at every zoom of every name (#713).
+  const x: [number, number] = anchor.endsWith('left') ? [0, width] : anchor.endsWith('right') ? [-width, 0] : [-width / 2, width / 2];
+  const y: [number, number] = anchor.startsWith('top') ? [0, height] : anchor.startsWith('bottom') ? [-height, 0] : [-height / 2, height / 2];
+  return [x, y];
 }
 
 /** Whether the segment from `a` to `b` meets the box from x0, y0 to x1, y1, as Liang and Barsky clip it. */
