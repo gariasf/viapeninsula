@@ -18,7 +18,7 @@ export interface Bucket {
 }
 
 /** How long a slot is, in ms: each 5 minutes from 00:00 UTC. */
-const SLOT = 300_000;
+export const SLOT = 300_000;
 
 /**
  * How long a run waits for the history's bucket to answer, in ms: a run that also waited TIMEOUT for a fetch that hung
@@ -38,8 +38,8 @@ const startOf = (at: number) => at - (at % SLOT);
 /** The slot of a run whose snapshot is held under a key. */
 const slotOf = (key: string) => startOf(Number(key.slice(ROWS.length)));
 
-/** A slot's object: `history/<UTC day>/<hhmm>.ndjson.gz`, by when it starts, in UTC, so that the night the clocks go back has no two 02:30s. */
-function nameOf(slot: number) {
+/** A slot's object: `history/<UTC day>/<hhmm>.ndjson.gz`, by when it starts, in UTC, so that the night the clocks go back has no two 02:30s. The daily job reads them by these names (#807). */
+export function nameOf(slot: number) {
   const at = new Date(slot).toISOString();
   return `history/${at.slice(0, 10)}/${at.slice(11, 13)}${at.slice(14, 16)}.ndjson.gz`;
 }
