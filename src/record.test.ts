@@ -237,14 +237,15 @@ test("joins the day before's bundle to a recording that starts after midnight, u
   expect(await withDays(SATURDAY, '2026-09-26', [], days, async () => FRIDAY)).toEqual({ bundle: SATURDAY, why: '' });
 });
 
-test("joins the next day to a recording whose last snapshot falls after midnight in Madrid, by that clock and not UTC's (#411)", async () => {
+test("joins the next day to a recording whose last snapshot falls after midnight in Madrid once its first Train is within the hour, as the map does (#411, #659)", async () => {
   // Saturday's first Train comes at 05:00 here, further than an hour from midnight.
   const days = [entry(FRIDAY), { ...entry(SATURDAY), from: Date.parse('2026-09-26T05:00:00+02:00') }];
   const ids = async (last: string) => idsOf((await over(FRIDAY, ['2026-09-25T23:30:00+02:00', last], days)).bundle);
-  // 23:59:59 in Madrid on Friday is 21:59:59 UTC, in summer time; midnight is 22:00:00.
-  expect(await ids('2026-09-25T21:59:59Z')).toEqual(['late', 'night', 'noon']);
-  // Friday's bundle stays, joined, as its last Train is due off the map at 00:20: Trains still running from it keep its service in their names.
-  expect(await ids('2026-09-25T22:00:00Z')).toEqual(BOTH);
+  // Midnight in Madrid, 22:00:00 UTC in summer time: Friday stands for today until 04:00.
+  expect(await ids('2026-09-25T22:00:00Z')).toEqual(['late', 'night', 'noon']);
+  expect(await ids('2026-09-26T01:59:59Z')).toEqual(['late', 'night', 'noon']);
+  // Friday's bundle stays, joined, as the recording started on it: Trains still running from it keep its service in their names.
+  expect(await ids('2026-09-26T02:00:00Z')).toEqual(BOTH);
 });
 
 test("joins the next day an hour before its first Train comes onto the map, as the map does, to a recording that ends before midnight", async () => {

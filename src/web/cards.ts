@@ -132,7 +132,8 @@ export function boardAsks(own: boolean, asked: boolean): boolean {
 /**
  * Whether the next day's Trips, which a board with none left today asked for (`asked`), are on their way
  * (#596): the map is looking for the days it needs, and the last day of its bundle, today's where it has
- * none, isn't past `today` yet, as it is once they're on it.
+ * none, isn't past `today` yet, as it is once they're on it: the day that stands for today (daysNeeded()), which after
+ * midnight, until today's first Train is near, is the day before (#659).
  */
 export function nextOnItsWay(looking: boolean, asked: boolean, lastDay: string | undefined, today: string): boolean {
   return looking && asked && (lastDay ?? today) <= today;

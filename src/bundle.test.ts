@@ -104,15 +104,27 @@ test("the map needs the next day from `early` before its first Train, and the da
   expect(needed('2026-09-26T01:41')).toEqual(['2026-09-26']);
 });
 
-test("the map needs the next day once today's last Train has left the map", () => {
-  expect(needed('2026-09-26T23:29')).toEqual(['2026-09-26']);
-  expect(needed('2026-09-26T23:30')).toEqual(['2026-09-26', '2026-09-27']);
+test("the map needs a day only from `early` before its first Train, the day before standing for today until then, as it does after midnight (#659)", () => {
+  // Today's last Train has left the map, and the next day's first is hours off.
+  expect(needed('2026-09-26T23:30')).toEqual(['2026-09-26']);
+  expect(needed('2026-09-27T02:00')).toEqual(['2026-09-26']);
+  expect(daysNeeded(WEEKEND, madrid('2026-09-27T02:00'), { early: 60 * 60_000, late: 60 * 60_000 })?.today.date).toBe('2026-09-26');
+  expect(needed('2026-09-27T04:59')).toEqual(['2026-09-26']);
+  expect(needed('2026-09-27T05:00')).toEqual(['2026-09-27']);
+  // Only the day before stands for today: with none, today is today.
+  expect(daysNeeded([WEEKEND[0]!, WEEKEND[2]!], madrid('2026-09-27T02:00'), { early: 60 * 60_000, late: 60 * 60_000 })?.today.date).toBe('2026-09-27');
 });
 
 test('the map needs the next day while a Station board has had no departures left today', () => {
   expect(needed('2026-09-26T21:00', '2026-09-26')).toEqual(['2026-09-26', '2026-09-27']);
   // One left empty the day before counts for nothing.
   expect(needed('2026-09-26T21:00', '2026-09-25')).toEqual(['2026-09-26']);
+  // After midnight, before the day's first Train, the day before stands for today, and a board's empty on it (#659),
+  // as one that asked before midnight still is.
+  expect(needed('2026-09-27T02:00', '2026-09-26')).toEqual(['2026-09-26', '2026-09-27']);
+  expect(needed('2026-09-27T00:10', '2026-09-26')).toEqual(['2026-09-26', '2026-09-27']);
+  // Once the next day is today, one asked for the day before asks for nothing more.
+  expect(needed('2026-09-27T12:00', '2026-09-26')).toEqual(['2026-09-27']);
 });
 
 test("where the manifest is out of date, its last day stands for today, with no next day", () => {
@@ -172,7 +184,26 @@ test("the map needs the days of every region as it needs one region's", () => {
   };
   const needs = (moment: string) => daysNeeded(daysOf(manifest), madrid(moment), { early: 60 * 60_000, late: 60 * 60_000 })?.days.map((d) => d.date);
   expect(needs('2026-09-26T23:45')).toEqual(['2026-09-26']);
-  expect(needs('2026-09-27T00:11')).toEqual(['2026-09-26', '2026-09-27']);
+  expect(needs('2026-09-27T00:11')).toEqual(['2026-09-26']);
+  expect(needs('2026-09-27T04:30')).toEqual(['2026-09-27']);
+});
+
+test("the map needs the next day of the regions it has loaded by their own first Trains, not another region's earlier ones (#659)", () => {
+  // As on 20 Oct 2026: Madrid's night service from 00:01:30, Catalonia's first Train at 04:12:30.
+  const manifest: Manifest = {
+    regions: [
+      { id: 'catalonia', days: [entry('catalonia', '2026-10-19', '2026-10-19T04:12:30', '2026-10-20T01:57:30'), entry('catalonia', '2026-10-20', '2026-10-20T04:12:30', '2026-10-21T01:12:10')] },
+      { id: 'cercanias-madrid', days: [entry('cercanias-madrid', '2026-10-19', '2026-10-19T00:01:30', '2026-10-20T00:53:30'), entry('cercanias-madrid', '2026-10-20', '2026-10-20T00:01:30', '2026-10-21T00:53:30')] },
+    ],
+  };
+  const needs = (moment: string, loaded?: string[]) =>
+    daysNeeded(daysOf(manifest, loaded && new Set(loaded)), madrid(moment), { early: 60 * 60_000, late: 60 * 60_000 })?.days.map((d) => [d.date, d.regions.map((r) => r.id)]);
+  expect(needs('2026-10-19T23:02')).toEqual([['2026-10-19', ['catalonia', 'cercanias-madrid']], ['2026-10-20', ['catalonia', 'cercanias-madrid']]]);
+  expect(needs('2026-10-19T23:02', ['catalonia'])).toEqual([['2026-10-19', ['catalonia']]]);
+  expect(needs('2026-10-20T03:12', ['catalonia'])).toEqual([['2026-10-19', ['catalonia']]]);
+  expect(needs('2026-10-20T03:13', ['catalonia'])).toEqual([['2026-10-20', ['catalonia']]]);
+  // None loaded, none needed.
+  expect(needs('2026-10-19T12:00', [])).toBeUndefined();
 });
 
 /** A region's track of one Network, one Line, one Station that Line calls at, and one stroke, rail, slot and Network track, all named for it. */
