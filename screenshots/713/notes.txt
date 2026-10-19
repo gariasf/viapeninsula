@@ -1,0 +1,32 @@
+main bcn-z12 phone light: errors none (but the blocked snapshot)
+main bcn-z13 phone light: errors none (but the blocked snapshot)
+main madrid-z10 phone light: errors none (but the blocked snapshot)
+main bcn-z12 phone dark: errors none (but the blocked snapshot)
+main bcn-z13 phone dark: errors none (but the blocked snapshot)
+main madrid-z10 phone dark: errors none (but the blocked snapshot)
+main bcn-z12 light: Passeig de Gràcia anchor bottom, pointer over its box: cursor 'pointer'
+main bcn-z12 laptop light: errors none (but the blocked snapshot)
+main bcn-z13 light: Passeig de Gràcia's name not placed
+main bcn-z13 laptop light: errors none (but the blocked snapshot)
+main madrid-z10 laptop light: errors none (but the blocked snapshot)
+main bcn-z12 dark: Passeig de Gràcia anchor bottom, pointer over its box: cursor 'pointer'
+main bcn-z12 laptop dark: errors none (but the blocked snapshot)
+main bcn-z13 dark: Passeig de Gràcia's name not placed
+main bcn-z13 laptop dark: errors none (but the blocked snapshot)
+main madrid-z10 laptop dark: errors none (but the blocked snapshot)
+branch bcn-z12 phone light: errors none (but the blocked snapshot)
+branch bcn-z13 phone light: errors none (but the blocked snapshot)
+branch madrid-z10 phone light: errors none (but the blocked snapshot)
+branch bcn-z12 phone dark: errors none (but the blocked snapshot)
+branch bcn-z13 phone dark: errors none (but the blocked snapshot)
+branch madrid-z10 phone dark: errors none (but the blocked snapshot)
+branch bcn-z12 light: Passeig de Gràcia anchor bottom-left, pointer over its box: cursor 'pointer'
+branch bcn-z12 laptop light: errors none (but the blocked snapshot)
+branch bcn-z13 light: Passeig de Gràcia's name not placed
+branch bcn-z13 laptop light: errors none (but the blocked snapshot)
+branch madrid-z10 laptop light: errors none (but the blocked snapshot)
+branch bcn-z12 dark: Passeig de Gràcia anchor bottom-left, pointer over its box: cursor 'pointer'
+branch bcn-z12 laptop dark: errors none (but the blocked snapshot)
+branch bcn-z13 dark: Passeig de Gràcia's name not placed
+branch bcn-z13 laptop dark: errors none (but the blocked snapshot)
+branch madrid-z10 laptop dark: errors none (but the blocked snapshot)
