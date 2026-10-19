@@ -1532,8 +1532,10 @@ for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', tr
       'icon-text-fit-padding': [0, PILL_PADDING, 0, PILL_PADDING],
       'text-field': ['get', 'name'],
       'text-font': ['Noto Sans Bold'],
-      // Which pill is drawn over which: the later in trains()'s order, as covered() has it, where the one lower on screen was before (#513).
-      'symbol-sort-key': ['get', 'order'],
+      // Which pill is drawn over which: the later in trains()' features, as covered() has it, where the one lower on screen was
+      // before (#513). Not by a sort key, which MapLibre draws a pill at a time, each key on its own: 17% more main thread at rest.
+      // ponytail: in a tile's order, so of two pills either side of a tile's edge, its tile decides. Fine while no name shows over one there.
+      'symbol-z-order': 'source',
       // Long distance's, Ouigo's and Media Distancia's smaller, as pillText() has them, but the followed Train's (#780).
       'text-size': followed ? size : ['case', ['<', ['get', 'pillZoom'], LOCAL_PILL_ZOOM], SMALL_TEXT, size],
       'icon-allow-overlap': true,
@@ -2213,10 +2215,10 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
   const spreadable = placed.flatMap(({ asPill, at }): Drawn[] => (asPill && (spreadState.group?.ids.has(asPill.id) || spreadState.moved.has(asPill.id)) ? [{ ...asPill, at: projected(at) }] : []));
   const aside = spread(spreadable, performance.now(), spreadState.group);
   spreadState = { group: spreadState.group, moved: aside, easing: [...aside].some(([id, px]) => spreadState.moved.get(id) !== px) || aside.size !== spreadState.moved.size };
-  // Each pill in view where it's drawn, in the order the map draws them (`order`), for those a pill over it covers (covered(), #513).
+  // Each pill in view where it's drawn, in the order the map draws them, for those a pill over it covers (covered(), #513).
   // ponytail: in view by its Train's point, so a pill reaching in from just off the map's edge covers nothing. Pad the bounds by a pill if a name shows on one there.
   const [bounds, inView] = [map.getBounds(), [] as Pick<Drawn, 'id' | 'at' | 'box'>[]];
-  const features = placed.map(({ train: { trip, heading, live }, pill, box, asPill, at }, order): GeoJSON.Feature<GeoJSON.Point> => {
+  const features = placed.map(({ train: { trip, heading, live }, pill, box, asPill, at }): GeoJSON.Feature<GeoJSON.Point> => {
     const [out, onScreen] = [aside.get(trip.id), spreadable.find((d) => d.id === trip.id)?.at];
     const right = rightOf(heading, bearing);
     const coordinates: Point = out && onScreen ? (map.unproject([onScreen[0] + out * right[0], onScreen[1] + out * right[1]]).toArray() as Point) : at;
@@ -2252,7 +2254,6 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
         outerRing,
         pulseRadius,
         pulseOpacity,
-        order,
         covered: false,
       },
       geometry: { type: 'Point', coordinates },
