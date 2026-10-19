@@ -79,7 +79,7 @@ const SKIPPED = 0;
 const LAST_KNOWN = 4;
 
 /** Added to a byte where the Delay is a GPS Delay no report after it has confirmed (pick 5): it's kept, flagged, and left out of the aggregates. */
-const UNCONFIRMED = 8;
+export const UNCONFIRMED = 8;
 
 /** How long before a Train reaches its last Call live data can have last placed it for the Call to keep its last-known Delay, in ms (pick 4). */
 const PLACED = 10 * 60_000;
@@ -293,8 +293,10 @@ if (import.meta.main) {
   const [date, out, dryRun] = [values.day ?? addDays(madridDate(new Date()), -1), values.out, !!values['dry-run']];
   const run = promisify(execFile);
   // An object of the history's bucket, or none where it isn't there, or can't be read twice running, which the
-  // log says, with why: a token that can't read the bucket reads as every object missing.
-  const get = async (key: string): Promise<Buffer | undefined> => {
+  // log says, with why: a token that can't read the bucket reads as every object missing. `strict`, as the
+  // aggregates read, throws on any error but the object not being there, as their public files would lose a
+  // Network's day and not say so (#808).
+  const get = async (key: string, strict = false): Promise<Buffer | undefined> => {
     let why: unknown;
     for (const _ of [1, 2]) {
       try {
@@ -304,7 +306,9 @@ if (import.meta.main) {
       }
     }
     const lines = String((why as { stderr?: Buffer })?.stderr ?? why).trim().split('\n');
-    console.warn(`${key} isn't read: ${lines.find((line) => line.includes('ERROR')) ?? lines[0]}`);
+    const error = lines.find((line) => line.includes('ERROR')) ?? lines[0];
+    if (strict && !error?.includes('does not exist')) throw new Error(`${key} isn't read: ${error}`);
+    console.warn(`${key} isn't read: ${error}`);
     return undefined;
   };
   const fetched = async <T>(key: string): Promise<T> => {
@@ -316,11 +320,11 @@ if (import.meta.main) {
   // The days joined, each as the live manifest names it or, where it no longer does, as the job kept it, in out/
   // first, where a dry run of a day the bucket has no files of finds them.
   const listed = daysOf(await fetched<Manifest>('manifest.json'));
-  const filesOf = async (day: string) => {
+  const filesOf = async (day: string, strict = false) => {
     const named = listed.find((d) => d.date === day);
     if (named) return named;
     const local = join(out, KEYS.files(day));
-    const kept = existsSync(local) ? readFileSync(local) : await get(KEYS.files(day));
+    const kept = existsSync(local) ? readFileSync(local) : await get(KEYS.files(day), strict);
     return kept && (JSON.parse(kept.toString()) as DayFiles);
   };
   // Each track once: a build's days share one.
@@ -360,10 +364,10 @@ if (import.meta.main) {
     const summaries: DaySummary[] = [];
     for (let n = -29; n <= 0; n++) {
       const day = addDays(last, n);
-      if (!(await filesOf(day))) continue;
+      if (!(await filesOf(day, true))) continue;
       // A day's records at once, and each Trips file once: Rodalies', FGC's and TRAM's are Catalonia's.
       const networks = NETWORKS.filter(recorded).map((n) => n.id);
-      const bodies = await Promise.all(networks.map((network) => (existsSync(join(out, KEYS.record(day, network))) ? readFileSync(join(out, KEYS.record(day, network))) : get(KEYS.record(day, network)))));
+      const bodies = await Promise.all(networks.map((network) => (existsSync(join(out, KEYS.record(day, network))) ? readFileSync(join(out, KEYS.record(day, network))) : get(KEYS.record(day, network), true))));
       const tripsFiles = new Map<string, Promise<DayTrips>>();
       for (const [i, network] of networks.entries()) {
         const body = bodies[i];

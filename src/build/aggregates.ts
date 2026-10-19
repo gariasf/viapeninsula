@@ -4,9 +4,9 @@
 // files (aggregate()).
 
 import { addDays, trainKey, type Trip } from '../bundle.ts';
-import type { DayRecord } from './punctuality.ts';
+import { UNCONFIRMED, type DayRecord } from './punctuality.ts';
 
-/** On time is within 5 minutes, early or late by less (pick 3), in seconds. */
+/** On time is within 5 minutes (pick 3), in seconds: late by 5 minutes or less, as railisland's final delay, or early. */
 export const ON_TIME = 300;
 
 /** The Delays a Line's day counts its Calls within, in seconds: 1, 3, 5 and 15 minutes, so that Renfe's own 3 can be shown too (pick 3). */
@@ -14,9 +14,6 @@ const WITHIN = [60, 180, 300, 900];
 
 /** The share of a day's minutes a Network's feed has to have worked for its day to count (section 5, "Gaps"): under it, the day reads as unreported Trips, which is not Trains not running. */
 const COVERED = 0.9;
-
-/** A byte's flag for a GPS Delay no report after it confirmed (punctuality.ts' UNCONFIRMED): left out of every figure (pick 5). */
-const UNCONFIRMED = 8;
 
 /**
  * The Lines with no figure, by their IDs, and the Networks, by theirs: those section 4 rates none, FGC's rack and
@@ -69,7 +66,7 @@ export function summarize(network: string, record: DayRecord, trips: Trip[]): Da
     record.delays[i]?.forEach((delay, c) => {
       const from = record.from[i]?.[c];
       const station = trip.calls[c]?.station;
-      if (delay === null || from === null || from === undefined || from & UNCONFIRMED || !station) return;
+      if (delay === null || from === null || from === undefined || from & UNCONFIRMED ||  !station) return;
       const bucket = 3 + WITHIN.filter((within) => delay > within).length;
       line[bucket] = (line[bucket] ?? 0) + 1;
       const day = summary.stations.get(station) ?? [0, 0, 0];
@@ -113,6 +110,8 @@ export interface TrainsFile extends Days {
 
 /** The files from days' summaries: a day each, oldest first, with whatever Networks recorded it, but a Network's day its feed worked under COVERED of, which each file names. */
 export function aggregate(summaries: DaySummary[]): { lines: LinesFile; stations: StationsFile; trains: Map<string, TrainsFile> } {
+  // Files of no days would empty the Lines' year (yearOf()), which isn't worked out again.
+  if (!summaries.length) throw new Error('No record of the last 30 days was read: no aggregates are written');
   const days = [...new Set(summaries.map((s) => s.date))].sort();
   const index = new Map(days.map((d, i) => [d, i]));
   const rules = days.map((d) => summaries.find((s) => s.date === d)?.rules ?? '');

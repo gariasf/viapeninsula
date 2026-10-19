@@ -100,3 +100,7 @@ test("the Lines' year keeps the year file's days before the 30 worked out again,
   );
   expect(yearOf(undefined, fresh)).toEqual(fresh);
 });
+
+test("no record read is an error, not files of no days, which would empty the Lines' year (#808)", () => {
+  expect(() => aggregate([])).toThrow(/No record/);
+});
