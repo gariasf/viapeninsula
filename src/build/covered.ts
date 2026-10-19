@@ -1,7 +1,9 @@
 // Where a Line in a tunnel has another above it, within a line width, as the map draws it narrower and
-// fainter (#417, picked on #309): a line width is a band's own, so the marks are made for each band.
+// fainter (#417, picked on #309): a line width is a band's own, so the marks are made for each band
+// from GRAPH_BAND up. Below it a line width is hundreds of metres, and the marks thinned and broke
+// the Lines bundled there (Llobregat, the coast, Atocha south), so those bands have none (#463).
 
-import { along, APART, atZoom, BANDS, cutIn, DEGREE, drawnIn, inBand, pieces, pixelMetres, type Point, type Shape, type Stroke } from '../bundle.ts';
+import { along, APART, atZoom, BANDS, cutIn, DEGREE, drawnIn, GRAPH_BAND, inBand, pieces, pixelMetres, type Point, type Shape, type Stroke } from '../bundle.ts';
 import { offset } from './offset.ts';
 
 /** How often a stroke is looked at, in metres along it. */
@@ -12,18 +14,19 @@ const PARALLEL = Math.cos(Math.PI / 6);
 type Segment = { line: string; level: number; a: [number, number]; b: [number, number] };
 
 /**
- * The strokes, each `under` one given its `covered`: in each band it's drawn in, from where to where
- * along its shape, in whole metres, a Line above it lies within a line width of it there, alongside
- * (Stroke's `covered`). Judged every EVERY along the stroke as it's drawn in the band, cut back for
- * its curves, off its centreline by its side, and the Line above as it's drawn there too: not those
- * of the Line itself, nor one as deep, nor a track crossing it. `kx` is the metres a degree of
- * longitude is, and `latitude` the line width's, as sideBySide() draws them.
+ * The strokes, each `under` one given its `covered`: in each band from GRAPH_BAND it's drawn in,
+ * from where to where along its shape, in whole metres, a Line above it lies within a line width of
+ * it there, alongside (Stroke's `covered`). Judged every EVERY along the stroke as it's drawn in the
+ * band, cut back for its curves, off its centreline by its side, and the Line above as it's drawn
+ * there too: not those of the Line itself, nor one as deep, nor a track crossing it. `kx` is the
+ * metres a degree of longitude is, and `latitude` the line width's, as sideBySide() draws them.
  */
 export function markCovered(strokes: Stroke[], shapes: Shape[], kx: number, latitude: number): Stroke[] {
   const byId = new Map(shapes.map((s) => [s.id, s]));
   const flat = ([lon, lat]: Point): [number, number] => [lon * kx, lat * DEGREE];
   const marks = new Map<Stroke, [band: number, from: number, to: number][]>();
   for (const [band, zoom] of BANDS.entries()) {
+    if (band < GRAPH_BAND) continue;
     const width = atZoom(APART, zoom) * pixelMetres(zoom, latitude);
     // Each piece of each stroke drawn in the band, as drawn there.
     const drawn = strokes.flatMap((stroke) => {

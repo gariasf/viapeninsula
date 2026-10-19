@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { BANDS, coveredIn, type Shape, type Stroke } from '../bundle.ts';
+import { BANDS, coveredIn, GRAPH_BAND, type Shape, type Stroke } from '../bundle.ts';
 import { markCovered } from './covered.ts';
 import { KX, LATITUDE } from './sideBySide.ts';
 
@@ -23,6 +23,14 @@ test("a Line in a tunnel is marked, in each band, where a Line above lies within
   expect(from12(near)).toEqual([whole(z12), whole(z13), whole(z14)]);
   expect(from12(mid)).toEqual([whole(z12), whole(z13)]);
   expect(from12(far)).toEqual([whole(z12)]);
+});
+
+test('no band below GRAPH_BAND is marked, where a line width is hundreds of metres (#463)', () => {
+  const shapes = [east('a', 0), east('b', 5)];
+  for (const band of BANDS.keys()) {
+    const [, below] = markCovered([stroke('A', 'a', { band }), stroke('B', 'b', { under: 1, band })], shapes, KX, LATITUDE);
+    expect(below?.covered?.length ?? 0).toBe(band < GRAPH_BAND ? 0 : 1);
+  }
 });
 
 test('only where the Line above runs: a run of it half the stroke long marks half of it', () => {
