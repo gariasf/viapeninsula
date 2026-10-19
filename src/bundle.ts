@@ -368,7 +368,7 @@ export interface LiveTraits {
    * The Delay a Train carries where its position measures none: its operator's (`operator`); its last
    * GPS Delay, as Renfe's own figure is often minutes off, where GPS unchanged since its report before
    * counts as no position (`gps`, #33); or its operator's, but shown nowhere (`none`), as TMB runs the
-   * Metro by headway (#103).
+   * Metro by headway (#103), and Euskotren's live times are its timetable's (#825).
    */
   delay: 'operator' | 'gps' | 'none';
   /**

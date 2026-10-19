@@ -387,7 +387,7 @@ export function nearbyAt(bundle: Bundle, at: number, received: Received[], point
  * A Train's Delay, in seconds, as the follow panel, boards and Nearby give it: none where its
  * Network's live data has none shown, as the Metro's: TMB runs the Metro by headway, and its
  * timetable names no Blocks, so a Metro Train's Delay is only against whichever Trip its Block runs,
- * which can be minutes off its own time (#103).
+ * which can be minutes off its own time (#103), and Euskotren's, whose live times are its timetable's (#825).
  */
 const shown = (network: Network, delay: number) => (network.live?.delay === 'none' ? undefined : delay);
 
