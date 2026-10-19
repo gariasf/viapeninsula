@@ -56,9 +56,11 @@ const listers = wanted.some((r) => r.networks.some((n) => n.timetables.every((t)
 const today = madridDate(new Date());
 const DAYS = [0, 1, 2].map((n) => addDays(today, n));
 const report = collect();
-// A dry run's feed cache: today's alone, as the feeds change from day to day, in the main checkout's
-// .cache/, which its worktrees share, so that their dry runs and main's baseline build on the same feeds.
-const FEEDS = join(dryRun ? dirname(execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8' }).trim()) : '', '.cache', 'feeds');
+// A dry run's cache is the main checkout's .cache/, which its worktrees share, so that their dry runs and
+// main's baseline build on the same feeds and OpenStreetMap's same rails (#793). Its feed cache holds
+// today's alone, as the feeds change from day to day.
+const CACHE = join(dryRun ? dirname(execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8' }).trim()) : '', '.cache');
+const FEEDS = join(CACHE, 'feeds');
 if (dryRun) for (const day of await readdir(FEEDS).catch(() => [])) if (day !== today) await rm(join(FEEDS, day), { recursive: true, force: true });
 // Every Network's timetables, downloaded at once, and why they couldn't be, where one couldn't: that
 // doesn't stop the others, and its Network's are read from their copy (readTimetables()). And Media
@@ -68,7 +70,7 @@ if (dryRun) for (const day of await readdir(FEEDS).catch(() => [])) if (day !== 
 const longDistance = downloaded(MEDIA_DISTANCIA_AVANT);
 const downloads = await Promise.all([...listers, ...wanted.flatMap((r) => r.networks)].map((n) => (n === MEDIA_DISTANCIA_AVANT ? longDistance : downloaded(n))));
 // The rails of every kind any Network runs on, the nodes where Trains change gauge on them, and Spain's border.
-const { rails, changers, border } = await osm(RAILWAYS);
+const { rails, changers, border } = await osm(RAILWAYS, CACHE);
 // The last build's manifest names the files of a region whose build fails, and yesterday's bundle,
 // whose last Trains can still be running, and its report is what this build's is diffed against, with
 // each Network's Trips on each day of the week.
