@@ -10,8 +10,12 @@
 // --order alt joins Madrid, long distance, the rest backwards, then Catalonia.
 // It copies what main.ts does for the names, as main.ts can't be imported (the DOM at its top), and reads main.ts's
 // constants (TIERS, BOLD…) from its source; text is measured as main.ts does where it has no canvas, 6 px a letter.
-// ponytail: a copy of putNames(), showNames(), clearance() and nameLines(), which a change to them leaves behind. Move
-// them out of main.ts into a module both import if the bench and the map ever lay names out apart.
+// Where the src works the names out in a worker (placeNames.ts, #777), it does what the worker does, handed each region's
+// file as the page hands it, through structuredClone(); there `sides` is the worker's put, `layout` its lay, and `filed`
+// what the page spends packing the files it hands over. Every place's marks are 0, as the bench makes no interchanges.
+// ponytail: a copy of main.ts's putNames(), showNames(), clearance() and drawnLarger() as they were before #777, for a src
+// from before placeNames.ts, and of nameLines(), which a change to them leaves behind. Drop the copies once no ref worth
+// comparing against is that old; nameLines() moves out of main.ts if the bench and the map ever break names apart.
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -39,20 +43,33 @@ async function variant(src: string, bearing: number) {
   const B = await import(join(src, 'bundle.ts'));
   const { decodeTrack } = await import(join(src, 'pieces.ts'));
   const N = await import(join(src, 'web/names.ts'));
+  const W = existsSync(join(src, 'web/placeNames.ts')) ? await import(join(src, 'web/placeNames.ts')) : undefined;
+  const S = await import(join(src, 'web/stations.ts'));
   const P = await import(join(src, 'web/pill.ts'));
-  const C = constants(readFileSync(join(src, 'web/main.ts'), 'utf8'));
-  // Each region's track, of the manifest's first day the dry run has it for, as the map has it.
+  const C = constants(readFileSync(join(src, 'web/main.ts'), 'utf8'), S.SIGN_ZOOM);
+  // Each region's track, of the manifest's first day the dry run has it for, as the map has it, and its file.
+  const files = new WeakMap<object, unknown>();
   const tracks = new Map(
     order.map((id) => {
       const day = manifest.regions.find((r) => r.id === id)?.days.find((d) => existsSync(join(days, d.track)));
-      return [id, decodeTrack(JSON.parse(readFileSync(join(days, day?.track ?? ''), 'utf8')))];
+      const file = JSON.parse(readFileSync(join(days, day?.track ?? ''), 'utf8'));
+      const track = decodeTrack(file);
+      files.set(track, file);
+      return [id, track];
     }),
   );
+  // The worker's (nameWork()), the regions' keys, and those it holds.
+  const work = W?.nameWork();
+  work?.({ sizes: { dot: C.DOT, ring: C.RING, pillHalo: C.PILL_HALO, nameGap: C.NAME_GAP, nameZooms: C.NAME_ZOOMS, top: C.TOP, signSize: C.SIGN_SIZE, signZoom: S.SIGN_ZOOM } });
+  const keys = new Map<object, number>();
+  let held = new Set<object>();
   const placeSides = N.sidesByJoin();
   const pixelMetres = (zoom: number) => (2 * Math.PI * B.EARTH) / (512 * 2 ** zoom);
   const width = (text: string) => text.length * 6;
   let pills = new Map<string, { zoom: number; box: [number, number] }>();
   let laidOut: { names: any[]; pills: typeof pills; bearing: number; where: Record<string, unknown>[] } | undefined;
+  // main.ts's drawnLarger(), for a place with no marks.
+  const drawnLarger = (larger: number, zoom: number) => (zoom + 1 >= S.SIGN_ZOOM ? Math.max(larger, -B.atZoom(C.DOT, zoom + 1)) : larger === C.TOP ? larger + 0.4 * (B.atZoom(C.DOT, zoom + 1) + 2 + B.atZoom(C.RING, zoom + 1)) : larger);
   // main.ts's clearance().
   const clearance = ({ from: [, lat], normal: [x, y], dot: dotBehind, lines: drawn }: any, larger: number, zoom: number): number => {
     const metresPerPx = pixelMetres(zoom) * Math.cos((lat * Math.PI) / 180);
@@ -96,6 +113,31 @@ async function variant(src: string, bearing: number) {
       const { nameZoom, larger, size } = tier ?? C.UNTIERED;
       return { ...p, nameZoom, listed: tier?.places.indexOf(p.id), larger, style: { bold: C.BOLD.has(p.id), size } };
     });
+    if (work) {
+      // The worker's: each region's file the worker doesn't hold, packed and handed over, then the names put and laid out.
+      const packing = performance.now();
+      const regions = N.splitBy(days, parts);
+      if (!regions) throw new Error('No regions to hand the worker');
+      const transfer: ArrayBuffer[] = [];
+      const handed = regions.map((t: object) => {
+        const key = keys.get(t) ?? keys.set(t, keys.size + 1).get(t);
+        if (held.has(t)) return { key };
+        const file = W.packFile(files.get(t));
+        transfer.push(file.numbers.buffer, file.lengths.buffer);
+        return { key, file };
+      });
+      held = new Set(regions);
+      const placed = tiered.map(({ id, networks, lon, lat, nameZoom, larger, name, style }: any) => {
+        const rows = nameLines(name, style);
+        return { id, dot: [lon, lat], served: networks, size: [Math.max(...rows.map(width)), rows.length * P.LINE_HEIGHT * style.size], nameZoom, larger, marks: 0, type: style.size };
+      });
+      const t0 = performance.now();
+      work(structuredClone({ put: { regions: handed, keep: [...keep], places: placed } }, { transfer }));
+      const t1 = performance.now();
+      const { where } = work(structuredClone({ lay: { pills: [...pills].map(([line, p]) => [line, p]), bearing } }));
+      const t3 = performance.now();
+      return { ms: { names: t3 - t0, sides: t1 - t0, layout: t3 - t1, filed: t0 - packing }, laid: new Map(placed.map((n: any, i: number) => [n.id as string, JSON.stringify(where[i])])), order: placed.map((n: any) => n.id as string).join(' ') };
+    }
     // The regions split and their shapes filed a frame before putNames(), where the src does so (fileShapes(), #770).
     const filing = performance.now();
     const ahead = N.fileShapes ? N.splitBy(days, parts) : undefined;
@@ -132,7 +174,7 @@ async function variant(src: string, bearing: number) {
           const close = 1000 * (first + underStep(s, far, 0, 1));
           return close >= below ? close : close + underAt(s, far, C.NAME_GAP);
         };
-        const { spot, far } = N.nearestSide(at, (s: any) => clearance(s, larger, zoom), under, N.dotCost && ((s: any, far: number) => N.dotCost(s, far, size, metresPerPx) > 0));
+        const { spot, far } = N.nearestSide(at, (s: any) => clearance(s, drawnLarger(larger, zoom), zoom), under, N.dotCost && ((s: any, far: number) => N.dotCost(s, far, size, metresPerPx) > 0));
         return [[`anchor${zoom}`, spot.slid ?? spot.anchor], [`offset${zoom}`, N.nameOffset(spot, far, size).map((px: number) => px / style.size)]];
       });
       return Object.fromEntries(properties);
@@ -145,14 +187,14 @@ async function variant(src: string, bearing: number) {
 }
 
 /** main.ts's constants the names are laid out with, read from its source. */
-function constants(main: string) {
-  const names = ['PILL_HALO', 'DOT', 'RING', 'PLACE_WRAP', 'NAME_HALO', 'NAME_GAP', 'TIERS', 'UNTIERED', 'BOLD', 'NAME_ZOOM_MAX'];
+function constants(main: string, signZoom: number) {
+  const names = ['PILL_HALO', 'DOT', 'RING', 'SIGN_SIZE', 'TOP', 'PLACE_WRAP', 'NAME_HALO', 'NAME_GAP', 'TIERS', 'UNTIERED', 'BOLD', 'NAME_ZOOM_MAX'];
   const body = names.map((name) => {
     const found = new RegExp(`^const ${name}\\b[^=]*=\\s*([\\s\\S]*?);\\n(?=\\S)`, 'm').exec(main);
     if (!found) throw new Error(`No ${name} in main.ts`);
     return `const ${name} = ${found[1]};`;
   });
-  const C = new Function(`${body.join('\n')}\nreturn { ${names.join(', ')} };`)();
+  const C = new Function(`const SIGN_ZOOM = ${signZoom};\n${body.join('\n')}\nreturn { ${names.join(', ')} };`)();
   const NAME_ZOOMS: number[] = [];
   for (let zoom = Math.min(...C.TIERS.map((t: { nameZoom: number }) => t.nameZoom)); zoom <= C.NAME_ZOOM_MAX; zoom++) NAME_ZOOMS.push(zoom);
   return { ...C, NAME_ZOOMS };

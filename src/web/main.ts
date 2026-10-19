@@ -11,11 +11,13 @@ import { boardAt, comingAt, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trains
 import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, earlierStations, followDeparture, language, LANGUAGES, leavesAt, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, placedBy, setLanguage, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { getJson, lookAgainSoon, RETRY, STALL } from './files.ts';
-import { daysAsTheyCome, firstLook, forgetJoined, joinedFrom, regionLoader, regionsCame, regionsNeeded } from './regions.ts';
+import { daysAsTheyCome, firstLook, forgetJoined, joinedFrom, regionLoader, regionsCame, regionsNeeded, trackFileOf } from './regions.ts';
 import { byRegion, drawnFrom, drawnLines } from './lines.ts';
 import { linesAt, popupRoom } from './tap.ts';
 import { drawnAt as placeShownAt, FEW_ZOOM, fewer, interchangesOf, markedNetworks, onLines, RAILS, SIGN_ZOOM, type LineCall, type Drawn as PlaceDrawn, type Interchange } from './stations.ts';
-import { callsIn, dotCost, fileShapes, hidesTowns, nameOffset, nameReach, nameSort, nearestSide, rightOf, sidesByJoin, splitBy, underName, type Side, type Spot } from './names.ts';
+import { callsIn, fileShapes, hidesTowns, nameSort, rightOf, splitBy } from './names.ts';
+import type { StoredTrack } from '../pieces.ts';
+import { namePlacer, packFile, type NamePlace, type NamesAsk, type Sizes, type Where } from './placeNames.ts';
 import { covered, groupOf, spreading, toEdge, type Drawn, type Group, type Named } from './spread.ts';
 import { atMostEvery, drifted, letsGo, outsideMiddle, pointersDown, tapZooms } from './centre.ts';
 import { fastestInView } from './pace.ts';
@@ -1073,8 +1075,56 @@ const lifted = new Map<string, number>();
 let shownStrokes: Stroke[] = [];
 /** Each region's Lines and rails, made once for its track, and those MapLibre has (byRegion(), #733). */
 const regionLines = byRegion();
-/** Each place's sides of its track, worked out again at a join only where it can move them (sidesByJoin(), #733). */
-const placeSides = sidesByJoin();
+/** The sizes the places' names clear (namePlacer()'s clearance()). */
+const NAME_SIZES: Sizes = { dot: DOT, ring: RING, pillHalo: PILL_HALO, nameGap: NAME_GAP, nameZooms: NAME_ZOOMS, top: TOP, signSize: SIGN_SIZE, signZoom: SIGN_ZOOM };
+/**
+ * Where the places' names are put beside their tracks and laid out (namePlacer()): in a worker of their own, as on a
+ * phone they froze a join for 0.85 to 1.55 s on the page (#777).
+ */
+const namesWorker = new Worker(new URL('./namesWorker.ts', import.meta.url), { type: 'module' });
+/** And on the page, for a track whose regions the worker can't be handed (handable()), or once it has failed. */
+const pageNames = namePlacer(NAME_SIZES);
+/** Which of them has the names last put beside their tracks (putNames()), and so lays them out (showNames()). */
+let namesOn: 'worker' | 'page' = 'worker';
+/** Whether the worker has failed, so that the page puts and lays out the names from then on. */
+let namesWorkerFailed = false;
+/** The names last put in the worker, as the page would put them, should it fail. */
+let putOnPage: (() => void) | undefined;
+/** The regions' tracks the worker holds: each handed over once, for as long as the joins name it. */
+let handedNames = new Set<Track>();
+/** Each region's track's key, which names it to the worker once it holds it, and how many have been given. */
+const trackKeys = new WeakMap<Track, number>();
+let trackKeyCount = 0;
+/** Asks the worker (NamesAsk), moving what `transfer` holds rather than copying it. */
+const askNames = (ask: NamesAsk, transfer: Transferable[] = []) => namesWorker.postMessage(ask, transfer);
+askNames({ sizes: NAME_SIZES });
+// A layout asked for names, pills or a bearing that have changed since is left for the one asked last, and once the
+// worker has failed, any it still sends.
+namesWorker.onmessage = ({ data }: MessageEvent<{ ask: number; where: Where[] }>) => {
+  if (namesWorkerFailed || !askedNames || data.ask !== askedNames.ask) return;
+  laidOut = { of: askedNames, where: data.where };
+  drawNames();
+};
+// Where the worker fails, or a layout it sends can't be read, the page puts and lays out the names as it did before
+// #777, and the worker is let go of, with the tracks it holds.
+const namesFailed = (error: Event) => {
+  console.error(error);
+  namesWorker.terminate();
+  namesWorkerFailed = true;
+  if (namesOn !== 'worker') return;
+  putOnPage?.();
+  namesOn = 'page';
+  askedNames = undefined;
+  showNames();
+};
+namesWorker.onerror = namesWorker.onmessageerror = namesFailed;
+
+/** The track files of a join's regions, where the worker can be handed them: each read from pieces (decodeTrack()). */
+function handable(regions: Track[] | undefined): StoredTrack[] | undefined {
+  if (namesWorkerFailed) return undefined;
+  const files = regions?.map(trackFileOf);
+  return files?.every((f) => f && 'traced' in f) ? (files as StoredTrack[]) : undefined;
+}
 /** What moves a tapped group of Trains standing together at a Station apart (#129). */
 const spread = spreading();
 /**
@@ -1086,11 +1136,10 @@ let spreadState: { group?: Group; moved: Map<string, number>; easing: boolean } 
 /** The Trains last drawn as pills standing at a Station, where they're drawn before any moves aside, which a tap on one spreads (groupOf()). */
 let standingPills: { id: string; at: Point; heading: number; box: [number, number]; standsAt: string }[] = [];
 /**
- * Each place's name: its place's ID, whose board a tap on it opens (#618), its dot, the sides of its track it can go, once the map's bearing is known, broken
- * into its lines, how wide and high those are, in px, the zoom it shows from, where its tier lists it,
- * its Stations, how much larger its dot is, and how it's lettered.
+ * Each place's name: its place's ID, whose board a tap on it opens (#618), its dot, broken into its lines, the zoom it
+ * shows from, where its tier lists it, its Stations, and how it's lettered. Where it goes is worked out apart (namesWorker).
  */
-let names: { id: string; dot: Point; sides: (bearing: number) => Side[]; name: string; size: [width: number, height: number]; nameZoom: number; listed?: number; stations: string[]; larger: number; marks: number; style: NameStyle }[] = [];
+let names: { id: string; dot: Point; name: string; nameZoom: number; listed?: number; stations: string[]; style: NameStyle }[] = [];
 /** The map's bearing when the names were last put beside their tracks. */
 let namesBearing = NaN;
 /**
@@ -1100,11 +1149,10 @@ let namesBearing = NaN;
  * week and would make Catalonia's 615 KB track a new file in each daily build, for 6 KB of brotli.
  */
 let calls = new Map<string, number>();
-/**
- * Where `names` were last laid out (showNames()), for the pills clearance() reads and the bearing the
- * map had: each one's anchor and offset at each of NAME_ZOOMS.
- */
-let laidOut: { names: typeof names; pills: typeof pills; bearing: number; where: Record<string, unknown>[] } | undefined;
+/** The names, pills and bearing the names' layout was last asked for (showNames()). */
+let askedNames: { names: typeof names; pills: typeof pills; bearing: number; ask: number } | undefined;
+/** Where the names were last laid out, as asked (`of`): each one's anchor and offset at each of NAME_ZOOMS. */
+let laidOut: { of: NonNullable<typeof askedNames>; where: Where[] } | undefined;
 map.addSource('lines', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 // Simplified less than MapLibre's default 0.375 px, which would facet their curves again (#203).
 map.addSource('rails', { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, tolerance: 0.1 });
@@ -1928,22 +1976,38 @@ function show(days: Track | Bundle, tripsOnly = false) {
   const later = (then: () => void) => requestAnimationFrame(() => setTimeout(() => namesDue === days && then()));
   const putNames = (regions: Track[] | undefined) => {
     namesDue = undefined;
-    // Names go beside the track, not the stretches' centrelines, clear of the Trains on their Lines' strokes along those,
-    // and of the other places' dots (#501).
-    const centrelines = new Map(days.shapes.flatMap((s) => (s.id.startsWith(STRETCH) ? [[s.id, s]] : [])));
     const rows = tiered.map(({ name, style }) => nameLines(name, style));
     const sizes = tiered.map(({ style }, i): [number, number] => [Math.max(...(rows[i] ?? []).map((row) => placeWidth(row, style))), (rows[i]?.length ?? 0) * LINE_HEIGHT * style.size]);
-    // A track built before #243 names no Station's Networks: its names go beside the nearest track of any. Each name
-    // reaches furthest at the zoom it shows from, where the dots under it are looked for (#714).
-    const where = tiered.map(({ id, networks, lon, lat, nameZoom }, i) => ({ id, dot: [lon, lat] as Point, served: networks, reach: nameReach(sizes[i] ?? [0, 0], pixelMetres(nameZoom) * Math.cos((lat * Math.PI) / 180)) }));
-    const sides = placeSides(regions ?? [days], (days.slots ?? []).filter((s) => s.band === undefined), (line) => placing.keep.get(line) ?? 1, days.lines, centrelines, where, !regions);
-    names = tiered.map(({ id, nameZoom, listed, stations, larger, marks, style, lon, lat }, i) => ({ id, dot: [lon, lat], sides: sides[i] ?? (() => []), name: (rows[i] ?? []).join('\n'), size: sizes[i] ?? [0, 0], nameZoom, listed, stations, larger, marks, style }));
+    const placed = tiered.map(({ id, networks, lon, lat, nameZoom, larger, marks, style }, i): NamePlace => ({ id, dot: [lon, lat], served: networks, size: sizes[i] ?? [0, 0], nameZoom, larger, marks, type: style.size }));
+    const files = handable(regions);
+    if (regions && files) {
+      // Each region's track file the worker doesn't hold, handed over (packFile()), and the others by their keys.
+      const transfer: Transferable[] = [];
+      const handed = regions.map((track, i) => {
+        let key = trackKeys.get(track);
+        if (key === undefined) trackKeys.set(track, (key = ++trackKeyCount));
+        if (handedNames.has(track)) return { key };
+        const file = packFile(files[i] as StoredTrack);
+        transfer.push(file.numbers.buffer, file.lengths.buffer);
+        return { key, file };
+      });
+      askNames({ put: { regions: handed, keep: [...placing.keep], places: placed } }, transfer);
+      [handedNames, namesOn] = [new Set(regions), 'worker'];
+      const { keep } = placing;
+      putOnPage = () => pageNames.put(regions, false, keep, placed);
+    } else {
+      pageNames.put(regions ?? [days], !regions, placing.keep, placed);
+      namesOn = 'page';
+    }
+    names = tiered.map(({ id, nameZoom, listed, stations, style, lon, lat }, i) => ({ id, dot: [lon, lat], name: (rows[i] ?? []).join('\n'), nameZoom, listed, stations, style }));
     showNames();
   };
-  // Worked out a region at a time, and at a join only for the places it can move (#733), from the regions' shapes filed a
-  // frame before: long distance's alone take some 0.15 s (#770).
+  // Worked out a region at a time, and at a join only for the places it can move (#733): in the worker, which files a
+  // region's shapes as it's handed them (#777), or on the page from the regions' shapes filed a frame before, as long
+  // distance's alone take some 0.15 s (#770).
   const fileNames = () => {
     const regions = splitBy(days, joinedFrom(days)?.map((r) => r.track));
+    if (handable(regions)) return putNames(regions);
     for (const track of regions ?? [days]) fileShapes(track.shapes);
     later(() => putNames(regions));
   };
@@ -2282,102 +2346,33 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
 }
 
 /**
- * Puts each place's name beside its own Networks' track (alongside(), sidesByJoin()) as the track lies on screen now, at each of
- * NAME_ZOOMS on the side nearestSide() takes, as far out from its dot as clearance() says, and off any track
- * crossing its own there and any other place's dot (underName()), and sorts them for where they collide (nameSort(), #372).
- * ponytail: tries a name under a crossing track, or by another place's dot, at the zoom and the next, not
- * in between, and as far out at the next as at this one. Try more steps if a name lies across one mid-zoom.
- * ponytail: laid out flat, so on a tilted map a name sits a little nearer its track or further than
- * NAME_GAP. Work each normal out on screen with map.project() if that shows.
+ * Puts each place's name beside its own Networks' track as the track lies on screen now (namePlacer()'s lay(), in the
+ * worker, or on the page), once the names, the pills it clears or the bearing have changed since it was asked, and
+ * sorts them for where they collide (nameSort(), #372): the calls that come with the Trips rank them again without
+ * laying them out.
  */
 function showNames() {
   namesBearing = map.getBearing();
-  // Where each name goes depends on the names, the pills clearance() reads and the bearing, not on its
-  // rank: the calls that come with the Trips rank them again without laying them out (#372).
-  if (laidOut?.names !== names || laidOut.pills !== pills || laidOut.bearing !== namesBearing) {
-    // A name whose sides, size, zoom, dot size and type size are as they were, at the bearing it was laid out at, goes where it went,
-    // unless a Train's pill it clears changed (clearance()): at a join, those whose sides it can't move (sidesByJoin(), #733).
-    const was = laidOut;
-    const pillsAsWere = was !== undefined && was.bearing === namesBearing && [...pills].every(([line, p]) => samePill(was.pills.get(line), p));
-    const before = new Map(pillsAsWere ? was.names.map((n, i) => [n.sides, { n, where: was.where[i] }]) : []);
-    const where = names.map(({ dot, sides, size, nameZoom, larger, marks, style }) => {
-      const had = before.get(sides);
-      if (had?.where && had.n.size[0] === size[0] && had.n.size[1] === size[1] && had.n.nameZoom === nameZoom && had.n.larger === larger && had.n.marks === marks && had.n.style.size === style.size) return had.where;
-      const at = sides(namesBearing);
-      const properties = NAME_ZOOMS.flatMap((zoom) => {
-        // MapLibre lays names out at whole zooms, so a track crossing its own lies under one from this zoom to the next, at half the metres a px.
-        const metresPerPx = pixelMetres(zoom) * Math.cos((dot[1] * Math.PI) / 180);
-        // The Lines whose strokes lie under a name, or within `gap` px of it, at this zoom's Lines' spacing and width and the next's,
-        // and what the dots near it cost.
-        const underStep = (s: Spot, far: number, gap: number, step: number) => underName(s, far, size, metresPerPx / 2 ** step, atZoom(APART, zoom + step), gap + atZoom(WIDTH, zoom + step) / 2);
-        const underAt = (s: Spot, far: number, gap: number) => underStep(s, far, gap, 0) + underStep(s, far, gap, 1);
-        // Below the zoom it shows from, no name lies anywhere; from it, fewest under it first, with a place's dot near it
-        // costing it Lines (DOT_COST), then fewest within NAME_GAP. Counted no further once it's `below` or more, where
-        // it's only whether a slid name is under less than unslid (nearestSide(), #713).
-        const under = (s: Spot, far: number, below = Infinity) => {
-          if (zoom < nameZoom) return 0;
-          const first = underStep(s, far, 0, 0);
-          if (1000 * first >= below) return 1000 * first;
-          const close = 1000 * (first + underStep(s, far, 0, 1));
-          return close >= below ? close : close + underAt(s, far, NAME_GAP);
-        };
-        // Slid along its track only where another place's dot costs a side (#713).
-        const { spot, far } = nearestSide(at, (s) => clearance(s, drawnLarger(larger, marks, zoom), zoom), under, (s, far) => dotCost(s, far, size, metresPerPx) > 0);
-        // MapLibre offsets names in ems, and anchors one slid along its track by a corner (#713).
-        return [
-          [`anchor${zoom}`, spot.slid ?? spot.anchor],
-          [`offset${zoom}`, nameOffset(spot, far, size).map((px) => px / style.size)],
-        ];
-      });
-      return Object.fromEntries(properties);
-    });
-    laidOut = { names, pills, bearing: namesBearing, where };
+  if (askedNames?.names !== names || askedNames.pills !== pills || askedNames.bearing !== namesBearing) {
+    askedNames = { names, pills, bearing: namesBearing, ask: (askedNames?.ask ?? 0) + 1 };
+    if (namesOn === 'page') laidOut = { of: askedNames, where: pageNames.lay(pills, namesBearing) };
+    else askNames({ lay: { pills: [...pills].map(([line, { zoom, box }]) => [line, { zoom, box }]), bearing: namesBearing, ask: askedNames.ask } });
   }
+  drawNames();
+}
+
+/** The names where they were laid out, once they have been as last asked (showNames()). */
+function drawNames() {
+  if (!laidOut || laidOut.of !== askedNames) return;
   const { where } = laidOut;
+  const shown = laidOut.of.names;
   map.getSource<GeoJSONSource>('station-names')?.setData({
     type: 'FeatureCollection',
-    features: names.map(({ id, dot, name, nameZoom, listed, stations, style }, i): GeoJSON.Feature => {
+    features: shown.map(({ id, dot, name, nameZoom, listed, stations, style }, i): GeoJSON.Feature => {
       const sort = nameSort({ nameZoom, listed, stations }, calls);
       return { type: 'Feature', properties: { id, name, nameZoom, sort, ...style, ...where[i] }, geometry: { type: 'Point', coordinates: dot } };
     }),
   });
-}
-
-/**
- * How much larger than a dot in neither tier a place is drawn at a zoom, in px, for its name to clear it (#572): as
- * MapLibre lays names out at whole zooms, as far as at the next, from SIGN_ZOOM its marks half as wide as they are, and
- * below it, the top tier's square, reaching a fifth further than its dot, and its corners a little more.
- */
-function drawnLarger(larger: number, marks: number, zoom: number): number {
-  const next = zoom + 1;
-  if (next >= SIGN_ZOOM) return Math.max(larger, (atZoom(SIGN_SIZE, next) * marks) / 2 - atZoom(DOT, next));
-  return larger === TOP ? larger + 0.4 * (atZoom(DOT, next) + 2 + atZoom(RING, next)) : larger;
-}
-
-/** Whether a Line's Trains' pill is as large, and from the same zoom, as it was, or it had none: where a name clears it, it goes where it went (clearance()). */
-function samePill(was: Pill | undefined, pill: Pill): boolean {
-  return !was || (was.zoom === pill.zoom && was.box[0] === pill.box[0] && was.box[1] === pill.box[1]);
-}
-
-/**
- * How far out from its dot a place's name goes at a zoom, in px: NAME_GAP clear of the dot, `larger`
- * px larger than the smallest, and of each Train drawn along its tracks there, as a pill, or below its
- * Line's pill zoom a dot about as large as the place's, beside its Line's stroke zoomed out; or, for
- * a Line the spot marks `stroke`, of its stroke. MapLibre lays names out at whole zooms, so it's as far out as the map needs until the
- * next, where the Lines are drawn furthest apart and dots largest.
- * ponytail: clear of every Train but the followed one, which is drawn larger. Take in its pill too if
- * the names it covers show.
- */
-function clearance({ from: [, lat], normal: [x, y], dot: dotBehind, lines: drawn }: Spot, larger: number, zoom: number): number {
-  const metresPerPx = pixelMetres(zoom) * Math.cos((lat * Math.PI) / 180);
-  const dot = atZoom(DOT, zoom + 1) + larger + atZoom(RING, zoom + 1);
-  const apart = Math.max(atZoom(APART, zoom), atZoom(APART, zoom + 1));
-  const reaches = drawn.map(({ line, toward, behind, stroke }) => {
-    const pill = pills.get(line);
-    const across = stroke ? atZoom(WIDTH, zoom + 1) / 2 : pill && zoom >= pill.zoom ? pill.box[0] * Math.abs(x) + pill.box[1] * Math.abs(y) + PILL_HALO : dot;
-    return toward * apart + across - behind / metresPerPx;
-  });
-  return Math.max(dot - dotBehind / metresPerPx, ...reaches) + NAME_GAP + dotBehind / metresPerPx;
 }
 
 /**
