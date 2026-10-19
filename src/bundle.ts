@@ -471,7 +471,7 @@ export interface Stroke {
    */
   under?: number;
   /**
-   * Of an `under` stroke, in each zoom band it's drawn in, from where to where along its shape a
+   * Of an `under` stroke, in each zoom band from GRAPH_BAND it's drawn in (#463), from where to where along its shape a
    * Line above it lies within a line width of it, alongside, as the band draws them: the map draws
    * those parts narrower and fainter (#417, picked on #309). A line width is a band's own, so a part
    * is marked for the bands it's covered in. Metres, whole.
