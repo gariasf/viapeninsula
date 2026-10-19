@@ -76,11 +76,22 @@ export function joinedFrom({ strokes }: Pick<Track, 'strokes'>): { id: string; t
 /** Each track file read once, however many days name it and however many times the map looks again: the files the page keeps are these objects. */
 const decoded = new WeakMap<TrackFile, Track>();
 
+/** Each track's file, by the track read from it (decodedTrack()): the places' names' worker is handed the file rather than the track (#777). */
+const files = new WeakMap<Track, TrackFile>();
+
 /** A region's track file as the track it was built from (decodeTrack()), where it was stored as pieces. */
 function decodedTrack(file: TrackFile): Track {
   let track = decoded.get(file);
-  if (!track) decoded.set(file, (track = decodeTrack(file)));
+  if (!track) {
+    decoded.set(file, (track = decodeTrack(file)));
+    files.set(track, file);
+  }
   return track;
+}
+
+/** The file a region's track was read from (decodedTrack()). */
+export function trackFileOf(track: Track): TrackFile | undefined {
+  return files.get(track);
 }
 
 /**
