@@ -1169,34 +1169,50 @@ const layered = [
   // Under the first band's casing, the lowest of the stretches' layers.
   { source: 'rails', id: 'rails', prefix: 'rail', zooms: { minzoom: railsZoom - FADE, filter: true as ExpressionFilterSpecification }, nameZooms: { minzoom: railsZoom }, opacity: railsFade, throughOpacity: railsFade, below: 'line-casing' },
 ];
+/**
+ * The suffix of a band's layers for a curve's pieces, drawn with butt ends: round ends overlapping at part opacity
+ * showed a bead at every joint while the band faded out, from zoom 14.5 to 15.5 (#620, the maintainer's pick of
+ * 19 Oct 2026). Their casing goes over the band's own and under its strokes, so it cuts no gap where a curve meets a
+ * stroke, and their strokes over the band's. Outside a sharp turn, a butt end leaves a speck of a px.
+ */
+const CURVE = '-curve';
+const isCurve: ExpressionFilterSpecification = ['has', 'curve'];
 for (const { source, id, prefix, zooms, nameZooms, opacity, throughOpacity, below } of layered) {
-  map.addLayer(
-    {
-      id: `${prefix}-casing`,
-      type: 'line',
-      source,
-      ...zooms,
-      layout: lineLayout,
-      paint: { 'line-color': casing, 'line-width': lineWidth(2), 'line-offset': lineOffset, 'line-opacity': opacity },
-    },
-    below,
-  );
-  map.addLayer(
-    {
-      id,
-      type: 'line',
-      source,
-      ...zooms,
-      layout: lineLayout,
-      paint: {
-        'line-color': lineColour,
-        'line-width': lineWidth(),
-        'line-offset': lineOffset,
-        'line-opacity': opacity,
+  // The rails have no curves.
+  for (const curve of source === 'lines' ? [false, true] : [false]) {
+    const suffix = curve ? CURVE : '';
+    const filter: ExpressionFilterSpecification = source === 'rails' ? zooms.filter : ['all', zooms.filter, curve ? isCurve : ['!', isCurve]];
+    const layout: LineLayerSpecification['layout'] = curve ? { ...lineLayout, 'line-cap': 'butt' } : lineLayout;
+    map.addLayer(
+      {
+        id: `${prefix}-casing${suffix}`,
+        type: 'line',
+        source,
+        ...zooms,
+        filter,
+        layout,
+        paint: { 'line-color': casing, 'line-width': lineWidth(2), 'line-offset': lineOffset, 'line-opacity': opacity },
       },
-    },
-    below,
-  );
+      curve ? id : below,
+    );
+    map.addLayer(
+      {
+        id: `${id}${suffix}`,
+        type: 'line',
+        source,
+        ...zooms,
+        filter,
+        layout,
+        paint: {
+          'line-color': lineColour,
+          'line-width': lineWidth(),
+          'line-offset': lineOffset,
+          'line-opacity': opacity,
+        },
+      },
+      below,
+    );
+  }
   // Over its own stroke, in its own colour, it doesn't show: only where another Line covers it. Not
   // where Lines on one level cover each other: crowded, or sliding onto the rails.
   map.addLayer(
@@ -1565,7 +1581,7 @@ for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', tr
 // though a wheel, a pinch or a drag keeps it. Clear it only once no second tap follows if the ring's
 // missed after one.
 /** The layers the Lines' strokes are drawn in. A tap names the Lines of those along their stretches below railsZoom, and of the rails from it. */
-const strokeLayers = layered.map((l) => l.id);
+const strokeLayers = layered.flatMap(({ source, id }) => (source === 'lines' ? [id, `${id}${CURVE}`] : [id]));
 /** Where a tap names the Lines drawn there, or what closes a Closure. Each tap closes the last one's. */
 const linesPopup = new Popup({ closeButton: false, closeOnClick: false, className: 'lines-at', maxWidth: 'none' });
 // From SIGN_ZOOM, each place's marks, over the Trains' dots, which are pills by then, and under the names, but where

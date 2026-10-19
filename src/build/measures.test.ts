@@ -150,7 +150,7 @@ test("doesn't count Lines stepping side by side the same way as a swap", () => {
 test('measures nothing amiss for Lines side by side on one track, each drawn once', () => {
   const found = measures({ shapes: [east('a', 2000), east('b', 2000)], strokes: [stroke('R2', 'a', 0, 2000, -0.5), stroke('R11', 'b', 0, 2000, 0.5)] });
   const zero = Object.fromEntries(BANDS.map((zoom) => [zoom, 0]));
-  expect(found).toEqual({ breaks: { steps: 0, stubs: 0, swaps: 0, joins: 0 }, twice: 0, alone: 0, over: 0, folds: zero, covered: zero, dangling: 0, kinks: zero, weaves: zero, hidden: zero, wiggles: zero, hairpins: zero, inside: zero, largest: Object.fromEntries(BANDS.map((zoom) => [zoom, []])), curves: [] });
+  expect(found).toEqual({ breaks: { steps: 0, stubs: 0, swaps: 0, joins: 0 }, twice: 0, alone: 0, over: 0, folds: zero, covered: zero, dangling: 0, kinks: zero, weaves: zero, hidden: zero, wiggles: zero, hairpins: zero, inside: zero, largest: Object.fromEntries(BANDS.map((zoom) => [zoom, []])), curves: [], unjoined: zero });
 });
 
 test('measures a Line drawn twice, where its two directions have tracks of their own and different sides', () => {
@@ -299,6 +299,18 @@ test('counts curves too short for how far their Line moves over as kinks, in eac
   expect(kinks(1000, 1020)).toEqual(every(1));
   expect(kinks(1000, 1200)).toEqual({ ...none, 10: 1, 11: 1 });
   expect(kinks(1000, 1700)).toEqual(none);
+});
+
+test("counts a Line's step that no curve joins, in each band it's drawn in, but not one a curve joins nor one between strokes a node absorbed (#623)", () => {
+  // R2 steps over a line width 1050 m along 'a', where a curve across 1000 to 1100 m joins it, or none does.
+  const unjoined = (joined: boolean, cut?: [number, number][]) =>
+    measures({
+      shapes: [east('a', 4000), east(`${LINK}0`, 100)],
+      strokes: [{ ...stroke('R2', 'a', 0, 1050, 0), ...(cut && { cut }) }, ...(joined ? curves(1000, 1100, 0, 1) : []), stroke('R2', 'a', 1050, 4000, 1)],
+    }).unjoined;
+  expect(unjoined(true)).toEqual(none);
+  expect(unjoined(false)).toEqual(every(1));
+  expect(unjoined(false, BANDS.flatMap((_, band) => (band < GRAPH_BAND ? [] : [[band === GRAPH_BAND ? 1050 : 0, 0] as [number, number]])))).toEqual({ ...every(1), [BANDS[GRAPH_BAND] ?? 0]: 0 });
 });
 
 test("counts a Line's stroke shorter than the room the nodes at its ends need, where it changes side there, as a weave", () => {
@@ -491,6 +503,7 @@ test('reports the measures as one spot with each of their numbers, in metres, an
     inside: { 7: 9395, 8: 14055.5 },
     largest: { 7: [{ size: 15.1, at: [-3.67716, 40.45778] }], 8: [{ size: 24.5, at: [-3.6773, 40.45782] }, { size: 19.1, at: [2.15024, 41.38278] }] },
     curves: [],
+    unjoined: { 7: 0, 8: 1 },
   };
   const [first, seven, eight] = `Lines drawn: ${summary(found)}`.split('\n').map((line) => line.trim());
   expect([seven, eight]).toEqual([
@@ -528,6 +541,8 @@ test('reports the measures as one spot with each of their numbers, in metres, an
         'wiggles 8': 1,
         'hairpins 7': 2,
         'hairpins 8': 0,
+        'unjoined 7': 0,
+        'unjoined 8': 1,
         'inside 7': 9395,
         'inside 8': 14056,
       },

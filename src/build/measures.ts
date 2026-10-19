@@ -98,6 +98,8 @@ const TURN_BACKS: { line: string; at: Point; within: number; why: string }[] = [
  * than at either of its ends. `largest`: the LARGEST largest nodes, how far apart their fronts are in
  * the band's line widths, and where their middle is, so that a node that absorbed too much shows (#187).
  * `curves`: each curve that wiggles, and each hairpin, which the report lists one by one (#520).
+ * `unjoined`: at each zoom in BANDS, steps with no curve across them, of the Line, with a part (`across`) that starts
+ * or ends where the step is: 0 while every step is joined, as `steps` counts a step whether or not a curve joins it (#623).
  */
 export interface Measures {
   breaks: Breaks;
@@ -115,6 +117,7 @@ export interface Measures {
   inside: Record<number, number>;
   largest: Record<number, { size: number; at: Point }[]>;
   curves: Curve[];
+  unjoined: Record<number, number>;
 }
 
 /**
@@ -142,7 +145,7 @@ export function measures({ shapes, strokes: pieces, lines = [] }: Pick<Track, 's
   const one = (line: string) => first.get(line) ?? line;
   const curves = [...wiggles(strokes, shapes), ...hairpins(strokes, shapes)];
   const count = (kind: Curve['kind']) => Object.fromEntries(BANDS.map((zoom) => [zoom, curves.filter((c) => c.kind === kind && c.zoom === zoom).length]));
-  return { breaks: breaks(graph, shapes), ...faithful(graph, shapes, one), folds: folds(drawn, shapes), covered: covered(strokes, shapes, one), dangling: dangling(strokes, shapes), ...nodes(strokes, shapes, lines), wiggles: count('wiggle'), hairpins: count('hairpin'), curves };
+  return { breaks: breaks(graph, shapes), ...faithful(graph, shapes, one), folds: folds(drawn, shapes), covered: covered(strokes, shapes, one), dangling: dangling(strokes, shapes), ...nodes(strokes, shapes, lines), wiggles: count('wiggle'), hairpins: count('hairpin'), curves, unjoined: unjoined(strokes) };
 }
 
 /**
@@ -172,10 +175,10 @@ function joined(strokes: Stroke[]): Stroke[] {
 }
 
 /** Measures in a line for the build's log. */
-export function summary({ breaks: b, twice, alone, over, folds: f, covered, dangling: loose, kinks, weaves, hidden, wiggles, hairpins, inside, largest }: Measures): string {
+export function summary({ breaks: b, twice, alone, over, folds: f, covered, dangling: loose, kinks, weaves, hidden, wiggles, hairpins, unjoined, inside, largest }: Measures): string {
   const km = (m: number) => `${(m / 1000).toFixed(1)} km`;
   const per = (found: Record<number, number>, as: (n: number) => string = String) => Object.entries(found).map(([zoom, n]) => `${as(n)} at zoom ${zoom}`).join(', ');
-  return `${total(b)} breaks (${b.steps} steps, ${b.stubs} stubs, ${b.swaps} swaps, ${b.joins} joins), ${km(twice)} drawn twice, ${km(alone)} off a track they have alone, ${Math.round(over)} m over each other, folds ${per(f)}, covered ${per(covered, (m) => `${(m / 1000).toFixed(1)} km`)}, ${loose} dangling ends, kinks ${per(kinks)}, weaves ${per(weaves)}, hidden strokes drawn ${per(hidden)}, wiggles ${per(wiggles)}, hairpins ${per(hairpins)}, off track inside nodes ${per(inside, (m) => `${Math.round(m)} m`)}${Object.entries(largest).map(([zoom, list]) => `\n  largest nodes at zoom ${zoom}, in line widths: ${list.map(({ size, at: [lon, lat] }) => `${size.toFixed(1)} at ${lat.toFixed(5)},${lon.toFixed(5)}`).join(', ')}`).join('')}`;
+  return `${total(b)} breaks (${b.steps} steps, ${b.stubs} stubs, ${b.swaps} swaps, ${b.joins} joins), ${km(twice)} drawn twice, ${km(alone)} off a track they have alone, ${Math.round(over)} m over each other, folds ${per(f)}, covered ${per(covered, (m) => `${(m / 1000).toFixed(1)} km`)}, ${loose} dangling ends, kinks ${per(kinks)}, weaves ${per(weaves)}, hidden strokes drawn ${per(hidden)}, wiggles ${per(wiggles)}, hairpins ${per(hairpins)}, steps no curve joins ${per(unjoined)}, off track inside nodes ${per(inside, (m) => `${Math.round(m)} m`)}${Object.entries(largest).map(([zoom, list]) => `\n  largest nodes at zoom ${zoom}, in line widths: ${list.map(({ size, at: [lon, lat] }) => `${size.toFixed(1)} at ${lat.toFixed(5)},${lon.toFixed(5)}`).join(', ')}`).join('')}`;
 }
 
 /**
@@ -201,6 +204,7 @@ export function reported(m: Measures, text: string): Found[] {
     ...each('hidden', m.hidden),
     ...each('wiggles', m.wiggles),
     ...each('hairpins', m.hairpins),
+    ...each('unjoined', m.unjoined),
     ...each('inside', m.inside),
   ]);
   // summary() gives the largest nodes a line for each zoom, in order, after its first.
@@ -270,6 +274,32 @@ export function breaks(strokes: Stroke[], shapes: Shape[]): Breaks {
     }
   }
   return found;
+}
+
+/** At each zoom in BANDS, how many of the Lines' steps there no curve joins (see Measures). */
+function unjoined(strokes: Stroke[]): Record<number, number> {
+  return Object.fromEntries(
+    BANDS.map((zoom, band) => {
+      const byShape = new Map<string, Stroke[]>();
+      const ends = new Set<string>();
+      for (const s of strokes) {
+        // A stroke a node absorbed, cut whole, isn't drawn: it steps nowhere.
+        if (!drawnIn(s, band) || cutIn(s, band)[0] + cutIn(s, band)[1] >= s.to - s.from) continue;
+        if (!s.shape.startsWith(LINK)) byShape.set(`${s.line} ${s.shape}`, [...(byShape.get(`${s.line} ${s.shape}`) ?? []), s]);
+        // Within a metre, as the joins' other measures take it.
+        else for (const [id, start, end] of s.across ?? []) for (const at of [start, end]) for (const m of [-1, 0, 1]) ends.add(`${s.line} ${id} ${Math.round(at) + m}`);
+      }
+      let found = 0;
+      for (const [key, list] of byShape) {
+        list.sort((a, b) => a.from - b.from);
+        for (const [i, s] of list.entries()) {
+          const prev = list[i - 1];
+          if (prev && Math.abs(prev.to - s.from) <= 1 && prev.side !== s.side && !ends.has(`${key} ${Math.round(s.from)}`)) found++;
+        }
+      }
+      return [zoom, found];
+    }),
+  );
 }
 
 /**

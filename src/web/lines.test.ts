@@ -77,6 +77,20 @@ test('draws a stroke cut back alike in every band from GRAPH_BAND once, band-les
   expect(features.map((f) => f.properties?.band)).toEqual([undefined, ...graph, ...graph, GRAPH_BAND, GRAPH_BAND, GRAPH_BAND, ...graph.slice(1), ...graph, GRAPH_BAND]);
 });
 
+test("marks each of a curve's pieces, covered or not, as a curve's, and no other stroke, for the map's layers with butt ends (#620)", () => {
+  const shapes = new Map<string, Shape>([['s:a', { id: 's:a', coords: Array.from({ length: 101 }, (_, k): [number, number] => [2 + k * 0.0001, 41]), dist: Array.from({ length: 101 }, (_, k) => k * 10) }]]);
+  const lines = new Map<string, Line>([['L', { id: 'L', network: 'n', name: 'L', colour: '#f00', shapes: [], kind: 'regional' } as Line]]);
+  const curve: Stroke = { line: 'L', shape: 's:a', from: 0, to: 1000, side: 0, ease: 1, band: GRAPH_BAND };
+  const strokes = [curve, { ...curve, covered: [[GRAPH_BAND, 300, 600] as [number, number, number]] }, { line: 'L', shape: 's:a', from: 0, to: 1000, side: 1 }];
+  const features = drawnLines(strokes, { shapes, lines, lettering: () => '#fff', rank: 0, nameSize: 12 }).map((f) => f.properties ?? {});
+  const [pieces, [plain]] = [features.slice(0, -1), features.slice(-1)];
+  // 9 pieces a PIECE of a line width apart, and as many again, the covered curve's, cut at its covered part's ends.
+  expect(pieces.length).toBeGreaterThan(18);
+  expect(pieces.some((p) => p.covered)).toBe(true);
+  expect(pieces.every((p) => p.curve === true)).toBe(true);
+  expect(plain).not.toHaveProperty('curve');
+});
+
 test("draws Media Distancia's and long distance's Lines under the other regions' where they share track, but over those in tunnels, and keeps every region in the manifest's order, names and all (#736, #787)", () => {
   const shapes = new Map<string, Shape>([['s', { id: 's', coords: [[2, 41], [2.01, 41]], dist: [0, 840] }]]);
   const lines = new Map<string, Line>(['R15', 'R2', 'C1', 'Avant', 'Alvia'].map((name): [string, Line] => [name, { id: name, network: 'n', name, colour: '#f00', shapes: [], kind: 'regional' } as Line]));

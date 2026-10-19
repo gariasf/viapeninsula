@@ -480,6 +480,11 @@ export interface Stroke {
   /** Along a Stretch with more than CROWD places side by side (#283), closer together than a line width, so that each covers some of the next. */
   crowded?: true;
   /**
+   * One of a curve's pieces (pieces()), which the map draws with butt ends rather than round ones: while a band fades
+   * out, from zoom 14.5 to 15.5, round ends overlapping at part opacity showed a bead at every joint (#620).
+   */
+  curve?: true;
+  /**
    * A curve's: the centreline it leaves, those of the Stretches its node absorbed, and the one it comes
    * onto, and from how far along each to how far, the way it goes, the Line's strokes there are cut
    * back, or not drawn, to make room for it (#176, ADR-0007).
@@ -812,7 +817,7 @@ const PIECE = 1 / 8;
 /**
  * A stroke as the map draws it: `line-offset` is constant along a feature, so a curve that eases from
  * one side to another goes in pieces, a PIECE of a line width over from each to the next, eased in
- * and out along it.
+ * and out along it, each marked as a curve's (#620).
  */
 export function pieces(stroke: Stroke): Stroke[] {
   const { ease, ...rest } = stroke;
@@ -820,7 +825,7 @@ export function pieces(stroke: Stroke): Stroke[] {
   const [start, stop, n] = [stroke.side, ease, Math.ceil(Math.abs(ease - stroke.side) / PIECE) + 1];
   const length = stroke.to - stroke.from;
   const cut = (k: number) => (k <= 0 ? 0 : k >= n ? length : (length * Math.acos(1 - (2 * (k - 0.5)) / (n - 1))) / Math.PI);
-  return Array.from({ length: n }, (_, k) => ({ ...rest, from: stroke.from + cut(k), to: stroke.from + cut(k + 1), side: n > 1 ? start + ((stop - start) * k) / (n - 1) : start }));
+  return Array.from({ length: n }, (_, k) => ({ ...rest, from: stroke.from + cut(k), to: stroke.from + cut(k + 1), side: n > 1 ? start + ((stop - start) * k) / (n - 1) : start, curve: true }));
 }
 
 /**

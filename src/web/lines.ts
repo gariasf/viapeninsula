@@ -67,7 +67,7 @@ export function drawnLines(
         return s.covered ? coveredIn(there, band).map((part) => ({ ...part, band })) : [there];
       });
     })
-    .flatMap(({ line: id, shape: shapeId, from, to, side, band, shared, under, covered, crowded }): GeoJSON.Feature[] => {
+    .flatMap(({ line: id, shape: shapeId, from, to, side, band, shared, under, covered, crowded, curve }): GeoJSON.Feature[] => {
       const [line, shape] = [lines.get(id), band === undefined ? shapes.get(shapeId) : inBand(shapes, shapeId, band)];
       if (!line || !shape) return [];
       if (band !== undefined && (BANDS[band] ?? 0) < (shownFrom?.get(line.network) ?? 0)) return [];
@@ -91,6 +91,8 @@ export function drawnLines(
         ...(under && { under }),
         ...(covered && { covered: true }),
         ...(crowded && { crowded }),
+        // A curve's pieces go in layers of their own, with butt ends (#620).
+        ...(curve && { curve }),
         // Each Line's name goes on its own stroke: text-offset is in ems.
         ...Object.fromEntries(APART.map(([zoom, px]) => [`textOffset${zoom}`, [0, (side * px) / nameSize]])),
       };
