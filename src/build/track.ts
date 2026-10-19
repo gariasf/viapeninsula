@@ -806,7 +806,7 @@ interface Graph {
   shared: Set<number>;
   /** For each edge, whether it's the wrong track of a double track to run the way it runs. */
   wrong: boolean[];
-  /** The side of double track the Network's Trains keep to: 1 left, -1 right. */
+  /** The side of double track the Trains keep to, their gauge's or else their Network's: 1 left, -1 right. */
   keep: number;
   /**
    * For each edge, whether OpenStreetMap tags Trains as running it that way (railway:preferred_direction):

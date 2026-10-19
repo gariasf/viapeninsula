@@ -124,7 +124,7 @@ export interface Gauges {
   gauges: string[];
   orElse?: string[];
   /** The side of double track Trains keep to on these rails, where it isn't their Network's `runningSide`, as on FEVE's metre gauge (ADR-0004, #625). */
-  side?: 'left' | 'right';
+  side?: Network['runningSide'];
 }
 
 /** One of a Network's timetables: where its GTFS feed is, and how to read it. */
