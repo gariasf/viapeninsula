@@ -3,8 +3,8 @@ import { gunzipSync } from 'node:zlib';
 import { expect, test } from 'vitest';
 import type { Bundle, Snapshot, Trip } from '../bundle.ts';
 import { KEEP, trainAt, type Received } from '../engine.ts';
-import { NETWORKS } from '../networks.ts';
-import { joinParts, partsOf, recordDay, runsOf, type Day } from './punctuality.ts';
+import { EUSKOTREN, METRO, NETWORKS } from '../networks.ts';
+import { joinParts, partsOf, recorded, recordDay, runsOf, type Day } from './punctuality.ts';
 
 /** A fixture of src/fixtures/, its Networks' live data read as src/networks.ts has it now: a bundle from before #241 carries none. */
 function fixture(name: string): { bundle: Bundle; received: Received[] } {
@@ -110,6 +110,11 @@ test("a day's record counts apart the Trips its operator Cancelled, those live d
   expect(records.get('fgc')?.unmatched).toEqual({ reports: 35, trips: 6 });
   expect(rodalies?.unmatched).toEqual({ reports: 0, trips: 0 });
 }, 60_000);
+
+test("Euskotren's Trips are recorded though the map shows no Delay for them, and the Metro's aren't (#825)", () => {
+  expect(EUSKOTREN.live?.delay).toBe('none');
+  expect([recorded(EUSKOTREN), recorded(METRO)]).toEqual([true, false]);
+});
 
 test("a Call at a Station its operator has said the Train won't stop at holds no Delay, and is marked so", () => {
   // 7 October 2026, 13:00 to 13:45: Renfe cuts R4 77424 from Sant Vicenç de Calders to Manresa short at
