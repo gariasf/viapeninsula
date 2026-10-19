@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { along, APART, atZoom, BANDS, beside, daysNeeded, daysOf, DEGREE, joinTrips, joinTracks, onStroke, pixelMetres, smoothId, zones, type DayTrips, type Manifest, type ManifestDay, type Network, type Point, type Shape, type Slot, type Station, type Stroke, type Track, type Trip } from './bundle.ts';
+import { along, APART, atZoom, BANDS, beside, daysNeeded, daysOf, DEGREE, joinTrips, joinTracks, onStroke, pixelMetres, smoothId, trainKey, zones, type DayTrips, type Manifest, type ManifestDay, type Network, type Point, type Shape, type Slot, type Station, type Stroke, type Track, type Trip } from './bundle.ts';
 
 test("gives a line's points between two distances along it, its ends worked out, as filtering every point did, where points share a distance and where a distance is off either end (#733)", () => {
   const filtered = ({ coords, dist }: Pick<Shape, 'coords' | 'dist'>, from: number, to: number) => coords.filter((_, i) => (dist[i] ?? 0) > from && (dist[i] ?? 0) < to);
@@ -251,4 +251,22 @@ test("reads a manifest with what #266 adds to it, each region's Networks and ext
     { id: 'catalonia', track: 'catalonia.track', trips: 'catalonia.2026-09-26.trips' },
     { id: 'cercanias-madrid', track: 'cercanias-madrid.track', trips: 'cercanias-madrid.2026-09-26.trips' },
   ]);
+});
+
+test("a Train's key holds across two days of one timetable edition, though its Trip's ID doesn't, and tells apart the Trains a day runs (#808)", () => {
+  const call = (departure: number) => ({ station: 's', arrival: departure, departure, dist: 0 });
+  const trip = (id: string, line: string, headsign: string, departure: number, number?: string): Trip => ({ id, line, shape: 'x', headsign, ...(number && { number }), calls: [call(departure), call(departure + 600)] });
+  // Rodalies' Trip IDs lead with a service ID that changes daily (docs/research/punctuality.md, section 5): its
+  // Train number with its Line holds, as the same number stands for two Trips of a day on two Lines.
+  const saturday = trip('rodalies:5188S25478R2S', 'rodalies:R2S', 'Barcelona Estació de França', 77400, '25478');
+  const sunday = trip('rodalies:5189S25478R2S', 'rodalies:R2S', 'Barcelona Estació de França', 77400, '25478');
+  expect(trainKey(sunday)).toBe(trainKey(saturday));
+  expect(trainKey(trip('rodalies:5188S25478R11', 'rodalies:R11', 'Portbou', 30000, '25478'))).not.toBe(trainKey(saturday));
+  // FGC's and TRAM's IDs changed from one edition to the next and their Trips have no number: their slot, Line,
+  // headsign and first departure, holds.
+  const fgc = trip('fgc:624ddab200727616a612|1f28c4e303', 'fgc:S1', 'Terrassa Rambla', 25080);
+  expect(trainKey({ ...fgc, id: 'fgc:625cdae21f726b1bb950|612dc4e706' })).toBe(trainKey(fgc));
+  expect(trainKey({ ...fgc, calls: [call(25140)] })).not.toBe(trainKey(fgc));
+  expect(trainKey({ ...fgc, headsign: 'Plaça Catalunya' })).not.toBe(trainKey(fgc));
+  expect(trainKey(trip('tram:TBX:2549_0183', 'tram:T1', 'Bon Viatge', 52560))).toBe(trainKey(trip('tram:TBX:2550_0183', 'tram:T1', 'Bon Viatge', 52560)));
 });

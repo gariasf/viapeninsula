@@ -304,7 +304,7 @@ A rubric of four things: the share of Calls with a Live Delay, what it rests on,
 
 R2's lifecycle rules delete by prefix and age, up to 1,000 a bucket, typically within a day of their time ([docs](https://developers.cloudflare.com/r2/buckets/object-lifecycles/)). Keeping 400 days of the history is 2 GB for Catalonia and Madrid, 5 GB for Spain: R2's free tier is 10 GB-month.
 
-**Ending TRAM's agreement** deletes its Network's files from the history's bucket: each day's record, `<day>/tram.json`, and compacted history, `compacted/<day>/tram.ndjson.br`, named by their days, as wrangler can't list a bucket. The chunks hold every Network's reports together and can't be cut, so TRAM's go as `history/`'s rule expires them, within 7 days. Then the aggregates are worked out again without TRAM's Delays (#808).
+**Ending TRAM's agreement** deletes its Network's files from the history's bucket: each day's record, `<day>/tram.json`, and compacted history, `compacted/<day>/tram.ndjson.br`, named by their days, as wrangler can't list a bucket. The chunks hold every Network's reports together and can't be cut, so TRAM's go as `history/`'s rule expires them, within 7 days. Then the aggregates are worked out again without TRAM's Delays (#808), with `npm run punctuality -- --aggregates`, and TRAM's Trains file, `punctuality/trains/tram.json` in the bundles' bucket, is deleted by hand, as that run rewrites only the Networks it has records of.
 
 ### When the Delay rules change
 

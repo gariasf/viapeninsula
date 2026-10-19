@@ -1,6 +1,7 @@
 # The Delay history's daily job (#807): replays the service day before through the engine, from the snapshots the
 # fetcher keeps in the history's bucket (#806), and writes the day's record there, a file for each Network, with the
-# day's history compacted beside it (src/build/punctuality.ts). It runs after each daily build, which the fetcher
+# day's history compacted beside it (src/build/punctuality.ts), then the aggregates of the last 30 days by Line, Train
+# and Station, public in the bundles' bucket (src/build/aggregates.ts, #808). It runs after each daily build, which the fetcher
 # starts at 00:30 UTC and GitHub's schedule later, and waits there until the day's last Train has left the map and
 # its slot is in the bucket: on a Saturday night's TRAM, past 04:20 in Madrid. The button in the Actions tab records
 # any day whose snapshots the bucket still has, as a Delay rule's change re-runs the last 30 (docs/research/punctuality.md,
@@ -44,7 +45,7 @@ jobs:
           # A day's replay peaked at 2.2 GB on the Mac (17 Oct 2026, every Network's history and three days' Trips).
           NODE_OPTIONS: --max-old-space-size=6144
           # The daily build's R2 token (Account · Workers R2 Storage · Edit, #5), which reads and writes every
-          # bucket of the account, the history's too.
+          # bucket of the account, the history's and the bundles' too.
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           # Not a secret: it names the account, and grants nothing without a token.
           CLOUDFLARE_ACCOUNT_ID: 701af81e8d0ab745a54d827f520f49cc

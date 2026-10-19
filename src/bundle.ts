@@ -587,6 +587,17 @@ export interface Trip {
 }
 
 /**
+ * What names a Train from one day to the next, as its Trip's ID doesn't (docs/research/punctuality.md, section 5):
+ * its Train number with its Line, as the same number stands for two Trips of a day on two Lines, or where its
+ * operator publishes none, as FGC and TRAM don't, its slot, its Line, headsign and first departure. Its Line's ID
+ * leads with its Network's. It holds for a timetable edition: a Train it retimes is another slot. The Delay history's
+ * job keys a Network's Trains file by it (#808), and the page finds a Train there by it.
+ */
+export function trainKey({ line, number, headsign, calls }: Trip): string {
+  return number ? `${line}/${number}` : `${line}/${headsign}/${calls[0]?.departure}`;
+}
+
+/**
  * A Trip's call at a Station: arrival and departure in seconds into the service day, and how far
  * along the Trip's shape the Station is, in metres. A Trip can run its shape either way, and turn back.
  */
