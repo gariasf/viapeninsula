@@ -1098,15 +1098,18 @@ let trackKeyCount = 0;
 /** Asks the worker (NamesAsk), moving what `transfer` holds rather than copying it. */
 const askNames = (ask: NamesAsk, transfer: Transferable[] = []) => namesWorker.postMessage(ask, transfer);
 askNames({ sizes: NAME_SIZES });
-// A layout asked for names, pills or a bearing that have changed since is left for the one asked last.
+// A layout asked for names, pills or a bearing that have changed since is left for the one asked last, and once the
+// worker has failed, any it still sends.
 namesWorker.onmessage = ({ data }: MessageEvent<{ ask: number; where: Where[] }>) => {
-  if (!askedNames || data.ask !== askedNames.ask) return;
+  if (namesWorkerFailed || !askedNames || data.ask !== askedNames.ask) return;
   laidOut = { of: askedNames, where: data.where };
   drawNames();
 };
-// Where the worker fails, the page puts and lays out the names as it did before #777.
-namesWorker.onerror = (error) => {
+// Where the worker fails, or a layout it sends can't be read, the page puts and lays out the names as it did before
+// #777, and the worker is let go of, with the tracks it holds.
+const namesFailed = (error: Event) => {
   console.error(error);
+  namesWorker.terminate();
   namesWorkerFailed = true;
   if (namesOn !== 'worker') return;
   putOnPage?.();
@@ -1114,6 +1117,7 @@ namesWorker.onerror = (error) => {
   askedNames = undefined;
   showNames();
 };
+namesWorker.onerror = namesWorker.onmessageerror = namesFailed;
 
 /** The track files of a join's regions, where the worker can be handed them: each read from pieces (decodeTrack()). */
 function handable(regions: Track[] | undefined): StoredTrack[] | undefined {
