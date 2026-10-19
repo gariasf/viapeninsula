@@ -2,7 +2,7 @@
 
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
@@ -61,7 +61,9 @@ async function kept<T>(file: string, what: string, get: () => Promise<string>, r
     const text = await get();
     const got = read(text);
     await mkdir(dirname(file), { recursive: true });
-    await writeFile(file, text);
+    // Written whole, then renamed, as worktrees' dry runs share the main checkout's copy (#793).
+    await writeFile(`${file}.${process.pid}`, text);
+    await rename(`${file}.${process.pid}`, file);
     return got;
   } catch (error) {
     if (age === Infinity) throw new Error(`Couldn't get ${what}`, { cause: error });
