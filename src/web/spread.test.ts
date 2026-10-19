@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { groupOf, spreading, type Drawn, type Group } from './spread.ts';
+import { covered, groupOf, spreading, type Drawn, type Group } from './spread.ts';
 
 // Made up, on screen, in px: x right and y down. Heading right, up the screen is a Train's left, and
 // down its right, where its pill reaches 5 px with its edge.
@@ -91,4 +91,28 @@ test('spread, they stay so where they no longer touch where drawn, as zoomed in,
   const group = groupOf([pill('first', [0, 0], 90), pill('second', [0, 0], 90)], 'first');
   expect(settled(spread, [pill('first', [0, 0], 90), pill('second', [0, 0], 90)], 0, group)).toEqual({ first: 5, second: 15 });
   expect(settled(spread, [pill('first', [0, -20], 90), pill('second', [0, 20], 90)], 10_000, group)).toEqual({ first: 5, second: 5 });
+});
+
+test('of two pills that meet, the one drawn under the other, earlier in the order, is covered, and the one on top is whole', () => {
+  expect(covered([pill('under', [0, 0], 90), pill('over', [15, 5], 90)])).toEqual(new Set(['under']));
+  expect(covered([pill('first', [15, 5], 90), pill('second', [0, 0], 90)])).toEqual(new Set(['first']));
+});
+
+test('a pill no other pill meets keeps its name: edge to edge, across or up and down, or apart; one px into each other, the lower one is covered', () => {
+  expect(covered([pill('west', [0, 0], 90), pill('east', [20, 0], 90), pill('south', [0, 10], 90), pill('far', [100, 100], 90)])).toEqual(new Set());
+  expect(covered([pill('west', [0, 0], 90), pill('east', [19, 0], 90)])).toEqual(new Set(['west']));
+  expect(covered([pill('north', [0, 0], 90), pill('south', [0, 9], 90)])).toEqual(new Set(['north']));
+  // Wide apart across the screen but level, and level across but apart up and down.
+  expect(covered([pill('a', [0, 0], 90), pill('b', [5, 30], 90), pill('c', [40, 0], 90)])).toEqual(new Set());
+});
+
+test('a pill on top of a pile covers each under it, and one under them all that meets only the bottom one is covered by it', () => {
+  const pile = [pill('beside', [-19, 0], 90), pill('bottom', [0, 0], 90), pill('middle', [5, 0], 90), pill('top', [10, 0], 90)];
+  expect(covered(pile)).toEqual(new Set(['beside', 'bottom', 'middle']));
+});
+
+test('the followed Train, in a layer over every pill, covers those it meets wherever it comes in the order, and none covers it', () => {
+  const followed = pill('followed', [0, 0], 90, { box: [20, 8] });
+  expect(covered([followed, pill('after', [25, 0], 90), pill('apart', [31, 0], 90)], 'followed')).toEqual(new Set(['after']));
+  expect(covered([pill('before', [0, 0], 90), followed], 'followed')).toEqual(new Set(['before']));
 });

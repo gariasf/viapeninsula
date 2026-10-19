@@ -16,7 +16,7 @@ import { byRegion, drawnFrom, drawnLines } from './lines.ts';
 import { linesAt, popupRoom } from './tap.ts';
 import { drawnAt as placeShownAt, FEW_ZOOM, fewer, interchangesOf, markedNetworks, onLines, RAILS, SIGN_ZOOM, type LineCall, type Drawn as PlaceDrawn, type Interchange } from './stations.ts';
 import { callsIn, fileShapes, hidesTowns, nameOffset, nameSort, nearestSide, rightOf, sidesByJoin, splitBy, underName, type Side, type Spot } from './names.ts';
-import { groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
+import { covered, groupOf, spreading, toEdge, type Drawn, type Group } from './spread.ts';
 import { atMostEvery, drifted, letsGo, outsideMiddle, pointersDown, tapZooms } from './centre.ts';
 import { fastestInView } from './pace.ts';
 import { keepView, lastView, markOf, openingView, tiltPressed, toggledPitch } from './view.ts';
@@ -1532,6 +1532,8 @@ for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', tr
       'icon-text-fit-padding': [0, PILL_PADDING, 0, PILL_PADDING],
       'text-field': ['get', 'name'],
       'text-font': ['Noto Sans Bold'],
+      // Which pill is drawn over which: the later in trains()'s order, as covered() has it, where the one lower on screen was before (#513).
+      'symbol-sort-key': ['get', 'order'],
       // Long distance's, Ouigo's and Media Distancia's smaller, as pillText() has them, but the followed Train's (#780).
       'text-size': followed ? size : ['case', ['<', ['get', 'pillZoom'], LOCAL_PILL_ZOOM], SMALL_TEXT, size],
       'icon-allow-overlap': true,
@@ -1544,6 +1546,8 @@ for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', tr
       'icon-halo-color': byLive('#fff', ['get', 'lettering']),
       'icon-halo-width': byLive(PILL_HALO, DASHED_RING),
       'text-color': byLive(['case', ['get', 'dark'], INK, '#fff'], ['get', 'lettering']),
+      // A pill another drawn over it meets shows no name, which MapLibre would draw over that pill (#513): unseen, as an empty name would shrink the outline fitted to it.
+      'text-opacity': ['case', ['get', 'covered'], 0, 1],
     },
   });
 }
@@ -2209,48 +2213,54 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
   const spreadable = placed.flatMap(({ asPill, at }): Drawn[] => (asPill && (spreadState.group?.ids.has(asPill.id) || spreadState.moved.has(asPill.id)) ? [{ ...asPill, at: projected(at) }] : []));
   const aside = spread(spreadable, performance.now(), spreadState.group);
   spreadState = { group: spreadState.group, moved: aside, easing: [...aside].some(([id, px]) => spreadState.moved.get(id) !== px) || aside.size !== spreadState.moved.size };
-  return {
-    type: 'FeatureCollection',
-    features: placed.map(({ train: { trip, heading, live }, pill, box, at }) => {
-      const [out, onScreen] = [aside.get(trip.id), spreadable.find((d) => d.id === trip.id)?.at];
-      const right = rightOf(heading, bearing);
-      const coordinates: Point = out && onScreen ? (map.unproject([onScreen[0] + out * right[0], onScreen[1] + out * right[1]]).toArray() as Point) : at;
-      if (following && trip.id === followed) [following.at, following.zoom] = [coordinates, zoom];
-      const line = lines.get(trip.line);
-      const isFollowed = trip.id === followed;
-      // The followed Train's target, out from its pill's box or its dot (targetRings()), and where its pulse is now, which stands still where the viewer prefers less motion.
-      const [innerRing, outerRing] = isFollowed ? targetRings(pill && box && zoom >= pill.zoom ? Math.hypot(...box) : dotAt(zoom, true)) : [];
-      const [pulseRadius, pulseOpacity] = outerRing === undefined ? [] : lessMotion.matches ? [outerRing, 0] : pulse(outerRing, Date.now());
-      return {
-        type: 'Feature',
-        properties: {
-          id: trip.id,
-          colour: line?.colour,
-          lettering: pill?.lettering,
-          // Which Network's banner it shows (bannerNetworks()).
-          network: line?.network,
-          live,
-          followed: isFollowed,
-          heading,
-          name: pill?.name,
-          outline: pill?.outline,
-          // A Scheduled pill's dashed outline (dashedOutline()).
-          dashed: pill && box && !live ? `train-${pill.outline}-dashed-${dashesAcross(pill.outline, box)}` : undefined,
-          dark: pill?.dark,
-          pillZoom: pill?.zoom,
-          dotZoom: pill?.dotZoom ?? linesZoom,
-          reach: box && reach(box, heading - bearing),
-          // Its halo's radius: HALO_DOT times its dot's, or from its Line's pill zoom, every pill's HALO_PILL, by the zoom (haloScale()).
-          haloRadius: (pill && zoom >= pill.zoom ? HALO_PILL : HALO_DOT * dotAt(zoom, isFollowed)) * haloScale(zoom, darkBasemap),
-          innerRing,
-          outerRing,
-          pulseRadius,
-          pulseOpacity,
-        },
-        geometry: { type: 'Point', coordinates },
-      };
-    }),
-  };
+  // Each pill in view where it's drawn, in the order the map draws them (`order`), for those a pill over it covers (covered(), #513).
+  // ponytail: in view by its Train's point, so a pill reaching in from just off the map's edge covers nothing. Pad the bounds by a pill if a name shows on one there.
+  const [bounds, inView] = [map.getBounds(), [] as Pick<Drawn, 'id' | 'at' | 'box'>[]];
+  const features = placed.map(({ train: { trip, heading, live }, pill, box, asPill, at }, order): GeoJSON.Feature<GeoJSON.Point> => {
+    const [out, onScreen] = [aside.get(trip.id), spreadable.find((d) => d.id === trip.id)?.at];
+    const right = rightOf(heading, bearing);
+    const coordinates: Point = out && onScreen ? (map.unproject([onScreen[0] + out * right[0], onScreen[1] + out * right[1]]).toArray() as Point) : at;
+    if (following && trip.id === followed) [following.at, following.zoom] = [coordinates, zoom];
+    if (asPill && bounds.contains(coordinates)) inView.push({ id: trip.id, at: projected(coordinates), box: asPill.box });
+    const line = lines.get(trip.line);
+    const isFollowed = trip.id === followed;
+    // The followed Train's target, out from its pill's box or its dot (targetRings()), and where its pulse is now, which stands still where the viewer prefers less motion.
+    const [innerRing, outerRing] = isFollowed ? targetRings(pill && box && zoom >= pill.zoom ? Math.hypot(...box) : dotAt(zoom, true)) : [];
+    const [pulseRadius, pulseOpacity] = outerRing === undefined ? [] : lessMotion.matches ? [outerRing, 0] : pulse(outerRing, Date.now());
+    return {
+      type: 'Feature',
+      properties: {
+        id: trip.id,
+        colour: line?.colour,
+        lettering: pill?.lettering,
+        // Which Network's banner it shows (bannerNetworks()).
+        network: line?.network,
+        live,
+        followed: isFollowed,
+        heading,
+        name: pill?.name,
+        outline: pill?.outline,
+        // A Scheduled pill's dashed outline (dashedOutline()).
+        dashed: pill && box && !live ? `train-${pill.outline}-dashed-${dashesAcross(pill.outline, box)}` : undefined,
+        dark: pill?.dark,
+        pillZoom: pill?.zoom,
+        dotZoom: pill?.dotZoom ?? linesZoom,
+        reach: box && reach(box, heading - bearing),
+        // Its halo's radius: HALO_DOT times its dot's, or from its Line's pill zoom, every pill's HALO_PILL, by the zoom (haloScale()).
+        haloRadius: (pill && zoom >= pill.zoom ? HALO_PILL : HALO_DOT * dotAt(zoom, isFollowed)) * haloScale(zoom, darkBasemap),
+        innerRing,
+        outerRing,
+        pulseRadius,
+        pulseOpacity,
+        order,
+        covered: false,
+      },
+      geometry: { type: 'Point', coordinates },
+    };
+  });
+  const under = covered(inView, followed);
+  for (const f of features) if (f.properties && under.has(f.properties.id)) f.properties.covered = true;
+  return { type: 'FeatureCollection', features };
 }
 
 /**

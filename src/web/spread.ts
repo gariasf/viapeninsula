@@ -122,7 +122,27 @@ export function toEdge([halfWidth, halfHeight]: [number, number], angle: number)
   return Math.min(halfWidth / Math.abs(Math.sin(a)), halfHeight / Math.abs(Math.cos(a)));
 }
 
+/**
+ * The Trains whose pills another pill drawn over them meets, where they're drawn, by their IDs: of
+ * `drawn`, in the order the map draws them, the first lowest, and the followed Train's over them all,
+ * in its own layer (#513). MapLibre draws a layer's names after all its pills, so a covered pill's name
+ * would lie on the pill over it.
+ * Swept by x, so that only pills near each other across the screen are compared.
+ */
+export function covered(drawn: Pick<Drawn, 'id' | 'at' | 'box'>[], followed?: string): Set<string> {
+  const byLeft = drawn.map((t, order) => ({ t, order: t.id === followed ? Infinity : order, left: t.at[0] - t.box[0] })).sort((a, b) => a.left - b.left);
+  const under = new Set<string>();
+  byLeft.forEach(({ t, order }, i) => {
+    for (let j = i + 1; j < byLeft.length; j++) {
+      const o = byLeft[j];
+      if (!o || o.left >= t.at[0] + t.box[0]) break;
+      if (touches(t, o.t)) under.add((order < o.order ? t : o.t).id);
+    }
+  });
+  return under;
+}
+
 /** Whether two Trains' pills overlap, where they're drawn. */
-function touches({ at: [ax, ay], box: [aw, ah] }: Drawn, { at: [bx, by], box: [bw, bh] }: Drawn): boolean {
+function touches({ at: [ax, ay], box: [aw, ah] }: Pick<Drawn, 'at' | 'box'>, { at: [bx, by], box: [bw, bh] }: Pick<Drawn, 'at' | 'box'>): boolean {
   return Math.abs(ax - bx) < aw + bw && Math.abs(ay - by) < ah + bh;
 }
