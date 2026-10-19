@@ -59,7 +59,7 @@ test("replaying 25 September's 45 minutes keeps each Call's Delay as the follow 
   expect(report(toPC, 0)?.position).toEqual({ near: 'fgc:PR' });
   expect(call('fgc', toPC, 'fgc:PC')).toEqual([128, 3]);
   expect(card(toPC, 0)).toBe(128);
-  // TRAM's: one whose report says how far along its Trip it is, measured, and one TRAM names at a stop, its figure.
+  // TRAM's: one whose report says how far along its Trip it is, measured, and one TRAM names at a Station, its figure.
   const [along, atStop] = ['tram:TBX:2579_0455', 'tram:TBX:2579_0359'];
   expect(report(along, 0)?.position).toEqual({ along: 3583 });
   expect(call('tram', along, 'tram:ST-180')).toEqual([card(along, 0), 1]);

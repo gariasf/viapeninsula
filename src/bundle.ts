@@ -889,6 +889,13 @@ export function madridDate(at: Date): string {
 }
 
 /**
+ * How long before a service day's first Train comes onto the map, and after its last leaves it, the map keeps
+ * the day's bundle, in ms, as it hands them to daysNeeded(): the scripts that replay what the map had, as
+ * src/record.ts and the Delay history's job do (#807), go by them too.
+ */
+export const [SOON, LATE] = [60 * 60_000, 60 * 60_000];
+
+/**
  * The manifest's days the map needs at a moment (ms since 1970): today, whatever the time; each day
  * whose Trains are on the map or come onto it within `early`, as tomorrow's first can before
  * midnight, or went off it less than `late` ago, as yesterday's last do after; and the next day once

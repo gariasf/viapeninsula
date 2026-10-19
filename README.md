@@ -80,7 +80,7 @@ node --env-file=.env.local -e "process.stdout.write(process.env.R2_API_TOKEN)" |
 node --env-file=.env.local -e "process.stdout.write(process.env.GITHUB_DISPATCH_TOKEN)" | npx wrangler secret put GITHUB_DISPATCH_TOKEN -c src/fetcher/wrangler.jsonc
 ```
 
-`.github/workflows/punctuality.yml` runs after each daily build: `npm run punctuality` replays the service day before through the engine, from the fetcher's history, and writes the day's record to the history's bucket, a file for each Network, `<day>/<network>.json`, with the day's history compacted under `compacted/` (#807). It reads and writes the bucket with the same R2 token. `npm run punctuality -- --day 2026-10-17 --dry-run` writes the files to `out/punctuality/` by your wrangler login, and puts none.
+`.github/workflows/punctuality.yml` runs after each daily build: `npm run punctuality` replays the service day before through the engine, from the fetcher's history, and writes the day's record to the history's bucket, a file for each Network, `<day>/<network>.json`, with the day's history compacted under `compacted/` (#807), and each day's bundle files the manifest names, `<day>/files.json`, which a later replay joins the day before by. It reads and writes the bucket with the same R2 token. `npm run punctuality -- --day 2026-10-17 --dry-run` writes the files to `out/punctuality/` by your wrangler login, and puts none.
 
 ## Licence
 

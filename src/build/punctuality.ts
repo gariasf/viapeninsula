@@ -1,13 +1,13 @@
 // The Delay history's daily job (#807): replays a service day's snapshots, which the fetcher keeps (#806), through
 // the engine with that day's bundle, as the map would have drawn them, and writes the day's record, a file for each
-// Network, of each Call's Delay as the map had it as the Train reached the Call (docs/research/punctuality.md, §1),
-// and the day's snapshots compacted, a file for each Network too, kept 400 days (pick 2), to work the day out again
-// when a Delay rule changes (§5). It runs in Actions after each daily build (.github/workflows/punctuality.yml).
-// `npm run punctuality` records the service day before today in Madrid, once its last Train has left the map and
-// the fetcher has put the slot it left in, waiting for that; `-- --day <YYYY-MM-DD>` another day; `--dry-run`
-// writes the files to out/punctuality/ (`--out`) and puts none; `--manifest <file>` takes the days' bundles from a
-// manifest of its own, for a day the live one no longer names. Wrangler reads and writes the history's bucket, by
-// the maintainer's login, or in Actions the daily build's R2 token, as CLOUDFLARE_API_TOKEN.
+// Network, of each Call's Delay as the map had it as the Train reached the Call (docs/research/punctuality.md,
+// section 1), and the day's snapshots compacted, a file for each Network too, kept 400 days (pick 2), to work the day
+// out again when a Delay rule changes (section 5). It runs in Actions after each daily build
+// (.github/workflows/punctuality.yml). `npm run punctuality` records the service day before today in Madrid, once
+// its last Train has left the map and the fetcher has put the slot it left in, waiting for that; `-- --day
+// <YYYY-MM-DD>` another day; `--dry-run` writes the files to out/punctuality/ (`--out`, so that two runs can be
+// compared) and puts none. Wrangler reads and writes the history's bucket, by the maintainer's login, or in Actions
+// by the daily build's R2 token, as CLOUDFLARE_API_TOKEN.
 
 import { execFile, execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -17,43 +17,44 @@ import { dirname, join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { parseArgs, promisify } from 'node:util';
 import { brotliCompressSync, brotliDecompressSync, constants, gunzipSync } from 'node:zlib';
-import { addDays, daysOf, joinTracks, joinTrips, LIVE_URL, madridDate, type Bundle, type Call, type DayFiles, type DayTrips, type Manifest, type Report, type Snapshot, type Track, type Trip } from '../bundle.ts';
-import { delaysAt, joinDays, KEEP, namedIn, works, type Received, type Source } from '../engine.ts';
+import { addDays, daysOf, joinTracks, joinTrips, LATE, LIVE_URL, madridDate, SOON, type Bundle, type Call, type DayFiles, type DayTrips, type Manifest, type Network, type Report, type Snapshot, type Track, type Trip } from '../bundle.ts';
+import { delaysAt, joinDays, KEEP, namedIn, works, type DelaySource, type Received } from '../engine.ts';
 import { nameOf, SLOT } from '../fetcher/history.ts';
 import { AVE_LARGA_DISTANCIA } from '../networks.ts';
 import { decodeTrack, type TrackFile } from '../pieces.ts';
-import { LATE, SOON, unmatched } from '../record.ts';
+import { unmatched } from '../record.ts';
+
+/** A region's track and Trips files for a day, as the manifest names them. */
+type Files = Pick<DayFiles['regions'][number], 'track' | 'trips'>;
 
 /**
  * A service day as the job records it: its date, when its timetable reads 00:00:00 (Bundle's `noonMinus12h`),
  * its Trips, as its Trips files have them, in their order, each the Trip of the bundle that's replayed, and the
  * track and Trips files of each Network's region, which its record names, and the stamp of the code that replays
- * it: the commit, and a hash of src/engine.ts, whose rules give each Delay (§5, "When the Delay rules change").
+ * it: the commit, and a hash of src/engine.ts, whose rules give each Delay (section 5, "When the Delay rules change").
  */
 export interface Day {
   date: string;
   noonMinus12h: number;
   trips: Trip[];
-  files: (network: string) => { trips: string; track: string };
+  files: (network: string) => Files;
   commit: string;
   rules: string;
 }
 
 /**
- * A Network's record of a service day (§1's sketch). It says how much of the day's 24 hours, from its timetable's
- * 00:00:00, the snapshots cover (§5, "Gaps"): the fetcher's runs seen, of 4,320, and the minutes the Network's feed
- * was working, of 1,440, those in which a run had it work as the engine judges it (works()). Its Trips are those
- * of its region's Trips file that are the Network's, in the file's order, and it counts apart, by their indexes
- * there, those its operator Cancelled, none of whose Calls has a Delay then, and those live data never named,
- * which are never on time, and the reports that name a Trip none of the days joined has, as Renfe's of Trains it
- * adds, which the engine drops, as unmatched() counts them. For each Trip, a Delay for each Call, in whole seconds,
- * early negative, or none (`null`) where there is none, and where each came from, a byte (FROM, SKIPPED,
- * LAST_KNOWN, UNCONFIRMED), or `null` for a Trip none of whose Calls has either.
+ * A Network's record of a service day (section 1's sketch). It says how much of the day's 24 hours, from its
+ * timetable's 00:00:00, the snapshots cover (section 5, "Gaps"): the fetcher's runs seen, of 4,320, and the
+ * minutes the Network's feed was working, of 1,440, those in which a run had it work as the engine judges it
+ * (works()). Its Trips are those of its region's Trips file that are the Network's, in the file's order, and it
+ * counts apart, by their indexes there, those its operator Cancelled, none of whose Calls has a Delay then, and
+ * those live data never named, which are never on time, and the reports that name a Trip none of the days joined
+ * has, as Renfe's of Trains it adds, which the engine drops, as unmatched() counts them. For each Trip, a Delay
+ * for each Call, in whole seconds, early negative, or none (`null`) where there is none, and where each came from,
+ * a byte (FROM, SKIPPED, LAST_KNOWN, UNCONFIRMED), or `null` for a Trip none of whose Calls has either.
  */
-export interface DayRecord {
+export interface DayRecord extends Files {
   day: string;
-  trips: string;
-  track: string;
   commit: string;
   rules: string;
   runs: number;
@@ -65,8 +66,8 @@ export interface DayRecord {
   from: ((number | null)[] | null)[];
 }
 
-/** Where a Call's Delay came from, a byte (§1): measured from the Train's own position, carried on from its last GPS Delay, or its operator's figure. */
-const FROM: Record<Source, number> = { measured: 1, carried: 2, operator: 3 };
+/** Where a Call's Delay came from, a byte (section 1): measured from the Train's own position, carried on from its last GPS Delay, or its operator's figure. */
+const FROM: Record<DelaySource, number> = { measured: 1, carried: 2, operator: 3 };
 
 /** A Call at a Station its operator has said the Train won't stop at, which holds no Delay (#346). */
 const SKIPPED = 0;
@@ -90,6 +91,9 @@ const STEP = 20_000;
 /** A day, in ms. */
 const DAY = 86_400_000;
 
+/** Whether a Network's Trips are recorded: those whose live data the map has, but for the Metro's, which has no Delay to show (#103). */
+export const recorded = (network: Network | undefined) => !!network?.live && network.live.delay !== 'none';
+
 /**
  * Each Network's record of a service day, from the snapshots of it in order, through the engine with a bundle of
  * its Trips and the days' before and after it, joined (joinDays()), as the map has them around midnight. At each
@@ -97,8 +101,10 @@ const DAY = 86_400_000;
  * named that its Train's drawn time has reached since the last look, on arrival, or at the first Call it makes on
  * departure, takes the Train's Delay then, as the follow panel has it, if it's Live, or at the last it makes, if
  * live data last placed it within PLACED. Only its first time there counts, though the Train is drawn back
- * and reaches it again. The Metro's Trips, whose live data has no Delay to show (#103), and those of Networks
- * whose live data the map has none of, aren't recorded.
+ * and reaches it again; but not a time while it's Cancelled, so that a Train that runs after all keeps its Delays.
+ * A Call at a Station its operator said at any look that the Train wouldn't stop at is Skipped, though running
+ * late it reached the Station after Renfe had dropped it from its list, as it does once the timetable has left
+ * it (Skipped's `since`). Only the recorded Networks' Trips are (recorded()).
  */
 export function recordDay(bundle: Bundle, day: Day, received: Iterable<Received>): Map<string, DayRecord> {
   const networks = new Map(bundle.networks.map((n) => [n.id, n]));
@@ -108,17 +114,24 @@ export function recordDay(bundle: Bundle, day: Day, received: Iterable<Received>
   const placeOf = new Map<Trip, [DayRecord, number]>();
   for (const trip of day.trips) {
     const network = networkOf.get(trip.line);
-    if (!network?.live || network.live.delay === 'none') continue;
+    if (!network || !recorded(network)) continue;
     const record = records.get(network.id) ?? { day: day.date, ...day.files(network.id), commit: day.commit, rules: day.rules, runs: 0, feeds: {}, cancelled: [], unreported: [], unmatched: { reports: 0, trips: 0 }, delays: [], from: [] };
     records.set(network.id, record);
     placeOf.set(trip, [record, record.delays.length]);
     record.delays.push(null);
     record.from.push(null);
   }
+  // A Call's Delay and byte, in its Trip's row, which comes with the first.
+  const keep = (trip: Trip, c: number, delay: number | null, byte: number) => {
+    const [record, i] = placeOf.get(trip) as [DayRecord, number];
+    const [delays, from] = [record.delays[i] ?? trip.calls.map(() => null), record.from[i] ?? trip.calls.map(() => null)];
+    [delays[c], from[c], record.delays[i], record.from[i]] = [delay, byte, delays, from];
+  };
   const kept: Received[] = [];
-  // Where in its timetable each Trip's Train was drawn at the last look, and the Calls their Trains have reached.
+  // Where in its timetable each Trip's Train was drawn at the last look, the Calls their Trains have reached, and
+  // those their operators have said they won't stop at.
   let drawn = new Map<Trip, number>();
-  const reached = new Set<Call>();
+  const [reached, skipped] = [new Set<Call>(), new Map<Trip, Set<Call>>()];
   // The Trips live data has named, and those it has had Cancelled.
   const [heard, cancels] = [new Set<Trip>(), new Set<Trip>()];
   let last: number | undefined;
@@ -128,9 +141,7 @@ export function recordDay(bundle: Bundle, day: Day, received: Iterable<Received>
     last = moment;
     const now = new Map<Trip, number>();
     for (const d of delaysAt(bundle, moment, kept)) {
-      const place = placeOf.get(d.trip);
-      if (!place) continue;
-      const [record, i] = place;
+      if (!placeOf.has(d.trip)) continue;
       heard.add(d.trip);
       // A Train first named now is taken to have reached only what it has since the last look.
       const was = drawn.get(d.trip) ?? d.time - gap;
@@ -139,6 +150,7 @@ export function recordDay(bundle: Bundle, day: Day, received: Iterable<Received>
         cancels.add(d.trip);
         continue;
       }
+      for (const call of d.skips) skipped.set(d.trip, (skipped.get(d.trip) ?? new Set()).add(call));
       const calls = d.trip.calls;
       const makes = (call: Call) => !d.skips.includes(call);
       const [first, end] = d.skips.length ? [calls.findIndex(makes), calls.findLastIndex(makes)] : [0, calls.length - 1];
@@ -147,9 +159,8 @@ export function recordDay(bundle: Bundle, day: Day, received: Iterable<Received>
         if (reached.has(call) || !(was < due && due <= d.time)) return;
         reached.add(call);
         const lastKnown = !d.live && c === end && d.placed !== undefined && d.placed <= PLACED;
-        if (makes(call) && (!d.from || !(d.live || lastKnown))) return;
-        (record.delays[i] ??= calls.map(() => null))[c] = makes(call) ? Math.round(d.delay) : null;
-        (record.from[i] ??= calls.map(() => null))[c] = !makes(call) ? SKIPPED : (d.live ? FROM[d.from as Source] : LAST_KNOWN) + (d.unconfirmed ? UNCONFIRMED : 0);
+        if (!makes(call) || !d.source || !(d.live || lastKnown)) return;
+        keep(d.trip, c, Math.round(d.delay), (d.live ? FROM[d.source] : LAST_KNOWN) + (d.unconfirmed ? UNCONFIRMED : 0));
       });
     }
     drawn = now;
@@ -181,6 +192,7 @@ export function recordDay(bundle: Bundle, day: Day, received: Iterable<Received>
     kept.push(r);
     look(r.at);
   }
+  for (const [trip, calls] of skipped) trip.calls.forEach((call, c) => calls.has(call) && keep(trip, c, null, SKIPPED));
   // A Trip Cancelled that ran after all, as FEVE's 71832 did on 10 October 2026 (#429), has its Delays.
   for (const [trip, [record, i]] of placeOf) {
     if (!heard.has(trip)) record.unreported.push(i);
@@ -198,10 +210,10 @@ const BY_NUMBER = AVE_LARGA_DISTANCIA.id;
 
 /**
  * A run's snapshot as the compacted day keeps it (pick 2), a part for each Network, by their IDs, so that ending
- * TRAM's agreement deletes TRAM's files alone (§5, "Keeping"): each with the run's `generated`, its Network's
- * feed's freshness, and the reports and Skipped Stations of its Trips, its Lines' Blocks, as the Metro's are, and
- * its Lines' Trains, as Geotren's of the rack are, in the snapshot's order. What names a Train only by its number
- * goes with BY_NUMBER's.
+ * TRAM's agreement deletes TRAM's files alone (section 5, "Keeping"): each with the run's `generated`, its
+ * Network's feed's freshness, and the reports and Skipped Stations of its Trips, its Lines' Blocks, as the Metro's
+ * are, and its Lines' Trains, as Geotren's of the rack are, in the snapshot's order. What names a Train only by its
+ * number goes with BY_NUMBER's.
  * ponytail: the four fields a Snapshot has; one the fetcher adds is lost here, and from the replay, which goes by
  * the parts joined again, until it's added.
  */
@@ -227,8 +239,8 @@ export function joinParts(parts: Snapshot[]): Snapshot {
 
 /**
  * A compacted day's runs, in order: each Network's file as its lines, the Networks in order of their IDs, as
- * partsOf() gives them, so that each run's parts join as they did when the day was first replayed, from its chunks,
- * and the day is worked out again to the byte once its chunks have gone (§5, "When the Delay rules change").
+ * partsOf() gives them, so that each run's parts join as they did when the day was first replayed, from its
+ * chunks, and the day is worked out again to the byte (section 5, "When the Delay rules change").
  */
 export function* runsOf(files: string[][]): Generator<Snapshot> {
   const heads = files.map((lines) => ({ lines, i: 0, part: undefined as Snapshot | undefined }));
@@ -266,16 +278,22 @@ const KEYS = {
 };
 
 if (import.meta.main) {
-  const { values } = parseArgs({ options: { day: { type: 'string' }, manifest: { type: 'string' }, out: { type: 'string', default: 'out/punctuality' }, 'dry-run': { type: 'boolean' } } });
+  const { values } = parseArgs({ options: { day: { type: 'string' }, out: { type: 'string', default: 'out/punctuality' }, 'dry-run': { type: 'boolean' } } });
   const [date, out, dryRun] = [values.day ?? addDays(madridDate(new Date()), -1), values.out, !!values['dry-run']];
   const run = promisify(execFile);
-  // An object of the history's bucket, or none where it isn't there, or can't be read twice running.
+  // An object of the history's bucket, or none where it isn't there, or can't be read twice running, which the
+  // log says, with why: a token that can't read the bucket reads as every object missing.
   const get = async (key: string): Promise<Buffer | undefined> => {
+    let why: unknown;
     for (const _ of [1, 2]) {
       try {
         return (await run('npx', ['wrangler', 'r2', 'object', 'get', `${BUCKET}/${key}`, '--remote', '--pipe'], { encoding: 'buffer', maxBuffer: 1 << 28 })).stdout;
-      } catch {}
+      } catch (error) {
+        why = error;
+      }
     }
+    const lines = String((why as { stderr?: Buffer })?.stderr ?? why).trim().split('\n');
+    console.warn(`${key} isn't read: ${lines.find((line) => line.includes('ERROR')) ?? lines[0]}`);
     return undefined;
   };
   const fetched = async <T>(key: string): Promise<T> => {
@@ -284,10 +302,16 @@ if (import.meta.main) {
     return (await res.json()) as T;
   };
 
-  // The days joined, each as the manifest names it or, where it no longer does, as the job kept it.
-  const manifest: Manifest = values.manifest ? JSON.parse(await readFile(values.manifest, 'utf8')) : await fetched('manifest.json');
-  const named = daysOf(manifest);
-  const filesOf = async (day: string) => named.find((d) => d.date === day) ?? (await get(KEYS.files(day)).then((body) => body && (JSON.parse(body.toString()) as DayFiles)));
+  // The days joined, each as the live manifest names it or, where it no longer does, as the job kept it, in out/
+  // first, where a dry run of a day the bucket has no files of finds them.
+  const listed = daysOf(await fetched<Manifest>('manifest.json'));
+  const filesOf = async (day: string) => {
+    const named = listed.find((d) => d.date === day);
+    if (named) return named;
+    const local = join(out, KEYS.files(day));
+    const kept = existsSync(local) ? readFileSync(local) : await get(KEYS.files(day));
+    return kept && (JSON.parse(kept.toString()) as DayFiles);
+  };
   // Each track once: a build's days share one.
   const tracks = new Map<string, Promise<Track>>();
   const trackOf = (key: string) => {
@@ -295,38 +319,42 @@ if (import.meta.main) {
     tracks.set(key, track);
     return track;
   };
-  // A day's regions joined as the map joins them, and each Network's region's files, without the Metro's Trips,
-  // which have no Delay to record (#103) and are the slowest to match, nor the shapes and drawing they leave unused.
-  const bundleOf = async ({ regions }: DayFiles): Promise<{ bundle: Bundle; files: Map<string, { trips: string; track: string }> }> => {
-    const read = await Promise.all(regions.map(async (r) => ({ ...r, track: await trackOf(r.track), trips: await fetched<DayTrips>(r.trips), keys: { trips: r.trips, track: r.track } })));
+  // A day's regions joined as the map joins them, and each Network's region's files, with only the recorded
+  // Networks' Trips (recorded()), as the Metro's are the slowest to match, and the shapes they run on.
+  const bundleOf = async ({ regions }: DayFiles): Promise<{ bundle: Bundle; files: Map<string, Files> }> => {
+    const read = await Promise.all(regions.map(async (r) => ({ track: await trackOf(r.track), trips: await fetched<DayTrips>(r.trips), files: { track: r.track, trips: r.trips } })));
     const joined = { ...joinTracks(read.map((r) => r.track)), ...joinTrips(read.map((r) => r.trips)) };
-    const shown = new Set(joined.networks.filter((n) => n.live?.delay !== 'none').map((n) => n.id));
-    const lines = new Set(joined.lines.filter((l) => shown.has(l.network)).map((l) => l.id));
+    const lines = new Set(joined.lines.filter((l) => recorded(joined.networks.find((n) => n.id === l.network))).map((l) => l.id));
     const trips = joined.trips.filter((t) => lines.has(t.line));
     const shapes = new Set(trips.map((t) => t.shape));
     return {
       bundle: { ...joined, trips, shapes: joined.shapes.filter((s) => shapes.has(s.id)), strokes: [], rails: [], slots: [], tracks: [] },
-      files: new Map(read.flatMap((r) => r.track.networks.map((n) => [n.id, r.keys] as const))),
+      files: new Map(read.flatMap((r) => r.track.networks.map((n) => [n.id, r.files] as const))),
     };
   };
-  const days = [addDays(date, -1), date, addDays(date, 1)];
-  const [before, today, after] = await Promise.all(days.map(async (day) => {
-    const files = await filesOf(day);
-    if (!files) console.warn(`${day}'s bundle isn't known: the replay goes without its Trips`);
-    return files && bundleOf(files);
-  }));
-  if (!today) throw new Error(`Neither the manifest nor the history's bucket names ${date}'s bundle`);
-  const { bundle } = today;
-  const joined = joinDays([before?.bundle, bundle, after?.bundle].filter((b) => b !== undefined));
-  const offset = before?.bundle.trips.length ?? 0;
+  const [dayBefore, theDay, dayAfter] = await Promise.all(
+    [-1, 0, 1].map(async (n) => {
+      const files = await filesOf(addDays(date, n));
+      if (!files) console.warn(`${addDays(date, n)}'s bundle isn't known: the replay goes without its Trips`);
+      return files && bundleOf(files);
+    }),
+  );
+  if (!theDay) throw new Error(`Neither the manifest nor the history's bucket names ${date}'s bundle`);
+  const { bundle } = theDay;
+  const joined = joinDays([dayBefore?.bundle, bundle, dayAfter?.bundle].filter((b) => b !== undefined));
+  const offset = dayBefore?.bundle.trips.length ?? 0;
   const commit = process.env.GITHUB_SHA ?? execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
   const rules = createHash('sha256').update(await readFile(new URL('../engine.ts', import.meta.url))).digest('hex').slice(0, 12);
-  const day: Day = { date, noonMinus12h: bundle.noonMinus12h, trips: joined.trips.slice(offset, offset + bundle.trips.length), files: (network) => today.files.get(network) ?? { trips: '', track: '' }, commit, rules };
+  const files = (network: string) => {
+    const known = theDay.files.get(network);
+    if (!known) throw new Error(`No region of ${date}'s has ${network}`);
+    return known;
+  };
+  const day: Day = { date, noonMinus12h: bundle.noonMinus12h, trips: joined.trips.slice(offset, offset + bundle.trips.length), files, commit, rules };
 
-  // From an hour before the day's first Train with live data comes onto the map to an hour after its last leaves
-  // it, as the map keeps a day's bundle (SOON, LATE).
-  const live = new Set(bundle.lines.filter((l) => bundle.networks.find((n) => n.id === l.network)?.live).map((l) => l.id));
-  const times = bundle.trips.filter((t) => live.has(t.line)).flatMap((t) => [t.calls[0]?.arrival ?? NaN, t.calls.at(-1)?.departure ?? NaN]);
+  // From an hour before the day's first recorded Train comes onto the map to an hour after its last leaves it, as
+  // the map keeps a day's bundle (SOON, LATE).
+  const times = bundle.trips.flatMap((t) => [t.calls[0]?.arrival ?? NaN, t.calls.at(-1)?.departure ?? NaN]);
   const [start, end] = [bundle.noonMinus12h + Math.min(...times) * 1000 - SOON, bundle.noonMinus12h + Math.max(...times) * 1000 + LATE];
   // The fetcher puts a slot at its first run after the slot ends.
   const ready = end - (end % SLOT) + SLOT + 60_000;
@@ -335,11 +363,18 @@ if (import.meta.main) {
     await sleep(ready - Date.now());
   }
 
-  // The day's slots, eight at a time, into out/, where a dry run finds them the next time.
+  // The day's runs. Once compacted, the day is replayed from its compacted files, which are never written again,
+  // so that a run that finds fewer of its chunks, as one near their 7 days, can't shorten them; then only the
+  // Networks whose compacted file is read are recorded, so that one it can't read keeps its record. Until then,
+  // from the fetcher's chunks, eight at a time into out/, where a dry run finds them the next time.
+  const compactedFiles = new Map<string, string[]>();
+  const networkIds = bundle.networks.map((n) => n.id).sort();
+  const bodies = await Promise.all(networkIds.map((network) => (existsSync(join(out, KEYS.compacted(date, network))) ? readFileSync(join(out, KEYS.compacted(date, network))) : get(KEYS.compacted(date, network)))));
+  bodies.forEach((body, i) => body && compactedFiles.set(networkIds[i] as string, brotliDecompressSync(body).toString().split('\n')));
   const slots: string[] = [];
   for (let slot = start - (start % SLOT); slot <= end; slot += SLOT) slots.push(nameOf(slot));
   const chunks: (string | undefined)[] = [];
-  for (let i = 0; i < slots.length; i += 8) {
+  for (let i = 0; i < slots.length && !compactedFiles.size; i += 8) {
     const batch = slots.slice(i, i + 8).map(async (key) => {
       const file = join(out, key);
       if (existsSync(file)) return file;
@@ -351,24 +386,16 @@ if (import.meta.main) {
     });
     chunks.push(...(await Promise.all(batch)));
   }
-  const missing = slots.filter((_, i) => !chunks[i]);
-  console.log(`${date}: ${slots.length - missing.length} of ${slots.length} slots of the fetcher's history${missing.length ? `, but for ${missing.join(', ')}` : ''}`);
-  // Once the chunks have gone, the day's compacted files, those of its bundle's Networks that are there.
-  const compactedFiles = async () => {
-    const files: string[][] = [];
-    for (const network of bundle.networks.map((n) => n.id).sort()) {
-      const local = join(out, KEYS.compacted(date, network));
-      const body = existsSync(local) ? readFileSync(local) : await get(KEYS.compacted(date, network));
-      if (body) files.push(brotliDecompressSync(body).toString().split('\n'));
-    }
-    if (!files.length) throw new Error(`The history's bucket has neither the fetcher's chunks of ${date} nor its compacted files: nothing is written`);
-    console.log(`${date}: replayed from its compacted files, ${files.length} of its Networks'`);
-    return files;
-  };
   function* fromChunks(): Generator<Snapshot> {
     for (const chunk of chunks) for (const line of chunk ? gunzipSync(readFileSync(chunk)).toString().split('\n') : []) if (line) yield JSON.parse(line);
   }
-  const runs = missing.length < slots.length ? fromChunks() : runsOf(await compactedFiles());
+  if (compactedFiles.size) console.log(`${date}: from its compacted files, ${compactedFiles.size} Networks'`);
+  else {
+    const missing = slots.filter((_, i) => !chunks[i]);
+    if (missing.length === slots.length) throw new Error(`The history's bucket has neither the fetcher's chunks of ${date} nor its compacted files: nothing is written`);
+    console.log(`${date}: ${slots.length - missing.length} of ${slots.length} slots of the fetcher's history${missing.length ? `, but for ${missing.join(', ')}` : ''}`);
+  }
+  const runs = compactedFiles.size ? runsOf([...compactedFiles.values()]) : fromChunks();
 
   // Each run's snapshot, in order, as its parts by Network joined again, so that a day replayed from its compacted
   // files is replayed as this one is, each part a line of its Network's. A run twice, as a slot put again could
@@ -393,7 +420,8 @@ if (import.meta.main) {
   const records = recordDay(joined, day, snapshots());
   console.log(`Replayed in ${Math.round((performance.now() - started) / 1000)} s`);
 
-  // Squeezed as daily.ts squeezes the bundles, to say how big each is.
+  // Brotli at quality 11 with a 16 MB window, as daily.ts squeezes the bundles but for the window, to say how big
+  // each record is, and at 9 for the compacted day: 11 took more than 8 minutes for 17 October 2026's 279 MB.
   const brotli = (text: string, quality = 11) => brotliCompressSync(text, { params: { [constants.BROTLI_PARAM_QUALITY]: quality, [constants.BROTLI_PARAM_LGWIN]: 24, [constants.BROTLI_PARAM_SIZE_HINT]: text.length } });
   const kb = (bytes: number) => `${Math.round(bytes / 1024)} KB`;
   const written: [key: string, contentType: string][] = [];
@@ -403,13 +431,17 @@ if (import.meta.main) {
     written.push([key, contentType]);
   };
   for (const [network, record] of records) {
+    if (compactedFiles.size && !compactedFiles.has(network)) {
+      console.warn(`${KEYS.record(date, network)} is left as it is: its Network's compacted file isn't read`);
+      continue;
+    }
     const json = JSON.stringify(record);
     await write(KEYS.record(date, network), json, 'application/json');
     const calls = record.delays.reduce((n, delays) => n + (delays?.filter((d) => d !== null).length ?? 0), 0);
     console.log(`${KEYS.record(date, network)}: ${record.delays.length} Trips, ${calls} Calls with a Delay, ${kb(json.length)}, ${kb(brotli(json).length)} with brotli; ${record.runs} runs, the feed ${record.feeds[network]} minutes`);
   }
-  for (const [network, lines] of compacted) await write(KEYS.compacted(date, network), brotli(`${lines.join('\n')}\n`, 9), 'application/x-ndjson');
-  for (const files of named) await write(KEYS.files(files.date), JSON.stringify(files), 'application/json');
+  if (!compactedFiles.size) for (const [network, lines] of compacted) await write(KEYS.compacted(date, network), brotli(`${lines.join('\n')}\n`, 9), 'application/x-ndjson');
+  for (const files of listed) await write(KEYS.files(files.date), JSON.stringify(files), 'application/json');
   if (!dryRun) {
     for (const [key, contentType] of written) execFileSync('npx', ['wrangler', 'r2', 'object', 'put', `${BUCKET}/${key}`, '--remote', '--file', join(out, key), '--content-type', contentType], { stdio: 'inherit' });
   }

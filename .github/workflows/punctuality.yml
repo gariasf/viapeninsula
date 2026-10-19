@@ -20,9 +20,10 @@ on:
 permissions:
   contents: read
 
-# One run at a time, so that two never write a day's files at once.
+# A day's runs one at a time. Days dispatched one after another run side by side: GitHub keeps one run waiting in
+# a group and cancels the others.
 concurrency:
-  group: punctuality
+  group: punctuality-${{ inputs.day || 'the-day-before' }}
   cancel-in-progress: false
 
 jobs:

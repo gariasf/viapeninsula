@@ -241,7 +241,7 @@ export function tripsAt(bundle: Bundle, at: number, received: Received[], trips:
  * A Trip live data has said something of, as a day's record keeps its Calls (#807): the Trip, as the bundle
  * has it; where in its timetable its Train is drawn, in seconds into the service day, and how late its times
  * run, in seconds, as the follow panel has them; whether it's Live, and Cancelled; the calls of its Trip it
- * doesn't make (cutTrip()); where its Delay came from, as replay() has it (Ease's `from`), and whether it's a
+ * doesn't make (cutTrip()); where its Delay came from, as replay() has it (Ease's `source`), and whether it's a
  * GPS Delay no report has confirmed; and how long before then live data last placed it, in ms, as far into
  * live data as the device has got: none where it never has.
  */
@@ -252,7 +252,7 @@ export interface DelayNow {
   live: boolean;
   cancelled: boolean;
   skips: Call[];
-  from?: Source;
+  source?: DelaySource;
   unconfirmed?: true;
   placed?: number;
 }
@@ -271,7 +271,7 @@ export function delaysAt(bundle: Bundle, at: number, received: Received[]): Dela
       const on = trip && of(trip);
       if (!trip || !on) return [];
       const { ease, said } = on;
-      return [{ trip, time: on.time, delay: on.delay, live: on.live, cancelled: on.cancelled, skips: on.skips, ...(ease?.from && { from: ease.from }), ...(ease?.unconfirmed && { unconfirmed: true }), ...(said?.placed !== undefined && { placed: upToNow - said.placed }) }];
+      return [{ trip, time: on.time, delay: on.delay, live: on.live, cancelled: on.cancelled, skips: on.skips, ...(ease?.source && { source: ease.source }), ...(ease?.unconfirmed && { unconfirmed: true }), ...(said?.placed !== undefined && { placed: upToNow - said.placed }) }];
     }),
   );
 }
@@ -443,7 +443,9 @@ interface OnMap {
 /**
  * Where trainsAt() has each Trip's Train at a moment by the device's clock, that moment in seconds
  * into the service day by the fetcher's clock, the Networks whose live data is available then, and the
- * Trips that can have a Train on the map then, which trainsAt() walks (`walked`, #732).
+ * Trips that can have a Train on the map then, which trainsAt() walks (`walked`, #732). And what live
+ * data last said about each Trip, and how far into live data the device has got then, by the fetcher's
+ * clock in ms, which delaysAt() goes by (#807).
  */
 function onMap(bundle: Bundle, at: number, received: Received[], closures: readonly ShownClosure[] = []): { of: (trip: Trip) => OnMap | undefined; now: number; available: Set<string>; walked: () => Trip[]; heard: Map<string, Heard>; upToNow: number } {
   const clock = behind(received);
@@ -1022,7 +1024,16 @@ const delayBy = (said: Heard, upTo: number): GpsDelay | Heard => {
  * Where a Train's Delay came from, as a day's record keeps it (#807): measured from the Train's own position in
  * its latest report, carried on from a Delay its GPS gave it in a report before, or its operator's figure.
  */
-export type Source = 'measured' | 'carried' | 'operator';
+export type DelaySource = 'measured' | 'carried' | 'operator';
+
+/**
+ * Where the Delay delayBy() goes by came from: a GPS Delay of the Train's latest report, measured, or of one
+ * before it, carried on; or what live data said, measured where the report's own position gave it (`measured`).
+ */
+function sourceOf(said: Heard, taken: GpsDelay | Heard): DelaySource {
+  if (taken === said) return said.measured ? 'measured' : 'operator';
+  return taken.got === said.got ? 'measured' : 'carried';
+}
 
 /** How far a Renfe Train's GPS can put its Delay from where its GPS report before put it and still count, in seconds. */
 const CONFIRM = 120;
@@ -1182,7 +1193,7 @@ interface Ease {
   delay: number;
   hold?: number;
   leaving?: true;
-  from?: Source;
+  source?: DelaySource;
   unconfirmed?: true;
 }
 
@@ -1294,10 +1305,9 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
       const pinned = stop >= 0 && calls[stop]?.station !== ran.at(-1)?.station ? calls[stop] : undefined;
       const stood = !!pinned && pinned.station !== ran[0]?.station;
       const delay = stood ? arrived - pinned.departure : carried;
-      // Where that Delay came from, which a day's record keeps (#807): standing at the Station its reports
-      // name it at, it's measured from where it is; by a GPS Delay of the report it's in, measured, and of
-      // one before, carried on; or by what live data said, measured where the report's own position gave it.
-      const from: Source | undefined = stood ? 'measured' : !said || !taken ? undefined : taken === said ? (said.measured ? 'measured' : 'operator') : taken.got === said.got ? 'measured' : 'carried';
+      // Where that Delay came from, which a day's record keeps (#807): standing at the Station its reports name
+      // it at, it's measured from where it is.
+      const source = stood ? 'measured' : said && taken && sourceOf(said, taken);
       // Until live data first shifts it, a Train runs on its timetable, but for one of the Metro's that
       // waits for its Block (#125). It's in this snapshot, so its Network's feed has one of its Trains
       // in it: its live data is available where that feed works (#124).
@@ -1322,7 +1332,7 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
       // back, or jumped back (#107). Not one already drawn out of that Station, as its timetable had it
       // before live data first placed it: holding it there would run it back.
       const held = live && said?.report.block && first && (said.report.at - bundle.noonMinus12h) / 1000 - delay <= first.departure && (i === 0 || far || time <= first.departure);
-      eases.set(id, { at: arrived, time, delay, hold: held ? first.departure : pinned?.departure, leaving: !held && leaving && !far ? true : undefined, from, unconfirmed: !stood && taken !== undefined && taken === said?.gps ? true : undefined });
+      eases.set(id, { at: arrived, time, delay, hold: held ? first.departure : pinned?.departure, leaving: !held && leaving && !far ? true : undefined, source: source || undefined, unconfirmed: !stood && taken !== undefined && taken === said?.gps ? true : undefined });
     }
   }
   const reported = new Map<string, number>();

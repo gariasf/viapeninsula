@@ -49,6 +49,8 @@ A day's record lines up with the day's Trips file: for each Trip, in the file's 
   "from":   [null, [3, 1, 1, null, 2], null] }    // 1 measured, 2 carried on, 3 operator's, 4 last known
 ```
 
+As built (#807, `src/build/punctuality.ts`), a file for each Network, `<day>/<network>.json`, whose `trips` and `track` are its region's: `feeds` holds the minutes of the day's 1,440 its feed worked, `from` also 0 for a Call at a Skipped Station, which holds no Delay, and 8 more for an unconfirmed GPS Delay, and it carries `commit`, `unreported` and `unmatched` too.
+
 Calls a day, from the bundles and timetables:
 
 | | Weekday (Fri 9 Oct) | Saturday 10 Oct | Sunday 11 Oct |
@@ -296,7 +298,7 @@ A rubric of four things: the share of Calls with a Live Delay, what it rests on,
 |---|---|---|---|
 | `snapshot.json` | overwritten each run, as now | | 20–52 KB |
 | History objects | a lifecycle rule expires them after 7 days; the job compacts each day into a brotli'd file for each Network, `compacted/<day>/<network>.ndjson.br`, which a rule on `compacted/` expires after 400 days (pick 2, #807) | to work a day out again; a year and a month of margin | 5 MB a day; 2 GB for 400 days |
-| The day's bundle files | as now: nothing deletes them (the 6 Oct track is still served); the day's record names its track and Trips files | to replay with the Trips the map had | 0.5–0.8 MB a day brotli'd, 2.2 MB on a day the track changes (1.4 MB) |
+| The day's bundle files | as now: nothing deletes them (the 6 Oct track is still served); the day's record names its track and Trips files, and the job keeps each day's as the manifest names them, `<day>/files.json` in the history's bucket, as a day's replay joins the day before, which the manifest no longer names (#807) | to replay with the Trips the map had | 0.5–0.8 MB a day brotli'd, 2.2 MB on a day the track changes (1.4 MB) |
 | The day's record | forever: a file for each Network, `<day>/<network>.json`, in the history's bucket (#807) | it's the history | 25–255 KB a day (section 1) |
 | Aggregates | rewritten each day: 30 days; Lines also a year | | tens of KB |
 

@@ -29,7 +29,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { gzipSync } from 'node:zlib';
-import { daysNeeded, daysOf, joinTracks, joinTrips, LIVE_URL, madridDate, type Bundle, type DayFiles, type DayTrips, type Manifest, type Snapshot, type Trip } from './bundle.ts';
+import { daysNeeded, daysOf, joinTracks, joinTrips, LATE, LIVE_URL, madridDate, SOON, type Bundle, type DayFiles, type DayTrips, type Manifest, type Snapshot, type Trip } from './bundle.ts';
 import { joinDays, namedIn, numberedIn, trainsAt, type Received } from './engine.ts';
 import type { GtfsRt } from './fetcher/step.ts';
 import { decodeTrack, type TrackFile } from './pieces.ts';
@@ -128,23 +128,13 @@ export function added(renfe: RenfeLine[], received: Received[]): number {
 }
 
 /**
- * How long before a service day's first Train comes onto the map, and after its last leaves it, the
- * map keeps the day's bundle, in ms: src/web/main.ts's SOON and LATE, which it hands daysNeeded(), and
- * which the Delay history's replay reads its days' snapshots over (src/build/punctuality.ts).
- * ponytail: copied, as a script can't import main.ts, which touches `document`, so a change of the
- * map's hours doesn't reach here: change both, or export them from bundle.ts beside daysNeeded() if
- * the page and the scripts should share them. The map's `emptyBoard`, the next day a viewer's empty
- * board asks for, isn't known here either.
- */
-export const [SOON, LATE] = [60 * 60_000, 60 * 60_000];
-
-/**
  * The bundle a recording is cut over (#411, #549): the days the map would have had at the recording's
  * first snapshot and at its last (daysNeeded()), joined as the map joins them (joinDays()), so that
  * the Trains Renfe names by the next day's service after midnight find their Trips, and so do those
  * still running from the day before, which keep its service in their names until they're off the
  * map. The recording has `first`, the bundle of `today`, the date it started on, and the manifest's
- * `days` give the others, through `load`. A day the manifest has none of for the date of a snapshot,
+ * `days` give the others, through `load`, over the map's hours (SOON, LATE), though not its `emptyBoard`,
+ * the next day a viewer's empty board asks for. A day the manifest has none of for the date of a snapshot,
  * or whose bundle doesn't come, is left out, and `why` says so for the last line.
  * ponytail: the days at the first and last snapshot alone, as #549 has it, so a day that comes onto
  * the map and leaves it between them is missed, which none does within a recording of 100 minutes:
