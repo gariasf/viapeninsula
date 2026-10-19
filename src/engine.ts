@@ -237,6 +237,45 @@ export function tripsAt(bundle: Bundle, at: number, received: Received[], trips:
   });
 }
 
+/**
+ * A Trip live data has said something of, as a day's record keeps its Calls (#807): the Trip, as the bundle
+ * has it; where in its timetable its Train is drawn, in seconds into the service day, and how late its times
+ * run, in seconds, as the follow panel has them; whether it's Live, and Cancelled; the calls of its Trip it
+ * doesn't make (cutTrip()); where its Delay came from, as replay() has it (Ease's `from`), and whether it's a
+ * GPS Delay no report has confirmed; and how long before then live data last placed it, in ms, as far into
+ * live data as the device has got: none where it never has.
+ */
+export interface DelayNow {
+  trip: Trip;
+  time: number;
+  delay: number;
+  live: boolean;
+  cancelled: boolean;
+  skips: Call[];
+  from?: Source;
+  unconfirmed?: true;
+  placed?: number;
+}
+
+/**
+ * Each Trip live data has said something of in the snapshots received by a moment by the device's clock
+ * (ms since 1970), as DelayNow has it, in the order live data first named them: what a day's record
+ * replays its snapshots by (src/build/punctuality.ts).
+ */
+export function delaysAt(bundle: Bundle, at: number, received: Received[]): DelayNow[] {
+  const { of, heard, upToNow } = onMap(bundle, at, received);
+  const { ids } = indexedIn(bundle);
+  return [...heard.keys()].flatMap((id) =>
+    (ids.get(id) ?? []).flatMap((i): DelayNow[] => {
+      const trip = bundle.trips[i];
+      const on = trip && of(trip);
+      if (!trip || !on) return [];
+      const { ease, said } = on;
+      return [{ trip, time: on.time, delay: on.delay, live: on.live, cancelled: on.cancelled, skips: on.skips, ...(ease?.from && { from: ease.from }), ...(ease?.unconfirmed && { unconfirmed: true }), ...(said?.placed !== undefined && { placed: upToNow - said.placed }) }];
+    }),
+  );
+}
+
 /** A Train on a Station's board: when it's expected to leave the Station, and how far to trust that. */
 export interface Departure {
   trip: Trip;
@@ -406,7 +445,7 @@ interface OnMap {
  * into the service day by the fetcher's clock, the Networks whose live data is available then, and the
  * Trips that can have a Train on the map then, which trainsAt() walks (`walked`, #732).
  */
-function onMap(bundle: Bundle, at: number, received: Received[], closures: readonly ShownClosure[] = []): { of: (trip: Trip) => OnMap | undefined; now: number; available: Set<string>; walked: () => Trip[] } {
+function onMap(bundle: Bundle, at: number, received: Received[], closures: readonly ShownClosure[] = []): { of: (trip: Trip) => OnMap | undefined; now: number; available: Set<string>; walked: () => Trip[]; heard: Map<string, Heard>; upToNow: number } {
   const clock = behind(received);
   const now = (at + clock - bundle.noonMinus12h) / 1000;
   const index = indexedIn(bundle);
@@ -527,7 +566,7 @@ function onMap(bundle: Bundle, at: number, received: Received[], closures: reado
     });
     return { ...off, within };
   };
-  return { of, now, available, walked };
+  return { of, now, available, walked, heard, upToNow };
 }
 
 /** A bundle's shapes, Networks and Lines by ID, each Line's Network as profiled() has it, and where in its Trips each Trip ID is. */
@@ -874,8 +913,8 @@ const RUNNING = 5;
  */
 const stale = (since: number | undefined, upTo: number, every: number) => upTo - (since ?? -Infinity) >= MISSES * every;
 
-/** Whether a Network's feed works, as far into live data as a device has got: it hasn't missed three of its updates. */
-const works = (feed: Freshness | undefined, upTo: number) => feed !== undefined && !stale(feed.lastSuccess, upTo, feed.every);
+/** Whether a Network's feed works, as far into live data as a device has got: it hasn't missed three of its updates. A day's record counts its minutes by this (#807). */
+export const works = (feed: Freshness | undefined, upTo: number) => feed !== undefined && !stale(feed.lastSuccess, upTo, feed.every);
 
 /**
  * Whether a Train is Live, by what live data last said about it and the freshness of the feed that
@@ -928,6 +967,8 @@ interface Heard {
   own?: number;
   /** The report's own Delay, in seconds, as delayOf() has it: for Renfe's, Renfe's own figure. */
   delay: number;
+  /** Where its Network's live data doesn't carry the GPS Delay, as FGC's and TRAM's: that the report's own position measured that Delay (#807). */
+  measured?: true;
   /** For Renfe's: the last Delay its GPS gave it. */
   gps?: GpsDelay;
   /** For Renfe's: the last Delay its GPS gave it that counts. */
@@ -969,11 +1010,19 @@ interface Fix {
  * Delay: hear() takes it as no position, but for a Train's first fix after a pin and the next (#634). Going by the figure wherever none counts, not by the last
  * its GPS gave it, was tried and rejected: it drew more Trains ahead of their GPS and then standing
  * (ADR-0002, #410).
+ * It gives what it goes by, whose `delay` that is: one of Renfe's GPS Delays, or what live data said, so that
+ * replay() can say where the Delay came from (#807).
  */
-const delayBy = (said: Heard, upTo: number) => {
+const delayBy = (said: Heard, upTo: number): GpsDelay | Heard => {
   const gps = recent(said.gps, upTo);
-  return (recent(said.counted, upTo) ?? ((gps?.fromFigure ?? 0) > GATE ? undefined : gps) ?? said).delay;
+  return recent(said.counted, upTo) ?? ((gps?.fromFigure ?? 0) > GATE ? undefined : gps) ?? said;
 };
+
+/**
+ * Where a Train's Delay came from, as a day's record keeps it (#807): measured from the Train's own position in
+ * its latest report, carried on from a Delay its GPS gave it in a report before, or its operator's figure.
+ */
+export type Source = 'measured' | 'carried' | 'operator';
 
 /** How far a Renfe Train's GPS can put its Delay from where its GPS report before put it and still count, in seconds. */
 const CONFIRM = 120;
@@ -1082,7 +1131,10 @@ function hear(before: Heard | undefined, report: Report, got: number, from: Rece
   const held = holds ? (before.held ?? before.got) : report.position ? undefined : before?.held;
   const placed = position || (holds && got - (held ?? got) < HOLD) ? got : before?.placed;
   const heard = { report, got, placed, confirmed: position ? report.at : before?.confirmed, from, feed, held, own: report.number && !live?.numbers ? before?.own : got, fixes, pin };
-  if (!carriesGpsDelay) return { ...heard, delay: ownDelay(taken).delay };
+  if (!carriesGpsDelay) {
+    const own = ownDelay(taken);
+    return { ...heard, delay: own.delay, ...(own.measured && { measured: true }) };
+  }
   const figure = ownDelay({ ...taken, position: undefined }).delay;
   // The first fix after a pin that a nearer one has put aside gives no Delay, and confirms none: the
   // nearer is as a first fix after a pin, which counts once the next agrees with it.
@@ -1121,6 +1173,8 @@ function heardTo(received: Received[], moment: number): number {
  * into the service day by the fetcher's clock, how late that snapshot has it, in seconds, and where
  * in its timetable it's held until the next: as it would leave its Trip's first Station, for one of
  * the Metro's that snapshot still has there. Let out of there, it's `leaving` until it has caught up.
+ * And where that Delay came from, none where live data has given it none that's recent, and whether it's a GPS
+ * Delay no report after it has confirmed (#807).
  */
 interface Ease {
   at: number;
@@ -1128,6 +1182,8 @@ interface Ease {
   delay: number;
   hold?: number;
   leaving?: true;
+  from?: Source;
+  unconfirmed?: true;
 }
 
 /** How long a Train drawn off where live data has it takes to ease back, in seconds: until the next snapshot. */
@@ -1226,7 +1282,8 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
       }
       // A Train live data stops reporting keeps its last Delay until that's CARRY old.
       const said = recent(heard.get(id), upTo);
-      const [live, carried] = [isLive(said, feeds, upTo), said ? delayBy(said, upTo) : 0];
+      const [live, taken] = [isLive(said, feeds, upTo), said && delayBy(said, upTo)];
+      const carried = taken?.delay ?? 0;
       // One of Renfe's that its reports have named at a Station for LONG_PIN stands there (#485), as FGC's
       // do (#39): drawn at it, its times as late as that, however far its Delay had it run on, until a
       // report has it elsewhere. Not at its Trip's last Station, where it has ended its run, and at its
@@ -1235,7 +1292,12 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
       const stop = live && said && stands(said.pin, said.report) ? calls.findIndex((c) => c.station === said.pin?.station) : -1;
       const ran = stop >= 0 ? (cutsIn(bundle, r.snapshot).get(id)?.trip ?? trip).calls : [];
       const pinned = stop >= 0 && calls[stop]?.station !== ran.at(-1)?.station ? calls[stop] : undefined;
-      const delay = pinned && pinned.station !== ran[0]?.station ? arrived - pinned.departure : carried;
+      const stood = !!pinned && pinned.station !== ran[0]?.station;
+      const delay = stood ? arrived - pinned.departure : carried;
+      // Where that Delay came from, which a day's record keeps (#807): standing at the Station its reports
+      // name it at, it's measured from where it is; by a GPS Delay of the report it's in, measured, and of
+      // one before, carried on; or by what live data said, measured where the report's own position gave it.
+      const from: Source | undefined = stood ? 'measured' : !said || !taken ? undefined : taken === said ? (said.measured ? 'measured' : 'operator') : taken.got === said.got ? 'measured' : 'carried';
       // Until live data first shifts it, a Train runs on its timetable, but for one of the Metro's that
       // waits for its Block (#125). It's in this snapshot, so its Network's feed has one of its Trains
       // in it: its live data is available where that feed works (#124).
@@ -1260,7 +1322,7 @@ function replay(bundle: Bundle, received: Received[], clock: number, lines: Map<
       // back, or jumped back (#107). Not one already drawn out of that Station, as its timetable had it
       // before live data first placed it: holding it there would run it back.
       const held = live && said?.report.block && first && (said.report.at - bundle.noonMinus12h) / 1000 - delay <= first.departure && (i === 0 || far || time <= first.departure);
-      eases.set(id, { at: arrived, time, delay, hold: held ? first.departure : pinned?.departure, leaving: !held && leaving && !far ? true : undefined });
+      eases.set(id, { at: arrived, time, delay, hold: held ? first.departure : pinned?.departure, leaving: !held && leaving && !far ? true : undefined, from, unconfirmed: !stood && taken !== undefined && taken === said?.gps ? true : undefined });
     }
   }
   const reported = new Map<string, number>();

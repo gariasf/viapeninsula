@@ -129,13 +129,14 @@ export function added(renfe: RenfeLine[], received: Received[]): number {
 
 /**
  * How long before a service day's first Train comes onto the map, and after its last leaves it, the
- * map keeps the day's bundle, in ms: src/web/main.ts's SOON and LATE, which it hands daysNeeded().
+ * map keeps the day's bundle, in ms: src/web/main.ts's SOON and LATE, which it hands daysNeeded(), and
+ * which the Delay history's replay reads its days' snapshots over (src/build/punctuality.ts).
  * ponytail: copied, as a script can't import main.ts, which touches `document`, so a change of the
  * map's hours doesn't reach here: change both, or export them from bundle.ts beside daysNeeded() if
- * another reader needs them. The map's `emptyBoard`, the next day a viewer's empty board asks for,
- * isn't known here either.
+ * the page and the scripts should share them. The map's `emptyBoard`, the next day a viewer's empty
+ * board asks for, isn't known here either.
  */
-const [SOON, LATE] = [60 * 60_000, 60 * 60_000];
+export const [SOON, LATE] = [60 * 60_000, 60 * 60_000];
 
 /**
  * The bundle a recording is cut over (#411, #549): the days the map would have had at the recording's

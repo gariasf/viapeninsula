@@ -50,11 +50,12 @@ npx wrangler r2 bucket domain add viapeninsula-live --domain viapeninsula-live.g
 npm run cors
 ```
 
-The history's bucket, with no domain, and its lifecycle rule, which deletes what's under `history/` 7 days after it's put (#806):
+The history's bucket, with no domain, and its lifecycle rules, which delete what's under `history/` 7 days after it's put (#806), and the compacted days under `compacted/` after 400 (#807):
 
 ```sh
 npx wrangler r2 bucket create viapeninsula-history --location weur --update-config=false
 npx wrangler r2 bucket lifecycle add viapeninsula-history expire-history history/ --expire-days 7 --force
+npx wrangler r2 bucket lifecycle add viapeninsula-history expire-compacted compacted/ --expire-days 400 --force
 ```
 
 A Cache Rule in the dashboard caches viapeninsula-live.gariasf.com at the edge for as long as each file's `Cache-Control` says, ignoring query strings.
@@ -78,6 +79,8 @@ done
 node --env-file=.env.local -e "process.stdout.write(process.env.R2_API_TOKEN)" | gh secret set CLOUDFLARE_API_TOKEN
 node --env-file=.env.local -e "process.stdout.write(process.env.GITHUB_DISPATCH_TOKEN)" | npx wrangler secret put GITHUB_DISPATCH_TOKEN -c src/fetcher/wrangler.jsonc
 ```
+
+`.github/workflows/punctuality.yml` runs after each daily build: `npm run punctuality` replays the service day before through the engine, from the fetcher's history, and writes the day's record to the history's bucket, a file for each Network, `<day>/<network>.json`, with the day's history compacted under `compacted/` (#807). It reads and writes the bucket with the same R2 token. `npm run punctuality -- --day 2026-10-17 --dry-run` writes the files to `out/punctuality/` by your wrangler login, and puts none.
 
 ## Licence
 
