@@ -77,7 +77,8 @@ describe('metrics', () => {
   });
 
   it("finds the second day's join in its own files (S7)", () => {
-    const m = metrics(run({ scenario: 'S7', clock: Date.parse('2026-10-12T23:00:00+02:00'), marks: [mark('joinWatch', 0), mark('end', 10_000)], frames: frames(0, 10_000, [[4000, 500]]), files: [{ file: 'days/2026-10-13-abc.json', end: 3990 }, { file: 'days/2026-10-12-abc.json', end: 3000 }] }));
+    // The clock 20 s before the hour before the 13th's first Train, after midnight as where the map loads only Catalonia's (#659).
+    const m = metrics(run({ scenario: 'S7', clock: Date.parse('2026-10-13T03:00:00+02:00'), marks: [mark('joinWatch', 0), mark('end', 10_000)], frames: frames(0, 10_000, [[4000, 500]]), files: [{ file: 'days/2026-10-13-abc.json', end: 3990 }, { file: 'days/2026-10-12-abc.json', end: 3000 }] }));
     expect(m).toMatchObject({ joinMaxGap: 500, joinFrozen: 500 });
   });
 });
@@ -104,5 +105,7 @@ describe('secondDayAt', () => {
     const from = Date.parse('2026-10-13T04:30:00+02:00');
     const manifest = { regions: [{ id: 'a', days: [{ date: '2026-10-12', from: 0, to: 1, trips: 'x' }, { date: '2026-10-13', from, to: from + 1, trips: 'y' }] }, { id: 'b', days: [{ date: '2026-10-13', from: from + 60_000, to: from + 2, trips: 'z' }] }] };
     expect(secondDayAt(manifest as never, Date.parse('2026-10-12T18:00:00+02:00'))).toBe(from - 60 * 60_000 - 20_000);
+    // Of the regions the map has loaded, by their own (#659).
+    expect(secondDayAt(manifest as never, Date.parse('2026-10-12T18:00:00+02:00'), new Set(['b']))).toBe(from + 60_000 - 60 * 60_000 - 20_000);
   });
 });

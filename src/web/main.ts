@@ -854,8 +854,10 @@ let showsWithin = false;
 let back: { to: 'train'; day: string; trip: string; headsign: string; up: boolean; scroll: number } | { to: 'board'; place: string; up: boolean; scroll: number } | { to: 'nearby'; near: Point; up: boolean; scroll: number } | undefined;
 /** The place whose board the panel shows, by its ID in places(), while the map follows no Train. */
 let boardPlace: string | undefined;
-/** The last date, by the map's time (mapTime()), that a Station board had no departures left, when the map needs the next day's Trips for it. */
+/** The last day, by the date of the day that stood for today (`serviceToday`), that a Station board had no departures left, when the map needs the next day's Trips for it. */
 let emptyBoard: string | undefined;
+/** The date of the day that stands for today in the days the map last needed (daysNeeded()): the day before, after midnight, until today's first Train is SOON (#659). */
+let serviceToday: string | undefined;
 /**
  * Where the viewer is, while the panel shows their nearby Trains instead, or that the browser is
  * still finding out, or why it couldn't (unlocated()). It's never sent anywhere, nor put in the page's link.
@@ -3561,7 +3563,7 @@ function boardPanel(id: string, up: boolean): Panel | undefined {
   // With none left today, the next day's first are to come; refreshDays() runs again within a minute if it's busy now.
   // Only once the Trips of its own regions have come (#597): before that it has none because they haven't. Where
   // they failed, the map looks again for them soon, as it does for every file that fails (looked(), #657).
-  const date = madridDate(new Date(mapNow));
+  const date = serviceToday ?? madridDate(new Date(mapNow));
   if (bundle && !departures.length && boardAsks(place.stations.every((station) => come({ station })), emptyBoard === date)) {
     emptyBoard = date;
     refreshDays();
@@ -4114,11 +4116,15 @@ async function neededDays(): Promise<{ track: Promise<Track | undefined>; arriva
   if (!lookedOnce && wanted.some((id) => !loaded.has(id))) lookAgain = true;
   lookedOnce = true;
   // The next day's first Trains come SOON before they're on the map, so they're among the nearby Trains.
-  const needed = daysNeeded(daysOf(manifest), mapTime(Date.now(), received), { early: SOON, late: LATE, emptyBoard });
+  // The days of the regions the map has loaded, by their own first and last Trains, not another region's (#659): one
+  // set of days for all of them, so that each day has the same track; every region's where none is loaded, for their date.
+  const [at, hours, every] = [mapTime(Date.now(), received), { early: SOON, late: LATE, emptyBoard }, daysOf(manifest)];
+  const needed = daysNeeded(daysOf(manifest, loaded), at, hours) ?? daysNeeded(every, at, hours);
   if (!needed) throw new Error('The manifest names no service day');
-  noTripsIds = needed.today.noTrips ?? [];
+  serviceToday = needed.today.date;
+  noTripsIds = every.find((d) => d.date === serviceToday)?.noTrips ?? [];
   const days = needed.days.map((d): DayFiles => ({ ...d, regions: d.regions.filter((r) => loaded.has(r.id)) })).filter((d) => d.regions.length);
-  const today = days.find((d) => d.date === needed.today.date);
+  const today = days.find((d) => d.date === serviceToday);
   const keys = days.flatMap((d) => d.regions.flatMap((r) => [r.track, r.trips]));
   if (!keys.length || keys.join() === shown) return undefined;
   for (const key of fetched.keys()) if (!keys.includes(key)) fetched.delete(key);

@@ -9,7 +9,8 @@
 // - S3: zoom out to z4 a level at a time, a second apart, then into Madrid z12.
 // - S4: drag Madrid to Valencia to Barcelona at z9.5.
 // - S5bcn: 60 s at rest; S5z10 and S5z13 the same at z10 and z13 (#572).
-// - S7: the next day's join, the clock set 20 s before the map needs it, and the snapshot blocked.
+// - S7: the next day's join, the clock set 20 s before the map needs it, and the snapshot blocked; S7all the same
+//   20 s before every region's earliest first Train is within the hour, where the map joined it before #659.
 // - S8: following a moving Train at z14 for 30 s.
 import fs from 'node:fs';
 import os from 'node:os';
@@ -63,6 +64,14 @@ interface Scenario {
   trace?: boolean;
 }
 
+/** S7's, but for its clock: the join of the day whose first Train is within the hour from 20 s after it. */
+const S7: Scenario = {
+  view: at(12, BCN),
+  window: ['joinWatch', 'end'],
+  act: async (_, mark) => (await sleep(45_000), await mark('joinWatch'), await sleep(50_000), mark('end')),
+  joins: (run) => new RegExp(`^days/${madridDate(new Date(run.clock! + 60 * 60_000 + 20_000))}-`),
+};
+
 const SCENARIOS: Record<string, Scenario> = {
   S2: { view: at(12, BCN), window: ['nav', 'end'], act: async (_, mark) => (await sleep(30_000), mark('end')), joins: () => /track-long-distance/, trace: true },
   S3: {
@@ -98,13 +107,8 @@ const SCENARIOS: Record<string, Scenario> = {
   S5z10: rest(10),
   S5z13: rest(13),
   // The map looks for the days it needs each minute, so it joins the next day within ~60 s of the clock passing its moment.
-  S7: {
-    view: at(12, BCN),
-    window: ['joinWatch', 'end'],
-    act: async (_, mark) => (await sleep(45_000), await mark('joinWatch'), await sleep(50_000), mark('end')),
-    joins: (run) => new RegExp(`^days/${addDays(madridDate(new Date(run.clock!)), 1)}-`),
-    clock: (manifest) => secondDayAt(manifest, Date.now()),
-  },
+  S7: { ...S7, clock: (manifest) => secondDayAt(manifest, Date.now(), AT_BCN) },
+  S7all: { ...S7, clock: (manifest) => secondDayAt(manifest, Date.now()) },
   S8: {
     view: at(12, BCN),
     window: ['followStart', 'end'],
@@ -173,10 +177,16 @@ async function panTo(page: Page, device: Device, from: readonly number[], to: re
   }
 }
 
-/** When the next day starts to be needed, less 20 s: its earliest Trains' `from` less the hour main.ts's SOON gives them. */
-export function secondDayAt(manifest: Manifest, now: number): number {
+/**
+ * The regions the map loads at Barcelona z12 (regionsNeeded()), whose own first Trains it needs the next day by (#659).
+ * ponytail: by hand, as on 19 Oct 2026; derive them from the view if a region's extent changes.
+ */
+const AT_BCN = new Set(['catalonia', 'long-distance', 'media-distancia-avant']);
+
+/** When the next day starts to be needed, less 20 s: the earliest Trains' `from` of its regions, or of `only`, less the hour main.ts's SOON gives them. */
+export function secondDayAt(manifest: Manifest, now: number, only?: ReadonlySet<string>): number {
   const next = addDays(madridDate(new Date(now)), 1);
-  const day = daysOf(manifest).find((d) => d.date === next);
+  const day = daysOf(manifest, only).find((d) => d.date === next);
   if (!day) throw new Error(`The manifest has no ${next}`);
   return day.from - 60 * 60_000 - 20_000;
 }

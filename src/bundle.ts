@@ -225,13 +225,15 @@ export interface DayFiles extends Pick<ManifestDay, 'date' | 'from' | 'to' | 'no
 }
 
 /**
- * The service days the manifest names, oldest first, each once, joined from its regions' entries for it.
+ * The service days the manifest names, oldest first, each once, joined from its regions' entries for it,
+ * or from those of `only` where it's given, as the regions the map has loaded (#659).
  * A region with no Trips that day has no times for it (JSON holds them as null), and the others time it.
  */
-export function daysOf({ regions }: Manifest): DayFiles[] {
+export function daysOf({ regions }: Manifest, only?: ReadonlySet<string>): DayFiles[] {
   const found = new Map<string, DayFiles>();
   // A manifest of an older shape has no regions: it names no day the map can read.
   for (const { id, days } of regions ?? []) {
+    if (only && !only.has(id)) continue;
     for (const d of days) {
       const day = found.get(d.date) ?? { date: d.date, from: Infinity, to: -Infinity, regions: [] };
       found.set(d.date, day);
@@ -912,16 +914,19 @@ export function madridDate(at: Date): string {
 export const [SOON, LATE] = [60 * 60_000, 60 * 60_000];
 
 /**
- * The manifest's days the map needs at a moment (ms since 1970): today, whatever the time; each day
- * whose Trains are on the map or come onto it within `early`, as tomorrow's first can before
- * midnight, or went off it less than `late` ago, as yesterday's last do after; and the next day once
- * today's last Train has left the map, or a Station board has had no departures left on
- * `emptyBoard`, today's date. Where the manifest is out of date, its last day stands for today.
+ * The manifest's days the map needs at a moment (ms since 1970): each day whose Trains are on the map or
+ * come onto it within `early`, or went off it less than `late` ago, as yesterday's last do after midnight;
+ * today, whatever the time, once it's within `early` of its first Train, and until then, as after midnight,
+ * the day before, which stands for it (#659); and the day after it once a Station board has had no
+ * departures left on `emptyBoard`, the date of the day that stands for today (#596). Where the manifest is
+ * out of date, its last day stands for today. A day with no Train has no first: it's today from its date on.
  */
 export function daysNeeded<D extends Pick<ManifestDay, 'date' | 'from' | 'to'>>(days: D[], at: number, { early, late, emptyBoard }: { early: number; late: number; emptyBoard?: string }): { today: D; days: D[] } | undefined {
-  const today = days.find((d) => d.date === madridDate(new Date(at))) ?? days.at(-1);
+  const dated = days.find((d) => d.date === madridDate(new Date(at)));
+  const before = dated && days.find((d) => d.date === addDays(dated.date, -1));
+  const begun = (d: D) => !Number.isFinite(d.from) || d.from - early <= at;
+  const today = (dated && (begun(dated) || !before) ? dated : before) ?? days.at(-1);
   if (!today) return undefined;
   const next = days[days.indexOf(today) + 1];
-  const nextDayDue = at >= today.to || emptyBoard === today.date;
-  return { today, days: days.filter((d) => d === today || (d === next && nextDayDue) || (d.from - early <= at && at <= d.to + late)) };
+  return { today, days: days.filter((d) => d === today || (d === next && emptyBoard === today.date) || (d.from - early <= at && at <= d.to + late)) };
 }
