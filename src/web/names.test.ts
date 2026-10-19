@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { assert, expect, test, vi } from 'vitest';
 import { stationsOf } from '../build/track.ts';
 import { DEGREE, joinTracks, places, type Place, type Point, type Shape, type Slot, type Station, type Stroke, type Track } from '../bundle.ts';
-import { alongside, callsIn, CAP, DOT_COST, hidesTowns, namedTwice, nameOffset, nameSort, nearestSide, sidesByJoin, splitBy, underName, type Side, type Spot } from './names.ts';
+import { alongside, callsIn, CAP, DOT_COST, dotCost, hidesTowns, namedTwice, nameOffset, nameReach, nameSort, nearestSide, sidesByJoin, splitBy, underName, type Side, type Spot } from './names.ts';
 
 // Made up, on the equator, where a degree is DEGREE metres both ways, but for the one test of #501's cells.
 /** The point so many metres east and north of 0°, 0°. */
@@ -211,12 +211,13 @@ test("where another place's dot lies under its name on the side nearest its dot,
 });
 
 test("it goes under as many Lines as a dot costs it, and no more, to clear another place's dot (#501)", () => {
-  // The dot lies under the name above its own track; spurs of the track, each a Line, go south under the one below.
+  // The dot lies under the name above its own track, over its own dot, where it lies under it slid either way too (#713);
+  // spurs of the track, each a Line, go south from it under the one below, slid or not.
   const own = track('own', [-500, 0], [500, 0]);
-  const spurs = (n: number) => Array.from({ length: n }, (_, i) => track(`spur${i}`, [-45 + (90 * i) / n, -5], [-45 + (90 * i) / n, -200]));
+  const spurs = (n: number) => Array.from({ length: n }, (_, i) => track(`spur${i}`, [0, -5], [0, -200]));
   const goes = (n: number) => {
     const tracks = [own, ...spurs(n)];
-    return placed(tracks, drawn(tracks), right, [], new Map(), [at(40, 20)])(at(0, 0))(0).anchor;
+    return placed(tracks, drawn(tracks), right, [], new Map(), [at(0, 20)])(at(0, 0))(0).anchor;
   };
   expect(goes(1)).toBe('top');
   expect(goes(DOT_COST - 1)).toBe('top');
@@ -259,10 +260,26 @@ test("another place's dot is found away from 0°, 0° too, where a cell of the t
   const [east, north] = [DEGREE * Math.cos((lat * Math.PI) / 180), DEGREE];
   const own: Shape = { id: 'own', coords: [[lon - 0.01, lat], [lon + 0.01, lat]], dist: [0, 0.02 * east] };
   const neighbour: Point = [lon + 40 / east, lat + 20 / north];
-  // And one in the corner of the cells looked in, 3.4 km off, which is further than REACH and not kept.
+  // And one in the corner of the cells looked in, 3.4 km off, which is further than REACH, and kept only where the name reaches it (#714).
   const far: Point = [lon + 2400 / east, lat + 2400 / north];
-  const spot = alongside([own], [], right, [], new Map(), [[lon, lat], neighbour, far])([lon, lat])(0)[0]?.clear ?? assert.fail('no side');
-  expect(spot.neighbours.map((m) => m.map((v) => Math.round(v)))).toEqual([[40, 20]]);
+  const neighbours = (reach?: number) => (alongside([own], [], right, [], new Map(), [[lon, lat], neighbour, far])([lon, lat], [], reach)(0)[0]?.clear ?? assert.fail('no side')).neighbours.map((m) => m.map((v) => Math.round(v)));
+  expect(neighbours()).toEqual([[40, 20]]);
+  expect(neighbours(3500)).toEqual([[40, 20], [2400, 2400]]);
+});
+
+test("a dot further than REACH from a place's dot counts where its name reaches it, as a zoom 9 name does, at 115 m a px (#714)", () => {
+  // The name, 100×20 px, goes above its own track, from 10 to 30 px north and 50 px either way: at 115 m a px, 1,150 to
+  // 3,450 m north and 5,750 m either way. Another place's dot lies 4 km east and 2 km north of it, in that box.
+  const own = track('own', [-20000, 0], [20000, 0]);
+  const reach = nameReach([100, 20], 115);
+  expect(reach).toBeGreaterThan(Math.hypot(5750, 3450));
+  const spots = alongside([own], [], right, [], new Map(), [at(0, 0), at(4000, 2000)]);
+  const name = (spot: Spot) => underName(spot, 10, [100, 20], 115, 0, 0);
+  const [up] = spots(at(0, 0), [], reach)(0);
+  expect(name(up?.clear ?? assert.fail('no side'))).toBe(DOT_COST);
+  expect(nearestSide(spots(at(0, 0), [], reach)(0), () => 10, name).spot.anchor).toBe('top');
+  // Where the name reaches no further than REACH, as at zoom 12, the dot isn't counted.
+  expect(name(spots(at(0, 0))(0)[0]?.clear ?? assert.fail('no side'))).toBe(0);
 });
 
 test('where the dot lies the other side of its track, it goes from the track', () => {
@@ -385,6 +402,53 @@ test("its box keeps a given distance from its track, however the track slants, i
   // Over a flat track, it's centred over the dot; beside an upright one, level with it.
   expect(rounded(nameOffset(first([heading(90)], [], right)(at(0, 0))(0), 10, size))).toEqual([0, -10]);
   expect(rounded(nameOffset(first([heading(0)], [], right)(at(0, 0))(0), 10, size))).toEqual([10, 0]);
+});
+
+test("where another place's dot lies under it on both sides, it slides along its track to end or start at its dot, anchored by a corner, clear of the dots (#713)", () => {
+  // Its own track runs east to west; centred above it, 10 to 30 px north and 50 either way, and below it, a dot lies
+  // under its right half. Slid west to end over its own dot, the box above is 30 px from the dot.
+  const own = track('own', [-500, 0], [500, 0]);
+  const spot = placed([own], [], right, [], new Map(), [at(30, 20), at(30, -20)])(at(0, 0))(0);
+  expect([spot.anchor, spot.slid]).toEqual(['bottom', 'bottom-right']);
+  expect(rounded(nameOffset(spot, 10, [100, 20]))).toEqual([0, -10]);
+  expect(underName(spot, 10, [100, 20], 1, 0, 0)).toBe(0);
+  // Turned upside down, the dots are south-west on screen, and the name slides east, below the track on screen.
+  const turned = placed([own], [], right, [], new Map(), [at(30, 20), at(30, -20)])(at(0, 0))(180);
+  expect([turned.anchor, turned.slid]).toEqual(['bottom', 'bottom-left']);
+  // Only where it's told a dot costs a side.
+  const sides = alongside([own], [], right, [], new Map(), [at(30, 20), at(30, -20)])(at(0, 0))(0);
+  const under = (s: Spot, far: number) => underName(s, far, [100, 20], 1, 0, 0);
+  expect(nearestSide(sides, () => 10, under, (s, far) => dotCost(s, far, [100, 20], 1) > 0).spot.slid).toBe('bottom-right');
+  expect(nearestSide(sides, () => 10, under, () => false).spot.slid).toBeUndefined();
+  // Where a side is clear, it stays as it was, not slid.
+  expect(placed([own], [], right, [], new Map(), [at(30, 20)])(at(0, 0))(0).slid).toBeUndefined();
+  expect(placed([own], [], right)(at(0, 0))(0).slid).toBeUndefined();
+});
+
+test("slid along its track, its box keeps as far from the track as unslid, however the track slants, and starts or ends at the dot along the track, as its corner says (#713)", () => {
+  // A name's box's extent from the corner MapLibre anchors it by.
+  const extents = (corner: string, [w, h]: [number, number]): [[number, number], [number, number]] => [corner.endsWith('left') ? [0, w] : [-w, 0], corner.startsWith('top') ? [0, h] : [-h, 0]];
+  const size: [number, number] = [100, 26];
+  for (const degrees of [0, 20, 45, 90, 135, 160]) {
+    const sides = alongside([heading(degrees)], [], right)(at(0, 0))(0);
+    for (const { clear: spot } of sides) {
+      const corners = spot.anchor === 'bottom' ? ['bottom-left', 'bottom-right'] : spot.anchor === 'top' ? ['top-left', 'top-right'] : spot.anchor === 'left' ? ['top-left', 'bottom-left'] : ['top-right', 'bottom-right'];
+      for (const slid of corners as NonNullable<Spot['slid']>[]) {
+        const [ox, oy] = nameOffset({ ...spot, slid }, 10, size);
+        const [[x0, x1], [y0, y1]] = extents(slid, size);
+        const box = [[ox + x0, oy + y0], [ox + x1, oy + y0], [ox + x0, oy + y1], [ox + x1, oy + y1]];
+        const [nx, ny] = spot.normal;
+        expect(rounded([Math.min(...box.map(([x = 0, y = 0]) => x * nx + y * ny))])).toEqual([10]);
+        // Along the track, one end of it at the dot's, the rest the way its corner says: rightward of a left corner over or
+        // under a track, downward of a top one beside it.
+        const level = spot.anchor === 'bottom' || spot.anchor === 'top';
+        const way = level ? (slid.endsWith('left') ? 1 : -1) : slid.startsWith('top') ? 1 : -1;
+        const flip = (level ? -ny : nx) < 0 ? -1 : 1;
+        const along = box.map(([x = 0, y = 0]) => way * flip * (-x * ny + y * nx));
+        expect(rounded([Math.min(...along)])).toEqual([0]);
+      }
+    }
+  }
 });
 
 test('it can go either side of its track, up first, however other tracks cross it', () => {
@@ -626,6 +690,22 @@ test("works a joined track's places out a region at a time as alongside() does o
   const fourth = sides([regionA], slots.slice(0, 1), right, networks.slice(0, 1), new Map(), before);
   expect(fourth.map((s, i) => s === fresh[i])).toEqual([true, false, false, false, true]);
   expect(asJson(fourth)).toBe(asJson(first));
+});
+
+test("at a join, a place whose name reaches further than REACH is worked out again where a dot comes within its reach, as alongside() has it (#714)", () => {
+  const a = [track('a', [-3000, 0], [3000, 0])];
+  const slots = drawn(a);
+  const networks = [{ network: 'A', shapes: ['a'] }];
+  const before: { id: string; dot: Point; served?: string[]; reach?: number }[] = [{ id: 'a1', dot: at(0, 0), served: ['A'], reach: 6000 }, { id: 'a2', dot: at(0, 10), served: ['A'] }];
+  // A dot comes 4 km off, beyond REACH of both, but within a1's name's reach.
+  const after = [...before, { id: 'b1', dot: at(4000, 2000) }];
+  const region = { shapes: a };
+  const sides = sidesByJoin();
+  const first = sides([region], slots, right, networks, new Map(), before);
+  const second = sides([region], slots, right, networks, new Map(), after);
+  expect(second.slice(0, 2).map((s, i) => s === first[i])).toEqual([false, true]);
+  const whole = alongside(a, slots, right, networks, new Map(), after.map((p) => p.dot));
+  expect(asJson(second)).toBe(asJson(after.map(({ dot, served, reach }) => whole(dot, served, reach))));
 });
 
 test("a region's crossings kept from an earlier join are worked out again where the tracks its place runs beside change (#763)", () => {

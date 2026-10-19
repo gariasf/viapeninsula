@@ -104,13 +104,13 @@ async function variant(src: string, bearing: number) {
     const t0 = performance.now();
     const regions = N.fileShapes ? ahead : N.splitBy(days, parts);
     const centrelines = new Map(days.shapes.flatMap((s: any) => (s.id.startsWith(B.STRETCH) ? [[s.id, s]] : [])));
-    const where = tiered.map(({ id, networks, lon, lat }: any) => ({ id, dot: [lon, lat], served: networks }));
+    const rows = tiered.map(({ name, style }: any) => nameLines(name, style));
+    const sizes = tiered.map(({ style }: any, i: number) => [Math.max(...rows[i].map(width)), rows[i].length * P.LINE_HEIGHT * style.size]);
+    // And how far each name reaches, where the src looks for the dots under it so far (nameReach(), #714).
+    const where = tiered.map(({ id, networks, lon, lat, nameZoom }: any, i: number) => ({ id, dot: [lon, lat], served: networks, reach: N.nameReach?.(sizes[i], pixelMetres(nameZoom) * Math.cos((lat * Math.PI) / 180)) }));
     const sides = placeSides(regions ?? [days], (days.slots ?? []).filter((s: any) => s.band === undefined), (line: string) => keep.get(line) ?? 1, days.lines, centrelines, where, !regions);
     const t1 = performance.now();
-    const names = tiered.map(({ id, name, nameZoom, listed, stations, larger, style, lon, lat }: any, i: number) => {
-      const rows = nameLines(name, style);
-      return { id, dot: [lon, lat], sides: sides[i] ?? (() => []), name: rows.join('\n'), size: [Math.max(...rows.map(width)), rows.length * P.LINE_HEIGHT * style.size], nameZoom, listed, stations, larger, style };
-    });
+    const names = tiered.map(({ id, nameZoom, listed, stations, larger, style, lon, lat }: any, i: number) => ({ id, dot: [lon, lat], sides: sides[i] ?? (() => []), name: rows[i].join('\n'), size: sizes[i], nameZoom, listed, stations, larger, style }));
     // showNames().
     const t2 = performance.now();
     const was = laidOut;
@@ -123,10 +123,17 @@ async function variant(src: string, bearing: number) {
       const at = sides(bearing);
       const properties = C.NAME_ZOOMS.flatMap((zoom: number) => {
         const metresPerPx = pixelMetres(zoom) * Math.cos((dot[1] * Math.PI) / 180);
-        const underAt = (s: any, far: number, gap: number) => [0, 1].reduce((sum, step) => sum + N.underName(s, far, size, metresPerPx / 2 ** step, B.atZoom(B.APART, zoom + step), gap + B.atZoom(B.WIDTH, zoom + step) / 2), 0);
-        const under = (s: any, far: number) => (zoom < nameZoom ? 0 : 1000 * underAt(s, far, 0) + underAt(s, far, C.NAME_GAP));
-        const { spot, far } = N.nearestSide(at, (s: any) => clearance(s, larger, zoom), under);
-        return [[`anchor${zoom}`, spot.anchor], [`offset${zoom}`, N.nameOffset(spot, far, size).map((px: number) => px / style.size)]];
+        const underStep = (s: any, far: number, gap: number, step: number) => N.underName(s, far, size, metresPerPx / 2 ** step, B.atZoom(B.APART, zoom + step), gap + B.atZoom(B.WIDTH, zoom + step) / 2);
+        const underAt = (s: any, far: number, gap: number) => underStep(s, far, gap, 0) + underStep(s, far, gap, 1);
+        const under = (s: any, far: number, below = Infinity) => {
+          if (zoom < nameZoom) return 0;
+          const first = underStep(s, far, 0, 0);
+          if (1000 * first >= below) return 1000 * first;
+          const close = 1000 * (first + underStep(s, far, 0, 1));
+          return close >= below ? close : close + underAt(s, far, C.NAME_GAP);
+        };
+        const { spot, far } = N.nearestSide(at, (s: any) => clearance(s, larger, zoom), under, N.dotCost && ((s: any, far: number) => N.dotCost(s, far, size, metresPerPx) > 0));
+        return [[`anchor${zoom}`, spot.slid ?? spot.anchor], [`offset${zoom}`, N.nameOffset(spot, far, size).map((px: number) => px / style.size)]];
       });
       return Object.fromEntries(properties);
     });

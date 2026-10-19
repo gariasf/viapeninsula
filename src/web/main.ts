@@ -15,7 +15,7 @@ import { daysAsTheyCome, firstLook, forgetJoined, joinedFrom, regionLoader, regi
 import { byRegion, drawnFrom, drawnLines } from './lines.ts';
 import { linesAt, popupRoom } from './tap.ts';
 import { drawnAt as placeShownAt, FEW_ZOOM, fewer, interchangesOf, markedNetworks, onLines, RAILS, SIGN_ZOOM, type LineCall, type Drawn as PlaceDrawn, type Interchange } from './stations.ts';
-import { callsIn, fileShapes, hidesTowns, nameOffset, nameSort, nearestSide, rightOf, sidesByJoin, splitBy, underName, type Side, type Spot } from './names.ts';
+import { callsIn, dotCost, fileShapes, hidesTowns, nameOffset, nameReach, nameSort, nearestSide, rightOf, sidesByJoin, splitBy, underName, type Side, type Spot } from './names.ts';
 import { covered, groupOf, spreading, toEdge, type Drawn, type Group, type Named } from './spread.ts';
 import { atMostEvery, drifted, letsGo, outsideMiddle, pointersDown, tapZooms } from './centre.ts';
 import { fastestInView } from './pace.ts';
@@ -1929,13 +1929,13 @@ function show(days: Track | Bundle, tripsOnly = false) {
     // Names go beside the track, not the stretches' centrelines, clear of the Trains on their Lines' strokes along those,
     // and of the other places' dots (#501).
     const centrelines = new Map(days.shapes.flatMap((s) => (s.id.startsWith(STRETCH) ? [[s.id, s]] : [])));
-    // A track built before #243 names no Station's Networks: its names go beside the nearest track of any.
-    const where = tiered.map(({ id, networks, lon, lat }) => ({ id, dot: [lon, lat] as Point, served: networks }));
+    const rows = tiered.map(({ name, style }) => nameLines(name, style));
+    const sizes = tiered.map(({ style }, i): [number, number] => [Math.max(...(rows[i] ?? []).map((row) => placeWidth(row, style))), (rows[i]?.length ?? 0) * LINE_HEIGHT * style.size]);
+    // A track built before #243 names no Station's Networks: its names go beside the nearest track of any. Each name
+    // reaches furthest at the zoom it shows from, where the dots under it are looked for (#714).
+    const where = tiered.map(({ id, networks, lon, lat, nameZoom }, i) => ({ id, dot: [lon, lat] as Point, served: networks, reach: nameReach(sizes[i] ?? [0, 0], pixelMetres(nameZoom) * Math.cos((lat * Math.PI) / 180)) }));
     const sides = placeSides(regions ?? [days], (days.slots ?? []).filter((s) => s.band === undefined), (line) => placing.keep.get(line) ?? 1, days.lines, centrelines, where, !regions);
-    names = tiered.map(({ id, name, nameZoom, listed, stations, larger, marks, style, lon, lat }, i) => {
-      const rows = nameLines(name, style);
-      return { id, dot: [lon, lat], sides: sides[i] ?? (() => []), name: rows.join('\n'), size: [Math.max(...rows.map((row) => placeWidth(row, style))), rows.length * LINE_HEIGHT * style.size], nameZoom, listed, stations, larger, marks, style };
-    });
+    names = tiered.map(({ id, nameZoom, listed, stations, larger, marks, style, lon, lat }, i) => ({ id, dot: [lon, lat], sides: sides[i] ?? (() => []), name: (rows[i] ?? []).join('\n'), size: sizes[i] ?? [0, 0], nameZoom, listed, stations, larger, marks, style }));
     showNames();
   };
   // Worked out a region at a time, and at a join only for the places it can move (#733), from the regions' shapes filed a
@@ -2307,15 +2307,23 @@ function showNames() {
         const metresPerPx = pixelMetres(zoom) * Math.cos((dot[1] * Math.PI) / 180);
         // The Lines whose strokes lie under a name, or within `gap` px of it, at this zoom's Lines' spacing and width and the next's,
         // and what the dots near it cost.
-        const underAt = (s: Spot, far: number, gap: number) =>
-          [0, 1].reduce((sum, step) => sum + underName(s, far, size, metresPerPx / 2 ** step, atZoom(APART, zoom + step), gap + atZoom(WIDTH, zoom + step) / 2), 0);
+        const underStep = (s: Spot, far: number, gap: number, step: number) => underName(s, far, size, metresPerPx / 2 ** step, atZoom(APART, zoom + step), gap + atZoom(WIDTH, zoom + step) / 2);
+        const underAt = (s: Spot, far: number, gap: number) => underStep(s, far, gap, 0) + underStep(s, far, gap, 1);
         // Below the zoom it shows from, no name lies anywhere; from it, fewest under it first, with a place's dot near it
-        // costing it Lines (DOT_COST), then fewest within NAME_GAP.
-        const under = (s: Spot, far: number) => (zoom < nameZoom ? 0 : 1000 * underAt(s, far, 0) + underAt(s, far, NAME_GAP));
-        const { spot, far } = nearestSide(at, (s) => clearance(s, drawnLarger(larger, marks, zoom), zoom), under);
-        // MapLibre offsets names in ems.
+        // costing it Lines (DOT_COST), then fewest within NAME_GAP. Counted no further once it's `below` or more, where
+        // it's only whether a slid name is under less than unslid (nearestSide(), #713).
+        const under = (s: Spot, far: number, below = Infinity) => {
+          if (zoom < nameZoom) return 0;
+          const first = underStep(s, far, 0, 0);
+          if (1000 * first >= below) return 1000 * first;
+          const close = 1000 * (first + underStep(s, far, 0, 1));
+          return close >= below ? close : close + underAt(s, far, NAME_GAP);
+        };
+        // Slid along its track only where another place's dot costs a side (#713).
+        const { spot, far } = nearestSide(at, (s) => clearance(s, drawnLarger(larger, marks, zoom), zoom), under, (s, far) => dotCost(s, far, size, metresPerPx) > 0);
+        // MapLibre offsets names in ems, and anchors one slid along its track by a corner (#713).
         return [
-          [`anchor${zoom}`, spot.anchor],
+          [`anchor${zoom}`, spot.slid ?? spot.anchor],
           [`offset${zoom}`, nameOffset(spot, far, size).map((px) => px / style.size)],
         ];
       });
