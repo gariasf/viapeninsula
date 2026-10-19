@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { covered, groupOf, spreading, type Drawn, type Group } from './spread.ts';
+import { covered, groupOf, spreading, type Drawn, type Group, type Named } from './spread.ts';
 
 // Made up, on screen, in px: x right and y down. Heading right, up the screen is a Train's left, and
 // down its right, where its pill reaches 5 px with its edge.
@@ -93,26 +93,39 @@ test('spread, they stay so where they no longer touch where drawn, as zoomed in,
   expect(settled(spread, [pill('first', [0, -20], 90), pill('second', [0, 20], 90)], 10_000, group)).toEqual({ first: 5, second: 5 });
 });
 
-test('of two pills that meet, the one drawn under the other, earlier in the order, is covered, and the one on top is whole', () => {
-  expect(covered([pill('under', [0, 0], 90), pill('over', [15, 5], 90)])).toEqual(new Set(['under']));
-  expect(covered([pill('first', [15, 5], 90), pill('second', [0, 0], 90)])).toEqual(new Set(['first']));
+/** A Train's pill as covered() takes it, its name 12×6 px in the middle of it, unless it says. */
+const named = (id: string, at: [number, number], more: Partial<Named> = {}): Named => ({ id, at, box: [10, 5], name: [6, 3], ...more });
+
+test('of two pills that meet, the one lower on screen is drawn over the other, as MapLibre draws them, and the one under it is covered', () => {
+  expect(covered([named('under', [0, 0]), named('over', [4, 1])])).toEqual(new Set(['under']));
+  expect(covered([named('over', [4, 1]), named('under', [0, 0])])).toEqual(new Set(['under']));
 });
 
-test('a pill no other pill meets keeps its name: edge to edge, across or up and down, or apart; one px into each other, the lower one is covered', () => {
-  expect(covered([pill('west', [0, 0], 90), pill('east', [20, 0], 90), pill('south', [0, 10], 90), pill('far', [100, 100], 90)])).toEqual(new Set());
-  expect(covered([pill('west', [0, 0], 90), pill('east', [19, 0], 90)])).toEqual(new Set(['west']));
-  expect(covered([pill('north', [0, 0], 90), pill('south', [0, 9], 90)])).toEqual(new Set(['north']));
+test('of two pills level on screen, the earlier in the order is drawn over the other', () => {
+  expect(covered([named('first', [0, 0]), named('second', [4, 0])])).toEqual(new Set(['second']));
+});
+
+test('a pill whose name the pill over it only grazes the outline of, beside or below its name, keeps its name; one px into the name, it is covered', () => {
+  // The one over it reaches from x 7 to 27, its name only to 6; and from y 4 to 14, its name only to 3.
+  expect(covered([named('under', [0, 0]), named('over', [17, 1])])).toEqual(new Set());
+  expect(covered([named('under', [0, 0]), named('over', [0, 9])])).toEqual(new Set());
+  expect(covered([named('under', [0, 0]), named('over', [15.9, 1])])).toEqual(new Set(['under']));
+  expect(covered([named('under', [0, 0]), named('over', [0, 7.9])])).toEqual(new Set(['under']));
+});
+
+test('a pill no other pill meets keeps its name: edge to edge, across or up and down, or apart', () => {
+  expect(covered([named('west', [0, 0]), named('east', [20, 0]), named('south', [0, 10]), named('far', [100, 100])])).toEqual(new Set());
   // Wide apart across the screen but level, and level across but apart up and down.
-  expect(covered([pill('a', [0, 0], 90), pill('b', [5, 30], 90), pill('c', [40, 0], 90)])).toEqual(new Set());
+  expect(covered([named('a', [0, 0]), named('b', [5, 30]), named('c', [40, 0])])).toEqual(new Set());
 });
 
-test('a pill on top of a pile covers each under it, and one under them all that meets only the bottom one is covered by it', () => {
-  const pile = [pill('beside', [-19, 0], 90), pill('bottom', [0, 0], 90), pill('middle', [5, 0], 90), pill('top', [10, 0], 90)];
+test('a pill on top of a pile covers each under it whose name it meets, and one under them all that meets only the bottom one is covered by it', () => {
+  const pile = [named('beside', [-15, -1]), named('bottom', [0, 0]), named('middle', [1, 1]), named('top', [2, 2])];
   expect(covered(pile)).toEqual(new Set(['beside', 'bottom', 'middle']));
 });
 
-test('the followed Train, in a layer over every pill, covers those it meets wherever it comes in the order, and none covers it', () => {
-  const followed = pill('followed', [0, 0], 90, { box: [20, 8] });
-  expect(covered([followed, pill('after', [25, 0], 90), pill('apart', [31, 0], 90)], 'followed')).toEqual(new Set(['after']));
-  expect(covered([pill('before', [0, 0], 90), followed], 'followed')).toEqual(new Set(['before']));
+test('the followed Train, in a layer over every pill, covers those whose names it meets wherever it is on screen, and none covers it', () => {
+  const followed = named('followed', [0, 5], { box: [20, 8] });
+  expect(covered([followed, named('below', [25, 6]), named('apart', [45, 6])], 'followed')).toEqual(new Set(['below']));
+  expect(covered([named('lower', [0, 6]), followed], 'followed')).toEqual(new Set(['lower']));
 });

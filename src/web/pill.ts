@@ -57,6 +57,11 @@ export function boxOf(outline: Outline, width: number, size: number): [number, n
   return [Math.max(w, w - across + (width * size) / PILL_TEXT + 2 * PILL_PADDING) / 2, PILL_EDGE + (LINE_HEIGHT * size) / 2];
 }
 
+/** How far a pill's name `width` px wide at PILL_TEXT reaches either side of its middle and above and below it, in px, lettered at `size` (#513). */
+export function nameBoxOf(width: number, size: number): [number, number] {
+  return [(width * size) / PILL_TEXT / 2, (LINE_HEIGHT * size) / 2];
+}
+
 /**
  * How far a followed Train's pill reaches either side of it along its track, in metres, given the
  * pill's `box` (boxOf(), at FOLLOWED_TEXT), the map's zoom, the zoom its Line's Trains are drawn as
