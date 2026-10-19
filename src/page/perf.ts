@@ -2,7 +2,7 @@
 // roadmap review's P-1:
 //   npm run perf -- <scenario>... [--phone] [--runs <n>] [--tree <dir>]... [--out [dir]] [--slow]
 // Each round of a scenario's runs (3 by default), a run of each tree, a before's and an after's alternated,
-// is one batch in all three browser slots, so that it keeps under the batch's 10 min; each run has a cold context. It prints each check's median
+// is one batch in all the browser slots, so that it keeps under the batch's 10 min; each run has a cold context. It prints each check's median
 // against its limit, appends every run to .cache/page/perf/runs.jsonl, and exits 1 on a breach.
 // Scenarios, at Barcelona z12 but S4's, each measured over its own window:
 // - S2: a cold load, its first 30 s, and long distance's join in it (S6).

@@ -1,4 +1,4 @@
-// The Mac's three browser slots, which every session's page checks share (#729): a slot is a file
+// The Mac's one browser slot, which every session's page checks share (#729): a slot is a file
 // `slot.<n>` in the repo's git dir, which every worktree shares, created with O_EXCL and holding its
 // holder's pid. A browser that no slot holder launched (another project's, or a script that doesn't
 // go through here) takes a slot too, as the `ps` of the Mac shows it.
@@ -6,11 +6,13 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-export const SLOTS = 3;
+// One, not three, since 19 Oct 2026: three Playwright browsers at once, on the GPU the maintainer's own Chrome and
+// terminal draw on, with swap at 14 of 15 GB, hung both and took every session in the terminal down with them.
+export const SLOTS = 1;
 /** A batch's longest run in its slots: past it, the process exits, and Playwright closes its browser. */
 const CAP = 10 * 60_000;
 /** How long a session waits for its slots before giving its check up as not run (checks-and-resources.md). */
-const GIVE_UP = 15 * 60_000;
+const GIVE_UP = 30 * 60_000;
 
 /**
  * The browsers running on the Mac that no slot holder launched: the main process of each browser run
@@ -55,11 +57,9 @@ function holders(slots: string): Map<string, number> {
 }
 
 /**
- * Runs a batch once `n` of the slots are free (a perf run takes all three), polling every second,
+ * Runs a batch once `n` of the slots are free (a perf run takes all of them), polling every second,
  * and frees them after. A batch still running at 10 minutes exits the process, with status 3; after
- * 15 minutes' wait, the process exits with status 2, the check not run.
- * ponytail: no queue, so a run that wants all three can wait behind a stream of single slots; add a
- * ticket file per waiter if that starves one.
+ * 30 minutes' wait, the process exits with status 2, the check not run.
  */
 /** The slot files this process holds, freed however it exits. */
 const mine: string[] = [];
@@ -87,7 +87,7 @@ export async function withSlots<T>(n: number, batch: () => Promise<T>): Promise<
       free();
     }
     if (Date.now() - start > GIVE_UP) {
-      console.error(`No ${n} browser slot${n > 1 ? 's' : ''} free in 15 min (held ${held.size}, other browsers ${foreign}): the check is not run.`);
+      console.error(`No ${n} browser slot${n > 1 ? 's' : ''} free in 30 min (held ${held.size}, other browsers ${foreign}): the check is not run.`);
       process.exit(2);
     }
     await new Promise((r) => setTimeout(r, 1000));
