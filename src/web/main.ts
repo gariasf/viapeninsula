@@ -771,11 +771,12 @@ map.on('moveend', () => {
 });
 showTilt();
 const trainButtons = el('div', { className: 'fabs', hidden: true }, tiltButton, centreButton);
-// The credits, which showCredits() fills: behind the © button on a phone, and a strip on a wide window.
+// The credits, which showCredits() fills: behind the © button on a phone and on a wide window under about 1,000 px (#697), and a strip on a wider one.
 const creditsButton = el('summary', { className: 'card' }, icon('copyright'));
 const creditsText = el('div', { className: 'card credits-text' });
 const creditsStrip = el('div', { className: 'card credits-strip' });
-const riders = el('div', { className: 'riders' }, el('details', { className: 'credits' }, creditsButton, creditsText), trainButtons, creditsStrip);
+const credits = el('details', { className: 'credits' }, creditsButton, creditsText);
+const riders = el('div', { className: 'riders' }, credits, trainButtons, creditsStrip);
 // The tab bar, under the sheet on a phone, and a rail down the left edge on a wide window (#470), labelled
 // by showLanguage(): each tab opens its screen's sheet, as #321's are, and is current while it shows
 // (showPanel()). After the corners and before the credits, as the keyboard goes. Its tabs open nothing
@@ -2875,8 +2876,9 @@ function fitLine() {
   const padding = panelPadding();
   if (!points.length) return void map.easeTo({ padding });
   const [lons, lats, box] = [points.map((p) => p[0]), points.map((p) => p[1]), map.getContainer().getBoundingClientRect()];
-  // Over the sheet on a phone, or the credits' strip on a wide window, not over the buttons riding on them, which a tap's popup keeps clear of.
-  const want = { ...clearOfCards(), bottom: box.bottom - Math.min(box.bottom, (wide.matches ? creditsStrip : panel).getBoundingClientRect().top) + GUTTER };
+  // Over the sheet on a phone, or the credits' strip on a wide window, or their © where it shows instead, under about 1,000 px (#697), not over the buttons riding on them, which a tap's popup keeps clear of.
+  const under = wide.matches ? (creditsStrip.offsetParent ? creditsStrip : credits) : panel;
+  const want = { ...clearOfCards(), bottom: box.bottom - Math.min(box.bottom, under.getBoundingClientRect().top) + GUTTER };
   const fit = map.cameraForBounds(
     [
       [Math.min(...lons), Math.min(...lats)],

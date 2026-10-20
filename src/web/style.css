@@ -392,7 +392,7 @@ body {
   cursor: default;
 }
 
-/* The credits: behind a © button bottom left on a phone, over the map above it once open, and a strip bottom right on a wide window. */
+/* The credits: behind a © button bottom left on a phone, over the map above it once open, and a strip bottom right on a wide window, but under about 1,000 px (#697). */
 .credits {
   position: relative;
 }
@@ -2043,6 +2043,26 @@ button.fav-row {
     margin: auto;
     padding-top: 12px;
     border-radius: 14px;
+  }
+}
+
+/*
+ * Under about 1,000 px wide, the phone's © button instead of the strip, which beside the card's place wrapped to many lines and pushed the buttons
+ * riding on it up as far (the maintainer's pick, #697): under Tilt and Centre, where the strip was, its credits opening over the map to its left.
+ */
+@media (min-width: 640px) and (max-width: 999.98px) {
+  .credits {
+    display: block;
+    order: 1;
+  }
+
+  .credits-strip {
+    display: none;
+  }
+
+  .credits-text {
+    right: 0;
+    left: auto;
   }
 }
 
