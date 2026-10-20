@@ -2849,13 +2849,14 @@ function fitLine() {
   const at = new Set(stripOf.strip.map((s) => s.station));
   const points = (shownStations ?? []).filter((s) => at.has(s.id)).map((s): Point => [s.lon, s.lat]);
   if (!points.length) return;
-  const [lons, lats] = [points.map((p) => p[0]), points.map((p) => p[1])];
+  const [lons, lats, box] = [points.map((p) => p[0]), points.map((p) => p[1]), map.getContainer().getBoundingClientRect()];
   map.fitBounds(
     [
       [Math.min(...lons), Math.min(...lats)],
       [Math.max(...lons), Math.max(...lats)],
     ],
-    { padding: clearOfCards(), maxZoom: FOLLOW_ZOOM, pitch: 0 },
+    // Over the sheet on a phone, or the credits' strip on a wide window, not over the buttons riding on them, which a tap's popup keeps clear of.
+    { padding: { ...clearOfCards(), bottom: box.bottom - Math.min(box.bottom, (wide.matches ? creditsStrip : panel).getBoundingClientRect().top) + GUTTER }, maxZoom: FOLLOW_ZOOM, pitch: 0 },
   );
 }
 
