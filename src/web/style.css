@@ -1171,12 +1171,13 @@ button.fav-row {
   height: 16px;
 }
 
-/* The note as a Ride earns a Stamp: a card under the legend, in the middle, for a while; empty, it isn't drawn. */
+/* The note as a Ride earns a Stamp: a card under the legend, in the middle, as wide as its words up to the screen less 16 px a side (from the middle, it would wrap at half the screen), for a while; empty, it isn't drawn. */
 .stamp-note {
   position: absolute;
   top: max(64px, calc(var(--banner, 0px) + 8px));
   left: 50%;
   z-index: 4;
+  width: max-content;
   max-width: calc(100vw - 32px);
   margin: 0;
   padding: 10px 14px;
