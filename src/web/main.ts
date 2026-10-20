@@ -4107,9 +4107,10 @@ function passportPanel(): Panel {
   const rides = pass.rides();
   const empty = (...more: Node[]) => el('div', { className: 'empty-state' }, el('span', { className: 'empty-star' }, icon('passport')), el('p', {}, el('b', { textContent: t('noRides') })), el('p', { textContent: t('rideExplained') }), ...more);
   const keptHere = el('p', { className: 'meta keep', textContent: t('passportKept') });
-  const press = (text: string, then: () => void) => el('button', { type: 'button', className: 'more', onclick: () => (then(), showPanel(), focusTitle()) }, el('span', { textContent: text }));
-  if (!pass.on()) return { header, body: [empty(press(t('turnOnPassport'), pass.turnOn)), keptHere] };
-  const clear = press(t('clearPassport'), pass.clear);
+  // As Now's die is (#474): an outlined pill with its icon.
+  const press = (text: string, glyph: 'passport' | 'close', then: () => void) => el('button', { type: 'button', className: 'card die-row', onclick: () => (then(), showPanel(), focusTitle()) }, icon(glyph), el('span', { textContent: text }));
+  if (!pass.on()) return { header, body: [empty(press(t('turnOnPassport'), 'passport', pass.turnOn)), keptHere] };
+  const clear = press(t('clearPassport'), 'close', pass.clear);
   if (!rides.length) return { header, body: [empty(), keptHere, clear] };
   const sum = totals(rides);
   const number = new Intl.NumberFormat(locale(), { maximumFractionDigits: 1 });
