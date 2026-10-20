@@ -8,7 +8,7 @@ import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
 import { along, APART, atZoom, BANDS, bandZooms, GRAPH_BAND, STRETCH, inBand, onStroke, pointAt, profiled, zones, type Zone, daysNeeded, daysOf, SOON, DEGREE, EARTH, joinTracks, LATE, LIVE_URL, madridDate, networkTracks, places, type Alerts, type Bundle, type Credit, type Call, type DayFiles, type Place, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH, type ZoomedOut } from '../bundle.ts';
 import { boardAt, comingAt, KEEP, lastDays, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, tripsAt, unavailable, type Coming, type Departure, type Followed, type Received, type Train, type TripNow } from '../engine.ts';
-import { alertCount, alertsChanged, firstLeaves, lastArrives, lateOf, moreAlerts, moreLines, unreportedCount, unreportedScheduled, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, branchOff, busesReplace, cancelledCount, earlierStations, endsHere, followDeparture, goOn, starLabel, lateCount, standingAt, worstLate, trainsNow, turnsHere, language, LANGUAGES, leavesAt, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, placedBy, setLanguage, setNameLanguages, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated, type Language, type Unlocated } from './i18n.ts';
+import { alertCount, alertsChanged, firstLeaves, lastArrives, lateOf, moreAlerts, moreLines, networkCounts, unreportedCount, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, branchOff, busesReplace, cancelledCount, earlierStations, endsHere, followDeparture, goOn, starLabel, lateCount, standingAt, worstLate, trainsNow, turnsHere, language, LANGUAGES, leavesAt, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, placedBy, setLanguage, setNameLanguages, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { getJson, lookAgainSoon, RETRY, STALL } from './files.ts';
 import { daysAsTheyCome, firstLook, forgetJoined, joinedFrom, regionLoader, regionsCame, regionsNeeded, trackFileOf } from './regions.ts';
@@ -4083,8 +4083,9 @@ function nowPanel(): Panel {
       ),
     );
   const network = (n: Troubled) => {
-    const [live, scheduled] = trainCounts(n.live, n.scheduled);
-    const how = n.unavailable ? [t('allScheduled')] : [[...(n.live ? [live] : []), ...(n.scheduled ? [scheduled] : []), ...(n.unreported ? [unreportedScheduled(n.unreported)] : [])].join(', ')].filter(Boolean);
+    // Its counts after a dot, a part whose pieces, each whole, wrap where the line is too short for them, as Catalan and Spanish need on a phone.
+    const [first, ...others] = n.unavailable ? [t('allScheduled')] : networkCounts(n.live, n.scheduled, n.unreported);
+    const how = first ? [el('span', { className: 'part' }, first, ...others.map((piece) => el('span', { className: 'wraps' }, el('wbr', {}), el('span', { textContent: piece }))))] : [];
     const said = [...(n.late ? [lateCount(n.late)] : []), ...(n.cancelled ? [cancelledCount(n.cancelled)] : [])];
     const chip = n.unavailable ? [el('span', { className: 'chip warn', textContent: t('liveDataUnavailable') })] : said.length ? [el('span', { className: 'delay late', textContent: said.join(' · ') })] : [];
     const open = nowOpened.has(n.id);
@@ -4092,7 +4093,7 @@ function nowPanel(): Panel {
       'li',
       { className: 'net' },
       el('div', { className: 'net-head' }, el('h4', { className: 'net-name', textContent: name(n.id) }), ...chip),
-      el('p', { className: 'meta parts' }, ...parts([trainsNow(n.trains), ...how])),
+      el('p', { className: 'meta parts' }, ...parts([trainsNow(n.trains)]), ...(how.length ? [' ', ...how] : [])),
       ...(n.lines.length ? [el('ol', { className: 'results' }, ...n.lines.slice(0, open ? undefined : NOW_LINES).map(lineRow))] : []),
       ...(n.lines.length > NOW_LINES ? [rest(n.id, moreLines(n.lines.length - NOW_LINES))] : []),
     );
@@ -4115,7 +4116,7 @@ function nowPanel(): Panel {
   const timeRow = ({ id, at }: { id: string; at: number }, says: (time: string) => string) =>
     el('li', {}, el('div', { className: 'result plain' }, el('span', { className: 'what' }, el('span', { className: 'what-title', textContent: name(id) }), el('span', { className: 'what-under', textContent: says(clock().format(at)) }))));
   const timeRows = [...(times.last ?? []).map((t) => timeRow(t, lastArrives)), ...(times.first ?? []).map((t) => timeRow(t, firstLeaves))];
-  const specials = racksAndFuniculars(ordered, days.trips, nows, days.noonMinus12h, mapNow).map(({ id, trains, live }) =>
+  const specials = racksAndFuniculars(ordered, days.trips, nows, days.noonMinus12h, mapNow).map(({ id, ends: [a = '', b = ''], trains, live }) =>
     el(
       'li',
       {},
@@ -4123,7 +4124,7 @@ function nowPanel(): Panel {
         'button',
         { type: 'button', className: 'result', onclick: () => openFrom(() => showLine(id)) },
         el('span', { className: 'lead' }, pill(id, { live, train: trains > 0 })),
-        el('span', { className: 'what' }, el('span', { className: 'what-title', textContent: name(lines.get(id)?.network ?? '') }), el('span', { className: 'what-under parts' }, ...parts(trains ? [trainsNow(trains), t(live ? 'live' : 'scheduled')] : [t('notRunningNow')]))),
+        el('span', { className: 'what' }, el('span', { className: 'what-title', textContent: `${stationName(a)} – ${stationName(b)}` }), el('span', { className: 'what-under parts' }, ...parts(trains ? [trainsNow(trains), t(live ? 'live' : 'scheduled')] : [t('notRunningNow')]))),
         el('span', { className: 'end' }, icon('right')),
       ),
     ),
@@ -4365,7 +4366,9 @@ function trainResults({ trains, more }: { trains: TripNow[]; more: number }): No
  * next Station it stops at and when it's due there, as the follow panel says it (due(), #607), with its Delay at
  * the row's end, as a board's; where and when it leaves; Cancelled; or when it ended. One running, on the map or
  * within a closed Closure that hides Trains, or still to leave is a button that follows its Train (#322), and one
- * Cancelled or ended follows nothing. Now's have no Delay (`delays`), as it shows no single Train's (#474).
+ * Cancelled or ended follows nothing. Now's have no Delay (`delays`), as it shows no single Train's (#474). Where and when it
+ * leaves, and its next Station, are of the Stations the bundle names: a Train to or from France calls first or last beyond the
+ * border, at a Station crop() leaves out of the bundle's (build/border.ts), so one still to come from there says its first on the map (#474).
  */
 function trainResult(now: TripNow, delays = true): HTMLElement {
   const { trip } = now;
@@ -4381,10 +4384,12 @@ function trainResult(now: TripNow, delays = true): HTMLElement {
   if ('ended' in now) return row(false, false, [t('endedAt').replace('{time}', clock().format(now.ended))]);
   const { upcoming, delay, live } = 'train' in now ? now.train : now.coming;
   if ('coming' in now && !now.coming.within) {
-    const first = upcoming[0];
-    return row(live, true, [first ? leavesAt(stationName(first.station), clock().format(first.departure)) : ''], [status({ delay: delays ? delay : undefined, live })]);
+    // One leaving from beyond the border has left already, off the map: then its next Station on it, and when it's due there.
+    const [first, on] = [upcoming[0], upcoming.find((c) => stationNames.has(c.station))];
+    const says = !first ? '' : first === on ? leavesAt(stationName(first.station), clock().format(first.departure)) : on ? nextAt(stationName(on.station), clock().format(on.arrival)) : '';
+    return row(live, true, [says], [status({ delay: delays ? delay : undefined, live })]);
   }
-  const next = upcoming.find((c) => !c.skipped);
+  const next = upcoming.find((c) => !c.skipped && stationNames.has(c.station));
   const standing = 'train' in now && !!now.train.standsAt && next === upcoming[0];
   // Its pill says it to a screen reader already.
   const said = el('span', { textContent: `${t(live ? 'live' : 'scheduled')} · ` });

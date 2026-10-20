@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { createExpression, latest, type ExpressionSpecification, type Feature, type StylePropertySpecification } from '@maplibre/maplibre-gl-style-spec';
 import { afterEach, expect, test, vi } from 'vitest';
-import { alertCount, alertsChanged, firstLeaves, lastArrives, lateOf, moreAlerts, moreLines, unreportedCount, unreportedScheduled, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, cancelledCount, earlierStations, branchOff, endsHere, goOn, standingAt, trainsNow, turnsHere, followDeparture, LANGUAGES, leavesAt, leavingStation, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, pickLanguage, placedBy, setNameLanguages, starLabel, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated } from './i18n.ts';
+import { alertCount, alertsChanged, networkCounts, firstLeaves, lastArrives, lateOf, moreAlerts, moreLines, unreportedCount, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, cancelledCount, earlierStations, branchOff, endsHere, goOn, standingAt, trainsNow, turnsHere, followDeparture, LANGUAGES, leavesAt, leavingStation, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, pickLanguage, placedBy, setNameLanguages, starLabel, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated } from './i18n.ts';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -141,14 +141,28 @@ test("labels the star by what a press does to a Station or a Line, and says Favo
 });
 
 test("says Now's sections, a Line's and a Network's counts, and how many more Lines and Alerts there are, in each language (#474)", () => {
-  const says = (lang: Language) => [t('closeNow', lang), t('whatsWrong', lang), t('lateRule', lang), t('liveDataUnavailable', lang), t('noneNow', lang), lateOf(7, 12, lang), unreportedScheduled(13, lang), moreLines(2, lang), moreAlerts(60, lang)];
+  const says = (lang: Language) => [t('closeNow', lang), t('whatsWrong', lang), t('lateRule', lang), t('liveDataUnavailable', lang), t('noneNow', lang), lateOf(7, 12, lang), networkCounts(0, 0, 13, lang)[0], moreLines(2, lang), moreAlerts(60, lang)];
   expect(says('en')).toEqual(['Close Now', "What's wrong", 'Late is 5 minutes or more.', 'Live data unavailable', 'None now', '7 of 12\u00A0trains late', '13 scheduled, no live data', '2 more lines with trains late or cancelled', '60 more alerts']);
   expect(says('ca')).toEqual(['Tanca Ara', 'Què falla', 'Amb retard vol dir 5 minuts o més.', 'Sense dades en temps real', 'Cap ara', '7 de 12\u00A0trens amb retard', '13 programats, sense dades en temps real', '2 línies més amb trens amb retard o cancel·lats', '60 avisos més']);
   expect(says('es')).toEqual(['Cerrar Ahora', 'Qué falla', 'Con retraso significa 5 minutos o más.', 'Sin datos en tiempo real', 'Ninguno ahora', '7 de 12\u00A0trenes con retraso', '13 programados, sin datos en tiempo real', '2 líneas más con trenes con retraso o cancelados', '60 avisos más']);
   expect(says('eu')).toEqual(['Itxi Orain', 'Zer dabil gaizki', 'Atzeratuta: 5 minutu edo gehiago.', 'Denbora errealeko daturik ez', 'Bat ere ez orain', '12\u00A0trenetatik 7 atzeratuta', '13 programatuta, denbora errealeko daturik gabe', 'Beste 2 linea, tren atzeratuekin edo bertan behera utziekin', '60 abisu gehiago']);
   expect(says('gl')).toEqual(['Pechar Agora', 'Que falla', 'Con atraso significa 5 minutos ou máis.', 'Sen datos en tempo real', 'Ningún agora', '7 de 12\u00A0trens con atraso', '13 programados, sen datos en tempo real', '2 liñas máis con trens con atraso ou cancelados', '60 avisos máis']);
   // One of one, one more, and the times.
-  expect([lateOf(1, 1, 'en'), moreLines(1, 'en'), moreAlerts(1, 'es'), unreportedScheduled(1, 'ca'), unreportedCount(3, 'en'), firstLeaves('4:45', 'en'), lastArrives('1:57', 'gl')]).toEqual(['1 of 1\u00A0train late', '1 more line with trains late or cancelled', '1 aviso más', '1 programat, sense dades en temps real', '3 with no live data', 'first leaves 4:45', 'última chegada 1:57']);
+  expect([lateOf(1, 1, 'en'), moreLines(1, 'en'), moreAlerts(1, 'es'), networkCounts(0, 0, 1, 'ca')[0], unreportedCount(3, 'en'), firstLeaves('4:45', 'en'), lastArrives('1:57', 'gl')]).toEqual(['1 of 1\u00A0train late', '1 more line with trains late or cancelled', '1 aviso más', '1 programat, sense dades en temps real', '3 with no live data', 'first leaves 4:45', 'última chegada 1:57']);
+});
+
+test("says a Network's Trains on Now, Live and Scheduled, and of the Scheduled those with no live data, once, in each language, in pieces each ending in its comma (#474)", () => {
+  // Some of the Scheduled with no live data.
+  expect(networkCounts(79, 8, 2, 'en')).toEqual(['79 live,', '10 scheduled,', '2 of them with no live data']);
+  expect(networkCounts(79, 8, 2, 'ca')).toEqual(['79 en directe,', '10 programats,', "2 d'ells sense dades en temps real"]);
+  expect(networkCounts(79, 8, 2, 'es')).toEqual(['79 en directo,', '10 programados,', '2 de ellos sin datos en tiempo real']);
+  expect(networkCounts(79, 8, 2, 'eu')).toEqual(['79 zuzenean,', '10 programatuta,', 'horietatik 2 denbora errealeko daturik gabe']);
+  expect(networkCounts(79, 8, 2, 'gl')).toEqual(['79 en directo,', '10 programados,', '2 deles sen datos en tempo real']);
+  // All of them, as triage put it; none of them; no Live or no Scheduled at all.
+  expect(networkCounts(51, 0, 13, 'en')).toEqual(['51 live,', '13 scheduled, no live data']);
+  expect(networkCounts(51, 6, 0, 'en')).toEqual(['51 live,', '6 scheduled']);
+  expect(networkCounts(0, 1, 0, 'es')).toEqual(['1 programado']);
+  expect(networkCounts(4, 0, 0, 'en')).toEqual(['4 live']);
 });
 
 test("labels the tab bar, its tabs and Search's close button in each language (#470)", () => {

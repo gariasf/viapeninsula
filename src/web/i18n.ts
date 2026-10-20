@@ -248,6 +248,7 @@ const STRINGS = {
   unreportedCount: { ca: '{n} sense dades en temps real', es: '{n} sin datos en tiempo real', eu: '{n} denbora errealeko daturik gabe', gl: '{n} sen datos en tempo real', en: '{n} with no live data' },
   unreportedScheduled: { ca: '{n} programats, sense dades en temps real', es: '{n} programados, sin datos en tiempo real', eu: '{n} programatuta, denbora errealeko daturik gabe', gl: '{n} programados, sen datos en tempo real', en: '{n} scheduled, no live data' },
   oneUnreportedScheduled: { ca: '{n} programat, sense dades en temps real', es: '{n} programado, sin datos en tiempo real', eu: '{n} programatuta, denbora errealeko daturik gabe', gl: '{n} programado, sen datos en tempo real', en: '{n} scheduled, no live data' },
+  ofThemUnreported: { ca: "{n} d'ells sense dades en temps real", es: '{n} de ellos sin datos en tiempo real', eu: 'horietatik {n} denbora errealeko daturik gabe', gl: '{n} deles sen datos en tempo real', en: '{n} of them with no live data' },
   closedBuses: { ca: 'Tallat, hi circulen autobusos', es: 'Cortado, circulan autobuses', eu: 'Itxita, autobusak dabiltza', gl: 'Cortado, circulan autobuses', en: 'Closed, buses run instead' },
   singleTrack: { ca: 'Via única', es: 'Vía única', eu: 'Bide bakarra', gl: 'Vía única', en: 'Single track' },
   whatsNotable: { ca: 'A destacar', es: 'A destacar', eu: 'Nabarmentzekoak', gl: 'A destacar', en: "What's notable" },
@@ -667,8 +668,19 @@ export const firstLeaves = (time: string, lang = language()): string => STRINGS.
 /** When a Network's last Train of the day arrives, `time`, as Now says it from 20:00, and after midnight while it's still to arrive, in `lang`, or else the language the interface speaks now (#474). */
 export const lastArrives = (time: string, lang = language()): string => STRINGS.lastArrives[lang].replace('{time}', time);
 
-/** How many of a Network's Trains on the map are Scheduled with no live data, in `lang`, or else the language the interface speaks now (#474). */
-export const unreportedScheduled = (n: number, lang = language()): string => counting(n, 'oneUnreportedScheduled', 'unreportedScheduled', lang);
+/**
+ * A Network's Trains on the map on Now (#474), `live` Live and `scheduled` Scheduled with live data, and `unreported` Scheduled with none, in
+ * `lang`, or else the language the interface speaks now: those with no live data said once, as `13 scheduled, no live data` where every
+ * Scheduled one has none, else as how many of the Scheduled; in pieces, each but the last ending in its comma, that the line wraps between.
+ */
+export function networkCounts(live: number, scheduled: number, unreported: number, lang = language()): string[] {
+  const [lives, scheduleds] = trainCounts(live, scheduled + unreported, lang);
+  const pieces = [
+    ...(live ? [lives] : []),
+    ...(scheduled && unreported ? [scheduleds, STRINGS.ofThemUnreported[lang].replace('{n}', String(unreported))] : unreported ? [counting(unreported, 'oneUnreportedScheduled', 'unreportedScheduled', lang)] : scheduled ? [scheduleds] : []),
+  ];
+  return pieces.map((piece, i) => (i < pieces.length - 1 ? `${piece},` : piece));
+}
 
 /** That a Train on a Line's strip stands at a Station (#473), in `lang`, or else the language the interface speaks now. */
 export const standingAt = (station: string, lang = language()): string => named(STRINGS.standingAt[lang], '{station}', station, lang);

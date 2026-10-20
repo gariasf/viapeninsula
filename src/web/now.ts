@@ -148,7 +148,8 @@ export function toAndFromFrance<N extends Pick<NowTrip, 'trip' | 'train' | 'canc
 /**
  * The rack railway and the funiculars at this moment (#474): of `lines`, in their order, those of those kinds while they
  * run, from their first Train of a service day leaving to its last arriving, by `trips`, whose 00:00 is `noonMinus12h`, at
- * `at`, in ms since 1970; each with how many of its Trains are on the map (`nows`), none between runs, and whether one is Live.
+ * `at`, in ms since 1970; each with the Stations at the ends of its longest run, which name it, as its Line's name is only its
+ * code (MM, FV, FM), how many of its Trains are on the map (`nows`), none between runs, and whether one is Live.
  */
 export function racksAndFuniculars(lines: Pick<Line, 'id' | 'kind'>[], trips: Pick<Trip, 'id' | 'line' | 'calls'>[], nows: Pick<NowTrip, 'trip' | 'train'>[], noonMinus12h: number, at: number) {
   const seconds = (at - noonMinus12h) / 1000;
@@ -156,15 +157,18 @@ export function racksAndFuniculars(lines: Pick<Line, 'id' | 'kind'>[], trips: Pi
     if (kind !== 'rack' && kind !== 'funicular') return [];
     // Each service day's span apart, an earlier day's Trips led by their day (joinDays()), so that the night between two days' runs isn't one.
     const days = new Map<string, [number, number]>();
+    let longest: (typeof trips)[number] | undefined;
     for (const t of trips) {
       if (t.line !== id) continue;
+      if ((t.calls.at(-1)?.dist ?? 0) > (longest?.calls.at(-1)?.dist ?? -1)) longest = t;
       const day = /^\d{4}-\d{2}-\d{2}\//.exec(t.id)?.[0] ?? '';
       const [from, to] = days.get(day) ?? [Infinity, -Infinity];
       days.set(day, [Math.min(from, t.calls[0]?.departure ?? Infinity), Math.max(to, t.calls.at(-1)?.arrival ?? -Infinity)]);
     }
     const running = [...days.values()].some(([from, to]) => from <= seconds && seconds <= to);
     const trains = nows.flatMap((n) => (n.trip.line === id && n.train ? [n.train] : []));
-    return running ? [{ id, trains: trains.length, live: trains.some((t) => t.live) }] : [];
+    const ends = [longest?.calls[0]?.station ?? '', longest?.calls.at(-1)?.station ?? ''];
+    return running ? [{ id, ends, trains: trains.length, live: trains.some((t) => t.live) }] : [];
   });
 }
 

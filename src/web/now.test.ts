@@ -125,14 +125,18 @@ test('The rack railway and the funiculars show only while they run, from their f
   // The rack railway runs 08:48 to 18:00, the funicular 07:10 to 07:30 only, and S1 all day.
   const trips = [trip('fgc:MM', 8 * 3600 + 48 * 60, 9 * 3600), trip('fgc:MM', 17 * 3600, 18 * 3600), trip('fgc:FV', 7 * 3600 + 600, 7 * 3600 + 1800), trip('fgc:S1', 0, 86000)];
   const rack = { trip: trips[0] as Trip, train: { live: true, unreported: false } };
-  expect(racksAndFuniculars(lines, trips, [rack], NOON, on10(8, 50))).toEqual([{ id: 'fgc:MM', trains: 1, live: true }]);
+  expect(racksAndFuniculars(lines, trips, [rack], NOON, on10(8, 50))).toEqual([{ id: 'fgc:MM', ends: ['a', 'b'], trains: 1, live: true }]);
   // Between its runs: not running now.
-  expect(racksAndFuniculars(lines, trips, [], NOON, on10(12, 0))).toEqual([{ id: 'fgc:MM', trains: 0, live: false }]);
+  expect(racksAndFuniculars(lines, trips, [], NOON, on10(12, 0))).toEqual([{ id: 'fgc:MM', ends: ['a', 'b'], trains: 0, live: false }]);
   expect(racksAndFuniculars(lines, trips, [], NOON, on10(18, 1))).toEqual([]);
+  // Named by the Stations at the ends of its longest run, its own Line's, not its Network's: the funicular's full run, not a short one.
+  const short = { ...trip('fgc:FV', 7 * 3600 + 600, 7 * 3600 + 900), calls: [{ station: 'peu', arrival: 0, departure: 7 * 3600 + 600, dist: 0 }, { station: 'mid', arrival: 7 * 3600 + 900, departure: 0, dist: 300 }] };
+  const full = { ...trip('fgc:FV', 7 * 3600 + 600, 7 * 3600 + 1800), calls: [{ station: 'peu', arrival: 0, departure: 7 * 3600 + 600, dist: 0 }, { station: 'superior', arrival: 7 * 3600 + 1800, departure: 0, dist: 700 }] };
+  expect(racksAndFuniculars(lines, [short, full], [], NOON, on10(7, 20))).toEqual([{ id: 'fgc:FV', ends: ['peu', 'superior'], trains: 0, live: false }]);
   // Between one day's last run and the next's first, with both days' Trips on the map's clock (joinDays()): not running, so not listed.
   const before = { ...trip('fgc:MM', 8 * 3600 + 48 * 60 - 86400, 18 * 3600 - 86400), id: '2026-10-09/mm' };
   expect(racksAndFuniculars(lines, [...trips, before], [], NOON, on10(3, 0))).toEqual([]);
-  expect(racksAndFuniculars(lines, [...trips, before], [], NOON, on10(12, 0))).toEqual([{ id: 'fgc:MM', trains: 0, live: false }]);
+  expect(racksAndFuniculars(lines, [...trips, before], [], NOON, on10(12, 0))).toEqual([{ id: 'fgc:MM', ends: ['a', 'b'], trains: 0, live: false }]);
 });
 
 test("The Alerts on the map are all those on its Lines and Stations, newest first and those that don't say when last, a Line's with no Trips, run by bus only, too (#474)", () => {
