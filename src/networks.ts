@@ -6,7 +6,8 @@
 import type { Credit, Kind, LineProfile, Network } from './bundle.ts';
 
 /** One Network: what the daily build needs to know of it, and through the bundle, the map. */
-export interface NetworkConfig extends Omit<Network, 'credit'> {
+export interface NetworkConfig extends Omit<Network, 'credit' | 'names'> {
+  names: NonNullable<Network['names']>;
   /** Its source's credit: the day it was last updated comes from its timetable (Timetable's `updated`). */
   credit: Omit<Credit, 'updated'>;
   /**
@@ -222,6 +223,8 @@ export const RODALIES: NetworkConfig = {
   colour: '#F26E21',
   // Main-line Trains are pills before metros' and trams', as railisland shows them (#90).
   pillZoom: 10,
+  // Catalan names, but for the two Aragonese Stations with La on R15, which are Spanish (#673).
+  names: { language: 'ca', others: { 'La Zaida-Sástago': 'es', 'La Puebla de Híjar': 'es' } },
   // Iberian-gauge rails, which keeps it off the standard-gauge high-speed line, but for a way of it with
   // no gauge tag, which counts as every gauge's (#479).
   rails: { railway: ['rail'], gauge: ['1668'] },
@@ -275,6 +278,7 @@ export const FGC: NetworkConfig = {
   // Near FGC's green, as the maintainer chose it by its logo: no source publishes one (#190).
   colour: '#8BB83E',
   pillZoom: 10,
+  names: { language: 'ca' },
   // Rails of its own, of three gauges.
   rails: { railway: ['rail', 'narrow_gauge', 'subway', 'funicular'], operator: FGC_OPERATOR },
   // FGC's feed makes each platform a stop of its own; its Stations go by FGC's codes.
@@ -316,6 +320,7 @@ export const TRAM: NetworkConfig = {
   colour: '#00A99D',
   // Metros' and trams' Trains are pills only from where they're far enough apart to read (#90).
   pillZoom: 12,
+  names: { language: 'ca' },
   rails: { railway: ['tram'] },
   // TRAM publishes a feed for each of its halves, Trambaix (T1–T3) and Trambesòs (T4–T6), and their
   // shapes' IDs clash. Each feed makes each platform a stop of its own. TRAM's terms ask for the day its
@@ -370,6 +375,7 @@ export const METRO: NetworkConfig = {
   // Near the Metro's red, as the maintainer chose it by its logo: no source publishes one (#190).
   colour: '#E2001A',
   pillZoom: 12,
+  names: { language: 'ca' },
   // Underground, but for the Montjuïc funicular, on rails that aren't FGC's.
   rails: { railway: ['subway', 'funicular'], notOperator: FGC_OPERATOR },
   timetables: [
@@ -410,6 +416,7 @@ export const CERCANIAS_MADRID: NetworkConfig = {
   // The red of Cercanías' logo, as Wikimedia Commons has it (the logo Wikidata gives for Cercanías Madrid, Q1054785).
   colour: '#EF2C30',
   pillZoom: 10,
+  names: { language: 'es' },
   rails: { railway: ['rail'], gauge: ['1668'] },
   timetables: [
     {
@@ -438,7 +445,7 @@ export const CERCANIAS_MADRID: NetworkConfig = {
  * 7 October 2026, every Delay was whole minutes, and 75–100% of each núcleo's Trains coming into a
  * Station were pinned within 50 m of one.
  */
-const CERCANIAS = { colour: CERCANIAS_MADRID.colour, pillZoom: 10, credit: RENFE, live: CERCANIAS_MADRID.live } as const;
+const CERCANIAS = { colour: CERCANIAS_MADRID.colour, pillZoom: 10, names: { language: 'es' }, credit: RENFE, live: CERCANIAS_MADRID.live } as const;
 
 /** Núcleo `code` of Renfe's Cercanías timetable, whose trip_ids read as Madrid's. */
 function núcleo(code: string, prefix: string): Timetable {
@@ -561,6 +568,7 @@ export const CERCANIAS_VALENCIA: NetworkConfig = {
   ...CERCANIAS,
   id: 'cercanias-valencia',
   name: 'Cercanías Valencia',
+  names: { language: 'ca' },
   // Its fastest stretch is Torreblanca to Orpesa, 14.4 km in 8 minutes, 108 km/h.
   profile: { acceleration: 1, braking: 1, topSpeed: 120 / 3.6, dwell: 30 },
   runningSide: 'right',
@@ -604,6 +612,7 @@ export const CERCANIAS_FERROL: NetworkConfig = {
   ...CERCANIAS,
   id: 'cercanias-ferrol',
   name: 'Cercanías Ferrol',
+  names: { language: 'gl' },
   // Its fastest stretch is San Clodio to Ponte Mera, 2.7 km in 3 minutes, 54 km/h.
   profile: { acceleration: 1, braking: 1, topSpeed: 120 / 3.6, dwell: 30 },
   runningSide: 'left',
@@ -727,6 +736,7 @@ export const EUSKOTREN: NetworkConfig = {
   // The blue that leads its logo (#265).
   colour: '#004494',
   pillZoom: 10,
+  names: { language: 'es' },
   // Euskal Trenbide Sarea's metre gauge, underground through Bilbao and Donostia too, where OpenStreetMap
   // tags it subway.
   rails: { railway: ['rail', 'narrow_gauge', 'subway'], gauge: ['1000'] },
@@ -855,6 +865,7 @@ export const AVE_LARGA_DISTANCIA: NetworkConfig = {
   // Its Trains are drawn at every zoom, as dots below 9 and smaller pills from 9 (pillText()), so that at 7–8,
   // where the Lines are, they don't bury the local Lines' dots, and from 10 they give way to the local Lines' pills (ADR-0010, #780).
   pillZoom: 9,
+  names: { language: 'es' },
   // Its Lines' runs are traced on the rails of their gauges (`lines.gauges`), and a way with no gauge tag
   // is every gauge's for them (#259): these are only the ways the report names a Station on.
   rails: { railway: ['rail'] },
@@ -962,6 +973,7 @@ export const MEDIA_DISTANCIA_AVANT: NetworkConfig = {
   // Its Trains are drawn from zoom 7, where its region loads and its Lines are, as dots, and as smaller pills
   // from 9, as AVE y Larga Distancia's are (ADR-0010, #780).
   pillZoom: 9,
+  names: { language: 'es' },
   // Its Lines' runs are traced on the rails of their gauges, as AVE y Larga Distancia's are.
   rails: { railway: ['rail', 'narrow_gauge'] },
   // The ex-FEVE regionals, whose route IDs end VRFV, are named REGIONAL too, but run on metre gauge.
@@ -1057,6 +1069,7 @@ export const OUIGO: NetworkConfig = {
   colour: '#E50A70',
   // Its Trains are drawn at every zoom, as AVE y Larga Distancia's are, pills from 9 (ADR-0010, #780).
   pillZoom: 9,
+  names: { language: 'es' },
   rails: { railway: ['rail'] },
   timetables: [
     {

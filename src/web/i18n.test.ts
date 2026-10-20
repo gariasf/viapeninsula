@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { createExpression, latest, type ExpressionSpecification, type Feature, type StylePropertySpecification } from '@maplibre/maplibre-gl-style-spec';
 import { afterEach, expect, test, vi } from 'vitest';
-import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, cancelledCount, earlierStations, endsHere, goOn, standingAt, trainsNow, turnsHere, followDeparture, LANGUAGES, leavesAt, leavingStation, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, pickLanguage, placedBy, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated } from './i18n.ts';
+import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, cancelledCount, earlierStations, endsHere, goOn, standingAt, trainsNow, turnsHere, followDeparture, LANGUAGES, leavesAt, leavingStation, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, pickLanguage, placedBy, setNameLanguages, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated } from './i18n.ts';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -714,4 +714,39 @@ test("words a Line's state, how its strip marks its Stations and a Train standin
   expect(strings('en')).toEqual(['15 trains now', '1 train now', 'No trains now', 'worst +20\u00A0min', 'all scheduled', '5 late', '2 cancelled', '1 cancelled', "Standing at L'Arboç", '28 of 64 trains start or end here', '4 trains go on to Rajadell', '1 train goes on to Rajadell', 'Ends here: 4 trains a day']);
   expect(strings('eu')).toEqual(['15 tren orain', 'Tren bat orain', 'Trenik ez orain', 'okerrena +20\u00A0min', 'denak programatuta', '5 atzeratuta', '2 bertan behera', '1 bertan behera', "L'Arboç geltokian geldirik", '64 trenetatik 28 hemen hasi edo amaitzen dira', '4 tren Rajadell arte jarraitzen dute', 'Tren bat Rajadell arte jarraitzen du', 'Amaiera: 4 tren egunean']);
   expect(strings('gl')).toEqual(['15 trens agora', '1 tren agora', 'Ningún tren agora', 'o peor +20\u00A0min', 'todos programados', '5 con atraso', '2 cancelados', '1 cancelado', "Parado en L'Arboç", '28 de 64 trens saen ou rematan aquí', '4 trens seguen ata Rajadell', '1 tren segue ata Rajadell', 'Final: 4 trens ao día']);
+});
+
+test("keeps the article of a Station's name in another language than the sentence's as the name has it, by its Network's language, as the IEC does: a Spanish name's El and La in Catalan, with de elided before El, and a Catalan name's as before (#673)", () => {
+  const networks = [
+    { id: 'rodalies', names: { language: 'ca', others: { 'La Zaida-Sástago': 'es' } } },
+    { id: 'cercanias-asturias', names: { language: 'es' } },
+    { id: 'ave-larga-distancia', names: { language: 'es' } },
+    { id: 'cercanias-ferrol', names: { language: 'gl' } },
+  ];
+  setNameLanguages(
+    [
+      { name: 'El Berrón', networks: ['cercanias-asturias'] },
+      { name: 'La Felguera', networks: ['cercanias-asturias'] },
+      { name: 'La Zaida-Sástago', networks: ['rodalies'] },
+      // Rodalies' and long distance's: Catalan.
+      { name: 'El Prat de Llobregat', networks: ['ave-larga-distancia', 'rodalies'] },
+      { name: 'La Garriga', networks: ['rodalies'] },
+      { name: 'O Porriño', networks: ['cercanias-ferrol'] },
+    ],
+    networks,
+  );
+  try {
+    expect(standingAt('El Berrón', 'ca')).toBe('Aturat a El Berrón');
+    expect(leavesAt('El Berrón', '9:00', 'ca')).toBe("Surt d'El Berrón a les 9:00");
+    expect(leavesAt('La Felguera', '9:00', 'ca')).toBe('Surt de La Felguera a les 9:00');
+    expect(goOn(3, 'La Zaida-Sástago', 'ca')).toBe('3 trens continuen fins a La Zaida-Sástago');
+    expect(standingAt('El Prat de Llobregat', 'ca')).toBe('Aturat al Prat de Llobregat');
+    expect(leavesAt('La Garriga', '9:00', 'ca')).toBe('Surt de la Garriga a les 9:00');
+    expect(backTo('O Porriño', 'gl')).toBe('Volver ao Porriño');
+    // Galician keeps a Spanish name's article as it is too, and one whose language isn't known goes by its text.
+    expect(backTo('La Felguera', 'gl')).toBe('Volver a La Felguera');
+    expect(standingAt('El Pinillo', 'ca')).toBe('Aturat al Pinillo');
+  } finally {
+    setNameLanguages([], []);
+  }
 });

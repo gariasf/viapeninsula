@@ -489,21 +489,45 @@ const elides = (name: string): boolean => /^h?(?![iu][aeiou])[aeiou]/i.test(name
  * Blanques", "per l'Hospitalet", as the IEC writes a Catalan name's article in a sentence (its Regles d'ús
  * de les majúscules, 18.2); Galician, Spanish, Basque and English go by the name as published, as the RAE
  * has it for a capital article that's part of the name.
- * ponytail: an h that's aspirated, a loanword's, elides too, as no Station's name has one; and a Spanish
- * name's El before a consonant contracts as Catalan's does, "al Berrón", and its La goes in lower case,
- * "a la Garena", where the IEC keeps both as the name has them, "a El Berrón", "a La Garena", as a name
- * has no language here but the one it's written in: its Network's would tell them apart (#673).
+ * A name in another language than `lang`, by its Network's (setNameLanguages(), #673), keeps its article as it
+ * has it, with its capital and no contraction, as the IEC does a Spanish name's: "a El Berrón", "d'El Casar",
+ * "a La Garena". A name whose language the page doesn't know, as before its track says, goes by its text alone.
+ * ponytail: an h that's aspirated, a loanword's, elides too, as no Station's name has one.
  */
 const named = (text: string, slot: '{station}' | '{place}' | '{headsign}', name: string, lang: Language): string => {
   const [before = '', after = ''] = text.split(slot);
   const [, head = '', prep = ''] = /^(.*?)(\S+) $/s.exec(before) ?? [];
   const [article = '', ...words] = name.split(' ');
   const rest = words.join(' ');
-  const into = CONTRACTED[lang]?.[article]?.[prep];
+  const known = nameLanguages.get(name);
+  const own = known === undefined || known === lang;
+  const into = own ? CONTRACTED[lang]?.[article]?.[prep] : undefined;
   if (into && !(article === 'El' && elides(rest))) return `${head}${into} ${rest}${after}`;
   if (lang === 'ca' && prep === 'de' && elides(name)) return `${head}d'${name}${after}`;
-  return `${before}${lang === 'ca' ? name.replace(/^(?:La |Les |L')/, (lead) => lead.toLowerCase()) : name}${after}`;
+  return `${before}${lang === 'ca' && own ? name.replace(/^(?:La |Les |L')/, (lead) => lead.toLowerCase()) : name}${after}`;
 };
+
+/** The language of each Station's name the page knows, by the name (setNameLanguages(), #673). */
+let nameLanguages = new Map<string, string>();
+
+/**
+ * Tells the sentences the language of each Station's name, as its Networks' configs give it (#673): the language
+ * its Network names it in, or one the Network names it in apart, as Rodalies' two Aragonese Stations, and of a
+ * Station of several Networks, as Sants is Rodalies' and long distance's, the first that isn't Spanish, the
+ * language every Network names in where it names none other.
+ */
+export function setNameLanguages(stations: { name: string; networks?: string[] }[], networks: { id: string; names?: { language: string; others?: Record<string, string> } }[]) {
+  const of = new Map(networks.map((n) => [n.id, n.names]));
+  nameLanguages = new Map(
+    stations.flatMap(({ name, networks: own = [] }): [string, string][] => {
+      const languages = own.flatMap((id) => {
+        const names = of.get(id);
+        return names ? [names.others?.[name] ?? names.language] : [];
+      });
+      return languages.length ? [[name, languages.find((l) => l !== 'es') ?? 'es']] : [];
+    }),
+  );
+}
 
 /** How many Stations a followed Train has still to come after its next, `n`, to its last, where it's headed, and when it's due there, in `lang`, or else the language the interface speaks now. */
 export const moreStations = (n: number, headsign: string, time: string, lang = language()): string =>
