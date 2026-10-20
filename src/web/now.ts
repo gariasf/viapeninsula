@@ -93,7 +93,8 @@ const minutesOfDay = (at: number) => {
 /**
  * The first and last Trains, at this moment only (#474): until FIRST_UNTIL, when each Network's first of today's Trips
  * leaves its first Station, and after midnight, beside them, the day before's last still to arrive at its last; from
- * LAST_FROM, when today's last arrives, after midnight too; nothing in between. Each in ms since 1970, by `trips`'
+ * LAST_FROM, when today's last arrives, after midnight too; each last only while it's still to arrive, as the maintainer
+ * picked (20 Oct); nothing in between. Each in ms since 1970, by `trips`'
  * clock, whose 00:00 is `noonMinus12h` and whose last day is `serviceDay`, an earlier day's Trips led by their day
  * (joinDays()); for the Networks of `networks` that have any, in its order. Days are Barcelona's, by its clock.
  */
@@ -113,7 +114,7 @@ export function firstAndLast(networks: Pick<Network, 'id'>[], lines: Pick<Line, 
     return networks.flatMap(({ id }) => (times.has(id) ? [{ id, at: noonMinus12h + (times.get(id) ?? 0) * 1000 }] : []));
   };
   const today = madridDate(new Date(at));
-  if (minutes >= LAST_FROM) return { last: of(today, 'last') };
+  if (minutes >= LAST_FROM) return { last: of(today, 'last').filter((l) => l.at >= at) };
   if (minutes >= FIRST_UNTIL) return {};
   // ponytail: the day before by 24 hours, so on the night the clocks go back, an hour after midnight names today again; ask by service day if that hour shows.
   const still = of(madridDate(new Date(at - 86_400_000)), 'last').filter((l) => l.at >= at);

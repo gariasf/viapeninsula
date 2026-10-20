@@ -93,7 +93,13 @@ test("The first Trains of the day show only until 09:00, and the last from 20:00
   expect(shown(9, 1)).toEqual({});
   expect(shown(19, 59)).toEqual({});
   expect(shown(20, 0)).toEqual(shown(20, 1));
-  expect(shown(20, 1)).toEqual({ last: [{ id: 'rodalies', at: on10(25, 57) }, { id: 'fgc', at: on10(5, 30) }] });
+  // Only those still to arrive, before midnight too, as the maintainer picked: FGC's 05:30 has.
+  expect(shown(20, 1)).toEqual({ last: [{ id: 'rodalies', at: on10(25, 57) }] });
+  // At the arrival minute, still there; a minute later, gone.
+  const tram = trip('tram:T1', 6 * 3600, 22 * 3600 + 30 * 60);
+  const late = (hours: number, minutes: number) => firstAndLast(NETWORKS, LINES, [...trips, tram], '2026-10-10', NOON, on10(hours, minutes));
+  expect(late(22, 30)).toEqual({ last: [{ id: 'rodalies', at: on10(25, 57) }, { id: 'tram', at: on10(22, 30) }] });
+  expect(late(22, 31)).toEqual({ last: [{ id: 'rodalies', at: on10(25, 57) }] });
   // After midnight, the day before's last still to arrive, with today's first: R4's 03:00, till it has arrived.
   expect(shown(0, 30)).toEqual({ last: [{ id: 'rodalies', at: on10(3, 0) }], first: [{ id: 'rodalies', at: on10(4, 45) }, { id: 'fgc', at: on10(5, 0) }] });
   expect(shown(3, 1)).toEqual({ first: [{ id: 'rodalies', at: on10(4, 45) }, { id: 'fgc', at: on10(5, 0) }] });
