@@ -10,7 +10,7 @@ const TURNS = 4;
 /**
  * How few of a day's Trips a run of Stations beyond the last Station the Line's other Trips reach can have, against
  * that Station's, to be a spur: a quarter, as R16's 3 Trips on to Ulldecona of Tortosa's 20 and more, and R2S's 2
- * on to Flix of Sant Vicenç de Calders' 68.
+ * on to Flix of Sant Vicenç de Calders' 70.
  */
 const SPUR = 1 / 4;
 
@@ -89,7 +89,10 @@ export function lineStrip(trips: Pick<Trip, 'calls'>[]): StripStation[] {
     if (!from || !on || !to) continue;
     // As far as all of them go, where fewer go on further, as 11 of R2's go on to Sant Celoni and 3 of them to Maçanet-Massanes.
     const spur = next < end ? strip.slice(0, next + 1).toReversed() : strip.slice(next);
-    from.goOn = { n: on.calls, to: (spur.findLast((s) => s.calls === on.calls) ?? on).station };
+    // Each Trip calling at any of the spur's Stations, as some skip its first, as 2 of Asturias C1's 18 past Pola de Lena.
+    const beyond = new Set(spur.map((s) => s.station));
+    const n = runs.filter((run) => run.some((s) => beyond.has(s))).length;
+    from.goOn = { n, to: (spur.findLast((s) => s.calls === n) ?? on).station };
     to.endsHere = to.calls;
   }
   return strip;

@@ -57,6 +57,14 @@ test('A spur says its Trains go on as far as all of them do, and its own end how
   expect(strip.at(-1)).toMatchObject({ station: 'Maçanet', endsHere: 3 });
 });
 
+test("A spur counts the Trains that go on to it though some skip its first Station, as Asturias C1's past Pola de Lena", () => {
+  // 18 of its Trains go on to Puente de los Fierros, 2 of them not calling at La Cobertoria: 18 go on, not 16.
+  const C1 = ['Gijón', 'Oviedo', 'Mieres', 'Pola de Lena'];
+  const strip = lineStrip([...each(40, C1), ...each(8, [...C1, 'La Cobertoria', 'Campomanes', 'Fierros']), ...each(1, [...C1, 'Campomanes', 'Fierros'])]);
+  expect(strip.map((s) => s.station)).toEqual([...C1, 'La Cobertoria', 'Campomanes', 'Fierros']);
+  expect(strip[3]?.goOn).toEqual({ n: 18, to: 'Fierros' });
+});
+
 /** A Train on R4 now: on its Trip from `from` to `to`, with these Stations still to leave, Live or not and so late. */
 const running = (stations: string[], toLeave: number, { live = true, delay = 0, standsAt = undefined as string | undefined } = {}) => {
   const t = trip(stations);
