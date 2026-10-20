@@ -10,6 +10,11 @@ test("marks Search's tab current while the panel shows Search", () => {
   expect(currentTab({ searching: true })).toBe('search');
 });
 
+test("marks the Passport's tab current while the panel shows the Passport (#332), a Train followed behind it too, as the maintainer picked", () => {
+  expect(currentTab({ passportShown: true })).toBe('passport');
+  expect(currentTab({ following: { day: '2026-10-20', trip: 'rodalies:R2_77001' }, passportShown: true })).toBe('passport');
+});
+
 test("marks Favourites' tab current while the panel shows Favourites (#472)", () => {
   expect(currentTab({ favouritesShown: true })).toBe('favourites');
   expect(currentTab({ boardPlace: 'adif:71801', favouritesShown: true })).toBeUndefined();

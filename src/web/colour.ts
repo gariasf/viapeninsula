@@ -54,6 +54,9 @@ export function darkInk(colour: string): boolean {
  */
 export const DARK_STAND_INS: Record<string, string> = { 'media-distancia-avant': '#D0D0D0' };
 
+/** The mid grey of a Line's stroke zoomed out where it has none of its own (#781), which a kind of service's Stamp is in too (#332). */
+export const TRACK_GREY = '#707070';
+
 /**
  * The Networks' tracks below zoom 7 on the dark basemap, where their Lines' stand-in (DARK_STAND_INS) won't do: Media
  * Distancia y Avant's in a mid grey, which sits under AVE y Larga Distancia's magenta there, as its black does on the
@@ -61,7 +64,7 @@ export const DARK_STAND_INS: Record<string, string> = { 'media-distancia-avant':
  * at 4.0:1 on the paper (#0c0c0c), under Ouigo's pink (4.3:1), and at 2.3:1 on the basemap's roads (#3a3a3a), which
  * #555555 was too near (1.5:1); AVE y Larga Distancia's #81005E is 2.0:1, but stands out by its colour.
  */
-export const DARK_TRACK_STAND_INS: Record<string, string> = { 'media-distancia-avant': '#707070' };
+export const DARK_TRACK_STAND_INS: Record<string, string> = { 'media-distancia-avant': TRACK_GREY };
 
 /** A file's Networks and Lines with their stand-ins on the dark basemap (DARK_STAND_INS), in place, as it comes. */
 export function standIn<T>(file: T): T {

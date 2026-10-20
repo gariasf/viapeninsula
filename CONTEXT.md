@@ -121,7 +121,7 @@ A viewer's Rides and Stamps, kept only in their browser, from when they turn it 
 _Avoid_: Profile, account, collection
 
 **Ride**:
-A Train a viewer followed from its Trip's first Station to its last Station on the map, at real speed, with their Passport on. It counts once per Train. It was seen Live if live data confirmed the Train at least once while it was followed.
+A Train a viewer followed from its Trip's first Station to its last Station on the map, at real speed, with their Passport on. The follow may begin up to a minute after the Train leaves its first Station, and a Train into France ends at the border. Looking at the Passport meanwhile keeps the Train followed. It counts once per Train. It was seen Live if live data confirmed the Train at least once while it was followed.
 _Avoid_: Trip (that's the timetable's), journey, run
 
 **Stamp**:

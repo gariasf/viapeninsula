@@ -114,10 +114,11 @@ body {
   cursor: pointer;
 }
 
-/* The outline again, for the buttons that are cards. */
+/* The outline and the ink again, for the buttons that are cards, as the Passport's switch in its empty state's soft ink (#332). */
 :is(.legend, .fab, .die-row).card {
   border: var(--edge);
   background: var(--card);
+  color: var(--ink);
 }
 
 .icon {
@@ -1131,6 +1132,63 @@ button.fav-row {
   height: 40px;
 }
 
+/* ---- The Passport (#332): its totals in the serif, each Network's Stamps under its name and how many of them are earned, and a followed Train's line while it's a Ride. ---- */
+.passport-totals {
+  font: 400 19px/1.3 var(--serif);
+}
+
+.stamp-group {
+  padding: 8px 0;
+}
+
+.stamp-group + .stamp-group {
+  border-top: 1px solid var(--hairline);
+}
+
+.stamp-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.stamps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.riding {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: -4px 0 10px;
+}
+
+.riding svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* The note as a Ride earns a Stamp: a card under the legend, in the middle, as wide as its words up to the screen less 16 px a side (from the middle, it would wrap at half the screen), for a while; empty, it isn't drawn. */
+.stamp-note {
+  position: absolute;
+  top: max(64px, calc(var(--banner, 0px) + 8px));
+  left: 50%;
+  z-index: 4;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  margin: 0;
+  padding: 10px 14px;
+  font-weight: 700;
+  transform: translateX(-50%);
+}
+
+.stamp-note:empty {
+  display: none;
+}
+
 @media (hover: hover) {
   :is(.star, button.fav-name, button.fav-row):hover {
     background: var(--hover);
@@ -1920,7 +1978,8 @@ button.fav-row {
 }
 
 /* ---- On a wide window, the tab bar is a rail down the left edge, the panel a 380 px card at the bottom left beside it, About a dialog mid-screen, and the buttons go over the credits' strip, bottom right. ---- */
-@media (min-width: 640px) {
+/* The rail, on a wide window tall enough for its five tabs under the legend and a banner: a short one, as a phone turned sideways (844×390), keeps the phone's bar, the panel's card docked over it (the maintainer's pick, #332). As main.ts's `rail`. */
+@media (min-width: 640px) and (min-height: 480px) {
   /* 64 px under the top, under the legend, or 8 px under the banner while it's up, as far down as main.ts says it reaches (--banner). */
   .tabs {
     top: max(64px, calc(var(--banner, 0px) + 8px));
@@ -1939,7 +1998,9 @@ button.fav-row {
     bottom: max(8px, env(safe-area-inset-bottom));
     left: 92px;
   }
+}
 
+@media (min-width: 640px) {
   .sheet,
   .sheet.up {
     position: absolute;
@@ -1982,6 +2043,14 @@ button.fav-row {
     margin: auto;
     padding-top: 12px;
     border-radius: 14px;
+  }
+}
+
+@media (min-width: 640px) and (max-height: 479.98px) {
+  /* On a short wide window, the panel's card clear of the legend above it and of the bar under it. */
+  .sheet,
+  .sheet.up {
+    max-height: calc(100dvh - 112px - var(--bar) - 8px);
   }
 }
 
@@ -2090,4 +2159,16 @@ button.fav-row {
     background: CanvasText;
     color: Canvas;
   }
+}
+
+/* A Stamp with the day its first Ride left, short, under it (#332). */
+.stamp {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.stamp time {
+  font-size: 11px;
 }
