@@ -2158,3 +2158,15 @@ button.fav-row {
     color: Canvas;
   }
 }
+
+/* A Stamp with the day its first Ride left, short, under it (#332). */
+.stamp {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.stamp time {
+  font-size: 11px;
+}
