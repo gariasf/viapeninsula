@@ -62,3 +62,15 @@ Taken 20 Oct 2026 on the page harness (src/page/), Metal GPU, live data; #700 on
 - shots/701-1280x800-terrassa-dark.png
 - shots/701-390x844-774-light.png
 - shots/701-390x844-empty-light.png
+
+## Reshoot after 3641f536 (credits open left of the ©)
+- shots/697b-390x844-credits-open-dark.png
+- shots/697b-390x844-credits-open-light.png
+- shots/697b-640x800-credits-open-dark.png
+- shots/697b-640x800-credits-open-light.png
+- shots/697b-800x800-credits-open-dark.png
+- shots/697b-800x800-credits-open-light.png
+- shots/697b-844x390-credits-open-dark.png
+- shots/697b-844x390-credits-open-light.png
+- shots/697b-999x800-credits-open-dark.png
+- shots/697b-999x800-credits-open-light.png
