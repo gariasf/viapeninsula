@@ -1,0 +1,306 @@
+[
+ {
+  "file": "look-glow-light-z7.png",
+  "url": "/#map=7.2/41.55/1.85&line=rodalies:R4",
+  "header": "R4 Sant Vicenç de Calders – ManresaRodalies de Catalunya · 17 trenes ahora · el peor +17 min6 con retraso2 avisos",
+  "chips": [
+   "6 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 17,
+  "zoom": "7.20"
+ },
+ {
+  "file": "look-glow-light-z10.png",
+  "url": "/#map=10.2/41.5/1.93&line=rodalies:R4",
+  "header": "R4 Sant Vicenç de Calders – ManresaRodalies de Catalunya · 18 trenes ahora · el peor +17 min7 con retraso2 avisos",
+  "chips": [
+   "7 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 18,
+  "zoom": "10.20"
+ },
+ {
+  "file": "look-glow-light-z14.png",
+  "url": "/#map=14.2/41.4795/1.9145&line=rodalies:R4",
+  "header": "R4 Sant Vicenç de Calders – ManresaRodalies de Catalunya · 18 trenes ahora · el peor +17 min7 con retraso2 avisos",
+  "chips": [
+   "7 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 18,
+  "zoom": "14.20"
+ },
+ {
+  "file": "look-glow-light-stretch-sants-z14.png",
+  "url": "/#map=14.2/41.382/2.148&line=rodalies:R4",
+  "header": "R4 Sant Vicenç de Calders – ManresaRodalies de Catalunya · 18 trenes ahora · el peor +17 min7 con retraso2 avisos",
+  "chips": [
+   "7 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 18,
+  "zoom": "14.20"
+ },
+ {
+  "file": "look-glow-light-stretch-montcada-z14.png",
+  "url": "/#map=14.2/41.487/2.183&line=rodalies:R4",
+  "header": "R4 Sant Vicenç de Calders – ManresaRodalies de Catalunya · 18 trenes ahora · el peor +17 min7 con retraso2 avisos",
+  "chips": [
+   "7 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 18,
+  "zoom": "14.20"
+ },
+ {
+  "file": "look-glow-light-stretch-z12.png",
+  "url": "/#map=12.2/41.39/2.16&line=rodalies:R4",
+  "header": "R4 Sant Vicenç de Calders – ManresaRodalies de Catalunya · 18 trenes ahora · el peor +17 min7 con retraso2 avisos",
+  "chips": [
+   "7 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 18,
+  "zoom": "12.20"
+ },
+ {
+  "page": "look-glow-light",
+  "errors": []
+ },
+ {
+  "file": "look-raise-light-z7.png",
+  "url": "/?look=raise#map=7.2/41.55/1.85&line=rodalies:R4",
+  "header": "R4 Sant Vicenç de Calders – ManresaRodalies de Catalunya · 19 trenes ahora · el peor +17 min8 con retraso2 avisos",
+  "chips": [
+   "8 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 19,
+  "zoom": "7.20"
+ },
+ {
+  "file": "look-raise-light-z10.png",
+  "url": "/?look=raise#map=10.2/41.5/1.93&line=rodalies:R4",
+  "header": "R4 Sant Vicenç de Calders – ManresaRodalies de Catalunya · 19 trenes ahora · el peor +18 min8 con retraso2 avisos",
+  "chips": [
+   "8 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 19,
+  "zoom": "10.20"
+ },
+ {
+  "file": "look-raise-light-z14.png",
+  "url": "/?look=raise#map=14.2/41.4795/1.9145&line=rodalies:R4",
+  "header": "R4 Sant Vicenç de Calders – ManresaRodalies de Catalunya · 19 trenes ahora · el peor +18 min8 con retraso2 avisos",
+  "chips": [
+   "8 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 19,
+  "zoom": "14.20"
+ },
+ {
+  "file": "look-raise-light-stretch-sants-z14.png",
+  "url": "/?look=raise#map=14.2/41.382/2.148&line=rodalies:R4",
+  "header": "R4 Sant Vicenç de Calders – ManresaRodalies de Catalunya · 19 trenes ahora · el peor +18 min8 con retraso2 avisos",
+  "chips": [
+   "8 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 19,
+  "zoom": "14.20"
+ },
+ {
+  "file": "look-raise-light-stretch-montcada-z14.png",
+  "url": "/?look=raise#map=14.2/41.487/2.183&line=rodalies:R4",
+  "header": "R4 Sant Vicenç de Calders – ManresaRodalies de Catalunya · 19 trenes ahora · el peor +18 min9 con retraso2 avisos",
+  "chips": [
+   "9 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 19,
+  "zoom": "14.20"
+ },
+ {
+  "file": "look-raise-light-stretch-z12.png",
+  "url": "/?look=raise#map=12.2/41.39/2.16&line=rodalies:R4",
+  "header": "R4 Sant Vicenç de Calders – ManresaRodalies de Catalunya · 19 trenes ahora · el peor +18 min9 con retraso2 avisos",
+  "chips": [
+   "9 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 19,
+  "zoom": "12.20"
+ },
+ {
+  "page": "look-raise-light",
+  "errors": []
+ },
+ {
+  "file": "look-glow-dark-z7.png",
+  "url": "/#map=7.2/41.55/1.85&line=rodalies:R4",
+  "header": "R4 Sant Vicenç de Calders – ManresaRodalies de Catalunya · 19 trenes ahora · el peor +18 min9 con retraso2 avisos",
+  "chips": [
+   "9 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 19,
+  "zoom": "7.20"
+ },
+ {
+  "file": "look-glow-dark-z10.png",
+  "url": "/#map=10.2/41.5/1.93&line=rodalies:R4",
+  "header": "R4 Sant Vicenç de Calders – ManresaRodalies de Catalunya · 19 trenes ahora · el peor +18 min9 con retraso2 avisos",
+  "chips": [
+   "9 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 19,
+  "zoom": "10.20"
+ },
+ {
+  "file": "look-glow-dark-z14.png",
+  "url": "/#map=14.2/41.4795/1.9145&line=rodalies:R4",
+  "header": "R4 Sant Vicenç de Calders – ManresaRodalies de Catalunya · 18 trenes ahora · el peor +18 min8 con retraso2 avisos",
+  "chips": [
+   "8 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 18,
+  "zoom": "14.20"
+ },
+ {
+  "file": "look-glow-dark-stretch-sants-z14.png",
+  "url": "/#map=14.2/41.382/2.148&line=rodalies:R4",
+  "header": "R4 Sant Vicenç de Calders – ManresaRodalies de Catalunya · 18 trenes ahora · el peor +18 min8 con retraso2 avisos",
+  "chips": [
+   "8 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 18,
+  "zoom": "14.20"
+ },
+ {
+  "file": "look-glow-dark-stretch-montcada-z14.png",
+  "url": "/#map=14.2/41.487/2.183&line=rodalies:R4",
+  "header": "R4 Sant Vicenç de Calders – ManresaRodalies de Catalunya · 18 trenes ahora · el peor +18 min7 con retraso2 avisos",
+  "chips": [
+   "7 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 18,
+  "zoom": "14.20"
+ },
+ {
+  "file": "look-glow-dark-stretch-z12.png",
+  "url": "/#map=12.2/41.39/2.16&line=rodalies:R4",
+  "header": "R4 Sant Vicenç de Calders – ManresaRodalies de Catalunya · 18 trenes ahora · el peor +18 min7 con retraso2 avisos",
+  "chips": [
+   "7 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 18,
+  "zoom": "12.20"
+ },
+ {
+  "page": "look-glow-dark",
+  "errors": []
+ },
+ {
+  "file": "look-raise-dark-z7.png",
+  "url": "/?look=raise#map=7.2/41.55/1.85&line=rodalies:R4",
+  "header": "R4 Sant Vicenç de Calders – ManresaRodalies de Catalunya · 18 trenes ahora · el peor +18 min7 con retraso2 avisos",
+  "chips": [
+   "7 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 18,
+  "zoom": "7.20"
+ },
+ {
+  "file": "look-raise-dark-z10.png",
+  "url": "/?look=raise#map=10.2/41.5/1.93&line=rodalies:R4",
+  "header": "R4 Sant Vicenç de Calders – ManresaRodalies de Catalunya · 18 trenes ahora · el peor +18 min7 con retraso2 avisos",
+  "chips": [
+   "7 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 18,
+  "zoom": "10.20"
+ },
+ {
+  "file": "look-raise-dark-z14.png",
+  "url": "/?look=raise#map=14.2/41.4795/1.9145&line=rodalies:R4",
+  "header": "R4 Sant Vicenç de Calders – ManresaRodalies de Catalunya · 18 trenes ahora · el peor +18 min7 con retraso2 avisos",
+  "chips": [
+   "7 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 18,
+  "zoom": "14.20"
+ },
+ {
+  "file": "look-raise-dark-stretch-sants-z14.png",
+  "url": "/?look=raise#map=14.2/41.382/2.148&line=rodalies:R4",
+  "header": "R4 Sant Vicenç de Calders – ManresaRodalies de Catalunya · 18 trenes ahora · el peor +18 min7 con retraso2 avisos",
+  "chips": [
+   "7 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 18,
+  "zoom": "14.20"
+ },
+ {
+  "file": "look-raise-dark-stretch-montcada-z14.png",
+  "url": "/?look=raise#map=14.2/41.487/2.183&line=rodalies:R4",
+  "header": "R4 Sant Vicenç de Calders – ManresaRodalies de Catalunya · 18 trenes ahora · el peor +18 min7 con retraso2 avisos",
+  "chips": [
+   "7 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 18,
+  "zoom": "14.20"
+ },
+ {
+  "file": "look-raise-dark-stretch-z12.png",
+  "url": "/?look=raise#map=12.2/41.39/2.16&line=rodalies:R4",
+  "header": "R4 Sant Vicenç de Calders – ManresaRodalies de Catalunya · 18 trenes ahora · el peor +18 min7 con retraso2 avisos",
+  "chips": [
+   "7 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 18,
+  "zoom": "12.20"
+ },
+ {
+  "page": "look-raise-dark",
+  "errors": []
+ }
+]

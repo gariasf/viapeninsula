@@ -1,0 +1,768 @@
+[
+ {
+  "file": "line-r4-phone-light.png",
+  "url": "/#map=7.31/40.525/1.856&line=rodalies:R4",
+  "header": "R4 Sant Vicen\u00e7 de Calders \u2013 ManresaRodalies de Catalunya \u00b7 18\u00a0trenes ahora \u00b7 el peor +17\u00a0min9 con retraso2 avisos",
+  "chips": [
+   "9 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 18,
+  "zoom": "7.31"
+ },
+ {
+  "file": "line-r4-phone-light-panels.png",
+  "url": "/#map=7.31/40.525/1.856&line=rodalies:R4",
+  "header": "R4 Sant Vicen\u00e7 de Calders \u2013 ManresaRodalies de Catalunya \u00b7 18\u00a0trenes ahora \u00b7 el peor +17\u00a0min9 con retraso2 avisos",
+  "chips": [
+   "9 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 18,
+  "zoom": "7.31"
+ },
+ {
+  "page": "line-r4-phone-light",
+  "errors": []
+ },
+ {
+  "file": "line-r16-phone-light.png",
+  "url": "/#map=6.74/39.606/1.317&line=rodalies:R16",
+  "header": "R16 Tortosa \u2013 Barcelona Estaci\u00f3 de Fran\u00e7aRodalies de Catalunya \u00b7 3\u00a0trenes ahora \u00b7 el peor +48\u00a0min2 con retraso2 avisos",
+  "chips": [
+   "2 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 3,
+  "zoom": "6.74"
+ },
+ {
+  "file": "line-r16-phone-light-spur.png",
+  "url": "/#map=6.74/39.606/1.317&line=rodalies:R16",
+  "header": "R16 Tortosa \u2013 Barcelona Estaci\u00f3 de Fran\u00e7aRodalies de Catalunya \u00b7 3\u00a0trenes ahora \u00b7 el peor +48\u00a0min2 con retraso2 avisos",
+  "chips": [
+   "2 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 3,
+  "zoom": "6.74"
+ },
+ {
+  "file": "line-r16-phone-light-panels.png",
+  "url": "/#map=6.74/39.606/1.317&line=rodalies:R16",
+  "header": "R16 Tortosa \u2013 Barcelona Estaci\u00f3 de Fran\u00e7aRodalies de Catalunya \u00b7 3\u00a0trenes ahora \u00b7 el peor +48\u00a0min2 con retraso2 avisos",
+  "chips": [
+   "2 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 3,
+  "zoom": "6.74"
+ },
+ {
+  "page": "line-r16-phone-light",
+  "errors": []
+ },
+ {
+  "file": "line-r2s-phone-light.png",
+  "url": "/#map=7.26/40.281/1.363&line=rodalies:R2S",
+  "header": "R2S Sant Vicen\u00e7 de Calders \u2013 Barcelona Estaci\u00f3 de Fran\u00e7aRodalies de Catalunya \u00b7 11\u00a0trenes ahora \u00b7 el peor +25\u00a0min7 con retraso1 aviso",
+  "chips": [
+   "7 con retraso",
+   "1 aviso"
+  ],
+  "banner": "",
+  "trains": 11,
+  "zoom": "7.26"
+ },
+ {
+  "file": "line-r2s-phone-light-spur.png",
+  "url": "/#map=7.26/40.281/1.363&line=rodalies:R2S",
+  "header": "R2S Sant Vicen\u00e7 de Calders \u2013 Barcelona Estaci\u00f3 de Fran\u00e7aRodalies de Catalunya \u00b7 11\u00a0trenes ahora \u00b7 el peor +25\u00a0min7 con retraso1 aviso",
+  "chips": [
+   "7 con retraso",
+   "1 aviso"
+  ],
+  "banner": "",
+  "trains": 11,
+  "zoom": "7.26"
+ },
+ {
+  "file": "line-r2s-phone-light-panels.png",
+  "url": "/#map=7.26/40.281/1.363&line=rodalies:R2S",
+  "header": "R2S Sant Vicen\u00e7 de Calders \u2013 Barcelona Estaci\u00f3 de Fran\u00e7aRodalies de Catalunya \u00b7 11\u00a0trenes ahora \u00b7 el peor +25\u00a0min7 con retraso1 aviso",
+  "chips": [
+   "7 con retraso",
+   "1 aviso"
+  ],
+  "banner": "",
+  "trains": 11,
+  "zoom": "7.26"
+ },
+ {
+  "page": "line-r2s-phone-light",
+  "errors": []
+ },
+ {
+  "file": "line-c6-phone-light.png",
+  "url": "/#map=8.99/43.0868/-5.6077&line=cercanias-asturias:C6",
+  "header": "C6 Oviedo \u2013 Infiesto ApeaderoCercan\u00edas Asturias \u00b7 6\u00a0trenes ahora \u00b7 el peor +44\u00a0min4 con retraso",
+  "chips": [
+   "4 con retraso"
+  ],
+  "banner": "",
+  "trains": 6,
+  "zoom": "8.99"
+ },
+ {
+  "page": "line-c6-phone-light",
+  "errors": []
+ },
+ {
+  "file": "line-r4-phone-dark.png",
+  "url": "/#map=7.31/40.525/1.856&line=rodalies:R4",
+  "header": "R4 Sant Vicen\u00e7 de Calders \u2013 ManresaRodalies de Catalunya \u00b7 18\u00a0trenes ahora \u00b7 el peor +17\u00a0min8 con retraso2 avisos",
+  "chips": [
+   "8 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 18,
+  "zoom": "7.31"
+ },
+ {
+  "file": "line-r4-phone-dark-panels.png",
+  "url": "/#map=7.31/40.525/1.856&line=rodalies:R4",
+  "header": "R4 Sant Vicen\u00e7 de Calders \u2013 ManresaRodalies de Catalunya \u00b7 18\u00a0trenes ahora \u00b7 el peor +17\u00a0min8 con retraso2 avisos",
+  "chips": [
+   "8 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 18,
+  "zoom": "7.31"
+ },
+ {
+  "page": "line-r4-phone-dark",
+  "errors": []
+ },
+ {
+  "file": "line-r16-phone-dark.png",
+  "url": "/#map=6.74/39.606/1.317&line=rodalies:R16",
+  "header": "R16 Tortosa \u2013 Barcelona Estaci\u00f3 de Fran\u00e7aRodalies de Catalunya \u00b7 3\u00a0trenes ahora \u00b7 el peor +48\u00a0min2 con retraso2 avisos",
+  "chips": [
+   "2 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 3,
+  "zoom": "6.74"
+ },
+ {
+  "file": "line-r16-phone-dark-spur.png",
+  "url": "/#map=6.74/39.606/1.317&line=rodalies:R16",
+  "header": "R16 Tortosa \u2013 Barcelona Estaci\u00f3 de Fran\u00e7aRodalies de Catalunya \u00b7 3\u00a0trenes ahora \u00b7 el peor +48\u00a0min2 con retraso2 avisos",
+  "chips": [
+   "2 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 3,
+  "zoom": "6.74"
+ },
+ {
+  "file": "line-r16-phone-dark-panels.png",
+  "url": "/#map=6.74/39.606/1.317&line=rodalies:R16",
+  "header": "R16 Tortosa \u2013 Barcelona Estaci\u00f3 de Fran\u00e7aRodalies de Catalunya \u00b7 3\u00a0trenes ahora \u00b7 el peor +48\u00a0min2 con retraso2 avisos",
+  "chips": [
+   "2 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 3,
+  "zoom": "6.74"
+ },
+ {
+  "page": "line-r16-phone-dark",
+  "errors": []
+ },
+ {
+  "file": "line-r2s-phone-dark.png",
+  "url": "/#map=7.26/40.369/1.363&line=rodalies:R2S",
+  "header": "R2S Sant Vicen\u00e7 de Calders \u2013 Barcelona Estaci\u00f3 de Fran\u00e7aRodalies de Catalunya \u00b7 11\u00a0trenes ahora \u00b7 el peor +24\u00a0min7 con retraso1 aviso",
+  "chips": [
+   "7 con retraso",
+   "1 aviso"
+  ],
+  "banner": "Ferrocarrils de la Generalitat de Catalunya: sin datos en tiempo real",
+  "trains": 11,
+  "zoom": "7.26"
+ },
+ {
+  "file": "line-r2s-phone-dark-spur.png",
+  "url": "/#map=7.26/40.369/1.363&line=rodalies:R2S",
+  "header": "R2S Sant Vicen\u00e7 de Calders \u2013 Barcelona Estaci\u00f3 de Fran\u00e7aRodalies de Catalunya \u00b7 11\u00a0trenes ahora \u00b7 el peor +24\u00a0min7 con retraso1 aviso",
+  "chips": [
+   "7 con retraso",
+   "1 aviso"
+  ],
+  "banner": "Ferrocarrils de la Generalitat de Catalunya: sin datos en tiempo real",
+  "trains": 11,
+  "zoom": "7.26"
+ },
+ {
+  "file": "line-r2s-phone-dark-panels.png",
+  "url": "/#map=7.26/40.369/1.363&line=rodalies:R2S",
+  "header": "R2S Sant Vicen\u00e7 de Calders \u2013 Barcelona Estaci\u00f3 de Fran\u00e7aRodalies de Catalunya \u00b7 11\u00a0trenes ahora \u00b7 el peor +24\u00a0min7 con retraso1 aviso",
+  "chips": [
+   "7 con retraso",
+   "1 aviso"
+  ],
+  "banner": "",
+  "trains": 11,
+  "zoom": "7.26"
+ },
+ {
+  "page": "line-r2s-phone-dark",
+  "errors": []
+ },
+ {
+  "file": "line-c6-phone-dark.png",
+  "url": "/#map=8.99/43.1123/-5.6077&line=cercanias-asturias:C6",
+  "header": "C6 Oviedo \u2013 Infiesto ApeaderoCercan\u00edas Asturias \u00b7 6\u00a0trenes ahora \u00b7 el peor +44\u00a0min3 con retraso",
+  "chips": [
+   "3 con retraso"
+  ],
+  "banner": "",
+  "trains": 6,
+  "zoom": "8.99"
+ },
+ {
+  "page": "line-c6-phone-dark",
+  "errors": []
+ },
+ {
+  "file": "line-r4-wide-light.png",
+  "url": "/#map=9.26/41.4642/1.5847&line=rodalies:R4",
+  "header": "R4 Sant Vicen\u00e7 de Calders \u2013 ManresaRodalies de Catalunya \u00b7 18\u00a0trenes ahora \u00b7 el peor +17\u00a0min7 con retraso2 avisos",
+  "chips": [
+   "7 con retraso",
+   "2 avisos"
+  ],
+  "banner": "Ferrocarrils de la Generalitat de Catalunya: sin datos en tiempo real",
+  "trains": 18,
+  "zoom": "9.26"
+ },
+ {
+  "file": "line-r4-wide-light-panels.png",
+  "url": "/#map=9.26/41.4642/1.5847&line=rodalies:R4",
+  "header": "R4 Sant Vicen\u00e7 de Calders \u2013 ManresaRodalies de Catalunya \u00b7 18\u00a0trenes ahora \u00b7 el peor +17\u00a0min7 con retraso2 avisos",
+  "chips": [
+   "7 con retraso",
+   "2 avisos"
+  ],
+  "banner": "Ferrocarrils de la Generalitat de Catalunya: sin datos en tiempo real",
+  "trains": 18,
+  "zoom": "9.26"
+ },
+ {
+  "page": "line-r4-wide-light",
+  "errors": []
+ },
+ {
+  "file": "line-r16-wide-light.png",
+  "url": "/#map=8.3/41.015/0.789&line=rodalies:R16",
+  "header": "R16 Tortosa \u2013 Barcelona Estaci\u00f3 de Fran\u00e7aRodalies de Catalunya \u00b7 3\u00a0trenes ahora \u00b7 el peor +54\u00a0min2 con retraso2 avisos",
+  "chips": [
+   "2 con retraso",
+   "2 avisos"
+  ],
+  "banner": "Ferrocarrils de la Generalitat de Catalunya: sin datos en tiempo real",
+  "trains": 3,
+  "zoom": "8.30"
+ },
+ {
+  "file": "line-r16-wide-light-spur.png",
+  "url": "/#map=8.3/41.015/0.789&line=rodalies:R16",
+  "header": "R16 Tortosa \u2013 Barcelona Estaci\u00f3 de Fran\u00e7aRodalies de Catalunya \u00b7 3\u00a0trenes ahora \u00b7 el peor +54\u00a0min2 con retraso2 avisos",
+  "chips": [
+   "2 con retraso",
+   "2 avisos"
+  ],
+  "banner": "Ferrocarrils de la Generalitat de Catalunya: sin datos en tiempo real",
+  "trains": 3,
+  "zoom": "8.30"
+ },
+ {
+  "file": "line-r16-wide-light-panels.png",
+  "url": "/#map=8.3/41.015/0.789&line=rodalies:R16",
+  "header": "R16 Tortosa \u2013 Barcelona Estaci\u00f3 de Fran\u00e7aRodalies de Catalunya \u00b7 3\u00a0trenes ahora \u00b7 el peor +54\u00a0min2 con retraso2 avisos",
+  "chips": [
+   "2 con retraso",
+   "2 avisos"
+  ],
+  "banner": "Ferrocarrils de la Generalitat de Catalunya: sin datos en tiempo real",
+  "trains": 3,
+  "zoom": "8.30"
+ },
+ {
+  "page": "line-r16-wide-light",
+  "errors": []
+ },
+ {
+  "file": "line-r2s-wide-light.png",
+  "url": "/#map=8.37/41.266/0.862&line=rodalies:R2S",
+  "header": "R2S Sant Vicen\u00e7 de Calders \u2013 Barcelona Estaci\u00f3 de Fran\u00e7aRodalies de Catalunya \u00b7 12\u00a0trenes ahora \u00b7 el peor +24\u00a0min7 con retraso1 aviso",
+  "chips": [
+   "7 con retraso",
+   "1 aviso"
+  ],
+  "banner": "Ferrocarrils de la Generalitat de Catalunya: sin datos en tiempo real",
+  "trains": 12,
+  "zoom": "8.37"
+ },
+ {
+  "file": "line-r2s-wide-light-spur.png",
+  "url": "/#map=8.37/41.266/0.862&line=rodalies:R2S",
+  "header": "R2S Sant Vicen\u00e7 de Calders \u2013 Barcelona Estaci\u00f3 de Fran\u00e7aRodalies de Catalunya \u00b7 12\u00a0trenes ahora \u00b7 el peor +24\u00a0min7 con retraso1 aviso",
+  "chips": [
+   "7 con retraso",
+   "1 aviso"
+  ],
+  "banner": "Ferrocarrils de la Generalitat de Catalunya: sin datos en tiempo real",
+  "trains": 12,
+  "zoom": "8.37"
+ },
+ {
+  "file": "line-r2s-wide-light-panels.png",
+  "url": "/#map=8.37/41.266/0.862&line=rodalies:R2S",
+  "header": "R2S Sant Vicen\u00e7 de Calders \u2013 Barcelona Estaci\u00f3 de Fran\u00e7aRodalies de Catalunya \u00b7 12\u00a0trenes ahora \u00b7 el peor +24\u00a0min7 con retraso1 aviso",
+  "chips": [
+   "7 con retraso",
+   "1 aviso"
+  ],
+  "banner": "Ferrocarrils de la Generalitat de Catalunya: sin datos en tiempo real",
+  "trains": 12,
+  "zoom": "8.37"
+ },
+ {
+  "page": "line-r2s-wide-light",
+  "errors": []
+ },
+ {
+  "file": "line-c6-wide-light.png",
+  "url": "/#map=10.11/43.3717/-5.758&line=cercanias-asturias:C6",
+  "header": "C6 Oviedo \u2013 Infiesto ApeaderoCercan\u00edas Asturias \u00b7 6\u00a0trenes ahora \u00b7 el peor +45\u00a0min3 con retraso",
+  "chips": [
+   "3 con retraso"
+  ],
+  "banner": "",
+  "trains": 6,
+  "zoom": "10.11"
+ },
+ {
+  "page": "line-c6-wide-light",
+  "errors": []
+ },
+ {
+  "file": "line-r4-wide-dark.png",
+  "url": "/#map=9.26/41.4642/1.5847&line=rodalies:R4",
+  "header": "R4 Sant Vicen\u00e7 de Calders \u2013 ManresaRodalies de Catalunya \u00b7 17\u00a0trenes ahora \u00b7 el peor +17\u00a0min7 con retraso2 avisos",
+  "chips": [
+   "7 con retraso",
+   "2 avisos"
+  ],
+  "banner": "Ferrocarrils de la Generalitat de Catalunya: sin datos en tiempo real",
+  "trains": 17,
+  "zoom": "9.26"
+ },
+ {
+  "file": "line-r4-wide-dark-panels.png",
+  "url": "/#map=9.26/41.4642/1.5847&line=rodalies:R4",
+  "header": "R4 Sant Vicen\u00e7 de Calders \u2013 ManresaRodalies de Catalunya \u00b7 17\u00a0trenes ahora \u00b7 el peor +17\u00a0min7 con retraso2 avisos",
+  "chips": [
+   "7 con retraso",
+   "2 avisos"
+  ],
+  "banner": "Ferrocarrils de la Generalitat de Catalunya: sin datos en tiempo real",
+  "trains": 17,
+  "zoom": "9.26"
+ },
+ {
+  "page": "line-r4-wide-dark",
+  "errors": []
+ },
+ {
+  "file": "line-r16-wide-dark.png",
+  "url": "/#map=8.3/41.015/0.789&line=rodalies:R16",
+  "header": "R16 Tortosa \u2013 Barcelona Estaci\u00f3 de Fran\u00e7aRodalies de Catalunya \u00b7 3\u00a0trenes ahora \u00b7 el peor +54\u00a0min2 con retraso2 avisos",
+  "chips": [
+   "2 con retraso",
+   "2 avisos"
+  ],
+  "banner": "Ferrocarrils de la Generalitat de Catalunya: sin datos en tiempo real",
+  "trains": 3,
+  "zoom": "8.30"
+ },
+ {
+  "file": "line-r16-wide-dark-spur.png",
+  "url": "/#map=8.3/41.015/0.789&line=rodalies:R16",
+  "header": "R16 Tortosa \u2013 Barcelona Estaci\u00f3 de Fran\u00e7aRodalies de Catalunya \u00b7 3\u00a0trenes ahora \u00b7 el peor +54\u00a0min2 con retraso2 avisos",
+  "chips": [
+   "2 con retraso",
+   "2 avisos"
+  ],
+  "banner": "Ferrocarrils de la Generalitat de Catalunya: sin datos en tiempo real",
+  "trains": 3,
+  "zoom": "8.30"
+ },
+ {
+  "file": "line-r16-wide-dark-panels.png",
+  "url": "/#map=8.3/41.015/0.789&line=rodalies:R16",
+  "header": "R16 Tortosa \u2013 Barcelona Estaci\u00f3 de Fran\u00e7aRodalies de Catalunya \u00b7 3\u00a0trenes ahora \u00b7 el peor +54\u00a0min2 con retraso2 avisos",
+  "chips": [
+   "2 con retraso",
+   "2 avisos"
+  ],
+  "banner": "Ferrocarrils de la Generalitat de Catalunya: sin datos en tiempo real",
+  "trains": 3,
+  "zoom": "8.30"
+ },
+ {
+  "page": "line-r16-wide-dark",
+  "errors": []
+ },
+ {
+  "file": "line-r2s-wide-dark.png",
+  "url": "/#map=8.37/41.236/0.862&line=rodalies:R2S",
+  "header": "R2S Sant Vicen\u00e7 de Calders \u2013 Barcelona Estaci\u00f3 de Fran\u00e7aRodalies de Catalunya \u00b7 12\u00a0trenes ahora \u00b7 el peor +24\u00a0min7 con retraso1 aviso",
+  "chips": [
+   "7 con retraso",
+   "1 aviso"
+  ],
+  "banner": "",
+  "trains": 12,
+  "zoom": "8.37"
+ },
+ {
+  "file": "line-r2s-wide-dark-spur.png",
+  "url": "/#map=8.37/41.236/0.862&line=rodalies:R2S",
+  "header": "R2S Sant Vicen\u00e7 de Calders \u2013 Barcelona Estaci\u00f3 de Fran\u00e7aRodalies de Catalunya \u00b7 12\u00a0trenes ahora \u00b7 el peor +24\u00a0min7 con retraso1 aviso",
+  "chips": [
+   "7 con retraso",
+   "1 aviso"
+  ],
+  "banner": "",
+  "trains": 12,
+  "zoom": "8.37"
+ },
+ {
+  "file": "line-r2s-wide-dark-panels.png",
+  "url": "/#map=8.37/41.236/0.862&line=rodalies:R2S",
+  "header": "R2S Sant Vicen\u00e7 de Calders \u2013 Barcelona Estaci\u00f3 de Fran\u00e7aRodalies de Catalunya \u00b7 12\u00a0trenes ahora \u00b7 el peor +24\u00a0min7 con retraso1 aviso",
+  "chips": [
+   "7 con retraso",
+   "1 aviso"
+  ],
+  "banner": "",
+  "trains": 12,
+  "zoom": "8.37"
+ },
+ {
+  "page": "line-r2s-wide-dark",
+  "errors": []
+ },
+ {
+  "file": "line-c6-wide-dark.png",
+  "url": "/#map=10.11/43.3629/-5.758&line=cercanias-asturias:C6",
+  "header": "C6 Oviedo \u2013 Infiesto ApeaderoCercan\u00edas Asturias \u00b7 6\u00a0trenes ahora \u00b7 el peor +47\u00a0min4 con retraso",
+  "chips": [
+   "4 con retraso"
+  ],
+  "banner": "",
+  "trains": 6,
+  "zoom": "10.11"
+ },
+ {
+  "page": "line-c6-wide-dark",
+  "errors": []
+ },
+ {
+  "file": "hover-r4-phone-light-hover.png",
+  "url": "/#map=7.31/40.525/1.856&line=rodalies:R4",
+  "header": "R4 Sant Vicen\u00e7 de Calders \u2013 ManresaRodalies de Catalunya \u00b7 18\u00a0trenes ahora \u00b7 el peor +17\u00a0min7 con retraso2 avisos",
+  "chips": [
+   "7 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 18,
+  "zoom": "7.31"
+ },
+ {
+  "file": "hover-r4-phone-light-focus.png",
+  "url": "/#map=7.31/40.525/1.856&line=rodalies:R4",
+  "header": "R4 Sant Vicen\u00e7 de Calders \u2013 ManresaRodalies de Catalunya \u00b7 18\u00a0trenes ahora \u00b7 el peor +17\u00a0min7 con retraso2 avisos",
+  "chips": [
+   "7 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 18,
+  "zoom": "7.31"
+ },
+ {
+  "page": "hover-r4-phone-light",
+  "errors": []
+ },
+ {
+  "file": "hover-r4-phone-dark-hover.png",
+  "url": "/#map=7.31/40.525/1.856&line=rodalies:R4",
+  "header": "R4 Sant Vicen\u00e7 de Calders \u2013 ManresaRodalies de Catalunya \u00b7 18\u00a0trenes ahora \u00b7 el peor +17\u00a0min7 con retraso2 avisos",
+  "chips": [
+   "7 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 18,
+  "zoom": "7.31"
+ },
+ {
+  "file": "hover-r4-phone-dark-focus.png",
+  "url": "/#map=7.31/40.525/1.856&line=rodalies:R4",
+  "header": "R4 Sant Vicen\u00e7 de Calders \u2013 ManresaRodalies de Catalunya \u00b7 18\u00a0trenes ahora \u00b7 el peor +17\u00a0min7 con retraso2 avisos",
+  "chips": [
+   "7 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 18,
+  "zoom": "7.31"
+ },
+ {
+  "page": "hover-r4-phone-dark",
+  "errors": []
+ },
+ {
+  "file": "hover-r4-wide-light-hover.png",
+  "url": "/#map=9.34/41.4482/1.6003&line=rodalies:R4",
+  "header": "R4 Sant Vicen\u00e7 de Calders \u2013 ManresaRodalies de Catalunya \u00b7 18\u00a0trenes ahora \u00b7 el peor +17\u00a0min7 con retraso2 avisos",
+  "chips": [
+   "7 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 18,
+  "zoom": "9.34"
+ },
+ {
+  "file": "hover-r4-wide-light-focus.png",
+  "url": "/#map=9.34/41.4482/1.6003&line=rodalies:R4",
+  "header": "R4 Sant Vicen\u00e7 de Calders \u2013 ManresaRodalies de Catalunya \u00b7 18\u00a0trenes ahora \u00b7 el peor +17\u00a0min7 con retraso2 avisos",
+  "chips": [
+   "7 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 18,
+  "zoom": "9.34"
+ },
+ {
+  "page": "hover-r4-wide-light",
+  "errors": []
+ },
+ {
+  "file": "hover-r4-wide-dark-hover.png",
+  "url": "/#map=9.34/41.4482/1.6003&line=rodalies:R4",
+  "header": "R4 Sant Vicen\u00e7 de Calders \u2013 ManresaRodalies de Catalunya \u00b7 18\u00a0trenes ahora \u00b7 el peor +17\u00a0min7 con retraso2 avisos",
+  "chips": [
+   "7 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 18,
+  "zoom": "9.34"
+ },
+ {
+  "file": "hover-r4-wide-dark-focus.png",
+  "url": "/#map=9.34/41.4482/1.6003&line=rodalies:R4",
+  "header": "R4 Sant Vicen\u00e7 de Calders \u2013 ManresaRodalies de Catalunya \u00b7 18\u00a0trenes ahora \u00b7 el peor +17\u00a0min7 con retraso2 avisos",
+  "chips": [
+   "7 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 18,
+  "zoom": "9.34"
+ },
+ {
+  "page": "hover-r4-wide-dark",
+  "errors": []
+ },
+ {
+  "file": "banner-c6-feed-phone-light.png",
+  "url": "/#map=8.99/43.0868/-5.6077&line=cercanias-asturias:C6",
+  "header": "C6 Oviedo \u2013 Infiesto ApeaderoCercan\u00edas Asturias \u00b7 6\u00a0trenes ahora \u00b7 el peor +47\u00a0min1 con retraso",
+  "chips": [
+   "1 con retraso"
+  ],
+  "banner": "Cercan\u00edas Asturias: sin datos en tiempo real",
+  "trains": 6,
+  "zoom": "8.99"
+ },
+ {
+  "page": "banner-c6-feed-phone-light",
+  "errors": []
+ },
+ {
+  "file": "banner-c6-all-phone-light.png",
+  "url": "/#map=8.99/43.0868/-5.6077&line=cercanias-asturias:C6",
+  "header": "C6 Oviedo \u2013 Infiesto ApeaderoCercan\u00edas Asturias \u00b7 5\u00a0trenes ahora \u00b7 todos programados",
+  "chips": [],
+  "banner": "Cercan\u00edas Asturias: sin datos en tiempo realMedia Distancia y Avant: sin datos en tiempo realAVE y Larga Distancia: sin datos en tiempo real",
+  "trains": 5,
+  "zoom": "8.99"
+ },
+ {
+  "page": "banner-c6-all-phone-light",
+  "errors": []
+ },
+ {
+  "file": "banner-c6-feed-phone-dark.png",
+  "url": "/#map=8.99/43.0868/-5.6077&line=cercanias-asturias:C6",
+  "header": "C6 Oviedo \u2013 Infiesto ApeaderoCercan\u00edas Asturias \u00b7 6\u00a0trenes ahora \u00b7 el peor +48\u00a0min1 con retraso",
+  "chips": [
+   "1 con retraso"
+  ],
+  "banner": "Cercan\u00edas Asturias: sin datos en tiempo real",
+  "trains": 6,
+  "zoom": "8.99"
+ },
+ {
+  "page": "banner-c6-feed-phone-dark",
+  "errors": []
+ },
+ {
+  "file": "banner-c6-all-phone-dark.png",
+  "url": "/#map=8.99/43.0868/-5.6077&line=cercanias-asturias:C6",
+  "header": "C6 Oviedo \u2013 Infiesto ApeaderoCercan\u00edas Asturias \u00b7 5\u00a0trenes ahora \u00b7 todos programados",
+  "chips": [],
+  "banner": "Cercan\u00edas Asturias: sin datos en tiempo realMedia Distancia y Avant: sin datos en tiempo realAVE y Larga Distancia: sin datos en tiempo real",
+  "trains": 5,
+  "zoom": "8.99"
+ },
+ {
+  "page": "banner-c6-all-phone-dark",
+  "errors": []
+ },
+ {
+  "file": "banner-c6-feed-wide-light.png",
+  "url": "/#map=10.11/43.3629/-5.758&line=cercanias-asturias:C6",
+  "header": "C6 Oviedo \u2013 Infiesto ApeaderoCercan\u00edas Asturias \u00b7 6\u00a0trenes ahora \u00b7 el peor +48\u00a0min1 con retraso",
+  "chips": [
+   "1 con retraso"
+  ],
+  "banner": "Cercan\u00edas Asturias: sin datos en tiempo real",
+  "trains": 6,
+  "zoom": "10.11"
+ },
+ {
+  "page": "banner-c6-feed-wide-light",
+  "errors": []
+ },
+ {
+  "file": "banner-c6-all-wide-light.png",
+  "url": "/#map=10.11/43.3629/-5.758&line=cercanias-asturias:C6",
+  "header": "C6 Oviedo \u2013 Infiesto ApeaderoCercan\u00edas Asturias \u00b7 5\u00a0trenes ahora \u00b7 todos programados",
+  "chips": [],
+  "banner": "Cercan\u00edas Asturias: sin datos en tiempo realMedia Distancia y Avant: sin datos en tiempo realAVE y Larga Distancia: sin datos en tiempo real",
+  "trains": 5,
+  "zoom": "10.11"
+ },
+ {
+  "page": "banner-c6-all-wide-light",
+  "errors": []
+ },
+ {
+  "file": "banner-c6-feed-wide-dark.png",
+  "url": "/#map=10.11/43.3629/-5.758&line=cercanias-asturias:C6",
+  "header": "C6 Oviedo \u2013 Infiesto ApeaderoCercan\u00edas Asturias \u00b7 6\u00a0trenes ahora \u00b7 el peor +49\u00a0min1 con retraso",
+  "chips": [
+   "1 con retraso"
+  ],
+  "banner": "Cercan\u00edas Asturias: sin datos en tiempo real",
+  "trains": 6,
+  "zoom": "10.11"
+ },
+ {
+  "page": "banner-c6-feed-wide-dark",
+  "errors": []
+ },
+ {
+  "file": "banner-c6-all-wide-dark.png",
+  "url": "/#map=10.11/43.3629/-5.758&line=cercanias-asturias:C6",
+  "header": "C6 Oviedo \u2013 Infiesto ApeaderoCercan\u00edas Asturias \u00b7 5\u00a0trenes ahora \u00b7 todos programados",
+  "chips": [],
+  "banner": "Cercan\u00edas Asturias: sin datos en tiempo realMedia Distancia y Avant: sin datos en tiempo realAVE y Larga Distancia: sin datos en tiempo real",
+  "trains": 5,
+  "zoom": "10.11"
+ },
+ {
+  "page": "banner-c6-all-wide-dark",
+  "errors": []
+ },
+ {
+  "file": "search-r16-phone-light-1-results.png",
+  "url": "/#map=11/41.39/2.17/0/45",
+  "header": "Buscar",
+  "chips": [],
+  "banner": "",
+  "trains": 0,
+  "zoom": "11.00"
+ },
+ {
+  "file": "search-r16-phone-light-2-screen.png",
+  "url": "/#map=11/41.39/2.17/0/45&line=rodalies:R16",
+  "header": "R16 Tortosa \u2013 Barcelona Estaci\u00f3 de Fran\u00e7aRodalies de Catalunya \u00b7 3\u00a0trenes ahora \u00b7 el peor +54\u00a0min2 con retraso2 avisos",
+  "chips": [
+   "2 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 3,
+  "zoom": "11.00"
+ },
+ {
+  "page": "search-r16-phone-light",
+  "errors": []
+ },
+ {
+  "file": "search-r16-wide-light-1-results.png",
+  "url": "/#map=11/41.39/2.17/0/45",
+  "header": "Buscar",
+  "chips": [],
+  "banner": "",
+  "trains": 0,
+  "zoom": "11.00"
+ },
+ {
+  "file": "search-r16-wide-light-2-screen.png",
+  "url": "/#map=6.94/40.965/-0.03&line=rodalies:R16",
+  "header": "R16 Tortosa \u2013 Barcelona Estaci\u00f3 de Fran\u00e7aRodalies de Catalunya \u00b7 3\u00a0trenes ahora \u00b7 el peor +54\u00a0min2 con retraso2 avisos",
+  "chips": [
+   "2 con retraso",
+   "2 avisos"
+  ],
+  "banner": "",
+  "trains": 3,
+  "zoom": "6.94"
+ },
+ {
+  "page": "search-r16-wide-light",
+  "errors": []
+ }
+]
