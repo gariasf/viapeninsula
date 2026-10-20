@@ -108,6 +108,12 @@ _Avoid_: Incident, notice, warning, disruption
 A part of a Line between two of its Stations that's closed, with buses or nothing in its Trains' place, or down to a single track, for as long as its Alert or the timetable says. A Closure a TRAM Alert makes lasts only while the timetable runs the Trains of the Alert's Lines short of it. The map draws only the Closures it can place on the Line's track. Within a closed one, a Train isn't drawn, and boards show it not stopping, unless it's Live within it: live data wins. Once a Live Train of its Line is seen within one an Alert makes, it hides none of that Line's Trains until its Alert changes, though it's still drawn.
 _Avoid_: Closed stretch (a Stretch is track, ADR-0006), cut, blockade
 
+### Favourites
+
+**Favourite**:
+A Station or a Line a viewer keeps, with the star on its board or its Line's screen, kept only in their browser with its name as it was kept (ADR-0011). A Station is kept by its place, so an interchange's board is kept once. Not a Train: a Train is one service day's run. One the map no longer has keeps its row, saying so, till the viewer removes it.
+_Avoid_: Bookmark, saved, pinned
+
 ### Passport
 
 **Passport**:
