@@ -109,6 +109,7 @@ const STRINGS = {
   // How long until a Train comes: under a time on a board or in Nearby, and under the followed Train's next Station's, which counts in seconds in its last minute (#456). Their units are symbols, min and s, which have no plural,
   // and a no-break space (U+00A0) joins each to its number, so that a line of a card's paragraph never ends between them (#612).
   minutes: { ca: '{n}\u00A0min', es: '{n}\u00A0min', eu: '{n}\u00A0min', gl: '{n}\u00A0min', en: '{n}\u00A0min' },
+  hours: { ca: '{n}\u00A0h', es: '{n}\u00A0h', eu: '{n}\u00A0h', gl: '{n}\u00A0h', en: '{n}\u00A0h' },
   inMinutes: { ca: "d'aquí a {n}\u00A0min", es: 'en {n}\u00A0min', eu: '{n}\u00A0min barru', gl: 'en {n}\u00A0min', en: 'in {n}\u00A0min' },
   inSeconds: { ca: "d'aquí a {n}\u00A0s", es: 'en {n}\u00A0s', eu: '{n}\u00A0s barru', gl: 'en {n}\u00A0s', en: 'in {n}\u00A0s' },
   now: { ca: 'ara', es: 'ahora', eu: 'orain', gl: 'agora', en: 'now' },
@@ -689,6 +690,10 @@ export const ridesCount = (n: number, lang = language()): string => counting(n, 
 
 /** How many Stations a Passport's Rides called at, `n` (#332), in `lang`, or else the language the interface speaks now. */
 export const stationsCalled = (n: number, lang = language()): string => counting(n, 'oneStationCalled', 'stationsCalled', lang);
+
+/** The Passport's total time, `n` minutes (#332), as hours and minutes, each as `hours` and `minutes` have it, as the maintainer picked, in `lang`, or else the language the interface speaks now. */
+export const hoursMinutes = (n: number, lang = language()): string =>
+  [n >= 60 && STRINGS.hours[lang].replace('{n}', String(Math.floor(n / 60))), (n % 60 || n < 60) && STRINGS.minutes[lang].replace('{n}', String(n % 60))].filter(Boolean).join(' ');
 
 /** How many of a group's `of` Stamps are earned, `n` (#332), in `lang`, or else the language the interface speaks now. */
 export const earnedOf = (n: number, of: number, lang = language()): string => STRINGS.earnedOf[lang].replace('{n}', String(n)).replace('{of}', String(of));

@@ -8,7 +8,7 @@ import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
 import { along, APART, atZoom, BANDS, bandZooms, GRAPH_BAND, STRETCH, inBand, onStroke, pointAt, profiled, zones, type Zone, daysNeeded, daysOf, SOON, DEGREE, EARTH, joinTracks, LATE, LIVE_URL, madridDate, networkTracks, places, type Alerts, type Bundle, type Credit, type Call, type DayFiles, type Place, type Kind, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH, type ZoomedOut } from '../bundle.ts';
 import { boardAt, comingAt, KEEP, lastDays, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, tripsAt, unavailable, type Coming, type Departure, type Followed, type Received, type Train, type TripNow } from '../engine.ts';
-import { earnedOf, ridesCount, stampEarned, stationsCalled, alertCount, alertsChanged, firstLeaves, lastArrives, lateOf, moreAlerts, moreLines, networkCounts, unreportedCount, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, branchOff, busesReplace, cancelledCount, earlierStations, endsHere, followDeparture, goOn, starLabel, lateCount, standingAt, worstLate, trainsNow, turnsHere, language, LANGUAGES, leavesAt, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, placedBy, setLanguage, setNameLanguages, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated, type Language, type Unlocated } from './i18n.ts';
+import { earnedOf, hoursMinutes, ridesCount, stampEarned, stationsCalled, alertCount, alertsChanged, firstLeaves, lastArrives, lateOf, moreAlerts, moreLines, networkCounts, unreportedCount, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, branchOff, busesReplace, cancelledCount, earlierStations, endsHere, followDeparture, goOn, starLabel, lateCount, standingAt, worstLate, trainsNow, turnsHere, language, LANGUAGES, leavesAt, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, placedBy, setLanguage, setNameLanguages, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { getJson, lookAgainSoon, RETRY, STALL } from './files.ts';
 import { daysAsTheyCome, firstLook, forgetJoined, joinedFrom, regionLoader, regionsCame, regionsNeeded, trackFileOf } from './regions.ts';
@@ -4127,7 +4127,7 @@ function networkOf(id: string): Network | undefined {
 
 /**
  * The Passport's sheet (#332): off, what a Ride is and its switch; on, its totals of Rides, hours, km and Stations
- * called at, each Network's Stamps and the kinds of service's, `n of N`, as the Lines below zoom 7 have them, its
+ * called at, the Stamps of each Network with one earned and the kinds of service's, `n of N`, as the Lines below zoom 7 have them, its
  * Rides, newest first, and the Stations called at; with where it's kept, what erases it, and Clear, which does.
  */
 function passportPanel(): Panel {
@@ -4154,9 +4154,10 @@ function passportPanel(): Panel {
     const got = ids.flatMap((id) => earned.get(id) ?? []);
     return el('li', { className: 'stamp-group' }, el('div', { className: 'stamp-head' }, el('span', { textContent: name }), el('span', { className: 'meta', textContent: earnedOf(got.length, ids.length) })), ...(got.length ? [el('div', { className: 'stamps' }, ...got.map((stamp) => stampPill(stamp, short, day)))] : []));
   };
+  // Only the Networks with a Stamp earned, as the maintainer picked (#332).
   const networks = (zoomedOut?.networks ?? bundle?.networks ?? []).flatMap((n) => {
     const of = catalogue.filter((l) => l.network === n.id);
-    return of.length ? [group(stampName(`network:${n.id}`), [`network:${n.id}`, ...of.map((l) => `line:${l.id}`)])] : [];
+    return of.length && [`network:${n.id}`, ...of.map((l) => `line:${l.id}`)].some((id) => earned.has(id)) ? [group(stampName(`network:${n.id}`), [`network:${n.id}`, ...of.map((l) => `line:${l.id}`)])] : [];
   });
   const ride = (r: Ride) =>
     el(
@@ -4167,7 +4168,7 @@ function passportPanel(): Panel {
   return {
     header,
     body: [
-      el('p', { className: 'passport-totals', textContent: [ridesCount(sum.rides), `${number.format(sum.minutes / 60)} h`, `${number.format(sum.km)} km`, stationsCalled(sum.stations.length)].join(' · ') }),
+      el('p', { className: 'passport-totals', textContent: [ridesCount(sum.rides), hoursMinutes(sum.minutes), `${number.format(sum.km)} km`, stationsCalled(sum.stations.length)].join(' · ') }),
       el('h3', { className: 'label', textContent: t('stamps') }),
       el('ol', { className: 'stamp-groups' }, ...networks, group(t('kindsOfService'), [...new Set(catalogue.map((l) => l.kind))].map((k) => `kind:${k}`))),
       el('h3', { className: 'label', textContent: t('rides') }),
