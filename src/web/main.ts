@@ -3845,7 +3845,7 @@ function linePanel(id: string): Panel | undefined {
       el(
         'div',
         { className: 'line-state' },
-        el('p', { className: 'meta status-line parts' }, el('span', { className: `dot ${state.live ? 'live' : 'scheduled'}` }), ...parts([network, ...stateWords(state)])),
+        el('p', { className: 'meta status-line parts' }, ...parts([network, ...stateWords(state)], el('span', { className: `dot ${state.live ? 'live' : 'scheduled'}` }))),
         el('div', { className: 'state-chips', hidden: !chips.length }, ...chips),
       ),
     ),
@@ -3875,9 +3875,9 @@ function stateWords(state: ReturnType<typeof lineState>): string[] {
   return [trainsNow(state.trains), ...how];
 }
 
-/** `words` as parts that don't break, each after the first led by a dot that `.parts` hides where the part starts a line, so no dot starts or ends one (#472). */
-function parts(words: string[]) {
-  return words.flatMap((word, i) => [...(i ? [' '] : []), el('span', { className: 'part', textContent: word })]);
+/** `words` as parts that don't break, `lead` kept with the first, each after the first led by a dot that `.parts` hides where the part starts a line, so no dot starts or ends one (#472). */
+function parts(words: string[], ...lead: Node[]) {
+  return words.flatMap((word, i) => [...(i ? [' '] : []), el('span', { className: 'part' }, ...(i ? [] : lead), word)]);
 }
 
 /**

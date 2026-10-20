@@ -958,7 +958,7 @@ button.result {
 .parts {
   margin-left: -0.55em;
   text-indent: 0.55em;
-  clip-path: inset(-1em -1em -1em 0.55em);
+  clip-path: inset(-1em -100vw -1em 0.55em);
 }
 
 .part {
