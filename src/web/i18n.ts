@@ -662,8 +662,9 @@ export const lateOf = (n: number, m: number, lang = language()): string => STRIN
 /** How many of a Line's Trains on the map have no live data, in `lang`, or else the language the interface speaks now (#474). */
 export const unreportedCount = (n: number, lang = language()): string => STRINGS.unreportedCount[lang].replace('{n}', String(n));
 
-/** When a Network's first Train today leaves, and its last arrives, `time`, as Now says it near then, in `lang`, or else the language the interface speaks now (#474). */
+/** When a Network's first Train today leaves, `time`, as Now says it until 09:00, in `lang`, or else the language the interface speaks now (#474). */
 export const firstLeaves = (time: string, lang = language()): string => STRINGS.firstLeaves[lang].replace('{time}', time);
+/** When a Network's last Train of the day arrives, `time`, as Now says it from 20:00, and after midnight while it's still to arrive, in `lang`, or else the language the interface speaks now (#474). */
 export const lastArrives = (time: string, lang = language()): string => STRINGS.lastArrives[lang].replace('{time}', time);
 
 /** How many of a Network's Trains on the map are Scheduled with no live data, in `lang`, or else the language the interface speaks now (#474). */
