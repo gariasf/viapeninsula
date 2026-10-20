@@ -1701,7 +1701,7 @@ button.fav-row {
   text-align: left;
 }
 
-.die-row:disabled {
+.die-row[aria-disabled='true'] {
   color: var(--ink-soft);
   cursor: default;
 }

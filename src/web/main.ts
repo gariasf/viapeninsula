@@ -4045,7 +4045,9 @@ function nowPanel(): Panel {
   const mapNow = mapTime(now, received);
   const day = new Intl.DateTimeFormat(locale(), { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Madrid' }).format(mapNow);
   const top = el('p', { className: 'meta status-line parts' }, ...parts([day, clock().format(mapNow), ...(counts ? [trainCounts(...counts).join(', ')] : [])]));
-  const die = el('button', { type: 'button', className: 'card die-row', disabled: !toFollow, onclick: followRandom }, icon('die'), el('span', { textContent: t('followRandom') }));
+  // Marked unavailable rather than disabled while there's no Train to follow, so that it keeps the keyboard's focus as that changes; followRandom() then follows none.
+  const die = el('button', { type: 'button', className: 'card die-row', onclick: followRandom }, icon('die'), el('span', { textContent: t('followRandom') }));
+  die.setAttribute('aria-disabled', String(!toFollow));
   if (!bundle) return { header, body: [top, die, el('p', { className: 'meta', textContent: t('loading') })] };
   const days = bundle;
   const name = (network: string) => days.networks.find((n) => n.id === network)?.name ?? network;
