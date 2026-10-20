@@ -4,7 +4,7 @@
 import type { Trip } from '../bundle.ts';
 
 /** Where a followed Train is, as the engine's tripsAt() has it, as much as a Ride needs. */
-export type RideNow = { trip: Trip } & ({ train: { live: boolean; delay?: number; upcoming: { station: string }[] } } | { coming: { live: boolean; within?: unknown } } | { cancelled: true } | { ended: number } | {});
+export type RideNow = { trip: Trip } & ({ train: { live: boolean; delay?: number; upcoming: { station: string }[] } } | { coming: { live: boolean; within?: unknown } } | { cancelled: true } | { ended: number } | { off: true });
 
 /** A Ride under way: the Train's key, its service day and Trip as the link has it, whether it was seen Live, and that it was read back from storage, by a page reloaded, till the next step has it still running. */
 export interface Riding {
@@ -17,8 +17,8 @@ export interface Riding {
 const LATE = 60_000;
 
 /**
- * A Ride's next step, at a moment `at` (ms since 1970), for the Train followed, `key`, where it is now (`now`: its Trip alone
- * where it's off the map past the border, and none where nothing's known): the Ride under way, or that it's `done`, or neither. A Ride begins
+ * A Ride's next step, at a moment `at` (ms since 1970), for the Train followed, `key`, where it is now (`now`: `off` where
+ * it's off the map past the border, and none where nothing's known): the Ride under way, or that it's `done`, or neither. A Ride begins
  * before the Train leaves its Trip's first Station on the map, `onMap`, or within LATE after, running its Delay late,
  * and is done once it has left its last there, or ended, or off the map, was due there: a Train into France ends at the border. A Train Cancelled
  * gives none, nor one read back from storage once the Train had ended, as the page wasn't back in time.
@@ -31,7 +31,7 @@ export function rideStep(riding: Riding | undefined, key: string, now: RideNow |
   const calls = now.trip.calls.filter((c) => onMap(c.station));
   const [first, last] = [calls[0], calls.at(-1)];
   if (!first || !last) return {};
-  if (!('train' in now || 'coming' in now)) return riding && !riding.restored && at >= noonMinus12h + last.arrival * 1000 ? { done: true } : riding ? { riding } : {};
+  if ('off' in now) return riding && !riding.restored && at >= noonMinus12h + last.arrival * 1000 ? { done: true } : riding ? { riding } : {};
   const { live } = 'train' in now ? now.train : now.coming;
   const upcoming = 'train' in now ? now.train.upcoming.map((c) => c.station) : undefined;
   if (upcoming && !upcoming.includes(last.station)) return riding && !riding.restored ? { done: true } : {};

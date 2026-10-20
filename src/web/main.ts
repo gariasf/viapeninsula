@@ -3074,7 +3074,8 @@ function openLink(ring = true) {
  */
 function writeLink() {
   // A Ride is a follow: one of another Train, or of none, ends it (#332).
-  if (pass.riding()?.key !== followKey()) pass.setRiding(undefined);
+  // Not while a link's Train waits for its regions, which a page reloaded on a Ride does before it follows it again.
+  if (!linkWaits && pass.riding()?.key !== followKey()) pass.setRiding(undefined);
   const params = new URLSearchParams(location.hash.slice(1));
   params.delete('train');
   params.delete('station');
@@ -4052,12 +4053,15 @@ function rideOn(seen: RideNow | undefined, at: number): Node[] {
   const [key, id] = [followKey(), followedId()];
   if (!pass.on() || !bundle || !key) return [];
   const trip = seen ? undefined : bundle.trips.find((t) => t.id === id);
-  const now = seen ?? (trip && (tripsAt(bundle, at, received, [trip], hidingClosures)[0] ?? { trip }));
+  const now = seen ?? (trip && (tripsAt(bundle, at, received, [trip], hidingClosures)[0] ?? { trip, off: true as const }));
   const { riding, done } = rideStep(pass.riding(), key, now, at, bundle.noonMinus12h, (station) => stationNames.has(station));
-  const line = now && lines.get(now.trip.line);
+  // Its Line as the file below zoom 7 has it too, where its region has gone from the map meanwhile.
+  const line = now && (lines.get(now.trip.line) ?? searchedLines.get(now.trip.line));
   if (done && now && line) {
     const had = new Set(stamps(pass.rides()).map((s) => s.id));
-    pass.add(rideOf(now.trip, key, line, !!pass.riding()?.live, bundle.noonMinus12h, (station) => stationNames.get(station)));
+    // Live too where the step that ends it is its first Live one.
+    const live = !!pass.riding()?.live || ('train' in now && now.train.live);
+    pass.add(rideOf(now.trip, key, line, live, bundle.noonMinus12h, (station) => stationNames.get(station)));
     const earned = stamps(pass.rides()).filter((s) => !had.has(s.id));
     if (earned.length) sayStamps(earned.map((s) => stampName(s.id)).join(', '));
   }
@@ -4080,7 +4084,7 @@ function stampName(id: string): string {
   const [of, what] = [id.slice(id.indexOf(':') + 1), id.slice(0, id.indexOf(':'))];
   if (what === 'line') return (lines.get(of) ?? searchedLines.get(of))?.name ?? of;
   if (what === 'kind') return t(of as Kind);
-  const network = (zoomedOut?.networks ?? bundle?.networks ?? []).find((n) => n.id === of);
+  const network = networkOf(of);
   return network?.short ?? network?.name ?? of;
 }
 
@@ -4088,10 +4092,15 @@ function stampName(id: string): string {
 function stampPill(id: string, live: boolean): HTMLElement {
   const of = id.slice(id.indexOf(':') + 1);
   if (id.startsWith('line:')) return pill(of, { live, train: true });
-  const network = (zoomedOut?.networks ?? bundle?.networks ?? []).find((n) => n.id === of);
-  const shown = namedPill(stampName(id), network?.colour ?? STAMP_GREY, id.startsWith('kind:') ? outlineOf(of as Kind) : 'round', live);
+  const kind = id.startsWith('kind:');
+  const shown = namedPill(stampName(id), kind ? STAMP_GREY : networkOf(of)?.colour, kind ? outlineOf(of as Kind) : 'round', live);
   shown.append(el('span', { className: 'sr-only', textContent: `, ${t(live ? 'live' : 'scheduled')}` }));
   return shown;
+}
+
+/** A Network by its ID, of every region's, as the file below zoom 7 has them, or else the days on the map's. */
+function networkOf(id: string): Network | undefined {
+  return (zoomedOut?.networks ?? bundle?.networks ?? []).find((n) => n.id === id);
 }
 
 /** The colour of a kind of service's Stamp, the grey of a Line's stroke zoomed out where it has none of its own (#781). */

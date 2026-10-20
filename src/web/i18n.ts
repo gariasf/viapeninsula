@@ -220,7 +220,7 @@ const STRINGS = {
   loading: { ca: 'Carregant…', es: 'Cargando…', eu: 'Kargatzen…', gl: 'Cargando…', en: 'Loading…' },
   noLongerOnMap: { ca: 'Ja no és al mapa', es: 'Ya no está en el mapa', eu: 'Jada ez dago mapan', gl: 'Xa non está no mapa', en: 'No longer on the map' },
   // The Passport (#332), which its tab opens: the button that closes it; what it says while off, or with no Rides, and its switch; where it's kept, and what erases it; Clear, which erases it
-  // and turns it off; its sections; how many Rides, and Stations called at; how many of a group's Stamps are earned; the followed Train's card while it's a Ride; the note as a Ride earns a Stamp, {name} its Line's, kind's or Network's.
+  // and turns it off; its sections (`stamps`, `kindsOfService`, `rides`, `stationsCalledAt`); how many Rides, and Stations called at; how many of a group's Stamps are earned; the followed Train's card while it's a Ride; the note as a Ride earns a Stamp, {name} its Line's, kind's or Network's.
   passport: { ca: 'Passaport', es: 'Pasaporte', eu: 'Pasaportea', gl: 'Pasaporte', en: 'Passport' },
   closePassport: { ca: 'Tanca el Passaport', es: 'Cerrar el Pasaporte', eu: 'Itxi Pasaportea', gl: 'Pechar o Pasaporte', en: 'Close the Passport' },
   noRides: { ca: 'Encara no hi ha cap viatge.', es: 'Aún no hay ningún viaje.', eu: 'Oraindik ez dago bidaiarik.', gl: 'Aínda non hai ningunha viaxe.', en: 'No Rides yet.' },
@@ -229,7 +229,7 @@ const STRINGS = {
     es: 'Sigue un tren desde la primera estación, antes de que salga o en el primer minuto, hasta la última, en directo o programado: el viaje gana un sello para la línea, el tipo de servicio y la red, lleno si lo has visto en directo al menos una vez y vacío si no.',
     eu: 'Jarraitu tren bati lehen geltokitik, irten aurretik edo lehen minutuan, azkenekoraino, zuzenean edo programatuta: bidaiak zigilu bat irabazten du linearentzat, zerbitzu motarentzat eta sarearentzat, betea gutxienez behin zuzenean ikusi baduzu, eta hutsa bestela.',
     gl: 'Segue un tren desde a primeira estación, antes de que saia ou no primeiro minuto, ata a última, en directo ou programado: a viaxe gaña un selo para a liña, o tipo de servizo e a rede, cheo se o viches en directo polo menos unha vez e baleiro se non.',
-    en: "Follow a Train from its first Station, before it leaves or within a minute, to its last, Live or Scheduled: the Ride earns a stamp for its Line, its kind of service and its Network, filled if you saw it Live at least once, and ringed if not.",
+    en: "Follow a Train from its first Station, before it leaves or within a minute, to its last, Live or Scheduled: the Ride earns a Stamp for its Line, its kind of service and its Network, filled if you saw it Live at least once, and ringed if not.",
   },
   turnOnPassport: { ca: 'Activa el Passaport', es: 'Activar el Pasaporte', eu: 'Aktibatu Pasaportea', gl: 'Activar o Pasaporte', en: 'Turn on the Passport' },
   passportKept: {
