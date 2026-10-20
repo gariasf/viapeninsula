@@ -203,10 +203,10 @@ const STRINGS = {
   removeFavourite: { ca: 'Treu {name} dels Preferits', es: 'Quitar {name} de Favoritos', eu: 'Kendu {name} Gogokoetatik', gl: 'Quitar {name} de Favoritos', en: 'Remove {name} from Favourites' },
   nothingKept: { ca: 'Encara no hi ha res.', es: 'Aún no hay nada.', eu: 'Oraindik ez dago ezer.', gl: 'Aínda non hai nada.', en: 'Nothing here yet.' },
   howToKeep: {
-    ca: "Toca l'estrella al panell d'una estació o a la pantalla d'una línia per desar-la aquí. Els preferits només es queden en aquest navegador.",
-    es: 'Toca la estrella en el panel de una estación o en la pantalla de una línea para guardarla aquí. Los favoritos solo se quedan en este navegador.',
+    ca: "Toca l'estrella al panell d'una estació o a la pantalla d'una línia per desar-la aquí. Els Preferits només es queden en aquest navegador.",
+    es: 'Toca la estrella en el panel de una estación o en la pantalla de una línea para guardarla aquí. Los Favoritos solo se quedan en este navegador.',
     eu: 'Sakatu izarra geltoki baten panelean edo linea baten pantailan hemen gordetzeko. Gogokoak nabigatzaile honetan bakarrik gordetzen dira.',
-    gl: 'Toca a estrela no panel dunha estación ou na pantalla dunha liña para gardala aquí. Os favoritos só quedan neste navegador.',
+    gl: 'Toca a estrela no panel dunha estación ou na pantalla dunha liña para gardala aquí. Os Favoritos só quedan neste navegador.',
     en: "Tap the star on a Station's board or a Line's screen to keep it here. Favourites stay in this browser only.",
   },
   keptNote: {
