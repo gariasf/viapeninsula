@@ -4052,9 +4052,9 @@ function favouritesPanel(): Panel {
 function rideOn(seen: RideNow | undefined, at: number): Node[] {
   const [key, id] = [followKey(), followedId()];
   if (!pass.on() || !bundle || !key) return [];
-  const trip = seen ? undefined : bundle.trips.find((t) => t.id === id);
+  const trip = bundle.trips.find((t) => t.id === id);
   const now = seen ?? (trip && (tripsAt(bundle, at, received, [trip], hidingClosures)[0] ?? { trip, off: true as const }));
-  const { riding, done } = rideStep(pass.riding(), key, now, at, bundle.noonMinus12h, (station) => stationNames.has(station));
+  const { riding, done } = rideStep(pass.riding(), key, now, at, bundle.noonMinus12h, (station) => stationNames.has(station), trip);
   // Its Line as the file below zoom 7 has it too, where its region has gone from the map meanwhile.
   const line = now && (lines.get(now.trip.line) ?? searchedLines.get(now.trip.line));
   if (done && now && line) {

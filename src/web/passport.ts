@@ -21,16 +21,17 @@ const LATE = 60_000;
  * it's off the map past the border, and none where nothing's known): the Ride under way, or that it's `done`, or neither. A Ride begins
  * before the Train leaves its Trip's first Station on the map, `onMap`, or within LATE after, running its Delay late,
  * and is done once it has left its last there, or ended, or off the map, was due there: a Train into France ends at the border. A Train Cancelled
- * gives none, nor one read back from storage once the Train had ended, as the page wasn't back in time.
+ * gives none, nor one cut short of its Trip's own last Station there (`own`), nor one read back from storage once the Train had ended, as the page wasn't back in time.
  */
-export function rideStep(riding: Riding | undefined, key: string, now: RideNow | undefined, at: number, noonMinus12h: number, onMap: (station: string) => boolean): { riding?: Riding; done?: true } {
+export function rideStep(riding: Riding | undefined, key: string, now: RideNow | undefined, at: number, noonMinus12h: number, onMap: (station: string) => boolean, own: Trip | undefined = now?.trip): { riding?: Riding; done?: true } {
   if (riding?.key !== key) riding = undefined;
   if (!now) return riding ? { riding } : {};
   if ('cancelled' in now) return {};
   if ('ended' in now) return riding && !riding.restored ? { done: true } : {};
   const calls = now.trip.calls.filter((c) => onMap(c.station));
   const [first, last] = [calls[0], calls.at(-1)];
-  if (!first || !last) return {};
+  // One its operator has cut short of its Trip's last Station, as now.trip is as its Train runs it (cutTrip()), is as one Cancelled.
+  if (!first || !last || own?.calls.findLast((c) => onMap(c.station))?.station !== last.station) return {};
   if ('off' in now) return riding && !riding.restored && at >= noonMinus12h + last.arrival * 1000 ? { done: true } : riding ? { riding } : {};
   const { live } = 'train' in now ? now.train : now.coming;
   const upcoming = 'train' in now ? now.train.upcoming.map((c) => c.station) : undefined;
