@@ -132,6 +132,8 @@ const SEARCH_EXAMPLES = { line: 'rodalies:R4', lines: 'R4, S1, L3, T4', stations
 const FOLLOW_ZOOM = 13;
 /** How long the map takes to bring the Train it follows back into the middle of the map beside the panel, in ms (easeIn()). */
 const EASE_IN = 1000;
+/** How long MapLibre's own ease takes, in ms, where it's given none: the Centre button's and a follow's (#682). */
+const EASE = 500;
 /** How far a finger moves the top of a sheet, in px, before it drags it rather than taps. */
 const SLOP = 6;
 /** What measures names for textWidth(), and reads colours for hex(). */
@@ -2708,7 +2710,7 @@ function follow(id: string, up = false) {
   openPanel(up);
   writeLink();
   const at = followedAt();
-  if (at) easeOnto(at);
+  if (at) easeOnto(at, true);
   // A Trip still to come, its Train not on the map yet: to its first Station, which it leaves from (#322),
   // or where it comes out of the Closure it's within (#420).
   else if (waiting) {
@@ -2766,8 +2768,9 @@ function openFrom(open: () => void, at?: Point) {
   back = was;
   showPanel();
   // The Back row makes the header taller, so the map's padding and where it eases to are worked out again.
-  const to = at ?? followedAt() ?? (waiting ? startOf() : undefined);
-  if (to) easeOnto(to);
+  const train = at ? undefined : followedAt();
+  const to = at ?? train ?? (waiting ? startOf() : undefined);
+  if (to) easeOnto(to, to === train);
   else map.easeTo({ padding: panelPadding() });
   if (keyboard) focusTitle();
 }
@@ -2793,9 +2796,14 @@ function goBack() {
   if (keyboard) focusTitle();
 }
 
-/** Brings `at` into the middle of the map beside the panel, at FOLLOW_ZOOM, or closer if the map already is: a Train the map follows (followedAt()), or a Station whose link names no view (#292). */
-function easeOnto(at: Point) {
-  map.easeTo({ center: at, zoom: Math.max(map.getZoom(), FOLLOW_ZOOM), padding: panelPadding() });
+/**
+ * Brings `at` into the middle of the map beside the panel, at FOLLOW_ZOOM, or closer if the map already is: a Train
+ * the map follows (followedAt()), where it will be once the ease ends (`train`, ahead(), #682), or a Station whose
+ * link names no view (#292).
+ */
+function easeOnto(at: Point, train = false) {
+  const zoom = Math.max(map.getZoom(), FOLLOW_ZOOM);
+  map.easeTo({ center: train ? ahead(at, EASE, zoom) : at, zoom, padding: panelPadding() });
 }
 
 /** The place whose board this is, by its ID in places(), or the interchange, as one place of all its places' Stations. */
@@ -3095,13 +3103,13 @@ function showCentring() {
 const easeTo = map.easeTo.bind(map);
 map.easeTo = (options, eventData) => {
   const at = centring ? following?.at : undefined;
-  return easeTo(at && tapZooms(options, eventData) ? { ...options, around: undefined, center: at } : options, eventData);
+  return easeTo(at && tapZooms(options, eventData) ? { ...options, around: undefined, center: ahead(at, options.duration ?? EASE, options.zoom) } : options, eventData);
 };
 
-/** Takes the Train the map follows back, easing onto it, and the map pans with it again (#325). */
+/** Takes the Train the map follows back, easing onto where it will be as the ease ends (ahead(), #682), and the map pans with it again (#325). */
 function centre() {
   released = undefined;
-  if (following?.at) map.easeTo({ center: following.at, padding: panelPadding() });
+  if (following?.at) map.easeTo({ center: ahead(following.at, EASE), padding: panelPadding() });
   showCentring();
 }
 
@@ -3152,17 +3160,19 @@ function easeIn(at: Point) {
 }
 
 /**
- * Where the Train the map follows will be drawn once an ease of EASE_IN ends, so that the ease ends with
- * it in the middle, not trailing it by what it goes meanwhile: 68 px at zoom 17 and 136 px at 18 for a
- * Train at 110 km/h, where a phone's middle 60% reaches only 117 px each way, so that an ease to where
- * it was would be followed by another, and another (#586). `at`, which is where it is drawn now, spread
- * aside with its group as it may be (#129), moved on by what the engine has it go in that time; `at`
- * where the engine has none.
+ * Where the Train the map follows will be drawn once an ease of `ms` ends, EASE_IN by default, at `zoom`, the
+ * zoom it eases to, so that the ease ends with it in the middle, not trailing it by what it goes meanwhile: 68 px
+ * at zoom 17 and 136 px at 18 for a Train at 110 km/h, where a phone's middle 60% reaches only 117 px each way, so
+ * that an ease to where it was would be followed by another, and another (#586); and for the Centre button's, a
+ * follow's and a tap's zoom, which centreOn() then jumped, 16 px at zoom 16 for an R2S at 31.5 m/s (#682, #679).
+ * `at`, which is where it is drawn now, spread aside with its group as it may be (#129), moved on by what the
+ * engine has it go in that time; `at` where the engine has none, or under reduced motion, where an ease is a jump.
  */
-function ahead(at: Point): Point {
-  const [now, then] = [0, EASE_IN].map((ms) => bundle && trainAt(bundle, Date.now() + ms, received, followedId() ?? '', hidingClosures));
+function ahead(at: Point, ms = EASE_IN, zoom = map.getZoom()): Point {
+  if (lessMotion.matches) return at;
+  const [now, then] = [0, ms].map((ms) => bundle && trainAt(bundle, Date.now() + ms, received, followedId() ?? '', hidingClosures));
   if (!now || !then) return at;
-  const [was, will] = [whereDrawn(now, map.getZoom()), whereDrawn(then, map.getZoom())];
+  const [was, will] = [whereDrawn(now, zoom), whereDrawn(then, zoom)];
   return [at[0] + will[0] - was[0], at[1] + will[1] - was[1]];
 }
 
