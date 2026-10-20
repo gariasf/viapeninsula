@@ -2817,9 +2817,12 @@ function openFrom(open: () => void, at?: Point) {
   if (keyboard) focusTitle();
 }
 
-/** Puts the keyboard's focus on the panel's title, where the button it was on has gone with the panel it opened (#322), as Nearby's does after a Try again, or on Search's field, which has none (#699). */
+/**
+ * Puts the keyboard's focus on the panel's title, where the button it was on has gone with the panel it opened (#322), as Nearby's does after a Try again,
+ * or on Search's heading, a screen reader's alone (#699): not its field, which on a phone would bring up the keyboard after a tapped Back.
+ */
 function focusTitle() {
-  panel.querySelector<HTMLElement>('.title, .search-field')?.focus();
+  panel.querySelector<HTMLElement>('.title, h2.sr-only[tabindex]')?.focus();
 }
 
 /** Goes back to the panel this one was opened from, as it was (#322): a Train is followed again and the map eases onto it, a board, Nearby or Search (#699) leaves the map where it is. */
@@ -4476,7 +4479,7 @@ function searchPanel(): Panel {
   };
   const form = el('form', { className: 'card field', onsubmit: submitted }, icon('search'), field, clear);
   form.setAttribute('role', 'search');
-  const header = el('header', {}, el('h2', { className: 'sr-only', textContent: t('search') }), form, closeButton(t('closeSearch')));
+  const header = el('header', {}, el('h2', { className: 'sr-only', textContent: t('search'), tabIndex: -1 }), form, closeButton(t('closeSearch')));
   // Its status line, which a screen reader hears as it changes, kept in place by patch() as Nearby's is (#324, #701).
   const said = el('p', { className: `search-status${query.trim() ? ' typed' : ''}`, textContent: searchSaid });
   said.setAttribute('role', 'status');
@@ -4487,9 +4490,9 @@ function searchPanel(): Panel {
   const found = bundle && trips.length ? ofToday(tripsAt(bundle, Date.now(), received, trips, hidingClosures), serviceToday ?? bundle.serviceDay, bundle.serviceDay) : [];
   const sections = results(query, searched, found, [...searchedLines.values()]);
   const count = (of: (section: Section) => number) => sections.reduce((n, section) => n + of(section), 0);
-  const trains = (section: Section) => ('trains' in section ? section.trains.length : 0);
+  const shown = (section: Section) => ('trains' in section ? section.trains.length : 0);
   searchSays = sections.length
-    ? searchFound({ lines: count((section) => ('lines' in section ? section.lines.length : 0)), stations: count((section) => ('places' in section ? section.places.length : 0)), trains: count(trains), of: count((section) => trains(section) + ('more' in section ? section.more : 0)) })
+    ? searchFound({ lines: count((section) => ('lines' in section ? section.lines.length : 0)), stations: count((section) => ('places' in section ? section.places.length : 0)), trains: count(shown), of: count((section) => shown(section) + ('more' in section ? section.more : 0)) })
     : t('nothingFound').replace('{query}', query.trim());
   return { header, body: [said, ...sections.flatMap((section) => ('lines' in section ? lineResults(section.lines) : 'places' in section ? stationResults(section.places) : trainResults(section)))] };
 }
