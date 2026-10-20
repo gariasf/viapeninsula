@@ -129,6 +129,10 @@ test('The rack railway and the funiculars show only while they run, from their f
   // Between its runs: not running now.
   expect(racksAndFuniculars(lines, trips, [], NOON, on10(12, 0))).toEqual([{ id: 'fgc:MM', trains: 0, live: false }]);
   expect(racksAndFuniculars(lines, trips, [], NOON, on10(18, 1))).toEqual([]);
+  // Between one day's last run and the next's first, with both days' Trips on the map's clock (joinDays()): not running, so not listed.
+  const before = { ...trip('fgc:MM', 8 * 3600 + 48 * 60 - 86400, 18 * 3600 - 86400), id: '2026-10-09/mm' };
+  expect(racksAndFuniculars(lines, [...trips, before], [], NOON, on10(3, 0))).toEqual([]);
+  expect(racksAndFuniculars(lines, [...trips, before], [], NOON, on10(12, 0))).toEqual([{ id: 'fgc:MM', trains: 0, live: false }]);
 });
 
 test("The Alerts on the map are all those on its Lines and Stations, newest first and those that don't say when last, a Line's with no Trips, run by bus only, too (#474)", () => {
