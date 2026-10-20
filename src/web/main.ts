@@ -1110,15 +1110,16 @@ const linesWorker = new Worker(new URL('./linesWorker.ts', import.meta.url), { t
 /** The tiles' URLs' protocol, and their URL for MapLibre, which the version of the regions in them makes new for each join. */
 const LINE_TILES = 'viapeninsula-lines';
 const lineTilesUrl = (source: LineSource, version: number) => `${LINE_TILES}://${source}/{z}/{x}/{y}?${version}`;
-/** The regions' tracks the worker holds, the regions joined at the last hand-over, and the version of the last. */
-let [handedLines, linesVersion] = [new Set<Track>(), 0];
+/** The regions' tracks the worker holds, the regions joined at the last hand-over, the version of the last, and of the last in the tiles. */
+let [handedLines, linesVersion, linesIn] = [new Set<Track>(), 0, 0];
 /** The tiles asked of the worker and not yet come, by their ask's number. */
 const tilesDue = new Map<number, { resolve: (data: ArrayBuffer) => void; reject: (error: unknown) => void }>();
 let tileAsks = 0;
 const askLines = (ask: LinesAsk, transfer: Transferable[] = []) => linesWorker.postMessage(ask, transfer);
 // ponytail: a tile MapLibre no longer wants is still cut, as its abort isn't passed on. Pass it on if the worker lags behind a pan.
 addProtocol(LINE_TILES, ({ url }) => {
-  const [, source = 'lines', z = 0, x = 0, y = 0] = /^[^:]+:\/\/(\w+)\/(\d+)\/(\d+)\/(\d+)/.exec(url) ?? [];
+  const [, source, z, x, y] = /^[^:]+:\/\/(lines|rails)\/(\d+)\/(\d+)\/(\d+)/.exec(url) ?? [];
+  if (!source) return Promise.reject(new Error(`Not a Lines' tile: ${url}`));
   const ask = ++tileAsks;
   askLines({ tile: { source: source as LineSource, z: Number(z), x: Number(x), y: Number(y), ask } });
   return new Promise<ArrayBuffer>((resolve, reject) => tilesDue.set(ask, { resolve, reject })).then((data) => ({ data }));
@@ -1128,13 +1129,18 @@ linesWorker.onmessage = ({ data }: MessageEvent<ReturnType<ReturnType<typeof lin
   if ('data' in data) {
     tilesDue.get(data.ask)?.resolve(data.data);
     tilesDue.delete(data.ask);
-  } else for (const source of ['lines', 'rails'] as const) map.getSource<VectorTileSource>(source)?.setTiles([lineTilesUrl(source, data.shown)]);
+  } else {
+    linesIn = data.shown;
+    for (const source of ['lines', 'rails'] as const) map.getSource<VectorTileSource>(source)?.setTiles([lineTilesUrl(source, data.shown)]);
+  }
 };
 // ponytail: where the worker fails, the map goes without Lines, as the page did where making them threw. Make them on the page then if a worker ever fails where the page wouldn't.
 linesWorker.onerror = linesWorker.onmessageerror = (error: Event) => {
   console.error(error);
   for (const due of tilesDue.values()) due.reject(error);
   tilesDue.clear();
+  // Whatever it held when it threw, the next join hands it every region's file again, and onScreen() waits no more.
+  [handedLines, linesIn] = [new Set(), linesVersion];
 };
 askNames({ sizes: NAME_SIZES });
 // A layout asked for names, pills or a bearing that have changed since is left for the one asked last, and once the
@@ -1272,7 +1278,10 @@ const layered = [
  */
 const CURVE = '-curve';
 const isCurve: ExpressionFilterSpecification = ['has', 'curve'];
-/** A side further off its track's middle than any Line's is, in strokes, for the names' text-offset. */
+/**
+ * A side further off its track's middle than any Line's is, in strokes, for the names' text-offset.
+ * ponytail: a name further off than this would stop at it. Raise it if a corridor ever draws more than 64 Lines to one side.
+ */
 const FAR_SIDE = 64;
 for (const { source, id, prefix, zooms, nameZooms, opacity, throughOpacity, below } of layered) {
   // The rails have no curves.
@@ -4273,7 +4282,8 @@ function onScreen(then: () => void) {
   };
   const check = () => {
     const trains = !bundle || map.queryRenderedFeatures({ layers: ['trains', 'train-pills'] }).length > 0;
-    if ((zoomedOut || !manifest?.zoomedOut) && trains && ['lines', 'tracks'].every((id) => map.isSourceLoaded(id))) done();
+    // The Lines' sources hold the tiles of the regions in the worker before its answer (linesIn), loaded but without them.
+    if ((zoomedOut || !manifest?.zoomedOut) && trains && linesIn === linesVersion && ['lines', 'tracks'].every((id) => map.isSourceLoaded(id))) done();
   };
   const cap = setTimeout(done, 5000);
   map.on('render', check);
