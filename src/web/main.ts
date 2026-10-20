@@ -3927,6 +3927,7 @@ function favouritesPanel(): Panel {
   const has = (f: Favourite) => (f.kind === 'station' ? shownPlaces.has(f.id) : lines.has(f.id));
   const rows = favouriteRows(kept.all(), (f) => !!bundle && come(f.kind === 'station' ? { station: f.station } : { line: f.id }), has);
   const trips = tripsState(loaded, manifest ? neededRegions(manifest) : [], shownRegions, tripsFailed);
+  const date = serviceToday ?? madridDate(new Date(mapNow));
   if (tripsOfLine.days !== bundle) {
     tripsOfLine = { days: bundle, of: new Map() };
     for (const trip of bundle?.trips ?? []) {
@@ -3939,10 +3940,14 @@ function favouritesPanel(): Panel {
   const station = (f: (typeof rows.stations)[number]) => {
     const board = f.state === 'shown' ? boardOf(boardOfPlace.get(f.id) ?? f.id) : undefined;
     if (!board || !bundle) return el('li', { className: 'fav' }, el('div', { className: 'fav-head' }, el('span', { className: 'fav-name', textContent: f.name }), starButton(f)), said(f.state === 'shown' ? 'loading' : f.state));
-    // ponytail: a Station with none left today says so, without asking for the next day's as its board does; ask too if that shows.
     const departures = boardAt(bundle, now, received, board.stations, hidingClosures).slice(0, 2);
-    // Neither rows nor "none" while the Trips of a region the map has loaded or needs are on their way, as a board's (boardList()).
-    const list = boardList(trips, departures.length);
+    // With none left today, the next day's first are asked for, as a board's (#597).
+    if (!departures.length && boardAsks(board.stations.every((station) => come({ station })), emptyBoard === date)) {
+      emptyBoard = date;
+      refreshDays();
+    }
+    // Neither rows nor "none" while the Trips of a region the map has loaded or needs, or the next day's, are on their way, as a board's (boardList()).
+    const list = boardList(trips, departures.length, nextOnItsWay(looking, emptyBoard === date, bundle.serviceDay, date));
     return el(
       'li',
       { className: 'fav' },
