@@ -1174,6 +1174,8 @@ function handable(regions: Track[] | undefined): StoredTrack[] | undefined {
 function linesFile(track: Track): Packed {
   const file = trackFileOf(track);
   if (file && 'traced' in file) return packFile(file, LINE_PARTS);
+  // ponytail: copied whole, a structured clone of every point on the page's thread, as #775 measured for the names. Pack
+  // it as the pieces' files are if a bundle without them is ever served again.
   const { shapes, lines, strokes, rails } = track;
   return { rest: { shapes, lines, strokes, rails }, numbers: new Float64Array(), lengths: new Int32Array() };
 }
