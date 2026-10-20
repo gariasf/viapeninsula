@@ -3883,10 +3883,12 @@ function starButton(f: Favourite) {
   const on = kept.has(f);
   const label = starLabel(f.name, on);
   const toggle = () => {
+    // The star pressed, as the page has it: patch() keeps the old button and gives it this one's onclick, so this `star` may never be on the page.
+    const focused = document.activeElement;
     kept.toggle(f);
     showPanel();
     // A row removed in Favourites takes its star, and the keyboard's focus, with it: to the panel's title, rather than the page.
-    if (!star.isConnected) focusTitle();
+    if (focused?.isConnected === false) focusTitle();
   };
   const star = el('button', { type: 'button', className: 'star', title: label, onclick: toggle }, icon(on ? 'starOn' : 'star'));
   star.setAttribute('aria-label', label);
