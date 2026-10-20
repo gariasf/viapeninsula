@@ -341,6 +341,13 @@ test('loads the region of the Train or the Line a link names, by the Network its
   expect(regionsNeeded(REGIONS, view, { line: 'cercanias-bilbao:C4' })).toEqual(['catalonia', 'cercanias-bilbao']);
 });
 
+test('loads the regions of what Favourites keep, while it shows (#472): a Station\'s by the file below zoom 7, and a Line\'s by its Network, wherever the map is', () => {
+  const stations = { catalonia: ['adif:71801'], 'cercanias-leon': ['adif:15100'] };
+  const kept = { stations: ['adif:15100'], lines: ['cercanias-madrid:C-8a'] };
+  expect(regionsNeeded(REGIONS, undefined, { kept, stations })).toEqual(['cercanias-madrid', 'cercanias-leon']);
+  expect(regionsNeeded(REGIONS, { bounds: phone(BARCELONA), zoom: 12 }, { kept: { stations: [], lines: ['cercanias-bilbao:C4'] } })).toEqual(['catalonia', 'cercanias-bilbao']);
+});
+
 test("loads a region with no extent, as long distance's, which every view needs and whose track file is larger than any view's own, only at the map's second look, so that it holds back neither the first Lines in view nor, zoomed out, the Network tracks (#262)", () => {
   const everywhere = [...REGIONS, { id: 'long-distance', networks: ['ave-larga-distancia'] }];
   expect(firstLook(everywhere, ['catalonia', 'long-distance'])).toEqual(['catalonia']);
