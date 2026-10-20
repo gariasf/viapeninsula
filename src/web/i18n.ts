@@ -198,7 +198,7 @@ const STRINGS = {
   favourites: { ca: 'Preferits', es: 'Favoritos', eu: 'Gogokoak', gl: 'Favoritos', en: 'Favourites' },
   // Favourites' sheet, which its tab opens (#472): the button that closes it; the star on a board's nameboard, a Line's header and each row, which says what a press does to {name}, a Station's or a Line's; what it
   // says with none kept, and under the list; a kept Line's end with none of its Trains late; and a kept row whose region is still to come, or that the map no longer has (a Station renamed or merged, a Line gone).
-  closeFavourites: { ca: 'Tanca els preferits', es: 'Cerrar Favoritos', eu: 'Itxi Gogokoak', gl: 'Pechar Favoritos', en: 'Close Favourites' },
+  closeFavourites: { ca: 'Tanca els Preferits', es: 'Cerrar Favoritos', eu: 'Itxi Gogokoak', gl: 'Pechar Favoritos', en: 'Close Favourites' },
   addFavourite: { ca: 'Afegeix {name} als Preferits', es: 'Añadir {name} a Favoritos', eu: 'Gehitu {name} Gogokoetara', gl: 'Engadir {name} a Favoritos', en: 'Add {name} to Favourites' },
   removeFavourite: { ca: 'Treu {name} dels Preferits', es: 'Quitar {name} de Favoritos', eu: 'Kendu {name} Gogokoetatik', gl: 'Quitar {name} de Favoritos', en: 'Remove {name} from Favourites' },
   nothingKept: { ca: 'Encara no hi ha res.', es: 'Aún no hay nada.', eu: 'Oraindik ez dago ezer.', gl: 'Aínda non hai nada.', en: 'Nothing here yet.' },

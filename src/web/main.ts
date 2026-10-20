@@ -3882,17 +3882,31 @@ function stateWords(state: ReturnType<typeof lineState>): string[] {
 function starButton(f: Favourite) {
   const on = kept.has(f);
   const label = starLabel(f.name, on);
-  const star = el('button', { type: 'button', className: 'star', title: label, onclick: () => (kept.toggle(f), showPanel()) }, icon(on ? 'starOn' : 'star'));
+  const toggle = () => {
+    kept.toggle(f);
+    showPanel();
+    // A row removed in Favourites takes its star, and the keyboard's focus, with it: to the panel's title, rather than the page.
+    if (!star.isConnected) focusTitle();
+  };
+  const star = el('button', { type: 'button', className: 'star', title: label, onclick: toggle }, icon(on ? 'starOn' : 'star'));
   star.setAttribute('aria-label', label);
   return star;
 }
 
-/** A board's star (#472), keeping its place by the place of its first Station, as an interchange's board is opened by any of its places' (showBoard()). */
+/**
+ * A board's star (#472): kept by any of its places, as an interchange's board is opened by any of its places' (showBoard()),
+ * or else to keep by the place of its first Station.
+ */
 function starOf(board: Place): Node[] {
+  const places = new Set(board.stations.map((station) => placeOfStation.get(station)?.id));
   const station = board.stations[0];
   const own = station && placeOfStation.get(station);
-  return own ? [starButton({ kind: 'station', id: own.id, station, name: board.name })] : [];
+  const f = kept.all().find((k) => k.kind === 'station' && places.has(k.id)) ?? (own && { kind: 'station' as const, id: own.id, station, name: board.name });
+  return f ? [starButton(f)] : [];
 }
+
+/** Each Line's Trips, by its ID, of the days on the map, which Favourites' Lines find theirs in each second (#472). */
+let tripsOfLine: { days?: Bundle; of: Map<string, Trip[]> } = { of: new Map() };
 
 /**
  * Favourites' sheet (#472, #328's pick): kept Stations, then kept Lines, in the order kept. A Station with its name,
@@ -3910,23 +3924,33 @@ function favouritesPanel(): Panel {
   const mapNow = mapTime(now, received);
   const has = (f: Favourite) => (f.kind === 'station' ? shownPlaces.has(f.id) : lines.has(f.id));
   const rows = favouriteRows(kept.all(), (f) => !!bundle && come(f.kind === 'station' ? { station: f.station } : { line: f.id }), has);
+  const trips = tripsState(loaded, manifest ? neededRegions(manifest) : [], shownRegions, tripsFailed);
+  if (tripsOfLine.days !== bundle) {
+    tripsOfLine = { days: bundle, of: new Map() };
+    for (const trip of bundle?.trips ?? []) {
+      const of = tripsOfLine.of.get(trip.line);
+      if (of) of.push(trip);
+      else tripsOfLine.of.set(trip.line, [trip]);
+    }
+  }
   const said = (state: 'loading' | 'gone') => el('p', { className: 'meta', textContent: t(state === 'loading' ? 'loading' : 'noLongerOnMap') });
   const station = (f: (typeof rows.stations)[number]) => {
     const board = f.state === 'shown' ? boardOf(boardOfPlace.get(f.id) ?? f.id) : undefined;
     if (!board || !bundle) return el('li', { className: 'fav' }, el('div', { className: 'fav-head' }, el('span', { className: 'fav-name', textContent: f.name }), starButton(f)), said(f.state === 'shown' ? 'loading' : f.state));
     // ponytail: a Station with none left today says so, without asking for the next day's as its board does; ask too if that shows.
     const departures = boardAt(bundle, now, received, board.stations, hidingClosures).slice(0, 2);
+    // Neither rows nor "none" while the Trips of a region the map has loaded or needs are on their way, as a board's (boardList()).
+    const list = boardList(trips, departures.length);
     return el(
       'li',
       { className: 'fav' },
       el('div', { className: 'fav-head' }, el('button', { type: 'button', className: 'fav-name', onclick: () => openStation(f.station) }, board.name), starButton(f)),
-      departures.length ? el('ol', { className: 'rows' }, ...departures.map((departure) => departureRow(departure, mapNow))) : el('p', { className: 'meta', textContent: t('noDepartures') }),
+      ...(list === 'label' ? [] : [list === 'rows' ? el('ol', { className: 'rows' }, ...departures.map((departure) => departureRow(departure, mapNow))) : el('p', { className: 'meta', textContent: t('noDepartures') })]),
     );
   };
   const line = (f: (typeof rows.lines)[number]) => {
     if (f.state !== 'shown' || !bundle) return el('li', { className: 'fav fav-line' }, el('div', { className: 'fav-row' }, el('span', { className: 'what' }, el('span', { className: 'what-title', textContent: f.name }), said(f.state === 'shown' ? 'loading' : f.state))), starButton(f));
-    // ponytail: each kept Line's Trips found among the bundle's each second; keep them by the bundle, as a Line's screen does, if a phone shows it.
-    const { state, cancelled } = lineNow(bundle, bundle.trips.filter((trip) => trip.line === f.id), now, mapNow);
+    const { state, cancelled } = lineNow(bundle, tripsOfLine.of.get(f.id) ?? [], now, mapNow);
     const network = bundle.networks.find((n) => n.id === lines.get(f.id)?.network);
     const end = state.late ? el('span', { className: 'delay late', textContent: lateCount(state.late) }) : el('span', { className: 'status soft', textContent: state.trains ? t('noneLate') : '' });
     return el(
@@ -4714,6 +4738,8 @@ function getZoomedOut({ zoomedOut: key }: Manifest) {
       openWaitingLink();
       // Search finds the Stations in it from now on, and their Lines (#471).
       if (searching) showPanel();
+      // Favourites' kept Stations' regions are found in it (#472).
+      if (favouritesShown) want();
     },
     (error: unknown) => {
       if (zoomedOutKey === key) zoomedOutKey = undefined;

@@ -28,10 +28,13 @@ test('keeps them under one versioned key, and reads nothing from one it can\'t r
   const store = storage();
   favourites(() => store).toggle(R4);
   expect([...store.kept.keys()]).toEqual(['favourites:1']);
-  for (const unreadable of ['{', '{"kind":"line"}', '[{"kind":"train","id":"x","name":"x"}]', '[{"kind":"station","id":"a","name":"A"}]', '[null]']) {
+  for (const unreadable of ['{', '{"kind":"line"}']) {
     store.kept.set('favourites:1', unreadable);
     expect(favourites(() => store).all()).toEqual([]);
   }
+  // One it can't read, as a Train, or a Station with no Station ID, or none at all, is left out, and the rest kept.
+  store.kept.set('favourites:1', JSON.stringify([{ kind: 'train', id: 'x', name: 'x' }, R4, { kind: 'station', id: 'a', name: 'A' }, null, SANTS]));
+  expect(favourites(() => store).all()).toEqual([R4, SANTS]);
 });
 
 test('with storage blocked or full, the star still toggles for the page\'s life, and nothing throws', () => {

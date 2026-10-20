@@ -25,9 +25,10 @@ export function favourites(storage: () => Pick<Storage, 'getItem' | 'setItem'>) 
   let kept: Favourite[] = [];
   try {
     const read: unknown = JSON.parse(storage().getItem(KEY) ?? '[]');
-    if (Array.isArray(read) && read.every(readable)) kept = read;
+    // One that isn't, as from a later build, is left out, and the rest kept.
+    if (Array.isArray(read)) kept = read.filter(readable);
   } catch {
-    // Storage is off, or what's kept isn't as this keeps it: none are kept.
+    // Storage is off, or what's kept isn't JSON: none are kept.
   }
   const same = (a: Favourite) => (b: Favourite) => a.kind === b.kind && a.id === b.id;
   return {
