@@ -27,11 +27,11 @@ export function rideStep(riding: Riding | undefined, key: string, now: RideNow |
   if (riding?.key !== key) riding = undefined;
   if (!now) return riding ? { riding } : {};
   if ('cancelled' in now) return {};
-  if ('ended' in now) return riding && !riding.restored ? { done: true } : {};
   const calls = now.trip.calls.filter((c) => onMap(c.station));
   const [first, last] = [calls[0], calls.at(-1)];
   // One its operator has cut short of its Trip's last Station, as now.trip is as its Train runs it (cutTrip()), is as one Cancelled.
   if (!first || !last || own?.calls.findLast((c) => onMap(c.station))?.station !== last.station) return {};
+  if ('ended' in now) return riding && !riding.restored ? { done: true } : {};
   if ('off' in now) return riding && !riding.restored && at >= noonMinus12h + last.arrival * 1000 ? { done: true } : riding ? { riding } : {};
   const { live } = 'train' in now ? now.train : now.coming;
   const upcoming = 'train' in now ? now.train.upcoming.map((c) => c.station) : undefined;

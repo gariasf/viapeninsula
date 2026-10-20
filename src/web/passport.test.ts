@@ -52,6 +52,8 @@ test('gives no Ride for a Train Cancelled on the way, nor for another Train foll
 test('gives no Ride for a Train cut short of its Trip\'s last Station on the map, as one turned back early', () => {
   const cut: Trip = { ...TRIP, calls: TRIP.calls.slice(0, 2) };
   expect(rideStep({ key: KEY, live: true }, KEY, { trip: cut, train: { live: true, upcoming: [{ station: 'girona' }] } }, at(34_000), NOON, onMap, TRIP)).toEqual({});
+  // Ended at its cut, as a tab hidden meanwhile finds it.
+  expect(rideStep({ key: KEY, live: true }, KEY, { trip: cut, ended: at(34_200) }, at(35_000), NOON, onMap, TRIP)).toEqual({});
 });
 
 test('says a Ride was seen Live once live data confirmed the Train, even if it went Scheduled after', () => {
