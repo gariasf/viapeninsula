@@ -1044,7 +1044,7 @@ let stationNames = new Map<string, string>();
 let shownPlaces = new Map<string, Place>();
 /** The interchanges among them (interchangesOf()). */
 let interchanges: Interchange[] = [];
-/** The places they were made of, each by its ID, tier, Stations and marks, as show() last made them. */
+/** The places they were made of, each by what interchangesOf() reads of it, as show() last made them. */
 let interchangesFrom = '';
 /** Each interchange's board, by its ID: one place of all its places' Stations (ADR-0005). */
 let boards = new Map<string, Place>();
@@ -1940,8 +1940,8 @@ function show(days: Track | Bundle, tripsOnly = false) {
     const from = p.networks.length ? Math.min(...p.networks.map((n) => shownFrom.get(n) ?? linesZoom)) : linesZoom;
     return { ...p, from, nameZoom: Math.max(nameZoom, from), listed: tier?.places.indexOf(p.id), larger, marked: markedNetworks(p.networks, everywhere), style: { bold: BOLD.has(p.id), size } as NameStyle };
   });
-  // Made again only where the places or their marks have changed since, as they haven't at most joins (#838).
-  const madeOf = ranked.map((p) => `${p.id} ${p.nameZoom} ${p.stations.join()} ${p.marked.join()}`).join('\n');
+  // Made again only where the places or their marks have changed since show() last made them (#838).
+  const madeOf = ranked.map((p) => `${p.id} ${p.name} ${p.lon} ${p.lat} ${p.nameZoom} ${p.stations.length} ${p.marked.join()}`).join('\n');
   if (madeOf !== interchangesFrom) [interchanges, interchangesFrom] = [interchangesOf(ranked.map((p) => ({ ...p, networks: p.marked }))), madeOf];
   // Every interchange made, for the sign-off of a change to the rule or the hand list (INTERCHANGES).
   if (import.meta.env.DEV) console.debug('interchanges', interchanges.map((i) => `${i.name} (${i.how}): ${i.places.join(' ')}`));
