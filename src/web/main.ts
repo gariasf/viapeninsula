@@ -3845,7 +3845,7 @@ function linePanel(id: string): Panel | undefined {
       el(
         'div',
         { className: 'line-state' },
-        el('p', { className: 'meta status-line' }, el('span', { className: `dot ${state.live ? 'live' : 'scheduled'}` }), [network, ...stateWords(state)].join(' · ')),
+        el('p', { className: 'meta status-line parts' }, el('span', { className: `dot ${state.live ? 'live' : 'scheduled'}` }), ...parts([network, ...stateWords(state)])),
         el('div', { className: 'state-chips', hidden: !chips.length }, ...chips),
       ),
     ),
@@ -3873,6 +3873,11 @@ function lineNow(days: Bundle, trips: Trip[], now: number, mapNow: number) {
 function stateWords(state: ReturnType<typeof lineState>): string[] {
   const how = state.trains ? [state.worst !== undefined ? worstLate(state.worst) : '', state.live ? '' : t('allScheduled')].filter(Boolean) : [];
   return [trainsNow(state.trains), ...how];
+}
+
+/** `words` as parts that don't break, each after the first led by a dot that `.parts` hides where the part starts a line, so no dot starts or ends one (#472). */
+function parts(words: string[]) {
+  return words.flatMap((word, i) => [...(i ? [' '] : []), el('span', { className: 'part', textContent: word })]);
 }
 
 /**
@@ -3967,7 +3972,7 @@ function favouritesPanel(): Panel {
         'button',
         { type: 'button', className: 'fav-row', onclick: () => openLine(f.id) },
         pill(f.id),
-        el('span', { className: 'what' }, el('span', { className: 'what-title', textContent: network?.name ?? '' }), el('span', { className: 'what-under', textContent: [...stateWords(state), ...(cancelled.length ? [cancelledCount(cancelled.length)] : [])].join(' · ') })),
+        el('span', { className: 'what' }, el('span', { className: 'what-title', textContent: network?.name ?? '' }), el('span', { className: 'what-under parts' }, ...parts([...stateWords(state), ...(cancelled.length ? [cancelledCount(cancelled.length)] : [])]))),
         el('span', { className: 'end' }, end),
       ),
       starButton(f),

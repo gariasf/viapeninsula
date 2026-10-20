@@ -954,6 +954,24 @@ button.result {
   line-height: 1.35;
 }
 
+/* Words split by dots, as a Line's state (#472, #473): each part whole, and the dot that leads a part starting a line, wrapped, left of the clip, so no dot starts or ends a line. */
+.parts {
+  margin-left: -0.55em;
+  text-indent: 0.55em;
+  clip-path: inset(-1em -1em -1em 0.55em);
+}
+
+.part {
+  white-space: nowrap;
+}
+
+.part + .part::before {
+  content: '·';
+  display: inline-block;
+  width: 0.55em;
+  text-indent: 0;
+}
+
 .what-under.served {
   margin-top: 3px;
 }
