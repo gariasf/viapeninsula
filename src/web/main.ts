@@ -1,6 +1,6 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
-import type { BackgroundLayerSpecification, CircleLayerSpecification, ExpressionFilterSpecification, ExpressionSpecification, FontFacesSpecification, LineLayerSpecification, ProjectionSpecification, StyleSpecification, SymbolLayerSpecification } from '@maplibre/maplibre-gl-style-spec';
+import type { BackgroundLayerSpecification, CircleLayerSpecification, ExpressionFilterSpecification, ExpressionSpecification, FontFacesSpecification, InterpolationSpecification, LineLayerSpecification, ProjectionSpecification, StyleSpecification, SymbolLayerSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { addProtocol, MapLibreMap, Popup, setWorkerUrl, type GeoJSONSource, type LngLat, type VectorTileSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import nunitoSans from '@fontsource/nunito-sans/files/nunito-sans-latin-400-normal.woff2?url';
@@ -8,7 +8,7 @@ import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
 import { along, APART, atZoom, BANDS, bandZooms, GRAPH_BAND, STRETCH, inBand, onStroke, pointAt, profiled, zones, type Zone, daysNeeded, daysOf, SOON, DEGREE, EARTH, joinTracks, LATE, LIVE_URL, madridDate, networkTracks, places, type Alerts, type Bundle, type Credit, type Call, type DayFiles, type Place, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH, type ZoomedOut } from '../bundle.ts';
 import { boardAt, comingAt, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, tripsAt, unavailable, type Coming, type Departure, type Followed, type Received, type Train, type TripNow } from '../engine.ts';
-import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, earlierStations, followDeparture, language, LANGUAGES, leavesAt, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, placedBy, setLanguage, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated, type Language, type Unlocated } from './i18n.ts';
+import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, cancelledCount, earlierStations, endsHere, followDeparture, goOn, standingAt, trainsNow, turnsHere, language, LANGUAGES, leavesAt, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, placedBy, setLanguage, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { getJson, lookAgainSoon, RETRY, STALL } from './files.ts';
 import { daysAsTheyCome, firstLook, forgetJoined, joinedFrom, regionLoader, regionsCame, regionsNeeded, trackFileOf } from './regions.ts';
@@ -29,7 +29,8 @@ import { ago, boardAsks, boardList, cardAlerts, countdownTo, due, inNameOrder, l
 import { ARROW_GAP, boxOf, nameBoxOf, DASHED_RING, dashedDot, dashedOutline, dashesAcross, field, fitOf, FOLLOWED_TEXT, haloScale, LINE_HEIGHT, LOCAL_PILL_ZOOM, OUTLINE_SIZES, outlineOf, PILL_PADDING, PILL_TEXT, pillReach, pillText, pulse, SMALL_TEXT, TARGET, targetRings, type Outline } from './pill.ts';
 import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, tappedRows, type Shown } from './closures.ts';
 import { currentTab, type Tab } from './tabs.ts';
-import { keyboardRise, networkNames, numbered, numberQuery, results, searchPlaces, type Found } from './search.ts';
+import { keyboardRise, networkNames, numbered, numberQuery, results, searchPlaces, type Found, type FoundLine } from './search.ts';
+import { cancelledNow, lineState, lineStrip, onStrip, type StripStation } from './line.ts';
 import { opensInNewTab, putHtml } from './newTab.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
@@ -126,7 +127,7 @@ const ICONS = {
 /** How many departures a board shows peeking on a phone, and Nearby rows (#321). */
 const PEEK = 3;
 /** What Search's hints give as examples, which read the same in every language: names of Stations, and a Train number (#471). */
-const SEARCH_EXAMPLES = { stations: 'Barcelona-Sants, Terrassa, Mataró', number: '77428' };
+const SEARCH_EXAMPLES = { line: 'rodalies:R4', lines: 'R4, S1, L3, T4', stations: 'Barcelona-Sants, Terrassa, Mataró', number: '77428' };
 /** The zoom the map eases to, to bring a Train it follows or a Station into view, where it's further out (easeOnto()). */
 const FOLLOW_ZOOM = 13;
 /** How long the map takes to bring the Train it follows back into the middle of the map beside the panel, in ms (easeIn()). */
@@ -854,9 +855,30 @@ let showsWithin = false;
  * Where Back goes (#322): the panel this one was opened from, by a departure or a Station, as it was,
  * peeking or pulled up and scrolled to `scroll`. One level: the panel it returns to has none of its own.
  */
-let back: { to: 'train'; day: string; trip: string; headsign: string; up: boolean; scroll: number } | { to: 'board'; place: string; up: boolean; scroll: number } | { to: 'nearby'; near: Point; up: boolean; scroll: number } | undefined;
+let back:
+  | { to: 'train'; day: string; trip: string; headsign: string; up: boolean; scroll: number }
+  | { to: 'board'; place: string; up: boolean; scroll: number }
+  | { to: 'nearby'; near: Point; up: boolean; scroll: number }
+  | { to: 'line'; line: string; up: boolean; scroll: number }
+  | undefined;
 /** The place whose board the panel shows, by its ID in places(), while the map follows no Train. */
 let boardPlace: string | undefined;
+/** The Line whose screen the panel shows, by its ID, while the map follows no Train (#473). */
+let lineShown: string | undefined;
+/** Whether a Line's screen shows its Cancelled Trains above its strip, which its chip opens and closes, as its Alerts' (`showAlerts`, #473). */
+let showCancelled = false;
+/** A Line's strip, for the Line and the days on the map it was made from (lineStrip()), as they change only as the days do. */
+let stripOf: { line?: string; days?: Bundle; trips: Trip[]; strip: StripStation[] } = { trips: [], strip: [] };
+/**
+ * How the map shows the Line whose screen it is (#473): by its glow, under its stroke, or by its stroke raised over
+ * the others', which fade. Both go to the maintainer's pick on screenshots, by the page's `?look=raise`.
+ * ponytail: a query of the page's own, which no link writes; drop the one not picked.
+ */
+const LOOK: 'glow' | 'raise' = new URLSearchParams(location.search).get('look') === 'raise' ? 'raise' : 'glow';
+/** The Line the map shows so, by its ID, or none (showLook()). */
+let lookOf: string | undefined;
+/** Each stroke layer's own opacity and sort key, as the map had them before it raised a Line over the others (showLook()). */
+const raised: Record<string, { opacity: ExpressionSpecification; sort: ExpressionSpecification }> = {};
 /** The last day, by the date of the day that stood for today (`serviceToday`), that a Station board had no departures left, when the map needs the next day's Trips for it. */
 let emptyBoard: string | undefined;
 /** The date of the day that stands for today in the days the map last needed (daysNeeded()): the day before, after midnight, until today's first Train is SOON (#659). */
@@ -1256,6 +1278,10 @@ const fadedBy = (stops: [zoom: number, opacity: number][]) => byZoom(stops, (opa
 const railsZoom = APART.at(-1)?.[0] ?? 15;
 const stretchesFade = fadedBy([[railsZoom - FADE, 1], [railsZoom + FADE, 0]]);
 const railsFade = fadedBy([[railsZoom - FADE, 0], [railsZoom + FADE, 1]]);
+/** How much wider than its stroke the glow under the Line whose screen it is is, in px, and how opaque (#473, LOOK). */
+const [GLOW_WIDTH, GLOW] = [12, 0.45];
+/** How opaque the other Lines' strokes are, of what they were, while the Line whose screen it is is raised over them (#473, LOOK). */
+const FADED = 0.25;
 /** Along their stretches, Lines are shown through neither while they slide onto the rails nor while they fade. */
 const stretchesThrough = byZoom([[14, 1], [14.1, 0]], (opacity) => opacity);
 map.addLayer(
@@ -1321,6 +1347,22 @@ for (const { source, id, prefix, zooms, nameZooms, opacity, throughOpacity, belo
         },
       },
       below,
+    );
+  }
+  // The glow under the Line whose screen it is (#473, LOOK), under every band's casing, of none till one is shown (showLook()).
+  if (LOOK === 'glow') {
+    map.addLayer(
+      {
+        id: `${id}-glow`,
+        type: 'line',
+        source,
+        'source-layer': source,
+        ...zooms,
+        filter: ['==', ['get', 'line'], ''],
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': ['get', 'colour'], 'line-width': lineWidth(GLOW_WIDTH), 'line-blur': GLOW_WIDTH / 2, 'line-offset': lineOffset, 'line-opacity': byZoom(source === 'rails' ? [[railsZoom - FADE, 0], [railsZoom + FADE, GLOW]] : [[railsZoom - FADE, GLOW], [railsZoom + FADE, 0]], (o) => o) },
+      },
+      `${prefix}-casing`,
     );
   }
   // Over its own stroke, in its own colour, it doesn't show: only where another Line covers it. Not
@@ -1820,7 +1862,7 @@ map.on('moveend', () => {
 const pointed = ['trains', 'train-pills', 'train-pills-followed', 'station-names', ...strokeLayers];
 map.on('mousemove', ({ point }) => (map.getCanvas().style.cursor = map.queryRenderedFeatures(point, { layers: pointed }).length || placesDrawn([point.x, point.y]).length ? 'pointer' : ''));
 // Escape closes the About dialog on its own, if it's open.
-document.addEventListener('keydown', (e) => e.key === 'Escape' && !about.open && (following || boardPlace || nearMe || searching) && closePanel());
+document.addEventListener('keydown', (e) => e.key === 'Escape' && !about.open && (following || boardPlace || lineShown || nearMe || searching) && closePanel());
 
 // Moves the Trains as often as MOVED says, and once a second works out which Networks the banner
 // names. The browser stops asking while the tab is hidden.
@@ -1886,7 +1928,7 @@ requestAnimationFrame(function move(now) {
   showCentring();
   // The panel's times and ages change by the second, a followed Train's countdown as each second of it ends, and
   // where Search finds Train numbers, where their Trains are (#471).
-  if ((following || boardPlace || nearMe || (searching && numberQuery(query))) && performance.now() - panelShown > panelDue) showPanel();
+  if ((following || boardPlace || lineShown || nearMe || (searching && numberQuery(query))) && performance.now() - panelShown > panelDue) showPanel();
   // Which Networks the banner names changes as Trains and the view move, and the banner with it.
   // Zoomed out, only those drawn there, long distance's, can be in view (#247), and a Network with no Trips today only
   // where its track is drawn: long distance's and Media Distancia's below zoom 7, the Metro's and TRAM's from zoom 10 (#781).
@@ -2661,7 +2703,7 @@ function follow(id: string, up = false) {
   following = day && trip ? { day, trip } : { day: bundle?.serviceDay ?? '', trip: id };
   // A Train followed again, by a tap on it too, is taken back (#325).
   released = undefined;
-  [boardPlace, nearMe, searching, back] = [undefined, undefined, false, undefined];
+  [boardPlace, lineShown, nearMe, searching, back] = [undefined, undefined, undefined, false, undefined];
   trainSource?.setData(trains());
   openPanel(up);
   writeLink();
@@ -2708,11 +2750,12 @@ function startOf(): Point | undefined {
   return at && [at.lon, at.lat];
 }
 
-/** What the panel shows now, to go Back to (#322): none while it shows no Train, board or Nearby that's found the viewer. */
+/** What the panel shows now, to go Back to (#322): none while it shows no Train, board, Line's screen (#473) or Nearby that's found the viewer. */
 function here(): NonNullable<typeof back> | undefined {
   const [up, scroll] = [pulledUp, panel.querySelector('.sheet-body')?.scrollTop ?? 0];
   if (following) return { to: 'train', day: following.day, trip: following.trip, headsign: bundle?.trips.find((t) => t.id === followedId())?.headsign ?? '', up, scroll };
   if (boardPlace) return { to: 'board', place: boardPlace, up, scroll };
+  if (lineShown) return { to: 'line', line: lineShown, up, scroll };
   return nearMe && typeof nearMe !== 'string' ? { to: 'nearby', near: nearMe, up, scroll } : undefined;
 }
 
@@ -2740,7 +2783,7 @@ function goBack() {
   if (!to) return;
   if (to.to === 'train') follow(`${to.day}/${to.trip}`, to.up);
   else {
-    [following, boardPlace, nearMe, searching, back] = [undefined, to.to === 'board' ? to.place : undefined, to.to === 'nearby' ? to.near : undefined, false, undefined];
+    [following, boardPlace, lineShown, nearMe, searching, back] = [undefined, to.to === 'board' ? to.place : undefined, to.to === 'line' ? to.line : undefined, to.to === 'nearby' ? to.near : undefined, false, undefined];
     trainSource?.setData(trains());
     openPanel(to.up);
     writeLink();
@@ -2763,7 +2806,7 @@ function boardOf(id: string): Place | undefined {
 /** Shows a place's board, by its ID in places() or its interchange's, following no Train. */
 function showBoard(place: string) {
   // An interchange's place's is the interchange's (ADR-0005).
-  [following, boardPlace, nearMe, searching, back] = [undefined, boardOfPlace.get(place) ?? place, undefined, false, undefined];
+  [following, boardPlace, lineShown, nearMe, searching, back] = [undefined, boardOfPlace.get(place) ?? place, undefined, undefined, false, undefined];
   trainSource?.setData(trains());
   openPanel(false);
   writeLink();
@@ -2771,11 +2814,69 @@ function showBoard(place: string) {
 }
 
 /**
+ * Shows a Line's screen (#473), by its ID, following no Train, over the map fitted to it above the sheet
+ * (fitLine()), its body scrolled to two rows before its first Train, which it opens at.
+ */
+function showLine(line: string) {
+  const keyboard = panel.contains(document.activeElement);
+  [following, boardPlace, lineShown, nearMe, searching, back] = [undefined, undefined, line, undefined, false, undefined];
+  trainSource?.setData(trains());
+  openPanel(false);
+  writeLink();
+  const rows = [...panel.querySelectorAll<HTMLElement>('.line-strip > li')];
+  const first = rows.findIndex((row) => row.classList.contains('train'));
+  panel.querySelector('.sheet-body')?.scrollTo(0, first > 0 ? (rows[Math.max(0, first - 2)]?.offsetTop ?? 0) : 0);
+  fitLine();
+  if (keyboard) focusTitle();
+}
+
+/**
+ * Fits the map to the Line whose screen it is, by its Stations, above or beside the panel and clear of the
+ * cards over the map (clearOfCards()), as a tap's popup is: flat, as tilted, its far end would lie
+ * small at the top, or the map zoom out further for it.
+ */
+function fitLine() {
+  const at = new Set(stripOf.strip.map((s) => s.station));
+  const points = (shownStations ?? []).filter((s) => at.has(s.id)).map((s): Point => [s.lon, s.lat]);
+  if (!points.length) return;
+  const [lons, lats] = [points.map((p) => p[0]), points.map((p) => p[1])];
+  map.fitBounds(
+    [
+      [Math.min(...lons), Math.min(...lats)],
+      [Math.max(...lons), Math.max(...lats)],
+    ],
+    { padding: clearOfCards(), maxZoom: FOLLOW_ZOOM, pitch: 0 },
+  );
+}
+
+/**
+ * Shows the Line whose screen it is on the map, or none (#473), as LOOK has it: its glow under it in every band and
+ * on the rails, or its stroke and casing raised over the others', whose strokes fade to FADED of what they were.
+ * ponytail: the raise lays the Lines' tiles out again, its sort key being a layout property; once per Line shown.
+ */
+function showLook(line: string | undefined) {
+  lookOf = line;
+  const it: ExpressionSpecification = ['==', ['get', 'line'], line ?? ''];
+  if (LOOK === 'glow') {
+    for (const { id } of layered) map.setFilter(`${id}-glow`, it);
+    return;
+  }
+  const strokes = layered.flatMap(({ source, id, prefix }) => (source === 'lines' ? ['', CURVE] : ['']).flatMap((suffix) => [`${id}${suffix}`, `${prefix}-casing${suffix}`]));
+  for (const id of strokes) {
+    const kept = (raised[id] ??= { opacity: map.getPaintProperty(id, 'line-opacity') as ExpressionSpecification, sort: map.getLayoutProperty(id, 'line-sort-key') as ExpressionSpecification });
+    const [, interpolation, zoom, ...stops] = kept.opacity as ['interpolate', InterpolationSpecification, ExpressionSpecification, ...ExpressionSpecification[]];
+    const faded = ['interpolate', interpolation, zoom, ...stops.map((v, i) => (i % 2 ? ['case', it, v, ['*', FADED, v]] : v))] as ExpressionSpecification;
+    map.setPaintProperty(id, 'line-opacity', line ? faded : kept.opacity);
+    map.setLayoutProperty(id, 'line-sort-key', line ? ['case', it, 1e9, kept.sort] : kept.sort);
+  }
+}
+
+/**
  * Shows Search, its tab's sheet (#470), pulled up, following no Train: afresh, as a press on its tab again
  * opens it, its field emptied and focused, which on a phone brings up the keyboard (#471).
  */
 function showSearch() {
-  [following, boardPlace, nearMe, searching, back, query] = [undefined, undefined, undefined, true, undefined, ''];
+  [following, boardPlace, lineShown, nearMe, searching, back, query] = [undefined, undefined, undefined, undefined, true, undefined, ''];
   trainSource?.setData(trains());
   openPanel(true);
   writeLink();
@@ -2792,7 +2893,7 @@ function showSearch() {
  * stays where it is: the basemap's tiles for where they are would tell OpenFreeMap.
  */
 function showNearby() {
-  [following, boardPlace, nearMe, searching, back] = [undefined, undefined, 'locating', false, undefined];
+  [following, boardPlace, lineShown, nearMe, searching, back] = [undefined, undefined, undefined, 'locating', false, undefined];
   trainSource?.setData(trains());
   openPanel(true);
   writeLink();
@@ -2843,8 +2944,8 @@ function locate() {
  * goes back to the tab whose sheet it was, as the close button goes with the panel, rather than to the page (#470).
  */
 function closePanel() {
-  const [tab, keyboard] = [currentTab({ following, boardPlace, nearMe, searching }), panel.contains(document.activeElement)];
-  [following, boardPlace, nearMe, searching, back, linkWaits] = [undefined, undefined, undefined, false, undefined, false];
+  const [tab, keyboard] = [currentTab({ following, boardPlace, lineShown, nearMe, searching }), panel.contains(document.activeElement)];
+  [following, boardPlace, lineShown, nearMe, searching, back, linkWaits] = [undefined, undefined, undefined, undefined, false, undefined, false];
   showPanel();
   writeLink();
   map.easeTo({ padding: panelPadding() });
@@ -2873,11 +2974,19 @@ function openPanel(up: boolean) {
  * and a Train once its Trip is on the map or every day has (#593); those whose Trips fail to come are
  * logged where show() gets them, and looked for again; opened then, it doesn't ring its point again, which
  * a tap may have cleared meanwhile. A Search row opens a Station's board as a link that names it alone (openStation()).
+ * A Line (`line=`) opens its screen once its region's Trips have come, wherever the map is (#473), as a Search row does.
  */
 function openLink(ring = true) {
   if (ring) showMark(markOf(openedLink));
   const link = new URLSearchParams(openedLink.slice(1));
-  const [station, train] = [link.get('station'), link.get('train')];
+  const [station, train, line] = [link.get('station'), link.get('train'), link.get('line')];
+  // A Line's screen waits for its region's Trips, its strip being made of them, and for its Line (#473).
+  if (line && !station && !train) {
+    linkWaits = !(come({ line }, joinedRegions) && lines.has(line) && !!bundle);
+    if (linkWaits) want();
+    else showLine(line);
+    return;
+  }
   const place = station && [...shownPlaces.values()].find((p) => p.stations.includes(station));
   // A Station or a Train waits for its regions, which load meanwhile, wherever the map is (#266), and a
   // Station for the file below zoom 7 to say which those are. A Train too for its Trip, while days are still
@@ -2903,8 +3012,8 @@ function openLink(ring = true) {
 /**
  * Puts what the panel shows in the page's link, beside the view, so that sharing the page shares it:
  * `train=<service day>/<Trip>`, the Train by its service day and its Trip as its operator names it,
- * whose ID leads with its Network, or `station=<Station>`, one of the place's Stations, which opens the
- * place's board. It keeps the link's `mark=` while the map rings its point, and drops it while the
+ * whose ID leads with its Network, `station=<Station>`, one of the place's Stations, which opens the
+ * place's board, or `line=<Line>`, a Line's screen (#473), by its ID, which leads with its Network too. It keeps the link's `mark=` while the map rings its point, and drops it while the
  * map rings none, as after a tap (#254). Written as MapLibre writes the view, which undoes any
  * escaping each time it does.
  * ponytail: so an ID with `&`, `=`, `#`, `+` or `%` in it would break its link. None has one yet
@@ -2914,10 +3023,12 @@ function writeLink() {
   const params = new URLSearchParams(location.hash.slice(1));
   params.delete('train');
   params.delete('station');
+  params.delete('line');
   if (!marked) params.delete('mark');
   if (following) params.set('train', `${following.day}/${following.trip}`);
   const station = boardPlace && boardOf(boardPlace)?.stations[0];
   if (station) params.set('station', station);
+  if (lineShown) params.set('line', lineShown);
   history.replaceState(history.state, '', `#${decodeURIComponent(params.toString())}`);
 }
 
@@ -3083,18 +3194,19 @@ interface Panel {
  */
 function showPanel(up = wide.matches || pulledUp || dragging) {
   panelShown = performance.now();
-  const shown = following ? followedPanel(up) : boardPlace ? boardPanel(boardPlace, up) : nearMe ? nearbyPanel(nearMe, up) : searching ? searchPanel() : undefined;
+  const shown = following ? followedPanel(up) : boardPlace ? boardPanel(boardPlace, up) : lineShown ? linePanel(lineShown) : nearMe ? nearbyPanel(nearMe, up) : searching ? searchPanel() : undefined;
   panelDue = shown?.changes ?? 1000;
   panel.hidden = !shown;
   panel.classList.toggle('up', up);
   patch(panel, shown ? [el('div', { className: 'sheet-top' }, handle(up), shown.header), el('div', { className: 'sheet-body' }, ...shown.body)] : []);
-  const current = currentTab({ following, boardPlace, nearMe, searching });
+  const current = currentTab({ following, boardPlace, lineShown, nearMe, searching });
   for (const [tab, button] of Object.entries(tabs)) {
     if (tab === current) button.setAttribute('aria-current', 'page');
     else button.removeAttribute('aria-current');
   }
   // Where the Train followed has changed, so that the Centre button doesn't wait for the next draw.
   showCentring();
+  if (lineShown !== lookOf) showLook(lineShown);
   riseOverKeyboard();
 }
 
@@ -3302,7 +3414,7 @@ function comingPanel({ trip, live, delay, upcoming, within }: Coming, up: boolea
 function backButton(): Node[] {
   // ponytail: two engine passes a second while Back goes to a Train; cache the check if a phone shows it.
   if (!back) return [];
-  const where = back.to === 'train' ? undefined : back.to === 'board' ? boardOf(back.place)?.name : t('nearby');
+  const where = back.to === 'train' ? undefined : back.to === 'board' ? boardOf(back.place)?.name : back.to === 'line' ? lines.get(back.line)?.name : t('nearby');
   if (back.to === 'train' ? !(bundle && (trainAt(bundle, Date.now(), received, back.day === bundle.serviceDay ? back.trip : `${back.day}/${back.trip}`, hidingClosures) || comingAt(bundle, Date.now(), received, back.day === bundle.serviceDay ? back.trip : `${back.day}/${back.trip}`, hidingClosures))) : !where) return [];
   const label = back.to === 'train' ? backToTrain(back.headsign) : backTo(where ?? '');
   return [el('button', { type: 'button', className: 'back', onclick: goBack }, icon('back'), el('span', { textContent: label }))];
@@ -3534,16 +3646,26 @@ function showTapped() {
  */
 function fitPopup(at: LngLat) {
   const box = map.getContainer().getBoundingClientRect();
-  const inset = {
+  const inset = clearOfCards();
+  const room = popupRoom(map.project(at), box, inset);
+  map.getContainer().style.setProperty('--popup-room', `${room.height}px`);
+  linesPopup.setPadding(inset);
+  linesPopup.setMaxWidth(`${room.width}px`);
+}
+
+/**
+ * How far in from the map's edges what's clear of the cards over it lies, in px, and GUTTER more: the corners' cards
+ * over its top, the buttons riding on the sheet over its bottom, and on a wide window the panel's card at its left,
+ * as the map's own padding is (panelPadding()), or the rail where the card's closed (#470).
+ */
+function clearOfCards() {
+  const box = map.getContainer().getBoundingClientRect();
+  return {
     top: Math.max(box.top, ...[legend, banner, languageChip].map((card) => card.getBoundingClientRect().bottom)) - box.top + GUTTER,
     bottom: box.bottom - Math.min(box.bottom, riders.getBoundingClientRect().top) + GUTTER,
     left: GUTTER + Math.max(panelPadding().left, wide.matches ? nav.getBoundingClientRect().right - box.left : 0),
     right: GUTTER,
   };
-  const room = popupRoom(map.project(at), box, inset);
-  map.getContainer().style.setProperty('--popup-room', `${room.height}px`);
-  linesPopup.setPadding(inset);
-  linesPopup.setMaxWidth(`${room.width}px`);
 }
 
 /**
@@ -3669,6 +3791,115 @@ function servedBy(place: Place): string[] {
 }
 
 /**
+ * A Line's screen (#473, #328's pick): its header, with its pill and name, its first and last Station on its strip,
+ * and under it its Network, how many of its Trains are on the map and the worst Delay of those 5 minutes late or
+ * more, or that all are Scheduled, as where its Network's live data is unavailable, whose banner the map shows
+ * (lineState()); then chips of how many are late, and of its Cancelled Trains and its Alerts, which open them above
+ * the strip. Then the strip: every Station of the Line in order in its colour, each opening its board, and its Trains
+ * as rows between them, each following its Train (lineRows()). None for a Line the map hasn't got.
+ */
+function linePanel(id: string): Panel | undefined {
+  const line = lines.get(id);
+  if (!line || !bundle) return undefined;
+  if (stripOf.line !== id || stripOf.days !== bundle) {
+    const trips = bundle.trips.filter((trip) => trip.line === id);
+    stripOf = { line: id, days: bundle, trips, strip: lineStrip(trips) };
+  }
+  const now = Date.now();
+  const mapNow = mapTime(now, received);
+  const nows = tripsAt(bundle, now, received, stripOf.trips, hidingClosures);
+  const trains = nows.flatMap((n) => ('train' in n ? [n.train] : []));
+  const cancelled = cancelledNow(nows, bundle.noonMinus12h, mapNow);
+  const state = lineState(trains);
+  const shown = cardAlerts(alerts, { lines: [id], stations: [] }, language(), mapNow);
+  const ends = stripOf.strip.filter((s) => s.mark === 'end');
+  const name = ends.length ? ends.map((s) => stationName(s.station)).join(' – ') : line.name;
+  const network = bundle.networks.find((n) => n.id === line.network)?.name ?? line.network;
+  const how = state.trains ? [state.worst !== undefined ? t('worst').replace('{n}', String(state.worst)) : '', state.live ? '' : t('allScheduled')].filter(Boolean) : [];
+  const chip = (className: string, says: (Node | string)[], open: boolean, toggle: () => void) => {
+    const button = el('button', { type: 'button', className: `chip-button ${className}`, onclick: () => (toggle(), showPanel(), map.easeTo({ padding: panelPadding() })) }, el('span', {}, ...says), icon(open ? 'up' : 'chevron'));
+    button.setAttribute('aria-expanded', String(open));
+    return button;
+  };
+  const chips = [
+    ...(state.late ? [el('span', { className: 'delay late', textContent: t('lateCount').replace('{n}', String(state.late)) })] : []),
+    ...(cancelled.length ? [chip('cancelled', [cancelledCount(cancelled.length)], showCancelled, () => (showCancelled = !showCancelled))] : []),
+    ...(shown.alerts.length ? [chip('warn', [icon('warning'), alertCount(shown.alerts.length)], showAlerts, () => (showAlerts = !showAlerts))] : []),
+  ];
+  const first = (n: TripNow) => bundle && bundle.noonMinus12h + (n.trip.calls[0]?.departure ?? 0) * 1000;
+  return {
+    header: el(
+      'header',
+      { className: 'line-head' },
+      ...backButton(),
+      el('h2', { className: 'title', tabIndex: -1 }, pill(id), ` ${name}`),
+      closeButton(t('closeLine')),
+      el(
+        'div',
+        { className: 'line-state' },
+        el('p', { className: 'meta status-line' }, el('span', { className: `dot ${state.live ? 'live' : 'scheduled'}` }), [network, trainsNow(state.trains), ...how].join(' · ')),
+        el('div', { className: 'state-chips', hidden: !chips.length }, ...chips),
+      ),
+    ),
+    body: [
+      el(
+        'div',
+        { className: 'line-details', hidden: !((showCancelled && cancelled.length) || (showAlerts && shown.alerts.length)) },
+        el('div', { hidden: !(showCancelled && cancelled.length) }, el('h3', { className: 'label', textContent: t('cancelled') }), el('ol', { className: 'rows' }, ...cancelled.map((n) => departureRow({ trip: n.trip, station: n.trip.calls[0]?.station ?? '', departure: first(n) ?? 0, live: false, unreported: false, cancelled: true, skipped: false }, mapNow)))),
+        el('div', { className: 'alerts', hidden: !(showAlerts && shown.alerts.length) }, readAt(shown.asOf, shown.changed, mapNow), el('ol', {}, ...shown.alerts.map((alert) => alertRow(alert, false)))),
+      ),
+      el('h3', { className: 'label', textContent: t('stations') }),
+      lineRows(id, stripOf.strip, trains, mapNow),
+    ],
+  };
+}
+
+/**
+ * A Line's strip (#473): each Station a row along its colour, its whole row a button that opens its board, as a
+ * followed Train's strip has them (stationLink()), marked as lineStrip() has it, with what the mark means under its
+ * name; and each Train on the map a row after the Station it stands at or is between it and the next (onStrip()):
+ * an arrow the way it goes along the strip, filled Live and ringed Scheduled, its pill, where it's headed, its
+ * Delay or status, and under them its next Station it stops at and when it's due, or the one it stands at, the
+ * whole row a button following it (#322).
+ */
+function lineRows(id: string, strip: StripStation[], trains: Followed[], now: number) {
+  const rows = onStrip(strip, trains);
+  const name = (station: string) => stationName(station);
+  const note = (s: StripStation) =>
+    s.goOn ? goOn(s.goOn.n, name(s.goOn.to)) : s.endsHere !== undefined ? endsHere(s.endsHere) : s.mark === 'turn' ? turnsHere(s.turns, s.calls) : '';
+  const list = el(
+    'ol',
+    { className: 'strip line-strip' },
+    ...strip.flatMap((s, i) => {
+      const classes = ['stop', i === 0 ? 'origin' : '', i === strip.length - 1 ? 'terminus' : '', s.mark ?? ''].filter(Boolean).join(' ');
+      const says = note(s);
+      const label = [el('span', { className: 'stop-name', textContent: name(s.station) }), ...(says ? [el('span', { className: 'stop-note', textContent: says })] : [])];
+      const station = el('li', { className: classes }, el('span', { className: 'mark' }), stationLink(s.station, el('span', {}, ...label)));
+      const after = rows.filter((r) => r.after === i).map(({ train, way }) => {
+        const { trip, live, delay, unreported, standsAt, upcoming } = train;
+        const next = upcoming.find((c) => !c.skipped);
+        const said = standsAt ? standingAt(name(standsAt)) : next ? nextAt(name(next.station), clock().format(due(next, false, next === upcoming.at(-1)).at)) : '';
+        const cells = [
+          pill(trip.line, { live, train: true }),
+          el('span', { className: 'dest', textContent: `${way > 0 ? '↓' : '↑'} ${trip.headsign}` }),
+          el('span', { className: 'end' }, status({ delay, live, unreported })),
+          el('span', { className: 'sub', textContent: said.charAt(0).toLocaleUpperCase(locale()) + said.slice(1) }),
+        ];
+        const [button] = followButton(trip, next ? due(next, !!standsAt && next === upcoming[0], next === upcoming.at(-1)).at : now, cells);
+        button?.classList.replace('row', 'train-row');
+        const row = el('li', { className: `train ${live ? 'live' : 'scheduled'} ${way > 0 ? 'down' : 'up'}${i === strip.length - 1 ? ' beyond' : ''}${s.mark === 'spur' ? ' spur' : ''}` }, el('span', { className: 'mark' }, el('i')), ...(button ? [button] : []));
+        return row;
+      });
+      return [station, ...after];
+    }),
+  );
+  list.setAttribute('aria-label', t('stations'));
+  list.style.setProperty('--line', lines.get(id)?.colour ?? '');
+  list.style.setProperty('--lettering', lettering(lines.get(id)?.colour ?? NO_COLOUR, cardColour));
+  return list;
+}
+
+/**
  * A departure on a board: when it's expected to leave, with the minutes to go under a time within the
  * hour, its Train's pill, where it's headed, and its status. One Cancelled, or at a Station its Train
  * won't stop at (#346), as one within a closed Closure that hides Trains but for one Live within it (#345), shows when its
@@ -3725,7 +3956,7 @@ function followedCountdown(at: number, now: number): Node[] {
  * Search's sheet (#470, #471): its field at its top, which showSearch() focuses, with a clear button once
  * something's typed, under a heading for a screen reader; and under it, while it's empty, what it finds
  * (searchHints()), or what it finds for what's typed, section by section (results()), or that it finds
- * nothing: Stations from the file below zoom 7, every region's, and Train numbers from the Trips of the
+ * nothing: Lines and Stations from the file below zoom 7, every region's, and Train numbers from the Trips of the
  * regions the map has loaded, with where each one's Train is now (tripsAt()).
  */
 function searchPanel(): Panel {
@@ -3756,9 +3987,9 @@ function searchPanel(): Panel {
   const header = el('header', {}, el('h2', { className: 'sr-only', textContent: t('search') }), form, closeButton(t('closeSearch')));
   if (!query.trim()) return { header, body: searchHints() };
   const trips = bundle ? numbered(bundle.trips, query) : [];
-  const sections = results(query, searched, bundle && trips.length ? tripsAt(bundle, Date.now(), received, trips, hidingClosures) : []);
+  const sections = results(query, searched, bundle && trips.length ? tripsAt(bundle, Date.now(), received, trips, hidingClosures) : [], [...searchedLines.values()]);
   if (!sections.length) return { header, body: [el('p', { className: 'empty', textContent: t('nothingFound').replace('{query}', query.trim()) })] };
-  return { header, body: sections.flatMap((section) => ('places' in section ? stationResults(section.places) : trainResults(section))) };
+  return { header, body: sections.flatMap((section) => ('lines' in section ? lineResults(section.lines) : 'places' in section ? stationResults(section.places) : trainResults(section))) };
 }
 
 /** Shows what Search finds for `text`, typed in its field, from the top (#471). */
@@ -3768,14 +3999,31 @@ function search(text: string) {
   panel.querySelector('.sheet-body')?.scrollTo(0, 0);
 }
 
-/** What Search says it finds while its field is empty (#471): a Station, beside examples of their names, and a Train number, which only Renfe's Trains have, of the parts of the map loaded. A Line comes with a Line's screen (#473). */
+/** What Search says it finds while its field is empty (#471): a Line, with its screen (#473), and a Station, beside examples of their names, and a Train number, which only Renfe's Trains have, of the parts of the map loaded. */
 function searchHints(): Node[] {
   const hint = (lead: Node, what: string, under: string) =>
     el('li', {}, el('span', { className: 'lead' }, lead), el('span', { className: 'what' }, el('span', { className: 'what-title', textContent: what }), el('span', { className: 'what-under', textContent: under })));
   return [
     el('h3', { className: 'label', textContent: t('find') }),
-    el('ul', { className: 'hints' }, hint(icon('station'), t('aStation'), SEARCH_EXAMPLES.stations), hint(el('b', { className: 'num', textContent: SEARCH_EXAMPLES.number }), t('aTrainNumber'), t('renfeOnly'))),
+    el('ul', { className: 'hints' }, hint(pill(SEARCH_EXAMPLES.line), t('aLine'), SEARCH_EXAMPLES.lines), hint(icon('station'), t('aStation'), SEARCH_EXAMPLES.stations), hint(el('b', { className: 'num', textContent: SEARCH_EXAMPLES.number }), t('aTrainNumber'), t('renfeOnly'))),
   ];
+}
+
+/**
+ * Search's Lines (#473): a row for each Line it finds, with its pill and its Network, by its short name where it has
+ * one (networkNames()), each a button that opens the Line's screen (openLine()).
+ */
+function lineResults(found: FoundLine[]): Node[] {
+  const networks = networkNames(zoomedOut?.networks ?? []);
+  const row = (line: FoundLine) =>
+    el(
+      'button',
+      { type: 'button', className: 'result', onclick: () => openLine(line.id) },
+      el('span', { className: 'lead' }, pill(line.id)),
+      el('span', { className: 'what' }, el('span', { className: 'what-title', textContent: networks.get(line.network) ?? line.network })),
+      el('span', { className: 'end' }, icon('right')),
+    );
+  return [el('h3', { className: 'label', textContent: t('lines') }), el('ol', { className: 'results' }, ...found.map((f) => el('li', {}, row(f))))];
 }
 
 /**
@@ -3854,6 +4102,12 @@ function trainResult(now: TripNow): HTMLElement {
  */
 function openStation(station: string) {
   openedLink = `#station=${station}`;
+  openLink(false);
+}
+
+/** Opens a Line's screen from a Search row, as a link that names it alone does (openLink(), #473): once its region's Trips have come, which load meanwhile wherever the map is, Search's sheet showing till then. */
+function openLine(line: string) {
+  openedLink = `#line=${line}`;
   openLink(false);
 }
 
@@ -4319,7 +4573,7 @@ function showDays(days: Bundle, regions: string[], complete: boolean) {
 function neededRegions({ regions = [] }: Manifest): string[] {
   const link = new URLSearchParams(openedLink.slice(1));
   const nearby = nearMe && typeof nearMe !== 'string' ? { at: nearMe, metres: NEARBY } : undefined;
-  return regionsNeeded(regions, { bounds: map.getBounds().toArray(), zoom: map.getZoom() }, { train: link.get('train'), station: link.get('station'), stations: zoomedOut?.stations, nearby });
+  return regionsNeeded(regions, { bounds: map.getBounds().toArray(), zoom: map.getZoom() }, { train: link.get('train'), line: link.get('line'), station: link.get('station'), stations: zoomedOut?.stations, nearby });
 }
 
 /** Looks for the days the map needs again where it needs a region it hasn't loaded (neededRegions()), as it comes into view. */
@@ -4334,7 +4588,7 @@ function want() {
  * which what a board and Nearby say of none being had wait for, as another day's could add some, or,
  * for a link, from the days that have come so far (joinedRegions, #593).
  */
-function come(needs: { station?: string | null; train?: string | null; nearby?: { at: Point; metres: number } }, regions = shownRegions): boolean {
+function come(needs: { station?: string | null; train?: string | null; line?: string | null; nearby?: { at: Point; metres: number } }, regions = shownRegions): boolean {
   if (needs.station && !zoomedOut && manifest?.zoomedOut) return false;
   return regionsNeeded(manifest?.regions ?? [], undefined, { ...needs, stations: zoomedOut?.stations }).every((id) => regions.has(id));
 }

@@ -16,14 +16,14 @@ const AHEAD = 0.5;
  * Lines and Trains, those whose extent is in `view`, or within AHEAD of it; below it none, as the file
  * below zoom 7 draws every region's track there (ZoomedOut); and at every zoom, those with no extent,
  * which every view loads, as long distance's, as every region of a manifest from before #266. And
- * wherever the map is, the region of the Train a link names, by the Network its Trip's ID leads with,
+ * wherever the map is, the region of the Train or the Line a link names, by the Network its ID leads with (#473),
  * those that have the Station a link names, by the file below zoom 7's `stations`, once it has come,
  * and for Nearby, those within so many metres of the viewer.
  */
 export function regionsNeeded(
   regions: Pick<ManifestRegion, 'id' | 'networks' | 'extent'>[],
   view: { bounds: [Point, Point]; zoom: number } | undefined,
-  { train, station, stations = {}, nearby }: { train?: string | null; station?: string | null; stations?: ZoomedOut['stations']; nearby?: { at: Point; metres: number } } = {},
+  { train, line, station, stations = {}, nearby }: { train?: string | null; line?: string | null; stations?: ZoomedOut['stations']; station?: string | null; nearby?: { at: Point; metres: number } } = {},
 ): string[] {
   /** A box by its south-west and north-east corners, grown so many degrees east and west, and north and south. */
   const box = ([[west, south], [east, north]]: [Point, Point], x = 0, y = 0) => (extent: NonNullable<ManifestRegion['extent']>) => extent[0] <= east + x && extent[2] >= west - x && extent[1] <= north + y && extent[3] >= south - y;
@@ -32,9 +32,9 @@ export function regionsNeeded(
   const [lat, degrees] = [nearby?.at[1] ?? 0, (nearby?.metres ?? 0) / DEGREE];
   const near = nearby ? box([nearby.at, nearby.at], degrees / Math.cos((lat * Math.PI) / 180), degrees) : () => false;
   // A day's link names its Trip after the day.
-  const network = train?.replace(/^\d{4}-\d{2}-\d{2}\//, '').split(':')[0];
+  const linked = [train?.replace(/^\d{4}-\d{2}-\d{2}\//, ''), line].flatMap((id) => id?.split(':')[0] ?? []);
   return regions.flatMap(({ id, networks, extent }) => {
-    const needed = !extent || inView(extent) || near(extent) || (network !== undefined && networks?.includes(network)) || (station && stations[id]?.includes(station));
+    const needed = !extent || inView(extent) || near(extent) || linked.some((network) => networks?.includes(network)) || (station && stations[id]?.includes(station));
     return needed ? [id] : [];
   });
 }

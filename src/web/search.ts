@@ -1,8 +1,8 @@
-// Search (#471): the places it finds Stations in, from the file below zoom 7, which every view loads, and
+// Search (#471): the Lines it finds (#473), the places it finds Stations in, from the file below zoom 7, which every view loads, and
 // the Trips it finds by Train number, of the regions the map has loaded; in which order it lists them; and where its
 // sheet goes over the on-screen keyboard. Pure, with nothing from the page, so that Node tests it.
 
-import { places, type Network, type Place, type Station, type Trip, type ZoomedOut } from '../bundle.ts';
+import { places, type Line, type Network, type Place, type Station, type Trip, type ZoomedOut } from '../bundle.ts';
 import type { TripNow } from '../engine.ts';
 import { inNameOrder } from './cards.ts';
 
@@ -76,17 +76,33 @@ export function numbered(trips: Trip[], query: string): Trip[] {
 /** How many of the Trips it finds by Train number Search shows: it says how many more there are. */
 const SHOWN = 6;
 
-/** A section of what Search shows for a query: the places it finds Stations in, or the Trips it finds by Train number that it shows, and how many more it found. */
-export type Section = { places: { place: Found; alike: boolean }[] } | { trains: TripNow[]; more: number };
+/** A Line as Search finds it, from the file below zoom 7. */
+export type FoundLine = Pick<Line, 'id' | 'network' | 'name' | 'colour' | 'kind'>;
 
 /**
- * What Search shows for a query, given the places it finds Stations in and the Trips it finds by Train number,
- * where each one's Train is (#471): a section of each, Stations first, only where it has some, and none where it
- * finds nothing. Lines come first once Search finds them, with a Line's screen (#473).
+ * The Lines whose names start with `query`, both without what isn't a letter or a digit (words()), so that `c8a`
+ * finds C-8a and `r4` R4, in the order the cards name Lines (#473). None for a query of no letter or digit.
  */
-export function results(query: string, found: Found[], trains: TripNow[]): Section[] {
-  const [stations, listed] = [findPlaces(found, query), trains.toSorted(trainOrder)];
-  return [...(stations.length ? [{ places: stations }] : []), ...(listed.length ? [{ trains: listed.slice(0, SHOWN), more: Math.max(0, listed.length - SHOWN) }] : [])];
+export function findLines<L extends Pick<Line, 'network' | 'name'>>(lines: L[], query: string): L[] {
+  const asked = words(query).join('');
+  return asked ? inNameOrder(lines.filter((line) => words(line.name).join('').startsWith(asked))) : [];
+}
+
+/** A section of what Search shows for a query: the Lines it finds, the places it finds Stations in, or the Trips it finds by Train number that it shows, and how many more it found. */
+export type Section = { lines: FoundLine[] } | { places: { place: Found; alike: boolean }[] } | { trains: TripNow[]; more: number };
+
+/**
+ * What Search shows for a query, given the places it finds Stations in, the Trips it finds by Train number, where
+ * each one's Train is (#471), and the Lines it finds them in: a section of each, Lines first (#473), then Stations,
+ * only where it has some, and none where it finds nothing.
+ */
+export function results(query: string, found: Found[], trains: TripNow[], lines: FoundLine[] = []): Section[] {
+  const [named, stations, listed] = [findLines(lines, query), findPlaces(found, query), trains.toSorted(trainOrder)];
+  return [
+    ...(named.length ? [{ lines: named }] : []),
+    ...(stations.length ? [{ places: stations }] : []),
+    ...(listed.length ? [{ trains: listed.slice(0, SHOWN), more: Math.max(0, listed.length - SHOWN) }] : []),
+  ];
 }
 
 /** Where a Trip's Train is in its day, as its row says it, in the order Search lists them: running, on the map or within a closed Closure that hides Trains; still to leave its first Station; Cancelled; or ended. */

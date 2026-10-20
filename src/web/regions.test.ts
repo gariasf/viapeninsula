@@ -320,7 +320,7 @@ test("below zoom 7 loads no region for the view, as the file below zoom 7 draws 
   expect(regionsNeeded(REGIONS.map(({ id }) => ({ id })), { bounds: phone(BARCELONA), zoom: 12 })).toEqual(REGIONS.map((r) => r.id));
 });
 
-test('loads the region of the Train a link names, by the Network its Trip leads with, those of the Station a link names, by the file below zoom 7, and those near the viewer for Nearby, wherever the map is', () => {
+test('loads the region of the Train or the Line a link names, by the Network its Trip leads with, those of the Station a link names, by the file below zoom 7, and those near the viewer for Nearby, wherever the map is', () => {
   const view = { bounds: phone(BARCELONA), zoom: 12 };
   expect(regionsNeeded(REGIONS, view, { train: '2026-10-10/cercanias-bilbao:C4_15212' })).toEqual(['catalonia', 'cercanias-bilbao']);
   // A Station in two regions, as León's was in León's and in Bilbao's, whose C4 ran to it until #368.
@@ -336,6 +336,9 @@ test('loads the region of the Train a link names, by the Network its Trip leads 
   // Zoomed out, or with no view, those alone.
   expect(regionsNeeded(REGIONS, { bounds: phone(BARCELONA), zoom: 6 }, { train: 'cercanias-madrid:4021C' })).toEqual(['cercanias-madrid']);
   expect(regionsNeeded(REGIONS, undefined, { train: 'cercanias-madrid:4021C' })).toEqual(['cercanias-madrid']);
+  // A Line's screen's, by the Network its ID leads with (#473).
+  expect(regionsNeeded(REGIONS, undefined, { line: 'cercanias-madrid:C-8a' })).toEqual(['cercanias-madrid']);
+  expect(regionsNeeded(REGIONS, view, { line: 'cercanias-bilbao:C4' })).toEqual(['catalonia', 'cercanias-bilbao']);
 });
 
 test("loads a region with no extent, as long distance's, which every view needs and whose track file is larger than any view's own, only at the map's second look, so that it holds back neither the first Lines in view nor, zoomed out, the Network tracks (#262)", () => {
