@@ -4,7 +4,7 @@ import { expect, test } from 'vitest';
 import { beside, DEGREE, places, pointAt, type Bundle, type Freshness, type Network, type Point, type Report, type Shape, type Snapshot, type Trip } from './bundle.ts';
 import { noonMinus12h } from './build/gtfs.ts';
 import { stationsOf } from './build/track.ts';
-import { boardAt, comingAt, joinDays, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, tripsAt, unavailable, type Received, type ShownClosure } from './engine.ts';
+import { boardAt, comingAt, joinDays, KEEP, lastDays, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, tripsAt, unavailable, type Received, type ShownClosure } from './engine.ts';
 import { jumps } from './jumps.ts';
 import { NETWORKS } from './networks.ts';
 import { countdownTo, due, minutesTo, passedPlace, whereabouts } from './web/cards.ts';
@@ -3517,6 +3517,10 @@ test("after midnight the map keeps the previous day's Closures, their times move
   expect(joinDays([friday, saturday]).closures).toEqual([closure(-3_600, 2_400), closure(18_000, 82_800)]);
   // A day file built before #340 has none.
   expect(joinDays([FRIDAY, saturday]).closures).toEqual([closure(18_000, 82_800)]);
+});
+
+test("a joined bundle's last day's own Trips are told from an earlier day's, as a Line's strip counts one day's (#473)", () => {
+  expect(FRIDAY_NIGHT.trips.filter(lastDays).map((t) => t.id)).toEqual(SATURDAY.trips.map((t) => t.id));
 });
 
 test("days of one track join on its own arrays, so that the map draws nothing again at the join, and days of two builds join in full (#722)", () => {
