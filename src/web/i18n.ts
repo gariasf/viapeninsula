@@ -232,7 +232,7 @@ const STRINGS = {
   trainTo: { ca: '{number} cap a {headsign}', es: '{number} hacia {headsign}', eu: '{number}, {headsign} aldera', gl: '{number} cara a {headsign}', en: '{number} to {headsign}' },
   nextAt: { ca: 'propera: {station}, {time}', es: 'próxima: {station}, {time}', eu: 'hurrengoa: {station}, {time}', gl: 'próxima: {station}, {time}', en: 'next {station}, {time}' },
   // A Line's screen (#473): its state under its header, where {n} is how many, and its worst Delay in minutes; under a Train's row on its strip, the Station it stands at; and how its strip marks a Station
-  // where {n} of the {m} Trains that call there start or end, the end a spur goes on from, and the spur's own end. A number keeps its unit, Trains or minutes, on its line (U+00A0).
+  // where {n} of the {m} Trains that call there start or end, the end a spur goes on from, the Station short of it a spur forks off at, and the spur's own end. A number keeps its unit, Trains or minutes, on its line (U+00A0).
   trainsNow: { ca: '{n}\u00A0trens ara', es: '{n}\u00A0trenes ahora', eu: '{n}\u00A0tren orain', gl: '{n}\u00A0trens agora', en: '{n}\u00A0trains now' },
   oneTrainNow: { ca: '{n}\u00A0tren ara', es: '{n}\u00A0tren ahora', eu: 'Tren bat orain', gl: '{n}\u00A0tren agora', en: '{n}\u00A0train now' },
   noTrainsNow: { ca: 'Cap tren ara', es: 'Ningún tren ahora', eu: 'Trenik ez orain', gl: 'Ningún tren agora', en: 'No trains now' },
@@ -245,6 +245,8 @@ const STRINGS = {
   turnsHere: { ca: '{n} de {m}\u00A0trens surten o acaben aquí', es: '{n} de {m}\u00A0trenes salen o terminan aquí', eu: '{m}\u00A0trenetatik {n} hemen hasi edo amaitzen dira', gl: '{n} de {m}\u00A0trens saen ou rematan aquí', en: '{n} of {m}\u00A0trains start or end here' },
   goOn: { ca: '{n}\u00A0trens continuen fins a {station}', es: '{n}\u00A0trenes siguen hasta {station}', eu: '{n}\u00A0tren {station} arte jarraitzen dute', gl: '{n}\u00A0trens seguen ata {station}', en: '{n}\u00A0trains go on to {station}' },
   oneGoesOn: { ca: '{n}\u00A0tren continua fins a {station}', es: '{n}\u00A0tren sigue hasta {station}', eu: 'Tren bat {station} arte jarraitzen du', gl: '{n}\u00A0tren segue ata {station}', en: '{n}\u00A0train goes on to {station}' },
+  branchOff: { ca: '{n}\u00A0trens es desvien cap a {station}', es: '{n}\u00A0trenes se desvían hacia {station}', eu: '{n}\u00A0tren {station} aldera desbideratzen dira', gl: '{n}\u00A0trens desvíanse cara a {station}', en: '{n}\u00A0trains branch off to {station}' },
+  oneBranchesOff: { ca: '{n}\u00A0tren es desvia cap a {station}', es: '{n}\u00A0tren se desvía hacia {station}', eu: 'Tren bat {station} aldera desbideratzen da', gl: '{n}\u00A0tren desvíase cara a {station}', en: '{n}\u00A0train branches off to {station}' },
   endsHere: { ca: 'Final: {n}\u00A0trens al dia', es: 'Final: {n}\u00A0trenes al día', eu: 'Amaiera: {n}\u00A0tren egunean', gl: 'Final: {n}\u00A0trens ao día', en: 'Ends here: {n}\u00A0trains a day' },
   oneEndsHere: { ca: 'Final: {n}\u00A0tren al dia', es: 'Final: {n}\u00A0tren al día', eu: 'Amaiera: tren bat egunean', gl: 'Final: {n}\u00A0tren ao día', en: 'Ends here: {n}\u00A0train a day' },
   closeLine: { ca: 'Tanca la línia', es: 'Cerrar la línea', eu: 'Itxi linea', gl: 'Pechar a liña', en: 'Close the line' },
@@ -588,6 +590,9 @@ export const turnsHere = (n: number, m: number, lang = language()): string => ST
 
 /** That `n` Trains a day go on along a spur past the Line's end, as far as a Station (#473), in `lang`, or else the language the interface speaks now. */
 export const goOn = (n: number, station: string, lang = language()): string => named(counting(n, 'oneGoesOn', 'goOn', lang), '{station}', station, lang);
+
+/** That `n` Trains a day branch off the Line at a Station short of its end, along a spur as far as a Station (#473), in `lang`, or else the language the interface speaks now. */
+export const branchOff = (n: number, station: string, lang = language()): string => named(counting(n, 'oneBranchesOff', 'branchOff', lang), '{station}', station, lang);
 
 /** That `n` Trains a day end at a spur's last Station (#473), in `lang`, or else the language the interface speaks now. */
 export const endsHere = (n: number, lang = language()): string => counting(n, 'oneEndsHere', 'endsHere', lang);

@@ -34,12 +34,22 @@ test('A run beyond the Line\'s end that few of its Trips go on to is a spur, das
   expect(strip[5]?.endsHere).toBe(2);
 });
 
-test("A spur off the Line short of its end, as R16's to Ulldecona from L'Aldea, goes after the end, on the one strip", () => {
+test("A spur off the Line short of its end, as R16's to Ulldecona from L'Aldea, goes after the end, on the one strip, its Station where it forks saying so", () => {
   const R16 = ['França', 'Sants', 'Tarragona', "L'Aldea", 'Tortosa'];
   const strip = lineStrip([...each(10, R16), trip(['Tortosa', "L'Aldea", 'Ulldecona']), trip(["L'Aldea", 'Ulldecona']), trip(['Ulldecona', "L'Aldea", 'Tortosa'])]);
   expect(strip.map((s) => s.station)).toEqual([...R16, 'Ulldecona']);
   expect(strip.map((s) => s.mark)).toEqual(['end', undefined, undefined, undefined, 'end', 'spur']);
-  expect(strip[4]?.goOn).toEqual({ n: 3, to: 'Ulldecona' });
+  expect(strip[3]?.branchOff).toEqual({ n: 3, to: 'Ulldecona' });
+  // The Line's end, which the spur goes after on the strip, doesn't say so: its Trains don't go on from there.
+  expect(strip[4]?.goOn).toBeUndefined();
+  expect(strip[5]?.endsHere).toBe(3);
+});
+
+test("A spur off the Line's first Station short of it, the strip's start, says so at its fork too", () => {
+  const strip = lineStrip([...each(10, ['A', 'B', 'C', 'D', 'E']), ...each(1, ['X', 'B', 'C', 'D'])]);
+  expect(strip.map((s) => s.station)).toEqual(['X', 'A', 'B', 'C', 'D', 'E']);
+  expect(strip[2]?.branchOff).toEqual({ n: 2, to: 'X' });
+  expect(strip[1]?.goOn).toBeUndefined();
 });
 
 test("A Line whose far end few Trips reach but no Station beyond does keeps it its own end, and a short-turn's Stations within it", () => {

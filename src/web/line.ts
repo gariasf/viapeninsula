@@ -18,7 +18,8 @@ const SPUR = 1 / 4;
  * A Station on a Line's strip: how many of the day's Trips call there, and how many start or end there; and how the
  * strip marks it: a solid bar at the Line's own `end`, a hollow one where TURNS or more Trips start or end (`turn`),
  * or dashed, beyond an end, on a `spur`. The end a spur goes on from says how many Trains go on and to where
- * (`goOn`), and the spur's own end how many end there (`endsHere`).
+ * (`goOn`), or the Station short of it where the spur forks off, how many branch off and to where (`branchOff`); and
+ * the spur's own end how many end there (`endsHere`).
  */
 export interface StripStation {
   station: string;
@@ -26,6 +27,7 @@ export interface StripStation {
   turns: number;
   mark?: 'end' | 'turn' | 'spur';
   goOn?: { n: number; to: string };
+  branchOff?: { n: number; to: string };
   endsHere?: number;
 }
 
@@ -33,12 +35,19 @@ export interface StripStation {
  * A Line's Stations in order, as one strip (#473), from its Trips of the day: along its longest Trip, each other
  * Trip's Stations it doesn't call at put where that Trip has them, between those it shares, and those beyond a
  * Station where it leaves the strip, as R16's to Ulldecona from L'Aldea-Amposta-Tortosa, at the strip's nearer end,
- * as a spur. A Trip that calls at a Station twice, as one that turns back, counts it once. One strip, never two
+ * as a spur, which says so where it forks. A Trip that calls at a Station twice, as one that turns back, counts it once. One strip, never two
  * columns: a run beyond an end whose Trips are no more than SPUR of the Station before it is a spur, dashed.
  */
 export function lineStrip(trips: Pick<Trip, 'calls'>[]): StripStation[] {
   const runs = trips.map((t) => [...new Set(t.calls.map((c) => c.station))]).sort((a, b) => b.length - a.length);
   const order = [...(runs[0] ?? [])];
+  // Where a run put at an end leaves the strip short of it, by its Stations: R16's Ulldecona's at L'Aldea, before Tortosa.
+  const forks = new Map<string, string>();
+  const put = (buffer: string[], fork: string | undefined, atEnd: boolean) => {
+    if (fork && fork !== (atEnd ? order.at(-1) : order[0])) for (const s of buffer) forks.set(s, fork);
+    if (atEnd) order.push(...buffer);
+    else order.unshift(...buffer);
+  };
   for (const run of runs.slice(1)) {
     const at = (s: string) => order.indexOf(s);
     const shared = run.filter((s) => at(s) >= 0);
@@ -53,14 +62,13 @@ export function lineStrip(trips: Pick<Trip, 'calls'>[]): StripStation[] {
       if (buffer.length) {
         // Before the strip's first Station, or off it from within, at its nearer end, the far one outermost.
         if (prev !== undefined) order.splice(prev + 1, 0, ...buffer);
-        else if (k < order.length / 2) order.unshift(...buffer);
-        else order.push(...buffer.toReversed());
+        else put(k < order.length / 2 ? buffer : buffer.toReversed(), s, k >= order.length / 2);
         buffer = [];
       }
       prev = order.indexOf(s);
     }
-    if (prev === undefined || prev >= order.length / 2 - 1) order.push(...buffer);
-    else order.unshift(...buffer.toReversed());
+    if (prev === undefined || prev >= order.length / 2 - 1) put(buffer, order[prev ?? -1], true);
+    else put(buffer.toReversed(), order[prev], false);
   }
   const strip: StripStation[] = order.map((station) => ({ station, calls: 0, turns: 0 }));
   const byId = new Map(strip.map((s) => [s.station, s]));
@@ -92,7 +100,10 @@ export function lineStrip(trips: Pick<Trip, 'calls'>[]): StripStation[] {
     // Each Trip calling at any of the spur's Stations, as some skip its first, as 2 of Asturias C1's 18 past Pola de Lena.
     const beyond = new Set(spur.map((s) => s.station));
     const n = runs.filter((run) => run.some((s) => beyond.has(s))).length;
-    from.goOn = { n, to: (spur.findLast((s) => s.calls === n) ?? on).station };
+    const said = { n, to: (spur.findLast((s) => s.calls === n) ?? on).station };
+    const fork = byId.get(forks.get(on.station) ?? '');
+    if (fork) fork.branchOff = said;
+    else from.goOn = said;
     to.endsHere = to.calls;
   }
   return strip;
