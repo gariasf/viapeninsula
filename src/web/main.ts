@@ -4022,8 +4022,8 @@ const [NOW_LINES, NOW_ALERTS] = [5, 6];
 /**
  * How far round now Now looks for Trips, in seconds: those leaving within the hour, as Trains to France do, and
  * those due to have arrived up to 3 hours ago, as a Train running late may still be on the map.
- * ponytail: a Train over 3 hours late is left out of Now's counts. Widen it, or look at every Trip, which took 13–38 ms
- * a second for Catalonia, Madrid, Valencia and long distance's on a Mac against 6 ms, if one ever is.
+ * ponytail: a Train over 3 hours late is left out of Now's counts. Widen it, or look at every Trip, which took 7–11 ms
+ * a second for Catalonia, Madrid, Valencia and long distance's, or all Spain, on an M4 against 3–4 ms, if one ever is.
  */
 const [NOW_AHEAD, NOW_BEHIND] = [3600, 3 * 3600];
 
