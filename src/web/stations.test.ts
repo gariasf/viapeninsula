@@ -66,6 +66,63 @@ test('a real day\'s places make the same interchanges, ids, names and how, in th
   expect(REAL.barcelona.interchanges).toHaveLength(40);
 });
 
+/** interchangesOf() as main had it before #838, comparing every pair of places: what the grid's must make. */
+function everyPair(places: Tiered[], hand: Parameters<typeof interchangesOf>[1] & object): Interchange[] {
+  const parent = new Map(places.map((p) => [p.id, p.id]));
+  const root = (id: string): string => (parent.get(id) === id ? id : root(parent.get(id) ?? id));
+  const byHand = new Set<string>();
+  const apart = new Set(hand.apart.flatMap(([a, b]) => [`${a} ${b}`, `${b} ${a}`]));
+  const COMMON = new Set(['barcelona', 'de', 'del', 'la', 'el', 'les', 'els', 'i', 'estacio', 'placa', 'pl', 'sant', 'santa', 'av', 'avinguda']);
+  const words = places.map((p) => new Set(p.name.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 1 && !COMMON.has(w))));
+  const metres = (a: Tiered, b: Tiered) => Math.hypot((a.lon - b.lon) * 111_195 * Math.cos((a.lat * Math.PI) / 180), (a.lat - b.lat) * 111_195);
+  places.forEach((a, i) => {
+    for (let j = i + 1; j < places.length; j++) {
+      const b = places[j] as Tiered;
+      if (apart.has(`${a.id} ${b.id}`) || a.networks.some((n) => b.networks.includes(n)) || metres(a, b) > 350 || ![...(words[i] ?? [])].some((w) => words[j]?.has(w))) continue;
+      parent.set(root(a.id), root(b.id));
+    }
+  });
+  for (const [a, b] of hand.join) {
+    if (!parent.has(a) || !parent.has(b)) continue;
+    parent.set(root(a), root(b));
+    byHand.add(a);
+  }
+  const groups = new Map<string, Tiered[]>();
+  for (const p of places) groups.set(root(p.id), [...(groups.get(root(p.id)) ?? []), p]);
+  const rank = (n: string) => (['rodalies', 'fgc', 'metro', 'tram'].indexOf(n) + 5) % 5;
+  return [...groups.values()].flatMap((group) => {
+    const networks = [...new Set(group.flatMap((p) => p.networks))].toSorted((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+    const [named] = group.toSorted((a, b) => a.nameZoom - b.nameZoom || b.stations.length - a.stations.length || a.name.length - b.name.length);
+    if (!named || networks.length < 2 || (group.length === 1 && named.stations.length < 2)) return [];
+    const ids = group.map((p) => p.id).sort();
+    const name = ids.map((id) => hand.names[id]).find((n) => n !== undefined) ?? named.name.replace(/^Barcelona\s*-?\s*/, '');
+    const how = group.length === 1 ? 'one place' : group.some((p) => byHand.has(p.id)) ? 'hand' : 'rule';
+    return [{ id: `interchange:${ids[0]}`, name, named: named.id, places: ids, networks, lon: group.reduce((s, p) => s + p.lon, 0) / group.length, lat: group.reduce((s, p) => s + p.lat, 0) / group.length, how }];
+  });
+}
+
+test('any places, anywhere on Earth, make the same interchanges on the grid as comparing every pair, those NEAR apart too', () => {
+  let seed = 838;
+  const random = () => ((seed = (seed * 1_103_515_245 + 12_345) % 2 ** 31) / 2 ** 31);
+  const pick = <T,>(xs: T[]) => xs[Math.floor(random() * xs.length)] as T;
+  for (let round = 0; round < 300; round++) {
+    // A town of places around a point anywhere, a few km across, some exactly NEAR north, east or both of another,
+    const [lon0, lat0] = [(random() - 0.5) * 360, (random() - 0.5) * 170];
+    const places: Tiered[] = [];
+    for (let k = 0; k < 40; k++) {
+      const of = places.length && random() < 0.3 ? pick(places) : undefined;
+      const [dx, dy] = of ? pick([[350, 0], [-350, 0], [0, 350], [0, -350], [247.4, 247.4], [349.9, 0], [350.1, 0]]) : [(random() - 0.5) * 3000, (random() - 0.5) * 3000];
+      const lat = (of?.lat ?? lat0) + dy / 111_195;
+      const lon = (of?.lon ?? lon0) + dx / (111_195 * Math.cos((lat * Math.PI) / 180));
+      places.push({ id: `p${k}`, name: `${pick(['Barcelona ', 'Plaça ', ''])}${pick(['Sants', 'Gràcia', 'Clot', 'Sant Andreu'])} ${pick(['Nord', 'Sud', 'Arc', ''])}`, networks: [...new Set([pick(['rodalies', 'fgc', 'metro', 'tram', 'ld']), pick(['metro', 'tram', 'ld'])])].slice(0, 1 + Math.floor(random() * 2)), stations: random() < 0.2 ? ['a', 'b'] : ['a'], nameZoom: pick([10, 12, 14]), lon, lat });
+    }
+    // and one far off, north or south, that the cells must be wide enough for where the town is.
+    places.push({ id: 'far', name: 'Sants', networks: ['tram'], stations: ['a'], nameZoom: 12, lon: lon0, lat: (random() - 0.5) * 170 });
+    const hand = { join: [[`p${round % 40}`, `p${(round * 7) % 40}`]] as [string, string][], apart: [[`p${round % 40}`, `p${(round + 1) % 40}`]] as [string, string][], names: { [`p${round % 40}`]: 'By hand' } };
+    expect(interchangesOf(places, hand)).toEqual(everyPair(places, hand));
+  }
+});
+
 test("a place is marked by its own Networks, not long distance's or Media Distancia's, unless they're all it has", () => {
   const everywhere = (n: string) => n === 'ave-larga-distancia' || n === 'media-distancia-avant';
   expect(markedNetworks(['rodalies', 'ave-larga-distancia', 'media-distancia-avant'], everywhere)).toEqual(['rodalies']);
