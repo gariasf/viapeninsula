@@ -32,7 +32,7 @@ import { currentTab, type Tab } from './tabs.ts';
 import { favouriteRows, favourites, type Favourite } from './favourites.ts';
 import { keyboardRise, networkNames, numbered, numberQuery, results, searchPlaces, type Found, type FoundLine } from './search.ts';
 import { cancelledNow, lineState, lineStrip, onStrip, type StripStation } from './line.ts';
-import { byStretch, firstAndLast, METRO, racksAndFuniculars, toAndFromFrance, whatsWrong, type Troubled } from './now.ts';
+import { alertedLines, byStretch, firstAndLast, METRO, racksAndFuniculars, toAndFromFrance, whatsWrong, type Troubled } from './now.ts';
 import { opensInNewTab, putHtml } from './newTab.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
@@ -3757,7 +3757,8 @@ function alertRow({ lines: named, header, description, from, by }: CardAlert, by
   return el(
     'li',
     {},
-    ...(byLine && named.length ? [el('div', { className: 'served' }, ...named.map((line) => pill(line, { small: true })))] : []),
+    // A Line the map has none of, as one only buses run (#580), by its Network's name and its own, on Now (#474).
+    ...(byLine && named.length ? [el('div', { className: 'served' }, ...named.map((line) => (lines.has(line) || searchedLines.has(line) ? pill(line, { small: true }) : el('span', { className: 'meta', textContent: `${bundle?.networks.find((n) => line.startsWith(`${n.id}:`))?.name ?? ''} ${line.slice(line.indexOf(':') + 1)}`.trim() }))))] : []),
     ...words('strong', header),
     ...words('p', description),
     ...ran.map((textContent) => el('p', { className: 'meta', textContent })),
@@ -4034,7 +4035,7 @@ const [NOW_AHEAD, NOW_BEHIND] = [3600, 3 * 3600];
  * and the Metro apart; and the Closures the map draws, by stretch (byStretch()). What's notable at this moment only:
  * the first or last Trains (firstAndLast()), the rack railway and the funiculars while they run (racksAndFuniculars()),
  * and Trains to and from France running or leaving within the hour (toAndFromFrance()), or `None now` in a section with
- * nothing. Then the Alerts on the map's Lines and Stations, newest first (cardAlerts()), NOW_ALERTS and a button for the
+ * nothing. Then the Alerts on the map's Lines and Stations, and on its Networks' Lines it has none of (alertedLines()), newest first (cardAlerts()), NOW_ALERTS and a button for the
  * rest. No single Train's Delay, as a GPS Delay can be far from its operator's (#466). Each button for the rest stays
  * where it is, to fold them away again, so it keeps the keyboard's focus.
  */
@@ -4109,10 +4110,10 @@ function nowPanel(): Panel {
     ),
   );
   const times = firstAndLast(days.networks, ordered, days.trips, days.serviceDay, days.noonMinus12h, mapNow);
-  const timeRows = (times.first ?? times.last ?? []).map(({ id, at }) =>
-    el('li', {}, el('div', { className: 'result plain' }, el('span', { className: 'what' }, el('span', { className: 'what-title', textContent: name(id) }), el('span', { className: 'what-under', textContent: (times.first ? firstLeaves : lastArrives)(clock().format(at)) })))),
-  );
-  const specials = racksAndFuniculars(ordered, near, nows, days.noonMinus12h, mapNow).map(({ id, trains, live }) =>
+  const timeRow = ({ id, at }: { id: string; at: number }, says: (time: string) => string) =>
+    el('li', {}, el('div', { className: 'result plain' }, el('span', { className: 'what' }, el('span', { className: 'what-title', textContent: name(id) }), el('span', { className: 'what-under', textContent: says(clock().format(at)) }))));
+  const timeRows = [...(times.last ?? []).map((t) => timeRow(t, lastArrives)), ...(times.first ?? []).map((t) => timeRow(t, firstLeaves))];
+  const specials = racksAndFuniculars(ordered, days.trips, nows, days.noonMinus12h, mapNow).map(({ id, trains, live }) =>
     el(
       'li',
       {},
@@ -4127,7 +4128,7 @@ function nowPanel(): Panel {
   );
   const france = toAndFromFrance(nows, days.noonMinus12h, mapNow).map((n) => el('li', {}, trainResult(n, false)));
   const section = (label: string, rows: Node[]) => [el('h4', { className: 'sub-label', textContent: label }), rows.length ? el('ol', { className: 'results' }, ...rows) : none()];
-  const shown = cardAlerts(alerts, { lines: ordered.map((l) => l.id), stations: days.stations.map((s) => s.id) }, language(), mapNow);
+  const shown = cardAlerts(alerts, { lines: [...ordered.map((l) => l.id), ...alertedLines(alerts, days.networks, ordered)], stations: days.stations.map((s) => s.id) }, language(), mapNow);
   const alertsOpen = nowOpened.has('alerts');
   return {
     header,

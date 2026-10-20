@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import type { Alerts, Trip } from '../bundle.ts';
 import { cardAlerts } from './cards.ts';
-import { byStretch, firstAndLast, racksAndFuniculars, toAndFromFrance, whatsWrong } from './now.ts';
+import { alertedLines, byStretch, firstAndLast, racksAndFuniculars, toAndFromFrance, whatsWrong } from './now.ts';
 
 let made = 0;
 /** A Trip of a Line from 10:00 to 11:00 by the day's timetable. */
@@ -91,6 +91,9 @@ test("The first Trains of the day show only until 09:00, and the last from 20:00
   expect(shown(9, 1)).toEqual({});
   expect(shown(19, 59)).toEqual({});
   expect(shown(20, 1)).toEqual({ last: [{ id: 'rodalies', at: on10(25, 57) }, { id: 'fgc', at: on10(5, 30) }] });
+  // After midnight, the day before's last still to arrive, with today's first: R4's 03:00, till it has arrived.
+  expect(shown(0, 30)).toEqual({ last: [{ id: 'rodalies', at: on10(3, 0) }], first: [{ id: 'rodalies', at: on10(4, 45) }, { id: 'fgc', at: on10(5, 0) }] });
+  expect(shown(3, 1)).toEqual({ first: [{ id: 'rodalies', at: on10(4, 45) }, { id: 'fgc', at: on10(5, 0) }] });
 });
 
 test("Trains to and from France show only where one is running or leaving within the hour (#474)", () => {
@@ -102,8 +105,8 @@ test("Trains to and from France show only where one is running or leaving within
   const ave = { ...trip('ave-larga-distancia:AVE Int'), calls: [{ station: 'adif:87374', arrival: 9 * 3600, departure: 9 * 3600, dist: 0 }, { station: 'adif:71801', arrival: 12 * 3600, departure: 12 * 3600, dist: 1 }] };
   const elsewhere = trip('rodalies:R1', 10 * 3600 + 30 * 60);
   const running = { trip: ave, train: { live: true, unreported: false } };
-  const nows = [running, { trip: r11 }, { trip: r3 }, { trip: elsewhere }];
-  // At 10:00, R11 leaves in 59 minutes and R3 in 61.
+  const nows = [running, { trip: r11 }, { trip: r3 }, { trip: elsewhere }, { trip: { ...r11, id: 'cancelled' }, cancelled: true as const }];
+  // At 10:00, R11 leaves in 59 minutes and R3 in 61; another R11, leaving with it, is Cancelled.
   expect(toAndFromFrance(nows, NOON, on10(10, 0)).map((n) => n.trip)).toEqual([ave, r11]);
   expect(toAndFromFrance(nows, NOON, on10(10, 2)).map((n) => n.trip)).toEqual([ave, r11, r3]);
 });
@@ -131,4 +134,10 @@ test("The Alerts on the map are all those on its Lines and Stations, newest firs
   };
   const lines = ['rodalies:R2S', 'tram:T1', 'tram:T2', 'cercanias-madrid:C9'];
   expect(cardAlerts(alerts, { lines, stations: ['adif:71801'] }, 'en', on10(15, 9)).alerts.map((a) => a.id)).toEqual(['sc-287', 'C9', 'old', 'lift']);
+});
+
+test("The Alerts on the map take in those on a Line of a Network loaded that the bundle has none of, as Madrid's C9, which only buses run, and not another Network's (#474, #580)", () => {
+  const said = [{ language: 'es', text: '…' }];
+  const alerts: Alerts = { renfe: { status: 'ok', alerts: [{ id: 'C9', lines: ['cercanias-madrid:C9', 'cercanias-madrid:C1'], stations: [], description: said }, { id: 'C5', lines: ['cercanias-valencia:C5'], stations: [], description: said }] } };
+  expect(alertedLines(alerts, NETWORKS, LINES)).toEqual(['cercanias-madrid:C9']);
 });

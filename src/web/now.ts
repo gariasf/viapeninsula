@@ -1,7 +1,7 @@
 // Now (#474, #328's pick): what's wrong on the map and what's notable on it at this moment, of the regions loaded, as
 // the legend's count is (ADR-0014). Pure, with nothing from the page, so that Node tests it.
 
-import { madridDate, type Line, type Network, type Trip } from '../bundle.ts';
+import { madridDate, type Alerts, type Line, type Network, type Trip } from '../bundle.ts';
 import type { Shown } from './closures.ts';
 import { cancelledNow, isLate } from './line.ts';
 
@@ -37,27 +37,29 @@ export interface Troubled extends Counted {
  * the day's timetable reads 00:00 and the time now, in ms since 1970.
  */
 export function whatsWrong(networks: Pick<Network, 'id'>[], lines: Pick<Line, 'id' | 'network'>[], nows: NowTrip[], unavailable: string[], closures: Pick<Shown, 'line'>[], noonMinus12h: number, at: number) {
-  const count = () => ({ trains: 0, live: 0, late: 0, cancelled: 0, unreported: 0 });
+  const count = () => ({ trains: 0, live: 0, scheduled: 0, late: 0, cancelled: 0, unreported: 0 });
   const byLine = new Map(lines.map((l) => [l.id, count()]));
   for (const now of nows) {
     const c = byLine.get(now.trip.line);
     if (!c || !now.train) continue;
     c.trains++;
+    // A Train with no live data is Scheduled, but counted apart.
     if (now.train.live) c.live++;
-    if (now.train.unreported) c.unreported++;
+    else if (now.train.unreported) c.unreported++;
+    else c.scheduled++;
     if (isLate(now.train.delay)) c.late++;
   }
   for (const now of cancelledNow(nows, noonMinus12h, at)) {
     const c = byLine.get(now.trip.line);
     if (c) c.cancelled++;
   }
-  const closed = new Set(closures.map((c) => lines.find((l) => l.id === c.line)?.network));
+  const networkOf = new Map(lines.map((l) => [l.id, l.network]));
+  const closed = new Set(closures.map((c) => networkOf.get(c.line)));
   const all = networks.map(({ id }): Troubled => {
     const own = lines.filter((l) => l.network === id).map((l) => ({ id: l.id, ...(byLine.get(l.id) ?? count()) }));
     const sum = (key: keyof ReturnType<typeof count>) => own.reduce((n, l) => n + l[key], 0);
-    const [trains, live, unreported] = [sum('trains'), sum('live'), sum('unreported')];
     const ranked = own.filter((l) => l.late || l.cancelled).sort((a, b) => b.late + b.cancelled - (a.late + a.cancelled));
-    return { id, trains, live, scheduled: trains - live - unreported, unreported, late: sum('late'), cancelled: sum('cancelled'), unavailable: unavailable.includes(id), lines: ranked.map(({ live: _, ...l }) => l) };
+    return { id, trains: sum('trains'), live: sum('live'), scheduled: sum('scheduled'), unreported: sum('unreported'), late: sum('late'), cancelled: sum('cancelled'), unavailable: unavailable.includes(id), lines: ranked.map(({ live: _, scheduled: __, ...l }) => l) };
   });
   const inTrouble = (n: Troubled) => n.late > 0 || n.cancelled > 0 || n.unavailable || closed.has(n.id);
   return { trouble: all.filter(inTrouble), quiet: all.filter((n) => !inTrouble(n) && n.trains && n.id !== METRO).map((n) => n.id) };
@@ -89,27 +91,37 @@ const minutesOfDay = (at: number) => {
 };
 
 /**
- * The first and last Trains of today, at this moment only (#474): until FIRST_UNTIL, when each Network's first of
- * today's Trips leaves its first Station, and from LAST_FROM, when its last arrives at its last, after midnight too;
- * nothing in between. Each in ms since 1970, by `trips`' clock, whose 00:00 is `noonMinus12h` and whose last day is
- * `serviceDay`, an earlier day's Trips led by their day (joinDays()); for the Networks of `networks` that have any, in its order.
+ * The first and last Trains, at this moment only (#474): until FIRST_UNTIL, when each Network's first of today's Trips
+ * leaves its first Station, and after midnight, beside them, the day before's last still to arrive at its last; from
+ * LAST_FROM, when today's last arrives, after midnight too; nothing in between. Each in ms since 1970, by `trips`'
+ * clock, whose 00:00 is `noonMinus12h` and whose last day is `serviceDay`, an earlier day's Trips led by their day
+ * (joinDays()); for the Networks of `networks` that have any, in its order. Days are Barcelona's, by its clock.
  */
-export function firstAndLast(networks: Pick<Network, 'id'>[], lines: Pick<Line, 'id' | 'network'>[], trips: Pick<Trip, 'id' | 'line' | 'calls'>[], serviceDay: string, noonMinus12h: number, at: number): { first?: { id: string; at: number }[]; last?: { id: string; at: number }[] } {
+export function firstAndLast(networks: Pick<Network, 'id'>[], lines: Pick<Line, 'id' | 'network'>[], trips: Pick<Trip, 'id' | 'line' | 'calls'>[], serviceDay: string, noonMinus12h: number, at: number): { first?: Times; last?: Times } {
   const minutes = minutesOfDay(at);
-  const which = minutes < FIRST_UNTIL ? 'first' : minutes >= LAST_FROM ? 'last' : undefined;
-  if (!which) return {};
-  const today = madridDate(new Date(at));
   const network = new Map(lines.map((l) => [l.id, l.network]));
-  const times = new Map<string, number>();
-  for (const trip of trips) {
-    if ((/^(\d{4}-\d{2}-\d{2})\//.exec(trip.id)?.[1] ?? serviceDay) !== today) continue;
-    const [id, time] = [network.get(trip.line), which === 'first' ? trip.calls[0]?.departure : trip.calls.at(-1)?.arrival];
-    if (id === undefined || time === undefined) continue;
-    const had = times.get(id);
-    if (had === undefined || (which === 'first' ? time < had : time > had)) times.set(id, time);
-  }
-  return { [which]: networks.flatMap(({ id }) => (times.has(id) ? [{ id, at: noonMinus12h + (times.get(id) ?? 0) * 1000 }] : [])) };
+  // Each Network's first Train's leaving or last's arriving of a day, by Barcelona's date.
+  const of = (date: string, which: 'first' | 'last'): Times => {
+    const times = new Map<string, number>();
+    for (const trip of trips) {
+      if ((/^(\d{4}-\d{2}-\d{2})\//.exec(trip.id)?.[1] ?? serviceDay) !== date) continue;
+      const [id, time] = [network.get(trip.line), which === 'first' ? trip.calls[0]?.departure : trip.calls.at(-1)?.arrival];
+      if (id === undefined || time === undefined) continue;
+      const had = times.get(id);
+      if (had === undefined || (which === 'first' ? time < had : time > had)) times.set(id, time);
+    }
+    return networks.flatMap(({ id }) => (times.has(id) ? [{ id, at: noonMinus12h + (times.get(id) ?? 0) * 1000 }] : []));
+  };
+  const today = madridDate(new Date(at));
+  if (minutes >= LAST_FROM) return { last: of(today, 'last') };
+  if (minutes >= FIRST_UNTIL) return {};
+  // ponytail: the day before by 24 hours, so on the night the clocks go back, an hour after midnight names today again; ask by service day if that hour shows.
+  const still = of(madridDate(new Date(at - 86_400_000)), 'last').filter((l) => l.at >= at);
+  return { ...(still.length && { last: still }), first: of(today, 'first') };
 }
+
+/** When each Network's first or last Train leaves or arrives, in ms since 1970 (firstAndLast()). */
+type Times = { id: string; at: number }[];
 
 /**
  * Whether a Station is in France: Cerbère and La Tor de Querol, by their Adif codes, as Rodalies' R11 and R3 reach them, and
@@ -122,11 +134,12 @@ const LEAVING = 60 * 60_000;
 
 /**
  * The Trains to and from France at this moment (#474): of `nows`, in their order, the Trips calling at a Station in France
- * whose Trains are on the map, or leave their first Station by their timetable within LEAVING after `at`, in ms since 1970.
+ * whose Trains are on the map, or leave their first Station by their timetable within LEAVING after `at`, in ms since 1970, and
+ * aren't Cancelled.
  */
-export function toAndFromFrance<N extends Pick<NowTrip, 'trip' | 'train'>>(nows: N[], noonMinus12h: number, at: number): N[] {
-  return nows.filter(({ trip, train }) => {
-    if (!trip.calls.some((c) => inFrance(c.station))) return false;
+export function toAndFromFrance<N extends Pick<NowTrip, 'trip' | 'train' | 'cancelled'>>(nows: N[], noonMinus12h: number, at: number): N[] {
+  return nows.filter(({ trip, train, cancelled }) => {
+    if (cancelled || !trip.calls.some((c) => inFrance(c.station))) return false;
     const leaves = noonMinus12h + (trip.calls[0]?.departure ?? -Infinity) * 1000;
     return !!train || (leaves > at && leaves - at <= LEAVING);
   });
@@ -146,4 +159,13 @@ export function racksAndFuniculars(lines: Pick<Line, 'id' | 'kind'>[], trips: Pi
     const trains = nows.flatMap((n) => (n.trip.line === id && n.train ? [n.train] : []));
     return running ? [{ id, trains: trains.length, live: trains.some((t) => t.live) }] : [];
   });
+}
+
+/**
+ * The Lines the Alerts are on that the map has none of (`lines`), of Networks it has loaded (`networks`), as Madrid's C9,
+ * Valencia's C5 and Murcia–Alicante's C2, which only buses run (#580): Now lists their Alerts too, with their Network (#474).
+ */
+export function alertedLines(alerts: Alerts, networks: Pick<Network, 'id'>[], lines: Pick<Line, 'id'>[]): string[] {
+  const [loaded, known] = [new Set(networks.map((n) => n.id)), new Set(lines.map((l) => l.id))];
+  return [...new Set(Object.values(alerts).flatMap((feed) => feed.alerts.flatMap((a) => a.lines)))].filter((line) => !known.has(line) && loaded.has(line.split(':')[0] ?? ''));
 }
