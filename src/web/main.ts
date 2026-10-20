@@ -1,7 +1,7 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
 import type { BackgroundLayerSpecification, CircleLayerSpecification, ExpressionFilterSpecification, ExpressionSpecification, FontFacesSpecification, LineLayerSpecification, ProjectionSpecification, StyleSpecification, SymbolLayerSpecification } from '@maplibre/maplibre-gl-style-spec';
-import { MapLibreMap, Popup, setWorkerUrl, type GeoJSONSource, type LngLat } from 'maplibre-gl';
+import { addProtocol, MapLibreMap, Popup, setWorkerUrl, type GeoJSONSource, type LngLat, type VectorTileSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import nunitoSans from '@fontsource/nunito-sans/files/nunito-sans-latin-400-normal.woff2?url';
 import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-normal.woff2?url';
@@ -12,12 +12,13 @@ import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabe
 import { rounded } from './curve.ts';
 import { getJson, lookAgainSoon, RETRY, STALL } from './files.ts';
 import { daysAsTheyCome, firstLook, forgetJoined, joinedFrom, regionLoader, regionsCame, regionsNeeded, trackFileOf } from './regions.ts';
-import { byRegion, drawnFrom, drawnLines } from './lines.ts';
+import { drawnFrom, LINE_PARTS } from './lines.ts';
+import type { lineWork, LinesAsk, LineSource } from './lineTiles.ts';
 import { linesAt, popupRoom } from './tap.ts';
 import { drawnAt as placeShownAt, FEW_ZOOM, fewer, interchangesOf, markedNetworks, onLines, RAILS, readOf, SIGN_ZOOM, type LineCall, type Drawn as PlaceDrawn, type Interchange } from './stations.ts';
 import { callsIn, fileShapes, hidesTowns, nameSort, rightOf, splitBy } from './names.ts';
 import type { StoredTrack } from '../pieces.ts';
-import { namePlacer, packFile, type NamePlace, type NamesAsk, type Sizes, type Where } from './placeNames.ts';
+import { namePlacer, packFile, type NamePlace, type NamesAsk, type Packed, type Sizes, type Where } from './placeNames.ts';
 import { covered, groupOf, spreading, toEdge, type Drawn, type Group, type Named } from './spread.ts';
 import { atMostEvery, drifted, letsGo, outsideMiddle, pointersDown, tapZooms } from './centre.ts';
 import { fastestInView } from './pace.ts';
@@ -1075,8 +1076,6 @@ let hidingClosures: Shown[] = [];
 const lifted = new Map<string, number>();
 /** The Lines' strokes along their Stretches, which a tap on one names (linesAt()). */
 let shownStrokes: Stroke[] = [];
-/** Each region's Lines and rails, made once for its track, and those MapLibre has (byRegion(), #733). */
-const regionLines = byRegion();
 /** The sizes the places' names clear (namePlacer()'s clearance()). */
 const NAME_SIZES: Sizes = { dot: DOT, ring: RING, pillHalo: PILL_HALO, nameGap: NAME_GAP, nameZooms: NAME_ZOOMS, top: TOP, signSize: SIGN_SIZE, signZoom: SIGN_ZOOM };
 /**
@@ -1099,6 +1098,44 @@ const trackKeys = new WeakMap<Track, number>();
 let trackKeyCount = 0;
 /** Asks the worker (NamesAsk), moving what `transfer` holds rather than copying it. */
 const askNames = (ask: NamesAsk, transfer: Transferable[] = []) => namesWorker.postMessage(ask, transfer);
+/** A region's track's key, given once (trackKeys). */
+const keyOf = (track: Track) => trackKeys.get(track) ?? (trackKeys.set(track, ++trackKeyCount), trackKeyCount);
+/**
+ * Where the Lines and rails are made, once for each region's track, and cut into the tiles MapLibre draws them from
+ * (lineWork()): handed MapLibre as GeoJSON, it serialised their 54k features for its worker on the page's thread, 3.1 s
+ * of a phone's long-distance join, after the page took 0.89 s to make them (#837). MapLibre asks for the tiles through
+ * a protocol of their own (LINE_TILES), which hands it the worker's bytes.
+ */
+const linesWorker = new Worker(new URL('./linesWorker.ts', import.meta.url), { type: 'module' });
+/** The tiles' URLs' protocol, and their URL for MapLibre, which the version of the regions in them makes new for each join. */
+const LINE_TILES = 'viapeninsula-lines';
+const lineTilesUrl = (source: LineSource, version: number) => `${LINE_TILES}://${source}/{z}/{x}/{y}?${version}`;
+/** The regions' tracks the worker holds, the regions joined at the last hand-over, and the version of the last. */
+let [handedLines, linesVersion] = [new Set<Track>(), 0];
+/** The tiles asked of the worker and not yet come, by their ask's number. */
+const tilesDue = new Map<number, { resolve: (data: ArrayBuffer) => void; reject: (error: unknown) => void }>();
+let tileAsks = 0;
+const askLines = (ask: LinesAsk, transfer: Transferable[] = []) => linesWorker.postMessage(ask, transfer);
+// ponytail: a tile MapLibre no longer wants is still cut, as its abort isn't passed on. Pass it on if the worker lags behind a pan.
+addProtocol(LINE_TILES, ({ url }) => {
+  const [, source = 'lines', z = 0, x = 0, y = 0] = /^[^:]+:\/\/(\w+)\/(\d+)\/(\d+)\/(\d+)/.exec(url) ?? [];
+  const ask = ++tileAsks;
+  askLines({ tile: { source: source as LineSource, z: Number(z), x: Number(x), y: Number(y), ask } });
+  return new Promise<ArrayBuffer>((resolve, reject) => tilesDue.set(ask, { resolve, reject })).then((data) => ({ data }));
+});
+// A join's regions in the tiles: MapLibre is given their new URL, and asks for the tiles in view again.
+linesWorker.onmessage = ({ data }: MessageEvent<ReturnType<ReturnType<typeof lineWork>>>) => {
+  if ('data' in data) {
+    tilesDue.get(data.ask)?.resolve(data.data);
+    tilesDue.delete(data.ask);
+  } else for (const source of ['lines', 'rails'] as const) map.getSource<VectorTileSource>(source)?.setTiles([lineTilesUrl(source, data.shown)]);
+};
+// ponytail: where the worker fails, the map goes without Lines, as the page did where making them threw. Make them on the page then if a worker ever fails where the page wouldn't.
+linesWorker.onerror = linesWorker.onmessageerror = (error: Event) => {
+  console.error(error);
+  for (const due of tilesDue.values()) due.reject(error);
+  tilesDue.clear();
+};
 askNames({ sizes: NAME_SIZES });
 // A layout asked for names, pills or a bearing that have changed since is left for the one asked last, and once the
 // worker has failed, any it still sends.
@@ -1126,6 +1163,13 @@ function handable(regions: Track[] | undefined): StoredTrack[] | undefined {
   if (namesWorkerFailed) return undefined;
   const files = regions?.map(trackFileOf);
   return files?.every((f) => f && 'traced' in f) ? (files as StoredTrack[]) : undefined;
+}
+/** A region's track as the Lines' worker is handed it: its file packed, or where it wasn't stored as pieces (before #257), the track itself, copied. */
+function linesFile(track: Track): Packed {
+  const file = trackFileOf(track);
+  if (file && 'traced' in file) return packFile(file, LINE_PARTS);
+  const { shapes, lines, strokes, rails } = track;
+  return { rest: { shapes, lines, strokes, rails }, numbers: new Float64Array(), lengths: new Int32Array() };
 }
 /** What moves a tapped group of Trains standing together at a Station apart (#129). */
 const spread = spreading();
@@ -1155,9 +1199,8 @@ let calls = new Map<string, number>();
 let askedNames: { names: typeof names; pills: typeof pills; bearing: number; ask: number } | undefined;
 /** Where the names were last laid out, as asked (`of`): each one's anchor and offset at each of NAME_ZOOMS. */
 let laidOut: { of: NonNullable<typeof askedNames>; where: Where[] } | undefined;
-map.addSource('lines', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-// Simplified less than MapLibre's default 0.375 px, which would facet their curves again (#203).
-map.addSource('rails', { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, tolerance: 0.1 });
+// Cut as MapLibre's GeoJSON sources were, 512 px tiles to zoom 18 (lineWork()).
+for (const source of ['lines', 'rails'] as const) map.addSource(source, { type: 'vector', tiles: [lineTilesUrl(source, 0)], maxzoom: 18 });
 map.addSource('tracks', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 for (const id of ['stations', 'places', 'interchanges', 'station-links']) map.addSource(id, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 map.addSource('station-names', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
@@ -1229,6 +1272,8 @@ const layered = [
  */
 const CURVE = '-curve';
 const isCurve: ExpressionFilterSpecification = ['has', 'curve'];
+/** A side further off its track's middle than any Line's is, in strokes, for the names' text-offset. */
+const FAR_SIDE = 64;
 for (const { source, id, prefix, zooms, nameZooms, opacity, throughOpacity, below } of layered) {
   // The rails have no curves.
   for (const curve of source === 'lines' ? [false, true] : [false]) {
@@ -1240,6 +1285,7 @@ for (const { source, id, prefix, zooms, nameZooms, opacity, throughOpacity, belo
         id: `${prefix}-casing${suffix}`,
         type: 'line',
         source,
+        'source-layer': source,
         ...zooms,
         filter,
         layout,
@@ -1252,6 +1298,7 @@ for (const { source, id, prefix, zooms, nameZooms, opacity, throughOpacity, belo
         id: `${id}${suffix}`,
         type: 'line',
         source,
+        'source-layer': source,
         ...zooms,
         filter,
         layout,
@@ -1272,6 +1319,7 @@ for (const { source, id, prefix, zooms, nameZooms, opacity, throughOpacity, belo
       id: `${id}-through`,
       type: 'line',
       source,
+      'source-layer': source,
       ...zooms,
       filter: ['all', zooms.filter, ['has', 'under'], ['!', ['has', 'crowded']]],
       layout: { ...lineLayout, 'line-cap': 'butt' },
@@ -1284,6 +1332,7 @@ for (const { source, id, prefix, zooms, nameZooms, opacity, throughOpacity, belo
     id: `${prefix}-names`,
     type: 'symbol',
     source,
+    'source-layer': source,
     ...zooms,
     ...nameZooms,
     layout: {
@@ -1293,7 +1342,9 @@ for (const { source, id, prefix, zooms, nameZooms, opacity, throughOpacity, belo
       'text-field': ['get', 'name'],
       'text-font': FONT,
       'text-size': NAME_SIZE,
-      'text-offset': byZoom(APART, (_, zoom) => ['array', 'number', 2, ['get', `textOffset${zoom}`]]),
+      // Each Line's name on its own stroke, `side` strokes off the middle (text-offset is in ems): a vector tile holds no
+      // arrays, so the offset goes linearly from one far side to the other, through [0, 0] at the middle (#837).
+      'text-offset': byZoom(APART, (px) => ['interpolate', ['linear'], ['get', 'side'], -FAR_SIDE, ['literal', [0, (-FAR_SIDE * px) / NAME_SIZE]], FAR_SIDE, ['literal', [0, (FAR_SIDE * px) / NAME_SIZE]]]),
     },
     paint: {
       'text-color': ['get', 'lettering'],
@@ -1909,25 +1960,27 @@ function show(days: Track | Bundle, tripsOnly = false) {
   // manifest keeps them in its order, but long distance's and Media Distancia's under the others' (RANK_STEP). Zoomed in, on
   // its own rails, a Line's bends are rounded (#203).
   const lettering = (line: string) => pills.get(line)?.lettering;
-  const drawings = (joinedFrom(days) ?? [{ id: '', track: days }]).map(({ id, track }) => {
-    // ponytail: the region's place in the manifest when its Lines are made, kept for as long as its track is. A manifest
-    // that reorders the regions under a track the map keeps leaves them in the old order; make them again if it does.
-    // Long distance's and Media Distancia y Avant's by their IDs, not long distance's missing extent, which no region has in
-    // a manifest from before #266 (#736, #787).
-    const how = { shapes, lines, lettering, rank: Math.max(0, manifest?.regions?.findIndex((r) => r.id === id) ?? 0), under: id === 'long-distance' || id === 'media-distancia-avant', nameSize: NAME_SIZE, shownFrom };
-    return regionLines.made(track, () => ({ lines: drawnLines(track.strokes, how), rails: drawnLines(track.rails, how, rounded) }));
-  });
-  // The Lines go to MapLibre as objects, never as a blob: URL, which it fetches, parses and copies on the page's thread
-  // and keeps a second copy of: 1.0 s a join at Barcelona at zoom 12 (#731). Handing an object over copies it on the
-  // page's thread too, 0.5 s for long distance's, so where Lines are drawn already it's a frame after making them
-  // (below). The first Lines go at once, which onScreen() waits for. Only the regions new to MapLibre go, and those no
-  // longer joined come off, worked out as they're handed over, as a frame on other days may have been shown.
+  const regions = joinedFrom(days) ?? [{ id: '', track: days }];
+  // The Lines are made in the worker, which is handed each region's track file once, as typed arrays (packFile()), and
+  // cuts them into tiles (#837). Where Lines are drawn already, it's a frame later (below); the first go at once, which
+  // onScreen() waits for. Only the regions new to the worker go, and those no longer joined come off, worked out as
+  // they're handed over, as a frame on other days may have been shown.
   const handOver = () => {
-    const { add, remove } = regionLines.handOver(drawings);
-    if (!add.length && !remove.length) return;
-    for (const source of ['lines', 'rails'] as const) {
-      map.getSource<GeoJSONSource>(source)?.updateData({ remove: remove.flatMap((d) => d[source].map((f) => f.id as number)), add: add.flatMap((d) => d[source]) });
-    }
+    if (regions.length === handedLines.size && regions.every((r) => handedLines.has(r.track))) return;
+    const transfer: Transferable[] = [];
+    const handed = regions.map(({ id, track }) => {
+      // ponytail: the region's place in the manifest when its Lines are made, kept for as long as the worker holds its
+      // track. A manifest that reorders the regions under a track the map keeps leaves them in the old order; make them
+      // again if it does. Long distance's and Media Distancia y Avant's by their IDs, not long distance's missing extent,
+      // which no region has in a manifest from before #266 (#736, #787).
+      const how = { rank: Math.max(0, manifest?.regions?.findIndex((r) => r.id === id) ?? 0), under: id === 'long-distance' || id === 'media-distancia-avant', lettering: track.lines.map((l): [string, string | undefined] => [l.id, lettering(l.id)]), shownFrom: [...shownFrom] };
+      if (handedLines.has(track)) return { key: keyOf(track), how };
+      const file = linesFile(track);
+      transfer.push(file.numbers.buffer, file.lengths.buffer);
+      return { key: keyOf(track), file, how };
+    });
+    askLines({ show: { regions: handed, version: ++linesVersion } }, transfer);
+    handedLines = new Set(regions.map((r) => r.track));
   };
   if (!again) handOver();
   showZoomedOut(zoomedOut ?? { networks: days.networks, tracks: networkTracks(days), lines: days.lines });
@@ -1989,8 +2042,7 @@ function show(days: Track | Bundle, tripsOnly = false) {
       // Each region's track file the worker doesn't hold, handed over (packFile()), and the others by their keys.
       const transfer: Transferable[] = [];
       const handed = regions.map((track, i) => {
-        let key = trackKeys.get(track);
-        if (key === undefined) trackKeys.set(track, (key = ++trackKeyCount));
+        const key = keyOf(track);
         if (handedNames.has(track)) return { key };
         const file = packFile(files[i] as StoredTrack);
         transfer.push(file.numbers.buffer, file.lengths.buffer);

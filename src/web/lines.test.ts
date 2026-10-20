@@ -1,31 +1,10 @@
 import { expect, test } from 'vitest';
 import { along, BANDS, coveredIn, cutIn, GRAPH_BAND, inBand, smoothId, type DayFiles, type DayTrips, type Line, type Shape, type Stroke, type Track } from '../bundle.ts';
-import { byRegion, drawnFrom, drawnLines, type Drawing } from './lines.ts';
+import { drawnFrom, drawnLines } from './lines.ts';
 import { daysAsTheyCome, joinedFrom, regionLoader } from './regions.ts';
 
 /** A region's track of one Station and no Lines, named for it. */
 const track = (id: string): Track => ({ networks: [], lines: [], stations: [{ id: `adif:${id}`, name: id, lon: 2, lat: 41 }], shapes: [], strokes: [], rails: [], slots: [], tracks: [] });
-/** A drawing of one Line and one rail, as the map makes a region's. */
-const drawing = (): Drawing => ({ lines: [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [] } }], rails: [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [] } }] });
-
-test("makes a region's Lines once for its track, hands MapLibre those of the regions new to it, and takes off those of regions no longer joined (#733)", () => {
-  const regions = byRegion();
-  const [catalonia, madrid, longDistance] = [track('catalonia'), track('cercanias-madrid'), track('long-distance')];
-  let made = 0;
-  const make = (t: Track) => regions.made(t, () => (made++, drawing()));
-  const first = [make(catalonia), make(longDistance)];
-  expect(regions.handOver(first)).toEqual({ add: first, remove: [] });
-  // Madrid joins: Catalonia's and long distance's are made and handed over already.
-  const second = [make(catalonia), make(madrid), make(longDistance)];
-  expect(made).toBe(3);
-  expect(regions.handOver(second)).toEqual({ add: [second[1]], remove: [] });
-  expect(regions.handOver(second)).toEqual({ add: [], remove: [] });
-  // Catalonia's file fails at a later look, and its day is drawn without it.
-  expect(regions.handOver([make(madrid), make(longDistance)])).toEqual({ add: [], remove: [first[0]] });
-  // Each feature has an ID of its own, which MapLibre takes it off by.
-  const ids = second.flatMap((d) => [...d.lines, ...d.rails].map((f) => f.id));
-  expect(new Set(ids).size).toBe(6);
-});
 
 test("lays a region new to the map out once, at its track, though its Trips and the next day's come after: every step is joined from the same regions' tracks (#733)", async () => {
   const ids = ['catalonia', 'long-distance'];
@@ -39,12 +18,9 @@ test("lays a region new to the map out once, at its track, though its Trips and 
   expect(shown).toHaveLength(3);
   // show() lays the map out again only for Stations it hasn't drawn.
   expect(new Set(shown.map((s) => s.stations)).size).toBe(1);
-  // And each region's Lines are made once, by its track.
-  const regions = byRegion();
-  let made = 0;
-  for (const s of shown) for (const { track: t } of joinedFrom(s) ?? []) regions.made(t, () => (made++, drawing()));
+  // And each region's Lines are made once, by its track, which the worker holds by its key (lineWork()).
   expect(joinedFrom(first)?.map((r) => r.id)).toEqual(ids);
-  expect(made).toBe(2);
+  expect(new Set(shown.flatMap((s) => (joinedFrom(s) ?? []).map((r) => r.track))).size).toBe(2);
 });
 
 test('draws a stroke cut back alike in every band from GRAPH_BAND once, band-less, and each band still draws every stroke as it is there, point for point (#734)', () => {
@@ -63,7 +39,7 @@ test('draws a stroke cut back alike in every band from GRAPH_BAND once, band-les
     { ...stroke('s:a', [[105, 55]]), band: GRAPH_BAND }, // a curve's band only
   ];
   const lines = new Map<string, Line>([['L', { id: 'L', network: 'n', name: 'L', colour: '#f00', shapes: [], kind: 'regional' } as Line]]);
-  const features = drawnLines(strokes, { shapes, lines, lettering: () => '#fff', rank: 0, nameSize: 12 });
+  const features = drawnLines(strokes, { shapes, lines, lettering: () => '#fff', rank: 0 });
   for (const band of graph) {
     const drawn = features.filter((f) => (f.properties?.band ?? band) === band).map((f) => (f.geometry as GeoJSON.LineString).coordinates);
     const expected = strokes.flatMap((s) => {
@@ -82,7 +58,7 @@ test("marks each of a curve's pieces, covered or not, as a curve's, and no other
   const lines = new Map<string, Line>([['L', { id: 'L', network: 'n', name: 'L', colour: '#f00', shapes: [], kind: 'regional' } as Line]]);
   const curve: Stroke = { line: 'L', shape: 's:a', from: 0, to: 1000, side: 0, ease: 1, band: GRAPH_BAND };
   const strokes = [curve, { ...curve, covered: [[GRAPH_BAND, 300, 600] as [number, number, number]] }, { line: 'L', shape: 's:a', from: 0, to: 1000, side: 1 }];
-  const features = drawnLines(strokes, { shapes, lines, lettering: () => '#fff', rank: 0, nameSize: 12 }).map((f) => f.properties ?? {});
+  const features = drawnLines(strokes, { shapes, lines, lettering: () => '#fff', rank: 0 }).map((f) => f.properties ?? {});
   const [pieces, [plain]] = [features.slice(0, -1), features.slice(-1)];
   // 9 pieces a PIECE of a line width apart, and as many again, the covered curve's, cut at its covered part's ends.
   expect(pieces.length).toBeGreaterThan(18);
@@ -95,7 +71,7 @@ test("draws Media Distancia's and long distance's Lines under the other regions'
   const shapes = new Map<string, Shape>([['s', { id: 's', coords: [[2, 41], [2.01, 41]], dist: [0, 840] }]]);
   const lines = new Map<string, Line>(['R15', 'R2', 'C1', 'Avant', 'Alvia'].map((name): [string, Line] => [name, { id: name, network: 'n', name, colour: '#f00', shapes: [], kind: 'regional' } as Line]));
   const stroke = (line: string, under?: number): Stroke => ({ line, shape: 's', from: 0, to: 840, side: 0, band: GRAPH_BAND, ...(under && { under }) });
-  const drawn = (strokes: Stroke[], rank: number, under = false) => drawnLines(strokes, { shapes, lines, lettering: () => '#fff', rank, under, nameSize: 12 }).map((f) => f.properties as { line: string; sort: number; rank: number });
+  const drawn = (strokes: Stroke[], rank: number, under = false) => drawnLines(strokes, { shapes, lines, lettering: () => '#fff', rank, under }).map((f) => f.properties as { line: string; sort: number; rank: number });
   // Catalonia first in the manifest, Madrid next, Media Distancia y Avant just before long distance, last.
   const features = [...drawn([stroke('R15'), stroke('R2'), stroke('R15', 1)], 0), ...drawn([stroke('C1')], 1), ...drawn([stroke('Avant')], 15, true), ...drawn([stroke('Alvia')], 16, true)];
   const order = features.toSorted((a, b) => a.sort - b.sort).map((f) => `${f.line}${f === features[2] ? ' in a tunnel' : ''}`);
@@ -132,7 +108,7 @@ test("leaves a Line's strokes out of the bands below its Network's zoom: Metro's
     ['R1', { id: 'R1', network: 'rodalies', name: 'R1', colour: '#0f0', shapes: ['a'], kind: 'commuter' }],
   ]);
   const strokes = ['L1', 'R1'].flatMap((line) => BANDS.map((_, band) => ({ line, shape: 'a', from: 0, to: 1000, side: 0, band }) as Stroke));
-  const features = drawnLines(strokes, { shapes: new Map([['a', shape]]), lines, lettering: () => undefined, rank: 0, nameSize: 12, shownFrom: drawnFrom(lines.values()) });
+  const features = drawnLines(strokes, { shapes: new Map([['a', shape]]), lines, lettering: () => undefined, rank: 0, shownFrom: drawnFrom(lines.values()) });
   const bands = (line: string) => features.filter((f) => f.properties?.line === line).map((f) => BANDS[f.properties?.band]);
   expect(bands('L1')).toEqual([10, 11, 12, 13, 14]);
   expect(bands('R1')).toEqual(BANDS);

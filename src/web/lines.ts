@@ -1,7 +1,8 @@
-// The Lines' and rails' features the map hands MapLibre, made once for each region's track and handed over once,
-// so that a region joining costs its own Lines, not every region's loaded (#733).
+// The Lines' and rails' features MapLibre draws, made once for each region's track, in the Lines' worker, which cuts them
+// into tiles (lineTiles.ts), so that a region joining costs its own Lines, not every region's loaded (#733, #837).
 
-import { along, APART, BANDS, coveredIn, cutIn, GRAPH_BAND, inBand, pieces, smoothId, type Kind, type Line, type Point, type Shape, type Stroke, type Track } from '../bundle.ts';
+import type { StoredTrack } from '../pieces.ts';
+import { along, BANDS, coveredIn, cutIn, GRAPH_BAND, inBand, pieces, smoothId, type Kind, type Line, type Point, type Shape, type Stroke, type Track } from '../bundle.ts';
 
 /**
  * How much a region's place in the manifest raises its Lines in MapLibre's `line-sort-key` (`sort`), over a Line's
@@ -30,11 +31,8 @@ export function drawnFrom(lines: Iterable<Pick<Line, 'network' | 'kind'>>): Map<
   return new Map([...kinds].map(([network, of]) => [network, all(of, COUNTRY_WIDE) ? 0 : all(of, IN_A_CITY) ? (BANDS[GRAPH_BAND] ?? 10) : (BANDS[0] ?? 7)]));
 }
 
-/** A region's Lines' and rails' features, with IDs unique among those the map makes, which MapLibre takes them off by. */
-export interface Drawing {
-  lines: GeoJSON.Feature[];
-  rails: GeoJSON.Feature[];
-}
+/** The parts of a region's track file its Lines are made from, which the Lines' worker is handed (packFile(), #837). */
+export const LINE_PARTS: (keyof StoredTrack)[] = ['traced', 'shapes', 'lines', 'strokes', 'rails'];
 
 /**
  * The features MapLibre draws strokes as, of a region's track: a stroke cut back for curves, or along a centreline
@@ -45,7 +43,7 @@ export interface Drawing {
  */
 export function drawnLines(
   strokes: Stroke[],
-  { shapes, lines, lettering, rank, under: below = false, nameSize, shownFrom }: { shapes: Map<string, Shape>; lines: Map<string, Line>; lettering: (line: string) => string | undefined; rank: number; under?: boolean; nameSize: number; shownFrom?: Map<string, number> },
+  { shapes, lines, lettering, rank, under: below = false, shownFrom }: { shapes: Map<string, Shape>; lines: Map<string, Line>; lettering: (line: string) => string | undefined; rank: number; under?: boolean; shownFrom?: Map<string, number> },
   round?: (coordinates: Point[]) => Point[],
 ): GeoJSON.Feature[] {
   return strokes
@@ -93,37 +91,8 @@ export function drawnLines(
         ...(crowded && { crowded }),
         // A curve's pieces go in layers of their own, with butt ends (#620).
         ...(curve && { curve }),
-        // Each Line's name goes on its own stroke: text-offset is in ems.
-        ...Object.fromEntries(APART.map(([zoom, px]) => [`textOffset${zoom}`, [0, (side * px) / nameSize]])),
       };
       const coordinates = along(shape, from, to);
       return [{ type: 'Feature', properties, geometry: { type: 'LineString', coordinates: round ? round(coordinates) : coordinates } }];
     });
-}
-
-/**
- * Each region's drawing made once, by its track, which the days joined from it share (ADR-0014), and what MapLibre is
- * to add and take off for the drawings of the regions joined now to be those it draws. MapLibre's index takes the
- * Lines in the order they're added, so a region's place in the manifest orders them (RANK_STEP).
- */
-export function byRegion() {
-  const made = new WeakMap<Track, Drawing>();
-  let [shown, next] = [new Set<Drawing>(), 0];
-  return {
-    made(track: Track, make: () => Drawing): Drawing {
-      let drawing = made.get(track);
-      if (!drawing) {
-        drawing = make();
-        for (const f of [...drawing.lines, ...drawing.rails]) f.id = next++;
-        made.set(track, drawing);
-      }
-      return drawing;
-    },
-    handOver(drawings: Drawing[]): { add: Drawing[]; remove: Drawing[] } {
-      const now = new Set(drawings);
-      const change = { add: [...now].filter((d) => !shown.has(d)), remove: [...shown].filter((d) => !now.has(d)) };
-      shown = now;
-      return change;
-    },
-  };
 }
