@@ -24,7 +24,7 @@ import { atMostEvery, drifted, fitPadding, letsGo, outsideMiddle, pointersDown, 
 import { fastestInView } from './pace.ts';
 import { keepView, lastView, markOf, openingView, tiltPressed, toggledPitch } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
-import { darkInk, DARK_TRACK_STAND_INS, INK, lettering, standIn } from './colour.ts';
+import { darkInk, INK, lettering, standIn, TRACK_GREY } from './colour.ts';
 import { ago, boardAsks, boardList, cardAlerts, countdownTo, due, inNameOrder, linesOnBoard, linkedTrip, linkedWords, minutesTo, nearbyRows, nextOnItsWay, passedPlace, progress, tripsState, untilTick, whereabouts, type CardAlert, type Whereabouts } from './cards.ts';
 import { ARROW_GAP, boxOf, nameBoxOf, DASHED_RING, dashedDot, dashedOutline, dashesAcross, field, fitOf, FOLLOWED_TEXT, haloScale, LINE_HEIGHT, LOCAL_PILL_ZOOM, OUTLINE_SIZES, outlineOf, PILL_PADDING, PILL_TEXT, pillReach, pillText, pulse, SMALL_TEXT, TARGET, targetRings, type Outline } from './pill.ts';
 import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, tappedRows, type Shown } from './closures.ts';
@@ -1940,6 +1940,8 @@ requestAnimationFrame(function move(now) {
     if (!following.at && !waiting && passportShown) {
       [following, back] = [undefined, undefined];
       writeLink();
+      // Without its Back to the Train.
+      showPanel();
     } else if (!following.at && !waiting) closePanel();
     else if (following.at) {
       // Under reduced motion, today's steps (keepInView()); otherwise the map pans with the Train until the viewer lets go.
@@ -3420,7 +3422,7 @@ function followedPanel(up: boolean): Panel | undefined {
   const now = Date.now();
   // The time to go counts by the map's time, as the times it counts to are the fetcher's (#356).
   const mapNow = mapTime(now, received);
-  const { train, riding } = followedNow(now);
+  const { train, riding } = stepFollowed(now);
   // Its Alerts, which say why, open of themselves as it goes within a Closure where the panel has the room, or stay open if the viewer opened them, and fold as it comes out.
   const within = !!waiting?.within;
   if (within !== showsWithin) [showsWithin, showAlerts] = [within, within && (showAlerts || up)];
@@ -3497,7 +3499,7 @@ function backButton(): Node[] {
 }
 
 /** Where the followed Train is at `now`, and its Trip still to come (`waiting`) where it isn't on the map yet (#322) or is within a closed Closure that hides Trains (#420), with its Ride taken a step (rideOn()): the card's or the Passport's behind which it's followed (#332). */
-function followedNow(now: number) {
+function stepFollowed(now: number) {
   const train = bundle && trainAt(bundle, now, received, followedId() ?? '', hidingClosures);
   waiting = bundle && !train ? comingAt(bundle, now, received, followedId() ?? '', hidingClosures) : undefined;
   return { train, riding: rideOn(train ? { trip: train.trip, train } : waiting ? { trip: waiting.trip, coming: waiting } : undefined, now) };
@@ -4113,7 +4115,7 @@ function stampName(id: string): string {
 function stampPill({ id, at, live }: Stamp, short: Intl.DateTimeFormat, full: Intl.DateTimeFormat): HTMLElement {
   const of = id.slice(id.indexOf(':') + 1);
   const kind = id.startsWith('kind:');
-  const shown = id.startsWith('line:') ? pill(of, { live, train: true }) : namedPill(stampName(id), kind ? DARK_TRACK_STAND_INS['media-distancia-avant'] : networkOf(of)?.colour, kind ? outlineOf(of as Kind) : 'round', live);
+  const shown = id.startsWith('line:') ? pill(of, { live, train: true }) : namedPill(stampName(id), kind ? TRACK_GREY : networkOf(of)?.colour, kind ? outlineOf(of as Kind) : 'round', live);
   if (!id.startsWith('line:')) shown.append(el('span', { className: 'sr-only', textContent: `, ${t(live ? 'live' : 'scheduled')}` }));
   return el('span', { className: 'stamp', title: full.format(at) }, shown, el('time', { className: 'meta', dateTime: new Date(at).toISOString(), textContent: short.format(at) }));
 }
@@ -4130,7 +4132,7 @@ function networkOf(id: string): Network | undefined {
  */
 function passportPanel(): Panel {
   // A Train followed behind it is taken a step, and Back goes to it, as the close does (#332).
-  if (following) followedNow(Date.now());
+  if (following) stepFollowed(Date.now());
   const headsign = following && bundle?.trips.find((trip) => trip.id === followedId())?.headsign;
   const toTrain = headsign ? [el('button', { type: 'button', className: 'back', onclick: closePanel }, icon('back'), el('span', { textContent: backToTrain(headsign) }))] : [];
   const header = el('header', {}, ...toTrain, el('h2', { className: 'title', textContent: t('passport'), tabIndex: -1 }), closeButton(t('closePassport')));
@@ -4152,11 +4154,9 @@ function passportPanel(): Panel {
     const got = ids.flatMap((id) => earned.get(id) ?? []);
     return el('li', { className: 'stamp-group' }, el('div', { className: 'stamp-head' }, el('span', { textContent: name }), el('span', { className: 'meta', textContent: earnedOf(got.length, ids.length) })), ...(got.length ? [el('div', { className: 'stamps' }, ...got.map((stamp) => stampPill(stamp, short, day)))] : []));
   };
-  const all = zoomedOut?.networks ?? bundle?.networks ?? [];
-  const names = networkNames(all);
-  const networks = all.flatMap((n) => {
+  const networks = (zoomedOut?.networks ?? bundle?.networks ?? []).flatMap((n) => {
     const of = catalogue.filter((l) => l.network === n.id);
-    return of.length ? [group(names.get(n.id) ?? n.name, [`network:${n.id}`, ...of.map((l) => `line:${l.id}`)])] : [];
+    return of.length ? [group(stampName(`network:${n.id}`), [`network:${n.id}`, ...of.map((l) => `line:${l.id}`)])] : [];
   });
   const ride = (r: Ride) =>
     el(
