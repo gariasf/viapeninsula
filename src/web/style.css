@@ -954,6 +954,24 @@ button.result {
   line-height: 1.35;
 }
 
+/* Words split by dots, as a Line's state (#472, #473): each part whole, and the dot that leads a part starting a line, wrapped, left of the clip, so no dot starts or ends a line. */
+.parts {
+  margin-left: -0.55em;
+  text-indent: 0.55em;
+  clip-path: inset(-1em -100vw -1em 0.55em);
+}
+
+.part {
+  white-space: nowrap;
+}
+
+.part + .part::before {
+  content: '·';
+  display: inline-block;
+  width: 0.55em;
+  text-indent: 0;
+}
+
 .what-under.served {
   margin-top: 3px;
 }
@@ -977,6 +995,124 @@ button.result {
 
 @media (hover: hover) {
   :is(button.result, .clear):hover {
+    background: var(--hover);
+  }
+}
+
+/* Favourites (#472): the star, 44 px, beside a board's close button, in a Line's header and on each kept row, in the lettering about it, with a circle under the pointer, on the navy nameboard too (its --hover). Each Station with its next departures, each Line with its state now. */
+.star {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: -2px 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.favs > li + li {
+  border-top: 1px solid var(--hairline);
+}
+
+.fav {
+  padding: 4px 0 6px;
+}
+
+.fav-head,
+.fav-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.fav-name {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 6px 0 0;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: inherit;
+  font: 400 19px/1.3 var(--serif);
+  text-align: left;
+}
+
+button.fav-name {
+  cursor: pointer;
+}
+
+.fav .rows {
+  margin-top: 2px;
+}
+
+/* Its departures as tall as the star beside its name. */
+.fav .rows li > .row {
+  min-height: 44px;
+}
+
+.fav-line {
+  padding: 0;
+}
+
+.fav-row {
+  display: grid;
+  flex: 1;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  column-gap: 12px;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 56px;
+  padding: 6px 4px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+button.fav-row {
+  cursor: pointer;
+}
+
+.fav-line div.fav-row {
+  grid-template-columns: 1fr;
+}
+
+.keep {
+  margin-top: 14px;
+}
+
+.empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 40px 24px;
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+.empty-state b {
+  color: var(--ink);
+  font: 400 20px/1.3 var(--serif);
+}
+
+.empty-star svg {
+  width: 40px;
+  height: 40px;
+}
+
+@media (hover: hover) {
+  :is(.star, button.fav-name, button.fav-row):hover {
     background: var(--hover);
   }
 }

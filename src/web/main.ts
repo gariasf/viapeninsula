@@ -8,7 +8,7 @@ import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
 import { along, APART, atZoom, BANDS, bandZooms, GRAPH_BAND, STRETCH, inBand, onStroke, pointAt, profiled, zones, type Zone, daysNeeded, daysOf, SOON, DEGREE, EARTH, joinTracks, LATE, LIVE_URL, madridDate, networkTracks, places, type Alerts, type Bundle, type Credit, type Call, type DayFiles, type Place, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH, type ZoomedOut } from '../bundle.ts';
 import { boardAt, comingAt, KEEP, lastDays, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, tripsAt, unavailable, type Coming, type Departure, type Followed, type Received, type Train, type TripNow } from '../engine.ts';
-import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, branchOff, busesReplace, cancelledCount, earlierStations, endsHere, followDeparture, goOn, lateCount, standingAt, worstLate, trainsNow, turnsHere, language, LANGUAGES, leavesAt, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, placedBy, setLanguage, setNameLanguages, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated, type Language, type Unlocated } from './i18n.ts';
+import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, branchOff, busesReplace, cancelledCount, earlierStations, endsHere, followDeparture, goOn, starLabel, lateCount, standingAt, worstLate, trainsNow, turnsHere, language, LANGUAGES, leavesAt, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, placedBy, setLanguage, setNameLanguages, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { getJson, lookAgainSoon, RETRY, STALL } from './files.ts';
 import { daysAsTheyCome, firstLook, forgetJoined, joinedFrom, regionLoader, regionsCame, regionsNeeded, trackFileOf } from './regions.ts';
@@ -29,6 +29,7 @@ import { ago, boardAsks, boardList, cardAlerts, countdownTo, due, inNameOrder, l
 import { ARROW_GAP, boxOf, nameBoxOf, DASHED_RING, dashedDot, dashedOutline, dashesAcross, field, fitOf, FOLLOWED_TEXT, haloScale, LINE_HEIGHT, LOCAL_PILL_ZOOM, OUTLINE_SIZES, outlineOf, PILL_PADDING, PILL_TEXT, pillReach, pillText, pulse, SMALL_TEXT, TARGET, targetRings, type Outline } from './pill.ts';
 import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, tappedRows, type Shown } from './closures.ts';
 import { currentTab, type Tab } from './tabs.ts';
+import { favouriteRows, favourites, type Favourite } from './favourites.ts';
 import { keyboardRise, networkNames, numbered, numberQuery, results, searchPlaces, type Found, type FoundLine } from './search.ts';
 import { cancelledNow, lineState, lineStrip, onStrip, type StripStation } from './line.ts';
 import { opensInNewTab, putHtml } from './newTab.ts';
@@ -122,6 +123,8 @@ const ICONS = {
   copyright: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M14.9 9.4a4 4 0 1 0 0 5.2"/></svg>',
   back: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>',
   warning: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4.5M12 17.4v.1"/></svg>',
+  star: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m12 3.2 2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 17.1 6.6 19.9l1.1-6.1L3.2 9.6l6.1-.8L12 3.2z"/></svg>',
+  starOn: '<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m12 3.2 2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 17.1 6.6 19.9l1.1-6.1L3.2 9.6l6.1-.8L12 3.2z"/></svg>',
   station: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="6.5"/></svg>',
 };
 /** How many departures a board shows peeking on a phone, and Nearby rows (#321). */
@@ -778,6 +781,7 @@ const riders = el('div', { className: 'riders' }, el('details', { className: 'cr
 const tabs: Record<Tab, HTMLButtonElement> = {
   search: el('button', { type: 'button', className: 'tab', disabled: true, onclick: showSearch }),
   nearby: el('button', { type: 'button', className: 'tab', disabled: true, onclick: showNearby }),
+  favourites: el('button', { type: 'button', className: 'tab', disabled: true, onclick: showFavourites }),
 };
 const nav = el('nav', { className: 'card tabs' }, ...Object.values(tabs));
 const dock = el('div', { className: 'dock' }, riders, panel);
@@ -884,6 +888,10 @@ let serviceToday: string | undefined;
 let nearMe: Point | Unlocated | undefined;
 /** Whether the panel shows Search, its tab's sheet (#470). */
 let searching = false;
+/** Whether the panel shows Favourites, its tab's sheet (#472). */
+let favouritesShown = false;
+/** The Stations and Lines the viewer keeps in Favourites, in their browser's storage only (ADR-0011). */
+const kept = favourites(() => localStorage);
 /** What's typed in Search's field (#471), which starts afresh each time Search opens: never stored, nor put in the link (ADR-0011). */
 let query = '';
 /** How many times Nearby has asked the browser where the viewer is, so that only the last ask's answer shows (locate()). */
@@ -1852,7 +1860,7 @@ map.on('moveend', () => {
 const pointed = ['trains', 'train-pills', 'train-pills-followed', 'station-names', ...strokeLayers];
 map.on('mousemove', ({ point }) => (map.getCanvas().style.cursor = map.queryRenderedFeatures(point, { layers: pointed }).length || placesDrawn([point.x, point.y]).length ? 'pointer' : ''));
 // Escape closes the About dialog on its own, if it's open.
-document.addEventListener('keydown', (e) => e.key === 'Escape' && !about.open && (following || boardPlace || lineShown || nearMe || searching) && closePanel());
+document.addEventListener('keydown', (e) => e.key === 'Escape' && !about.open && (following || boardPlace || lineShown || nearMe || searching || favouritesShown) && closePanel());
 
 // Moves the Trains as often as MOVED says, and once a second works out which Networks the banner
 // names. The browser stops asking while the tab is hidden.
@@ -1918,7 +1926,7 @@ requestAnimationFrame(function move(now) {
   showCentring();
   // The panel's times and ages change by the second, a followed Train's countdown as each second of it ends, and
   // where Search finds Train numbers, where their Trains are (#471).
-  if ((following || boardPlace || lineShown || nearMe || (searching && numberQuery(query))) && performance.now() - panelShown > panelDue) showPanel();
+  if ((following || boardPlace || lineShown || nearMe || favouritesShown || (searching && numberQuery(query))) && performance.now() - panelShown > panelDue) showPanel();
   // Which Networks the banner names changes as Trains and the view move, and the banner with it.
   // Zoomed out, only those drawn there, long distance's, can be in view (#247), and a Network with no Trips today only
   // where its track is drawn: long distance's and Media Distancia's below zoom 7, the Metro's and TRAM's from zoom 10 (#781).
@@ -2626,6 +2634,7 @@ function showLanguage() {
   nav.setAttribute('aria-label', t('tabBar'));
   tabs.search.replaceChildren(icon('search'), t('search'));
   tabs.nearby.replaceChildren(icon('nearby'), t('nearbyButton'));
+  tabs.favourites.replaceChildren(icon('star'), t('favourites'));
   tiltButton.title = t('tilt');
   tiltButton.setAttribute('aria-label', t('tilt'));
   followRandomButton.title = t('followRandom');
@@ -2695,7 +2704,7 @@ function follow(id: string, up = false) {
   following = day && trip ? { day, trip } : { day: bundle?.serviceDay ?? '', trip: id };
   // A Train followed again, by a tap on it too, is taken back (#325).
   released = undefined;
-  [boardPlace, lineShown, nearMe, searching, back] = [undefined, undefined, undefined, false, undefined];
+  [boardPlace, lineShown, nearMe, searching, favouritesShown, back] = [undefined, undefined, undefined, false, false, undefined];
   trainSource?.setData(trains());
   openPanel(up);
   writeLink();
@@ -2776,7 +2785,7 @@ function goBack() {
   if (!to) return;
   if (to.to === 'train') follow(`${to.day}/${to.trip}`, to.up);
   else {
-    [following, boardPlace, lineShown, nearMe, searching, back] = [undefined, to.to === 'board' ? to.place : undefined, to.to === 'line' ? to.line : undefined, to.to === 'nearby' ? to.near : undefined, false, undefined];
+    [following, boardPlace, lineShown, nearMe, searching, favouritesShown, back] = [undefined, to.to === 'board' ? to.place : undefined, to.to === 'line' ? to.line : undefined, to.to === 'nearby' ? to.near : undefined, false, false, undefined];
     trainSource?.setData(trains());
     openPanel(to.up);
     writeLink();
@@ -2804,7 +2813,7 @@ function boardOf(id: string): Place | undefined {
 /** Shows a place's board, by its ID in places() or its interchange's, following no Train. */
 function showBoard(place: string) {
   // An interchange's place's is the interchange's (ADR-0005).
-  [following, boardPlace, lineShown, nearMe, searching, back] = [undefined, boardOfPlace.get(place) ?? place, undefined, undefined, false, undefined];
+  [following, boardPlace, lineShown, nearMe, searching, favouritesShown, back] = [undefined, boardOfPlace.get(place) ?? place, undefined, undefined, false, false, undefined];
   trainSource?.setData(trains());
   openPanel(false);
   writeLink();
@@ -2817,7 +2826,7 @@ function showBoard(place: string) {
  */
 function showLine(line: string) {
   const keyboard = panel.contains(document.activeElement);
-  [following, boardPlace, lineShown, nearMe, searching, back] = [undefined, undefined, line, undefined, false, undefined];
+  [following, boardPlace, lineShown, nearMe, searching, favouritesShown, back] = [undefined, undefined, line, undefined, false, false, undefined];
   trainSource?.setData(trains());
   openPanel(false);
   writeLink();
@@ -2864,7 +2873,7 @@ function showLook(line: string | undefined) {
  * opens it, its field emptied and focused, which on a phone brings up the keyboard (#471).
  */
 function showSearch() {
-  [following, boardPlace, lineShown, nearMe, searching, back, query] = [undefined, undefined, undefined, undefined, true, undefined, ''];
+  [following, boardPlace, lineShown, nearMe, searching, favouritesShown, back, query] = [undefined, undefined, undefined, undefined, true, false, undefined, ''];
   trainSource?.setData(trains());
   openPanel(true);
   writeLink();
@@ -2881,12 +2890,22 @@ function showSearch() {
  * stays where it is: the basemap's tiles for where they are would tell OpenFreeMap.
  */
 function showNearby() {
-  [following, boardPlace, lineShown, nearMe, searching, back] = [undefined, undefined, undefined, 'locating', false, undefined];
+  [following, boardPlace, lineShown, nearMe, searching, favouritesShown, back] = [undefined, undefined, undefined, 'locating', false, false, undefined];
   trainSource?.setData(trains());
   openPanel(true);
   writeLink();
   map.easeTo({ padding: panelPadding() });
   locate();
+}
+
+/** Shows Favourites, its tab's sheet (#472), pulled up, following no Train, and loads the regions of what it keeps, wherever the map is. */
+function showFavourites() {
+  [following, boardPlace, lineShown, nearMe, searching, favouritesShown, back] = [undefined, undefined, undefined, undefined, false, true, undefined];
+  trainSource?.setData(trains());
+  openPanel(true);
+  writeLink();
+  map.easeTo({ padding: panelPadding() });
+  want();
 }
 
 /** Nearby's Try again: asks the browser again where the viewer is, as Nearby's tab does, saying meanwhile that it's finding out, under which the button stays, and the keyboard's focus on it (#324). */
@@ -2932,8 +2951,8 @@ function locate() {
  * goes back to the tab whose sheet it was, as the close button goes with the panel, rather than to the page (#470).
  */
 function closePanel() {
-  const [tab, keyboard] = [currentTab({ following, boardPlace, lineShown, nearMe, searching }), panel.contains(document.activeElement)];
-  [following, boardPlace, lineShown, nearMe, searching, back, linkWaits] = [undefined, undefined, undefined, undefined, false, undefined, false];
+  const [tab, keyboard] = [currentTab({ following, boardPlace, lineShown, nearMe, searching, favouritesShown }), panel.contains(document.activeElement)];
+  [following, boardPlace, lineShown, nearMe, searching, favouritesShown, back, linkWaits] = [undefined, undefined, undefined, undefined, false, false, undefined, false];
   showPanel();
   writeLink();
   map.easeTo({ padding: panelPadding() });
@@ -3184,12 +3203,12 @@ interface Panel {
  */
 function showPanel(up = wide.matches || pulledUp || dragging) {
   panelShown = performance.now();
-  const shown = following ? followedPanel(up) : boardPlace ? boardPanel(boardPlace, up) : lineShown ? linePanel(lineShown) : nearMe ? nearbyPanel(nearMe, up) : searching ? searchPanel() : undefined;
+  const shown = following ? followedPanel(up) : boardPlace ? boardPanel(boardPlace, up) : lineShown ? linePanel(lineShown) : nearMe ? nearbyPanel(nearMe, up) : searching ? searchPanel() : favouritesShown ? favouritesPanel() : undefined;
   panelDue = shown?.changes ?? 1000;
   panel.hidden = !shown;
   panel.classList.toggle('up', up);
   patch(panel, shown ? [el('div', { className: 'sheet-top' }, handle(up), shown.header), el('div', { className: 'sheet-body' }, ...shown.body)] : []);
-  const current = currentTab({ following, boardPlace, lineShown, nearMe, searching });
+  const current = currentTab({ following, boardPlace, lineShown, nearMe, searching, favouritesShown });
   for (const [tab, button] of Object.entries(tabs)) {
     if (tab === current) button.setAttribute('aria-current', 'page');
     else button.removeAttribute('aria-current');
@@ -3759,6 +3778,7 @@ function boardPanel(id: string, up: boolean): Panel | undefined {
       { className: 'nameboard' },
       ...backButton(),
       el('div', {}, el('h2', { className: 'title', textContent: place.name, tabIndex: -1 }), el('div', { className: 'served' }, ...servedBy(place).map((line) => pill(line, { small: true })))),
+      ...starOf(place),
       closeButton(t('closeBoard')),
     ),
     body: [
@@ -3798,15 +3818,11 @@ function linePanel(id: string): Panel | undefined {
   }
   const now = Date.now();
   const mapNow = mapTime(now, received);
-  const nows = tripsAt(bundle, now, received, stripOf.trips, hidingClosures);
-  const trains = nows.flatMap((n) => ('train' in n ? [n.train] : []));
-  const cancelled = cancelledNow(nows, bundle.noonMinus12h, mapNow);
-  const state = lineState(trains);
+  const { trains, cancelled, state } = lineNow(bundle, stripOf.trips, now, mapNow);
   const shown = cardAlerts(alerts, { lines: [id], stations: [] }, language(), mapNow);
   const ends = stripOf.strip.filter((s) => s.mark === 'end');
   const name = ends.length ? ends.map((s) => stationName(s.station)).join(' – ') : line.name;
   const network = bundle.networks.find((n) => n.id === line.network)?.name ?? line.network;
-  const how = state.trains ? [state.worst !== undefined ? worstLate(state.worst) : '', state.live ? '' : t('allScheduled')].filter(Boolean) : [];
   const chip = (className: string, says: (Node | string)[], open: boolean, toggle: () => void) => {
     const button = el('button', { type: 'button', className: `chip-button ${className}`, onclick: () => (toggle(), showPanel(), map.easeTo({ padding: panelPadding() })) }, el('span', {}, ...says), icon(open ? 'up' : 'chevron'));
     button.setAttribute('aria-expanded', String(open));
@@ -3824,11 +3840,12 @@ function linePanel(id: string): Panel | undefined {
       { className: 'line-head' },
       ...backButton(),
       el('h2', { className: 'title', tabIndex: -1 }, pill(id), ` ${name}`),
+      starButton({ kind: 'line', id, name: line.name }),
       closeButton(t('closeLine')),
       el(
         'div',
         { className: 'line-state' },
-        el('p', { className: 'meta status-line' }, el('span', { className: `dot ${state.live ? 'live' : 'scheduled'}` }), [network, trainsNow(state.trains), ...how].join(' · ')),
+        el('p', { className: 'meta status-line parts' }, ...parts([network, ...stateWords(state)], el('span', { className: `dot ${state.live ? 'live' : 'scheduled'}` }))),
         el('div', { className: 'state-chips', hidden: !chips.length }, ...chips),
       ),
     ),
@@ -3841,6 +3858,132 @@ function linePanel(id: string): Panel | undefined {
       ),
       el('h3', { className: 'label', textContent: t('stations') }),
       lineRows(id, stripOf.strip, trains, mapNow),
+    ],
+  };
+}
+
+/** A Line's Trains on the map now, of `trips`, its Trips, its Cancelled Trains whose runs haven't ended, and its state (lineState()), as its screen and Favourites show them (#473, #472). */
+function lineNow(days: Bundle, trips: Trip[], now: number, mapNow: number) {
+  const nows = tripsAt(days, now, received, trips, hidingClosures);
+  const trains = nows.flatMap((n) => ('train' in n ? [n.train] : []));
+  return { trains, cancelled: cancelledNow(nows, days.noonMinus12h, mapNow), state: lineState(trains) };
+}
+
+/** How many of a Line's Trains are on the map, and the worst Delay of those 5 minutes late or more, or that all are Scheduled (#473). */
+function stateWords(state: ReturnType<typeof lineState>): string[] {
+  const how = state.trains ? [state.worst !== undefined ? worstLate(state.worst) : '', state.live ? '' : t('allScheduled')].filter(Boolean) : [];
+  return [trainsNow(state.trains), ...how];
+}
+
+/** `words` as parts that don't break, `lead` kept with the first, each after the first led by a dot that `.parts` hides where the part starts a line, so no dot starts or ends one (#472). */
+function parts(words: string[], ...lead: Node[]) {
+  return words.flatMap((word, i) => [...(i ? [' '] : []), el('span', { className: 'part' }, ...(i ? [] : lead), word)]);
+}
+
+/**
+ * The star that keeps `f` in Favourites, or removes it (#472): filled while it's kept, and labelled by what a
+ * press does, which says whether it's kept, so it isn't `aria-pressed` too, or a screen reader would say it twice.
+ */
+function starButton(f: Favourite) {
+  const on = kept.has(f);
+  const label = starLabel(f.name, on);
+  const toggle = () => {
+    // The star pressed, as the page has it: patch() keeps the old button and gives it this one's onclick, so this `star` may never be on the page.
+    const focused = document.activeElement;
+    kept.toggle(f);
+    showPanel();
+    // A row removed in Favourites takes its star, and the keyboard's focus, with it: to the panel's title, rather than the page.
+    if (focused?.isConnected === false) focusTitle();
+  };
+  const star = el('button', { type: 'button', className: 'star', title: label, onclick: toggle }, icon(on ? 'starOn' : 'star'));
+  star.setAttribute('aria-label', label);
+  return star;
+}
+
+/**
+ * A board's star (#472): kept by any of its places, as an interchange's board is opened by any of its places' (showBoard()),
+ * or else to keep by the place of its first Station.
+ */
+function starOf(board: Place): Node[] {
+  const places = new Set(board.stations.map((station) => placeOfStation.get(station)?.id));
+  const station = board.stations[0];
+  const own = station && placeOfStation.get(station);
+  const f = kept.all().find((k) => k.kind === 'station' && places.has(k.id)) ?? (own && { kind: 'station' as const, id: own.id, station, name: board.name });
+  return f ? [starButton(f)] : [];
+}
+
+/** Each Line's Trips, by its ID, of the days on the map, which Favourites' Lines find theirs in each second (#472). */
+let tripsOfLine: { days?: Bundle; of: Map<string, Trip[]> } = { of: new Map() };
+
+/**
+ * Favourites' sheet (#472, #328's pick): kept Stations, then kept Lines, in the order kept. A Station with its name,
+ * which opens its board, and its next two departures, as a board's rows; a Line with its pill, its Network and its
+ * state now, as its screen says it, and how many of its Trains are late, or none, which opens its screen. Each with
+ * its star, which removes it. One whose regions are still to come says `Loading…`, and one the map no longer has
+ * says so, with its kept name (favouriteRows()). With none kept, how to keep one; under the list, that Trains aren't.
+ */
+function favouritesPanel(): Panel {
+  const header = el('header', {}, el('h2', { className: 'title', textContent: t('favourites'), tabIndex: -1 }), closeButton(t('closeFavourites')));
+  if (!kept.all().length) {
+    return { header, body: [el('div', { className: 'empty-state' }, el('span', { className: 'empty-star' }, icon('star')), el('p', {}, el('b', { textContent: t('nothingKept') })), el('p', { textContent: t('howToKeep') }))] };
+  }
+  const now = Date.now();
+  const mapNow = mapTime(now, received);
+  const has = (f: Favourite) => (f.kind === 'station' ? shownPlaces.has(f.id) : lines.has(f.id));
+  const rows = favouriteRows(kept.all(), (f) => !!bundle && come(f.kind === 'station' ? { station: f.station } : { line: f.id }), has);
+  const trips = tripsState(loaded, manifest ? neededRegions(manifest) : [], shownRegions, tripsFailed);
+  const date = serviceToday ?? madridDate(new Date(mapNow));
+  if (tripsOfLine.days !== bundle) {
+    tripsOfLine = { days: bundle, of: new Map() };
+    for (const trip of bundle?.trips ?? []) {
+      const of = tripsOfLine.of.get(trip.line);
+      if (of) of.push(trip);
+      else tripsOfLine.of.set(trip.line, [trip]);
+    }
+  }
+  const said = (state: 'loading' | 'gone') => el('p', { className: 'meta', textContent: t(state === 'loading' ? 'loading' : 'noLongerOnMap') });
+  const station = (f: (typeof rows.stations)[number]) => {
+    const board = f.state === 'shown' ? boardOf(boardOfPlace.get(f.id) ?? f.id) : undefined;
+    if (!board || !bundle) return el('li', { className: 'fav' }, el('div', { className: 'fav-head' }, el('span', { className: 'fav-name', textContent: f.name }), starButton(f)), said(f.state === 'shown' ? 'loading' : f.state));
+    const departures = boardAt(bundle, now, received, board.stations, hidingClosures).slice(0, 2);
+    // With none left today, the next day's first are asked for, as a board's (#597).
+    if (!departures.length && boardAsks(board.stations.every((station) => come({ station })), emptyBoard === date)) {
+      emptyBoard = date;
+      refreshDays();
+    }
+    // Neither rows nor "none" while the Trips of a region the map has loaded or needs, or the next day's, are on their way, as a board's (boardList()).
+    const list = boardList(trips, departures.length, nextOnItsWay(looking, emptyBoard === date, bundle.serviceDay, date));
+    return el(
+      'li',
+      { className: 'fav' },
+      el('div', { className: 'fav-head' }, el('button', { type: 'button', className: 'fav-name', onclick: () => openStation(f.station) }, board.name), starButton(f)),
+      ...(list === 'label' ? [] : [list === 'rows' ? el('ol', { className: 'rows' }, ...departures.map((departure) => departureRow(departure, mapNow))) : el('p', { className: 'meta', textContent: t('noDepartures') })]),
+    );
+  };
+  const line = (f: (typeof rows.lines)[number]) => {
+    if (f.state !== 'shown' || !bundle) return el('li', { className: 'fav fav-line' }, el('div', { className: 'fav-row' }, el('span', { className: 'what' }, el('span', { className: 'what-title', textContent: f.name }), said(f.state === 'shown' ? 'loading' : f.state))), starButton(f));
+    const { state, cancelled } = lineNow(bundle, tripsOfLine.of.get(f.id) ?? [], now, mapNow);
+    const network = bundle.networks.find((n) => n.id === lines.get(f.id)?.network);
+    const end = state.late ? el('span', { className: 'delay late', textContent: lateCount(state.late) }) : el('span', { className: 'status soft', textContent: state.trains ? t('noneLate') : '' });
+    return el(
+      'li',
+      { className: 'fav fav-line' },
+      el(
+        'button',
+        { type: 'button', className: 'fav-row', onclick: () => openLine(f.id) },
+        pill(f.id),
+        el('span', { className: 'what' }, el('span', { className: 'what-title', textContent: network?.name ?? '' }), el('span', { className: 'what-under parts' }, ...parts([...stateWords(state), ...(cancelled.length ? [cancelledCount(cancelled.length)] : [])]))),
+        el('span', { className: 'end' }, end),
+      ),
+      starButton(f),
+    );
+  };
+  return {
+    header,
+    body: [
+      ...(rows.stations.length ? [el('h3', { className: 'label', textContent: t('stations') }), el('ol', { className: 'favs' }, ...rows.stations.map(station))] : []),
+      ...(rows.lines.length ? [el('h3', { className: 'label', textContent: t('lines') }), el('ol', { className: 'favs' }, ...rows.lines.map(line))] : []),
+      el('p', { className: 'meta keep', textContent: t('keptNote') }),
     ],
   };
 }
@@ -4556,13 +4699,16 @@ function showDays(days: Bundle, regions: string[], complete: boolean) {
 /**
  * The regions the map needs now (regionsNeeded(), #266): those in view, those every view loads, the
  * page's link's, as it was opened or pasted, or as the last Search row that opened a Station's board made it (#471),
- * and those round the viewer, where Nearby has found them. A link's region stays needed till the link changes,
+ * those round the viewer, where Nearby has found them, and those of what Favourites keep, while it shows (#472). A link's region stays needed till the link changes,
  * after its board has closed too.
  */
 function neededRegions({ regions = [] }: Manifest): string[] {
   const link = new URLSearchParams(openedLink.slice(1));
   const nearby = nearMe && typeof nearMe !== 'string' ? { at: nearMe, metres: NEARBY } : undefined;
-  return regionsNeeded(regions, { bounds: map.getBounds().toArray(), zoom: map.getZoom() }, { train: link.get('train'), line: link.get('line'), station: link.get('station'), stations: zoomedOut?.stations, nearby });
+  // What Favourites keep, while it shows (#472).
+  const favs = favouritesShown ? kept.all() : [];
+  const keptIds = { stations: favs.flatMap((f) => (f.kind === 'station' ? [f.station] : [])), lines: favs.flatMap((f) => (f.kind === 'line' ? [f.id] : [])) };
+  return regionsNeeded(regions, { bounds: map.getBounds().toArray(), zoom: map.getZoom() }, { train: link.get('train'), line: link.get('line'), station: link.get('station'), stations: zoomedOut?.stations, nearby, kept: keptIds });
 }
 
 /** Looks for the days the map needs again where it needs a region it hasn't loaded (neededRegions()), as it comes into view. */
@@ -4604,6 +4750,8 @@ function getZoomedOut({ zoomedOut: key }: Manifest) {
       openWaitingLink();
       // Search finds the Stations in it from now on, and their Lines (#471).
       if (searching) showPanel();
+      // Favourites' kept Stations' regions are found in it (#472).
+      if (favouritesShown) want();
     },
     (error: unknown) => {
       if (zoomedOutKey === key) zoomedOutKey = undefined;

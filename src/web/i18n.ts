@@ -196,6 +196,29 @@ const STRINGS = {
   search: { ca: 'Cerca', es: 'Buscar', eu: 'Bilatu', gl: 'Buscar', en: 'Search' },
   nowTab: { ca: 'Ara', es: 'Ahora', eu: 'Orain', gl: 'Agora', en: 'Now' },
   favourites: { ca: 'Preferits', es: 'Favoritos', eu: 'Gogokoak', gl: 'Favoritos', en: 'Favourites' },
+  // Favourites' sheet, which its tab opens (#472): the button that closes it; the star on a board's nameboard, a Line's header and each row, which says what a press does to {name}, a Station's or a Line's; what it
+  // says with none kept, and under the list; a kept Line's end with none of its Trains late; and a kept row whose region is still to come, or that the map no longer has (a Station renamed or merged, a Line gone).
+  closeFavourites: { ca: 'Tanca els Preferits', es: 'Cerrar Favoritos', eu: 'Itxi Gogokoak', gl: 'Pechar Favoritos', en: 'Close Favourites' },
+  addFavourite: { ca: 'Afegeix {name} als Preferits', es: 'Añadir {name} a Favoritos', eu: 'Gehitu {name} Gogokoetara', gl: 'Engadir {name} a Favoritos', en: 'Add {name} to Favourites' },
+  removeFavourite: { ca: 'Treu {name} dels Preferits', es: 'Quitar {name} de Favoritos', eu: 'Kendu {name} Gogokoetatik', gl: 'Quitar {name} de Favoritos', en: 'Remove {name} from Favourites' },
+  nothingKept: { ca: 'Encara no hi ha res.', es: 'Aún no hay nada.', eu: 'Oraindik ez dago ezer.', gl: 'Aínda non hai nada.', en: 'Nothing here yet.' },
+  howToKeep: {
+    ca: "Toca l'estrella al panell d'una estació o a la pantalla d'una línia per desar-la aquí. Els Preferits només es queden en aquest navegador.",
+    es: 'Toca la estrella en el panel de una estación o en la pantalla de una línea para guardarla aquí. Los Favoritos solo se quedan en este navegador.',
+    eu: 'Sakatu izarra geltoki baten panelean edo linea baten pantailan hemen gordetzeko. Gogokoak nabigatzaile honetan bakarrik gordetzen dira.',
+    gl: 'Toca a estrela no panel dunha estación ou na pantalla dunha liña para gardala aquí. Os Favoritos só quedan neste navegador.',
+    en: "Tap the star on a Station's board or a Line's screen to keep it here. Favourites stay in this browser only.",
+  },
+  keptNote: {
+    ca: 'Desats només en aquest navegador. Els trens no es desen: un tren dura un dia.',
+    es: 'Guardados solo en este navegador. Los trenes no se guardan: un tren dura un día.',
+    eu: 'Nabigatzaile honetan bakarrik gordeta. Trenak ez dira gordetzen: tren batek egun bat irauten du.',
+    gl: 'Gardados só neste navegador. Os trens non se gardan: un tren dura un día.',
+    en: "Kept in this browser only. Trains aren't kept: a Train lasts one day.",
+  },
+  noneLate: { ca: 'cap amb retard', es: 'ninguno con retraso', eu: 'bat ere ez atzeratuta', gl: 'ningún con atraso', en: 'none late' },
+  loading: { ca: 'Carregant…', es: 'Cargando…', eu: 'Kargatzen…', gl: 'Cargando…', en: 'Loading…' },
+  noLongerOnMap: { ca: 'Ja no és al mapa', es: 'Ya no está en el mapa', eu: 'Jada ez dago mapan', gl: 'Xa non está no mapa', en: 'No longer on the map' },
   // Search's sheet, which its tab opens: the button that closes it.
   closeSearch: { ca: 'Tanca la cerca', es: 'Cerrar la búsqueda', eu: 'Itxi bilaketa', gl: 'Pechar a busca', en: 'Close search' },
   // Its field (#471): what it says while it's empty, its name for a screen reader, and the button that clears it.
@@ -572,6 +595,9 @@ export const alertCount = (n: number, lang = language()): string => counting(n, 
 
 /** How many Trains a Line has on the map now, `n` (#473), or that it has none, in `lang`, or else the language the interface speaks now. */
 export const trainsNow = (n: number, lang = language()): string => (n ? counting(n, 'oneTrainNow', 'trainsNow', lang) : STRINGS.noTrainsNow[lang]);
+
+/** What the star beside a Station or a Line, by its `name`, does at a press (#472): keeps it in Favourites, or removes it where it's `kept`, in `lang`, or else the language the interface speaks now. */
+export const starLabel = (name: string, kept: boolean, lang = language()): string => STRINGS[kept ? 'removeFavourite' : 'addFavourite'][lang].replace('{name}', name);
 
 /** How many of a Line's Trains are 5 minutes late or more, `n` (#473), in `lang`, or else the language the interface speaks now. */
 export const lateCount = (n: number, lang = language()): string => STRINGS.lateCount[lang].replace('{n}', String(n));

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { createExpression, latest, type ExpressionSpecification, type Feature, type StylePropertySpecification } from '@maplibre/maplibre-gl-style-spec';
 import { afterEach, expect, test, vi } from 'vitest';
-import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, cancelledCount, earlierStations, branchOff, endsHere, goOn, standingAt, trainsNow, turnsHere, followDeparture, LANGUAGES, leavesAt, leavingStation, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, pickLanguage, placedBy, setNameLanguages, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated } from './i18n.ts';
+import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, cancelledCount, earlierStations, branchOff, endsHere, goOn, standingAt, trainsNow, turnsHere, followDeparture, LANGUAGES, leavesAt, leavingStation, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, pickLanguage, placedBy, setNameLanguages, starLabel, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated } from './i18n.ts';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -123,6 +123,21 @@ test('labels the button that tilts the map in each language', () => {
   expect(t('tilt', 'en')).toBe('Tilt the map');
   expect(t('tilt', 'eu')).toBe('Okertu mapa');
   expect(t('tilt', 'gl')).toBe('Inclinar o mapa');
+});
+
+test("labels the star by what a press does to a Station or a Line, and says Favourites' notes, in each language (#472)", () => {
+  expect(starLabel('Barcelona-Sants', false, 'en')).toBe('Add Barcelona-Sants to Favourites');
+  expect(starLabel('R4', true, 'en')).toBe('Remove R4 from Favourites');
+  expect(starLabel('R4', false, 'ca')).toBe('Afegeix R4 als Preferits');
+  expect(starLabel('R4', true, 'es')).toBe('Quitar R4 de Favoritos');
+  expect(starLabel('R4', false, 'eu')).toBe('Gehitu R4 Gogokoetara');
+  expect(starLabel('R4', true, 'gl')).toBe('Quitar R4 de Favoritos');
+  const notes = (lang: Language) => [t('noneLate', lang), t('loading', lang), t('noLongerOnMap', lang)];
+  expect(notes('en')).toEqual(['none late', 'Loading…', 'No longer on the map']);
+  expect(notes('ca')).toEqual(['cap amb retard', 'Carregant…', 'Ja no és al mapa']);
+  expect(notes('es')).toEqual(['ninguno con retraso', 'Cargando…', 'Ya no está en el mapa']);
+  expect(notes('eu')).toEqual(['bat ere ez atzeratuta', 'Kargatzen…', 'Jada ez dago mapan']);
+  expect(notes('gl')).toEqual(['ningún con atraso', 'Cargando…', 'Xa non está no mapa']);
 });
 
 test("labels the tab bar, its tabs and Search's close button in each language (#470)", () => {
