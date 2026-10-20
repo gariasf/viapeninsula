@@ -2054,7 +2054,8 @@ button.fav-row {
 
 /*
  * Under about 1,000 px wide, the phone's © button instead of the strip, which beside the card's place wrapped to many lines and pushed the buttons
- * riding on it up as far (the maintainer's pick, #697): under Tilt and Centre, where the strip was, its credits opening over the map to its left.
+ * riding on it up as far (the maintainer's pick, #697): under Tilt and Centre, where the strip was, its credits opening to its left, level with it, clear of
+ * the rail and over the card, which would hide their middle, rather than over Tilt and Centre.
  */
 @media (min-width: 640px) and (max-width: 999.98px) {
   .credits {
@@ -2067,8 +2068,11 @@ button.fav-row {
   }
 
   .credits-text {
-    right: 0;
+    right: calc(100% + 8px);
+    bottom: 0;
     left: auto;
+    z-index: 1;
+    max-width: calc(100vw - 148px);
   }
 }
 
