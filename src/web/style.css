@@ -2071,7 +2071,8 @@ button.fav-row {
     right: calc(100% + 8px);
     bottom: 0;
     left: auto;
-    z-index: 1;
+    /* Over the card's own, a Train's strip's marks among them. */
+    z-index: 2;
     max-width: calc(100vw - 148px);
   }
 }
