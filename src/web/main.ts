@@ -14,7 +14,7 @@ import { getJson, lookAgainSoon, RETRY, STALL } from './files.ts';
 import { daysAsTheyCome, firstLook, forgetJoined, joinedFrom, regionLoader, regionsCame, regionsNeeded, trackFileOf } from './regions.ts';
 import { byRegion, drawnFrom, drawnLines } from './lines.ts';
 import { linesAt, popupRoom } from './tap.ts';
-import { drawnAt as placeShownAt, FEW_ZOOM, fewer, interchangesOf, markedNetworks, onLines, RAILS, SIGN_ZOOM, type LineCall, type Drawn as PlaceDrawn, type Interchange } from './stations.ts';
+import { drawnAt as placeShownAt, FEW_ZOOM, fewer, interchangesOf, markedNetworks, onLines, RAILS, readOf, SIGN_ZOOM, type LineCall, type Drawn as PlaceDrawn, type Interchange } from './stations.ts';
 import { callsIn, fileShapes, hidesTowns, nameSort, rightOf, splitBy } from './names.ts';
 import type { StoredTrack } from '../pieces.ts';
 import { namePlacer, packFile, type NamePlace, type NamesAsk, type Sizes, type Where } from './placeNames.ts';
@@ -1941,8 +1941,9 @@ function show(days: Track | Bundle, tripsOnly = false) {
     return { ...p, from, nameZoom: Math.max(nameZoom, from), listed: tier?.places.indexOf(p.id), larger, marked: markedNetworks(p.networks, everywhere), style: { bold: BOLD.has(p.id), size } as NameStyle };
   });
   // Made again only where the places or their marks have changed since show() last made them (#838).
-  const madeOf = ranked.map((p) => `${p.id} ${p.name} ${p.lon} ${p.lat} ${p.nameZoom} ${p.stations.length} ${p.marked.join()}`).join('\n');
-  if (madeOf !== interchangesFrom) [interchanges, interchangesFrom] = [interchangesOf(ranked.map((p) => ({ ...p, networks: p.marked }))), madeOf];
+  const marked = ranked.map((p) => ({ ...p, networks: p.marked }));
+  const madeOf = readOf(marked);
+  if (madeOf !== interchangesFrom) [interchanges, interchangesFrom] = [interchangesOf(marked), madeOf];
   // Every interchange made, for the sign-off of a change to the rule or the hand list (INTERCHANGES).
   if (import.meta.env.DEV) console.debug('interchanges', interchanges.map((i) => `${i.name} (${i.how}): ${i.places.join(' ')}`));
   const byId = new Map(ranked.map((p) => [p.id, p]));

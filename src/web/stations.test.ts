@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { expect, test } from 'vitest';
 import type { Shape, Slot } from '../bundle.ts';
-import { drawnAt, fewer, interchangesOf, markedNetworks, onLines, type Interchange, type Tiered } from './stations.ts';
+import { drawnAt, fewer, interchangesOf, markedNetworks, onLines, readOf, type Interchange, type Tiered } from './stations.ts';
 
 /** A place of a Network, `east` and `north` metres from Passeig de Gràcia, named from `nameZoom`. */
 const place = (id: string, name: string, networks: string[], [east, north]: [number, number], nameZoom = 12, stations = [id]) => ({
@@ -121,6 +121,16 @@ test('any places, anywhere on Earth, make the same interchanges on the grid as c
     const hand = { join: [[`p${round % 40}`, `p${(round * 7) % 40}`]] as [string, string][], apart: [[`p${round % 40}`, `p${(round + 1) % 40}`]] as [string, string][], names: { [`p${round % 40}`]: 'By hand' } };
     expect(interchangesOf(places, hand)).toEqual(everyPair(places, hand));
   }
+});
+
+test('what interchangesOf() reads of the places changes with each field of a place, so show() never keeps stale interchanges', () => {
+  const places = REAL.barcelona.places.slice(0, 3);
+  for (const field of Object.keys(places[1] as Tiered) as (keyof Tiered)[]) {
+    const was = places[1]?.[field];
+    const other = typeof was === 'string' ? `${was}x` : typeof was === 'number' ? was + 1e-9 : [...(was as string[]), 'x'];
+    expect(readOf(places.with(1, { ...(places[1] as Tiered), [field]: other })), field).not.toBe(readOf(places));
+  }
+  expect(readOf(places.toReversed())).not.toBe(readOf(places));
 });
 
 test("a place is marked by its own Networks, not long distance's or Media Distancia's, unless they're all it has", () => {

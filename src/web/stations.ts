@@ -123,6 +123,9 @@ export function interchangesOf(places: Tiered[], hand = INTERCHANGES): Interchan
   });
 }
 
+/** All interchangesOf() reads of the places, in their order: show() makes the interchanges again only when it changes (#838). */
+export const readOf = (places: Tiered[]) => JSON.stringify(places.map((p) => [p.id, p.name, p.networks, p.stations.length, p.lon, p.lat, p.nameZoom]));
+
 /**
  * The Networks whose marks a place is drawn with, and which make it an interchange: its own but those drawn at every
  * zoom (`everywhere`, long distance's and Media Distancia's, drawnFrom(), #781), whose Trains call at Rodalies' Stations
