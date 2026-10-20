@@ -88,8 +88,11 @@ test("The first Trains of the day show only until 09:00, and the last from 20:00
   const trips = [...day, before];
   const shown = (hours: number, minutes: number) => firstAndLast(NETWORKS, LINES, trips, '2026-10-10', NOON, on10(hours, minutes));
   expect(shown(8, 59)).toEqual({ first: [{ id: 'rodalies', at: on10(4, 45) }, { id: 'fgc', at: on10(5, 0) }] });
+  // 09:00 and 20:00 themselves: the first are gone, the last are there.
+  expect(shown(9, 0)).toEqual({});
   expect(shown(9, 1)).toEqual({});
   expect(shown(19, 59)).toEqual({});
+  expect(shown(20, 0)).toEqual(shown(20, 1));
   expect(shown(20, 1)).toEqual({ last: [{ id: 'rodalies', at: on10(25, 57) }, { id: 'fgc', at: on10(5, 30) }] });
   // After midnight, the day before's last still to arrive, with today's first: R4's 03:00, till it has arrived.
   expect(shown(0, 30)).toEqual({ last: [{ id: 'rodalies', at: on10(3, 0) }], first: [{ id: 'rodalies', at: on10(4, 45) }, { id: 'fgc', at: on10(5, 0) }] });
@@ -108,6 +111,8 @@ test("Trains to and from France show only where one is running or leaving within
   const nows = [running, { trip: r11 }, { trip: r3 }, { trip: elsewhere }, { trip: { ...r11, id: 'cancelled' }, cancelled: true as const }];
   // At 10:00, R11 leaves in 59 minutes and R3 in 61; another R11, leaving with it, is Cancelled.
   expect(toAndFromFrance(nows, NOON, on10(10, 0)).map((n) => n.trip)).toEqual([ave, r11]);
+  // At 10:01, R3 leaves in an hour exactly: within it.
+  expect(toAndFromFrance(nows, NOON, on10(10, 1)).map((n) => n.trip)).toEqual([ave, r11, r3]);
   expect(toAndFromFrance(nows, NOON, on10(10, 2)).map((n) => n.trip)).toEqual([ave, r11, r3]);
 });
 
