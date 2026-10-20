@@ -38,8 +38,10 @@ test("ends a Ride at the Trip's last Station on the map: a Train into France at 
   expect(step(riding, train(['portbou', 'cerbere']), 35_990)).toEqual({ riding });
   expect(step(riding, train(['cerbere']), 36_070)).toEqual({ done: true });
   expect(step(riding, { trip: TRIP, ended: at(36_600) }, 36_700)).toEqual({ done: true });
-  // Off the map past the border, nothing's known: the Ride is kept as it was.
-  expect(step(riding, undefined, 36_300)).toEqual({ riding });
+  // Off the map past the border, as a tab hidden meanwhile finds it, it's done once it was due at its last Station there.
+  expect(step(riding, { trip: TRIP }, 35_900)).toEqual({ riding });
+  expect(step(riding, { trip: TRIP }, 36_010)).toEqual({ done: true });
+  expect(step(riding, undefined, 36_010)).toEqual({ riding });
 });
 
 test('gives no Ride for a Train Cancelled on the way, nor for another Train followed', () => {
