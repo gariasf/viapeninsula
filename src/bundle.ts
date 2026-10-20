@@ -332,6 +332,9 @@ export interface Bundle {
   closures?: Closure[];
 }
 
+/** A language a Station's name is in (Network's `names`, #673). */
+export type NameLanguage = 'ca' | 'es' | 'gl';
+
 export interface Network {
   id: string;
   name: string;
@@ -348,6 +351,12 @@ export interface Network {
   colour: string;
   /** The zoom its Trains are drawn as pills from, with their Line's name, and as dots below it (#90). */
   pillZoom: number;
+  /**
+   * The language its Stations' names are in, and any of them in another, by name, as the two Aragonese Stations of
+   * Rodalies' R15: Catalan for Catalonia's Networks and Valencia's, Galician for Galicia's, Spanish for the rest, which
+   * the interface's sentences write a name's article by, as `a El Berrón` in Catalan (#673). None in a track built before #673.
+   */
+  names?: { language: NameLanguage; others?: Record<string, NameLanguage> };
   /** Who its data comes from, credited as their terms ask: the same for each Network a source feeds, which the map credits once (ADR-0010). */
   credit: Credit;
   /** How the engine reads its live data, where it has any. */

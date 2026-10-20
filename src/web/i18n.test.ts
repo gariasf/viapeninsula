@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { createExpression, latest, type ExpressionSpecification, type Feature, type StylePropertySpecification } from '@maplibre/maplibre-gl-style-spec';
 import { afterEach, expect, test, vi } from 'vitest';
-import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, earlierStations, followDeparture, LANGUAGES, leavesAt, leavingStation, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, pickLanguage, placedBy, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated } from './i18n.ts';
+import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, cancelledCount, earlierStations, branchOff, endsHere, goOn, standingAt, trainsNow, turnsHere, followDeparture, LANGUAGES, leavesAt, leavingStation, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, pickLanguage, placedBy, setNameLanguages, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated } from './i18n.ts';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -134,13 +134,13 @@ test("labels the tab bar, its tabs and Search's close button in each language (#
   expect(strings('gl')).toEqual(['Principal', 'Buscar', 'Preto', 'Agora', 'Favoritos', 'Pechar a busca']);
 });
 
-test("labels Search's field, says what it finds and that Train numbers are Renfe's only, of the parts of the map loaded, and names its sections, in each language (#471)", () => {
+test("labels Search's field, says what it finds and that Train numbers are Renfe's only, of the parts of the map loaded, and names its sections, in each language (#471, #473)", () => {
   const strings = (lang: Language) => [t('searchPlaceholder', lang), t('searchLabel', lang), t('clearSearch', lang), t('find', lang), t('aStation', lang), t('aTrainNumber', lang), t('renfeOnly', lang), t('stations', lang), t('trainNumbers', lang)];
-  expect(strings('ca')).toEqual(['Estació o número de tren', 'Cerca una estació o un número de tren', 'Esborra la cerca', 'Troba', 'Una estació', 'Un número de tren', "Només trens de Renfe, de les zones del mapa ja carregades: cap d'FGC, del TRAM ni del metro no en té", 'Estacions', 'Números de tren']);
-  expect(strings('es')).toEqual(['Estación o número de tren', 'Buscar una estación o un número de tren', 'Borrar la búsqueda', 'Encuentra', 'Una estación', 'Un número de tren', 'Solo trenes de Renfe, de las zonas del mapa ya cargadas: ninguno de FGC, del TRAM ni del metro tiene', 'Estaciones', 'Números de tren']);
-  expect(strings('en')).toEqual(['Station or train number', 'Search for a station or a train number', 'Clear the search', 'Find', 'A station', 'A train number', "Renfe's trains only, in the parts of the map loaded so far: none of FGC, TRAM or the Metro has one", 'Stations', 'Train numbers']);
-  expect(strings('eu')).toEqual(['Geltokia edo tren-zenbakia', 'Bilatu geltoki bat edo tren-zenbaki bat', 'Ezabatu bilaketa', 'Aurkitu', 'Geltoki bat', 'Tren-zenbaki bat', 'Renferen trenak bakarrik, maparen kargatutako eremuetakoak: FGC, TRAM eta metroko trenek ez dute zenbakirik', 'Geltokiak', 'Tren-zenbakiak']);
-  expect(strings('gl')).toEqual(['Estación ou número de tren', 'Buscar unha estación ou un número de tren', 'Borrar a busca', 'Atopa', 'Unha estación', 'Un número de tren', 'Só trens de Renfe, das zonas do mapa xa cargadas: ningún de FGC, do TRAM nin do metro ten', 'Estacións', 'Números de tren']);
+  expect(strings('ca')).toEqual(['Estació, línia o número de tren', 'Cerca una estació, una línia o un número de tren', 'Esborra la cerca', 'Troba', 'Una estació', 'Un número de tren', "Només trens de Renfe, de les zones del mapa ja carregades: cap d'FGC, del TRAM ni del metro no en té", 'Estacions', 'Números de tren']);
+  expect(strings('es')).toEqual(['Estación, línea o número de tren', 'Buscar una estación, una línea o un número de tren', 'Borrar la búsqueda', 'Encuentra', 'Una estación', 'Un número de tren', 'Solo trenes de Renfe, de las zonas del mapa ya cargadas: ninguno de FGC, del TRAM ni del metro tiene', 'Estaciones', 'Números de tren']);
+  expect(strings('en')).toEqual(['Station, line or train number', 'Search for a station, a line or a train number', 'Clear the search', 'Find', 'A station', 'A train number', "Renfe's trains only, in the parts of the map loaded so far: none of FGC, TRAM or the Metro has one", 'Stations', 'Train numbers']);
+  expect(strings('eu')).toEqual(['Geltokia, linea edo tren-zenbakia', 'Bilatu geltoki bat, linea bat edo tren-zenbaki bat', 'Ezabatu bilaketa', 'Aurkitu', 'Geltoki bat', 'Tren-zenbaki bat', 'Renferen trenak bakarrik, maparen kargatutako eremuetakoak: FGC, TRAM eta metroko trenek ez dute zenbakirik', 'Geltokiak', 'Tren-zenbakiak']);
+  expect(strings('gl')).toEqual(['Estación, liña ou número de tren', 'Buscar unha estación, unha liña ou un número de tren', 'Borrar a busca', 'Atopa', 'Unha estación', 'Un número de tren', 'Só trens de Renfe, das zonas do mapa xa cargadas: ningún de FGC, do TRAM nin do metro ten', 'Estacións', 'Números de tren']);
 });
 
 test("says what Search found nothing for, how many more Train numbers it found than it shows, and each Train number's row, in each language (#471)", () => {
@@ -705,4 +705,48 @@ test("says where live data last placed a followed Train: where Renfe pinned it t
   expect(placedBy(true, '5\u00A0s', 'O Porriño', 'gl')).toBe('Renfe sitúao no Porriño, hai 5\u00A0s');
   expect(placedBy(true, '5\u00A0s', undefined, 'en')).toBe('confirmed 5\u00A0s ago');
   expect(placedBy(false, '3\u00A0min', 'Sants', 'en')).toBe('last confirmed live 3\u00A0min ago');
+});
+
+test("words a Line's state, how its strip marks its Stations and a Train standing on it, in each language, a number with its unit on one line (#473)", () => {
+  const strings = (lang: Language) => [trainsNow(15, lang), trainsNow(1, lang), trainsNow(0, lang), t('worst', lang).replace('{n}', '20'), t('allScheduled', lang), t('lateCount', lang).replace('{n}', '5'), cancelledCount(2, lang), cancelledCount(1, lang), standingAt("L'Arboç", lang), turnsHere(28, 64, lang), goOn(4, 'Rajadell', lang), goOn(1, 'Rajadell', lang), branchOff(3, 'Ulldecona', lang), branchOff(1, 'Ulldecona', lang), endsHere(4, lang)];
+  expect(strings('ca')).toEqual(['15\u00A0trens ara', '1\u00A0tren ara', 'Cap tren ara', 'el pitjor +20\u00A0min', 'tots programats', '5 amb retard', '2 cancel·lats', '1 cancel·lat', "Aturat a l'Arboç", '28 de 64\u00A0trens surten o acaben aquí', '4\u00A0trens continuen fins a Rajadell', '1\u00A0tren continua fins a Rajadell', '3\u00A0trens es desvien cap a Ulldecona', '1\u00A0tren es desvia cap a Ulldecona', 'Final: 4\u00A0trens al dia']);
+  expect(strings('es')).toEqual(['15\u00A0trenes ahora', '1\u00A0tren ahora', 'Ningún tren ahora', 'el peor +20\u00A0min', 'todos programados', '5 con retraso', '2 cancelados', '1 cancelado', "Detenido en L'Arboç", '28 de 64\u00A0trenes salen o terminan aquí', '4\u00A0trenes siguen hasta Rajadell', '1\u00A0tren sigue hasta Rajadell', '3\u00A0trenes se desvían hacia Ulldecona', '1\u00A0tren se desvía hacia Ulldecona', 'Final: 4\u00A0trenes al día']);
+  expect(strings('en')).toEqual(['15\u00A0trains now', '1\u00A0train now', 'No trains now', 'worst +20\u00A0min', 'all scheduled', '5 late', '2 cancelled', '1 cancelled', "Standing at L'Arboç", '28 of 64\u00A0trains start or end here', '4\u00A0trains go on to Rajadell', '1\u00A0train goes on to Rajadell', '3\u00A0trains branch off to Ulldecona', '1\u00A0train branches off to Ulldecona', 'Ends here: 4\u00A0trains a day']);
+  expect(strings('eu')).toEqual(['15\u00A0tren orain', 'Tren bat orain', 'Trenik ez orain', 'okerrena +20\u00A0min', 'denak programatuta', '5 atzeratuta', '2 bertan behera', '1 bertan behera', "L'Arboç geltokian geldirik", '64\u00A0trenetatik 28 hemen hasi edo amaitzen dira', '4\u00A0tren Rajadell arte jarraitzen dute', 'Tren bat Rajadell arte jarraitzen du', '3\u00A0tren Ulldecona aldera desbideratzen dira', 'Tren bat Ulldecona aldera desbideratzen da', 'Amaiera: 4\u00A0tren egunean']);
+  expect(strings('gl')).toEqual(['15\u00A0trens agora', '1\u00A0tren agora', 'Ningún tren agora', 'o peor +20\u00A0min', 'todos programados', '5 con atraso', '2 cancelados', '1 cancelado', "Parado en L'Arboç", '28 de 64\u00A0trens saen ou rematan aquí', '4\u00A0trens seguen ata Rajadell', '1\u00A0tren segue ata Rajadell', '3\u00A0trens desvíanse cara a Ulldecona', '1\u00A0tren desvíase cara a Ulldecona', 'Final: 4\u00A0trens ao día']);
+});
+
+test("keeps the article of a Station's name in another language than the sentence's as the name has it, by its Network's language, as the IEC does: a Spanish name's El and La in Catalan, with de elided before El, and a Catalan name's as before (#673)", () => {
+  const networks = [
+    { id: 'rodalies', names: { language: 'ca', others: { 'La Zaida-Sástago': 'es' } } },
+    { id: 'cercanias-asturias', names: { language: 'es' } },
+    { id: 'ave-larga-distancia', names: { language: 'es' } },
+    { id: 'cercanias-ferrol', names: { language: 'gl' } },
+  ] as const;
+  setNameLanguages(
+    [
+      { name: 'El Berrón', networks: ['cercanias-asturias'] },
+      { name: 'La Felguera', networks: ['cercanias-asturias'] },
+      { name: 'La Zaida-Sástago', networks: ['rodalies'] },
+      // Rodalies' and long distance's: Catalan.
+      { name: 'El Prat de Llobregat', networks: ['ave-larga-distancia', 'rodalies'] },
+      { name: 'La Garriga', networks: ['rodalies'] },
+      { name: 'O Porriño', networks: ['cercanias-ferrol'] },
+    ],
+    networks,
+  );
+  try {
+    expect(standingAt('El Berrón', 'ca')).toBe('Aturat a El Berrón');
+    expect(leavesAt('El Berrón', '9:00', 'ca')).toBe("Surt d'El Berrón a les 9:00");
+    expect(leavesAt('La Felguera', '9:00', 'ca')).toBe('Surt de La Felguera a les 9:00');
+    expect(goOn(3, 'La Zaida-Sástago', 'ca')).toBe('3\u00A0trens continuen fins a La Zaida-Sástago');
+    expect(standingAt('El Prat de Llobregat', 'ca')).toBe('Aturat al Prat de Llobregat');
+    expect(leavesAt('La Garriga', '9:00', 'ca')).toBe('Surt de la Garriga a les 9:00');
+    expect(backTo('O Porriño', 'gl')).toBe('Volver ao Porriño');
+    // Galician keeps a Spanish name's article as it is too, and one whose language isn't known goes by its text.
+    expect(backTo('La Felguera', 'gl')).toBe('Volver a La Felguera');
+    expect(standingAt('El Pinillo', 'ca')).toBe('Aturat al Pinillo');
+  } finally {
+    setNameLanguages([], []);
+  }
 });

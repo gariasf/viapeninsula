@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import type { Kind, ManifestRegion, Point, Trip, ZoomedOut } from '../bundle.ts';
 import type { Coming, Followed, TripNow } from '../engine.ts';
 import { regionsNeeded } from './regions.ts';
-import { findPlaces, keyboardRise, networkNames, numbered, results, searchPlaces } from './search.ts';
+import { findLines, findPlaces, keyboardRise, networkNames, numbered, results, searchPlaces } from './search.ts';
 
 /** Some Lines of 12 Oct 2026, as the file below zoom 7 lists them: their IDs, Networks, names and kinds of service. */
 const LINES: [id: string, kind: Kind][] = [
@@ -198,4 +198,17 @@ test("gives a place it finds in a region the map hasn't loaded a Station the fil
   expect(regionsNeeded(regions, barcelona)).toEqual(['catalonia']);
   expect(regionsNeeded(regions, barcelona, { station: valencia?.place.stations[0], stations: FILE.stations })).toEqual(['catalonia', 'cercanias-valencia']);
   expect(regionsNeeded(regions, barcelona, { station: tram?.place.stations[0], stations: FILE.stations })).toEqual(['catalonia']);
+});
+
+test("finds a Line by the start of its name, its hyphens and spaces aside, in the order the cards name Lines, and lists Lines first (#473)", () => {
+  const names = (query: string) => findLines(FILE.lines ?? [], query).map((l) => l.id);
+  expect(names('r4')).toEqual(['rodalies:R4']);
+  expect(names('L')).toEqual(['metro:L2', 'metro:L3', 'metro:L4']);
+  expect(names('c 6')).toEqual(['cercanias-valencia:C6']);
+  expect(names('R1')).toEqual(['rodalies:R11']);
+  expect(names('terrassa')).toEqual([]);
+  expect(names(' ')).toEqual([]);
+  const sections = results('r4', PLACES, [], FILE.lines).map((s) => Object.keys(s)[0]);
+  expect(sections).toEqual(['lines']);
+  expect(results('girona', PLACES, [], FILE.lines).map((s) => Object.keys(s)[0])).toEqual(['places']);
 });

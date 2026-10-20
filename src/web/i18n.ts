@@ -1,6 +1,7 @@
 // The languages the interface speaks, every string it shows in each, and the basemap's labels in them.
 
 import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
+import type { NameLanguage, Network, Station } from '../bundle.ts';
 
 /** Each language the interface speaks, with its name in itself for the language switch: Spain's, then English. */
 export const LANGUAGES = { ca: 'Català', es: 'Castellano', eu: 'Euskara', gl: 'Galego', en: 'English' };
@@ -198,11 +199,20 @@ const STRINGS = {
   // Search's sheet, which its tab opens: the button that closes it.
   closeSearch: { ca: 'Tanca la cerca', es: 'Cerrar la búsqueda', eu: 'Itxi bilaketa', gl: 'Pechar a busca', en: 'Close search' },
   // Its field (#471): what it says while it's empty, its name for a screen reader, and the button that clears it.
-  searchPlaceholder: { ca: 'Estació o número de tren', es: 'Estación o número de tren', eu: 'Geltokia edo tren-zenbakia', gl: 'Estación ou número de tren', en: 'Station or train number' },
-  searchLabel: { ca: 'Cerca una estació o un número de tren', es: 'Buscar una estación o un número de tren', eu: 'Bilatu geltoki bat edo tren-zenbaki bat', gl: 'Buscar unha estación ou un número de tren', en: 'Search for a station or a train number' },
+  searchPlaceholder: { ca: 'Estació, línia o número de tren', es: 'Estación, línea o número de tren', eu: 'Geltokia, linea edo tren-zenbakia', gl: 'Estación, liña ou número de tren', en: 'Station, line or train number' },
+  searchLabel: {
+    ca: 'Cerca una estació, una línia o un número de tren',
+    es: 'Buscar una estación, una línea o un número de tren',
+    eu: 'Bilatu geltoki bat, linea bat edo tren-zenbaki bat',
+    gl: 'Buscar unha estación, unha liña ou un número de tren',
+    en: 'Search for a station, a line or a train number',
+  },
   clearSearch: { ca: 'Esborra la cerca', es: 'Borrar la búsqueda', eu: 'Ezabatu bilaketa', gl: 'Borrar a busca', en: 'Clear the search' },
   // Under the empty field, what it finds, beside examples, which are names: a Station, and a Train number, which only Renfe's Trains have, and which it finds among the Trips of the regions the map has loaded. A Line comes with a Line's screen (#473).
   find: { ca: 'Troba', es: 'Encuentra', eu: 'Aurkitu', gl: 'Atopa', en: 'Find' },
+  // And a Line, with its screen (#473), before them, as Search lists Lines first; and the section of the Lines it finds.
+  aLine: { ca: 'Una línia', es: 'Una línea', eu: 'Linea bat', gl: 'Unha liña', en: 'A line' },
+  lines: { ca: 'Línies', es: 'Líneas', eu: 'Lineak', gl: 'Liñas', en: 'Lines' },
   aStation: { ca: 'Una estació', es: 'Una estación', eu: 'Geltoki bat', gl: 'Unha estación', en: 'A station' },
   aTrainNumber: { ca: 'Un número de tren', es: 'Un número de tren', eu: 'Tren-zenbaki bat', gl: 'Un número de tren', en: 'A train number' },
   renfeOnly: {
@@ -221,6 +231,25 @@ const STRINGS = {
   // A Train number's row: the number, {number}, and where its Train is headed, {headsign}; under them, after Live or Scheduled, its next Station, {station}, and when it's due there, {time}; or when it reached its last Station, once it has ended. One still to leave says where and when with leavesAt.
   trainTo: { ca: '{number} cap a {headsign}', es: '{number} hacia {headsign}', eu: '{number}, {headsign} aldera', gl: '{number} cara a {headsign}', en: '{number} to {headsign}' },
   nextAt: { ca: 'propera: {station}, {time}', es: 'próxima: {station}, {time}', eu: 'hurrengoa: {station}, {time}', gl: 'próxima: {station}, {time}', en: 'next {station}, {time}' },
+  // A Line's screen (#473): its state under its header, where {n} is how many, and its worst Delay in minutes; under a Train's row on its strip, the Station it stands at; and how its strip marks a Station
+  // where {n} of the {m} Trains that call there start or end, the end a spur goes on from, the Station short of it a spur forks off at, and the spur's own end. A number keeps its unit, Trains or minutes, on its line (U+00A0).
+  trainsNow: { ca: '{n}\u00A0trens ara', es: '{n}\u00A0trenes ahora', eu: '{n}\u00A0tren orain', gl: '{n}\u00A0trens agora', en: '{n}\u00A0trains now' },
+  oneTrainNow: { ca: '{n}\u00A0tren ara', es: '{n}\u00A0tren ahora', eu: 'Tren bat orain', gl: '{n}\u00A0tren agora', en: '{n}\u00A0train now' },
+  noTrainsNow: { ca: 'Cap tren ara', es: 'Ningún tren ahora', eu: 'Trenik ez orain', gl: 'Ningún tren agora', en: 'No trains now' },
+  worst: { ca: 'el pitjor +{n}\u00A0min', es: 'el peor +{n}\u00A0min', eu: 'okerrena +{n}\u00A0min', gl: 'o peor +{n}\u00A0min', en: 'worst +{n}\u00A0min' },
+  allScheduled: { ca: 'tots programats', es: 'todos programados', eu: 'denak programatuta', gl: 'todos programados', en: 'all scheduled' },
+  lateCount: { ca: '{n} amb retard', es: '{n} con retraso', eu: '{n} atzeratuta', gl: '{n} con atraso', en: '{n} late' },
+  cancelledCount: { ca: '{n} cancel·lats', es: '{n} cancelados', eu: '{n} bertan behera', gl: '{n} cancelados', en: '{n} cancelled' },
+  oneCancelled: { ca: '{n} cancel·lat', es: '{n} cancelado', eu: '{n} bertan behera', gl: '{n} cancelado', en: '{n} cancelled' },
+  standingAt: { ca: 'Aturat a {station}', es: 'Detenido en {station}', eu: '{station} geltokian geldirik', gl: 'Parado en {station}', en: 'Standing at {station}' },
+  turnsHere: { ca: '{n} de {m}\u00A0trens surten o acaben aquí', es: '{n} de {m}\u00A0trenes salen o terminan aquí', eu: '{m}\u00A0trenetatik {n} hemen hasi edo amaitzen dira', gl: '{n} de {m}\u00A0trens saen ou rematan aquí', en: '{n} of {m}\u00A0trains start or end here' },
+  goOn: { ca: '{n}\u00A0trens continuen fins a {station}', es: '{n}\u00A0trenes siguen hasta {station}', eu: '{n}\u00A0tren {station} arte jarraitzen dute', gl: '{n}\u00A0trens seguen ata {station}', en: '{n}\u00A0trains go on to {station}' },
+  oneGoesOn: { ca: '{n}\u00A0tren continua fins a {station}', es: '{n}\u00A0tren sigue hasta {station}', eu: 'Tren bat {station} arte jarraitzen du', gl: '{n}\u00A0tren segue ata {station}', en: '{n}\u00A0train goes on to {station}' },
+  branchOff: { ca: '{n}\u00A0trens es desvien cap a {station}', es: '{n}\u00A0trenes se desvían hacia {station}', eu: '{n}\u00A0tren {station} aldera desbideratzen dira', gl: '{n}\u00A0trens desvíanse cara a {station}', en: '{n}\u00A0trains branch off to {station}' },
+  oneBranchesOff: { ca: '{n}\u00A0tren es desvia cap a {station}', es: '{n}\u00A0tren se desvía hacia {station}', eu: 'Tren bat {station} aldera desbideratzen da', gl: '{n}\u00A0tren desvíase cara a {station}', en: '{n}\u00A0train branches off to {station}' },
+  endsHere: { ca: 'Final: {n}\u00A0trens al dia', es: 'Final: {n}\u00A0trenes al día', eu: 'Amaiera: {n}\u00A0tren egunean', gl: 'Final: {n}\u00A0trens ao día', en: 'Ends here: {n}\u00A0trains a day' },
+  oneEndsHere: { ca: 'Final: {n}\u00A0tren al dia', es: 'Final: {n}\u00A0tren al día', eu: 'Amaiera: tren bat egunean', gl: 'Final: {n}\u00A0tren ao día', en: 'Ends here: {n}\u00A0train a day' },
+  closeLine: { ca: 'Tanca la línia', es: 'Cerrar la línea', eu: 'Itxi linea', gl: 'Pechar a liña', en: 'Close the line' },
   endedAt: { ca: 'Ha acabat a les {time}', es: 'Terminó a las {time}', eu: 'Amaitu da: {time}', gl: 'Rematou ás {time}', en: 'Ended at {time}' },
   // Nearby Trains: their panel's title, and the tab that opens them (#470).
   nearby: { ca: 'Trens a prop', es: 'Trenes cercanos', eu: 'Inguruko trenak', gl: 'Trens próximos', en: 'Nearby trains' },
@@ -463,21 +492,47 @@ const elides = (name: string): boolean => /^h?(?![iu][aeiou])[aeiou]/i.test(name
  * Blanques", "per l'Hospitalet", as the IEC writes a Catalan name's article in a sentence (its Regles d'ús
  * de les majúscules, 18.2); Galician, Spanish, Basque and English go by the name as published, as the RAE
  * has it for a capital article that's part of the name.
- * ponytail: an h that's aspirated, a loanword's, elides too, as no Station's name has one; and a Spanish
- * name's El before a consonant contracts as Catalan's does, "al Berrón", and its La goes in lower case,
- * "a la Garena", where the IEC keeps both as the name has them, "a El Berrón", "a La Garena", as a name
- * has no language here but the one it's written in: its Network's would tell them apart (#673).
+ * A name in another language than `lang`, by its Network's (setNameLanguages(), #673), keeps its article as it
+ * has it, with its capital and no contraction, as the IEC does a Spanish name's: "a El Berrón", "d'El Casar",
+ * "a La Garena". A name whose language the page doesn't know, as before its track says, goes by its text alone.
+ * ponytail: an h that's aspirated, a loanword's, elides too, as no Station's name has one.
  */
 const named = (text: string, slot: '{station}' | '{place}' | '{headsign}', name: string, lang: Language): string => {
   const [before = '', after = ''] = text.split(slot);
   const [, head = '', prep = ''] = /^(.*?)(\S+) $/s.exec(before) ?? [];
   const [article = '', ...words] = name.split(' ');
   const rest = words.join(' ');
-  const into = CONTRACTED[lang]?.[article]?.[prep];
+  const known = nameLanguages.get(name);
+  const own = known === undefined || known === lang;
+  const into = own ? CONTRACTED[lang]?.[article]?.[prep] : undefined;
   if (into && !(article === 'El' && elides(rest))) return `${head}${into} ${rest}${after}`;
   if (lang === 'ca' && prep === 'de' && elides(name)) return `${head}d'${name}${after}`;
-  return `${before}${lang === 'ca' ? name.replace(/^(?:La |Les |L')/, (lead) => lead.toLowerCase()) : name}${after}`;
+  return `${before}${lang === 'ca' && own ? name.replace(/^(?:La |Les |L')/, (lead) => lead.toLowerCase()) : name}${after}`;
 };
+
+/** The language of each Station's name the page knows, by the name (setNameLanguages(), #673). */
+let nameLanguages = new Map<string, NameLanguage>();
+
+/**
+ * Tells the sentences the language of each Station's name, as its Networks' configs give it (#673): the language
+ * its Network names it in, or one the Network names it in apart, as Rodalies' two Aragonese Stations, and of a
+ * Station of several Networks, as Sants is Rodalies' and long distance's, the first that isn't Spanish, the
+ * language every Network names in where it names none other.
+ * ponytail: by name, not by Station, as the sentences have only the name, so two Stations of one name in two
+ * languages take the first's; none such on 20 Oct 2026's tracks is written otherwise in the two. Key by Station if one shows.
+ */
+export function setNameLanguages(stations: readonly Pick<Station, 'name' | 'networks'>[], networks: readonly Pick<Network, 'id' | 'names'>[]) {
+  const of = new Map(networks.map((n) => [n.id, n.names]));
+  nameLanguages = new Map(
+    stations.flatMap(({ name, networks: own = [] }): [string, NameLanguage][] => {
+      const languages = own.flatMap((id) => {
+        const names = of.get(id);
+        return names ? [names.others?.[name] ?? names.language] : [];
+      });
+      return languages.length ? [[name, languages.find((l) => l !== 'es') ?? 'es']] : [];
+    }),
+  );
+}
 
 /** How many Stations a followed Train has still to come after its next, `n`, to its last, where it's headed, and when it's due there, in `lang`, or else the language the interface speaks now. */
 export const moreStations = (n: number, headsign: string, time: string, lang = language()): string =>
@@ -514,6 +569,33 @@ export const moreNumbers = (n: number, query: string, lang = language()): string
 
 /** How many Alerts a card has, `n`, in the line they're folded into, in `lang`, or else the language the interface speaks now. */
 export const alertCount = (n: number, lang = language()): string => counting(n, 'oneAlert', 'alerts', lang);
+
+/** How many Trains a Line has on the map now, `n` (#473), or that it has none, in `lang`, or else the language the interface speaks now. */
+export const trainsNow = (n: number, lang = language()): string => (n ? counting(n, 'oneTrainNow', 'trainsNow', lang) : STRINGS.noTrainsNow[lang]);
+
+/** How many of a Line's Trains are 5 minutes late or more, `n` (#473), in `lang`, or else the language the interface speaks now. */
+export const lateCount = (n: number, lang = language()): string => STRINGS.lateCount[lang].replace('{n}', String(n));
+
+/** How late the latest of a Line's Trains is, in whole minutes, `n` (#473), in `lang`, or else the language the interface speaks now. */
+export const worstLate = (n: number, lang = language()): string => STRINGS.worst[lang].replace('{n}', String(n));
+
+/** How many of a Line's Trains are Cancelled, `n`, whose runs haven't ended (#473), in `lang`, or else the language the interface speaks now. */
+export const cancelledCount = (n: number, lang = language()): string => counting(n, 'oneCancelled', 'cancelledCount', lang);
+
+/** That a Train on a Line's strip stands at a Station (#473), in `lang`, or else the language the interface speaks now. */
+export const standingAt = (station: string, lang = language()): string => named(STRINGS.standingAt[lang], '{station}', station, lang);
+
+/** That `n` of the `m` Trains of a day that call at a Station start or end there (#473), in `lang`, or else the language the interface speaks now. */
+export const turnsHere = (n: number, m: number, lang = language()): string => STRINGS.turnsHere[lang].replace('{n}', String(n)).replace('{m}', String(m));
+
+/** That `n` Trains a day go on along a spur past the Line's end, as far as a Station (#473), in `lang`, or else the language the interface speaks now. */
+export const goOn = (n: number, station: string, lang = language()): string => named(counting(n, 'oneGoesOn', 'goOn', lang), '{station}', station, lang);
+
+/** That `n` Trains a day branch off the Line at a Station short of its end, along a spur as far as a Station (#473), in `lang`, or else the language the interface speaks now. */
+export const branchOff = (n: number, station: string, lang = language()): string => named(counting(n, 'oneBranchesOff', 'branchOff', lang), '{station}', station, lang);
+
+/** That `n` Trains a day end at a spur's last Station (#473), in `lang`, or else the language the interface speaks now. */
+export const endsHere = (n: number, lang = language()): string => counting(n, 'oneEndsHere', 'endsHere', lang);
 
 /** Whose Alerts' file last changed, `by`, as Renfe or TRAM, and when, as a time and day already written, in `lang`, or else the language the interface speaks now (#390). */
 export const alertsChanged = (by: string, time: string, lang = language()): string => STRINGS.alertsChanged[lang].replace('{by}', by).replace('{time}', time);

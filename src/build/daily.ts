@@ -227,8 +227,8 @@ async function readLong(feeds: (Feed & { gtfs: Source; readOn: string })[]) {
  * wrong with their own Trips on each of DAYS, as a TRAM Trip's stop numbers (readFeed(), #406).
  */
 function build(config: NetworkConfig, { published, days }: Awaited<ReturnType<typeof readDays>>) {
-  const { id, name, profile, runningSide, colour, pillZoom, credit, live } = config;
-  const network: Network = { id, name, profile, runningSide, colour, pillZoom, credit: { ...credit, ...(published && { updated: published < today ? published : today }) }, live };
+  const { id, name, profile, runningSide, colour, pillZoom, names, credit, live } = config;
+  const network: Network = { id, name, profile, runningSide, colour, pillZoom, names, credit: { ...credit, ...(published && { updated: published < today ? published : today }) }, live };
   const parts = days[0] ?? [];
   const [lines, stations] = [parts.flatMap((p) => p.lines), parts.flatMap((p) => p.stations)];
   // The Stations it places where its config says, rather than where its timetables do (readFeed(), #367).

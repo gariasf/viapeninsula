@@ -846,6 +846,9 @@ export function seenWithin<C extends ShownClosure>(bundle: Bundle, at: number, r
 /** Whether a Train so far along its shape, in metres, is on the map: not where it's off it, before its first Station or after its last, nor beyond where its track starts or ends, as past Spain's border. */
 const onTrack = (shape: Shape, dist: number | undefined): dist is number => dist !== undefined && dist >= (shape.dist[0] ?? 0) && dist <= (shape.dist.at(-1) ?? 0);
 
+/** Whether a Trip of a bundle joinDays() made is its last day's own, rather than an earlier day's, whose ID it leads with that day (`2026-09-25/night`). */
+export const lastDays = (trip: Pick<Trip, 'id'>): boolean => !trip.id.includes('/');
+
 /**
  * Consecutive service days' bundles as one, on the last day's clock, so that around midnight a Train
  * still running from the day before and the new day's first Trains are on the map together. The

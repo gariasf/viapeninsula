@@ -7,14 +7,30 @@ const DRIFT = 0.25;
 /** Whether a Train `dx` and `dy` px off the middle is far enough for the map to go to it. */
 export const drifted = (dx: number, dy: number) => Math.hypot(dx, dy) >= DRIFT;
 
+type Padding = { top: number; right: number; bottom: number; left: number };
+
 /**
  * Whether a Train drawn at `at`, in px on a map of `size` with `padding` the panel takes, is outside the
  * middle 60% of the part of the map that's left beside it: in the outer fifth of it on a side, or off
  * it. Where the map eases to it over a second (keepInView(), centreOn(): #586), rather than jumps.
  */
-export function outsideMiddle(at: { x: number; y: number }, size: { width: number; height: number }, padding: { top: number; right: number; bottom: number; left: number }): boolean {
+export function outsideMiddle(at: { x: number; y: number }, size: { width: number; height: number }, padding: Padding): boolean {
   const outside = (v: number, from: number, to: number) => v < from + 0.2 * (to - from) || v > from + 0.8 * (to - from);
   return outside(at.x, padding.left, size.width - padding.right) || outside(at.y, padding.top, size.height - padding.bottom);
+}
+
+/**
+ * The padding to give MapLibre's cameraForBounds() for a fit that keeps `want` px clear on each side, with the map's
+ * padding `to` once there (#473). MapLibre adds the map's own padding now, `has`, to the fit's, where after Search a
+ * phone's sheet's and the fit's together left the map no room and it refused to move; and it gives the middle for
+ * the map's padding now, which the fit's own offsets move to the middle for `to`.
+ */
+export function fitPadding(want: Padding, has: Partial<Padding>, to: Partial<Padding> = has): Padding {
+  const [h, t] = [{ top: 0, right: 0, bottom: 0, left: 0, ...has }, { top: 0, right: 0, bottom: 0, left: 0, ...to }];
+  // Of a side and its opposite, together the room `want` leaves, and apart the offset from the middle for `to`.
+  const side = (a: keyof Padding, b: keyof Padding): [number, number] => [want[a] - (h[a] + h[b] + t[a] - t[b]) / 2, want[b] - (h[a] + h[b] - t[a] + t[b]) / 2];
+  const [[top, bottom], [left, right]] = [side('top', 'bottom'), side('left', 'right')];
+  return { top, right, bottom, left };
 }
 
 /** The part of a MapLibre event that tells what moved the map. */

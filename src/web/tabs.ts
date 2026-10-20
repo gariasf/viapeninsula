@@ -6,11 +6,11 @@ export type Tab = 'search' | 'nearby';
 /**
  * The tab whose sheet the panel shows, which the bar marks current (`aria-current`), by what main.ts
  * holds: Nearby's while it shows the viewer's nearby Trains, or that it's finding where they are or
- * can't, and Search's. None while it shows a followed Train or a place's board, though one opened from
- * Nearby has a Back to it (#322), nor while it's closed.
+ * can't, and Search's. None while it shows a followed Train, a place's board or a Line's screen (#473), though
+ * one opened from Nearby has a Back to it (#322), nor while it's closed.
  */
-export function currentTab({ following, boardPlace, nearMe, searching }: { following?: unknown; boardPlace?: string; nearMe?: unknown; searching?: boolean }): Tab | undefined {
-  if (following || boardPlace) return undefined;
+export function currentTab({ following, boardPlace, lineShown, nearMe, searching }: { following?: unknown; boardPlace?: string; lineShown?: string; nearMe?: unknown; searching?: boolean }): Tab | undefined {
+  if (following || boardPlace || lineShown) return undefined;
   if (nearMe) return 'nearby';
   return searching ? 'search' : undefined;
 }
