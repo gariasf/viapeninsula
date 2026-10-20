@@ -74,3 +74,7 @@ Taken 20 Oct 2026 on the page harness (src/page/), Metal GPU, live data; #700 on
 - shots/697b-844x390-credits-open-light.png
 - shots/697b-999x800-credits-open-dark.png
 - shots/697b-999x800-credits-open-light.png
+
+## Reshoot after d6c4aa80 (credits z-index 2 over the strip's marks; elementFromPoint: credits on top at 14/14 overlapping card elements)
+- shots/697c-800x800-credits-open-dark.png
+- shots/697c-800x800-credits-open-light.png
