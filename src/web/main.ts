@@ -8,7 +8,7 @@ import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
 import { along, APART, atZoom, BANDS, bandZooms, GRAPH_BAND, STRETCH, inBand, onStroke, pointAt, profiled, zones, type Zone, daysNeeded, daysOf, SOON, DEGREE, EARTH, joinTracks, LATE, LIVE_URL, madridDate, networkTracks, places, type Alerts, type Bundle, type Credit, type Call, type DayFiles, type Place, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH, type ZoomedOut } from '../bundle.ts';
 import { boardAt, comingAt, KEEP, lastDays, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, tripsAt, unavailable, type Coming, type Departure, type Followed, type Received, type Train, type TripNow } from '../engine.ts';
-import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, branchOff, busesReplace, cancelledCount, earlierStations, endsHere, followDeparture, goOn, starLabel, lateCount, standingAt, worstLate, trainsNow, turnsHere, language, LANGUAGES, leavesAt, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, placedBy, setLanguage, setNameLanguages, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated, type Language, type Unlocated } from './i18n.ts';
+import { alertCount, alertsChanged, firstLeaves, lastArrives, lateOf, moreAlerts, moreLines, networkCounts, unreportedCount, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, branchOff, busesReplace, cancelledCount, earlierStations, endsHere, followDeparture, goOn, starLabel, lateCount, standingAt, worstLate, trainsNow, turnsHere, language, LANGUAGES, leavesAt, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, placedBy, setLanguage, setNameLanguages, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { getJson, lookAgainSoon, RETRY, STALL } from './files.ts';
 import { daysAsTheyCome, firstLook, forgetJoined, joinedFrom, regionLoader, regionsCame, regionsNeeded, trackFileOf } from './regions.ts';
@@ -32,6 +32,7 @@ import { currentTab, type Tab } from './tabs.ts';
 import { favouriteRows, favourites, type Favourite } from './favourites.ts';
 import { keyboardRise, networkNames, numbered, numberQuery, results, searchPlaces, type Found, type FoundLine } from './search.ts';
 import { cancelledNow, lineState, lineStrip, onStrip, type StripStation } from './line.ts';
+import { alertedLines, byStretch, firstAndLast, METRO, racksAndFuniculars, toAndFromFrance, whatsWrong, type Troubled } from './now.ts';
 import { opensInNewTab, putHtml } from './newTab.ts';
 
 // MapLibre looks for its worker next to its own file, which bundling moves.
@@ -105,7 +106,7 @@ const OUTLINES: Record<Outline | 'arrow', { w: number; h: number; across?: numbe
 };
 /**
  * The cards' icons, drawn in the colour of the text around them, which a forced-colours theme sets
- * too (#116): a close cross, a chevron down, up and right, the die that follows a random Train, Nearby's
+ * too (#116): a close cross, a chevron down, up and right, the die that follows a random Train, Now's pulse (#474), Nearby's
  * radius round a dot and Search's lens, the tilted plane of the tilt button, About's ⓘ, the credits' ©,
  * a warning, and the ring Search marks a Station with (#471).
  */
@@ -115,6 +116,7 @@ const ICONS = {
   up: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>',
   right: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>',
   die: '<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="9" r="1.3"/><circle cx="15" cy="9" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="9" cy="15" r="1.3"/><circle cx="15" cy="15" r="1.3"/></svg>',
+  now: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2.5-7 4 14 2.5-7h5"/></svg>',
   tilt: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M8 6h8l5 12H3L8 6z"/><path d="M5.5 12h13"/></svg>',
   nearby: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5" stroke-dasharray="2.6 3.1"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></svg>',
   search: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>',
@@ -733,12 +735,10 @@ new ResizeObserver(() => document.documentElement.style.setProperty('--banner', 
 // peeks or is pulled up, and on a wide window a card at the bottom left, beside the rail (#321, #470).
 const panel = el('section', { className: 'sheet', hidden: true });
 // The buttons that ride on its top edge on a phone, where a thumb reaches them and the sheet never
-// covers them, labelled by showLanguage(): the credits bottom left, and bottom right the one that
-// follows a random Train, once the map can move Trains, till Now has it (#474). The random follow is
-// disabled while there's no Train on the map but the one the map follows. On a wide window they go
+// covers them, labelled by showLanguage(): the credits bottom left, and bottom right Tilt and Centre, once
+// the map can move Trains; the die that follows a random Train is Now's (#474). On a wide window they go
 // bottom right, over the credits' strip.
-const followRandomButton = el('button', { type: 'button', className: 'card fab', disabled: true, onclick: followRandom }, icon('die'));
-// The Centre button over it, shown while the map has let go of the Train it follows (#325).
+// The Centre button, shown while the map has let go of the Train it follows (#325).
 const centreButton = el('button', { type: 'button', className: 'card fab', hidden: true, onclick: centre }, icon('centre'));
 // The tilt button over them: it eases the map's pitch between flat and tilted, pressed from half the tilt
 // up, so that a slight tilt by touch reads flat and the press tilts it (#326, #440). Another easing that
@@ -768,7 +768,7 @@ map.on('moveend', () => {
   else setTimeout(() => tiltTo !== undefined && map.easeTo({ pitch: tiltTo, padding: panelPadding() }));
 });
 showTilt();
-const trainButtons = el('div', { className: 'fabs', hidden: true }, tiltButton, centreButton, followRandomButton);
+const trainButtons = el('div', { className: 'fabs', hidden: true }, tiltButton, centreButton);
 // The credits, which showCredits() fills: behind the © button on a phone, and a strip on a wide window.
 const creditsButton = el('summary', { className: 'card' }, icon('copyright'));
 const creditsText = el('div', { className: 'card credits-text' });
@@ -781,6 +781,7 @@ const riders = el('div', { className: 'riders' }, el('details', { className: 'cr
 const tabs: Record<Tab, HTMLButtonElement> = {
   search: el('button', { type: 'button', className: 'tab', disabled: true, onclick: showSearch }),
   nearby: el('button', { type: 'button', className: 'tab', disabled: true, onclick: showNearby }),
+  now: el('button', { type: 'button', className: 'tab', disabled: true, onclick: showNow }),
   favourites: el('button', { type: 'button', className: 'tab', disabled: true, onclick: showFavourites }),
 };
 const nav = el('nav', { className: 'card tabs' }, ...Object.values(tabs));
@@ -866,6 +867,7 @@ let back:
   | { to: 'board'; place: string; up: boolean; scroll: number }
   | { to: 'nearby'; near: Point; up: boolean; scroll: number }
   | { to: 'line'; line: string; up: boolean; scroll: number }
+  | { to: 'now'; up: boolean; scroll: number }
   | undefined;
 /** The place whose board the panel shows, by its ID in places(), while the map follows no Train. */
 let boardPlace: string | undefined;
@@ -890,6 +892,12 @@ let nearMe: Point | Unlocated | undefined;
 let searching = false;
 /** Whether the panel shows Favourites, its tab's sheet (#472). */
 let favouritesShown = false;
+/** Whether the panel shows Now, its tab's sheet (#474), which the link names by `now`. */
+let nowShown = false;
+/** Now's sections whose rest are shown, by a button at their end: a Network's Lines by its ID, and the Alerts as `alerts` (#474). */
+const nowOpened = new Set<string>();
+/** Whether there's a Train on the map to follow at random: one the map doesn't follow already, which Now's die follows (#474). */
+let toFollow = false;
 /** The Stations and Lines the viewer keeps in Favourites, in their browser's storage only (ADR-0011). */
 const kept = favourites(() => localStorage);
 /** What's typed in Search's field (#471), which starts afresh each time Search opens: never stored, nor put in the link (ADR-0011). */
@@ -1860,7 +1868,7 @@ map.on('moveend', () => {
 const pointed = ['trains', 'train-pills', 'train-pills-followed', 'station-names', ...strokeLayers];
 map.on('mousemove', ({ point }) => (map.getCanvas().style.cursor = map.queryRenderedFeatures(point, { layers: pointed }).length || placesDrawn([point.x, point.y]).length ? 'pointer' : ''));
 // Escape closes the About dialog on its own, if it's open.
-document.addEventListener('keydown', (e) => e.key === 'Escape' && !about.open && (following || boardPlace || lineShown || nearMe || searching || favouritesShown) && closePanel());
+document.addEventListener('keydown', (e) => e.key === 'Escape' && !about.open && (following || boardPlace || lineShown || nearMe || searching || favouritesShown || nowShown) && closePanel());
 
 // Moves the Trains as often as MOVED says, and once a second works out which Networks the banner
 // names. The browser stops asking while the tab is hidden.
@@ -1909,7 +1917,7 @@ requestAnimationFrame(function move(now) {
   if (bundle && performance.now() - countShown > 1000) {
     showCount(drawing.features);
     paceInView();
-    followRandomButton.disabled = drawing.features.every((f) => f.properties?.followed);
+    toFollow = drawing.features.some((f) => !f.properties?.followed);
   }
   if (following) {
     // A Train that has left the map, reaching its last Station or cancelled, is followed no more, but
@@ -1926,7 +1934,7 @@ requestAnimationFrame(function move(now) {
   showCentring();
   // The panel's times and ages change by the second, a followed Train's countdown as each second of it ends, and
   // where Search finds Train numbers, where their Trains are (#471).
-  if ((following || boardPlace || lineShown || nearMe || favouritesShown || (searching && numberQuery(query))) && performance.now() - panelShown > panelDue) showPanel();
+  if ((following || boardPlace || lineShown || nearMe || favouritesShown || nowShown || (searching && numberQuery(query))) && performance.now() - panelShown > panelDue) showPanel();
   // Which Networks the banner names changes as Trains and the view move, and the banner with it.
   // Zoomed out, only those drawn there, long distance's, can be in view (#247), and a Network with no Trips today only
   // where its track is drawn: long distance's and Media Distancia's below zoom 7, the Metro's and TRAM's from zoom 10 (#781).
@@ -2634,11 +2642,10 @@ function showLanguage() {
   nav.setAttribute('aria-label', t('tabBar'));
   tabs.search.replaceChildren(icon('search'), t('search'));
   tabs.nearby.replaceChildren(icon('nearby'), t('nearbyButton'));
+  tabs.now.replaceChildren(icon('now'), t('nowTab'));
   tabs.favourites.replaceChildren(icon('star'), t('favourites'));
   tiltButton.title = t('tilt');
   tiltButton.setAttribute('aria-label', t('tilt'));
-  followRandomButton.title = t('followRandom');
-  followRandomButton.setAttribute('aria-label', t('followRandom'));
   centreButton.title = t('centre');
   centreButton.setAttribute('aria-label', t('centre'));
   creditsButton.title = t('showCredits');
@@ -2704,7 +2711,7 @@ function follow(id: string, up = false) {
   following = day && trip ? { day, trip } : { day: bundle?.serviceDay ?? '', trip: id };
   // A Train followed again, by a tap on it too, is taken back (#325).
   released = undefined;
-  [boardPlace, lineShown, nearMe, searching, favouritesShown, back] = [undefined, undefined, undefined, false, false, undefined];
+  [boardPlace, lineShown, nearMe, searching, favouritesShown, nowShown, back] = [undefined, undefined, undefined, false, false, false, undefined];
   trainSource?.setData(trains());
   openPanel(up);
   writeLink();
@@ -2757,6 +2764,7 @@ function here(): NonNullable<typeof back> | undefined {
   if (following) return { to: 'train', day: following.day, trip: following.trip, headsign: bundle?.trips.find((t) => t.id === followedId())?.headsign ?? '', up, scroll };
   if (boardPlace) return { to: 'board', place: boardPlace, up, scroll };
   if (lineShown) return { to: 'line', line: lineShown, up, scroll };
+  if (nowShown) return { to: 'now', up, scroll };
   return nearMe && typeof nearMe !== 'string' ? { to: 'nearby', near: nearMe, up, scroll } : undefined;
 }
 
@@ -2785,7 +2793,7 @@ function goBack() {
   if (!to) return;
   if (to.to === 'train') follow(`${to.day}/${to.trip}`, to.up);
   else {
-    [following, boardPlace, lineShown, nearMe, searching, favouritesShown, back] = [undefined, to.to === 'board' ? to.place : undefined, to.to === 'line' ? to.line : undefined, to.to === 'nearby' ? to.near : undefined, false, false, undefined];
+    [following, boardPlace, lineShown, nearMe, searching, favouritesShown, nowShown, back] = [undefined, to.to === 'board' ? to.place : undefined, to.to === 'line' ? to.line : undefined, to.to === 'nearby' ? to.near : undefined, false, false, to.to === 'now', undefined];
     trainSource?.setData(trains());
     openPanel(to.up);
     writeLink();
@@ -2813,7 +2821,7 @@ function boardOf(id: string): Place | undefined {
 /** Shows a place's board, by its ID in places() or its interchange's, following no Train. */
 function showBoard(place: string) {
   // An interchange's place's is the interchange's (ADR-0005).
-  [following, boardPlace, lineShown, nearMe, searching, favouritesShown, back] = [undefined, boardOfPlace.get(place) ?? place, undefined, undefined, false, false, undefined];
+  [following, boardPlace, lineShown, nearMe, searching, favouritesShown, nowShown, back] = [undefined, boardOfPlace.get(place) ?? place, undefined, undefined, false, false, false, undefined];
   trainSource?.setData(trains());
   openPanel(false);
   writeLink();
@@ -2826,7 +2834,7 @@ function showBoard(place: string) {
  */
 function showLine(line: string) {
   const keyboard = panel.contains(document.activeElement);
-  [following, boardPlace, lineShown, nearMe, searching, favouritesShown, back] = [undefined, undefined, line, undefined, false, false, undefined];
+  [following, boardPlace, lineShown, nearMe, searching, favouritesShown, nowShown, back] = [undefined, undefined, line, undefined, false, false, false, undefined];
   trainSource?.setData(trains());
   openPanel(false);
   writeLink();
@@ -2873,7 +2881,7 @@ function showLook(line: string | undefined) {
  * opens it, its field emptied and focused, which on a phone brings up the keyboard (#471).
  */
 function showSearch() {
-  [following, boardPlace, lineShown, nearMe, searching, favouritesShown, back, query] = [undefined, undefined, undefined, undefined, true, false, undefined, ''];
+  [following, boardPlace, lineShown, nearMe, searching, favouritesShown, nowShown, back, query] = [undefined, undefined, undefined, undefined, true, false, false, undefined, ''];
   trainSource?.setData(trains());
   openPanel(true);
   writeLink();
@@ -2890,7 +2898,7 @@ function showSearch() {
  * stays where it is: the basemap's tiles for where they are would tell OpenFreeMap.
  */
 function showNearby() {
-  [following, boardPlace, lineShown, nearMe, searching, favouritesShown, back] = [undefined, undefined, undefined, 'locating', false, false, undefined];
+  [following, boardPlace, lineShown, nearMe, searching, favouritesShown, nowShown, back] = [undefined, undefined, undefined, 'locating', false, false, false, undefined];
   trainSource?.setData(trains());
   openPanel(true);
   writeLink();
@@ -2900,12 +2908,22 @@ function showNearby() {
 
 /** Shows Favourites, its tab's sheet (#472), pulled up, following no Train, and loads the regions of what it keeps, wherever the map is. */
 function showFavourites() {
-  [following, boardPlace, lineShown, nearMe, searching, favouritesShown, back] = [undefined, undefined, undefined, undefined, false, true, undefined];
+  [following, boardPlace, lineShown, nearMe, searching, favouritesShown, nowShown, back] = [undefined, undefined, undefined, undefined, false, true, false, undefined];
   trainSource?.setData(trains());
   openPanel(true);
   writeLink();
   map.easeTo({ padding: panelPadding() });
   want();
+}
+
+/** Shows Now, its tab's sheet (#474), pulled up, following no Train, with each of its sections' rest folded away again. */
+function showNow() {
+  [following, boardPlace, lineShown, nearMe, searching, favouritesShown, nowShown, back] = [undefined, undefined, undefined, undefined, false, false, true, undefined];
+  nowOpened.clear();
+  trainSource?.setData(trains());
+  openPanel(true);
+  writeLink();
+  map.easeTo({ padding: panelPadding() });
 }
 
 /** Nearby's Try again: asks the browser again where the viewer is, as Nearby's tab does, saying meanwhile that it's finding out, under which the button stays, and the keyboard's focus on it (#324). */
@@ -2951,8 +2969,8 @@ function locate() {
  * goes back to the tab whose sheet it was, as the close button goes with the panel, rather than to the page (#470).
  */
 function closePanel() {
-  const [tab, keyboard] = [currentTab({ following, boardPlace, lineShown, nearMe, searching, favouritesShown }), panel.contains(document.activeElement)];
-  [following, boardPlace, lineShown, nearMe, searching, favouritesShown, back, linkWaits] = [undefined, undefined, undefined, undefined, false, false, undefined, false];
+  const [tab, keyboard] = [currentTab({ following, boardPlace, lineShown, nearMe, searching, favouritesShown, nowShown }), panel.contains(document.activeElement)];
+  [following, boardPlace, lineShown, nearMe, searching, favouritesShown, nowShown, back, linkWaits] = [undefined, undefined, undefined, undefined, false, false, false, undefined, false];
   showPanel();
   writeLink();
   map.easeTo({ padding: panelPadding() });
@@ -2981,12 +2999,18 @@ function openPanel(up: boolean) {
  * and a Train once its Trip is on the map or every day has (#593); those whose Trips fail to come are
  * logged where show() gets them, and looked for again; opened then, it doesn't ring its point again, which
  * a tap may have cleared meanwhile. A Search row opens a Station's board as a link that names it alone (openStation()).
- * A Line (`line=`) opens its screen once its region's Trips have come, wherever the map is (#473), as a Search row does.
+ * A Line (`line=`) opens its screen once its region's Trips have come, wherever the map is (#473), as a Search row does,
+ * and `now` alone opens Now at once, of whatever has come (#474).
  */
 function openLink(ring = true) {
   if (ring) showMark(markOf(openedLink));
   const link = new URLSearchParams(openedLink.slice(1));
   const [station, train, line] = [link.get('station'), link.get('train'), link.get('line')];
+  // Now, over the map, whatever's loaded (#474).
+  if (link.has('now') && !station && !train && !line) {
+    showNow();
+    return;
+  }
   // A Line's screen waits for its region's Trips, its strip being made of them, and for its Line (#473).
   if (line && !station && !train) {
     linkWaits = !(come({ line }, joinedRegions) && lines.has(line) && !!bundle);
@@ -3020,7 +3044,7 @@ function openLink(ring = true) {
  * Puts what the panel shows in the page's link, beside the view, so that sharing the page shares it:
  * `train=<service day>/<Trip>`, the Train by its service day and its Trip as its operator names it,
  * whose ID leads with its Network, `station=<Station>`, one of the place's Stations, which opens the
- * place's board, or `line=<Line>`, a Line's screen (#473), by its ID, which leads with its Network too. It keeps the link's `mark=` while the map rings its point, and drops it while the
+ * place's board, or `line=<Line>`, a Line's screen (#473), by its ID, which leads with its Network too, or `now`, Now (#474). It keeps the link's `mark=` while the map rings its point, and drops it while the
  * map rings none, as after a tap (#254). Written as MapLibre writes the view, which undoes any
  * escaping each time it does.
  * ponytail: so an ID with `&`, `=`, `#`, `+` or `%` in it would break its link. None has one yet
@@ -3031,12 +3055,15 @@ function writeLink() {
   params.delete('train');
   params.delete('station');
   params.delete('line');
+  params.delete('now');
   if (!marked) params.delete('mark');
   if (following) params.set('train', `${following.day}/${following.trip}`);
   const station = boardPlace && boardOf(boardPlace)?.stations[0];
   if (station) params.set('station', station);
   if (lineShown) params.set('line', lineShown);
-  history.replaceState(history.state, '', `#${decodeURIComponent(params.toString())}`);
+  if (nowShown) params.set('now', '');
+  // `now` alone, as it names no more (#474).
+  history.replaceState(history.state, '', `#${decodeURIComponent(params.toString()).replace(/(^|&)now=(?=&|$)/, '$1now')}`);
 }
 
 /** Rings a point on the map, or none (#254). */
@@ -3203,12 +3230,12 @@ interface Panel {
  */
 function showPanel(up = wide.matches || pulledUp || dragging) {
   panelShown = performance.now();
-  const shown = following ? followedPanel(up) : boardPlace ? boardPanel(boardPlace, up) : lineShown ? linePanel(lineShown) : nearMe ? nearbyPanel(nearMe, up) : searching ? searchPanel() : favouritesShown ? favouritesPanel() : undefined;
+  const shown = following ? followedPanel(up) : boardPlace ? boardPanel(boardPlace, up) : lineShown ? linePanel(lineShown) : nearMe ? nearbyPanel(nearMe, up) : searching ? searchPanel() : favouritesShown ? favouritesPanel() : nowShown ? nowPanel() : undefined;
   panelDue = shown?.changes ?? 1000;
   panel.hidden = !shown;
   panel.classList.toggle('up', up);
   patch(panel, shown ? [el('div', { className: 'sheet-top' }, handle(up), shown.header), el('div', { className: 'sheet-body' }, ...shown.body)] : []);
-  const current = currentTab({ following, boardPlace, lineShown, nearMe, searching, favouritesShown });
+  const current = currentTab({ following, boardPlace, lineShown, nearMe, searching, favouritesShown, nowShown });
   for (const [tab, button] of Object.entries(tabs)) {
     if (tab === current) button.setAttribute('aria-current', 'page');
     else button.removeAttribute('aria-current');
@@ -3423,7 +3450,7 @@ function comingPanel({ trip, live, delay, upcoming, within }: Coming, up: boolea
 function backButton(): Node[] {
   // ponytail: two engine passes a second while Back goes to a Train; cache the check if a phone shows it.
   if (!back) return [];
-  const where = back.to === 'train' ? undefined : back.to === 'board' ? boardOf(back.place)?.name : back.to === 'line' ? lines.get(back.line)?.name : t('nearby');
+  const where = back.to === 'train' ? undefined : back.to === 'board' ? boardOf(back.place)?.name : back.to === 'line' ? lines.get(back.line)?.name : back.to === 'now' ? t('nowTab') : t('nearby');
   if (back.to === 'train' ? !(bundle && (trainAt(bundle, Date.now(), received, back.day === bundle.serviceDay ? back.trip : `${back.day}/${back.trip}`, hidingClosures) || comingAt(bundle, Date.now(), received, back.day === bundle.serviceDay ? back.trip : `${back.day}/${back.trip}`, hidingClosures))) : !where) return [];
   const label = back.to === 'train' ? backToTrain(back.headsign) : backTo(where ?? '');
   return [el('button', { type: 'button', className: 'back', onclick: goBack }, icon('back'), el('span', { textContent: label }))];
@@ -3730,7 +3757,8 @@ function alertRow({ lines: named, header, description, from, by }: CardAlert, by
   return el(
     'li',
     {},
-    ...(byLine && named.length ? [el('div', { className: 'served' }, ...named.map((line) => pill(line, { small: true })))] : []),
+    // A Line the map has none of, as one only buses run (#580), by its Network's name and its own, on Now (#474).
+    ...(byLine && named.length ? [el('div', { className: 'served' }, ...named.map((line) => (lines.has(line) || searchedLines.has(line) ? pill(line, { small: true }) : el('span', { className: 'meta', textContent: `${bundle?.networks.find((n) => line.startsWith(`${n.id}:`))?.name ?? ''} ${line.slice(line.indexOf(':') + 1)}`.trim() }))))] : []),
     ...words('strong', header),
     ...words('p', description),
     ...ran.map((textContent) => el('p', { className: 'meta', textContent })),
@@ -3988,6 +4016,145 @@ function favouritesPanel(): Panel {
   };
 }
 
+/** How many of a Network's Lines with Trains late or Cancelled Now lists, and of the Alerts on the map, before a button for the rest (#474, #328's pick). */
+const [NOW_LINES, NOW_ALERTS] = [5, 6];
+
+/**
+ * How far round now Now looks for Trips, in seconds: those leaving within the hour, as Trains to France do, and
+ * those due to have arrived up to 3 hours ago, as a Train running late may still be on the map.
+ * ponytail: a Train over 3 hours late is left out of Now's counts. Widen it, or look at every Trip, which took 7–11 ms
+ * a second for Catalonia, Madrid, Valencia and long distance's, or all Spain, on an M4 against 3–4 ms, if one ever is.
+ */
+const [NOW_AHEAD, NOW_BEHIND] = [3600, 3 * 3600];
+
+/**
+ * Now's sheet (#474, #328's pick), of the regions loaded (ADR-0014): the moment and the legend's counts, and the die that
+ * follows a random Train, as a row. What's wrong: each Network in trouble (whatsWrong()), with its Trains, a chip of how
+ * many are late and Cancelled, or that its live data is unavailable, and its NOW_LINES Lines with most Trains late or
+ * Cancelled, each opening its screen (#473), with a button for the rest; the Networks with nothing wrong in one line,
+ * and the Metro apart; and the Closures the map draws, by stretch (byStretch()). What's notable at this moment only:
+ * the first or last Trains (firstAndLast()), the rack railway and the funiculars while they run (racksAndFuniculars()),
+ * and Trains to and from France running or leaving within the hour (toAndFromFrance()), or `None now` in a section with
+ * nothing. Then the Alerts on the map's Lines and Stations, and on its Networks' Lines it has none of (alertedLines()), newest first (cardAlerts()), NOW_ALERTS and a button for the
+ * rest. No single Train's Delay, as a GPS Delay can be far from its operator's (#466). Each button for the rest stays
+ * where it is, to fold them away again, so it keeps the keyboard's focus.
+ */
+function nowPanel(): Panel {
+  const header = el('header', {}, el('h2', { className: 'title', textContent: t('nowTab'), tabIndex: -1 }), closeButton(t('closeNow')));
+  const now = Date.now();
+  const mapNow = mapTime(now, received);
+  const day = new Intl.DateTimeFormat(locale(), { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Madrid' }).format(mapNow);
+  const top = el('p', { className: 'meta status-line parts' }, ...parts([day, clock().format(mapNow), ...(counts ? [trainCounts(...counts).join(', ')] : [])]));
+  // Marked unavailable rather than disabled while there's no Train to follow, so that it keeps the keyboard's focus as that changes; followRandom() then follows none.
+  const die = el('button', { type: 'button', className: 'card die-row', onclick: followRandom }, icon('die'), el('span', { textContent: t('followRandom') }));
+  die.setAttribute('aria-disabled', String(!toFollow));
+  if (!bundle) return { header, body: [top, die, el('p', { className: 'meta', textContent: t('loading') })] };
+  const days = bundle;
+  const name = (network: string) => days.networks.find((n) => n.id === network)?.name ?? network;
+  const seconds = (mapNow - days.noonMinus12h) / 1000;
+  const near = days.trips.filter((trip) => (trip.calls[0]?.departure ?? Infinity) <= seconds + NOW_AHEAD && (trip.calls.at(-1)?.arrival ?? -Infinity) >= seconds - NOW_BEHIND);
+  const nows = tripsAt(days, now, received, near, hidingClosures);
+  const ordered = [...lines.values()];
+  const { trouble, quiet } = whatsWrong(days.networks, ordered, nows, unavailable(days, now, received), shownClosures, days.noonMinus12h, mapNow);
+  const none = () => el('p', { className: 'meta', textContent: t('noneNow') });
+  // A section's button for its rest, by `key`, which says how many more while they're folded away.
+  const rest = (key: string, more: string) => {
+    const open = nowOpened.has(key);
+    const toggle = () => (open ? nowOpened.delete(key) : nowOpened.add(key), showPanel());
+    const button = el('button', { type: 'button', className: 'more', onclick: toggle }, el('span', { textContent: open ? t('showLess') : more }), icon(open ? 'up' : 'chevron'));
+    button.setAttribute('aria-expanded', String(open));
+    return button;
+  };
+  const lineRow = (l: Troubled['lines'][number]) =>
+    el(
+      'li',
+      {},
+      el(
+        'button',
+        { type: 'button', className: 'result', onclick: () => openFrom(() => showLine(l.id)) },
+        el('span', { className: 'lead' }, pill(l.id)),
+        el(
+          'span',
+          { className: 'what' },
+          el('span', { className: 'what-title', textContent: l.late ? lateOf(l.late, l.trains) : cancelledCount(l.cancelled) }),
+          el('span', { className: 'what-under parts' }, ...parts([...(l.late && l.cancelled ? [cancelledCount(l.cancelled)] : []), ...(l.unreported ? [unreportedCount(l.unreported)] : [])])),
+        ),
+        el('span', { className: 'end' }, icon('right')),
+      ),
+    );
+  const network = (n: Troubled) => {
+    // Its counts after a dot, a part whose pieces, each whole, wrap where the line is too short for them, as Catalan and Spanish need on a phone.
+    const [first, ...others] = n.unavailable ? [t('allScheduled')] : networkCounts(n.live, n.scheduled, n.unreported);
+    const how = first ? [el('span', { className: 'part' }, first, ...others.map((piece) => el('span', { className: 'wraps' }, el('wbr', {}), el('span', { textContent: piece }))))] : [];
+    const said = [...(n.late ? [lateCount(n.late)] : []), ...(n.cancelled ? [cancelledCount(n.cancelled)] : [])];
+    const chip = n.unavailable ? [el('span', { className: 'chip warn', textContent: t('liveDataUnavailable') })] : said.length ? [el('span', { className: 'delay late', textContent: said.join(' · ') })] : [];
+    const open = nowOpened.has(n.id);
+    return el(
+      'li',
+      { className: 'net' },
+      el('div', { className: 'net-head' }, el('h4', { className: 'net-name', textContent: name(n.id) }), ...chip),
+      el('p', { className: 'meta parts' }, ...parts([trainsNow(n.trains)]), ...(how.length ? [' ', ...how] : [])),
+      ...(n.lines.length ? [el('ol', { className: 'results' }, ...n.lines.slice(0, open ? undefined : NOW_LINES).map(lineRow))] : []),
+      ...(n.lines.length > NOW_LINES ? [rest(n.id, moreLines(n.lines.length - NOW_LINES))] : []),
+    );
+  };
+  const metro = days.networks.some((n) => n.id === METRO) && !trouble.some((n) => n.id === METRO);
+  const quietLine = quiet.length || metro ? [el('p', { className: 'meta quiet' }, ...(quiet.length ? [el('b', { textContent: t('nothingWrong') }), ` ${quiet.map(name).join(' · ')}.`] : []), ...(metro ? [`${quiet.length ? ' ' : ''}${t('metroNoDelays')}`] : []))] : [];
+  const closures = byStretch(shownClosures).map(({ lines: on, stations: [a, b], kind }) =>
+    el(
+      'li',
+      {},
+      el(
+        'div',
+        { className: 'result closure' },
+        el('span', { className: 'lead pills' }, ...on.map((id) => pill(id))),
+        el('span', { className: 'what' }, el('span', { className: 'what-title', textContent: `${stationName(a)} – ${stationName(b)}` }), el('span', { className: 'what-under', textContent: t(kind === 'single' ? 'singleTrack' : 'closedBuses') })),
+      ),
+    ),
+  );
+  const times = firstAndLast(days.networks, ordered, days.trips, days.serviceDay, days.noonMinus12h, mapNow);
+  const timeRow = ({ id, at }: { id: string; at: number }, says: (time: string) => string) =>
+    el('li', {}, el('div', { className: 'result plain' }, el('span', { className: 'what' }, el('span', { className: 'what-title', textContent: name(id) }), el('span', { className: 'what-under', textContent: says(clock().format(at)) }))));
+  const timeRows = [...(times.last ?? []).map((t) => timeRow(t, lastArrives)), ...(times.first ?? []).map((t) => timeRow(t, firstLeaves))];
+  const specials = racksAndFuniculars(ordered, days.trips, nows, days.noonMinus12h, mapNow).map(({ id, ends: [a = '', b = ''], trains, live }) =>
+    el(
+      'li',
+      {},
+      el(
+        'button',
+        { type: 'button', className: 'result', onclick: () => openFrom(() => showLine(id)) },
+        el('span', { className: 'lead' }, pill(id, { live, train: trains > 0 })),
+        el('span', { className: 'what' }, el('span', { className: 'what-title', textContent: `${stationName(a)} – ${stationName(b)}` }), el('span', { className: 'what-under parts' }, ...parts(trains ? [trainsNow(trains), t(live ? 'live' : 'scheduled')] : [t('notRunningNow')]))),
+        el('span', { className: 'end' }, icon('right')),
+      ),
+    ),
+  );
+  const france = toAndFromFrance(nows, days.noonMinus12h, mapNow).map((n) => el('li', {}, trainResult(n, false)));
+  const section = (label: string, rows: Node[]) => [el('h4', { className: 'sub-label', textContent: label }), rows.length ? el('ol', { className: 'results' }, ...rows) : none()];
+  const shown = cardAlerts(alerts, { lines: [...ordered.map((l) => l.id), ...alertedLines(alerts, days.networks, ordered)], stations: days.stations.map((s) => s.id) }, language(), mapNow);
+  const alertsOpen = nowOpened.has('alerts');
+  return {
+    header,
+    body: [
+      top,
+      die,
+      el('h3', { className: 'label', textContent: t('whatsWrong') }),
+      el('p', { className: 'subtitle', textContent: t('lateRule') }),
+      ...(trouble.length ? [el('ol', { className: 'nets' }, ...trouble.map(network))] : []),
+      ...quietLine,
+      ...(closures.length ? [el('ol', { className: 'results' }, ...closures)] : []),
+      el('h3', { className: 'label', textContent: t('whatsNotable') }),
+      ...section(t('firstAndLast'), timeRows),
+      ...section(t('racksAndFuniculars'), specials),
+      ...section(t('toAndFromFrance'), france),
+      el('h3', { className: 'label', textContent: t('alertsOnMap') }),
+      readAt(shown.asOf, shown.changed, mapNow),
+      shown.alerts.length ? el('ol', { className: 'alerts all' }, ...shown.alerts.slice(0, alertsOpen ? undefined : NOW_ALERTS).map((alert) => alertRow(alert, true))) : none(),
+      ...(shown.alerts.length > NOW_ALERTS ? [rest('alerts', moreAlerts(shown.alerts.length - NOW_ALERTS))] : []),
+    ],
+  };
+}
+
 /**
  * A Line's strip (#473): each Station a row along its colour, its whole row a button that opens its board, as a
  * followed Train's strip has them (stationLink()), marked as lineStrip() has it, with what the mark means under its
@@ -4199,9 +4366,11 @@ function trainResults({ trains, more }: { trains: TripNow[]; more: number }): No
  * next Station it stops at and when it's due there, as the follow panel says it (due(), #607), with its Delay at
  * the row's end, as a board's; where and when it leaves; Cancelled; or when it ended. One running, on the map or
  * within a closed Closure that hides Trains, or still to leave is a button that follows its Train (#322), and one
- * Cancelled or ended follows nothing.
+ * Cancelled or ended follows nothing. Now's have no Delay (`delays`), as it shows no single Train's (#474). Where and when it
+ * leaves, and its next Station, are of the Stations the bundle names: a Train to or from France calls first or last beyond the
+ * border, at a Station crop() leaves out of the bundle's (build/border.ts), so one still to come from there says its first on the map (#474).
  */
-function trainResult(now: TripNow): HTMLElement {
+function trainResult(now: TripNow, delays = true): HTMLElement {
   const { trip } = now;
   const row = (live: boolean, follows: boolean, under: (Node | string)[], end: Node[] = []) => {
     const cells = [
@@ -4215,16 +4384,18 @@ function trainResult(now: TripNow): HTMLElement {
   if ('ended' in now) return row(false, false, [t('endedAt').replace('{time}', clock().format(now.ended))]);
   const { upcoming, delay, live } = 'train' in now ? now.train : now.coming;
   if ('coming' in now && !now.coming.within) {
-    const first = upcoming[0];
-    return row(live, true, [first ? leavesAt(stationName(first.station), clock().format(first.departure)) : ''], [status({ delay, live })]);
+    // One leaving from beyond the border has left already, off the map: then its next Station on it, and when it's due there.
+    const [first, on] = [upcoming[0], upcoming.find((c) => stationNames.has(c.station))];
+    const says = !first ? '' : first === on ? leavesAt(stationName(first.station), clock().format(first.departure)) : on ? nextAt(stationName(on.station), clock().format(on.arrival)) : '';
+    return row(live, true, [says], [status({ delay: delays ? delay : undefined, live })]);
   }
-  const next = upcoming.find((c) => !c.skipped);
+  const next = upcoming.find((c) => !c.skipped && stationNames.has(c.station));
   const standing = 'train' in now && !!now.train.standsAt && next === upcoming[0];
   // Its pill says it to a screen reader already.
   const said = el('span', { textContent: `${t(live ? 'live' : 'scheduled')} · ` });
   said.setAttribute('aria-hidden', 'true');
   const where = next ? nextAt(stationName(next.station), clock().format(due(next, standing, next === upcoming.at(-1)).at)) : '';
-  return row(live, true, [said, where], [status({ delay, live, unreported: 'train' in now && now.train.unreported })]);
+  return row(live, true, [said, where], [status({ delay: delays ? delay : undefined, live, unreported: 'train' in now && now.train.unreported })]);
 }
 
 /**

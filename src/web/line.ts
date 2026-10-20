@@ -133,16 +133,19 @@ export function onStrip<T extends OnLine>(strip: StripStation[], trains: T[]): {
     .sort((x, y) => x.after - y.after);
 }
 
-/** How late a Train has to be, in seconds, for a Line's state to count it late: 5 minutes, as Now counts it (#328's pick 3). */
-const LATE_HERE = 300;
+/** How late a Train has to be, in whole minutes, for a Line's state and Now to count it late: 5, as #328's pick 3 has it. */
+const LATE_HERE = 5;
+
+/** Whether a Delay, in seconds, is late as its chip shows it: LATE_HERE minutes or more, rounded to the minute as delayChip() rounds, so 4 min 53 s is late (#474). */
+export const isLate = (delay: number | undefined) => delay !== undefined && Math.round(delay / 60) >= LATE_HERE;
 
 /**
- * A Line's state now (#473): how many of its Trains are on the map, how many are LATE_HERE or more, and the worst of
+ * A Line's state now (#473): how many of its Trains are on the map, how many are late (isLate()), and the worst of
  * those, in whole minutes, only where some are; and whether any is Live, as none is where its Network's live data
  * is unavailable, its Trains all Scheduled.
  */
 export function lineState(trains: { delay?: number; live: boolean }[]): { trains: number; late: number; worst?: number; live: boolean } {
-  const late = trains.flatMap((t) => (t.delay !== undefined && t.delay >= LATE_HERE ? [t.delay] : []));
+  const late = trains.flatMap((t) => (t.delay !== undefined && isLate(t.delay) ? [t.delay] : []));
   return { trains: trains.length, late: late.length, ...(late.length && { worst: Math.round(Math.max(...late) / 60) }), live: trains.some((t) => t.live) };
 }
 

@@ -219,6 +219,49 @@ const STRINGS = {
   noneLate: { ca: 'cap amb retard', es: 'ninguno con retraso', eu: 'bat ere ez atzeratuta', gl: 'ningún con atraso', en: 'none late' },
   loading: { ca: 'Carregant…', es: 'Cargando…', eu: 'Kargatzen…', gl: 'Cargando…', en: 'Loading…' },
   noLongerOnMap: { ca: 'Ja no és al mapa', es: 'Ya no está en el mapa', eu: 'Jada ez dago mapan', gl: 'Xa non está no mapa', en: 'No longer on the map' },
+  // Now's sheet, which its tab opens (#474): the button that closes it; its sections, What's wrong with what late means, and each Network in trouble's chip where its live data is unavailable;
+  // the Networks with nothing wrong, after a colon, and that the Metro has none to show; under a Network's Lines, how many more of them have Trains late or Cancelled, {n}; a Line's row,
+  // {n} of its {m} Trains late, and {n} of them with no live data; a Network's Trains, {n} Scheduled with no live data; the Closures' rows; What's notable's sections, a first and last row's
+  // times, {time}, and a row of the rack railway or a funicular between its runs; a section with nothing now; the Alerts' section, and how many more it has, {n}.
+  closeNow: { ca: 'Tanca Ara', es: 'Cerrar Ahora', eu: 'Itxi Orain', gl: 'Pechar Agora', en: 'Close Now' },
+  whatsWrong: { ca: 'Què falla', es: 'Qué falla', eu: 'Zer dabil gaizki', gl: 'Que falla', en: "What's wrong" },
+  lateRule: { ca: 'Amb retard vol dir 5 minuts o més.', es: 'Con retraso significa 5 minutos o más.', eu: 'Atzeratuta: 5 minutu edo gehiago.', gl: 'Con atraso significa 5 minutos ou máis.', en: 'Late is 5 minutes or more.' },
+  liveDataUnavailable: { ca: 'Sense dades en temps real', es: 'Sin datos en tiempo real', eu: 'Denbora errealeko daturik ez', gl: 'Sen datos en tempo real', en: 'Live data unavailable' },
+  nothingWrong: { ca: 'Res amb retard ni cancel·lat:', es: 'Nada con retraso ni cancelado:', eu: 'Ezer ez atzeratuta edo bertan behera:', gl: 'Nada con atraso nin cancelado:', en: 'Nothing late or cancelled:' },
+  metroNoDelays: { ca: 'El metro no té retards per mostrar.', es: 'El metro no tiene retrasos que mostrar.', eu: 'Metroak ez du atzerapenik erakusteko.', gl: 'O metro non ten atrasos que amosar.', en: 'The Metro has no delays to show.' },
+  moreLines: {
+    ca: '{n} línies més amb trens amb retard o cancel·lats',
+    es: '{n} líneas más con trenes con retraso o cancelados',
+    eu: 'Beste {n} linea, tren atzeratuekin edo bertan behera utziekin',
+    gl: '{n} liñas máis con trens con atraso ou cancelados',
+    en: '{n} more lines with trains late or cancelled',
+  },
+  oneMoreLine: {
+    ca: '{n} línia més amb trens amb retard o cancel·lats',
+    es: '{n} línea más con trenes con retraso o cancelados',
+    eu: 'Beste linea bat, tren atzeratuekin edo bertan behera utziekin',
+    gl: '{n} liña máis con trens con atraso ou cancelados',
+    en: '{n} more line with trains late or cancelled',
+  },
+  lateOf: { ca: '{n} de {m}\u00A0trens amb retard', es: '{n} de {m}\u00A0trenes con retraso', eu: '{m}\u00A0trenetatik {n} atzeratuta', gl: '{n} de {m}\u00A0trens con atraso', en: '{n} of {m}\u00A0trains late' },
+  lateOfOne: { ca: '{n} de {m}\u00A0tren amb retard', es: '{n} de {m}\u00A0tren con retraso', eu: '{m}\u00A0trenetik {n} atzeratuta', gl: '{n} de {m}\u00A0tren con atraso', en: '{n} of {m}\u00A0train late' },
+  unreportedCount: { ca: '{n} sense dades en temps real', es: '{n} sin datos en tiempo real', eu: '{n} denbora errealeko daturik gabe', gl: '{n} sen datos en tempo real', en: '{n} with no live data' },
+  unreportedScheduled: { ca: '{n} programats, sense dades en temps real', es: '{n} programados, sin datos en tiempo real', eu: '{n} programatuta, denbora errealeko daturik gabe', gl: '{n} programados, sen datos en tempo real', en: '{n} scheduled, no live data' },
+  oneUnreportedScheduled: { ca: '{n} programat, sense dades en temps real', es: '{n} programado, sin datos en tiempo real', eu: '{n} programatuta, denbora errealeko daturik gabe', gl: '{n} programado, sen datos en tempo real', en: '{n} scheduled, no live data' },
+  ofThemUnreported: { ca: "{n} d'ells sense dades en temps real", es: '{n} de ellos sin datos en tiempo real', eu: 'horietatik {n} denbora errealeko daturik gabe', gl: '{n} deles sen datos en tempo real', en: '{n} of them with no live data' },
+  closedBuses: { ca: 'Tallat, hi circulen autobusos', es: 'Cortado, circulan autobuses', eu: 'Itxita, autobusak dabiltza', gl: 'Cortado, circulan autobuses', en: 'Closed, buses run instead' },
+  singleTrack: { ca: 'Via única', es: 'Vía única', eu: 'Bide bakarra', gl: 'Vía única', en: 'Single track' },
+  whatsNotable: { ca: 'A destacar', es: 'A destacar', eu: 'Nabarmentzekoak', gl: 'A destacar', en: "What's notable" },
+  firstAndLast: { ca: 'Primers i últims trens', es: 'Primeros y últimos trenes', eu: 'Lehen eta azken trenak', gl: 'Primeiros e últimos trens', en: 'First and last trains' },
+  firstLeaves: { ca: 'primera sortida {time}', es: 'primera salida {time}', eu: 'lehen irteera {time}', gl: 'primeira saída {time}', en: 'first leaves {time}' },
+  lastArrives: { ca: 'última arribada {time}', es: 'última llegada {time}', eu: 'azken iritsiera {time}', gl: 'última chegada {time}', en: 'last arrives {time}' },
+  racksAndFuniculars: { ca: 'Cremallera i funiculars', es: 'Cremallera y funiculares', eu: 'Kremailera eta funikularrak', gl: 'Cremalleira e funiculares', en: 'Rack railway and funiculars' },
+  toAndFromFrance: { ca: 'Trens de França i cap a França', es: 'Trenes a y desde Francia', eu: 'Frantziara eta Frantziatik trenak', gl: 'Trens a e desde Francia', en: 'Trains to and from France' },
+  notRunningNow: { ca: 'Ara no circula', es: 'Ahora no circula', eu: 'Orain ez dabil', gl: 'Agora non circula', en: 'Not running now' },
+  noneNow: { ca: 'Cap ara', es: 'Ninguno ahora', eu: 'Bat ere ez orain', gl: 'Ningún agora', en: 'None now' },
+  alertsOnMap: { ca: 'Avisos al mapa', es: 'Avisos en el mapa', eu: 'Abisuak mapan', gl: 'Avisos no mapa', en: 'Alerts on the map' },
+  moreAlerts: { ca: '{n} avisos més', es: '{n} avisos más', eu: '{n} abisu gehiago', gl: '{n} avisos máis', en: '{n} more alerts' },
+  oneMoreAlert: { ca: '{n} avís més', es: '{n} aviso más', eu: 'Abisu bat gehiago', gl: '{n} aviso máis', en: '{n} more alert' },
   // Search's sheet, which its tab opens: the button that closes it.
   closeSearch: { ca: 'Tanca la cerca', es: 'Cerrar la búsqueda', eu: 'Itxi bilaketa', gl: 'Pechar a busca', en: 'Close search' },
   // Its field (#471): what it says while it's empty, its name for a screen reader, and the button that clears it.
@@ -607,6 +650,37 @@ export const worstLate = (n: number, lang = language()): string => STRINGS.worst
 
 /** How many of a Line's Trains are Cancelled, `n`, whose runs haven't ended (#473), in `lang`, or else the language the interface speaks now. */
 export const cancelledCount = (n: number, lang = language()): string => counting(n, 'oneCancelled', 'cancelledCount', lang);
+
+/** How many more Lines of a Network in trouble have Trains late or Cancelled than Now lists, in `lang`, or else the language the interface speaks now (#474). */
+export const moreLines = (n: number, lang = language()): string => counting(n, 'oneMoreLine', 'moreLines', lang);
+
+/** How many more Alerts on the map there are than Now lists, in `lang`, or else the language the interface speaks now (#474). */
+export const moreAlerts = (n: number, lang = language()): string => counting(n, 'oneMoreAlert', 'moreAlerts', lang);
+
+/** How many of a Line's `m` Trains on the map are late, `n`, in `lang`, or else the language the interface speaks now (#474). */
+export const lateOf = (n: number, m: number, lang = language()): string => STRINGS[m === 1 ? 'lateOfOne' : 'lateOf'][lang].replace('{n}', String(n)).replace('{m}', String(m));
+
+/** How many of a Line's Trains on the map have no live data, in `lang`, or else the language the interface speaks now (#474). */
+export const unreportedCount = (n: number, lang = language()): string => STRINGS.unreportedCount[lang].replace('{n}', String(n));
+
+/** When a Network's first Train today leaves, `time`, as Now says it until 09:00, in `lang`, or else the language the interface speaks now (#474). */
+export const firstLeaves = (time: string, lang = language()): string => STRINGS.firstLeaves[lang].replace('{time}', time);
+/** When a Network's last Train of the day arrives, `time`, as Now says it from 20:00, and after midnight while it's still to arrive, in `lang`, or else the language the interface speaks now (#474). */
+export const lastArrives = (time: string, lang = language()): string => STRINGS.lastArrives[lang].replace('{time}', time);
+
+/**
+ * A Network's Trains on the map on Now (#474), `live` Live and `scheduled` Scheduled with live data, and `unreported` Scheduled with none, in
+ * `lang`, or else the language the interface speaks now: those with no live data said once, as `13 scheduled, no live data` where every
+ * Scheduled one has none, else as how many of the Scheduled; in pieces, each but the last ending in its comma, that the line wraps between.
+ */
+export function networkCounts(live: number, scheduled: number, unreported: number, lang = language()): string[] {
+  const [lives, scheduleds] = trainCounts(live, scheduled + unreported, lang);
+  const pieces = [
+    ...(live ? [lives] : []),
+    ...(scheduled && unreported ? [scheduleds, STRINGS.ofThemUnreported[lang].replace('{n}', String(unreported))] : unreported ? [counting(unreported, 'oneUnreportedScheduled', 'unreportedScheduled', lang)] : scheduled ? [scheduleds] : []),
+  ];
+  return pieces.map((piece, i) => (i < pieces.length - 1 ? `${piece},` : piece));
+}
 
 /** That a Train on a Line's strip stands at a Station (#473), in `lang`, or else the language the interface speaks now. */
 export const standingAt = (station: string, lang = language()): string => named(STRINGS.standingAt[lang], '{station}', station, lang);
