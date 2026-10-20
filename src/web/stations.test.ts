@@ -103,7 +103,7 @@ function everyPair(places: Tiered[], hand: Parameters<typeof interchangesOf>[1] 
 
 test('any places, anywhere on Earth, make the same interchanges on the grid as comparing every pair, those NEAR apart too', () => {
   let seed = 838;
-  const random = () => ((seed = (seed * 1_103_515_245 + 12_345) % 2 ** 31) / 2 ** 31);
+  const random = () => (seed = (Math.imul(seed, 1_103_515_245) + 12_345) >>> 0) / 2 ** 32;
   const pick = <T,>(xs: T[]) => xs[Math.floor(random() * xs.length)] as T;
   for (let round = 0; round < 300; round++) {
     // A town of places around a point anywhere, a few km across, some exactly NEAR north, east or both of another,
