@@ -70,7 +70,6 @@ export const inOrder = (networks: string[]) => networks.toSorted((a, b) => rank(
  * their names, and those `hand` joins, but not those it keeps apart; and each place of several Networks' Stations. Each
  * named as `hand` names it, or by its place of the highest tier, then of most Stations, then of the shortest name,
  * without "Barcelona", as people say it.
- * ponytail: every pair, about 130,000 for Catalonia's 518 places, once per track. File them by cell if Spain's are many more.
  */
 export function interchangesOf(places: Tiered[], hand = INTERCHANGES): Interchange[] {
   const parent = new Map(places.map((p) => [p.id, p.id]));
@@ -82,11 +81,26 @@ export function interchangesOf(places: Tiered[], hand = INTERCHANGES): Interchan
   const apart = new Set(hand.apart.flatMap(([a, b]) => [`${a} ${b}`, `${b} ${a}`]));
   const words = places.map((p) => wordsOf(p.name));
   const metres = (a: Tiered, b: Tiered) => Math.hypot((a.lon - b.lon) * 111_195 * Math.cos((a.lat * Math.PI) / 180), (a.lat - b.lat) * 111_195);
+  // Each place filed by its cell, NEAR high and as wide as NEAR is where the places are furthest from the equator, so
+  // that only places in the cells around a place's can be within NEAR of it: every pair took 0.57 s of a phone's join (#838).
+  const [high, wide] = [NEAR / 111_195, NEAR / (111_195 * Math.cos((Math.max(...places.map((p) => Math.abs(p.lat))) * Math.PI) / 180))];
+  const cellOf = places.map((p) => [Math.floor(p.lon / wide), Math.floor(p.lat / high)] as const);
+  const cells = new Map<string, number[]>();
+  cellOf.forEach(([x, y], i) => {
+    const known = cells.get(`${x} ${y}`);
+    if (known) known.push(i);
+    else cells.set(`${x} ${y}`, [i]);
+  });
   places.forEach((a, i) => {
-    for (let j = i + 1; j < places.length; j++) {
-      const b = places[j] as Tiered;
-      if (apart.has(`${a.id} ${b.id}`) || a.networks.some((n) => b.networks.includes(n)) || metres(a, b) > NEAR || ![...(words[i] ?? [])].some((w) => words[j]?.has(w))) continue;
-      parent.set(root(a.id), root(b.id));
+    const [x, y] = cellOf[i] as readonly [number, number];
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (const j of cells.get(`${x + dx} ${y + dy}`) ?? []) {
+          const b = places[j] as Tiered;
+          if (j <= i || a.networks.some((n) => b.networks.includes(n)) || metres(a, b) > NEAR || ![...(words[i] ?? [])].some((w) => words[j]?.has(w)) || apart.has(`${a.id} ${b.id}`)) continue;
+          parent.set(root(a.id), root(b.id));
+        }
+      }
     }
   });
   for (const [a, b] of hand.join) {
@@ -108,6 +122,9 @@ export function interchangesOf(places: Tiered[], hand = INTERCHANGES): Interchan
     return [{ id: `interchange:${ids[0]}`, name, named: named.id, places: ids, networks, lon: group.reduce((s, p) => s + p.lon, 0) / group.length, lat: group.reduce((s, p) => s + p.lat, 0) / group.length, how }];
   });
 }
+
+/** All interchangesOf() reads of the places, in their order: show() makes the interchanges again only when it changes (#838). */
+export const readOf = (places: Tiered[]) => JSON.stringify(places.map((p) => [p.id, p.name, p.networks, p.stations.length, p.lon, p.lat, p.nameZoom]));
 
 /**
  * The Networks whose marks a place is drawn with, and which make it an interchange: its own but those drawn at every
