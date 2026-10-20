@@ -2861,11 +2861,10 @@ function boardOf(id: string): Place | undefined {
   return boards.get(id) ?? shownPlaces.get(id);
 }
 
-/** Shows a place's board, by its ID in places() or its interchange's, following no Train. */
-function showBoard(place: string) {
+/** Shows a place's board, by its ID in places() or its interchange's, following no Train, with a Back to `from`, as to Search where a Search row opens it (openLink(), #699). */
+function showBoard(place: string, from?: typeof back) {
   // An interchange's place's is the interchange's (ADR-0005).
-  // With a Back to Search where a Search row opens it (#699).
-  [following, boardPlace, lineShown, nearMe, searching, favouritesShown, nowShown, passportShown, back] = [undefined, boardOfPlace.get(place) ?? place, undefined, undefined, false, false, false, false, rowOpening?.back];
+  [following, boardPlace, lineShown, nearMe, searching, favouritesShown, nowShown, passportShown, back] = [undefined, boardOfPlace.get(place) ?? place, undefined, undefined, false, false, false, false, from];
   trainSource?.setData(trains());
   openPanel(false);
   writeLink();
@@ -2874,11 +2873,11 @@ function showBoard(place: string) {
 
 /**
  * Shows a Line's screen (#473), by its ID, following no Train, over the map fitted to it above the sheet
- * (fitLine()), its body scrolled to two rows before its first Train, which it opens at.
+ * (fitLine()), its body scrolled to two rows before its first Train, which it opens at, with a Back to `from`, as showBoard() has.
  */
-function showLine(line: string) {
+function showLine(line: string, from?: typeof back) {
   const keyboard = panel.contains(document.activeElement);
-  [following, boardPlace, lineShown, nearMe, searching, favouritesShown, nowShown, passportShown, back] = [undefined, undefined, line, undefined, false, false, false, false, rowOpening?.back];
+  [following, boardPlace, lineShown, nearMe, searching, favouritesShown, nowShown, passportShown, back] = [undefined, undefined, line, undefined, false, false, false, false, from];
   trainSource?.setData(trains());
   openPanel(false);
   writeLink();
@@ -3084,7 +3083,7 @@ function openLink(ring = true) {
   if (line && !station && !train) {
     linkWaits = !(come({ line }, joinedRegions) && lines.has(line) && !!bundle);
     if (linkWaits) want();
-    else showLine(line);
+    else showLine(line, rowOpening?.back);
     return;
   }
   const place = station && [...shownPlaces.values()].find((p) => p.stations.includes(station));
@@ -3097,7 +3096,7 @@ function openLink(ring = true) {
   if (linkWaits) want();
   else if (place) {
     const keyboard = panel.contains(document.activeElement);
-    showBoard(place.id);
+    showBoard(place.id, rowOpening?.back);
     // The keyboard's focus, where it was in the panel, as on the Search row that opened the board (#471), to its title, as what it was on has gone.
     if (keyboard) focusTitle();
     // ponytail: eased before the board's departures come on a page just opened, so on a phone the
