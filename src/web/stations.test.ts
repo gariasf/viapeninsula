@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs';
+import { gunzipSync } from 'node:zlib';
 import { expect, test } from 'vitest';
 import type { Shape, Slot } from '../bundle.ts';
-import { drawnAt, fewer, interchangesOf, markedNetworks, onLines } from './stations.ts';
+import { drawnAt, fewer, interchangesOf, markedNetworks, onLines, type Interchange, type Tiered } from './stations.ts';
 
 /** A place of a Network, `east` and `north` metres from Passeig de Gràcia, named from `nameZoom`. */
 const place = (id: string, name: string, networks: string[], [east, north]: [number, number], nameZoom = 12, stations = [id]) => ({
@@ -51,6 +53,17 @@ test("one Network's places together aren't an interchange, but one place several
     place('adif:15400', 'Matallana', ['cercanias-leon', 'cercanias-bilbao'], [20000, 0]),
   ];
   expect(interchangesOf(places, none)).toEqual([{ id: 'interchange:fgc:MC', name: 'Martorell Central', named: 'fgc:MC', places: ['fgc:MC'], networks: ['rodalies', 'fgc'], lon: places[2]?.lon, lat: places[2]?.lat, how: 'one place' }]);
+});
+
+// Barcelona's and Madrid's places as S2's join shows them on 19 Oct 2026, with their region's, Media Distancia's and long
+// distance's Stations, marked as show() marks them, and the interchanges main made of them then (#838).
+const REAL: { hand: Parameters<typeof interchangesOf>[1] } & Record<'barcelona' | 'madrid', { places: Tiered[]; interchanges: Interchange[] }> = JSON.parse(
+  gunzipSync(readFileSync(new URL('../fixtures/interchanges-2026-10-19.json.gz', import.meta.url))).toString(),
+);
+
+test('a real day\'s places make the same interchanges, ids, names and how, in the same order, as they did comparing every pair', () => {
+  for (const city of ['barcelona', 'madrid'] as const) expect(interchangesOf(REAL[city].places, REAL.hand)).toEqual(REAL[city].interchanges);
+  expect(REAL.barcelona.interchanges).toHaveLength(40);
 });
 
 test("a place is marked by its own Networks, not long distance's or Media Distancia's, unless they're all it has", () => {
