@@ -169,3 +169,13 @@ test("a fit's padding leaves out the map's own, which MapLibre adds to it: after
   // Search's sheet pulled up, higher than the Line's peeking: less than none, as MapLibre adds the two.
   expect(fitPadding({ top: 64, right: 16, bottom: 300, left: 16 }, { bottom: 700 }).bottom).toBe(-400);
 });
+
+test("a fit's padding to end with the map's padding the Line's sheet's leaves the room it wants, its middle where that padding has it (#473)", () => {
+  const [want, has, to] = [{ top: 64, right: 16, bottom: 619, left: 488 }, { top: 0, right: 0, bottom: 700, left: 0 }, { top: 0, right: 0, bottom: 603, left: 472 }];
+  const fit = fitPadding(want, has, to);
+  // As MapLibre has it: the room, the map's own padding and the fit's together; the middle, by the fit's alone.
+  expect(has.top + has.bottom + fit.top + fit.bottom).toBe(want.top + want.bottom);
+  expect(has.left + has.right + fit.left + fit.right).toBe(want.left + want.right);
+  expect(fit.top - fit.bottom).toBe(want.top - to.top - (want.bottom - to.bottom));
+  expect(fit.left - fit.right).toBe(want.left - to.left - (want.right - to.right));
+});

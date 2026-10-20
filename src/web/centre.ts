@@ -20,11 +20,18 @@ export function outsideMiddle(at: { x: number; y: number }, size: { width: numbe
 }
 
 /**
- * The padding to give MapLibre's fitBounds() for the fit to keep `want` px clear on each side, the map's own
- * padding, `has`, being added to it there: after Search, a phone's sheet's padding and the fit's together
- * left the map no room, and it refused to move (#473).
+ * The padding to give MapLibre's cameraForBounds() for a fit that keeps `want` px clear on each side, with the map's
+ * padding `to` once there (#473). MapLibre adds the map's own padding now, `has`, to the fit's, where after Search a
+ * phone's sheet's and the fit's together left the map no room and it refused to move; and it gives the middle for
+ * the map's padding now, which the fit's own offsets move to the middle for `to`.
  */
-export const fitPadding = (want: Padding, has: Partial<Padding>): Padding => ({ top: want.top - (has.top ?? 0), right: want.right - (has.right ?? 0), bottom: want.bottom - (has.bottom ?? 0), left: want.left - (has.left ?? 0) });
+export function fitPadding(want: Padding, has: Partial<Padding>, to: Partial<Padding> = has): Padding {
+  const [h, t] = [{ top: 0, right: 0, bottom: 0, left: 0, ...has }, { top: 0, right: 0, bottom: 0, left: 0, ...to }];
+  // Of a side and its opposite, together the room `want` leaves, and apart the offset from the middle for `to`.
+  const side = (a: keyof Padding, b: keyof Padding) => [want[a] - (h[a] + h[b] + t[a] - t[b]) / 2, want[b] - (h[a] + h[b] - t[a] + t[b]) / 2];
+  const [[top, bottom], [left, right]] = [side('top', 'bottom'), side('left', 'right')];
+  return { top: top!, right: right!, bottom: bottom!, left: left! };
+}
 
 /** The part of a MapLibre event that tells what moved the map. */
 interface Moved {
