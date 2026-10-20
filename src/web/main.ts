@@ -31,7 +31,7 @@ import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, t
 import { currentTab, type Tab } from './tabs.ts';
 import { favouriteRows, favourites, type Favourite } from './favourites.ts';
 import { passport, rideOf, rideStep, stamps, totals, type Ride, type RideNow, type Stamp } from './passport.ts';
-import { keyboardRise, networkNames, numbered, numberQuery, results, searchPlaces, type Found, type FoundLine } from './search.ts';
+import { keyboardRise, networkNames, numbered, numberQuery, ofToday, results, searchPlaces, type Found, type FoundLine } from './search.ts';
 import { cancelledNow, lineState, lineStrip, onStrip, type StripStation } from './line.ts';
 import { alertedLines, byStretch, firstAndLast, METRO, racksAndFuniculars, toAndFromFrance, whatsWrong, type Troubled } from './now.ts';
 import { opensInNewTab, putHtml } from './newTab.ts';
@@ -4423,7 +4423,7 @@ function followedCountdown(at: number, now: number): Node[] {
  * something's typed, under a heading for a screen reader; and under it, while it's empty, what it finds
  * (searchHints()), or what it finds for what's typed, section by section (results()), or that it finds
  * nothing: Lines and Stations from the file below zoom 7, every region's, and Train numbers from the Trips of the
- * regions the map has loaded, with where each one's Train is now (tripsAt()).
+ * regions the map has loaded, with where each one's Train is now (tripsAt()), but another service day's that have ended (ofToday(), #700).
  */
 function searchPanel(): Panel {
   // Not by el(), whose Partial<HTMLInputElement> is a union too large for tsc, with an input's `autocomplete`.
@@ -4453,7 +4453,9 @@ function searchPanel(): Panel {
   const header = el('header', {}, el('h2', { className: 'sr-only', textContent: t('search') }), form, closeButton(t('closeSearch')));
   if (!query.trim()) return { header, body: searchHints() };
   const trips = bundle ? numbered(bundle.trips, query) : [];
-  const sections = results(query, searched, bundle && trips.length ? tripsAt(bundle, Date.now(), received, trips, hidingClosures) : [], [...searchedLines.values()]);
+  // But another service day's ended, as the day before's after midnight (#700).
+  const found = bundle && trips.length ? ofToday(tripsAt(bundle, Date.now(), received, trips, hidingClosures), serviceToday ?? bundle.serviceDay, bundle.serviceDay) : [];
+  const sections = results(query, searched, found, [...searchedLines.values()]);
   if (!sections.length) return { header, body: [el('p', { className: 'empty', textContent: t('nothingFound').replace('{query}', query.trim()) })] };
   return { header, body: sections.flatMap((section) => ('lines' in section ? lineResults(section.lines) : 'places' in section ? stationResults(section.places) : trainResults(section))) };
 }

@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import type { Kind, ManifestRegion, Point, Trip, ZoomedOut } from '../bundle.ts';
 import type { Coming, Followed, TripNow } from '../engine.ts';
 import { regionsNeeded } from './regions.ts';
-import { findLines, findPlaces, keyboardRise, networkNames, numbered, results, searchPlaces } from './search.ts';
+import { findLines, findPlaces, keyboardRise, networkNames, numbered, ofToday, results, searchPlaces } from './search.ts';
 
 /** Some Lines of 12 Oct 2026, as the file below zoom 7 lists them: their IDs, Networks, names and kinds of service. */
 const LINES: [id: string, kind: Kind][] = [
@@ -211,4 +211,14 @@ test("finds a Line by the start of its name, its hyphens and spaces aside, in th
   const sections = results('r4', PLACES, [], FILE.lines).map((s) => Object.keys(s)[0]);
   expect(sections).toEqual(['lines']);
   expect(results('girona', PLACES, [], FILE.lines).map((s) => Object.keys(s)[0])).toEqual(['places']);
+});
+
+test("leaves out the day before's ended Trips found by number, which the map holds after midnight, and keeps its running ones, today's ended and the next day's (#700)", () => {
+  // 12 Oct 2026 at 04:03, as #700's `774`, with 11 Oct's Trips still on the map, their IDs led by their day (joinDays()), and 13 Oct's as a board with no departures left loads them.
+  const day = (on: string, now: TripNow): TripNow => ({ ...now, trip: { ...now.trip, id: `${on}/${now.trip.id}` } });
+  const found = [day('2026-10-11', at('ended', '77402')), day('2026-10-11', at('running', '77490')), day('2026-10-11', at('cancelled', '77436')), at('ended', '77404'), at('leaving', '77440')];
+  const numbers = (trains: TripNow[], today: string, latest: string) => ofToday(trains, today, latest).map(({ trip }) => trip.number);
+  expect(numbers(found, '2026-10-12', '2026-10-12')).toEqual(['77490', '77436', '77404', '77440']);
+  // At 23:30 on 12 Oct, with 13 Oct's Trips too, whose IDs aren't led by their day: 12 Oct's ended stay, as it stands for today.
+  expect(numbers([day('2026-10-12', at('ended', '77406')), at('leaving', '77440')], '2026-10-12', '2026-10-13')).toEqual(['77406', '77440']);
 });
