@@ -1,6 +1,6 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
-import type { BackgroundLayerSpecification, CircleLayerSpecification, ExpressionFilterSpecification, ExpressionSpecification, FontFacesSpecification, InterpolationSpecification, LineLayerSpecification, ProjectionSpecification, StyleSpecification, SymbolLayerSpecification } from '@maplibre/maplibre-gl-style-spec';
+import type { BackgroundLayerSpecification, CircleLayerSpecification, ExpressionFilterSpecification, ExpressionSpecification, FontFacesSpecification, LineLayerSpecification, ProjectionSpecification, StyleSpecification, SymbolLayerSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { addProtocol, MapLibreMap, Popup, setWorkerUrl, type GeoJSONSource, type LngLat, type VectorTileSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import nunitoSans from '@fontsource/nunito-sans/files/nunito-sans-latin-400-normal.woff2?url';
@@ -871,16 +871,8 @@ let lineShown: string | undefined;
 let showCancelled = false;
 /** A Line's strip, for the Line and the days on the map it was made from (lineStrip()), as they change only as the days do. */
 let stripOf: { line?: string; days?: Bundle; trips: Trip[]; strip: StripStation[] } = { trips: [], strip: [] };
-/**
- * How the map shows the Line whose screen it is (#473): by its glow, under its stroke, or by its stroke raised over
- * the others', which fade. Both go to the maintainer's pick on screenshots, by the page's `?look=raise`.
- * ponytail: a query of the page's own, which no link writes; drop the one not picked.
- */
-const LOOK: 'glow' | 'raise' = new URLSearchParams(location.search).get('look') === 'raise' ? 'raise' : 'glow';
-/** The Line the map shows so, by its ID, or none (showLook()). */
+/** The Line the map shows by its glow, the Line whose screen it is (#473), by its ID, or none (showLook()). */
 let lookOf: string | undefined;
-/** Each stroke layer's own opacity and sort key, as the map had them before it raised a Line over the others (showLook()). */
-const raised: Record<string, { opacity: ExpressionSpecification; sort: ExpressionSpecification }> = {};
 /** The last day, by the date of the day that stood for today (`serviceToday`), that a Station board had no departures left, when the map needs the next day's Trips for it. */
 let emptyBoard: string | undefined;
 /** The date of the day that stands for today in the days the map last needed (daysNeeded()): the day before, after midnight, until today's first Train is SOON (#659). */
@@ -1280,10 +1272,8 @@ const fadedBy = (stops: [zoom: number, opacity: number][]) => byZoom(stops, (opa
 const railsZoom = APART.at(-1)?.[0] ?? 15;
 const stretchesFade = fadedBy([[railsZoom - FADE, 1], [railsZoom + FADE, 0]]);
 const railsFade = fadedBy([[railsZoom - FADE, 0], [railsZoom + FADE, 1]]);
-/** How much wider than its stroke the glow under the Line whose screen it is is, in px, and how opaque (#473, LOOK). */
+/** How much wider than its stroke the glow under the Line whose screen it is is, in px, and how opaque (#473). */
 const [GLOW_WIDTH, GLOW] = [12, 0.45];
-/** How opaque the other Lines' strokes are, of what they were, while the Line whose screen it is is raised over them (#473, LOOK). */
-const FADED = 0.25;
 /** Along their stretches, Lines are shown through neither while they slide onto the rails nor while they fade. */
 const stretchesThrough = byZoom([[14, 1], [14.1, 0]], (opacity) => opacity);
 map.addLayer(
@@ -1351,22 +1341,20 @@ for (const { source, id, prefix, zooms, nameZooms, opacity, throughOpacity, belo
       below,
     );
   }
-  // The glow under the Line whose screen it is (#473, LOOK), under every band's casing, of none till one is shown (showLook()).
-  if (LOOK === 'glow') {
-    map.addLayer(
-      {
-        id: `${id}-glow`,
-        type: 'line',
-        source,
-        'source-layer': source,
-        ...zooms,
-        filter: ['all', zooms.filter, ['==', ['get', 'line'], '']],
-        layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: { 'line-color': ['get', 'colour'], 'line-width': lineWidth(GLOW_WIDTH), 'line-blur': GLOW_WIDTH / 2, 'line-offset': lineOffset, 'line-opacity': byZoom(source === 'rails' ? [[railsZoom - FADE, 0], [railsZoom + FADE, GLOW]] : [[railsZoom - FADE, GLOW], [railsZoom + FADE, 0]], (o) => o) },
-      },
-      `${prefix}-casing`,
-    );
-  }
+  // The glow under the Line whose screen it is (#473), under every band's casing, of none till one is shown (showLook()).
+  map.addLayer(
+    {
+      id: `${id}-glow`,
+      type: 'line',
+      source,
+      'source-layer': source,
+      ...zooms,
+      filter: ['all', zooms.filter, ['==', ['get', 'line'], '']],
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': ['get', 'colour'], 'line-width': lineWidth(GLOW_WIDTH), 'line-blur': GLOW_WIDTH / 2, 'line-offset': lineOffset, 'line-opacity': byZoom(source === 'rails' ? [[railsZoom - FADE, 0], [railsZoom + FADE, GLOW]] : [[railsZoom - FADE, GLOW], [railsZoom + FADE, 0]], (o) => o) },
+    },
+    `${prefix}-casing`,
+  );
   // Over its own stroke, in its own colour, it doesn't show: only where another Line covers it. Not
   // where Lines on one level cover each other: crowded, or sliding onto the rails.
   map.addLayer(
@@ -2860,26 +2848,10 @@ function fitLine() {
   );
 }
 
-/**
- * Shows the Line whose screen it is on the map, or none (#473), as LOOK has it: its glow under it in every band and
- * on the rails, or its stroke and casing raised over the others', whose strokes fade to FADED of what they were.
- * ponytail: the raise lays the Lines' tiles out again, its sort key being a layout property; once per Line shown.
- */
+/** Shows the Line whose screen it is on the map, or none (#473): its glow under it in every band and on the rails. */
 function showLook(line: string | undefined) {
   lookOf = line;
-  const it: ExpressionSpecification = ['==', ['get', 'line'], line ?? ''];
-  if (LOOK === 'glow') {
-    for (const { id, zooms } of layered) map.setFilter(`${id}-glow`, ['all', zooms.filter, it]);
-    return;
-  }
-  const strokes = layered.flatMap(({ source, id, prefix }) => (source === 'lines' ? ['', CURVE] : ['']).flatMap((suffix) => [`${id}${suffix}`, `${prefix}-casing${suffix}`]));
-  for (const id of strokes) {
-    const kept = (raised[id] ??= { opacity: map.getPaintProperty(id, 'line-opacity') as ExpressionSpecification, sort: map.getLayoutProperty(id, 'line-sort-key') as ExpressionSpecification });
-    const [, interpolation, zoom, ...stops] = kept.opacity as ['interpolate', InterpolationSpecification, ExpressionSpecification, ...ExpressionSpecification[]];
-    const faded = ['interpolate', interpolation, zoom, ...stops.map((v, i) => (i % 2 ? ['case', it, v, ['*', FADED, v]] : v))] as ExpressionSpecification;
-    map.setPaintProperty(id, 'line-opacity', line ? faded : kept.opacity);
-    map.setLayoutProperty(id, 'line-sort-key', line ? ['case', it, 1e9, kept.sort] : kept.sort);
-  }
+  for (const { id, zooms } of layered) map.setFilter(`${id}-glow`, ['all', zooms.filter, ['==', ['get', 'line'], line ?? '']]);
 }
 
 /**
