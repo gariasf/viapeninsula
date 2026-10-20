@@ -3838,7 +3838,7 @@ function linePanel(id: string): Panel | undefined {
     ...(cancelled.length ? [chip('cancelled', [cancelledCount(cancelled.length)], showCancelled, () => (showCancelled = !showCancelled))] : []),
     ...(shown.alerts.length ? [chip('warn', [icon('warning'), alertCount(shown.alerts.length)], showAlerts, () => (showAlerts = !showAlerts))] : []),
   ];
-  const first = (n: TripNow) => bundle && bundle.noonMinus12h + (n.trip.calls[0]?.departure ?? 0) * 1000;
+  const { noonMinus12h } = bundle;
   return {
     header: el(
       'header',
@@ -3857,7 +3857,7 @@ function linePanel(id: string): Panel | undefined {
       el(
         'div',
         { className: 'line-details', hidden: !((showCancelled && cancelled.length) || (showAlerts && shown.alerts.length)) },
-        el('div', { hidden: !(showCancelled && cancelled.length) }, el('h3', { className: 'label', textContent: t('cancelled') }), el('ol', { className: 'rows' }, ...cancelled.map((n) => departureRow({ trip: n.trip, station: n.trip.calls[0]?.station ?? '', departure: first(n) ?? 0, live: false, unreported: false, cancelled: true, skipped: false }, mapNow)))),
+        el('div', { hidden: !(showCancelled && cancelled.length) }, el('h3', { className: 'label', textContent: t('cancelled') }), el('ol', { className: 'rows' }, ...cancelled.map(({ trip }) => departureRow({ trip, station: trip.calls[0]?.station ?? '', departure: noonMinus12h + (trip.calls[0]?.departure ?? 0) * 1000, live: false, unreported: false, cancelled: true, skipped: false }, mapNow)))),
         el('div', { className: 'alerts', hidden: !(showAlerts && shown.alerts.length) }, readAt(shown.asOf, shown.changed, mapNow), el('ol', {}, ...shown.alerts.map((alert) => alertRow(alert, false)))),
       ),
       el('h3', { className: 'label', textContent: t('stations') }),
