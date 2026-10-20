@@ -96,10 +96,14 @@ test("A Line's Trains are rows on its strip after the Station they're between it
 });
 
 test("A Line's state: how many Trains now, how many 5 minutes late or more and the worst, or none now", () => {
-  expect(lineState([running(R4, 2, { delay: 290 }), running(R4, 2, { delay: 1210 }), running(R4, 2, { delay: 300 })])).toEqual({ trains: 3, late: 2, worst: 20, live: true });
+  expect(lineState([running(R4, 2, { delay: 269 }), running(R4, 2, { delay: 1210 }), running(R4, 2, { delay: 300 })])).toEqual({ trains: 3, late: 2, worst: 20, live: true });
   // None late: no worst.
   expect(lineState([running(R4, 2, { delay: 120 })])).toEqual({ trains: 1, late: 0, live: true });
   expect(lineState([])).toEqual({ trains: 0, late: 0, live: false });
+});
+
+test("A Train is late as its chip shows it, +5 min or more, rounded to the minute: R16 18129 at 4 min 53 s is, 4 min 29 s isn't (#474)", () => {
+  expect(lineState([running(R4, 2, { delay: 293 }), running(R4, 2, { delay: 269 }), running(R4, 2, { delay: 270 })])).toMatchObject({ late: 2, worst: 5 });
 });
 
 test("A Network whose live data is unavailable has its Line's Trains all Scheduled", () => {

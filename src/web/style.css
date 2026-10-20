@@ -105,7 +105,7 @@ body {
   color: var(--ink);
 }
 
-:is(.legend, .fab, .tab, .close, .handle, .more, .fold) {
+:is(.legend, .fab, .die-row, .tab, .close, .handle, .more, .fold) {
   padding: 0;
   border: 0;
   background: none;
@@ -115,7 +115,7 @@ body {
 }
 
 /* The outline again, for the buttons that are cards. */
-:is(.legend, .fab).card {
+:is(.legend, .fab, .die-row).card {
   border: var(--edge);
   background: var(--card);
 }
@@ -370,7 +370,7 @@ body {
   pointer-events: auto;
 }
 
-/* The random follow's die, nearest the thumb, with Tilt and Centre over it. */
+/* Tilt, with Centre under it, nearest the thumb. */
 .fabs {
   display: flex;
   flex-direction: column;
@@ -456,14 +456,14 @@ body {
   overflow: hidden;
 }
 
-/* 62% of the screen, but on a phone shorter than 821 px no more than leaves room over it for the column riding on it, so that Tilt never reaches the language chip: the bar and the 8 px under and over it, and 232 px for Tilt, Centre and the die (164 px), the 12 px under them, and 8 px under the corners' row (48 px) (#470). The die's 58 px go when Now has it (#474). */
+/* 62% of the screen, but on a phone shorter than 668 px no more than leaves room over it for the column riding on it, so that Tilt never reaches the language chip: the bar and the 8 px under and over it, and 174 px for Tilt and Centre (106 px), the 12 px under them, and 8 px under the corners' row (48 px) (#470); the die is Now's (#474). */
 .sheet {
-  max-height: min(62dvh, 100dvh - var(--bar) - 248px);
+  max-height: min(62dvh, 100dvh - var(--bar) - 190px);
   border-radius: 18px;
 }
 
 .sheet.up {
-  height: min(62dvh, 100dvh - var(--bar) - 248px);
+  height: min(62dvh, 100dvh - var(--bar) - 190px);
 }
 
 .sliding {
@@ -1685,6 +1685,77 @@ button.fav-row {
 
 .alerts li .meta {
   margin-top: 2px;
+}
+
+/* Now (#474): the die as a row under the moment; each Network in trouble under a hairline, its name beside its chip; the quiet Networks' line; a Closure's Lines' pills, as many as it has; and What's notable's sections, a small label each. */
+.die-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  margin-top: 10px;
+  padding: 0 14px;
+  border-radius: 24px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.die-row:disabled {
+  color: var(--ink-soft);
+  cursor: default;
+}
+
+.nets > li {
+  padding: 8px 0 4px;
+  border-top: 1px solid var(--hairline);
+}
+
+.net-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 8px;
+}
+
+.net-name {
+  margin: 0;
+  font-size: 16px;
+}
+
+.chip.warn {
+  padding: 0 8px;
+  border: 1px solid var(--warn-rule);
+  border-radius: 5px;
+  background: var(--warn);
+  color: var(--warn-ink);
+  font: 700 12px/18px var(--font);
+}
+
+.quiet {
+  margin: 8px 0;
+}
+
+.result.closure {
+  grid-template-columns: auto 1fr;
+}
+
+.lead.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 120px;
+}
+
+.result.plain {
+  grid-template-columns: 1fr;
+  min-height: 0;
+}
+
+.sub-label {
+  margin: 10px 0 2px;
+  font-size: 14px;
 }
 
 /* Nearby's Try again, under its message where the browser won't say where the viewer is: a card's outline round a pill as tall as the legend's (#324). */

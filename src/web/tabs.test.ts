@@ -15,6 +15,11 @@ test("marks Favourites' tab current while the panel shows Favourites (#472)", ()
   expect(currentTab({ boardPlace: 'adif:71801', favouritesShown: true })).toBeUndefined();
 });
 
+test("marks Now's tab current while the panel shows Now (#474)", () => {
+  expect(currentTab({ nowShown: true })).toBe('now');
+  expect(currentTab({ lineShown: 'rodalies:R2S', nowShown: true })).toBeUndefined();
+});
+
 test('marks no tab current while the panel shows a followed Train or a board, though one opened from Nearby has a Back to it (#322), nor while it shows nothing', () => {
   expect(currentTab({ following: { day: '2026-10-11', trip: 'rodalies:R2_77001' } })).toBeUndefined();
   expect(currentTab({ boardPlace: 'adif:71801' })).toBeUndefined();
