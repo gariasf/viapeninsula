@@ -219,6 +219,45 @@ const STRINGS = {
   noneLate: { ca: 'cap amb retard', es: 'ninguno con retraso', eu: 'bat ere ez atzeratuta', gl: 'ningún con atraso', en: 'none late' },
   loading: { ca: 'Carregant…', es: 'Cargando…', eu: 'Kargatzen…', gl: 'Cargando…', en: 'Loading…' },
   noLongerOnMap: { ca: 'Ja no és al mapa', es: 'Ya no está en el mapa', eu: 'Jada ez dago mapan', gl: 'Xa non está no mapa', en: 'No longer on the map' },
+  // The Passport (#332), which its tab opens: the button that closes it; what it says while off, or with no Rides, and its switch; where it's kept, and what erases it; Clear, which erases it
+  // and turns it off; its sections; how many Rides, and Stations called at; how many of a group's Stamps are earned; the followed Train's card while it's a Ride; the note as a Ride earns a Stamp, {name} its Line's, kind's or Network's.
+  passport: { ca: 'Passaport', es: 'Pasaporte', eu: 'Pasaportea', gl: 'Pasaporte', en: 'Passport' },
+  closePassport: { ca: 'Tanca el Passaport', es: 'Cerrar el Pasaporte', eu: 'Itxi Pasaportea', gl: 'Pechar o Pasaporte', en: 'Close the Passport' },
+  noRides: { ca: 'Encara no hi ha cap viatge.', es: 'Aún no hay ningún viaje.', eu: 'Oraindik ez dago bidaiarik.', gl: 'Aínda non hai ningunha viaxe.', en: 'No Rides yet.' },
+  rideExplained: {
+    ca: "Segueix un tren des de la primera estació, abans que surti o en el primer minut, fins a l'última, en directe o programat: el viatge guanya un segell per a la línia, el tipus de servei i la xarxa, ple si l'has vist en directe almenys un cop i buit si no.",
+    es: 'Sigue un tren desde la primera estación, antes de que salga o en el primer minuto, hasta la última, en directo o programado: el viaje gana un sello para la línea, el tipo de servicio y la red, lleno si lo has visto en directo al menos una vez y vacío si no.',
+    eu: 'Jarraitu tren bati lehen geltokitik, irten aurretik edo lehen minutuan, azkenekoraino, zuzenean edo programatuta: bidaiak zigilu bat irabazten du linearentzat, zerbitzu motarentzat eta sarearentzat, betea gutxienez behin zuzenean ikusi baduzu, eta hutsa bestela.',
+    gl: 'Segue un tren desde a primeira estación, antes de que saia ou no primeiro minuto, ata a última, en directo ou programado: a viaxe gaña un selo para a liña, o tipo de servizo e a rede, cheo se o viches en directo polo menos unha vez e baleiro se non.',
+    en: "Follow a Train from its first Station, before it leaves or within a minute, to its last, Live or Scheduled: the Ride earns a stamp for its Line, its kind of service and its Network, filled if you saw it Live at least once, and ringed if not.",
+  },
+  turnOnPassport: { ca: 'Activa el Passaport', es: 'Activar el Pasaporte', eu: 'Aktibatu Pasaportea', gl: 'Activar o Pasaporte', en: 'Turn on the Passport' },
+  passportKept: {
+    ca: "Només es desa en aquest navegador. S'esborra si esborres les dades del lloc, en tancar una finestra privada i, a Safari, després de 7 dies sense visitar-lo.",
+    es: 'Solo se guarda en este navegador. Se borra si borras los datos del sitio, al cerrar una ventana privada y, en Safari, tras 7 días sin visitarlo.',
+    eu: 'Nabigatzaile honetan bakarrik gordetzen da. Ezabatu egiten da gunearen datuak ezabatzen badituzu, leiho pribatu bat ixtean eta, Safarin, 7 egunez bisitatu gabe egon ondoren.',
+    gl: 'Só se garda neste navegador. Bórrase se borras os datos do sitio, ao pechar unha xanela privada e, en Safari, tras 7 días sen visitalo.',
+    en: "Kept only in this browser. Clearing the site's data erases it, as does closing a private window, and Safari after 7 days without a visit.",
+  },
+  clearPassport: { ca: 'Esborra el Passaport', es: 'Borrar el Pasaporte', eu: 'Ezabatu Pasaportea', gl: 'Borrar o Pasaporte', en: 'Clear the Passport' },
+  stamps: { ca: 'Segells', es: 'Sellos', eu: 'Zigiluak', gl: 'Selos', en: 'Stamps' },
+  rides: { ca: 'Viatges', es: 'Viajes', eu: 'Bidaiak', gl: 'Viaxes', en: 'Rides' },
+  kindsOfService: { ca: 'Tipus de servei', es: 'Tipos de servicio', eu: 'Zerbitzu motak', gl: 'Tipos de servizo', en: 'Kinds of service' },
+  stationsCalledAt: { ca: 'Estacions on ha parat', es: 'Estaciones donde ha parado', eu: 'Gelditu den geltokiak', gl: 'Estacións onde parou', en: 'Stations called at' },
+  oneRide: { ca: '{n} viatge', es: '{n} viaje', eu: 'Bidaia bat', gl: '{n} viaxe', en: '{n} Ride' },
+  ridesCount: { ca: '{n} viatges', es: '{n} viajes', eu: '{n} bidaia', gl: '{n} viaxes', en: '{n} Rides' },
+  oneStationCalled: { ca: '{n} estació', es: '{n} estación', eu: 'Geltoki bat', gl: '{n} estación', en: '{n} station' },
+  stationsCalled: { ca: '{n} estacions', es: '{n} estaciones', eu: '{n} geltoki', gl: '{n} estacións', en: '{n} stations' },
+  earnedOf: { ca: '{n} de {of}', es: '{n} de {of}', eu: '{of}tik {n}', gl: '{n} de {of}', en: '{n} of {of}' },
+  rideUnderWay: { ca: 'Viatge en curs per al Passaport', es: 'Viaje en curso para el Pasaporte', eu: 'Bidaia abian Pasaporterako', gl: 'Viaxe en curso para o Pasaporte', en: 'Ride under way for the Passport' },
+  stampEarned: { ca: 'Segell guanyat: {name}', es: 'Sello ganado: {name}', eu: 'Zigilua irabazita: {name}', gl: 'Selo gañado: {name}', en: 'Stamp earned: {name}' },
+  commuter: { ca: 'Rodalia', es: 'Cercanías', eu: 'Aldiriak', gl: 'Proximidade', en: 'Commuter' },
+  regional: { ca: 'Regional', es: 'Regional', eu: 'Eskualdekoa', gl: 'Rexional', en: 'Regional' },
+  'long-distance': { ca: 'Llarga distància', es: 'Larga distancia', eu: 'Distantzia luzea', gl: 'Longa distancia', en: 'Long distance' },
+  metro: { ca: 'Metro', es: 'Metro', eu: 'Metroa', gl: 'Metro', en: 'Metro' },
+  tram: { ca: 'Tramvia', es: 'Tranvía', eu: 'Tranbia', gl: 'Tranvía', en: 'Tram' },
+  rack: { ca: 'Cremallera', es: 'Cremallera', eu: 'Kremailera', gl: 'Cremalleira', en: 'Rack railway' },
+  funicular: { ca: 'Funicular', es: 'Funicular', eu: 'Funikularra', gl: 'Funicular', en: 'Funicular' },
   // Now's sheet, which its tab opens (#474): the button that closes it; its sections, What's wrong with what late means, and each Network in trouble's chip where its live data is unavailable;
   // the Networks with nothing wrong, after a colon, and that the Metro has none to show; under a Network's Lines, how many more of them have Trains late or Cancelled, {n}; a Line's row,
   // {n} of its {m} Trains late, and {n} of them with no live data; a Network's Trains, {n} Scheduled with no live data; the Closures' rows; What's notable's sections, a first and last row's
@@ -641,6 +680,18 @@ export const trainsNow = (n: number, lang = language()): string => (n ? counting
 
 /** What the star beside a Station or a Line, by its `name`, does at a press (#472): keeps it in Favourites, or removes it where it's `kept`, in `lang`, or else the language the interface speaks now. */
 export const starLabel = (name: string, kept: boolean, lang = language()): string => STRINGS[kept ? 'removeFavourite' : 'addFavourite'][lang].replace('{name}', name);
+
+/** That a Ride has earned the Stamps named `names` (#332), in `lang`, or else the language the interface speaks now. */
+export const stampEarned = (names: string, lang = language()): string => STRINGS.stampEarned[lang].replace('{name}', names);
+
+/** How many Rides a Passport has, `n` (#332), in `lang`, or else the language the interface speaks now. */
+export const ridesCount = (n: number, lang = language()): string => counting(n, 'oneRide', 'ridesCount', lang);
+
+/** How many Stations a Passport's Rides called at, `n` (#332), in `lang`, or else the language the interface speaks now. */
+export const stationsCalled = (n: number, lang = language()): string => counting(n, 'oneStationCalled', 'stationsCalled', lang);
+
+/** How many of a group's `of` Stamps are earned, `n` (#332), in `lang`, or else the language the interface speaks now. */
+export const earnedOf = (n: number, of: number, lang = language()): string => STRINGS.earnedOf[lang].replace('{n}', String(n)).replace('{of}', String(of));
 
 /** How many of a Line's Trains are 5 minutes late or more, `n` (#473), in `lang`, or else the language the interface speaks now. */
 export const lateCount = (n: number, lang = language()): string => STRINGS.lateCount[lang].replace('{n}', String(n));

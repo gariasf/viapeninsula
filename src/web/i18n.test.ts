@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { createExpression, latest, type ExpressionSpecification, type Feature, type StylePropertySpecification } from '@maplibre/maplibre-gl-style-spec';
 import { afterEach, expect, test, vi } from 'vitest';
-import { alertCount, alertsChanged, networkCounts, firstLeaves, lastArrives, lateOf, moreAlerts, moreLines, unreportedCount, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, cancelledCount, earlierStations, branchOff, endsHere, goOn, standingAt, trainsNow, turnsHere, followDeparture, LANGUAGES, leavesAt, leavingStation, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, pickLanguage, placedBy, setNameLanguages, starLabel, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated } from './i18n.ts';
+import { earnedOf, ridesCount, stationsCalled, alertCount, alertsChanged, networkCounts, firstLeaves, lastArrives, lateOf, moreAlerts, moreLines, unreportedCount, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, cancelledCount, earlierStations, branchOff, endsHere, goOn, standingAt, trainsNow, turnsHere, followDeparture, LANGUAGES, leavesAt, leavingStation, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, pickLanguage, placedBy, setNameLanguages, starLabel, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated } from './i18n.ts';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -789,4 +789,14 @@ test("keeps the article of a Station's name in another language than the sentenc
   } finally {
     setNameLanguages([], []);
   }
+});
+
+test("names the Passport's tab, counts its Rides, Stations and Stamps, and says where it's kept, in each language (#332)", () => {
+  const strings = (lang: Language) => [t('passport', lang), ridesCount(1, lang), ridesCount(3, lang), stationsCalled(1, lang), stationsCalled(12, lang), earnedOf(2, 9, lang)];
+  expect(strings('ca')).toEqual(['Passaport', '1 viatge', '3 viatges', '1 estació', '12 estacions', '2 de 9']);
+  expect(strings('es')).toEqual(['Pasaporte', '1 viaje', '3 viajes', '1 estación', '12 estaciones', '2 de 9']);
+  expect(strings('eu')).toEqual(['Pasaportea', 'Bidaia bat', '3 bidaia', 'Geltoki bat', '12 geltoki', '9tik 2']);
+  expect(strings('gl')).toEqual(['Pasaporte', '1 viaxe', '3 viaxes', '1 estación', '12 estacións', '2 de 9']);
+  expect(strings('en')).toEqual(['Passport', '1 Ride', '3 Rides', '1 station', '12 stations', '2 of 9']);
+  expect(t('passportKept', 'en')).toBe("Kept only in this browser. Clearing the site's data erases it, as does closing a private window, and Safari after 7 days without a visit.");
 });
