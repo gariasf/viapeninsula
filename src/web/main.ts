@@ -2836,8 +2836,9 @@ function showLine(line: string) {
 function fitLine() {
   const at = new Set(stripOf.strip.map((s) => s.station));
   const points = (shownStations ?? []).filter((s) => at.has(s.id)).map((s): Point => [s.lon, s.lat]);
-  if (!points.length) return;
-  const [lons, lats, box, padding] = [points.map((p) => p[0]), points.map((p) => p[1]), map.getContainer().getBoundingClientRect(), panelPadding()];
+  const padding = panelPadding();
+  if (!points.length) return void map.easeTo({ padding });
+  const [lons, lats, box] = [points.map((p) => p[0]), points.map((p) => p[1]), map.getContainer().getBoundingClientRect()];
   // Over the sheet on a phone, or the credits' strip on a wide window, not over the buttons riding on them, which a tap's popup keeps clear of.
   const want = { ...clearOfCards(), bottom: box.bottom - Math.min(box.bottom, (wide.matches ? creditsStrip : panel).getBoundingClientRect().top) + GUTTER };
   const fit = map.cameraForBounds(
@@ -2847,8 +2848,9 @@ function fitLine() {
     ],
     { padding: fitPadding(want, map.getPadding(), padding), maxZoom: FOLLOW_ZOOM },
   );
-  // With the map's padding the Line's sheet's, not Search's, as the panel's other screens have theirs.
+  // With the map's padding the Line's sheet's, not Search's, as the panel's other screens have theirs, fitted or not.
   if (fit) map.flyTo({ ...fit, pitch: 0, padding });
+  else map.easeTo({ padding });
 }
 
 /** Shows the Line whose screen it is on the map, or none (#473): its glow under it in every band and on the rails. */

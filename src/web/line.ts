@@ -34,8 +34,8 @@ export interface StripStation {
 /**
  * A Line's Stations in order, as one strip (#473), from its Trips of the day: along its longest Trip, each other
  * Trip's Stations it doesn't call at put where that Trip has them, between those it shares, and those beyond a
- * Station where it leaves the strip, as R16's to Ulldecona from L'Aldea-Amposta-Tortosa, at the strip's nearer end,
- * as a spur, which says so where it forks. A Trip that calls at a Station twice, as one that turns back, counts it once. One strip, never two
+ * Station where it leaves the strip, as R16's to Ulldecona from L'Aldea-Amposta-Tortosa, at the strip's nearer
+ * end, as a spur, which says so where it forks. A Trip that calls at a Station twice, as one that turns back, counts it once. One strip, never two
  * columns: a run beyond an end whose Trips are no more than SPUR of the Station before it is a spur, dashed.
  */
 export function lineStrip(trips: Pick<Trip, 'calls'>[]): StripStation[] {
@@ -67,7 +67,7 @@ export function lineStrip(trips: Pick<Trip, 'calls'>[]): StripStation[] {
       }
       prev = order.indexOf(s);
     }
-    if (prev === undefined || prev >= order.length / 2 - 1) put(buffer, order[prev ?? -1], true);
+    if (prev === undefined || prev >= order.length / 2 - 1) put(buffer, prev === undefined ? undefined : order[prev], true);
     else put(buffer.toReversed(), order[prev], false);
   }
   const strip: StripStation[] = order.map((station) => ({ station, calls: 0, turns: 0 }));

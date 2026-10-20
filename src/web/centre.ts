@@ -28,9 +28,9 @@ export function outsideMiddle(at: { x: number; y: number }, size: { width: numbe
 export function fitPadding(want: Padding, has: Partial<Padding>, to: Partial<Padding> = has): Padding {
   const [h, t] = [{ top: 0, right: 0, bottom: 0, left: 0, ...has }, { top: 0, right: 0, bottom: 0, left: 0, ...to }];
   // Of a side and its opposite, together the room `want` leaves, and apart the offset from the middle for `to`.
-  const side = (a: keyof Padding, b: keyof Padding) => [want[a] - (h[a] + h[b] + t[a] - t[b]) / 2, want[b] - (h[a] + h[b] - t[a] + t[b]) / 2];
+  const side = (a: keyof Padding, b: keyof Padding): [number, number] => [want[a] - (h[a] + h[b] + t[a] - t[b]) / 2, want[b] - (h[a] + h[b] - t[a] + t[b]) / 2];
   const [[top, bottom], [left, right]] = [side('top', 'bottom'), side('left', 'right')];
-  return { top: top!, right: right!, bottom: bottom!, left: left! };
+  return { top, right, bottom, left };
 }
 
 /** The part of a MapLibre event that tells what moved the map. */
