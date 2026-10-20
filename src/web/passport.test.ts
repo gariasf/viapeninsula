@@ -30,6 +30,9 @@ test('starts a Ride on a Train followed before it leaves its first Station, or w
   expect(step(undefined, train(['girona', 'portbou', 'cerbere']), 28_870).riding).toBeUndefined();
   // Running two minutes late, it left at 08:02, so a follow at 08:02:50 is within the minute.
   expect(step(undefined, train(['girona', 'portbou', 'cerbere'], false, 120), 28_970).riding).toEqual({ key: KEY, live: false });
+  // A Trip that ends where it began, as a loop does, followed partway round, is late too.
+  const loop: Trip = { ...TRIP, calls: [...TRIP.calls.slice(0, 2), { ...TRIP.calls[0]!, arrival: 40_000, departure: 40_000 }] };
+  expect(rideStep(undefined, KEY, { trip: loop, train: { live: false, upcoming: [{ station: 'sants' }] } }, at(35_000), NOON, onMap).riding).toBeUndefined();
 });
 
 test("ends a Ride at the Trip's last Station on the map: a Train into France at the border", () => {
@@ -117,6 +120,10 @@ test('never throws where storage is blocked or full, and lasts for the page then
   const odd = storage();
   odd.setItem('passport:1', '{not json');
   expect(passport(() => odd).on()).toBe(false);
+  // A Ride that isn't one, as from a later build, is left out, and the rest kept, as Favourites' are.
+  odd.setItem('passport:1', JSON.stringify({ rides: [R11, null, { key: 'x' }], riding: 'x' }));
+  expect(passport(() => odd).rides()).toEqual([R11]);
+  expect(passport(() => odd).riding()).toBeUndefined();
 });
 
 test('earns a Stamp for each Line, kind of service and Network once, dated by its first Ride, filled once one was seen Live', () => {

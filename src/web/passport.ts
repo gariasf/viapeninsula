@@ -37,8 +37,9 @@ export function rideStep(riding: Riding | undefined, key: string, now: RideNow |
   const upcoming = 'train' in now ? now.train.upcoming.map((c) => c.station) : undefined;
   if (upcoming && !upcoming.includes(last.station)) return riding && !riding.restored ? { done: true } : {};
   if (riding) return { riding: { key, live: riding.live || live } };
+  // It hasn't left its first Station while every call from there is still to leave: not its name, which a loop's last has too.
   const left = noonMinus12h + (first.departure + (('train' in now && now.train.delay) || 0)) * 1000;
-  const begins = 'coming' in now ? !now.coming.within || at <= left + LATE : upcoming?.includes(first.station) || at <= left + LATE;
+  const begins = 'coming' in now ? !now.coming.within || at <= left + LATE : (upcoming && upcoming.length >= now.trip.calls.length - now.trip.calls.indexOf(first)) || at <= left + LATE;
   return begins ? { riding: { key, live } } : {};
 }
 
@@ -76,6 +77,12 @@ export function rideOf(trip: Trip, key: string, line: { network: string; kind: s
   };
 }
 
+/** Whether `r` is a Ride as passport() keeps one. */
+const readable = (r: unknown): r is Ride => {
+  const { key, line, network, kind, at, from, to, minutes, km, stations, live } = (r ?? {}) as Record<string, unknown>;
+  return [key, line, network, kind, from, to].every((s) => typeof s === 'string') && [at, minutes, km].every((n) => typeof n === 'number') && Array.isArray(stations) && stations.every((s) => typeof s === 'string') && typeof live === 'boolean';
+};
+
 /** What it's kept under on the viewer's device, as JSON, in local storage, as the view, the language and Favourites are: its version after the colon. Its being there is the Passport's being on. */
 const KEY = 'passport:1';
 
@@ -88,7 +95,8 @@ export function passport(storage: () => Pick<Storage, 'getItem' | 'setItem' | 'r
   let kept: { rides: Ride[]; riding?: Riding } | undefined;
   try {
     const read = JSON.parse(storage().getItem(KEY) ?? 'null') as typeof kept;
-    if (read && Array.isArray(read.rides)) kept = { rides: read.rides, ...(read.riding && { riding: { ...read.riding, restored: true } }) };
+    // A Ride, or the Ride under way, that isn't one, as from a later build, is left out, and the rest kept, as Favourites' are.
+    if (read && Array.isArray(read.rides)) kept = { rides: read.rides.filter(readable), ...(typeof read.riding?.key === 'string' && { riding: { key: read.riding.key, live: !!read.riding.live, restored: true } }) };
   } catch {
     // Storage is off, or what's kept isn't JSON: it's off.
   }
