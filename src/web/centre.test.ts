@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { atMostEvery, drifted, letsGo, outsideMiddle, pointersDown, tapZooms } from './centre.ts';
+import { atMostEvery, drifted, fitPadding, letsGo, outsideMiddle, pointersDown, tapZooms } from './centre.ts';
 
 test('a Train a quarter pixel or more off the middle has the map jump to it, and one nearer holds it still', () => {
   expect(drifted(0, 0)).toBe(false);
@@ -160,4 +160,12 @@ test('a call runs at once, then at most once a second, the last one held back to
   expect(run).toHaveBeenCalledTimes(2);
   limited();
   expect(run).toHaveBeenCalledTimes(3);
+});
+
+test("a fit's padding leaves out the map's own, which MapLibre adds to it: after Search's sheet, a phone's Line fits above the sheet once, not twice (#473)", () => {
+  const sheet = { top: 0, right: 0, bottom: 603, left: 0 };
+  expect(fitPadding({ top: 64, right: 16, bottom: 619, left: 16 }, sheet)).toEqual({ top: 64, right: 16, bottom: 16, left: 16 });
+  expect(fitPadding({ top: 64, right: 16, bottom: 619, left: 16 }, {})).toEqual({ top: 64, right: 16, bottom: 619, left: 16 });
+  // Search's sheet pulled up, higher than the Line's peeking: less than none, as MapLibre adds the two.
+  expect(fitPadding({ top: 64, right: 16, bottom: 300, left: 16 }, { bottom: 700 }).bottom).toBe(-400);
 });

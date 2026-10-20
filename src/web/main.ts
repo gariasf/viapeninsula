@@ -20,7 +20,7 @@ import { callsIn, fileShapes, hidesTowns, nameSort, rightOf, splitBy } from './n
 import type { StoredTrack } from '../pieces.ts';
 import { namePlacer, packFile, type NamePlace, type NamesAsk, type Packed, type Sizes, type Where } from './placeNames.ts';
 import { covered, groupOf, spreading, toEdge, type Drawn, type Group, type Named } from './spread.ts';
-import { atMostEvery, drifted, letsGo, outsideMiddle, pointersDown, tapZooms } from './centre.ts';
+import { atMostEvery, drifted, fitPadding, letsGo, outsideMiddle, pointersDown, tapZooms } from './centre.ts';
 import { fastestInView } from './pace.ts';
 import { keepView, lastView, markOf, openingView, tiltPressed, toggledPitch } from './view.ts';
 import { bannerNetworks, type Banner, type NetworkTrack } from './banner.ts';
@@ -2856,7 +2856,7 @@ function fitLine() {
       [Math.max(...lons), Math.max(...lats)],
     ],
     // Over the sheet on a phone, or the credits' strip on a wide window, not over the buttons riding on them, which a tap's popup keeps clear of.
-    { padding: { ...clearOfCards(), bottom: box.bottom - Math.min(box.bottom, (wide.matches ? creditsStrip : panel).getBoundingClientRect().top) + GUTTER }, maxZoom: FOLLOW_ZOOM, pitch: 0 },
+    { padding: fitPadding({ ...clearOfCards(), bottom: box.bottom - Math.min(box.bottom, (wide.matches ? creditsStrip : panel).getBoundingClientRect().top) + GUTTER }, map.getPadding()), maxZoom: FOLLOW_ZOOM, pitch: 0 },
   );
 }
 

@@ -7,15 +7,24 @@ const DRIFT = 0.25;
 /** Whether a Train `dx` and `dy` px off the middle is far enough for the map to go to it. */
 export const drifted = (dx: number, dy: number) => Math.hypot(dx, dy) >= DRIFT;
 
+type Padding = { top: number; right: number; bottom: number; left: number };
+
 /**
  * Whether a Train drawn at `at`, in px on a map of `size` with `padding` the panel takes, is outside the
  * middle 60% of the part of the map that's left beside it: in the outer fifth of it on a side, or off
  * it. Where the map eases to it over a second (keepInView(), centreOn(): #586), rather than jumps.
  */
-export function outsideMiddle(at: { x: number; y: number }, size: { width: number; height: number }, padding: { top: number; right: number; bottom: number; left: number }): boolean {
+export function outsideMiddle(at: { x: number; y: number }, size: { width: number; height: number }, padding: Padding): boolean {
   const outside = (v: number, from: number, to: number) => v < from + 0.2 * (to - from) || v > from + 0.8 * (to - from);
   return outside(at.x, padding.left, size.width - padding.right) || outside(at.y, padding.top, size.height - padding.bottom);
 }
+
+/**
+ * The padding to give MapLibre's fitBounds() for the fit to keep `want` px clear on each side, the map's own
+ * padding, `has`, being added to it there: after Search, a phone's sheet's padding and the fit's together
+ * left the map no room, and it refused to move (#473).
+ */
+export const fitPadding = (want: Padding, has: Partial<Padding>): Padding => ({ top: want.top - (has.top ?? 0), right: want.right - (has.right ?? 0), bottom: want.bottom - (has.bottom ?? 0), left: want.left - (has.left ?? 0) });
 
 /** The part of a MapLibre event that tells what moved the map. */
 interface Moved {
