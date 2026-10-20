@@ -1005,9 +1005,15 @@ button.result {
   color: var(--ink-soft);
 }
 
-.empty {
-  margin-top: 16px;
+/* Search's status line under its field (#701): what it finds, or that it finds nothing, a line high while something's typed, so that the rows don't move as it's said once the typing pauses, and nothing while nothing is. */
+.search-status {
+  margin: 0;
   color: var(--ink-soft);
+}
+
+.search-status.typed {
+  min-height: 1.45em;
+  margin-top: 12px;
 }
 
 .more-results {
