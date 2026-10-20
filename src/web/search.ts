@@ -73,6 +73,16 @@ export function numbered(trips: Trip[], query: string): Trip[] {
   return digits ? trips.filter((t) => t.number?.startsWith(digits)) : [];
 }
 
+/**
+ * The Trips Search finds by Train number, where each one's Train is, but another service day's than `today`'s that have
+ * ended, as the day before's do while the map still holds it after midnight (#700): the day that stands for today
+ * (daysNeeded()), of the days on the map, whose `latest` day's Trips alone have IDs not led by their day (joinDays()).
+ * Another day's running, still to leave or Cancelled stay.
+ */
+export function ofToday(trains: TripNow[], today: string, latest: string): TripNow[] {
+  return trains.filter(({ trip, ...now }) => !('ended' in now) || (/^(\d{4}-\d{2}-\d{2})\//.exec(trip.id)?.[1] ?? latest) === today);
+}
+
 /** How many of the Trips it finds by Train number Search shows: it says how many more there are. */
 const SHOWN = 6;
 

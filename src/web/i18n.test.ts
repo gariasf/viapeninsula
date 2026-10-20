@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { createExpression, latest, type ExpressionSpecification, type Feature, type StylePropertySpecification } from '@maplibre/maplibre-gl-style-spec';
 import { afterEach, expect, test, vi } from 'vitest';
-import { earnedOf, hoursMinutes, ridesCount, stationsCalled, alertCount, alertsChanged, networkCounts, firstLeaves, lastArrives, lateOf, moreAlerts, moreLines, unreportedCount, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, cancelledCount, earlierStations, branchOff, endsHere, goOn, standingAt, trainsNow, turnsHere, followDeparture, LANGUAGES, leavesAt, leavingStation, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, pickLanguage, placedBy, setNameLanguages, starLabel, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated } from './i18n.ts';
+import { searchFound, earnedOf, hoursMinutes, ridesCount, stationsCalled, alertCount, alertsChanged, networkCounts, firstLeaves, lastArrives, lateOf, moreAlerts, moreLines, unreportedCount, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, cancelledCount, earlierStations, branchOff, endsHere, goOn, standingAt, trainsNow, turnsHere, followDeparture, LANGUAGES, leavesAt, leavingStation, type Language, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, pickLanguage, placedBy, setNameLanguages, starLabel, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated } from './i18n.ts';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -805,4 +805,19 @@ test("writes the Passport's hours as hours and minutes, as a Ride's minutes are,
   for (const lang of Object.keys(LANGUAGES) as Language[]) {
     expect([hoursMinutes(522, lang), hoursMinutes(42, lang), hoursMinutes(120, lang), hoursMinutes(0, lang)]).toEqual(['8\u00A0h 42\u00A0min', '42\u00A0min', '2\u00A0h', '0\u00A0min']);
   }
+});
+
+test("says under Search's field how many it found of each, the Train numbers of how many where it shows only some, and Back to Search (#701, #699)", () => {
+  const said = (lang: Language) => [
+    searchFound({ lines: 0, stations: 5, trains: 0, of: 0 }, lang),
+    searchFound({ lines: 0, stations: 0, trains: 6, of: 33 }, lang),
+    searchFound({ lines: 1, stations: 1, trains: 1, of: 1 }, lang),
+    searchFound({ lines: 2, stations: 0, trains: 3, of: 3 }, lang),
+    t('backToSearch', lang),
+  ];
+  expect(said('en')).toEqual(['5 stations', '6 of 33 train numbers', '1 line · 1 station · 1 train number', '2 lines · 3 train numbers', 'Back to Search']);
+  expect(said('es')).toEqual(['5 estaciones', '6 de 33 números de tren', '1 línea · 1 estación · 1 número de tren', '2 líneas · 3 números de tren', 'Volver a la búsqueda']);
+  expect(said('ca')).toEqual(['5 estacions', '6 de 33 números de tren', '1 línia · 1 estació · 1 número de tren', '2 línies · 3 números de tren', 'Torna a la cerca']);
+  expect(said('gl')).toEqual(['5 estacións', '6 de 33 números de tren', '1 liña · 1 estación · 1 número de tren', '2 liñas · 3 números de tren', 'Volver á busca']);
+  expect(said('eu')).toEqual(['5 geltoki', '33 tren-zenbakitik 6', 'Linea bat · Geltoki bat · Tren-zenbaki bat', '2 linea · 3 tren-zenbaki', 'Itzuli bilaketara']);
 });

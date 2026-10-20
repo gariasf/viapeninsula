@@ -72,6 +72,8 @@ const STRINGS = {
   followDeparture: { ca: 'Segueix el tren {line} cap a {headsign}, {time}', es: 'Seguir el tren {line} hacia {headsign}, {time}', eu: 'Jarraitu {line} trena, {headsign} aldera, {time}', gl: 'Seguir o tren {line} cara a {headsign}, {time}', en: 'Follow the {line} train to {headsign}, {time}' },
   leavesAt: { ca: 'Surt de {station} a les {time}', es: 'Sale de {station} a las {time}', eu: '{station} geltokitik irtengo da, {time}', gl: 'Sae de {station} ás {time}', en: 'Leaves {station} at {time}' },
   backTo: { ca: 'Torna a {place}', es: 'Volver a {place}', eu: 'Itzuli: {place}', gl: 'Volver a {place}', en: 'Back to {place}' },
+  // Back to Search, from what a row of it opened (#699).
+  backToSearch: { ca: 'Torna a la cerca', es: 'Volver a la búsqueda', eu: 'Itzuli bilaketara', gl: 'Volver á busca', en: 'Back to Search' },
   backToTrain: { ca: 'Torna al tren cap a {headsign}', es: 'Volver al tren hacia {headsign}', eu: 'Itzuli {headsign} aldeko trenera', gl: 'Volver ao tren cara a {headsign}', en: 'Back to the train to {headsign}' },
   stopFollowing: { ca: 'Deixa de seguir aquest tren', es: 'Dejar de seguir este tren', eu: 'Utzi tren honi jarraitzeari', gl: 'Deixar de seguir este tren', en: 'Stop following this train' },
   onTime: { ca: 'puntual', es: 'puntual', eu: 'garaiz', gl: 'puntual', en: 'on time' },
@@ -332,6 +334,14 @@ const STRINGS = {
   trainNumbers: { ca: 'Números de tren', es: 'Números de tren', eu: 'Tren-zenbakiak', gl: 'Números de tren', en: 'Train numbers' },
   moreNumbers: { ca: '{n} més amb un número que comença per {query}', es: '{n} más con un número que empieza por {query}', eu: 'Beste {n}, {query} hasierako zenbakiarekin', gl: '{n} máis cun número que comeza por {query}', en: '{n} more with a number starting {query}' },
   oneMoreNumber: { ca: '{n} més amb un número que comença per {query}', es: '{n} más con un número que empieza por {query}', eu: 'Beste bat, {query} hasierako zenbakiarekin', gl: '{n} máis cun número que comeza por {query}', en: '{n} more with a number starting {query}' },
+  // Its status line under its field, as what it finds changes (#701): how many Lines, Stations ({n}, as `stationsCalled` has them) and Train numbers it finds, those that it shows of how many, {of}, where it shows only some.
+  oneLineFound: { ca: '{n} línia', es: '{n} línea', eu: 'Linea bat', gl: '{n} liña', en: '{n} line' },
+  linesFound: { ca: '{n} línies', es: '{n} líneas', eu: '{n} linea', gl: '{n} liñas', en: '{n} lines' },
+  oneTrainNumberFound: { ca: '{n} número de tren', es: '{n} número de tren', eu: 'Tren-zenbaki bat', gl: '{n} número de tren', en: '{n} train number' },
+  trainNumbersFound: { ca: '{n} números de tren', es: '{n} números de tren', eu: '{n} tren-zenbaki', gl: '{n} números de tren', en: '{n} train numbers' },
+  trainNumbersOf: { ca: '{n} de {of} números de tren', es: '{n} de {of} números de tren', eu: '{of} tren-zenbakitik {n}', gl: '{n} de {of} números de tren', en: '{n} of {of} train numbers' },
+  // At a row's end, in place of its chevron, while the board or Line's screen it opens waits for its region to come (#698).
+  opening: { ca: 'Obrint…', es: 'Abriendo…', eu: 'Irekitzen…', gl: 'Abrindo…', en: 'Opening…' },
   // What it says where it finds nothing for what was typed, {query}.
   nothingFound: { ca: "No s'ha trobat res per a «{query}».", es: 'No se ha encontrado nada para «{query}».', eu: 'Ez da ezer aurkitu «{query}» bilaketarako.', gl: 'Non se atopou nada para «{query}».', en: 'Nothing found for “{query}”.' },
   // A Train number's row: the number, {number}, and where its Train is headed, {headsign}; under them, after Live or Scheduled, its next Station, {station}, and when it's due there, {time}; or when it reached its last Station, once it has ended. One still to leave says where and when with leavesAt.
@@ -672,6 +682,19 @@ export const moreDepartures = (n: number, lang = language()): string => counting
 
 /** How many Train numbers more Search found than it shows, `n`, whose numbers start with what was typed, `query` (#471), in `lang`, or else the language the interface speaks now. */
 export const moreNumbers = (n: number, query: string, lang = language()): string => counting(n, 'oneMoreNumber', 'moreNumbers', lang).replace('{query}', query);
+
+/**
+ * What Search's status line says it finds (#701), in `lang`, or else the language the interface speaks now: how many Lines,
+ * Stations and Train numbers, those it finds some of, and of the Train numbers how many it shows of how many it found, `of`, where it shows only some.
+ */
+export const searchFound = ({ lines, stations, trains, of }: { lines: number; stations: number; trains: number; of: number }, lang = language()): string =>
+  [
+    lines && counting(lines, 'oneLineFound', 'linesFound', lang),
+    stations && counting(stations, 'oneStationCalled', 'stationsCalled', lang),
+    trains && (of > trains ? STRINGS.trainNumbersOf[lang].replace('{n}', String(trains)).replace('{of}', String(of)) : counting(trains, 'oneTrainNumberFound', 'trainNumbersFound', lang)),
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
 /** How many Alerts a card has, `n`, in the line they're folded into, in `lang`, or else the language the interface speaks now. */
 export const alertCount = (n: number, lang = language()): string => counting(n, 'oneAlert', 'alerts', lang);

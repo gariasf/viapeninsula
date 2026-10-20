@@ -8,7 +8,7 @@ import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
 import { along, APART, atZoom, BANDS, bandZooms, GRAPH_BAND, STRETCH, inBand, onStroke, pointAt, profiled, zones, type Zone, daysNeeded, daysOf, SOON, DEGREE, EARTH, joinTracks, LATE, LIVE_URL, madridDate, networkTracks, places, type Alerts, type Bundle, type Credit, type Call, type DayFiles, type Place, type Kind, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH, type ZoomedOut } from '../bundle.ts';
 import { boardAt, comingAt, KEEP, lastDays, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, tripsAt, unavailable, type Coming, type Departure, type Followed, type Received, type Train, type TripNow } from '../engine.ts';
-import { earnedOf, hoursMinutes, ridesCount, stampEarned, stationsCalled, alertCount, alertsChanged, firstLeaves, lastArrives, lateOf, moreAlerts, moreLines, networkCounts, unreportedCount, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, branchOff, busesReplace, cancelledCount, earlierStations, endsHere, followDeparture, goOn, starLabel, lateCount, standingAt, worstLate, trainsNow, turnsHere, language, LANGUAGES, leavesAt, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, placedBy, setLanguage, setNameLanguages, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated, type Language, type Unlocated } from './i18n.ts';
+import { searchFound, earnedOf, hoursMinutes, ridesCount, stampEarned, stationsCalled, alertCount, alertsChanged, firstLeaves, lastArrives, lateOf, moreAlerts, moreLines, networkCounts, unreportedCount, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, branchOff, busesReplace, cancelledCount, earlierStations, endsHere, followDeparture, goOn, starLabel, lateCount, standingAt, worstLate, trainsNow, turnsHere, language, LANGUAGES, leavesAt, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, placedBy, setLanguage, setNameLanguages, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { getJson, lookAgainSoon, RETRY, STALL } from './files.ts';
 import { daysAsTheyCome, firstLook, forgetJoined, joinedFrom, regionLoader, regionsCame, regionsNeeded, trackFileOf } from './regions.ts';
@@ -31,7 +31,7 @@ import { closureKey, closureStrokes, closuresAt, hiding, liftedSince, placeOn, t
 import { currentTab, type Tab } from './tabs.ts';
 import { favouriteRows, favourites, type Favourite } from './favourites.ts';
 import { passport, rideOf, rideStep, stamps, totals, type Ride, type RideNow, type Stamp } from './passport.ts';
-import { keyboardRise, networkNames, numbered, numberQuery, results, searchPlaces, type Found, type FoundLine } from './search.ts';
+import { keyboardRise, networkNames, numbered, numberQuery, ofToday, results, searchPlaces, type Found, type FoundLine, type Section } from './search.ts';
 import { cancelledNow, lineState, lineStrip, onStrip, type StripStation } from './line.ts';
 import { alertedLines, byStretch, firstAndLast, METRO, racksAndFuniculars, toAndFromFrance, whatsWrong, type Troubled } from './now.ts';
 import { opensInNewTab, putHtml } from './newTab.ts';
@@ -771,11 +771,12 @@ map.on('moveend', () => {
 });
 showTilt();
 const trainButtons = el('div', { className: 'fabs', hidden: true }, tiltButton, centreButton);
-// The credits, which showCredits() fills: behind the © button on a phone, and a strip on a wide window.
+// The credits, which showCredits() fills: behind the © button on a phone and on a wide window under about 1,000 px (#697), and a strip on a wider one.
 const creditsButton = el('summary', { className: 'card' }, icon('copyright'));
 const creditsText = el('div', { className: 'card credits-text' });
 const creditsStrip = el('div', { className: 'card credits-strip' });
-const riders = el('div', { className: 'riders' }, el('details', { className: 'credits' }, creditsButton, creditsText), trainButtons, creditsStrip);
+const credits = el('details', { className: 'credits' }, creditsButton, creditsText);
+const riders = el('div', { className: 'riders' }, credits, trainButtons, creditsStrip);
 // The tab bar, under the sheet on a phone, and a rail down the left edge on a wide window (#470), labelled
 // by showLanguage(): each tab opens its screen's sheet, as #321's are, and is current while it shows
 // (showPanel()). After the corners and before the credits, as the keyboard goes. Its tabs open nothing
@@ -876,6 +877,7 @@ let back:
   | { to: 'nearby'; near: Point; up: boolean; scroll: number }
   | { to: 'line'; line: string; up: boolean; scroll: number }
   | { to: 'now'; up: boolean; scroll: number }
+  | { to: 'search'; query: string; up: boolean; scroll: number }
   | undefined;
 /** The place whose board the panel shows, by its ID in places(), while the map follows no Train. */
 let boardPlace: string | undefined;
@@ -912,8 +914,21 @@ const kept = favourites(() => localStorage);
 let passportShown = false;
 /** The viewer's Passport: their Rides and the Ride under way, in their browser's storage only, once they turn it on (ADR-0011, #332). */
 const pass = passport(() => localStorage);
-/** What's typed in Search's field (#471), which starts afresh each time Search opens: never stored, nor put in the link (ADR-0011). */
+/** What's typed in Search's field (#471), which starts afresh each time Search opens, but by Back (#699): never stored, nor put in the link (ADR-0011). */
 let query = '';
+/**
+ * What Search's status line says (#701): what it finds, once the typing has paused for SAY_AFTER, and nothing meanwhile, so that
+ * a screen reader hears it once rather than at each key or each second's refresh; and what it would say now, as searchPanel() last worked it out.
+ */
+let [searchSaid, searchSays] = ['', ''];
+/** The wait for a pause in the typing, after which Search's status line says what it finds (sayFound()). */
+let sayWait: ReturnType<typeof setTimeout> | undefined;
+/**
+ * The Search row whose board or Line's screen opens once its region has come (#698), by the link it opens as (openStation(), openLine()),
+ * which reads Opening… meanwhile, and Search as it was, where Back goes from what it opens (#699). None once it has opened, or another
+ * row, a new query (search()) or another panel has taken its place.
+ */
+let rowOpening: { link: string; back: NonNullable<typeof back> } | undefined;
 /** How many times Nearby has asked the browser where the viewer is, so that only the last ask's answer shows (locate()). */
 let asks = 0;
 /** When the panel was last filled, by performance.now(), and how long after that it is next due, in ms: a second, or as a followed Train's countdown next changes (Panel's `changes`). */
@@ -2777,17 +2792,18 @@ function startOf(): Point | undefined {
   return at && [at.lon, at.lat];
 }
 
-/** What the panel shows now, to go Back to (#322): none while it shows no Train, board, Line's screen (#473) or Nearby that's found the viewer. */
+/** What the panel shows now, to go Back to (#322): none while it shows no Train, board, Line's screen (#473), Search (#699), or Nearby that's found the viewer. */
 function here(): NonNullable<typeof back> | undefined {
   const [up, scroll] = [pulledUp, panel.querySelector('.sheet-body')?.scrollTop ?? 0];
   if (following) return { to: 'train', day: following.day, trip: following.trip, headsign: bundle?.trips.find((t) => t.id === followedId())?.headsign ?? '', up, scroll };
   if (boardPlace) return { to: 'board', place: boardPlace, up, scroll };
   if (lineShown) return { to: 'line', line: lineShown, up, scroll };
   if (nowShown) return { to: 'now', up, scroll };
+  if (searching) return { to: 'search', query, up, scroll };
   return nearMe && typeof nearMe !== 'string' ? { to: 'nearby', near: nearMe, up, scroll } : undefined;
 }
 
-/** Opens another panel from this one, by a departure, a Station or a Search row, which has a Back to this one, but to Search, which here() doesn't name (#322, #471). */
+/** Opens another panel from this one, by a departure, a Station or a Search row, which has a Back to this one (#322, #471, #699). */
 function openFrom(open: () => void, at?: Point) {
   const [was, keyboard] = [here(), panel.contains(document.activeElement)];
   open();
@@ -2801,18 +2817,26 @@ function openFrom(open: () => void, at?: Point) {
   if (keyboard) focusTitle();
 }
 
-/** Puts the keyboard's focus on the panel's title, where the button it was on has gone with the panel it opened (#322), as Nearby's does after a Try again. */
+/**
+ * Puts the keyboard's focus on the panel's title, where the button it was on has gone with the panel it opened (#322), as Nearby's does after a Try again,
+ * or on Search's heading, a screen reader's alone (#699): not its field, which on a phone would bring up the keyboard after a tapped Back.
+ */
 function focusTitle() {
-  panel.querySelector<HTMLElement>('.title')?.focus();
+  panel.querySelector<HTMLElement>('.title, h2.sr-only[tabindex]')?.focus();
 }
 
-/** Goes back to the panel this one was opened from, as it was (#322): a Train is followed again and the map eases onto it, a board or Nearby leaves the map where it is. */
+/** Goes back to the panel this one was opened from, as it was (#322): a Train is followed again and the map eases onto it, a board, Nearby or Search (#699) leaves the map where it is. */
 function goBack() {
   const [to, keyboard] = [back, panel.contains(document.activeElement)];
   if (!to) return;
   if (to.to === 'train') follow(`${to.day}/${to.trip}`, to.up);
   else {
-    [following, boardPlace, lineShown, nearMe, searching, favouritesShown, nowShown, passportShown, back] = [undefined, to.to === 'board' ? to.place : undefined, to.to === 'line' ? to.line : undefined, to.to === 'nearby' ? to.near : undefined, false, false, to.to === 'now', false, undefined];
+    [following, boardPlace, lineShown, nearMe, searching, favouritesShown, nowShown, passportShown, back] = [undefined, to.to === 'board' ? to.place : undefined, to.to === 'line' ? to.line : undefined, to.to === 'nearby' ? to.near : undefined, to.to === 'search', false, to.to === 'now', false, undefined];
+    // Search with what was typed in it, which its status line says again (#699, #701).
+    if (to.to === 'search') {
+      query = to.query;
+      sayFound();
+    }
     trainSource?.setData(trains());
     openPanel(to.up);
     writeLink();
@@ -2837,10 +2861,10 @@ function boardOf(id: string): Place | undefined {
   return boards.get(id) ?? shownPlaces.get(id);
 }
 
-/** Shows a place's board, by its ID in places() or its interchange's, following no Train. */
-function showBoard(place: string) {
+/** Shows a place's board, by its ID in places() or its interchange's, following no Train, with a Back to `from`, as to Search where a Search row opens it (openLink(), #699). */
+function showBoard(place: string, from?: typeof back) {
   // An interchange's place's is the interchange's (ADR-0005).
-  [following, boardPlace, lineShown, nearMe, searching, favouritesShown, nowShown, passportShown, back] = [undefined, boardOfPlace.get(place) ?? place, undefined, undefined, false, false, false, false, undefined];
+  [following, boardPlace, lineShown, nearMe, searching, favouritesShown, nowShown, passportShown, back] = [undefined, boardOfPlace.get(place) ?? place, undefined, undefined, false, false, false, false, from];
   trainSource?.setData(trains());
   openPanel(false);
   writeLink();
@@ -2849,11 +2873,11 @@ function showBoard(place: string) {
 
 /**
  * Shows a Line's screen (#473), by its ID, following no Train, over the map fitted to it above the sheet
- * (fitLine()), its body scrolled to two rows before its first Train, which it opens at.
+ * (fitLine()), its body scrolled to two rows before its first Train, which it opens at, with a Back to `from`, as showBoard() has.
  */
-function showLine(line: string) {
+function showLine(line: string, from?: typeof back) {
   const keyboard = panel.contains(document.activeElement);
-  [following, boardPlace, lineShown, nearMe, searching, favouritesShown, nowShown, passportShown, back] = [undefined, undefined, line, undefined, false, false, false, false, undefined];
+  [following, boardPlace, lineShown, nearMe, searching, favouritesShown, nowShown, passportShown, back] = [undefined, undefined, line, undefined, false, false, false, false, from];
   trainSource?.setData(trains());
   openPanel(false);
   writeLink();
@@ -2875,8 +2899,9 @@ function fitLine() {
   const padding = panelPadding();
   if (!points.length) return void map.easeTo({ padding });
   const [lons, lats, box] = [points.map((p) => p[0]), points.map((p) => p[1]), map.getContainer().getBoundingClientRect()];
-  // Over the sheet on a phone, or the credits' strip on a wide window, not over the buttons riding on them, which a tap's popup keeps clear of.
-  const want = { ...clearOfCards(), bottom: box.bottom - Math.min(box.bottom, (wide.matches ? creditsStrip : panel).getBoundingClientRect().top) + GUTTER };
+  // Over the sheet on a phone, or the credits' strip on a wide window, or their © where it shows instead, under about 1,000 px (#697), not over the buttons riding on them, which a tap's popup keeps clear of.
+  const under = wide.matches ? (creditsStrip.offsetParent ? creditsStrip : credits) : panel;
+  const want = { ...clearOfCards(), bottom: box.bottom - Math.min(box.bottom, under.getBoundingClientRect().top) + GUTTER };
   const fit = map.cameraForBounds(
     [
       [Math.min(...lons), Math.min(...lats)],
@@ -2900,7 +2925,7 @@ function showLook(line: string | undefined) {
  * opens it, its field emptied and focused, which on a phone brings up the keyboard (#471).
  */
 function showSearch() {
-  [following, boardPlace, lineShown, nearMe, searching, favouritesShown, nowShown, passportShown, back, query] = [undefined, undefined, undefined, undefined, true, false, false, false, undefined, ''];
+  [following, boardPlace, lineShown, nearMe, searching, favouritesShown, nowShown, passportShown, back, query, searchSaid] = [undefined, undefined, undefined, undefined, true, false, false, false, undefined, '', ''];
   trainSource?.setData(trains());
   openPanel(true);
   writeLink();
@@ -3009,7 +3034,7 @@ function closePanel() {
     return;
   }
   const [tab, keyboard] = [currentTab({ following, boardPlace, lineShown, nearMe, searching, favouritesShown, nowShown, passportShown }), panel.contains(document.activeElement)];
-  [following, boardPlace, lineShown, nearMe, searching, favouritesShown, nowShown, passportShown, back, linkWaits] = [undefined, undefined, undefined, undefined, false, false, false, false, undefined, false];
+  [following, boardPlace, lineShown, nearMe, searching, favouritesShown, nowShown, passportShown, back, linkWaits, rowOpening] = [undefined, undefined, undefined, undefined, false, false, false, false, undefined, false, undefined];
   showPanel();
   writeLink();
   map.easeTo({ padding: panelPadding() });
@@ -3022,7 +3047,7 @@ function closePanel() {
  * its Alerts (#342). A link still waiting for its regions opens no more: the viewer has opened another.
  */
 function openPanel(up: boolean) {
-  [pulledUp, showPast, showAlerts, showCancelled, showsWithin, linkWaits] = [up, false, false, false, false, false];
+  [pulledUp, showPast, showAlerts, showCancelled, showsWithin, linkWaits, rowOpening] = [up, false, false, false, false, false, undefined];
   panel.classList.remove('sliding');
   panel.style.height = '';
   showPanel();
@@ -3042,7 +3067,11 @@ function openPanel(up: boolean) {
  * and `now` alone opens Now at once, of whatever has come (#474).
  */
 function openLink(ring = true) {
-  if (ring) showMark(markOf(openedLink));
+  if (ring) {
+    // A link opened or pasted is no Search row's (#698, #699).
+    rowOpening = undefined;
+    showMark(markOf(openedLink));
+  }
   const link = new URLSearchParams(openedLink.slice(1));
   const [station, train, line] = [link.get('station'), link.get('train'), link.get('line')];
   // Now, over the map, whatever's loaded (#474).
@@ -3054,7 +3083,7 @@ function openLink(ring = true) {
   if (line && !station && !train) {
     linkWaits = !(come({ line }, joinedRegions) && lines.has(line) && !!bundle);
     if (linkWaits) want();
-    else showLine(line);
+    else showLine(line, rowOpening?.back);
     return;
   }
   const place = station && [...shownPlaces.values()].find((p) => p.stations.includes(station));
@@ -3067,7 +3096,7 @@ function openLink(ring = true) {
   if (linkWaits) want();
   else if (place) {
     const keyboard = panel.contains(document.activeElement);
-    showBoard(place.id);
+    showBoard(place.id, rowOpening?.back);
     // The keyboard's focus, where it was in the panel, as on the Search row that opened the board (#471), to its title, as what it was on has gone.
     if (keyboard) focusTitle();
     // ponytail: eased before the board's departures come on a page just opened, so on a phone the
@@ -3492,9 +3521,9 @@ function comingPanel({ trip, live, delay, upcoming, within }: Coming, up: boolea
 function backButton(): Node[] {
   // ponytail: two engine passes a second while Back goes to a Train; cache the check if a phone shows it.
   if (!back) return [];
-  const where = back.to === 'train' ? undefined : back.to === 'board' ? boardOf(back.place)?.name : back.to === 'line' ? lines.get(back.line)?.name : back.to === 'now' ? t('nowTab') : t('nearby');
+  const where = back.to === 'train' ? undefined : back.to === 'board' ? boardOf(back.place)?.name : back.to === 'line' ? lines.get(back.line)?.name : back.to === 'now' ? t('nowTab') : back.to === 'search' ? t('backToSearch') : t('nearby');
   if (back.to === 'train' ? !(bundle && (trainAt(bundle, Date.now(), received, back.day === bundle.serviceDay ? back.trip : `${back.day}/${back.trip}`, hidingClosures) || comingAt(bundle, Date.now(), received, back.day === bundle.serviceDay ? back.trip : `${back.day}/${back.trip}`, hidingClosures))) : !where) return [];
-  const label = back.to === 'train' ? backToTrain(back.headsign) : backTo(where ?? '');
+  const label = back.to === 'train' ? backToTrain(back.headsign) : back.to === 'search' ? (where ?? '') : backTo(where ?? '');
   return [el('button', { type: 'button', className: 'back', onclick: goBack }, icon('back'), el('span', { textContent: label }))];
 }
 
@@ -4418,15 +4447,16 @@ function followedCountdown(at: number, now: number): Node[] {
 
 /**
  * Search's sheet (#470, #471): its field at its top, which showSearch() focuses, with a clear button once
- * something's typed, under a heading for a screen reader; and under it, while it's empty, what it finds
- * (searchHints()), or what it finds for what's typed, section by section (results()), or that it finds
- * nothing: Lines and Stations from the file below zoom 7, every region's, and Train numbers from the Trips of the
- * regions the map has loaded, with where each one's Train is now (tripsAt()).
+ * something's typed, under a heading for a screen reader; and under it, its status line (#701), and while it's empty, what it finds
+ * (searchHints()), or what it finds for what's typed, section by section (results()), or nothing, which its status line says: Lines and Stations from the file below zoom 7, every region's, and Train numbers from the Trips of the
+ * regions the map has loaded, with where each one's Train is now (tripsAt()), but another service day's that have ended (ofToday(), #700).
  */
 function searchPanel(): Panel {
   // Not by el(), whose Partial<HTMLInputElement> is a union too large for tsc, with an input's `autocomplete`.
   const field = document.createElement('input');
   [field.type, field.className, field.placeholder, field.spellcheck] = ['search', 'search-field', t('searchPlaceholder'), false];
+  // What was typed, where Back brings Search back (#699).
+  field.value = query;
   field.oninput = () => search(field.value);
   field.setAttribute('aria-label', t('searchLabel'));
   field.setAttribute('autocomplete', 'off');
@@ -4448,19 +4478,46 @@ function searchPanel(): Panel {
   };
   const form = el('form', { className: 'card field', onsubmit: submitted }, icon('search'), field, clear);
   form.setAttribute('role', 'search');
-  const header = el('header', {}, el('h2', { className: 'sr-only', textContent: t('search') }), form, closeButton(t('closeSearch')));
-  if (!query.trim()) return { header, body: searchHints() };
+  const header = el('header', {}, el('h2', { className: 'sr-only', textContent: t('search'), tabIndex: -1 }), form, closeButton(t('closeSearch')));
+  // Its status line, which a screen reader hears as it changes, kept in place by patch() as Nearby's is (#324, #701).
+  const said = el('p', { className: `search-status${query.trim() ? ' typed' : ''}`, textContent: searchSaid });
+  said.setAttribute('role', 'status');
+  searchSays = '';
+  if (!query.trim()) return { header, body: [said, ...searchHints()] };
   const trips = bundle ? numbered(bundle.trips, query) : [];
-  const sections = results(query, searched, bundle && trips.length ? tripsAt(bundle, Date.now(), received, trips, hidingClosures) : [], [...searchedLines.values()]);
-  if (!sections.length) return { header, body: [el('p', { className: 'empty', textContent: t('nothingFound').replace('{query}', query.trim()) })] };
-  return { header, body: sections.flatMap((section) => ('lines' in section ? lineResults(section.lines) : 'places' in section ? stationResults(section.places) : trainResults(section))) };
+  // But another service day's ended, as the day before's after midnight (#700).
+  const found = bundle && trips.length ? ofToday(tripsAt(bundle, Date.now(), received, trips, hidingClosures), serviceToday ?? bundle.serviceDay, bundle.serviceDay) : [];
+  const sections = results(query, searched, found, [...searchedLines.values()]);
+  const count = (of: (section: Section) => number) => sections.reduce((n, section) => n + of(section), 0);
+  const shown = (section: Section) => ('trains' in section ? section.trains.length : 0);
+  searchSays = sections.length
+    ? searchFound({ lines: count((section) => ('lines' in section ? section.lines.length : 0)), stations: count((section) => ('places' in section ? section.places.length : 0)), trains: count(shown), of: count((section) => shown(section) + ('more' in section ? section.more : 0)) })
+    : t('nothingFound').replace('{query}', query.trim());
+  return { header, body: [said, ...sections.flatMap((section) => ('lines' in section ? lineResults(section.lines) : 'places' in section ? stationResults(section.places) : trainResults(section)))] };
 }
 
-/** Shows what Search finds for `text`, typed in its field, from the top (#471). */
+/**
+ * Shows what Search finds for `text`, typed in its field, from the top (#471), which its status line says once the typing pauses
+ * (sayFound(), #701). A board or a Line's screen a row is opening once its region has come opens no more (#698).
+ */
 function search(text: string) {
-  query = text;
+  [query, linkWaits, rowOpening] = [text, false, undefined];
+  sayFound();
   showPanel();
   panel.querySelector('.sheet-body')?.scrollTo(0, 0);
+}
+
+/** How long the typing in Search's field pauses before its status line says what it finds, in ms (#701). */
+const SAY_AFTER = 500;
+
+/** Says what Search finds in its status line once the typing has paused for SAY_AFTER, and nothing till then (#701). */
+function sayFound() {
+  searchSaid = '';
+  clearTimeout(sayWait);
+  sayWait = setTimeout(() => {
+    searchSaid = searchSays;
+    if (searching) showPanel();
+  }, SAY_AFTER);
 }
 
 /** What Search says it finds while its field is empty (#471): a Line, with its screen (#473), and a Station, beside examples of their names, and a Train number, which only Renfe's Trains have, of the parts of the map loaded. */
@@ -4485,7 +4542,7 @@ function lineResults(found: FoundLine[]): Node[] {
       { type: 'button', className: 'result', onclick: () => openLine(line.id) },
       el('span', { className: 'lead' }, pill(line.id)),
       el('span', { className: 'what' }, el('span', { className: 'what-title', textContent: networks.get(line.network) ?? line.network })),
-      el('span', { className: 'end' }, icon('right')),
+      el('span', { className: 'end' }, opening(`#line=${line.id}`)),
     );
   return [el('h3', { className: 'label', textContent: t('lines') }), el('ol', { className: 'results' }, ...found.map((f) => el('li', {}, row(f))))];
 }
@@ -4508,9 +4565,14 @@ function stationResults(found: { place: Found; alike: boolean }[]): Node[] {
         el('span', { className: 'what-title' }, place.name, ...(alike ? [el('span', { className: 'soft', textContent: ` · ${place.networks.map((n) => networks.get(n) ?? n).join(', ')}` })] : [])),
         el('span', { className: 'what-under served' }, ...place.lines.map((line) => pill(line, { small: true }))),
       ),
-      el('span', { className: 'end' }, icon('right')),
+      el('span', { className: 'end' }, opening(`#station=${place.stations[0] ?? ''}`)),
     );
   return [el('h3', { className: 'label', textContent: t('stations') }), el('ol', { className: 'results' }, ...found.map((f) => el('li', {}, row(f))))];
+}
+
+/** The end of a Search row that opens `link`: its chevron, or Opening… while what it opens waits for its region to come (#698). */
+function opening(link: string): Node {
+  return linkWaits && rowOpening?.link === link ? el('span', { textContent: t('opening') }) : icon('right');
 }
 
 /**
@@ -4569,14 +4631,24 @@ function trainResult(now: TripNow, delays = true): HTMLElement {
  * wherever the map is (#266), Search's sheet showing till then; and the map eases onto it (#471).
  */
 function openStation(station: string) {
-  openedLink = `#station=${station}`;
-  openLink(false);
+  openRow(`#station=${station}`);
 }
 
 /** Opens a Line's screen from a Search row, as a link that names it alone does (openLink(), #473): once its region's Trips have come, which load meanwhile wherever the map is, Search's sheet showing till then. */
 function openLine(line: string) {
-  openedLink = `#line=${line}`;
+  openRow(`#line=${line}`);
+}
+
+/**
+ * Opens a Search row's `link` (openStation(), openLine()), with a Back to Search as it was (#699); and where it waits for its
+ * region to come, says so on the row till then (#698), which another row, a new query or another panel cancels.
+ */
+function openRow(link: string) {
+  const was = here();
+  openedLink = link;
+  rowOpening = was && { link, back: was };
   openLink(false);
+  if (linkWaits) showPanel();
 }
 
 /**
