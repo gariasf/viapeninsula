@@ -709,11 +709,11 @@ test("says where live data last placed a followed Train: where Renfe pinned it t
 
 test("words a Line's state, how its strip marks its Stations and a Train standing on it, in each language, a number with its unit on one line (#473)", () => {
   const strings = (lang: Language) => [trainsNow(15, lang), trainsNow(1, lang), trainsNow(0, lang), t('worst', lang).replace('{n}', '20'), t('allScheduled', lang), t('lateCount', lang).replace('{n}', '5'), cancelledCount(2, lang), cancelledCount(1, lang), standingAt("L'Arboç", lang), turnsHere(28, 64, lang), goOn(4, 'Rajadell', lang), goOn(1, 'Rajadell', lang), endsHere(4, lang)];
-  expect(strings('ca')).toEqual(['15 trens ara', '1 tren ara', 'Cap tren ara', 'el pitjor +20\u00A0min', 'tots programats', '5 amb retard', '2 cancel·lats', '1 cancel·lat', "Aturat a l'Arboç", '28 de 64 trens surten o acaben aquí', '4 trens continuen fins a Rajadell', '1 tren continua fins a Rajadell', 'Final: 4 trens al dia']);
-  expect(strings('es')).toEqual(['15 trenes ahora', '1 tren ahora', 'Ningún tren ahora', 'el peor +20\u00A0min', 'todos programados', '5 con retraso', '2 cancelados', '1 cancelado', "Detenido en L'Arboç", '28 de 64 trenes salen o terminan aquí', '4 trenes siguen hasta Rajadell', '1 tren sigue hasta Rajadell', 'Final: 4 trenes al día']);
-  expect(strings('en')).toEqual(['15 trains now', '1 train now', 'No trains now', 'worst +20\u00A0min', 'all scheduled', '5 late', '2 cancelled', '1 cancelled', "Standing at L'Arboç", '28 of 64 trains start or end here', '4 trains go on to Rajadell', '1 train goes on to Rajadell', 'Ends here: 4 trains a day']);
-  expect(strings('eu')).toEqual(['15 tren orain', 'Tren bat orain', 'Trenik ez orain', 'okerrena +20\u00A0min', 'denak programatuta', '5 atzeratuta', '2 bertan behera', '1 bertan behera', "L'Arboç geltokian geldirik", '64 trenetatik 28 hemen hasi edo amaitzen dira', '4 tren Rajadell arte jarraitzen dute', 'Tren bat Rajadell arte jarraitzen du', 'Amaiera: 4 tren egunean']);
-  expect(strings('gl')).toEqual(['15 trens agora', '1 tren agora', 'Ningún tren agora', 'o peor +20\u00A0min', 'todos programados', '5 con atraso', '2 cancelados', '1 cancelado', "Parado en L'Arboç", '28 de 64 trens saen ou rematan aquí', '4 trens seguen ata Rajadell', '1 tren segue ata Rajadell', 'Final: 4 trens ao día']);
+  expect(strings('ca')).toEqual(['15\u00A0trens ara', '1\u00A0tren ara', 'Cap tren ara', 'el pitjor +20\u00A0min', 'tots programats', '5 amb retard', '2 cancel·lats', '1 cancel·lat', "Aturat a l'Arboç", '28 de 64\u00A0trens surten o acaben aquí', '4\u00A0trens continuen fins a Rajadell', '1\u00A0tren continua fins a Rajadell', 'Final: 4\u00A0trens al dia']);
+  expect(strings('es')).toEqual(['15\u00A0trenes ahora', '1\u00A0tren ahora', 'Ningún tren ahora', 'el peor +20\u00A0min', 'todos programados', '5 con retraso', '2 cancelados', '1 cancelado', "Detenido en L'Arboç", '28 de 64\u00A0trenes salen o terminan aquí', '4\u00A0trenes siguen hasta Rajadell', '1\u00A0tren sigue hasta Rajadell', 'Final: 4\u00A0trenes al día']);
+  expect(strings('en')).toEqual(['15\u00A0trains now', '1\u00A0train now', 'No trains now', 'worst +20\u00A0min', 'all scheduled', '5 late', '2 cancelled', '1 cancelled', "Standing at L'Arboç", '28 of 64\u00A0trains start or end here', '4\u00A0trains go on to Rajadell', '1\u00A0train goes on to Rajadell', 'Ends here: 4\u00A0trains a day']);
+  expect(strings('eu')).toEqual(['15\u00A0tren orain', 'Tren bat orain', 'Trenik ez orain', 'okerrena +20\u00A0min', 'denak programatuta', '5 atzeratuta', '2 bertan behera', '1 bertan behera', "L'Arboç geltokian geldirik", '64\u00A0trenetatik 28 hemen hasi edo amaitzen dira', '4\u00A0tren Rajadell arte jarraitzen dute', 'Tren bat Rajadell arte jarraitzen du', 'Amaiera: 4\u00A0tren egunean']);
+  expect(strings('gl')).toEqual(['15\u00A0trens agora', '1\u00A0tren agora', 'Ningún tren agora', 'o peor +20\u00A0min', 'todos programados', '5 con atraso', '2 cancelados', '1 cancelado', "Parado en L'Arboç", '28 de 64\u00A0trens saen ou rematan aquí', '4\u00A0trens seguen ata Rajadell', '1\u00A0tren segue ata Rajadell', 'Final: 4\u00A0trens ao día']);
 });
 
 test("keeps the article of a Station's name in another language than the sentence's as the name has it, by its Network's language, as the IEC does: a Spanish name's El and La in Catalan, with de elided before El, and a Catalan name's as before (#673)", () => {
@@ -722,7 +722,7 @@ test("keeps the article of a Station's name in another language than the sentenc
     { id: 'cercanias-asturias', names: { language: 'es' } },
     { id: 'ave-larga-distancia', names: { language: 'es' } },
     { id: 'cercanias-ferrol', names: { language: 'gl' } },
-  ];
+  ] as const;
   setNameLanguages(
     [
       { name: 'El Berrón', networks: ['cercanias-asturias'] },
@@ -739,7 +739,7 @@ test("keeps the article of a Station's name in another language than the sentenc
     expect(standingAt('El Berrón', 'ca')).toBe('Aturat a El Berrón');
     expect(leavesAt('El Berrón', '9:00', 'ca')).toBe("Surt d'El Berrón a les 9:00");
     expect(leavesAt('La Felguera', '9:00', 'ca')).toBe('Surt de La Felguera a les 9:00');
-    expect(goOn(3, 'La Zaida-Sástago', 'ca')).toBe('3 trens continuen fins a La Zaida-Sástago');
+    expect(goOn(3, 'La Zaida-Sástago', 'ca')).toBe('3\u00A0trens continuen fins a La Zaida-Sástago');
     expect(standingAt('El Prat de Llobregat', 'ca')).toBe('Aturat al Prat de Llobregat');
     expect(leavesAt('La Garriga', '9:00', 'ca')).toBe('Surt de la Garriga a les 9:00');
     expect(backTo('O Porriño', 'gl')).toBe('Volver ao Porriño');

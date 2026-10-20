@@ -8,7 +8,7 @@ import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
 import { along, APART, atZoom, BANDS, bandZooms, GRAPH_BAND, STRETCH, inBand, onStroke, pointAt, profiled, zones, type Zone, daysNeeded, daysOf, SOON, DEGREE, EARTH, joinTracks, LATE, LIVE_URL, madridDate, networkTracks, places, type Alerts, type Bundle, type Credit, type Call, type DayFiles, type Place, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH, type ZoomedOut } from '../bundle.ts';
 import { boardAt, comingAt, KEEP, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, tripsAt, unavailable, type Coming, type Departure, type Followed, type Received, type Train, type TripNow } from '../engine.ts';
-import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, cancelledCount, earlierStations, endsHere, followDeparture, goOn, standingAt, trainsNow, turnsHere, language, LANGUAGES, leavesAt, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, placedBy, setLanguage, setNameLanguages, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated, type Language, type Unlocated } from './i18n.ts';
+import { alertCount, alertsChanged, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, busesReplace, cancelledCount, earlierStations, endsHere, followDeparture, goOn, lateCount, standingAt, worstLate, trainsNow, turnsHere, language, LANGUAGES, leavesAt, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, placedBy, setLanguage, setNameLanguages, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { getJson, lookAgainSoon, RETRY, STALL } from './files.ts';
 import { daysAsTheyCome, firstLook, forgetJoined, joinedFrom, regionLoader, regionsCame, regionsNeeded, trackFileOf } from './regions.ts';
@@ -1360,7 +1360,7 @@ for (const { source, id, prefix, zooms, nameZooms, opacity, throughOpacity, belo
         source,
         'source-layer': source,
         ...zooms,
-        filter: ['==', ['get', 'line'], ''],
+        filter: ['all', zooms.filter, ['==', ['get', 'line'], '']],
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: { 'line-color': ['get', 'colour'], 'line-width': lineWidth(GLOW_WIDTH), 'line-blur': GLOW_WIDTH / 2, 'line-offset': lineOffset, 'line-opacity': byZoom(source === 'rails' ? [[railsZoom - FADE, 0], [railsZoom + FADE, GLOW]] : [[railsZoom - FADE, GLOW], [railsZoom + FADE, 0]], (o) => o) },
       },
@@ -2868,7 +2868,7 @@ function showLook(line: string | undefined) {
   lookOf = line;
   const it: ExpressionSpecification = ['==', ['get', 'line'], line ?? ''];
   if (LOOK === 'glow') {
-    for (const { id } of layered) map.setFilter(`${id}-glow`, it);
+    for (const { id, zooms } of layered) map.setFilter(`${id}-glow`, ['all', zooms.filter, it]);
     return;
   }
   const strokes = layered.flatMap(({ source, id, prefix }) => (source === 'lines' ? ['', CURVE] : ['']).flatMap((suffix) => [`${id}${suffix}`, `${prefix}-casing${suffix}`]));
@@ -2968,7 +2968,7 @@ function closePanel() {
  * its Alerts (#342). A link still waiting for its regions opens no more: the viewer has opened another.
  */
 function openPanel(up: boolean) {
-  [pulledUp, showPast, showAlerts, showsWithin, linkWaits] = [up, false, false, false, false];
+  [pulledUp, showPast, showAlerts, showCancelled, showsWithin, linkWaits] = [up, false, false, false, false, false];
   panel.classList.remove('sliding');
   panel.style.height = '';
   showPanel();
@@ -3827,14 +3827,14 @@ function linePanel(id: string): Panel | undefined {
   const ends = stripOf.strip.filter((s) => s.mark === 'end');
   const name = ends.length ? ends.map((s) => stationName(s.station)).join(' – ') : line.name;
   const network = bundle.networks.find((n) => n.id === line.network)?.name ?? line.network;
-  const how = state.trains ? [state.worst !== undefined ? t('worst').replace('{n}', String(state.worst)) : '', state.live ? '' : t('allScheduled')].filter(Boolean) : [];
+  const how = state.trains ? [state.worst !== undefined ? worstLate(state.worst) : '', state.live ? '' : t('allScheduled')].filter(Boolean) : [];
   const chip = (className: string, says: (Node | string)[], open: boolean, toggle: () => void) => {
     const button = el('button', { type: 'button', className: `chip-button ${className}`, onclick: () => (toggle(), showPanel(), map.easeTo({ padding: panelPadding() })) }, el('span', {}, ...says), icon(open ? 'up' : 'chevron'));
     button.setAttribute('aria-expanded', String(open));
     return button;
   };
   const chips = [
-    ...(state.late ? [el('span', { className: 'delay late', textContent: t('lateCount').replace('{n}', String(state.late)) })] : []),
+    ...(state.late ? [el('span', { className: 'delay late', textContent: lateCount(state.late) })] : []),
     ...(cancelled.length ? [chip('cancelled', [cancelledCount(cancelled.length)], showCancelled, () => (showCancelled = !showCancelled))] : []),
     ...(shown.alerts.length ? [chip('warn', [icon('warning'), alertCount(shown.alerts.length)], showAlerts, () => (showAlerts = !showAlerts))] : []),
   ];
@@ -3876,21 +3876,20 @@ function linePanel(id: string): Panel | undefined {
  */
 function lineRows(id: string, strip: StripStation[], trains: Followed[], now: number) {
   const rows = onStrip(strip, trains);
-  const name = (station: string) => stationName(station);
   const note = (s: StripStation) =>
-    s.goOn ? goOn(s.goOn.n, name(s.goOn.to)) : s.endsHere !== undefined ? endsHere(s.endsHere) : s.mark === 'turn' ? turnsHere(s.turns, s.calls) : '';
+    s.goOn ? goOn(s.goOn.n, stationName(s.goOn.to)) : s.endsHere !== undefined ? endsHere(s.endsHere) : s.mark === 'turn' ? turnsHere(s.turns, s.calls) : '';
   const list = el(
     'ol',
     { className: 'strip line-strip' },
     ...strip.flatMap((s, i) => {
       const classes = ['stop', i === 0 ? 'origin' : '', i === strip.length - 1 ? 'terminus' : '', s.mark ?? ''].filter(Boolean).join(' ');
       const says = note(s);
-      const label = [el('span', { className: 'stop-name', textContent: name(s.station) }), ...(says ? [el('span', { className: 'stop-note', textContent: says })] : [])];
+      const label = [el('span', { className: 'stop-name', textContent: stationName(s.station) }), ...(says ? [el('span', { className: 'stop-note', textContent: says })] : [])];
       const station = el('li', { className: classes }, el('span', { className: 'mark' }), stationLink(s.station, el('span', {}, ...label)));
       const after = rows.filter((r) => r.after === i).map(({ train, way }) => {
         const { trip, live, delay, unreported, standsAt, upcoming } = train;
         const next = upcoming.find((c) => !c.skipped);
-        const said = standsAt ? standingAt(name(standsAt)) : next ? nextAt(name(next.station), clock().format(due(next, false, next === upcoming.at(-1)).at)) : '';
+        const said = standsAt ? standingAt(stationName(standsAt)) : next ? nextAt(stationName(next.station), clock().format(due(next, false, next === upcoming.at(-1)).at)) : '';
         const cells = [
           pill(trip.line, { live, train: true }),
           el('span', { className: 'dest', textContent: `${way > 0 ? '↓' : '↑'} ${trip.headsign}` }),
@@ -3899,8 +3898,7 @@ function lineRows(id: string, strip: StripStation[], trains: Followed[], now: nu
         ];
         const [button] = followButton(trip, next ? due(next, !!standsAt && next === upcoming[0], next === upcoming.at(-1)).at : now, cells);
         button?.classList.replace('row', 'train-row');
-        const row = el('li', { className: `train ${live ? 'live' : 'scheduled'} ${way > 0 ? 'down' : 'up'}${i === strip.length - 1 ? ' beyond' : ''}${s.mark === 'spur' ? ' spur' : ''}` }, el('span', { className: 'mark' }, el('i')), ...(button ? [button] : []));
-        return row;
+        return el('li', { className: `train ${live ? 'live' : 'scheduled'} ${way > 0 ? 'down' : 'up'}${i === strip.length - 1 ? ' beyond' : ''}${s.mark === 'spur' ? ' spur' : ''}` }, el('span', { className: 'mark' }, el('i')), ...(button ? [button] : []));
       });
       return [station, ...after];
     }),

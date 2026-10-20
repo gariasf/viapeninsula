@@ -53,7 +53,7 @@ export function lineStrip(trips: Pick<Trip, 'calls'>[]): StripStation[] {
       if (buffer.length) {
         // Before the strip's first Station, or off it from within, at its nearer end, the far one outermost.
         if (prev !== undefined) order.splice(prev + 1, 0, ...buffer);
-        else if (k === 0 || k < order.length / 2) order.unshift(...buffer);
+        else if (k < order.length / 2) order.unshift(...buffer);
         else order.push(...buffer.toReversed());
         buffer = [];
       }
@@ -109,6 +109,7 @@ export function onStrip<T extends OnLine>(strip: StripStation[], trains: T[]): {
     .flatMap((train) => {
       const { calls } = train.trip;
       const left = calls[calls.length - train.upcoming.length - 1]?.station;
+      // Standing, the Station it stands at is the first it has still to leave, and the next after it.
       const [from, to] = train.standsAt ? [train.standsAt, train.upcoming[1]?.station ?? ''] : [left ?? '', train.upcoming[0]?.station ?? ''];
       const [a, b] = [at.get(from), at.get(to)];
       if (a === undefined) return [];
@@ -119,15 +120,15 @@ export function onStrip<T extends OnLine>(strip: StripStation[], trains: T[]): {
 }
 
 /** How late a Train has to be, in seconds, for a Line's state to count it late: 5 minutes, as Now counts it (#328's pick 3). */
-const LATE = 300;
+const LATE_HERE = 300;
 
 /**
- * A Line's state now (#473): how many of its Trains are on the map, how many are LATE or more, and the worst of
+ * A Line's state now (#473): how many of its Trains are on the map, how many are LATE_HERE or more, and the worst of
  * those, in whole minutes, only where some are; and whether any is Live, as none is where its Network's live data
  * is unavailable, its Trains all Scheduled.
  */
 export function lineState(trains: { delay?: number; live: boolean }[]): { trains: number; late: number; worst?: number; live: boolean } {
-  const late = trains.flatMap((t) => (t.delay !== undefined && t.delay >= LATE ? [t.delay] : []));
+  const late = trains.flatMap((t) => (t.delay !== undefined && t.delay >= LATE_HERE ? [t.delay] : []));
   return { trains: trains.length, late: late.length, ...(late.length && { worst: Math.round(Math.max(...late) / 60) }), live: trains.some((t) => t.live) };
 }
 

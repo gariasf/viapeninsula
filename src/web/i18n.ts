@@ -1,6 +1,7 @@
 // The languages the interface speaks, every string it shows in each, and the basemap's labels in them.
 
 import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
+import type { NameLanguage, Network, Station } from '../bundle.ts';
 
 /** Each language the interface speaks, with its name in itself for the language switch: Spain's, then English. */
 export const LANGUAGES = { ca: 'Català', es: 'Castellano', eu: 'Euskara', gl: 'Galego', en: 'English' };
@@ -231,9 +232,9 @@ const STRINGS = {
   trainTo: { ca: '{number} cap a {headsign}', es: '{number} hacia {headsign}', eu: '{number}, {headsign} aldera', gl: '{number} cara a {headsign}', en: '{number} to {headsign}' },
   nextAt: { ca: 'propera: {station}, {time}', es: 'próxima: {station}, {time}', eu: 'hurrengoa: {station}, {time}', gl: 'próxima: {station}, {time}', en: 'next {station}, {time}' },
   // A Line's screen (#473): its state under its header, where {n} is how many, and its worst Delay in minutes; under a Train's row on its strip, the Station it stands at; and how its strip marks a Station
-  // where {n} of the {m} Trains that call there start or end, the end a spur goes on from, and the spur's own end. A number keeps its unit on its line (U+00A0).
-  trainsNow: { ca: '{n} trens ara', es: '{n} trenes ahora', eu: '{n} tren orain', gl: '{n} trens agora', en: '{n} trains now' },
-  oneTrainNow: { ca: '{n} tren ara', es: '{n} tren ahora', eu: 'Tren bat orain', gl: '{n} tren agora', en: '{n} train now' },
+  // where {n} of the {m} Trains that call there start or end, the end a spur goes on from, and the spur's own end. A number keeps its unit, Trains or minutes, on its line (U+00A0).
+  trainsNow: { ca: '{n}\u00A0trens ara', es: '{n}\u00A0trenes ahora', eu: '{n}\u00A0tren orain', gl: '{n}\u00A0trens agora', en: '{n}\u00A0trains now' },
+  oneTrainNow: { ca: '{n}\u00A0tren ara', es: '{n}\u00A0tren ahora', eu: 'Tren bat orain', gl: '{n}\u00A0tren agora', en: '{n}\u00A0train now' },
   noTrainsNow: { ca: 'Cap tren ara', es: 'Ningún tren ahora', eu: 'Trenik ez orain', gl: 'Ningún tren agora', en: 'No trains now' },
   worst: { ca: 'el pitjor +{n}\u00A0min', es: 'el peor +{n}\u00A0min', eu: 'okerrena +{n}\u00A0min', gl: 'o peor +{n}\u00A0min', en: 'worst +{n}\u00A0min' },
   allScheduled: { ca: 'tots programats', es: 'todos programados', eu: 'denak programatuta', gl: 'todos programados', en: 'all scheduled' },
@@ -241,11 +242,11 @@ const STRINGS = {
   cancelledCount: { ca: '{n} cancel·lats', es: '{n} cancelados', eu: '{n} bertan behera', gl: '{n} cancelados', en: '{n} cancelled' },
   oneCancelled: { ca: '{n} cancel·lat', es: '{n} cancelado', eu: '{n} bertan behera', gl: '{n} cancelado', en: '{n} cancelled' },
   standingAt: { ca: 'Aturat a {station}', es: 'Detenido en {station}', eu: '{station} geltokian geldirik', gl: 'Parado en {station}', en: 'Standing at {station}' },
-  turnsHere: { ca: '{n} de {m} trens surten o acaben aquí', es: '{n} de {m} trenes salen o terminan aquí', eu: '{m} trenetatik {n} hemen hasi edo amaitzen dira', gl: '{n} de {m} trens saen ou rematan aquí', en: '{n} of {m} trains start or end here' },
-  goOn: { ca: '{n} trens continuen fins a {station}', es: '{n} trenes siguen hasta {station}', eu: '{n} tren {station} arte jarraitzen dute', gl: '{n} trens seguen ata {station}', en: '{n} trains go on to {station}' },
-  oneGoesOn: { ca: '{n} tren continua fins a {station}', es: '{n} tren sigue hasta {station}', eu: 'Tren bat {station} arte jarraitzen du', gl: '{n} tren segue ata {station}', en: '{n} train goes on to {station}' },
-  endsHere: { ca: 'Final: {n} trens al dia', es: 'Final: {n} trenes al día', eu: 'Amaiera: {n} tren egunean', gl: 'Final: {n} trens ao día', en: 'Ends here: {n} trains a day' },
-  oneEndsHere: { ca: 'Final: {n} tren al dia', es: 'Final: {n} tren al día', eu: 'Amaiera: tren bat egunean', gl: 'Final: {n} tren ao día', en: 'Ends here: {n} train a day' },
+  turnsHere: { ca: '{n} de {m}\u00A0trens surten o acaben aquí', es: '{n} de {m}\u00A0trenes salen o terminan aquí', eu: '{m}\u00A0trenetatik {n} hemen hasi edo amaitzen dira', gl: '{n} de {m}\u00A0trens saen ou rematan aquí', en: '{n} of {m}\u00A0trains start or end here' },
+  goOn: { ca: '{n}\u00A0trens continuen fins a {station}', es: '{n}\u00A0trenes siguen hasta {station}', eu: '{n}\u00A0tren {station} arte jarraitzen dute', gl: '{n}\u00A0trens seguen ata {station}', en: '{n}\u00A0trains go on to {station}' },
+  oneGoesOn: { ca: '{n}\u00A0tren continua fins a {station}', es: '{n}\u00A0tren sigue hasta {station}', eu: 'Tren bat {station} arte jarraitzen du', gl: '{n}\u00A0tren segue ata {station}', en: '{n}\u00A0train goes on to {station}' },
+  endsHere: { ca: 'Final: {n}\u00A0trens al dia', es: 'Final: {n}\u00A0trenes al día', eu: 'Amaiera: {n}\u00A0tren egunean', gl: 'Final: {n}\u00A0trens ao día', en: 'Ends here: {n}\u00A0trains a day' },
+  oneEndsHere: { ca: 'Final: {n}\u00A0tren al dia', es: 'Final: {n}\u00A0tren al día', eu: 'Amaiera: tren bat egunean', gl: 'Final: {n}\u00A0tren ao día', en: 'Ends here: {n}\u00A0train a day' },
   closeLine: { ca: 'Tanca la línia', es: 'Cerrar la línea', eu: 'Itxi linea', gl: 'Pechar a liña', en: 'Close the line' },
   endedAt: { ca: 'Ha acabat a les {time}', es: 'Terminó a las {time}', eu: 'Amaitu da: {time}', gl: 'Rematou ás {time}', en: 'Ended at {time}' },
   // Nearby Trains: their panel's title, and the tab that opens them (#470).
@@ -508,18 +509,20 @@ const named = (text: string, slot: '{station}' | '{place}' | '{headsign}', name:
 };
 
 /** The language of each Station's name the page knows, by the name (setNameLanguages(), #673). */
-let nameLanguages = new Map<string, string>();
+let nameLanguages = new Map<string, NameLanguage>();
 
 /**
  * Tells the sentences the language of each Station's name, as its Networks' configs give it (#673): the language
  * its Network names it in, or one the Network names it in apart, as Rodalies' two Aragonese Stations, and of a
  * Station of several Networks, as Sants is Rodalies' and long distance's, the first that isn't Spanish, the
  * language every Network names in where it names none other.
+ * ponytail: by name, not by Station, as the sentences have only the name, so two Stations of one name in two
+ * languages take the first's; none such on 20 Oct 2026's tracks is written otherwise in the two. Key by Station if one shows.
  */
-export function setNameLanguages(stations: { name: string; networks?: string[] }[], networks: { id: string; names?: { language: string; others?: Record<string, string> } }[]) {
+export function setNameLanguages(stations: readonly Pick<Station, 'name' | 'networks'>[], networks: readonly Pick<Network, 'id' | 'names'>[]) {
   const of = new Map(networks.map((n) => [n.id, n.names]));
   nameLanguages = new Map(
-    stations.flatMap(({ name, networks: own = [] }): [string, string][] => {
+    stations.flatMap(({ name, networks: own = [] }): [string, NameLanguage][] => {
       const languages = own.flatMap((id) => {
         const names = of.get(id);
         return names ? [names.others?.[name] ?? names.language] : [];
@@ -567,6 +570,12 @@ export const alertCount = (n: number, lang = language()): string => counting(n, 
 
 /** How many Trains a Line has on the map now, `n` (#473), or that it has none, in `lang`, or else the language the interface speaks now. */
 export const trainsNow = (n: number, lang = language()): string => (n ? counting(n, 'oneTrainNow', 'trainsNow', lang) : STRINGS.noTrainsNow[lang]);
+
+/** How many of a Line's Trains are 5 minutes late or more, `n` (#473), in `lang`, or else the language the interface speaks now. */
+export const lateCount = (n: number, lang = language()): string => STRINGS.lateCount[lang].replace('{n}', String(n));
+
+/** How late the latest of a Line's Trains is, in whole minutes, `n` (#473), in `lang`, or else the language the interface speaks now. */
+export const worstLate = (n: number, lang = language()): string => STRINGS.worst[lang].replace('{n}', String(n));
 
 /** How many of a Line's Trains are Cancelled, `n`, whose runs haven't ended (#473), in `lang`, or else the language the interface speaks now. */
 export const cancelledCount = (n: number, lang = language()): string => counting(n, 'oneCancelled', 'cancelledCount', lang);

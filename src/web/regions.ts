@@ -23,7 +23,7 @@ const AHEAD = 0.5;
 export function regionsNeeded(
   regions: Pick<ManifestRegion, 'id' | 'networks' | 'extent'>[],
   view: { bounds: [Point, Point]; zoom: number } | undefined,
-  { train, line, station, stations = {}, nearby }: { train?: string | null; line?: string | null; stations?: ZoomedOut['stations']; station?: string | null; nearby?: { at: Point; metres: number } } = {},
+  { train, line, station, stations = {}, nearby }: { train?: string | null; line?: string | null; station?: string | null; stations?: ZoomedOut['stations']; nearby?: { at: Point; metres: number } } = {},
 ): string[] {
   /** A box by its south-west and north-east corners, grown so many degrees east and west, and north and south. */
   const box = ([[west, south], [east, north]]: [Point, Point], x = 0, y = 0) => (extent: NonNullable<ManifestRegion['extent']>) => extent[0] <= east + x && extent[2] >= west - x && extent[1] <= north + y && extent[3] >= south - y;
