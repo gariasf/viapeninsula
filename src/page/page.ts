@@ -155,7 +155,7 @@ declare global {
 export interface Probe {
   /** rAF timestamps (page ms), from before the page's own scripts run. */
   frames: number[];
-  /** Each GeoJSON source's `setData` and `updateData`: [page ms, source, features (-1 for a URL), or those added]. */
+  /** Each GeoJSON source's `setData` and `updateData`, and each vector source's `setTiles`: [page ms, source, features (-1 for a URL), or those added]. */
   setData: [number, string, number][];
   /** MapLibre's `render` events (page ms). */
   renders: number[];
@@ -188,6 +188,11 @@ const PROBE = () => {
               p.setData.push([performance.now(), id, diff.add?.length ?? 0]);
               return updateData(diff, ...more);
             };
+          }
+          // The Lines' and rails' tiles since #837, by their new URL once the worker has a join's regions in them (-1, as a URL).
+          if (source?.type === 'vector') {
+            const setTiles = (source as import('maplibre-gl').VectorTileSource).setTiles.bind(source);
+            (source as import('maplibre-gl').VectorTileSource).setTiles = (tiles) => (p.setData.push([performance.now(), id, -1]), setTiles(tiles));
           }
           return added;
         };

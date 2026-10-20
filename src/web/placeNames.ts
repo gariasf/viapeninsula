@@ -171,11 +171,11 @@ export interface Packed {
 }
 
 /**
- * What of a region's track file the names need (its shapes, slots and Lines), with each of its arrays of numbers, the
+ * What of a region's track file a worker needs, `parts`, by default the names' (its shapes, slots and Lines), with each of its arrays of numbers, the
  * pieces' points, the shapes' distances and the slots' chains, put one after another in `numbers`, for postMessage() to
  * move rather than copy: a structured clone of a track's points would cost what MapLibre's of the Lines does (#775).
  */
-export function packFile({ traced, chains, shapes, slots, lines }: StoredTrack): Packed {
+export function packFile(file: StoredTrack, parts: (keyof StoredTrack)[] = ['traced', 'chains', 'shapes', 'slots', 'lines']): Packed {
   const lists: number[][] = [];
   // Each array of numbers, and an empty one, as an empty one, in the order unpackFile() comes on them.
   const strip = (v: unknown): unknown => {
@@ -186,7 +186,7 @@ export function packFile({ traced, chains, shapes, slots, lines }: StoredTrack):
     }
     return v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, strip(x)])) : v;
   };
-  const rest = strip({ traced, chains, shapes, slots, lines });
+  const rest = strip(Object.fromEntries(parts.map((part) => [part, file[part]])));
   const lengths = Int32Array.from(lists, (l) => l.length);
   const numbers = new Float64Array(lengths.reduce((sum, n) => sum + n, 0));
   let at = 0;
@@ -197,8 +197,8 @@ export function packFile({ traced, chains, shapes, slots, lines }: StoredTrack):
   return { rest, numbers, lengths };
 }
 
-/** The track a file packed (packFile()) stores, as decodeTrack() reads it, with only what the names need. */
-function unpackFile({ rest, numbers, lengths }: Packed): Pick<Track, 'shapes' | 'slots' | 'lines'> {
+/** The track a file packed (packFile()) stores, as decodeTrack() reads it, with only the parts packed. */
+export function unpackFile<K extends keyof Track = 'shapes' | 'slots' | 'lines'>({ rest, numbers, lengths }: Packed): Pick<Track, K> {
   let [i, at] = [0, 0];
   const fill = (v: unknown): unknown => {
     if (Array.isArray(v)) {
