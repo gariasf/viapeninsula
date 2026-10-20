@@ -114,10 +114,11 @@ body {
   cursor: pointer;
 }
 
-/* The outline again, for the buttons that are cards. */
+/* The outline and the ink again, for the buttons that are cards, as the Passport's switch in its empty state's soft ink (#332). */
 :is(.legend, .fab, .die-row).card {
   border: var(--edge);
   background: var(--card);
+  color: var(--ink);
 }
 
 .icon {
