@@ -19,7 +19,7 @@ import { drawnAt as placeShownAt, FEW_ZOOM, fewer, interchangesOf, markedNetwork
 import { callsIn, fileShapes, hidesTowns, nameSort, rightOf, splitBy } from './names.ts';
 import type { StoredTrack } from '../pieces.ts';
 import { namePlacer, packFile, type NamePlace, type NamesAsk, type Packed, type Sizes, type Where } from './placeNames.ts';
-import { covered, groupOf, spreading, toEdge, type Drawn, type Group, type Named } from './spread.ts';
+import { covered, groupOf, piles, spreading, spreadingAll, toEdge, type Drawn, type Group, type Named } from './spread.ts';
 import { atMostEvery, drifted, fitPadding, letsGo, outsideMiddle, pointersDown, tapZooms } from './centre.ts';
 import { fastestInView } from './pace.ts';
 import { keepView, lastView, markOf, openingView, tiltPressed, toggledPitch } from './view.ts';
@@ -46,6 +46,19 @@ setWorkerUrl(workerUrl);
  */
 const darkScheme = matchMedia('(prefers-color-scheme: dark)');
 const darkBasemap = darkScheme.matches;
+/** #828 look (throwaway, never merged): the variant shown, read once at load from localStorage `v828`: B, C or D, or S (D below zoom 13, C from it), with N for the Stations' names over the pills. Unset, main's look. */
+const V828 = (() => {
+  try {
+    return localStorage.getItem('v828') ?? '';
+  } catch {
+    return '';
+  }
+})();
+/** #828 look: a Train's pill, arrow and halo left undrawn (B's pile's others, D's covered pills). */
+const SHOWN: ExpressionSpecification = ['!', ['to-boolean', ['get', 'hidden']]];
+/** #828 look: whether piles spread (C, or S from zoom 13) or covered pills are dots (D, or S below zoom 13), at a zoom. */
+const spreadsAt = (zoom: number) => V828.includes('C') || (V828.includes('S') && zoom >= 13);
+const dotsAt = (zoom: number) => V828.includes('D') || (V828.includes('S') && zoom < 13);
 darkScheme.addEventListener('change', () => location.reload());
 /** A file as it comes, with its Networks' and Lines' stand-ins on the dark basemap (standIn(), #263). */
 const inScheme = <T>(file: T): T => (darkBasemap ? standIn(file) : file);
@@ -1240,6 +1253,8 @@ function linesFile(track: Track): Packed {
 }
 /** What moves a tapped group of Trains standing together at a Station apart (#129). */
 const spread = spreading();
+/** #828 look C: what spreads every pile in view (spreadingAll()). */
+const spreadAll = spreadingAll();
 /**
  * The group of Trains a tap spread, until a tap elsewhere, a zoom out from their pills, or once fewer
  * than two of them stand at their Station; the Trains it moves aside, eased or easing, and by how
@@ -1632,7 +1647,7 @@ map.addLayer(
     id: 'train-halos',
     type: 'circle',
     source: 'trains',
-    filter: ['all', DRAWN, ['get', 'live'], darkBasemap || ['get', 'followed']],
+    filter: ['all', DRAWN, SHOWN, ['get', 'live'], darkBasemap || ['get', 'followed']],
     paint: { 'circle-radius': ['get', 'haloRadius'], 'circle-color': ['get', 'colour'], 'circle-blur': darkBasemap ? GLOW_BLUR : HALO_BLUR, 'circle-opacity': darkBasemap ? GLOW_OPACITY : HALO_OPACITY, 'circle-pitch-scale': 'viewport' },
   },
   'line-names',
@@ -1696,7 +1711,7 @@ map.setMissingStyleImageResolver((id) => {
   map.addImage(id, { width, height, data }, { sdf: true, pixelRatio: 2, ...fit });
 });
 for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', true, FOLLOWED_TEXT]] as const) {
-  const filter: ExpressionSpecification = ['all', AS_PILL, ['==', ['get', 'followed'], followed]];
+  const filter: ExpressionSpecification = ['all', AS_PILL, SHOWN, ['==', ['get', 'followed'], followed]];
   if (followed) {
     // The target: two rings round the followed Train, dot or pill, in its Line's lettering, and its colour pulsing out from the outer one (pulse()).
     const ring = (id: string, radius: ExpressionSpecification, width: number, opacity: number | ExpressionSpecification): CircleLayerSpecification => ({
@@ -1756,6 +1771,36 @@ for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', tr
       'text-opacity': ['case', ['get', 'covered'], 0, 1],
     },
   });
+}
+// #828 look B: a pile's top pill counts the others, at its top right corner, the others undrawn (trains()).
+if (V828.includes('B'))
+  map.addLayer(
+    {
+      id: 'train-counts',
+      type: 'symbol',
+      source: 'trains',
+      filter: ['all', AS_PILL, ['>', ['coalesce', ['get', 'more'], 0], 0]],
+      layout: {
+        'icon-image': 'train-round',
+        'icon-text-fit': 'both',
+        'icon-text-fit-padding': [0, PILL_PADDING, 0, PILL_PADDING],
+        'text-field': ['concat', '+', ['to-string', ['get', 'more']]],
+        'text-font': ['Noto Sans Bold'],
+        'text-size': SMALL_TEXT,
+        'text-offset': ['array', 'number', 2, ['get', 'countAt']],
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
+        'text-allow-overlap': true,
+        'text-ignore-placement': true,
+      },
+      paint: { 'icon-color': nameColour, 'icon-halo-color': halo, 'icon-halo-width': PILL_HALO, 'text-color': halo },
+    },
+    'train-pulse',
+  );
+// #828 look D: a pill whose name is covered is drawn as its dot, as zoomed out, a Scheduled one's dashed ring with it: under the Trains' arrows and pills, where its blank pill was, so no dot lies on a name.
+if (V828.includes('D') || V828.includes('S')) {
+  map.addLayer({ ...(map.getLayer('trains')!.serialize() as CircleLayerSpecification), id: 'train-dots-over', filter: ['all', DRAWN, ['to-boolean', ['get', 'dot']]] }, 'train-arrows');
+  map.addLayer({ ...(map.getLayer('train-dot-dashes')!.serialize() as SymbolLayerSpecification), id: 'train-dot-dashes-over', filter: ['all', DRAWN, ['to-boolean', ['get', 'dot']], ['!', ['get', 'live']]] }, 'train-arrows');
 }
 
 // Tapping a Train follows it, and tapping a Station shows its board. Both are small, so a tap near one
@@ -1821,6 +1866,14 @@ map.addLayer(
   },
   'train-pills',
 );
+// #828 look N: the Stations' names over the Trains' pills but the followed Train's, the interchanges' badges' names too, by a copy of their names alone.
+if (V828.includes('N')) {
+  map.moveLayer('station-names', 'train-pulse');
+  const badges = map.getLayer('station-badges')!.serialize() as SymbolLayerSpecification;
+  const { 'icon-image': _, ...words } = badges.layout ?? {};
+  map.addLayer({ ...badges, id: 'station-badge-names', layout: words, paint: { ...badges.paint, 'icon-opacity': 0 } }, 'train-pulse');
+  map.setPaintProperty('station-badges', 'text-opacity', 0);
+}
 /** The layers that draw the places, which take a tap and the pointer where they're drawn (placeShownAt()): the badges first, over the rest. */
 const placeTaken = ['station-badges', 'station-marks', 'station-marks-railed', ...placeLayers.filter((id) => id.startsWith('stations'))];
 /** Of the places' drawings within a box, those drawn at the zoom, by their place's or interchange's ID, topmost first. */
@@ -1853,7 +1906,7 @@ map.on('click', ({ point: { x, y }, lngLat }) => {
   // A tap on a pill standing over others spreads them, and while they're spread, any tap but on one of them folds them (#129).
   const { group } = spreadState;
   const inGroup = typeof train === 'string' && group?.ids.has(train);
-  const spreads = typeof train === 'string' && !group ? groupOf(standingPills.map((p) => ({ ...p, at: projected(p.at) })), train) : undefined;
+  const spreads = !spreadsAt(map.getZoom()) && typeof train === 'string' && !group ? groupOf(standingPills.map((p) => ({ ...p, at: projected(p.at) })), train) : undefined;
   if (spreads || (group && !inGroup)) {
     spreadState.group = spreads;
     trainSource?.setData(trains());
@@ -2444,14 +2497,19 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
   const { group } = spreadState;
   if (group && standingPills.filter((p) => group.ids.has(p.id) && p.standsAt === group.station).length < 2) spreadState.group = undefined;
   // Only the group's Trains, and those moved aside, easing back, are put on screen.
-  const spreadable = placed.flatMap(({ asPill, at }): Drawn[] => (asPill && (spreadState.group?.ids.has(asPill.id) || spreadState.moved.has(asPill.id)) ? [{ ...asPill, at: projected(at) }] : []));
-  const aside = spread(spreadable, performance.now(), spreadState.group);
+  const [bounds, inView] = [map.getBounds(), [] as Named[]];
+  // #828 look C: every pill in view, but the followed Train's, spread as its pile's (spreadingAll()).
+  const all = spreadsAt(zoom);
+  const spreadable = placed.flatMap(({ asPill, at }): Drawn[] =>
+    asPill && (all ? asPill.id !== followed && bounds.contains(at) : spreadState.group?.ids.has(asPill.id) || spreadState.moved.has(asPill.id)) ? [{ ...asPill, at: projected(at) }] : [],
+  );
+  const aside = all ? spreadAll(spreadable, performance.now()) : spread(spreadable, performance.now(), spreadState.group);
+  const onScreenOf = new Map(spreadable.map((d) => [d.id, d.at]));
   spreadState = { group: spreadState.group, moved: aside, easing: [...aside].some(([id, px]) => spreadState.moved.get(id) !== px) || aside.size !== spreadState.moved.size };
   // Each pill in view where it's drawn, in trains()' order, for those whose names a pill over them covers (covered(), #513).
   // ponytail: in view by its Train's point, so a pill reaching in from just off the map's edge covers nothing. Pad the bounds by a pill if a name shows on one there.
-  const [bounds, inView] = [map.getBounds(), [] as Named[]];
   const features = placed.map(({ train: { trip, heading, live }, pill, box, asPill, at }): GeoJSON.Feature<GeoJSON.Point> => {
-    const [out, onScreen] = [aside.get(trip.id), spreadable.find((d) => d.id === trip.id)?.at];
+    const [out, onScreen] = [aside.get(trip.id), onScreenOf.get(trip.id)];
     const right = rightOf(heading, bearing);
     const coordinates: Point = out && onScreen ? (map.unproject([onScreen[0] + out * right[0], onScreen[1] + out * right[1]]).toArray() as Point) : at;
     if (following && trip.id === followed) [following.at, following.zoom] = [coordinates, zoom];
@@ -2493,6 +2551,20 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
   });
   const under = covered(inView, followed);
   for (const f of features) if (f.properties && under.has(f.properties.id)) f.properties.covered = true;
+  // #828 look B: each pile drawn as its top pill, the one MapLibre draws over the rest (covered()), counting the others; the followed Train on its own.
+  const propsOf = new Map(features.map((f) => [f.properties!.id as string, f.properties!]));
+  if (V828.includes('B')) {
+    const order = new Map(inView.map((p, i) => [p.id, i]));
+    for (const ids of piles(inView.filter((p) => p.id !== followed))) {
+      const top = ids.map((id) => inView[order.get(id)!]!).reduce((a, b) => (b.at[1] > a.at[1] || (b.at[1] === a.at[1] && order.get(b.id)! < order.get(a.id)!) ? b : a));
+      for (const id of ids) propsOf.get(id)!.hidden = id !== top.id;
+      Object.assign(propsOf.get(top.id)!, { more: ids.length - 1, countAt: [top.box[0] / SMALL_TEXT, -top.box[1] / SMALL_TEXT] });
+    }
+  }
+  // #828 look D: a pill whose name is covered drawn as its dot.
+  if (dotsAt(zoom)) for (const id of under) Object.assign(propsOf.get(id)!, { hidden: true, dot: true });
+  // #828 look: what's drawn, for the sheet's counts.
+  (window as unknown as { __v828: unknown }).__v828 = { inView, under, propsOf, aside };
   return { type: 'FeatureCollection', features };
 }
 

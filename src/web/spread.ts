@@ -69,7 +69,7 @@ export function spreading(): (drawn: Drawn[], now: number, group?: Group) => Map
  * clear of the group's pills moved already. Others, as one coming in after the tap, aren't moved, nor
  * moved round, so that nothing moves of itself.
  */
-function apart(drawn: Drawn[], { station, ids }: Group): Map<string, number> {
+export function apart(drawn: Drawn[], { station, ids }: Group): Map<string, number> {
   const there = [...ids].flatMap((id) => drawn.find((t) => t.id === id && t.standsAt === station) ?? []);
   const [target, placed] = [new Map<string, number>(), [] as Drawn[]];
   for (const t of there) {
@@ -156,4 +156,39 @@ export function covered(drawn: Named[], followed?: string): Set<string> {
 /** Whether two Trains' pills overlap, where they're drawn. */
 function touches({ at: [ax, ay], box: [aw, ah] }: Pick<Drawn, 'at' | 'box'>, { at: [bx, by], box: [bw, bh] }: Pick<Drawn, 'at' | 'box'>): boolean {
   return Math.abs(ax - bx) < aw + bw && Math.abs(ay - by) < ah + bh;
+}
+
+/** #828 look (throwaway): pills whose boxes touch, chained, by their IDs: each pile of two or more, swept by x as covered(). */
+export function piles(drawn: Pick<Drawn, 'id' | 'at' | 'box'>[]): string[][] {
+  const ranked = drawn.map((pill) => ({ pill, left: pill.at[0] - pill.box[0] })).sort((a, b) => a.left - b.left);
+  const parent = ranked.map((_, i) => i);
+  const root = (i: number): number => (parent[i] === i ? i : (parent[i] = root(parent[i]!)));
+  ranked.forEach((one, i) => {
+    for (let j = i + 1; j < ranked.length && ranked[j]!.left < one.pill.at[0] + one.pill.box[0]; j++) if (touches(one.pill, ranked[j]!.pill)) parent[root(j)] = root(i);
+  });
+  const by = new Map<number, string[]>();
+  ranked.forEach(({ pill }, i) => by.set(root(i), [...(by.get(root(i)) ?? []), pill.id]));
+  return [...by.values()].filter((pile) => pile.length > 1);
+}
+
+/** #828 look C (throwaway): every pile spread across its track as a tapped group is (apart()), easing as spreading() does. */
+export function spreadingAll(): (drawn: Drawn[], now: number) => Map<string, number> {
+  let [was, last] = [new Map<string, number>(), undefined as number | undefined];
+  return (drawn, now) => {
+    const eased = 1 - Math.exp(-Math.min(now - (last ?? now), STEP) / EASE);
+    const byId = new Map(drawn.map((t) => [t.id, t]));
+    const target = new Map<string, number>();
+    for (const ids of piles(drawn)) {
+      const there = ids.map((id) => ({ ...byId.get(id)!, standsAt: ids[0] }));
+      for (const [id, out] of apart(there, { station: ids[0]!, ids: new Set(ids) })) target.set(id, out);
+    }
+    const moved = new Map<string, number>();
+    for (const t of drawn) {
+      const [from, to] = [was.get(t.id) ?? 0, target.get(t.id) ?? 0];
+      const at = Math.abs(to - from) < 0.1 ? to : from + (to - from) * eased;
+      if (at) moved.set(t.id, at);
+    }
+    [was, last] = [moved, now];
+    return moved;
+  };
 }
