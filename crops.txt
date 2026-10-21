@@ -1,0 +1,27 @@
+1-map-390x844-light 390x560+0+0
+1-map-1280x800-light 300x64+0+0 corners
+1-map-1280x800-light 130x150+1150+600 fabs
+2-board-390x844-light 390x400+0+300
+2-board-hover-390x844-light 390x400+0+300
+2-board-close-focus-390x844-light 160x110+230+290
+2-board-1280x800-light 480x420+90+140
+2-board-hover-1280x800-light 480x420+90+140
+2-board-close-focus-1280x800-light 160x110+330+140
+3-nearby-390x844-light 390x330+0+170
+3-nearby-1280x800-light 480x260+90+90
+4-tilt-focus-390x844-light 110x110+300+272
+4-tilt-focus-1280x800-light 110x110+1192+592
+1-map-390x844-dark 390x560+0+0
+1-map-1280x800-dark 300x64+0+0 corners
+1-map-1280x800-dark 130x150+1150+600 fabs
+2-board-390x844-dark 390x400+0+300
+2-board-hover-390x844-dark 390x400+0+300
+2-board-close-focus-390x844-dark 160x110+230+290
+2-board-1280x800-dark 480x420+90+140
+2-board-hover-1280x800-dark 480x420+90+140
+2-board-close-focus-1280x800-dark 160x110+330+140
+3-nearby-390x844-dark 390x330+0+170
+3-nearby-1280x800-dark 480x260+90+90
+4-tilt-focus-390x844-dark 110x110+300+272
+4-tilt-focus-1280x800-dark 110x110+1192+592
+4-tilt-focus-forced-390x844-light 110x110+300+272
