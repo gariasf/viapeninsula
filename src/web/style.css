@@ -175,6 +175,11 @@ body {
   fill: currentColor;
 }
 
+/* Its keyboard's ring in its fill's ink, not in its own colour, the card's, which is 1.7:1 against the map on the light theme and 1.0:1 on the dark; a forced-colours theme draws it in its own (#719). */
+.fab.tilt[aria-pressed='true']:focus-visible {
+  outline-color: var(--ink);
+}
+
 /* A button under the pointer, where there's one, so that it never sticks on a phone. */
 @media (hover: hover) {
   :is(.close, .handle, .more, .tab:not(:disabled)):hover,
