@@ -495,8 +495,10 @@ body {
   scrollbar-width: thin;
 }
 
-/* The handle, a button too: Show more, or Show less, 44 px tall as every button is (#468). Its header lies over its lower part. */
+/* The handle, a button too: Show more, or Show less, 44 px tall (#468). Its header lies over its lower part, under it but for the header's controls, so that a finger has all 44 px of it but where Back or close is (#468). */
 .handle {
+  position: relative;
+  z-index: 1;
   display: grid;
   place-items: start center;
   width: calc(100% + 32px);
@@ -514,6 +516,10 @@ body {
 
 .sheet-top header {
   position: relative;
+}
+
+.sheet-top header > :not(.title) {
+  z-index: 2;
 }
 
 :is(.sheet, .about) header {
@@ -1854,12 +1860,12 @@ button.fav-row {
   font-size: 14px;
 }
 
-/* Nearby's Try again, under its message where the browser won't say where the viewer is: a card's outline round a pill as tall as the legend's (#324). */
+/* Nearby's Try again, under its message where the browser won't say where the viewer is: a card's outline round a pill as tall as the legend's (#324, #468). */
 .try-again {
-  height: 40px;
+  height: 44px;
   margin-top: 12px;
   padding: 0 16px;
-  border-radius: 20px;
+  border-radius: 22px;
   font: inherit;
   font-weight: 700;
   cursor: pointer;
