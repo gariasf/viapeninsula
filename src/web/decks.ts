@@ -116,17 +116,21 @@ function measured(line: Point[]): Pick<Shape, 'coords' | 'dist'> {
 type Part = { kind: 'deck' | 'pier'; step: number; base: number; top: number };
 const polygon = (ring: Point[], properties: Record<string, unknown>): GeoJSON.Feature => ({ type: 'Feature', properties, geometry: { type: 'Polygon', coordinates: [ring] } });
 
-/** How much a deck is lifted for each LIFT_AT metres across it's off another, in metres at DECKS_FROM, and in how many lifts. */
-const [LIFT, LIFT_AT, LIFTS] = [0.15, 1.5, 8];
+/**
+ * How much a deck is lifted, in metres at DECKS_FROM, for each LIFT_AT metres across it's off another of its region's, in
+ * LIFTS lifts, and LIFTS more for each tier of its region's above (RegionDecks' `tier`).
+ */
+const [LIFT, LIFT_AT, LIFTS] = [0.1, 1.5, 8];
 
 /**
  * A deck along a line, `side` line widths right of it and as wide as a line at the step's zoom, or for the rails' step
  * on it and RAILS_DECK wide: its ramps at the `ramped` ends, each in RAMP_STEPS rising to its full height, the rest at
- * it, and a pier every PIERS, as high as the deck there. It's lifted a hair by where it lies across its way, so that
- * two decks that overlap, as a double track's two do on their rails, and Lines' moving onto theirs, don't flicker: those
- * LIFT_AT to LIFTS × LIFT_AT metres apart differ.
+ * it, and a pier every PIERS, as high as the deck there. It's lifted a hair by its region's `tier` and by where it lies
+ * across its way, so that two decks that overlap, as two regions' do on the track they share, a double track's two on
+ * their rails, and Lines' as they move onto theirs, don't flicker, and the one on top is the one whose stroke is: those of
+ * one region LIFT_AT to LIFTS × LIFT_AT metres apart differ.
  */
-function deck(line: Point[], { side, step, layer, ramped }: { side: number; step: number; layer: number; ramped: [boolean, boolean] }, properties: Record<string, unknown>): GeoJSON.Feature[] {
+function deck(line: Point[], { side, step, layer, ramped, tier }: { side: number; step: number; layer: number; ramped: [boolean, boolean]; tier: number }, properties: Record<string, unknown>): GeoJSON.Feature[] {
   const lat = line[0]?.[1] ?? 0;
   const zoom = STEPS[step];
   const [offset, width] = zoom === undefined ? [0, RAILS_DECK] : [side * atZoom(APART, zoom) * pixelMetres(zoom, lat), atZoom(WIDTH, zoom) * pixelMetres(zoom, lat)];
@@ -141,7 +145,7 @@ function deck(line: Point[], { side, step, layer, ramped }: { side: number; step
     const n = Math.hypot(nx, ny) || 1;
     return (x * kx * nx + y * ky * ny) / n + offset * Math.sign(dy > 0 || (dy === 0 && dx < 0) ? 1 : -1);
   })();
-  const lift = LIFT * (((Math.floor(across / LIFT_AT) % LIFTS) + LIFTS) % LIFTS);
+  const lift = LIFT * (tier * LIFTS + (((Math.floor(across / LIFT_AT) % LIFTS) + LIFTS) % LIFTS));
   const ramp = Math.min(RAMP, length / 3);
   const [rise, slab] = [deckHeight(layer, lat), (SLAB * pixelMetres(DECKS_FROM, lat)) / Math.SQRT1_2];
   /** How high the deck is a distance along it, of its full height. */
@@ -175,12 +179,17 @@ interface Deck {
   /** Of the rails' step, or else of STEPS, along a Stretch, at its stroke's side. */
   rails: boolean;
   side: number;
+  tier: number;
   layer: number;
   ramped: [boolean, boolean];
   properties: Record<string, unknown>;
 }
 
-/** A region's decks and its tunnels' mouths, as the Lines' worker keeps them for its tiles (decksTile()). */
+/**
+ * A region's decks and its tunnels' mouths, as the Lines' worker keeps them for its tiles (decksTile()). Where two regions'
+ * Lines are drawn over each other, on the track they share (ADR-0014), so are their decks, by their regions' tiers:
+ * Media Distancia y Avant's 0, under long distance's 1, under any other region's 2, as their strokes go (lines.ts's RANK_STEP).
+ */
 export interface RegionDecks {
   decks: Deck[];
   mouths: Point[];
@@ -193,7 +202,7 @@ export interface RegionDecks {
  * tunnel's mouth (mouthsOf()). Their features are made only in the tiles they're in, as a join would make some 276,000
  * of long distance's (440 ms in Node, and its index 201 ms more) where a view shows a few hundred.
  */
-export function regionDecks(lines: GeoJSON.Feature[], rails: GeoJSON.Feature[], shapes: Iterable<Shape>): RegionDecks {
+export function regionDecks(lines: GeoJSON.Feature[], rails: GeoJSON.Feature[], shapes: Iterable<Shape>, tier = 2): RegionDecks {
   const decks: Deck[] = [];
   const each = (features: GeoJSON.Feature[], onRails: boolean) => {
     const on = features.filter((f) => f.properties?.deck && (f.properties.band === undefined || f.properties.band === BAND) && f.geometry.type === 'LineString');
@@ -215,6 +224,7 @@ export function regionDecks(lines: GeoJSON.Feature[], rails: GeoJSON.Feature[], 
         bbox: [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)],
         rails: onRails,
         side: onRails ? 0 : Number(p.side),
+        tier,
         layer: Number(p.deck),
         ramped: [ends.get(`${p.line} ${key(first)}`) === 1, ends.get(`${p.line} ${key(last)}`) === 1],
         properties: { line: p.line, shape: p.shape, from: p.from, to: p.to, colour: p.colour, ...(p.shared && { shared: true }) },
@@ -227,8 +237,8 @@ export function regionDecks(lines: GeoJSON.Feature[], rails: GeoJSON.Feature[], 
 }
 
 /** The decks' features of a region's deck (deckFeatures()), each of STEPS along a Stretch, or the rails' step, at its zooms. */
-export function deckFeatures({ line, rails, side, layer, ramped, properties }: Deck): GeoJSON.Feature[] {
-  return (rails ? [STEPS.length] : STEPS.map((_, k) => k)).flatMap((step) => deck(line, { side, step, layer, ramped }, properties));
+export function deckFeatures({ line, rails, side, tier, layer, ramped, properties }: Deck): GeoJSON.Feature[] {
+  return (rails ? [STEPS.length] : STEPS.map((_, k) => k)).flatMap((step) => deck(line, { side, step, layer, ramped, tier }, properties));
 }
 
 /** A tile's west, south, east and north edges, with its buffer, in degrees. */

@@ -2133,8 +2133,9 @@ function show(days: Track | Bundle, tripsOnly = false) {
       // track. A manifest that reorders the regions under a track the map keeps leaves them in the old order; make them
       // again if it does. Long distance's and Media Distancia y Avant's by their IDs, not long distance's missing extent,
       // which no region has in a manifest from before #266 (#736, #787).
+      // On a desktop, its decks file, and their tier: Media Distancia y Avant's under long distance's under the others', as their Lines.
       const decks = decksOf(track);
-      const how = { rank: Math.max(0, manifest?.regions?.findIndex((r) => r.id === id) ?? 0), under: id === 'long-distance' || id === 'media-distancia-avant', lettering: track.lines.map((l): [string, string | undefined] => [l.id, lettering(l.id)]), shownFrom: [...shownFrom], ...(decks && { decks }) };
+      const how = { rank: Math.max(0, manifest?.regions?.findIndex((r) => r.id === id) ?? 0), under: id === 'long-distance' || id === 'media-distancia-avant', lettering: track.lines.map((l): [string, string | undefined] => [l.id, lettering(l.id)]), shownFrom: [...shownFrom], ...(decks && { decks, tier: id === 'media-distancia-avant' ? 0 : id === 'long-distance' ? 1 : 2 }) };
       if (handedLines.has(track)) return { key: keyOf(track), how };
       const file = linesFile(track);
       transfer.push(file.numbers.buffer, file.lengths.buffer);

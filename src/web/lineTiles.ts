@@ -17,6 +17,8 @@ export interface RegionHow {
   shownFrom: [network: string, zoom: number][];
   /** On a desktop, the region's decks file, where it came (ADR-0016): its Lines on bridges are drawn as decks (decks.ts). */
   decks?: DecksFile;
+  /** And its decks' tier, which overlapping regions' decks stack by, as their strokes do (decks.ts's RegionDecks). */
+  tier?: number;
 }
 
 /** The sources served, each a layer of its own name in its tiles: a desktop's decks too (ADR-0016). */
@@ -50,7 +52,7 @@ export function lineWork(decks: () => typeof import('./decks.ts') | undefined = 
   const index = Object.fromEntries((['lines', 'rails'] as const).map((s) => [s, new GeoJSONVT({ type: 'FeatureCollection', features: [] }, { ...OPTIONS, tolerance: TOLERANCE[s] * (EXTENT / TILE_PX) })])) as Record<'lines' | 'rails', GeoJSONVT>;
   let held = new Map<number, Drawing>();
   let next = 0;
-  const make = (file: Packed, { rank, under, lettering, shownFrom, decks: bridges }: RegionHow): Drawing => {
+  const make = (file: Packed, { rank, under, lettering, shownFrom, decks: bridges, tier }: RegionHow): Drawing => {
     const track = unpackFile<'shapes' | 'lines' | 'strokes' | 'rails'>(file);
     const letters = new Map(lettering);
     const how = { shapes: new Map(track.shapes.map((s) => [s.id, s])), lines: new Map(track.lines.map((l) => [l.id, l])), lettering: (line: string) => letters.get(line), rank, under, shownFrom: new Map(shownFrom) };
@@ -58,7 +60,7 @@ export function lineWork(decks: () => typeof import('./decks.ts') | undefined = 
     const { strokes, rails } = made ? made.decked({ ...track, shapes: how.shapes }, bridges) : track;
     const drawing: Drawing = { lines: drawnLines(strokes, how), rails: drawnLines(rails, how, rounded) };
     for (const f of [...drawing.lines, ...drawing.rails]) f.id = next++;
-    if (made) drawing.decks = made.regionDecks(drawing.lines, drawing.rails, track.shapes);
+    if (made) drawing.decks = made.regionDecks(drawing.lines, drawing.rails, track.shapes, tier);
     return drawing;
   };
   return (ask: LinesAsk): { shown: number } | { ask: number; data: ArrayBuffer } => {

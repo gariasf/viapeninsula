@@ -91,6 +91,13 @@ test("lifts decks that overlap a hair apart, as a double track's two on their ra
   expect(base('R2', 0)).not.toBe(base('R2', 4.5));
   // A hair: under a twentieth of the deck's height.
   expect(Math.abs(Number(base('R2', 0)) - Number(base('R2', 4.5)))).toBeLessThan(deckHeight(1, LAT) / 20);
+  // Two regions' decks on the track they share stack as their Lines' strokes do: Media Distancia y Avant's (tier 0) under
+  // long distance's (1), under the region's own (2), wherever across their way they lie.
+  for (const y of [0, 0.7, 4.5, 30]) {
+    const tiers = [0, 1, 2].map((tier) => Number(regionDecks([], [rails('R2', 0, 600, y)], [], tier).decks.flatMap(deckFeatures)[0]?.properties?.base));
+    expect(tiers).toEqual([...tiers].sort((a, b) => a - b));
+    expect(new Set(tiers).size).toBe(3);
+  }
 });
 
 test("marks each tunnel's mouth once, a double track's with one arch, and none where a Line starts or ends in its tunnel, goes deeper in it, or onto a bridge (#213)", () => {
