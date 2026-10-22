@@ -1897,10 +1897,12 @@ map.on('click', ({ point: { x, y }, lngLat }) => {
   const [train, place] = [under ?? near('train-pills-followed') ?? near('train-pills') ?? near('trains'), placesDrawn([[x - 10, y - 10], [x + 10, y + 10]])[0] ?? within(0, ['station-names'])[0]?.properties.id];
   // A tap on a pill standing over others spreads them, and while they're spread, any tap but on one of them folds them (#129).
   // One on a counted pill or its count spreads its pile, moving too, even while another's spread, and adds it to the group
-  // spread if it's of it; but on the followed Train's pill, rather than its count, it takes the Train back, as #325 has it (#828).
+  // spread if it's of it; but on the followed Train, while the map has let go of it, it takes the Train back, as #325 has
+  // it, and spreads its pile once the map has it again: a short pill's count reaches its middle, too near it for a finger
+  // to tell the two apart (#828).
   const { group } = spreadState;
   const inGroup = typeof train === 'string' && group?.ids.has(train);
-  const folded = typeof train === 'string' && (train !== followedId() || hit?.layer.id === 'train-counts-followed') ? shownPiles.get(train)?.folded : undefined;
+  const folded = typeof train === 'string' && (train !== followedId() || !letGo()) ? shownPiles.get(train)?.folded : undefined;
   const tapped = typeof train === 'string' && (folded || !group) ? groupOf(placedTrains.flatMap(({ asPill, at }) => (asPill ? [{ ...asPill, at: projected(at) }] : [])), train, folded) : undefined;
   const spreads = tapped && group && inGroup ? joined(group, tapped) : tapped;
   if (spreads || (group && !inGroup)) {
