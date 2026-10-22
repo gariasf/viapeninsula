@@ -1,10 +1,12 @@
 import { expect, test } from 'vitest';
-import { groupOf, held, piles, spreading, type Drawn, type Group, type Named } from './spread.ts';
+import { groupOf, held, joined, lasts, piles, spreading, type Drawn, type Group, type Named, type Pile } from './spread.ts';
 
 // Made up, on screen, in px: x right and y down. Heading right, up the screen is a Train's left, and
 // down its right, where its pill reaches 5 px with its edge.
-/** A Train drawn as a pill 20×10 px with its edge, heading so many degrees clockwise from up, standing at Station X unless it says. */
-const pill = (id: string, [x, y]: [number, number], heading: number, more: Partial<Drawn> = {}): Drawn => ({ id, at: [x, y], heading, box: [10, 5], standsAt: 'X', ...more });
+/** A Train drawn as a pill 20×10 px with its edge, its name 12×6 px, heading so many degrees clockwise from up, standing at Station X unless it says. */
+const pill = (id: string, [x, y]: [number, number], heading: number, more: Partial<Drawn> = {}): Drawn => ({ id, at: [x, y], heading, box: [10, 5], name: [6, 3], standsAt: 'X', ...more });
+/** A Train passing, standing at no Station. */
+const moving = { standsAt: undefined };
 
 /** How far further right of where it's drawn each Train moved apart is, in px, once it has eased there, drawn from `now` 30 times a second for 3 s. */
 const settled = (spread: ReturnType<typeof spreading>, drawn: Drawn[], now: number, group?: Group) => {
@@ -61,10 +63,13 @@ test('a Train leaving a spread group eases back onto its track, and the others c
   expect(settled(spread, leaving, 10_000, group)).toEqual({ first: 5, third: 15 });
 });
 
-test('a Train coming in to a spread group stays where it is drawn, and moves no other', () => {
+test("a Train drawn by a spread group, as one coming in, stays where it is drawn, and the group's pills keep clear of it", () => {
   const both = [pill('first', [0, 0], 90), pill('second', [0, 0], 90)];
   const group = groupOf(both, 'first');
-  expect(settled(spreading(), [...both, pill('newcomer', [0, 0], 90)], 0, group)).toEqual({ first: 5, second: 15 });
+  // Each pill's edge just clear of the newcomer's, which reaches 5 px down from where it is, and of the one before.
+  expect(settled(spreading(), [...both, pill('newcomer', [0, 0], 90)], 0, group)).toEqual({ first: 10, second: 20 });
+  // One drawn clear of where they go moves none.
+  expect(settled(spreading(), [...both, pill('beside', [25, 0], 90)], 0, group)).toEqual({ first: 5, second: 15 });
 });
 
 test('a Train eases aside rather than jumping, part of the way each time Trains are drawn, however long since they last were', () => {
@@ -95,39 +100,41 @@ test('spread, they stay so where they no longer touch where drawn, as zoomed in,
 
 /** A Train's pill as piles() takes it, its name 12×6 px in the middle of it, unless it says. */
 const named = (id: string, at: [number, number], more: Partial<Named> = {}): Named => ({ id, at, box: [10, 5], name: [6, 3], ...more });
+/** The piles' folds alone, by their top pills' IDs. */
+const folds = (shown: Map<string, Pile>) => new Map([...shown].map(([id, { folded }]) => [id, folded]));
 
 test('of two pills that meet, the one under, whose name the one drawn over it meets, folds into it: a pile drawn as its top pill, counting the other', () => {
-  expect(piles([named('under', [0, 0]), named('over', [4, 1])])).toEqual(new Map([['over', ['under']]]));
-  expect(piles([named('over', [4, 1]), named('under', [0, 0])])).toEqual(new Map([['over', ['under']]]));
+  expect(folds(piles([named('under', [0, 0]), named('over', [4, 1])]))).toEqual(new Map([['over', ['under']]]));
+  expect(folds(piles([named('over', [4, 1]), named('under', [0, 0])]))).toEqual(new Map([['over', ['under']]]));
 });
 
 test('of two pills level on screen, the earlier in the order is drawn over the other, and the later folds into it', () => {
-  expect(piles([named('first', [0, 0]), named('second', [4, 0])])).toEqual(new Map([['first', ['second']]]));
+  expect(folds(piles([named('first', [0, 0]), named('second', [4, 0])]))).toEqual(new Map([['first', ['second']]]));
 });
 
 test('a pill whose name the pill over it only grazes the outline of, beside or below its name, is drawn; one px into the name, it folds', () => {
   // The one over it reaches from x 7 to 27, its name only to 6; and from y 4 to 14, its name only to 3.
-  expect(piles([named('under', [0, 0]), named('over', [17, 1])])).toEqual(new Map());
-  expect(piles([named('under', [0, 0]), named('over', [0, 9])])).toEqual(new Map());
-  expect(piles([named('under', [0, 0]), named('over', [15.9, 1])])).toEqual(new Map([['over', ['under']]]));
-  expect(piles([named('under', [0, 0]), named('over', [0, 7.9])])).toEqual(new Map([['over', ['under']]]));
+  expect(folds(piles([named('under', [0, 0]), named('over', [17, 1])]))).toEqual(new Map());
+  expect(folds(piles([named('under', [0, 0]), named('over', [0, 9])]))).toEqual(new Map());
+  expect(folds(piles([named('under', [0, 0]), named('over', [15.9, 1])]))).toEqual(new Map([['over', ['under']]]));
+  expect(folds(piles([named('under', [0, 0]), named('over', [0, 7.9])]))).toEqual(new Map([['over', ['under']]]));
 });
 
 test('pills no other pill meets are all drawn: edge to edge, across or up and down, or apart', () => {
-  expect(piles([named('west', [0, 0]), named('east', [20, 0]), named('south', [0, 10]), named('far', [100, 100])])).toEqual(new Map());
+  expect(folds(piles([named('west', [0, 0]), named('east', [20, 0]), named('south', [0, 10]), named('far', [100, 100])]))).toEqual(new Map());
   // Wide apart across the screen but level, and level across but apart up and down.
-  expect(piles([named('a', [0, 0]), named('b', [5, 30]), named('c', [40, 0])])).toEqual(new Map());
+  expect(folds(piles([named('a', [0, 0]), named('b', [5, 30]), named('c', [40, 0])]))).toEqual(new Map());
 });
 
 test('a pile folds into its top pill each under it whose name it meets; one whose name meets only a folded pill is drawn, as nothing drawn lies on it', () => {
   const pile = [named('beside', [-15, -1]), named('bottom', [0, 0]), named('middle', [1, 1]), named('top', [2, 2])];
-  expect(piles(pile)).toEqual(new Map([['top', ['middle', 'bottom']]]));
+  expect(folds(piles(pile))).toEqual(new Map([['top', ['middle', 'bottom']]]));
 });
 
 test('a pill that two pills drawn over it meet folds into the topmost, and piles apart count apart', () => {
   // `left` and `right` both meet `under`'s name, but not each other's.
-  expect(piles([named('under', [0, 0]), named('left', [-12, 1]), named('right', [12, 2])])).toEqual(new Map([['right', ['under']]]));
-  expect(piles([named('a', [0, 0]), named('a over', [1, 1]), named('b', [100, 0]), named('b over', [101, 1])])).toEqual(
+  expect(folds(piles([named('under', [0, 0]), named('left', [-12, 1]), named('right', [12, 2])]))).toEqual(new Map([['right', ['under']]]));
+  expect(folds(piles([named('a', [0, 0]), named('a over', [1, 1]), named('b', [100, 0]), named('b over', [101, 1])]))).toEqual(
     new Map([
       ['a over', ['a']],
       ['b over', ['b']],
@@ -137,39 +144,43 @@ test('a pill that two pills drawn over it meet folds into the topmost, and piles
 
 test('the followed Train, in a layer over every pill, never folds, and those whose names it meets, wherever they are on screen, fold into it and it counts them', () => {
   const followed = named('followed', [0, 5], { box: [20, 8] });
-  expect(piles([followed, named('below', [25, 6]), named('apart', [45, 6])], 'followed')).toEqual(new Map([['followed', ['below']]]));
-  expect(piles([named('lower', [0, 6]), followed], 'followed')).toEqual(new Map([['followed', ['lower']]]));
+  expect(folds(piles([followed, named('below', [25, 6]), named('apart', [45, 6])], 'followed'))).toEqual(new Map([['followed', ['below']]]));
+  expect(folds(piles([named('lower', [0, 6]), followed], 'followed'))).toEqual(new Map([['followed', ['lower']]]));
 });
 
-test("a pill whose name a pile's count meets, drawn over every pill at its top pill's top right corner, folds into that top pill as into a pill over it; one the count only grazes is drawn", () => {
-  // `top`'s count, reaching 6×4 px from its corner (10, -5), meets `under count`'s name from x 14 and y -12 to -6, though `top` doesn't.
-  const pile = [named('top', [0, 0]), named('folded', [-1, -1])];
-  expect(piles([...pile, named('under count', [20, -9])], undefined, undefined, [6, 4])).toEqual(new Map([['top', ['folded', 'under count']]]));
-  expect(piles([...pile, named('grazing', [22, -9])], undefined, undefined, [6, 4])).toEqual(new Map([['top', ['folded']]]));
+// A pile, `folded` under `top`, whose count reaches 6×4 px either side of a corner of `top`'s box, (±10, ±5) from it, and a
+// pill whose name only its count's at one corner would meet: from x 14 and y -12 to -6 at its top right, and so on.
+const pile = [named('top', [0, 0]), named('folded', [-1, -1])];
+const [tr, tl, br, bl] = [named('tr', [20, -9]), named('tl', [-20, -9]), named('br', [20, 9]), named('bl', [-20, 9])];
+const COUNT: [number, number] = [6, 4];
+
+test("a pile's count goes at its top pill's top right corner, or where it would lie on a drawn pill's name there, at the first of its top left, bottom right and bottom left where it wouldn't, folding none", () => {
+  expect(piles(pile, undefined, undefined, COUNT)).toEqual(new Map([['top', { folded: ['folded'], corner: [1, -1] }]]));
+  expect(piles([...pile, tr], undefined, undefined, COUNT)).toEqual(new Map([['top', { folded: ['folded'], corner: [-1, -1] }]]));
+  expect(piles([...pile, tr, tl], undefined, undefined, COUNT)).toEqual(new Map([['top', { folded: ['folded'], corner: [1, 1] }]]));
+  expect(piles([...pile, tr, tl, br], undefined, undefined, COUNT)).toEqual(new Map([['top', { folded: ['folded'], corner: [-1, 1] }]]));
 });
 
-test("a pile's top pill whose name another's count meets folds into that one with its pile, and a count of a pile folded so lies on nothing", () => {
-  // `under count` tops a pile of its own, `its folded` whose name it meets, and whose count would meet `beyond`'s name.
-  const pile = [named('top', [0, 0]), named('folded', [-1, -1]), named('under count', [20, -9]), named('its folded', [24, -11]), named('beyond', [40, -20])];
-  expect(piles(pile, undefined, undefined, [6, 4])).toEqual(new Map([['top', ['folded', 'under count', 'its folded']]]));
+test("only where its count would lie on a drawn pill's name at every corner does a pile fold those whose names it lies on at its top right, each with its own pile", () => {
+  expect(piles([...pile, tr, tl, br, bl], undefined, undefined, COUNT)).toEqual(new Map([['top', { folded: ['folded', 'tr'], corner: [1, -1] }]]));
+  // `tr` tops a pile of its own, which goes with it.
+  const trPile = [tr, named('under tr', [21, -10])];
+  expect(folds(piles([...pile, ...trPile, tl, br, bl], undefined, undefined, COUNT))).toEqual(new Map([['top', ['folded', 'tr', 'under tr']]]));
 });
 
-test("a count folds neither the followed Train, in its layer over every count but its own, nor a spread pile's Trains; the followed Train's count folds those whose names it meets", () => {
-  const pile = [named('top', [0, 0]), named('folded', [-1, -1]), named('under count', [20, -9])];
-  expect(piles(pile, 'under count', undefined, [6, 4])).toEqual(new Map([['top', ['folded']]]));
-  expect(piles(pile, undefined, new Set(['under count']), [6, 4])).toEqual(new Map([['top', ['folded']]]));
-  expect(piles(pile, 'top', undefined, [6, 4])).toEqual(new Map([['top', ['folded', 'under count']]]));
+test("a count goes clear of the followed Train's pill, drawn over every count but its own, and folds neither it nor a spread pile's Trains", () => {
+  expect(piles([...pile, named('followed', [20, -9])], 'followed', undefined, COUNT)).toEqual(new Map([['top', { folded: ['folded'], corner: [-1, -1] }]]));
+  expect(folds(piles([...pile, tr, tl, br, bl], undefined, new Set(['tr']), COUNT))).toEqual(new Map([['top', ['folded']]]));
 });
 
 test('the Trains a spread pile holds apart never fold: one under a pill that meets its name is drawn, its name over that pill, and a pill under one of them, whose name it meets, folds into it', () => {
-  expect(piles([named('spread', [0, 0]), named('over it', [4, 1])], undefined, new Set(['spread']))).toEqual(new Map());
-  expect(piles([named('spread', [4, 1]), named('under it', [0, 0])], undefined, new Set(['spread']))).toEqual(new Map([['spread', ['under it']]]));
+  expect(folds(piles([named('spread', [0, 0]), named('over it', [4, 1])], undefined, new Set(['spread'])))).toEqual(new Map());
+  expect(folds(piles([named('spread', [4, 1]), named('under it', [0, 0])], undefined, new Set(['spread'])))).toEqual(new Map([['spread', ['under it']]]));
   // Nor under the followed Train, in its layer over them.
-  expect(piles([named('spread', [0, 0]), named('followed', [4, -1])], 'followed', new Set(['spread']))).toEqual(new Map());
+  expect(folds(piles([named('spread', [0, 0]), named('followed', [4, -1])], 'followed', new Set(['spread'])))).toEqual(new Map());
 });
 
 test('a tap on a counted pill spreads its pile, moving or standing: it, first, and those folded into it, and those standing at its Station whose pills touch them', () => {
-  const moving = { standsAt: undefined };
   const pile = [pill('top', [0, 0], 90, moving), pill('folded', [2, 0], 90, moving), pill('passing', [4, 0], 90, moving), pill('far', [100, 0], 90, moving)];
   expect(groupOf(pile, 'top', ['folded'])).toEqual({ ids: new Set(['top', 'folded']), pile: true });
   // Standing at X: those standing there that touch the pile, chained, but not one at Y, nor one passing that isn't in it.
@@ -178,24 +189,35 @@ test('a tap on a counted pill spreads its pile, moving or standing: it, first, a
 });
 
 test('a spread pile of moving Trains goes side by side, each across its own track, as a standing group does', () => {
-  const moving = { standsAt: undefined };
   const pile = [pill('top', [0, 0], 90, moving), pill('folded', [2, 0], 90, moving), pill('west', [1, 0], 270, moving)];
   expect(settled(spreading(), pile, 0, groupOf(pile, 'top', ['folded', 'west']))).toEqual({ top: 5, folded: 15, west: 5 });
 });
 
-test('a spread moving pile holds each of its Trains apart while, where it would be drawn unspread, its pill touches another of the pile, and ends once none does', () => {
-  const moving = { standsAt: undefined };
+test('a spread pile holds each of its Trains apart while it lasts, one running on ahead and one folded in by its count alone, touching none, too', () => {
   const spread = spreading();
-  const together = [pill('top', [0, 0], 90, moving), pill('folded', [2, 0], 90, moving), pill('third', [4, 0], 90, moving)];
-  const group = groupOf(together, 'top', ['folded', 'third'])!;
-  expect(settled(spread, together, 0, group)).toEqual({ top: 5, folded: 15, third: 25 });
-  // The third runs on ahead, clear of the others: it eases back onto its track, and they close up.
-  const ahead = [pill('top', [0, 0], 90, moving), pill('folded', [2, 0], 90, moving), pill('third', [30, 0], 90, moving)];
-  expect(held(ahead, group).map((t) => t.id)).toEqual(['top', 'folded']);
-  expect(settled(spread, ahead, 10_000, group)).toEqual({ top: 5, folded: 15 });
-  // Then all part: none is held, and the group ends.
-  const parted = [pill('top', [0, 0], 90, moving), pill('folded', [0, 30], 90, moving), pill('third', [60, 0], 90, moving)];
-  expect(held(parted, group)).toEqual([]);
+  // `by count` lies where `top`'s count did, at its top right corner, touching no pill of the pile.
+  const together = [pill('top', [0, 0], 90, moving), pill('folded', [2, 0], 90, moving), pill('third', [4, 0], 90, moving), pill('by count', [20, -9], 90, moving)];
+  const group = groupOf(together, 'top', ['folded', 'third', 'by count'])!;
+  expect(settled(spread, together, 0, group)).toEqual({ top: 5, folded: 15, third: 25, 'by count': 5 });
+  const ahead = [pill('top', [0, 0], 90, moving), pill('folded', [2, 0], 90, moving), pill('third', [30, 0], 90, moving), pill('by count', [20, -9], 90, moving)];
+  expect(held(ahead, group).map((t) => t.id)).toEqual(['top', 'folded', 'third', 'by count']);
+  expect(lasts(ahead, group)).toBe(true);
+});
+
+test("a spread moving pile lasts while, where they'd be drawn unspread, one of its Trains would fold into another, as it was folded, and ends once none would", () => {
+  const group = groupOf([pill('top', [0, 0], 90, moving), pill('folded', [2, 0], 90, moving), pill('by count', [20, -9], 90, moving)], 'top', ['folded', 'by count'])!;
+  // The folded one's name still under the top's pill, the one by its count wherever it is.
+  expect(lasts([pill('top', [0, 0], 90, moving), pill('folded', [2, 4], 90, moving), pill('by count', [60, 0], 90, moving)], group)).toBe(true);
+  // Parted, with no pile left for a count to fold into, though the one by its count lies where it did.
+  expect(lasts([pill('top', [0, 0], 90, moving), pill('folded', [0, 30], 90, moving), pill('by count', [20, -9], 90, moving)], group)).toBe(false);
+});
+
+test('a tap on a counted pill of a spread group adds its pile to the group, after those spread already, which keep their places', () => {
+  const standing = [pill('first', [0, 0], 90), pill('second', [0, 0], 90)];
+  const drawn = [...standing, pill('passing', [3, 2], 90, moving)];
+  const group = joined(groupOf(standing, 'first')!, groupOf(drawn, 'second', ['passing'])!);
+  expect(group).toEqual({ station: 'X', ids: new Set(['first', 'second', 'passing']), pile: true });
+  expect(settled(spreading(), drawn, 0, group)).toEqual({ first: 5, second: 15, passing: 23 });
 });
 
 test("a pile spread at a Station holds those standing there, touching or not, as a tapped group does, and one leaving while its pill still touches theirs; a tapped group with no count lets that one go at once, as before", () => {
