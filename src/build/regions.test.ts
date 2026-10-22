@@ -57,8 +57,8 @@ function network(id: string, [from, to]: [number, number], y: number, leaves: nu
 
 const DATES = ['2026-10-10', '2026-10-11', '2026-10-12'];
 
-/** What a build of a region gets: each Network from the table, the files it writes noted, in the order, by name. */
-function deps(table: Record<string, BuiltNetwork | Error>, files: { prefix: string; content: object }[] = []) {
+/** What a build of a region gets: each Network from the table, the files it writes noted, in the order, by name, and its key where it's named so. */
+function deps(table: Record<string, BuiltNetwork | Error>, files: { prefix: string; content: object; key?: string }[] = []) {
   const [log, found]: [string[], Found[]] = [[], []];
   return {
     files,
@@ -72,9 +72,9 @@ function deps(table: Record<string, BuiltNetwork | Error>, files: { prefix: stri
         if (built instanceof Error) throw built;
         return built;
       },
-      write: async (prefix: string, content: object) => {
-        files.push({ prefix, content });
-        return `${prefix}-0123456789ab.json`;
+      write: async (prefix: string, content: object, _what: string, key?: string) => {
+        files.push({ prefix, content, ...(key && { key }) });
+        return key ?? `${prefix}-0123456789ab.json`;
       },
       log: (line: string) => log.push(line),
       report: (f: Found) => found.push(f),
@@ -90,7 +90,9 @@ test("builds a region's Networks into one track file and a Trips file for each d
   };
   const { deps: d, files } = deps(table);
   const built = await buildRegion({ id: 'catalonia', networks: [{ id: 'rodalies' }, { id: 'fgc' }] }, d);
-  expect(files.map((f) => f.prefix)).toEqual(['days/track-catalonia', ...DATES.map((day) => `days/${day}-catalonia`)]);
+  expect(files.map((f) => f.prefix)).toEqual(['days/track-catalonia', 'days/decks-catalonia', ...DATES.map((day) => `days/${day}-catalonia`)]);
+  // Only a desktop's decks file comes beside the track's, named after it, which the manifest names: a phone reads no more (ADR-0016).
+  expect(files[1]).toEqual({ prefix: 'days/decks-catalonia', content: { bridges: {} }, key: 'days/decks-catalonia-0123456789ab.json' });
   // One track with both Networks' Lines, Stations and shapes, and Stretches with the region's IDs, drawn side by side where they share.
   // Its file stores the traced shapes as pieces and its slots as chains, which the map reads back as the track the build made.
   const file = files[0]?.content as StoredTrack;
@@ -112,7 +114,7 @@ test("builds a region's Networks into one track file and a Trips file for each d
   expect(beside).toHaveLength(1);
   expect(Math.abs((beside[0]?.side ?? NaN) - (fgc?.side ?? NaN))).toBe(1);
   // Each day's Trips file holds both Networks' Trips of that day, and the manifest names it with the one track.
-  const day0 = files[1]?.content as { trips: Trip[]; serviceDay: string; noonMinus12h: number };
+  const day0 = files[2]?.content as { trips: Trip[]; serviceDay: string; noonMinus12h: number };
   expect([day0.serviceDay, day0.noonMinus12h]).toEqual(['2026-10-10', noonMinus12h('2026-10-10')]);
   expect(day0.trips.map((t) => t.id)).toEqual(['rodalies:0.300', 'rodalies:0.360', 'fgc:0.320']);
   expect(built.days.map(({ date, track: t, trips }) => [date, t, trips])).toEqual(
@@ -142,7 +144,7 @@ test("leaves out of a region a Network its build gives none of, and names a Stat
   const track = decodeTrack(files[0]?.content as StoredTrack);
   expect(track.networks.map((n) => n.id)).toEqual(['ouigo', 'ave']);
   expect(track.stations.map((s) => [s.name, s.networks])).toEqual([['ave 1', ['ave', 'ouigo']], ['ave 2', ['ave', 'ouigo']]]);
-  const today = files[1]?.content as { trips: Trip[] };
+  const today = files[2]?.content as { trips: Trip[] };
   expect(today.trips.map((t) => [t.line, t.headsign])).toEqual([['ouigo:OUIGO', 'ave 2'], ['ave:C1', '']]);
   expect(built.days[0]?.noTrips).toBeUndefined();
 });
