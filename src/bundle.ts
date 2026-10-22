@@ -931,7 +931,8 @@ export const DECKS_FROM = 14;
 /**
  * The zooms the decks along the Lines' Stretches are made for, each drawn from its own to the next's, the last to the
  * zoom the Lines are back on their rails at (APART): over that zoom they move onto them, and a deck is fixed in
- * metres, so it's made again every quarter zoom, at most 1.8 px a line width off its stroke. From there, the rails' decks.
+ * metres, so it's made again every quarter zoom, at most 1.8 px off its stroke for each line width the stroke is off its
+ * centreline (`side`), where made once it would drift 8 px for each. From there, the rails' decks.
  */
 export const DECK_STEPS = [DECKS_FROM, DECKS_FROM + 0.25, DECKS_FROM + 0.5, DECKS_FROM + 0.75];
 /**

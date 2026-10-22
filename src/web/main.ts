@@ -1171,7 +1171,8 @@ const keyOf = (track: Track) => trackKeys.get(track) ?? (trackKeys.set(track, ++
  * of a phone's long-distance join, after the page took 0.89 s to make them (#837). MapLibre asks for the tiles through
  * a protocol of their own (LINE_TILES), which hands it the worker's bytes.
  */
-const linesWorker = new Worker(new URL('./linesWorker.ts', import.meta.url), { type: 'module' });
+// On a desktop, named so that it loads the decks' module as it starts, not at the first join (linesWorker.ts, ADR-0016).
+const linesWorker = new Worker(new URL('./linesWorker.ts', import.meta.url), { type: 'module', name: DECKS ? 'lines-decks' : 'lines' });
 /** The tiles' URLs' protocol, and their URL for MapLibre, which the version of the regions in them makes new for each join. */
 const LINE_TILES = 'viapeninsula-lines';
 const lineTilesUrl = (source: LineSource, version: number) => `${LINE_TILES}://${source}/{z}/{x}/{y}?${version}`;

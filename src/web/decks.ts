@@ -4,7 +4,9 @@
 // its own colour, side by side as its stroke is, its rails' grey on shared track; each deck stands on piers and ramps
 // down to the ground at each end. Each tunnel's mouth gets an arch. Tunnels are drawn as ever.
 
+import { GeoJSONVT } from '@maplibre/geojson-vt';
 import { along, APART, atZoom, BANDS, bridgeLayer, cutStroke, DECK_STEPS as STEPS, DECKS_FROM, DEGREE, depth, pixelMetres, pointAt, STRETCH, WIDTH, type DecksFile, type Point, type Shape, type Stroke } from '../bundle.ts';
+import { OPTIONS, TOLERANCE } from './lineTiles.ts';
 
 /** The zoom the Lines are back on their rails at, and their decks: the rails' decks are the step after STEPS. */
 const RAILS_ZOOM = APART.at(-1)?.[0] ?? 15;
@@ -114,18 +116,32 @@ function measured(line: Point[]): Pick<Shape, 'coords' | 'dist'> {
 type Part = { kind: 'deck' | 'pier'; step: number; base: number; top: number };
 const polygon = (ring: Point[], properties: Record<string, unknown>): GeoJSON.Feature => ({ type: 'Feature', properties, geometry: { type: 'Polygon', coordinates: [ring] } });
 
+/** How much a deck is lifted for each LIFT_AT metres across it's off another, in metres at DECKS_FROM, and in how many lifts. */
+const [LIFT, LIFT_AT, LIFTS] = [0.15, 1.5, 8];
+
 /**
  * A deck along a line, `side` line widths right of it and as wide as a line at the step's zoom, or for the rails' step
  * on it and RAILS_DECK wide: its ramps at the `ramped` ends, each in RAMP_STEPS rising to its full height, the rest at
- * it, and a pier every PIERS, as high as the deck there. `lift` raises it a hair, so that two decks that overlap, as a
- * double track's do, don't flicker.
+ * it, and a pier every PIERS, as high as the deck there. It's lifted a hair by where it lies across its way, so that
+ * two decks that overlap, as a double track's two do on their rails, and Lines' moving onto theirs, don't flicker: those
+ * LIFT_AT to LIFTS × LIFT_AT metres apart differ.
  */
-function deck(line: Point[], { side, step, layer, ramped, lift }: { side: number; step: number; layer: number; ramped: [boolean, boolean]; lift: number }, properties: Record<string, unknown>): GeoJSON.Feature[] {
+function deck(line: Point[], { side, step, layer, ramped }: { side: number; step: number; layer: number; ramped: [boolean, boolean] }, properties: Record<string, unknown>): GeoJSON.Feature[] {
   const lat = line[0]?.[1] ?? 0;
   const zoom = STEPS[step];
   const [offset, width] = zoom === undefined ? [0, RAILS_DECK] : [side * atZoom(APART, zoom) * pixelMetres(zoom, lat), atZoom(WIDTH, zoom) * pixelMetres(zoom, lat)];
   const shape = measured(line);
   const length = shape.dist.at(-1) ?? 0;
+  const [kx, ky] = perMetre(lat);
+  const across = (() => {
+    const [[x, y], [ax, ay], [bx, by]] = [pointAt(shape, length / 2), line[0]!, line.at(-1)!];
+    const [dx, dy] = [(bx - ax) * kx, (by - ay) * ky];
+    // Its right, the same way whichever way the line runs.
+    const [nx, ny] = dy > 0 || (dy === 0 && dx < 0) ? [dy, -dx] : [-dy, dx];
+    const n = Math.hypot(nx, ny) || 1;
+    return (x * kx * nx + y * ky * ny) / n + offset * Math.sign(dy > 0 || (dy === 0 && dx < 0) ? 1 : -1);
+  })();
+  const lift = LIFT * (((Math.floor(across / LIFT_AT) % LIFTS) + LIFTS) % LIFTS);
   const ramp = Math.min(RAMP, length / 3);
   const [rise, slab] = [deckHeight(layer, lat), (SLAB * pixelMetres(DECKS_FROM, lat)) / Math.SQRT1_2];
   /** How high the deck is a distance along it, of its full height. */
@@ -138,7 +154,6 @@ function deck(line: Point[], { side, step, layer, ramped, lift }: { side: number
     const base = rise * up((from + to) / 2) + lift;
     return [polygon(strip(along(shape, from, to), offset - width / 2, offset + width / 2), { ...properties, kind: 'deck', step, base, top: base + slab } satisfies Part)];
   });
-  const [kx, ky] = perMetre(lat);
   const piers = Array.from({ length: Math.max(0, Math.ceil(length / PIERS) - 1) }, (_, k) => (k + 1) * PIERS).flatMap((d) => {
     if (length - d < PIERS / 2) return [];
     const [x, y] = pointAt(shape, d);
@@ -153,16 +168,34 @@ function deck(line: Point[], { side, step, layer, ramped, lift }: { side: number
   return [...parts, ...piers];
 }
 
+/** A deck as a region's decks keep it, to be made in the tiles it's in (decksTile()): its line, where it lies, and how it's drawn. */
+interface Deck {
+  line: Point[];
+  bbox: [west: number, south: number, east: number, north: number];
+  /** Of the rails' step, or else of STEPS, along a Stretch, at its stroke's side. */
+  rails: boolean;
+  side: number;
+  layer: number;
+  ramped: [boolean, boolean];
+  properties: Record<string, unknown>;
+}
+
+/** A region's decks and its tunnels' mouths, as the Lines' worker keeps them for its tiles (decksTile()). */
+export interface RegionDecks {
+  decks: Deck[];
+  mouths: Point[];
+}
+
 /**
- * The features of a region's decks, from the Lines' features drawnLines() made of its strokes and rails cut at their
- * bridges (decked()): of each stroke on a bridge in the band of DECKS_FROM, a deck for each of STEPS, side by side as the
- * strokes are; of each rails' part on a bridge, a deck, once for a track Lines share; and each tunnel's mouth (mouthsOf()).
- * A deck ramps down at each end where it doesn't meet another of its Line's.
+ * A region's decks, from the Lines' features drawnLines() made of its strokes and rails cut at their bridges (decked()):
+ * each stroke's part on a bridge in the band of DECKS_FROM, side by side as the strokes are, and each rails' part on a
+ * bridge, once for a track Lines share; each ramped down at an end where it doesn't meet another of its Line's. And each
+ * tunnel's mouth (mouthsOf()). Their features are made only in the tiles they're in, as a join would make some 276,000
+ * of long distance's (440 ms in Node, and its index 201 ms more) where a view shows a few hundred.
  */
-export function deckFeatures(lines: GeoJSON.Feature[], rails: GeoJSON.Feature[], shapes: Iterable<Shape>): GeoJSON.Feature[] {
-  const out: GeoJSON.Feature[] = [];
-  let made = 0;
-  const each = (features: GeoJSON.Feature[], steps: number[]) => {
+export function regionDecks(lines: GeoJSON.Feature[], rails: GeoJSON.Feature[], shapes: Iterable<Shape>): RegionDecks {
+  const decks: Deck[] = [];
+  const each = (features: GeoJSON.Feature[], onRails: boolean) => {
     const on = features.filter((f) => f.properties?.deck && (f.properties.band === undefined || f.properties.band === BAND) && f.geometry.type === 'LineString');
     const key = (p: Point) => `${p[0].toFixed(5)} ${p[1].toFixed(5)}`;
     // Where each Line's decks end, to tell where one meets the next, as at a centreline's end, from one where it doesn't.
@@ -176,20 +209,47 @@ export function deckFeatures(lines: GeoJSON.Feature[], rails: GeoJSON.Feature[],
       // A track Lines share is decked once (#139's grey).
       if (p.shared && seen.has([key(first), key(last)].sort().join(' '))) continue;
       seen.add([key(first), key(last)].sort().join(' '));
-      const ramped: [boolean, boolean] = [ends.get(`${p.line} ${key(first)}`) === 1, ends.get(`${p.line} ${key(last)}`) === 1];
-      const properties = { line: p.line, shape: p.shape, from: p.from, to: p.to, colour: p.colour, ...(p.shared && { shared: true }) };
-      const lift = 0.4 * (made++ % 4);
-      for (const step of steps) out.push(...deck(line, { side: steps.length > 1 ? Number(p.side) : 0, step, layer: Number(p.deck), ramped, lift }, properties));
+      const [lons, lats] = [line.map(([lon]) => lon), line.map(([, lat]) => lat)];
+      decks.push({
+        line,
+        bbox: [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)],
+        rails: onRails,
+        side: onRails ? 0 : Number(p.side),
+        layer: Number(p.deck),
+        ramped: [ends.get(`${p.line} ${key(first)}`) === 1, ends.get(`${p.line} ${key(last)}`) === 1],
+        properties: { line: p.line, shape: p.shape, from: p.from, to: p.to, colour: p.colour, ...(p.shared && { shared: true }) },
+      });
     }
   };
-  each(lines, STEPS.map((_, k) => k));
-  each(rails, [STEPS.length]);
-  for (const at of mouthsOf(shapes)) out.push({ type: 'Feature', properties: { kind: 'mouth' }, geometry: { type: 'Point', coordinates: at } });
-  return out;
+  each(lines, false);
+  each(rails, true);
+  return { decks, mouths: mouthsOf(shapes) };
 }
 
-/** The decks' features in a tile at a zoom: the mouths at every zoom the source has, and from DECKS_FROM each step's decks at the zooms it's drawn at. */
-export function inTile<F extends { tags?: Record<string, unknown> | null }>(features: F[], z: number): F[] {
-  const steps = z < DECKS_FROM ? [] : z < RAILS_ZOOM ? STEPS.map((_, k) => k) : [STEPS.length];
-  return features.filter(({ tags }) => tags?.kind === 'mouth' || steps.includes(Number(tags?.step)));
+/** The decks' features of a region's deck (deckFeatures()), each of STEPS along a Stretch, or the rails' step, at its zooms. */
+export function deckFeatures({ line, rails, side, layer, ramped, properties }: Deck): GeoJSON.Feature[] {
+  return (rails ? [STEPS.length] : STEPS.map((_, k) => k)).flatMap((step) => deck(line, { side, step, layer, ramped }, properties));
+}
+
+/** A tile's west, south, east and north edges, with its buffer, in degrees. */
+function tileBox(z: number, x: number, y: number, buffer: number): [number, number, number, number] {
+  const n = 2 ** z;
+  const lat = (t: number) => (Math.atan(Math.sinh(Math.PI * (1 - (2 * t) / n))) * 180) / Math.PI;
+  return [((x - buffer) / n) * 360 - 180, lat(y + 1 + buffer), ((x + 1 + buffer) / n) * 360 - 180, lat(y - buffer)];
+}
+
+/**
+ * A tile of the decks' source, cut as the Lines' tiles are (lineTiles.ts's OPTIONS): the mouths in it, from where the
+ * source starts, and from DECKS_FROM the decks in it, made for its zoom: each of STEPS along the Stretches below the
+ * zoom the Lines are back on their rails at, and from there the rails' decks. Undefined where it has none.
+ */
+export function decksTile(regions: RegionDecks[], z: number, x: number, y: number): ReturnType<GeoJSONVT['getTile']> | undefined {
+  const [west, south, east, north] = tileBox(z, x, y, OPTIONS.buffer / OPTIONS.extent);
+  const features: GeoJSON.Feature[] = [];
+  for (const { decks, mouths } of regions) {
+    for (const [lon, lat] of mouths) if (lon >= west && lon <= east && lat >= south && lat <= north) features.push({ type: 'Feature', properties: { kind: 'mouth' }, geometry: { type: 'Point', coordinates: [lon, lat] } });
+    if (z < DECKS_FROM) continue;
+    for (const d of decks) if (d.rails === z >= RAILS_ZOOM && d.bbox[0] <= east && d.bbox[2] >= west && d.bbox[1] <= north && d.bbox[3] >= south) features.push(...deckFeatures(d));
+  }
+  return features.length ? new GeoJSONVT({ type: 'FeatureCollection', features }, { ...OPTIONS, maxZoom: z, indexMaxZoom: 0, tolerance: TOLERANCE.rails * (OPTIONS.extent / 512) }).getTile(z, x, y) : undefined;
 }

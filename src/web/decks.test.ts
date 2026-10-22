@@ -6,7 +6,7 @@ import { bridgeLayer, DECK_STEPS as STEPS, DECKS_FROM, DEGREE, pixelMetres, type
 import { encodeTrack } from '../pieces.ts';
 import * as decks from './decks.ts';
 import { deckPaint } from './deckLayers.ts';
-import { cutAtBridges, decked, deckFeatures, deckHeight, mouthsOf } from './decks.ts';
+import { cutAtBridges, decked, deckFeatures, deckHeight, mouthsOf, regionDecks } from './decks.ts';
 import { lineWork, type LinesAsk, type LineSource, type RegionHow } from './lineTiles.ts';
 import { LINE_PARTS } from './lines.ts';
 import { packFile } from './placeNames.ts';
@@ -61,7 +61,7 @@ test("cuts each Line's stroke at its bridges' ends, the part on a bridge marked 
 test("ramps a deck down to the ground over two piers at each end, in steps, but where it meets another of its Line's decks, and stands it on a pier every 40 m (#213)", () => {
   const rise = deckHeight(1, LAT);
   // R2's deck over 1 km, side by side with R11's; and R1's in two that meet at 500 m.
-  const features = deckFeatures([onBridge('R2', 0, 1000, -0.5), onBridge('R11', 0, 1000, 0.5), onBridge('R1', 0, 500), onBridge('R1', 500, 1000)], [], []);
+  const features = regionDecks([onBridge('R2', 0, 1000, -0.5), onBridge('R11', 0, 1000, 0.5), onBridge('R1', 0, 500), onBridge('R1', 500, 1000)], [], []).decks.flatMap(deckFeatures);
   const of = (line: string, kind: string) => features.filter((f) => f.properties?.line === line && f.properties.kind === kind && f.properties.step === 0).sort((a, b) => span(a)[0]! - span(b)[0]!);
   // Its height there, in tenths of the full one, which leaves out the hair it's lifted to keep two that overlap apart.
   const up = (f: GeoJSON.Feature, key = 'base') => Math.round((Number(f.properties?.[key]) / rise) * 10) / 10;
@@ -81,6 +81,16 @@ test("ramps a deck down to the ground over two piers at each end, in steps, but 
   expect(north('R2') - north('R11')).toBe(Math.round(4 * pixelMetres(14, LAT)));
   // A deck for each of STEPS along the Stretches, and none for the rails' step.
   expect([...new Set(features.map((f) => f.properties?.step))].sort()).toEqual(STEPS.map((_, k) => k));
+});
+
+test("lifts decks that overlap a hair apart, as a double track's two on their rails, whichever way each runs, so that they don't flicker (#213)", () => {
+  // R2's two tracks 4.5 m apart, each way, their decks 7 m wide on their rails; and a deck 30 m off, which overlaps neither.
+  const rails = (line: string, from: number, to: number, y: number) => ({ ...onBridge(line, from, to), geometry: { type: 'LineString' as const, coordinates: straight('', from, to, y).coords } });
+  const decks = regionDecks([], [rails('R2', 0, 600, 0), rails('R2', 600, 0, 4.5), rails('R3', 0, 600, 30)], []).decks.flatMap(deckFeatures);
+  const base = (line: string, y: number) => decks.find((f) => f.properties?.line === line && f.properties.kind === 'deck' && Math.abs(Math.min(...(f.geometry as GeoJSON.Polygon).coordinates[0]!.map(([, lat]) => (lat! - LAT) * DEGREE)) - (y - 3.6)) < 1)?.properties?.base;
+  expect(base('R2', 0)).not.toBe(base('R2', 4.5));
+  // A hair: under a twentieth of the deck's height.
+  expect(Math.abs(Number(base('R2', 0)) - Number(base('R2', 4.5)))).toBeLessThan(deckHeight(1, LAT) / 20);
 });
 
 test("marks each tunnel's mouth once, a double track's with one arch, and none where a Line starts or ends in its tunnel, goes deeper in it, or onto a bridge (#213)", () => {

@@ -33,11 +33,11 @@ export type LinesAsk =
 /** The tiles' extent and MapLibre's tile size, in px, as a GeoJSON source has them: its options' px are tile units ×16. */
 const [EXTENT, TILE_PX] = [8192, 512];
 /** MapLibre's GeoJSON source's defaults, and the rails' tolerance, which is less, so as not to facet their curves (#203). */
-const OPTIONS = { buffer: 128 * (EXTENT / TILE_PX), extent: EXTENT, maxZoom: 18, updateable: true };
-const TOLERANCE: Record<LineSource, number> = { lines: 0.375, rails: 0.1, decks: 0.1 };
+export const OPTIONS = { buffer: 128 * (EXTENT / TILE_PX), extent: EXTENT, maxZoom: 18, updateable: true };
+export const TOLERANCE = { lines: 0.375, rails: 0.1 };
 
-/** A region's features, by source. */
-type Drawing = Record<LineSource, GeoJSON.Feature[]>;
+/** A region's features, by source, and on a desktop its decks, made in the tiles they're in (decks.ts). */
+type Drawing = { lines: GeoJSON.Feature[]; rails: GeoJSON.Feature[]; decks?: import('./decks.ts').RegionDecks };
 
 /**
  * What the worker does with what the page asks (LinesAsk): makes each region's Lines once, for as long as the next join
@@ -47,7 +47,7 @@ type Drawing = Record<LineSource, GeoJSON.Feature[]>;
  * from DECKS_FROM, not on the ground.
  */
 export function lineWork(decks: () => typeof import('./decks.ts') | undefined = () => undefined) {
-  const index = Object.fromEntries((['lines', 'rails', 'decks'] as const).map((s) => [s, new GeoJSONVT({ type: 'FeatureCollection', features: [] }, { ...OPTIONS, tolerance: TOLERANCE[s] * (EXTENT / TILE_PX) })])) as Record<LineSource, GeoJSONVT>;
+  const index = Object.fromEntries((['lines', 'rails'] as const).map((s) => [s, new GeoJSONVT({ type: 'FeatureCollection', features: [] }, { ...OPTIONS, tolerance: TOLERANCE[s] * (EXTENT / TILE_PX) })])) as Record<'lines' | 'rails', GeoJSONVT>;
   let held = new Map<number, Drawing>();
   let next = 0;
   const make = (file: Packed, { rank, under, lettering, shownFrom, decks: bridges }: RegionHow): Drawing => {
@@ -56,19 +56,18 @@ export function lineWork(decks: () => typeof import('./decks.ts') | undefined = 
     const how = { shapes: new Map(track.shapes.map((s) => [s.id, s])), lines: new Map(track.lines.map((l) => [l.id, l])), lettering: (line: string) => letters.get(line), rank, under, shownFrom: new Map(shownFrom) };
     const made = bridges && decks();
     const { strokes, rails } = made ? made.decked({ ...track, shapes: how.shapes }, bridges) : track;
-    const drawing = { lines: drawnLines(strokes, how), rails: drawnLines(rails, how, rounded), decks: [] as GeoJSON.Feature[] };
-    if (made) drawing.decks = made.deckFeatures(drawing.lines, drawing.rails, track.shapes);
-    for (const f of [...drawing.lines, ...drawing.rails, ...drawing.decks]) f.id = next++;
+    const drawing: Drawing = { lines: drawnLines(strokes, how), rails: drawnLines(rails, how, rounded) };
+    for (const f of [...drawing.lines, ...drawing.rails]) f.id = next++;
+    if (made) drawing.decks = made.regionDecks(drawing.lines, drawing.rails, track.shapes);
     return drawing;
   };
   return (ask: LinesAsk): { shown: number } | { ask: number; data: ArrayBuffer } => {
     if ('tile' in ask) {
       const { source, z, x, y } = ask.tile;
-      const cut = index[source].getTile(z, x, y);
-      // From DECKS_FROM, a Line on a bridge is its deck's, not drawn on the ground; and a deck is drawn at its own zooms.
       const made = decks();
-      const features = cut && (source === 'decks' ? made?.inTile(cut.features, z) : z >= DECKS_FROM && made ? cut.features.filter((f) => !f.tags?.deck) : cut.features);
-      const tile = cut && features && ({ ...cut, features } as typeof cut);
+      // From DECKS_FROM, a Line on a bridge is its deck's, not drawn on the ground.
+      const cut = source === 'decks' ? made?.decksTile([...held.values()].flatMap((d) => d.decks ?? []), z, x, y) : index[source].getTile(z, x, y);
+      const tile = cut && source !== 'decks' && z >= DECKS_FROM && made ? ({ ...cut, features: cut.features.filter((f) => !f.tags?.deck) } as typeof cut) : cut;
       return { ask: ask.tile.ask, data: tile && tile.features.length ? fromGeojsonVt({ [source]: tile }, { version: 2, extent: EXTENT }).slice().buffer : new ArrayBuffer(0) };
     }
     const now = new Map(
@@ -79,7 +78,7 @@ export function lineWork(decks: () => typeof import('./decks.ts') | undefined = 
       }),
     );
     const [add, remove] = [[...now.values()].filter((d) => ![...held.values()].includes(d)), [...held.values()].filter((d) => ![...now.values()].includes(d))];
-    for (const source of ['lines', 'rails', 'decks'] as const) {
+    for (const source of ['lines', 'rails'] as const) {
       if (add.length || remove.length) index[source].updateData({ add: add.flatMap((d) => d[source]), remove: remove.flatMap((d) => d[source].map((f) => f.id as number)) });
     }
     held = now;
