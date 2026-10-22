@@ -1,5 +1,6 @@
 // Trains standing together at a Station drawn side by side across their track, as on platforms,
-// once the viewer taps their pills, which cover each other (#129).
+// once the viewer taps their pills, which cover each other (#129). Pills that would lie on each other's
+// names drawn as a pile, its top pill with a count, spread so by a tap on it, moving too (#828).
 import { rightOf } from './names.ts';
 
 /**
@@ -22,23 +23,31 @@ export interface Drawn {
   standsAt?: string;
 }
 
-/** Trains a tap spread: the Station they stood at, and which, by their IDs, the tapped one first. */
+/**
+ * Trains a tap spread: the Station they stood at, if the tapped one stood at one, and which, by their IDs, the tapped one
+ * first; and whether it's the pile a tap on a counted pill spread (#828), whose Trains may be moving.
+ */
 export interface Group {
-  station: string;
+  station?: string;
   ids: Set<string>;
+  pile?: true;
 }
 
 /**
  * The group a tap on a Train's pill spreads: it and each Train standing at its Station whose pill
  * touches its, or touches one of those, where they're drawn. None where it touches no other there.
+ * A counted pill's pile spreads whole (#828): it, the Trains `folded` into it, moving or standing, and
+ * those standing at its Station whose pills touch theirs, as above.
  */
-export function groupOf(drawn: Drawn[], id: string): Group | undefined {
+export function groupOf(drawn: Drawn[], id: string, folded: string[] = []): Group | undefined {
   const tapped = drawn.find((t) => t.id === id);
-  if (!tapped?.standsAt) return undefined;
-  const there = drawn.filter((t) => t.standsAt === tapped.standsAt);
-  const group = [tapped];
+  if (!tapped || (!tapped.standsAt && !folded.length)) return undefined;
+  const there = drawn.filter((t) => tapped.standsAt && t.standsAt === tapped.standsAt);
+  const group = [tapped, ...folded.flatMap((f) => drawn.find((t) => t.id === f) ?? [])];
   for (const t of group) for (const o of there) if (!group.includes(o) && touches(t, o)) group.push(o);
-  return group.length > 1 ? { station: tapped.standsAt, ids: new Set(group.map((t) => t.id)) } : undefined;
+  if (group.length < 2) return undefined;
+  const ids = new Set(group.map((t) => t.id));
+  return folded.length ? { station: tapped.standsAt, ids, pile: true } : { station: tapped.standsAt, ids };
 }
 
 /**
@@ -64,15 +73,15 @@ export function spreading(): (drawn: Drawn[], now: number, group?: Group) => Map
 }
 
 /**
- * How far further right of where it's drawn to draw each Train of a group still standing at its
- * Station, in px: in the group's order, each as near its own track as it goes, its pill's edge there,
- * clear of the group's pills moved already. Others, as one coming in after the tap, aren't moved, nor
- * moved round, so that nothing moves of itself.
+ * How far further right of where it's drawn to draw each Train of a group held apart (held()), in
+ * px: in the group's order, each as near its own track as it goes, its pill's edge there, clear of the
+ * group's pills moved already. Others, as one coming in after the tap, aren't moved, nor moved round,
+ * so that nothing moves of itself (#129): one the group's pill lands on, as on its name, folds into it
+ * (piles()), and a tap on its count adds it to the group (joined(), #828).
  */
-function apart(drawn: Drawn[], { station, ids }: Group): Map<string, number> {
-  const there = [...ids].flatMap((id) => drawn.find((t) => t.id === id && t.standsAt === station) ?? []);
+function apart(drawn: Drawn[], group: Group): Map<string, number> {
   const [target, placed] = [new Map<string, number>(), [] as Drawn[]];
-  for (const t of there) {
+  for (const t of held(drawn, group)) {
     const right = rightOf(t.heading, 0);
     let out = toEdge(t.box, t.heading + 90);
     for (let past = true; past; ) {
@@ -86,6 +95,25 @@ function apart(drawn: Drawn[], { station, ids }: Group): Map<string, number> {
     target.set(t.id, out);
   }
   return target;
+}
+
+/**
+ * Of a spread group's Trains drawn as pills, in its order, those it holds apart: each standing at its
+ * Station, and of a counted pile a tap spread (#828), each whose pill touches another of the group's where
+ * they'd be drawn unspread, as Trains moving together do. Others, as one that leaves, ease back onto
+ * their tracks, and once fewer than two are held, the group ends (#129).
+ * ponytail: a pile's Train its count alone folded in, touching none of the pile, isn't held, so it's drawn where it is rather
+ * than beside the others; but at 21 Oct 2026's peak each of the 1,441 Trains in the 624 piles of 32 samples touched another
+ * of its pile (#828's second review). Hold it too if one's seen left behind after a tap.
+ */
+export function held(drawn: Drawn[], { station, ids, pile }: Group): Drawn[] {
+  const of = [...ids].flatMap((id) => drawn.find((t) => t.id === id) ?? []);
+  return of.filter((t) => (station !== undefined && t.standsAt === station) || (pile && of.some((o) => o !== t && touches(t, o))));
+}
+
+/** A spread group with a tapped pile of one of its Trains' added (#828): those spread already first, keeping their places. */
+export function joined(group: Group, more: Group): Group {
+  return { station: group.station ?? more.station, ids: new Set([...group.ids, ...more.ids]), pile: true };
 }
 
 /**
@@ -122,35 +150,117 @@ export function toEdge([halfWidth, halfHeight]: [number, number], angle: number)
   return Math.min(halfWidth / Math.abs(Math.sin(a)), halfHeight / Math.abs(Math.cos(a)));
 }
 
-/** A Train's pill as covered() checks it: where it's drawn, how far its pill reaches with its edge, and its name, either side of it and above and below it, in px. */
+/** A Train's pill as piles() takes it: where it's drawn, how far its pill reaches with its edge, and its name, either side of it and above and below it, in px. */
 export interface Named extends Pick<Drawn, 'id' | 'at' | 'box'> {
   name: [number, number];
 }
 
+/** A pile of Trains' pills drawn as its top pill: the IDs of those folded into it, which aren't drawn and which its count counts, and the corner of its top pill's box its count is at, right (1) or left (-1) and down (1) or up (-1). */
+export interface Pile {
+  folded: string[];
+  corner: [number, number];
+}
+
+/** A count's corners, as it tries them: top right, top left, bottom right and bottom left. */
+const CORNERS: [number, number][] = [
+  [1, -1],
+  [-1, -1],
+  [1, 1],
+  [-1, 1],
+];
+
 /**
- * The Trains whose names a pill drawn over them meets, where they're drawn, by their IDs: MapLibre draws
- * a layer's names after all its pills, so a covered pill's name would lie on the pill over it (#513). A
- * pill that only grazes another's outline, clear of its name, leaves the name (the maintainer's pick,
- * 19 Oct 2026). Drawn over another is the one lower on screen, and of two level the earlier in `drawn`,
- * as MapLibre draws a layer's symbols that may overlap (symbol-z-order `auto`, by its anchor's y), and the
- * followed Train's over them all, in its own layer.
- * ponytail: MapLibre ranks by y rounded to its tile's units (1/16 px at the tile's zoom), so two pills a
- * hair off level may be ranked the other way. Round `at` to those units if a name is seen over a pill there.
+ * The piles of Trains' pills where they're drawn, by their top pills' IDs (#828). MapLibre draws a layer's names after all its
+ * pills, so a pill's name would lie on a pill drawn over it (#513). Walked topmost first, as MapLibre draws them, a pill folds
+ * into the topmost pill drawn over it whose box meets its name, and is otherwise drawn: so no pill drawn has its name under
+ * another, one that only grazes another's outline, clear of its name, keeps it (the maintainer's pick, 19 Oct 2026), and one
+ * under a folded pill isn't folded by it. Drawn over another is the one lower on screen, and of two level the earlier in
+ * `drawn`, as MapLibre draws a layer's symbols that may overlap (symbol-z-order `auto`, by its anchor's y), and the followed
+ * Train's over them all, in its own layer. It never folds, nor do those `kept`, as a spread pile's (held()): one of those under
+ * a pill that meets its name is drawn, its name over that pill, rather than hide what it was spread to show, and a pill it's
+ * drawn over folds into it as into any.
+ * ponytail: MapLibre ranks by y rounded to its tile's units (1/16 px at the tile's zoom), so two pills a hair off level may
+ * be ranked the other way. Round `at` to those units if a name is seen over a pill there.
+ * A top pill's count, reaching `countBox` px either side of a corner of its box and above and below it, is drawn over every
+ * pill but the followed Train's: at the first corner where it lies on no drawn pill's name, nor under the followed Train's
+ * pill, and where it would at all four, at the top right, the pills whose names it lies on folding into its pile, each with
+ * any pile of its own. At 21 Oct 2026's peak, a count at the top right lay on 9–18 drawn pills' names in Barcelona at zoom 12
+ * (#828's review), and folding those all folded 2–12 Trains with nothing drawn on their names; at the first free corner,
+ * counts there fold 0–2 Trains, each with the count on its name.
+ * ponytail: clear of the pills' names, but not of the Stations' names, which the counts are drawn over, as where those are is
+ * laid out apart (namePlacer()) rather than on the page each frame, nor of other counts. Weigh them in if a count is seen to
+ * hide one.
+ * ponytail: a count's reach as of one digit, so a "+10" a few px wider can lie on the edge of a name. Widen it by its digits
+ * if that shows.
  * Swept by x, so that only pills near each other across the screen are compared.
  */
-export function covered(drawn: Named[], followed?: string): Set<string> {
-  const ranked = drawn.map((pill, order) => ({ pill, order, left: pill.at[0] - pill.box[0] })).sort((a, b) => a.left - b.left);
-  const over = (a: (typeof ranked)[number], b: (typeof ranked)[number]) =>
-    b.pill.id !== followed && (a.pill.id === followed || a.pill.at[1] > b.pill.at[1] || (a.pill.at[1] === b.pill.at[1] && a.order < b.order));
-  const under = new Set<string>();
-  ranked.forEach((one, i) => {
-    for (const other of ranked.slice(i + 1)) {
-      if (other.left >= one.pill.at[0] + one.pill.box[0]) break;
-      const [top, bottom] = over(one, other) ? [one, other] : [other, one];
-      if (touches(top.pill, { at: bottom.pill.at, box: bottom.pill.name })) under.add(bottom.pill.id);
+export function piles(drawn: Named[], followed?: string, kept?: ReadonlySet<string>, countBox?: [number, number]): Map<string, Pile> {
+  // The followed Train's first, in a layer of its own over every pill.
+  const first = (pill: Named) => (pill.id === followed ? 0 : 1);
+  const walk = drawn
+    .map((_, order) => order)
+    .sort((a, b) => first(drawn[a]!) - first(drawn[b]!) || drawn[b]!.at[1] - drawn[a]!.at[1] || a - b)
+    .map((order) => drawn[order]!);
+  // For each pill, by its place in the walk, the places of those over it whose boxes meet its name; and, were it counted, the
+  // places of those its count would lie on, with at which corners, as bits, comparing those within reach across the screen.
+  // Each list made only for a pill with something in it, as most have nothing, so as to leave the less garbage each frame.
+  const [meets, lies, [countWidth, countHeight]] = [[] as number[][], [] as [number, number][][], countBox ?? [0, 0]];
+  const left = (rank: number) => walk[rank]!.at[0] - walk[rank]!.box[0] - countWidth;
+  const byLeft = walk.map((_, rank) => rank).sort((a, b) => left(a) - left(b));
+  // Where the count of the pill at `a` would lie on the name of the one at `b`, or under the followed Train's pill, which is drawn over it.
+  const lie = (a: number, b: number) => {
+    const [pill, other] = [walk[a]!, walk[b]!];
+    const [width, height] = other.id === followed && pill.id !== followed ? other.box : other.name;
+    let corners = 0;
+    for (let c = 0; c < CORNERS.length; c++) {
+      const [x, y] = CORNERS[c]!;
+      if (Math.abs(pill.at[0] + x * pill.box[0] - other.at[0]) < countWidth + width && Math.abs(pill.at[1] + y * pill.box[1] - other.at[1]) < countHeight + height) corners |= 1 << c;
+    }
+    if (corners) (lies[a] ??= []).push([b, corners]);
+  };
+  byLeft.forEach((one, i) => {
+    const right = walk[one]!.at[0] + walk[one]!.box[0] + countWidth;
+    for (let j = i + 1; j < byLeft.length && left(byLeft[j]!) < right; j++) {
+      const other = byLeft[j]!;
+      const [top, bottom] = [Math.min(one, other), Math.max(one, other)];
+      const [over, under] = [walk[top]!, walk[bottom]!];
+      if (Math.abs(over.at[0] - under.at[0]) < over.box[0] + under.name[0] && Math.abs(over.at[1] - under.at[1]) < over.box[1] + under.name[1]) (meets[bottom] ??= []).push(top);
+      // Not where they're further apart up and down the screen than a count reaches.
+      if (!countBox || Math.abs(over.at[1] - under.at[1]) >= over.box[1] + under.box[1] + countHeight) continue;
+      lie(one, other);
+      lie(other, one);
     }
   });
-  return under;
+  // Each folds into the topmost of those still drawn, if any.
+  const [folded, out] = [new Set<number>(), new Map<string, Pile>()];
+  walk.forEach((pill, rank) => {
+    if (!meets[rank] || pill.id === followed || kept?.has(pill.id)) return;
+    let top = Infinity;
+    for (const r of meets[rank]) if (r < top && !folded.has(r)) top = r;
+    if (top === Infinity) return;
+    folded.add(rank);
+    const id = walk[top]!.id;
+    const pile = out.get(id);
+    if (pile) pile.folded.push(pill.id);
+    else out.set(id, { folded: [pill.id], corner: CORNERS[0]! });
+  });
+  // Each count, topmost first, at the first corner where it lies on nothing drawn, or at the top right, folding what it lies on.
+  walk.forEach((pill, rank) => {
+    const pile = out.get(pill.id);
+    if (!pile || folded.has(rank)) return;
+    const on = (lies[rank] ?? []).filter(([r]) => !folded.has(r));
+    const free = CORNERS.findIndex((_, c) => on.every(([, corners]) => !(corners & (1 << c))));
+    if (free >= 0) return void (pile.corner = CORNERS[free]!);
+    for (const [r, corners] of on) {
+      const { id } = walk[r]!;
+      // Those at the top right, CORNERS' first.
+      if (!(corners & 1) || id === followed || kept?.has(id)) continue;
+      folded.add(r);
+      pile.folded.push(id, ...(out.get(id)?.folded ?? []));
+      out.delete(id);
+    }
+  });
+  return out;
 }
 
 /** Whether two Trains' pills overlap, where they're drawn. */
