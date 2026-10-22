@@ -7,7 +7,7 @@ import { fromGeojsonVt } from '@maplibre/vt-pbf';
 import { rounded } from './curve.ts';
 import { drawnLines } from './lines.ts';
 import { unpackFile, type Packed } from './placeNames.ts';
-import { decksOf } from './v213.ts';
+import { DECKS_FROM, decksOf } from './v213.ts';
 
 /** How a region's Lines are made, but its track: its place in the manifest, whether under the others', each Line's lettering, and each Network's zoom (drawnLines()). */
 export interface RegionHow {
@@ -58,7 +58,9 @@ export function lineWork() {
   return (ask: LinesAsk): { shown: number } | { ask: number; data: ArrayBuffer } => {
     if ('tile' in ask) {
       const { source, z, x, y } = ask.tile;
-      const tile = index[source].getTile(z, x, y);
+      const cut = index[source].getTile(z, x, y);
+      // #213: below DECKS_FROM, the decks' tiles hold only the tunnels' mouths.
+      const tile = cut && source === 'decks' && z < DECKS_FROM ? ({ ...cut, features: cut.features.filter((f) => f.tags?.kind === 'mouth') } as typeof cut) : cut;
       return { ask: ask.tile.ask, data: tile ? fromGeojsonVt({ [source]: tile }, { version: 2, extent: EXTENT }).slice().buffer : new ArrayBuffer(0) };
     }
     const now = new Map(

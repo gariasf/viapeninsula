@@ -2,7 +2,7 @@
 // the page is main. A is main, which the harness tilts (`--pitch 45`). G draws the ground, terrain from Mapterhorn's DEM.
 // L raises the track's bridges as decks, from the traced shapes' `levels` the track files already carry, and marks
 // each tunnel's mouth. GL is both: a deck spans from the ground at one end to the ground at the other, and the Lines in
-// tunnels go under the ground.
+// tunnels are drawn as main draws them. GLh is GL with the Lines in tunnels hidden under the ground.
 import type { ExpressionSpecification, Map as MapLibreMap, RasterDEMSourceSpecification, StyleSpecification } from 'maplibre-gl';
 import { along, pointAt, type Line, type Point, type Shape, type Stroke } from '../bundle.ts';
 
@@ -14,8 +14,21 @@ export const V213 = (() => {
     return '';
   }
 })();
-export const GROUND = V213 === 'G' || V213 === 'GL';
-export const LEVELS = V213 === 'L' || V213 === 'GL';
+export const GROUND = V213 === 'G' || V213 === 'GL' || V213 === 'GLh';
+export const LEVELS = V213 === 'L' || V213 === 'GL' || V213 === 'GLh';
+/** GLh: the Lines in tunnels go under the ground, which covers them. */
+export const HIDDEN = V213 === 'GLh';
+/** The zoom decks and piers are drawn and cut into tiles from: at z13 a deck is about a pixel wide. Mouths go from z13. */
+export const DECKS_FROM = 14;
+
+/**
+ * The ground's credit, as its sources ask: Mapterhorn's TileJSON's, CNIG's MDT02 as its producer line words it, under
+ * CC BY 4.0, and Copernicus GLO-30's, as Mapterhorn's attribution list gives it.
+ */
+export const GROUND_CREDIT =
+  '<a href="https://mapterhorn.com/attribution">© Mapterhorn</a>, ' +
+  'MDT02-cob2 2015-2021 <a href="https://creativecommons.org/licenses/by/4.0/">CC-BY 4.0</a> <a href="https://www.scne.es/">scne.es</a>, ' +
+  'Copernicus GLO-30: DLR e.V. 2010-2014, Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the European Union and ESA. All rights reserved.';
 
 /**
  * Mapterhorn's terrain: Terrarium-encoded WebP, 512 px, no key, CORS `*`, a week's `max-age`; over Spain CNIG's MDT02

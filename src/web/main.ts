@@ -14,7 +14,7 @@ import { getJson, lookAgainSoon, RETRY, STALL } from './files.ts';
 import { daysAsTheyCome, firstLook, forgetJoined, joinedFrom, regionLoader, regionsCame, regionsNeeded, trackFileOf } from './regions.ts';
 import { drawnFrom, LINE_PARTS } from './lines.ts';
 import type { lineWork, LinesAsk, LineSource } from './lineTiles.ts';
-import { deckPaint, GROUND, grounded, LEVELS, mouthIcon, spanning } from './v213.ts';
+import { DECKS_FROM, deckPaint, GROUND, GROUND_CREDIT, grounded, HIDDEN, LEVELS, mouthIcon, spanning } from './v213.ts';
 import { linesAt, popupRoom } from './tap.ts';
 import { drawnAt as placeShownAt, FEW_ZOOM, fewer, interchangesOf, markedNetworks, onLines, RAILS, readOf, SIGN_ZOOM, type LineCall, type Drawn as PlaceDrawn, type Interchange } from './stations.ts';
 import { callsIn, fileShapes, hidesTowns, nameSort, rightOf, splitBy } from './names.ts';
@@ -1339,8 +1339,8 @@ const layered = [
   // Under the first band's casing, the lowest of the stretches' layers.
   { source: 'rails', id: 'rails', prefix: 'rail', zooms: { minzoom: railsZoom - FADE, filter: true as ExpressionFilterSpecification }, nameZooms: { minzoom: railsZoom }, opacity: railsFade, throughOpacity: railsFade, below: 'line-casing' },
 ];
-// #213's GL: the Lines in tunnels go under the ground, which covers them.
-if (GROUND && LEVELS) for (const { zooms } of layered) zooms.filter = ['all', zooms.filter, ['!', ['has', 'under']]];
+// #213's GLh: the Lines in tunnels go under the ground, which covers them.
+if (HIDDEN) for (const { zooms } of layered) zooms.filter = ['all', zooms.filter, ['!', ['has', 'under']]];
 /**
  * The suffix of a band's layers for a curve's pieces, drawn with butt ends: round ends overlapping at part opacity
  * showed a bead at every joint while the band faded out, from zoom 14.5 to 15.5 (#620, the maintainer's pick of
@@ -1449,9 +1449,9 @@ for (const { source, id, prefix, zooms, nameZooms, opacity, throughOpacity, belo
     },
   });
 }
-// #213's L and GL: the bridges' decks and the tunnels' mouths, from z13, below which a deck is under a pixel wide.
+// #213's L, GL and GLh: the bridges' decks from DECKS_FROM, and the tunnels' mouths from z13.
 if (LEVELS) {
-  map.addLayer({ id: 'decks', type: 'fill-extrusion', source: 'decks', 'source-layer': 'decks', minzoom: 13, filter: ['==', ['geometry-type'], 'Polygon'], paint: deckPaint(lineColour, darkBasemap ? '#8a8f98' : '#7c8088') }, firstLabel);
+  map.addLayer({ id: 'decks', type: 'fill-extrusion', source: 'decks', 'source-layer': 'decks', minzoom: DECKS_FROM, filter: ['==', ['geometry-type'], 'Polygon'], paint: deckPaint(lineColour, darkBasemap ? '#8a8f98' : '#7c8088') }, firstLabel);
   map.addImage('mouth', mouthIcon(darkBasemap), { pixelRatio: 2 });
   map.addLayer({ id: 'mouths', type: 'symbol', source: 'decks', 'source-layer': 'decks', minzoom: 13, filter: ['==', ['get', 'kind'], 'mouth'], layout: { 'icon-image': 'mouth', 'icon-anchor': 'bottom', 'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-pitch-alignment': 'viewport', 'icon-rotation-alignment': 'viewport' } }, firstLabel);
   if (GROUND) spanning(map);
@@ -4991,6 +4991,8 @@ function showCredits() {
     '<a href="https://openfreemap.org">OpenFreeMap</a> ' +
       '<a href="https://www.openmaptiles.org/">© OpenMapTiles</a> ' +
       `<a href="https://www.openstreetmap.org/copyright">${t('osmContributors')}</a>`,
+    // #213's G, GL and GLh: the ground's sources.
+    ...(GROUND ? [GROUND_CREDIT] : []),
     // Each source's once, however many Networks it feeds and credit it alike (ADR-0010). A track built
     // before #241 has no credits: its Networks get their names.
     ...new Set(credited.map((network) => (network.credit ? creditOf(network.credit) : network.name))),
