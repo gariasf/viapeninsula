@@ -1,0 +1,8 @@
+bcn G laptop: ground tiles 11, 942 KB, zooms 12,11,5,10, 0 not 200
+bcn G phone: ground tiles 6, 557 KB, zooms 12,11,5, 0 not 200
+mad G laptop: ground tiles 8, 739 KB, zooms 12,11,5,10, 0 not 200
+mad G phone: ground tiles 8, 739 KB, zooms 12,10,11,5, 0 not 200
+viaduct G laptop: ground tiles 10, 1083 KB, zooms 11,12,13,5,10, 0 not 200
+viaduct G phone: ground tiles 10, 1083 KB, zooms 13,5,12,11,10, 0 not 200
+mouth G laptop: ground tiles 10, 979 KB, zooms 14,13,5,12, 0 not 200
+mouth G phone: ground tiles 6, 554 KB, zooms 13,14,5, 0 not 200

@@ -1,0 +1,18 @@
+15:56:12 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+bcn-A-laptop-light: firstLines 959 ms, 38 requests, pitch 45, terrain false
+bcn-A-phone-light: firstLines 892 ms, 33 requests, pitch 45, terrain false
+bcn-G-laptop-light: firstLines 1094 ms, 48 requests, pitch 45, terrain true
+bcn-G-phone-light: firstLines 930 ms, 38 requests, pitch 45, terrain true
+mad-A-laptop-light: firstLines 665 ms, 38 requests, pitch 45, terrain false
+mad-A-phone-light: firstLines 644 ms, 32 requests, pitch 45, terrain false
+mad-G-laptop-light: firstLines 689 ms, 44 requests, pitch 45, terrain true
+mad-G-phone-light: firstLines 758 ms, 40 requests, pitch 45, terrain true
+viaduct-A-laptop-light: firstLines 652 ms, 44 requests, pitch 45, terrain false
+viaduct-A-phone-light: firstLines 538 ms, 34 requests, pitch 45, terrain false
+viaduct-G-laptop-light: firstLines 645 ms, 48 requests, pitch 45, terrain true
+viaduct-G-phone-light: firstLines 617 ms, 43 requests, pitch 45, terrain true
+mouth-A-laptop-light: firstLines 746 ms, 43 requests, pitch 45, terrain false
+mouth-A-phone-light: firstLines 790 ms, 32 requests, pitch 45, terrain false
+mouth-G-laptop-light: firstLines 914 ms, 47 requests, pitch 45, terrain true
+mouth-G-phone-light: firstLines 914 ms, 36 requests, pitch 45, terrain true

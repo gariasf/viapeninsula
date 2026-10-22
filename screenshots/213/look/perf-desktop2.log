@@ -1,0 +1,72 @@
+19:03:47 desktop2: npm run perf -- S3 S4 --pitch 45 --v213 main,G,GL --at ../213/capture/0630.ndjson.gz --out ../213/measure/live
+
+> perf
+> node src/page/perf.ts S3 S4 --pitch 45 --v213 main,G,GL --at ../213/capture/0630.ndjson.gz --out ../213/measure/live
+
+19:03:48 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+19:05:05 S3 desktop wt-213 run 1: load 9.9 7.2 5.6
+19:06:28 S3 desktop wt-213 v213 G run 1: load 7.7 7.2 5.7
+19:07:50 S3 desktop wt-213 v213 GL run 1: load 5.8 6.8 5.7
+19:07:51 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+19:09:06 S3 desktop wt-213 run 2: load 7.0 6.9 5.8
+19:10:28 S3 desktop wt-213 v213 G run 2: load 12.5 10.0 7.2
+19:11:50 S3 desktop wt-213 v213 GL run 2: load 5.7 8.3 6.8
+19:11:50 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+19:13:07 S3 desktop wt-213 run 3: load 11.8 9.4 7.3
+19:14:29 S3 desktop wt-213 v213 G run 3: load 6.6 8.4 7.2
+19:15:53 S3 desktop wt-213 v213 GL run 3: load 4.6 7.3 6.9
+19:15:53 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+19:16:31 S4 desktop wt-213 run 1: load 4.4 7.0 6.8
+19:17:09 S4 desktop wt-213 v213 G run 1: load 3.4 6.4 6.6
+19:17:46 S4 desktop wt-213 v213 GL run 1: load 2.8 5.9 6.3
+19:17:46 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+19:18:24 S4 desktop wt-213 run 2: load 5.2 6.1 6.4
+19:19:02 S4 desktop wt-213 v213 G run 2: load 3.7 5.6 6.2
+19:19:39 S4 desktop wt-213 v213 GL run 2: load 5.6 5.8 6.2
+19:19:40 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+19:20:18 S4 desktop wt-213 run 3: load 8.4 6.6 6.5
+19:20:55 S4 desktop wt-213 v213 G run 3: load 6.3 6.3 6.4
+19:21:33 S4 desktop wt-213 v213 GL run 3: load 5.2 6.0 6.3
+
+/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/wt-213, pitch 45, desktop, median of 3:
+| check | scenario | median | limit | |
+|---|---|---|---|---|
+| A join: longest gap, ms (S2's is long distance's, S6) | S3 | 259.1 | ≤ 100 | BREACH |
+| A join: longest gap, ms (S2's is long distance's, S6) | S4 | 183.4 | ≤ 100 | BREACH |
+| A join: frozen ms (gaps over 50 ms, summed) | S3 | 617.6 | ≤ 150 | BREACH |
+| A join: frozen ms (gaps over 50 ms, summed) | S4 | 266.6 | ≤ 150 | BREACH |
+| A zoom or pan step with no join: longest gap, ms | S3 | 33.4 | ≤ 34 | ok |
+| A zoom or pan step with no join: longest gap, ms | S4 | 16.7 | ≤ 34 | ok |
+| JS heap after a forced GC, every region loaded, MB | S3 | 222 | ≤ 500 | ok |
+| JS heap's peak, garbage included, MB (not budgeted) | S3 | 510 | | |
+
+/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/wt-213, v213 G, pitch 45, desktop, median of 3:
+| check | scenario | median | limit | |
+|---|---|---|---|---|
+| A join: longest gap, ms (S2's is long distance's, S6) | S3 | 249.1 | ≤ 100 | BREACH |
+| A join: longest gap, ms (S2's is long distance's, S6) | S4 | 175.1 | ≤ 100 | BREACH |
+| A join: frozen ms (gaps over 50 ms, summed) | S3 | 608.3 | ≤ 150 | BREACH |
+| A join: frozen ms (gaps over 50 ms, summed) | S4 | 266.1 | ≤ 150 | BREACH |
+| A zoom or pan step with no join: longest gap, ms | S3 | 66.6 | ≤ 34 | BREACH |
+| A zoom or pan step with no join: longest gap, ms | S4 | 16.6 | ≤ 34 | ok |
+| JS heap after a forced GC, every region loaded, MB | S3 | 225 | ≤ 500 | ok |
+| JS heap's peak, garbage included, MB (not budgeted) | S3 | 705 | | |
+
+/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/wt-213, v213 GL, pitch 45, desktop, median of 3:
+| check | scenario | median | limit | |
+|---|---|---|---|---|
+| A join: longest gap, ms (S2's is long distance's, S6) | S3 | 258.4 | ≤ 100 | BREACH |
+| A join: longest gap, ms (S2's is long distance's, S6) | S4 | 175.6 | ≤ 100 | BREACH |
+| A join: frozen ms (gaps over 50 ms, summed) | S3 | 592.1 | ≤ 150 | BREACH |
+| A join: frozen ms (gaps over 50 ms, summed) | S4 | 258.9 | ≤ 150 | BREACH |
+| A zoom or pan step with no join: longest gap, ms | S3 | 33.3 | ≤ 34 | ok |
+| A zoom or pan step with no join: longest gap, ms | S4 | 17.1 | ≤ 34 | ok |
+| JS heap after a forced GC, every region loaded, MB | S3 | 225 | ≤ 500 | ok |
+| JS heap's peak, garbage included, MB (not budgeted) | S3 | 724 | | |
+exit 1 at 19:21:33

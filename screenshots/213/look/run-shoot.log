@@ -1,0 +1,121 @@
+15:11:48 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+bcn A laptop dark: late 3 ms, tiles true, 139 Trains, decks -, mouths -, terrain false, pitch 45
+bcn A laptop light: late 45 ms, tiles true, 139 Trains, decks -, mouths -, terrain false, pitch 45
+bcn G laptop light: late 22 ms, tiles true, 137 Trains, decks -, mouths -, terrain true, pitch 45
+bcn G laptop dark: late 390 ms, tiles false, 135 Trains, decks -, mouths -, terrain true, pitch 45
+bcn L laptop light: late 29 ms, tiles true, 139 Trains, decks 0, mouths 40, terrain false, pitch 45
+bcn L laptop dark: late 34 ms, tiles true, 139 Trains, decks 0, mouths 40, terrain false, pitch 45
+bcn GL laptop light: late 46 ms, tiles false, 137 Trains, decks 0, mouths 35, terrain true, pitch 45
+bcn GL laptop dark: late 476 ms, tiles true, 135 Trains, decks 0, mouths 35, terrain true, pitch 45
+bcn GLh laptop dark: late 11 ms, tiles true, 135 Trains, decks 0, mouths 35, terrain true, pitch 45
+bcn GLh laptop light: late 51 ms, tiles true, 137 Trains, decks 0, mouths 35, terrain true, pitch 45
+15:15:15 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+bcn A phone dark: late 22 ms, tiles true, 67 Trains, decks -, mouths -, terrain false, pitch 45
+bcn A phone light: late 37 ms, tiles true, 66 Trains, decks -, mouths -, terrain false, pitch 45
+bcn G phone light: late 10 ms, tiles false, 66 Trains, decks -, mouths -, terrain true, pitch 45
+bcn G phone dark: late 224 ms, tiles true, 66 Trains, decks -, mouths -, terrain true, pitch 45
+bcn L phone dark: late 14 ms, tiles true, 66 Trains, decks 0, mouths 9, terrain false, pitch 45
+bcn L phone light: late 45 ms, tiles true, 66 Trains, decks 0, mouths 9, terrain false, pitch 45
+bcn GL phone dark: late 5 ms, tiles true, 66 Trains, decks 0, mouths 9, terrain true, pitch 45
+bcn GL phone light: late 47 ms, tiles true, 66 Trains, decks 0, mouths 9, terrain true, pitch 45
+bcn GLh phone light: late 47 ms, tiles true, 66 Trains, decks 0, mouths 9, terrain true, pitch 45
+bcn GLh phone dark: late 14 ms, tiles true, 66 Trains, decks 0, mouths 9, terrain true, pitch 45
+15:18:39 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+mad A laptop light: late 6 ms, tiles false, 25 Trains, decks -, mouths -, terrain false, pitch 45
+mad A laptop dark: late 223 ms, tiles false, 25 Trains, decks -, mouths -, terrain false, pitch 45
+mad G laptop light: late 14 ms, tiles true, 25 Trains, decks -, mouths -, terrain true, pitch 45
+mad G laptop dark: late 385 ms, tiles false, 25 Trains, decks -, mouths -, terrain true, pitch 45
+mad L laptop light: late 45 ms, tiles true, 25 Trains, decks 0, mouths 45, terrain false, pitch 45
+mad L laptop dark: late 4 ms, tiles true, 25 Trains, decks 0, mouths 45, terrain false, pitch 45
+mad GL laptop light: late 13 ms, tiles true, 25 Trains, decks 0, mouths 31, terrain true, pitch 45
+mad GL laptop dark: late 1664 ms, tiles true, 25 Trains, decks 0, mouths 31, terrain true, pitch 45
+mad A phone dark: late 33 ms, tiles false, 19 Trains, decks -, mouths -, terrain false, pitch 45
+mad A phone light: late 30 ms, tiles false, 19 Trains, decks -, mouths -, terrain false, pitch 45
+mad G phone light: late 13 ms, tiles true, 19 Trains, decks -, mouths -, terrain true, pitch 45
+mad G phone dark: late 201 ms, tiles true, 19 Trains, decks -, mouths -, terrain true, pitch 45
+mad L phone light: late 26 ms, tiles true, 19 Trains, decks 0, mouths 25, terrain false, pitch 45
+mad L phone dark: late 148 ms, tiles true, 19 Trains, decks 0, mouths 25, terrain false, pitch 45
+mad GL phone light: late 17 ms, tiles true, 19 Trains, decks 0, mouths 3, terrain true, pitch 45
+mad GL phone dark: late 215 ms, tiles true, 19 Trains, decks 0, mouths 3, terrain true, pitch 45
+15:24:08 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+viaduct A laptop light: late 1 ms, tiles true, 0 Trains, decks -, mouths -, terrain false, pitch 45
+viaduct A laptop dark: late 41 ms, tiles true, 0 Trains, decks -, mouths -, terrain false, pitch 45
+viaduct G laptop light: late 24 ms, tiles true, 0 Trains, decks -, mouths -, terrain true, pitch 45
+viaduct G laptop dark: late 329 ms, tiles true, 0 Trains, decks -, mouths -, terrain true, pitch 45
+viaduct L laptop light: late 30 ms, tiles true, 0 Trains, decks 384, mouths 4, terrain false, pitch 45
+viaduct L laptop dark: late 57 ms, tiles true, 0 Trains, decks 384, mouths 4, terrain false, pitch 45
+viaduct GL laptop light: late 13 ms, tiles true, 0 Trains, decks 324, mouths 4, terrain true, pitch 45
+viaduct GL laptop dark: late 664 ms, tiles true, 0 Trains, decks 324, mouths 4, terrain true, pitch 45
+viaduct A phone dark: late 24 ms, tiles true, 0 Trains, decks -, mouths -, terrain false, pitch 45
+viaduct A phone light: late 47 ms, tiles true, 0 Trains, decks -, mouths -, terrain false, pitch 45
+viaduct G phone light: late 14 ms, tiles true, 0 Trains, decks -, mouths -, terrain true, pitch 45
+viaduct G phone dark: late 121 ms, tiles true, 0 Trains, decks -, mouths -, terrain true, pitch 45
+viaduct L phone light: late 1 ms, tiles true, 0 Trains, decks 301, mouths 0, terrain false, pitch 45
+viaduct L phone dark: late 49 ms, tiles true, 0 Trains, decks 301, mouths 0, terrain false, pitch 45
+viaduct GL phone dark: late 13 ms, tiles true, 0 Trains, decks 280, mouths 0, terrain true, pitch 45
+viaduct GL phone light: late 52 ms, tiles false, 0 Trains, decks 280, mouths 0, terrain true, pitch 45
+15:29:34 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+page.waitForFunction: Timeout 120000ms exceeded.
+    at shoot (/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/213/measure/tools/shoot.mts:52:16)
+    at async file:///private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/213/measure/tools/shoot.mts:91:61
+    at async withSlots (/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/wt-213/src/page/slots.ts:101:12)
+    at async file:///private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/213/measure/tools/shoot.mts:88:1 {
+  name: 'TimeoutError'
+}
+
+Node.js v24.16.0
+15:31:37 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+page.waitForFunction: Timeout 120000ms exceeded.
+    at shoot (/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/213/measure/tools/shoot.mts:52:16)
+    at async file:///private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/213/measure/tools/shoot.mts:91:61
+    at async withSlots (/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/wt-213/src/page/slots.ts:101:12)
+    at async file:///private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/213/measure/tools/shoot.mts:88:1 {
+  name: 'TimeoutError'
+}
+
+Node.js v24.16.0
+15:33:39 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+page.waitForFunction: Timeout 120000ms exceeded.
+    at shoot (/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/213/measure/tools/shoot.mts:52:16)
+    at async file:///private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/213/measure/tools/shoot.mts:91:61
+    at async withSlots (/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/wt-213/src/page/slots.ts:101:12)
+    at async file:///private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/213/measure/tools/shoot.mts:88:1 {
+  name: 'TimeoutError'
+}
+
+Node.js v24.16.0
+15:35:41 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+page.waitForFunction: Timeout 120000ms exceeded.
+    at shoot (/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/213/measure/tools/shoot.mts:52:16)
+    at async file:///private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/213/measure/tools/shoot.mts:91:61
+    at async withSlots (/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/wt-213/src/page/slots.ts:101:12)
+    at async file:///private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/213/measure/tools/shoot.mts:88:1 {
+  name: 'TimeoutError'
+}
+
+Node.js v24.16.0
+Thu Oct 22 15:37:43 CEST 2026

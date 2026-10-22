@@ -1,0 +1,116 @@
+15:58:49 desktop1: npm run perf -- S2 S5bcn S8 --pitch 45 --v213 main,G,L,GL --at ../213/capture/0630.ndjson.gz --out ../213/measure/live
+
+> perf
+> node src/page/perf.ts S2 S5bcn S8 --pitch 45 --v213 main,G,L,GL --at ../213/capture/0630.ndjson.gz --out ../213/measure/live
+
+15:58:51 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+15:59:23 S2 desktop wt-213 run 1: load 12.6 10.5 10.1
+15:59:55 S2 desktop wt-213 v213 G run 1: load 10.4 10.2 10.1
+16:00:27 S2 desktop wt-213 v213 L run 1: load 16.0 12.0 10.7
+16:00:59 S2 desktop wt-213 v213 GL run 1: load 13.9 11.9 10.7
+16:00:59 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+16:01:32 S2 desktop wt-213 run 2: load 14.1 12.2 10.9
+16:02:04 S2 desktop wt-213 v213 G run 2: load 11.3 11.7 10.8
+16:02:37 S2 desktop wt-213 v213 L run 2: load 10.4 11.4 10.7
+16:03:09 S2 desktop wt-213 v213 GL run 2: load 30.2 16.0 12.4
+16:03:09 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+16:03:41 S2 desktop wt-213 run 3: load 21.7 15.6 12.4
+16:04:14 S2 desktop wt-213 v213 G run 3: load 20.8 16.0 12.6
+16:04:46 S2 desktop wt-213 v213 L run 3: load 20.2 16.4 12.9
+16:05:18 S2 desktop wt-213 v213 GL run 3: load 17.1 16.0 12.9
+16:05:18 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+16:06:39 S5bcn desktop wt-213 run 1: load 7.8 13.3 12.1
+16:07:59 S5bcn desktop wt-213 v213 G run 1: load 10.7 12.7 12.0
+16:09:19 S5bcn desktop wt-213 v213 L run 1: load 5.7 10.7 11.3
+16:10:40 S5bcn desktop wt-213 v213 GL run 1: load 9.6 11.0 11.4
+16:10:40 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+16:12:01 S5bcn desktop wt-213 run 2: load 5.9 9.5 10.7
+16:13:21 S5bcn desktop wt-213 v213 G run 2: load 6.1 8.7 10.3
+16:14:41 S5bcn desktop wt-213 v213 L run 2: load 7.2 8.4 10.1
+16:16:02 S5bcn desktop wt-213 v213 GL run 2: load 8.5 8.6 10.0
+16:16:02 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+16:17:24 S5bcn desktop wt-213 run 3: load 12.7 9.8 10.3
+16:18:44 S5bcn desktop wt-213 v213 G run 3: load 7.4 8.9 9.9
+16:20:04 S5bcn desktop wt-213 v213 L run 3: load 8.3 8.8 9.8
+16:21:25 S5bcn desktop wt-213 v213 GL run 3: load 8.3 8.6 9.6
+16:21:25 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+16:22:32 S8 desktop wt-213 run 1: load 8.1 8.5 9.5
+16:23:37 S8 desktop wt-213 v213 G run 1: load 8.8 8.7 9.5
+16:24:42 S8 desktop wt-213 v213 L run 1: load 7.0 8.3 9.3
+16:25:48 S8 desktop wt-213 v213 GL run 1: load 6.7 8.0 9.1
+16:25:48 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+16:26:54 S8 desktop wt-213 run 2: load 10.6 8.6 9.2
+16:27:59 S8 desktop wt-213 v213 G run 2: load 10.9 9.1 9.4
+16:29:05 S8 desktop wt-213 v213 L run 2: load 8.0 8.6 9.2
+16:30:10 S8 desktop wt-213 v213 GL run 2: load 8.7 8.6 9.1
+16:30:10 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+16:31:16 S8 desktop wt-213 run 3: load 10.0 9.0 9.2
+16:32:22 S8 desktop wt-213 v213 G run 3: load 9.8 9.1 9.3
+16:33:27 S8 desktop wt-213 v213 L run 3: load 10.3 9.5 9.4
+16:34:33 S8 desktop wt-213 v213 GL run 3: load 15.7 11.3 10.1
+
+/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/wt-213, pitch 45, desktop, median of 3:
+| check | scenario | median | limit | |
+|---|---|---|---|---|
+| A join: longest gap, ms (S2's is long distance's, S6) | S2 | 316.6 | ≤ 100 | BREACH |
+| A join: frozen ms (gaps over 50 ms, summed) | S2 | 758.4 | ≤ 150 | BREACH |
+| Cold load: the first Lines, ms | S2 | 1252 | ≤ 600 | BREACH |
+| Cold load: the first Trains, ms | S2 | 1082 | ≤ 1000 | BREACH |
+| Cold load: longest gap after the first Lines, ms | S2 | 316.6 | ≤ 100 | BREACH |
+| At rest: main thread, ms/s | S5bcn | 325 | ≤ 100 | BREACH |
+| At rest: MapLibre's redraws beyond the Trains' draws, /s | S5bcn | 21 | ≤ 2 | BREACH |
+| Following a Train: main thread, ms/s | S8 | 978 | ≤ 400 | BREACH |
+| Following a Train: fps | S8 | 116.7 | ≥ 110 | ok |
+| Workers busy in a cold load's first 15 s, ms | S2 | 7354 | ≤ 1500 | BREACH |
+
+/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/wt-213, v213 G, pitch 45, desktop, median of 3:
+| check | scenario | median | limit | |
+|---|---|---|---|---|
+| A join: longest gap, ms (S2's is long distance's, S6) | S2 | 225 | ≤ 100 | BREACH |
+| A join: frozen ms (gaps over 50 ms, summed) | S2 | 483.4 | ≤ 150 | BREACH |
+| Cold load: the first Lines, ms | S2 | 1041 | ≤ 600 | BREACH |
+| Cold load: the first Trains, ms | S2 | 895 | ≤ 1000 | ok |
+| Cold load: longest gap after the first Lines, ms | S2 | 225 | ≤ 100 | BREACH |
+| At rest: main thread, ms/s | S5bcn | 303 | ≤ 100 | BREACH |
+| At rest: MapLibre's redraws beyond the Trains' draws, /s | S5bcn | 20.6 | ≤ 2 | BREACH |
+| Following a Train: main thread, ms/s | S8 | 994 | ≤ 400 | BREACH |
+| Following a Train: fps | S8 | 111.9 | ≥ 110 | ok |
+| Workers busy in a cold load's first 15 s, ms | S2 | 5352 | ≤ 1500 | BREACH |
+
+/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/wt-213, v213 L, pitch 45, desktop, median of 3:
+| check | scenario | median | limit | |
+|---|---|---|---|---|
+| A join: longest gap, ms (S2's is long distance's, S6) | S2 | 350 | ≤ 100 | BREACH |
+| A join: frozen ms (gaps over 50 ms, summed) | S2 | 758.3 | ≤ 150 | BREACH |
+| Cold load: the first Lines, ms | S2 | 1665 | ≤ 600 | BREACH |
+| Cold load: the first Trains, ms | S2 | 1420 | ≤ 1000 | BREACH |
+| Cold load: longest gap after the first Lines, ms | S2 | 350 | ≤ 100 | BREACH |
+| At rest: main thread, ms/s | S5bcn | 334 | ≤ 100 | BREACH |
+| At rest: MapLibre's redraws beyond the Trains' draws, /s | S5bcn | 20.8 | ≤ 2 | BREACH |
+| Following a Train: main thread, ms/s | S8 | 987 | ≤ 400 | BREACH |
+| Following a Train: fps | S8 | 114.4 | ≥ 110 | ok |
+| Workers busy in a cold load's first 15 s, ms | S2 | 7613 | ≤ 1500 | BREACH |
+
+/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/wt-213, v213 GL, pitch 45, desktop, median of 3:
+| check | scenario | median | limit | |
+|---|---|---|---|---|
+| A join: longest gap, ms (S2's is long distance's, S6) | S2 | 258.3 | ≤ 100 | BREACH |
+| A join: frozen ms (gaps over 50 ms, summed) | S2 | 500.1 | ≤ 150 | BREACH |
+| Cold load: the first Lines, ms | S2 | 1071 | ≤ 600 | BREACH |
+| Cold load: the first Trains, ms | S2 | 908 | ≤ 1000 | ok |
+| Cold load: longest gap after the first Lines, ms | S2 | 258.3 | ≤ 100 | BREACH |
+| At rest: main thread, ms/s | S5bcn | 318 | ≤ 100 | BREACH |
+| At rest: MapLibre's redraws beyond the Trains' draws, /s | S5bcn | 21.2 | ≤ 2 | BREACH |
+| Following a Train: main thread, ms/s | S8 | 995 | ≤ 400 | BREACH |
+| Following a Train: fps | S8 | 110.7 | ≥ 110 | ok |
+| Workers busy in a cold load's first 15 s, ms | S2 | 5834 | ≤ 1500 | BREACH |
+exit 1 at 16:34:33

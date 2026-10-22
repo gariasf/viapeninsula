@@ -1,0 +1,18 @@
+15:50:45 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+mouth A laptop dark: late 30 ms, tiles false, 0 Trains, decks -, mouths -, terrain false, pitch 45
+mouth A laptop light: late 52 ms, tiles true, 0 Trains, decks -, mouths -, terrain false, pitch 45
+mouth G laptop dark: late 35 ms, tiles true, 0 Trains, decks -, mouths -, terrain true, pitch 45
+mouth G laptop light: late 47 ms, tiles true, 0 Trains, decks -, mouths -, terrain true, pitch 45
+mouth L laptop light: late 28 ms, tiles true, 0 Trains, decks 0, mouths 10, terrain false, pitch 45
+mouth L laptop dark: late 81 ms, tiles true, 0 Trains, decks 0, mouths 10, terrain false, pitch 45
+mouth GL laptop light: late 38 ms, tiles true, 0 Trains, decks 0, mouths 10, terrain true, pitch 45
+mouth GL laptop dark: late 2 ms, tiles true, 0 Trains, decks 0, mouths 10, terrain true, pitch 45
+mouth A phone light: late 6 ms, tiles true, 0 Trains, decks -, mouths -, terrain false, pitch 45
+mouth A phone dark: late 44 ms, tiles true, 0 Trains, decks -, mouths -, terrain false, pitch 45
+mouth G phone light: late 14 ms, tiles true, 0 Trains, decks -, mouths -, terrain true, pitch 45
+mouth G phone dark: late 182 ms, tiles true, 0 Trains, decks -, mouths -, terrain true, pitch 45
+mouth L phone light: late 13 ms, tiles true, 0 Trains, decks 0, mouths 0, terrain false, pitch 45
+mouth L phone dark: late 52 ms, tiles true, 0 Trains, decks 0, mouths 0, terrain false, pitch 45
+mouth GL phone light: late 10 ms, tiles true, 0 Trains, decks 0, mouths 0, terrain true, pitch 45
+mouth GL phone dark: late 179 ms, tiles true, 0 Trains, decks 0, mouths 0, terrain true, pitch 45

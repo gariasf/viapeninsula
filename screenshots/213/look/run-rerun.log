@@ -1,0 +1,5 @@
+19:03:47 desktop2: npm run perf -- S3 S4 --pitch 45 --v213 main,G,GL --at ../213/capture/0630.ndjson.gz --out ../213/measure/live
+exit 1 at 19:21:33
+19:21:34 phone2: npm run perf -- S3 S4 --pitch 45 --v213 main,G,GL --phone --at ../213/capture/0630.ndjson.gz --out ../213/measure/live
+exit 1 at 19:48:24
+rerun done 19:48:25

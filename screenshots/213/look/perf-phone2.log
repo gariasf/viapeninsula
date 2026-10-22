@@ -1,0 +1,66 @@
+19:21:34 phone2: npm run perf -- S3 S4 --pitch 45 --v213 main,G,GL --phone --at ../213/capture/0630.ndjson.gz --out ../213/measure/live
+
+> perf
+> node src/page/perf.ts S3 S4 --pitch 45 --v213 main,G,GL --phone --at ../213/capture/0630.ndjson.gz --out ../213/measure/live
+
+19:21:35 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+19:23:40 S3 phone wt-213 run 1: load 4.2 5.3 6.0
+19:26:00 S3 phone wt-213 v213 G run 1: load 3.1 4.5 5.6
+19:28:28 S3 phone wt-213 v213 GL run 1: load 4.4 4.6 5.5
+19:28:28 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+19:30:48 S3 phone wt-213 run 2: load 5.2 5.1 5.5
+19:33:12 S3 phone wt-213 v213 G run 2: load 3.0 4.3 5.1
+19:35:30 S3 phone wt-213 v213 GL run 2: load 3.9 4.0 4.9
+19:35:30 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+19:37:46 S3 phone wt-213 run 3: load 5.9 4.7 5.0
+19:40:19 S3 phone wt-213 v213 G run 3: load 20.6 8.6 6.4
+19:42:42 S3 phone wt-213 v213 GL run 3: load 8.4 8.6 6.8
+19:42:42 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+19:43:20 S4 phone wt-213 run 1: load 6.6 8.1 6.7
+19:43:58 S4 phone wt-213 v213 G run 1: load 5.0 7.5 6.5
+19:44:36 S4 phone wt-213 v213 GL run 1: load 4.6 7.1 6.4
+19:44:36 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+19:45:15 S4 phone wt-213 run 2: load 4.3 6.8 6.3
+19:45:52 S4 phone wt-213 v213 G run 2: load 4.1 6.4 6.2
+19:46:30 S4 phone wt-213 v213 GL run 2: load 4.0 6.2 6.1
+19:46:30 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+19:47:09 S4 phone wt-213 run 3: load 3.3 5.7 6.0
+19:47:46 S4 phone wt-213 v213 G run 3: load 3.5 5.5 5.9
+19:48:24 S4 phone wt-213 v213 GL run 3: load 3.3 5.2 5.8
+
+/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/wt-213, pitch 45, phone, median of 3:
+| check | scenario | median | limit | |
+|---|---|---|---|---|
+| A join: longest gap, ms (S2's is long distance's, S6) | S3 | 1100.4 | ≤ 300 | BREACH |
+| A join: frozen ms (gaps over 50 ms, summed) | S3 | 2183.3 | ≤ 600 | BREACH |
+| A zoom or pan step with no join: longest gap, ms | S3 | 116.5 | ≤ 100 | BREACH |
+| A zoom or pan step with no join: longest gap, ms | S4 | 17.4 | ≤ 100 | ok |
+| JS heap after a forced GC, every region loaded, MB | S3 | 214 | ≤ 300 | ok |
+| JS heap's peak, garbage included, MB (not budgeted) | S3 | 494 | | |
+
+/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/wt-213, v213 G, pitch 45, phone, median of 3:
+| check | scenario | median | limit | |
+|---|---|---|---|---|
+| A join: longest gap, ms (S2's is long distance's, S6) | S3 | 1033.6 | ≤ 300 | BREACH |
+| A join: frozen ms (gaps over 50 ms, summed) | S3 | 2186.5 | ≤ 600 | BREACH |
+| A zoom or pan step with no join: longest gap, ms | S3 | 108.6 | ≤ 100 | BREACH |
+| A zoom or pan step with no join: longest gap, ms | S4 | 18.4 | ≤ 100 | ok |
+| JS heap after a forced GC, every region loaded, MB | S3 | 213 | ≤ 300 | ok |
+| JS heap's peak, garbage included, MB (not budgeted) | S3 | 575 | | |
+
+/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/wt-213, v213 GL, pitch 45, phone, median of 3:
+| check | scenario | median | limit | |
+|---|---|---|---|---|
+| A join: longest gap, ms (S2's is long distance's, S6) | S3 | 1092.7 | ≤ 300 | BREACH |
+| A join: frozen ms (gaps over 50 ms, summed) | S3 | 2083.3 | ≤ 600 | BREACH |
+| A zoom or pan step with no join: longest gap, ms | S3 | 123.5 | ≤ 100 | BREACH |
+| A zoom or pan step with no join: longest gap, ms | S4 | 18.5 | ≤ 100 | ok |
+| JS heap after a forced GC, every region loaded, MB | S3 | 214 | ≤ 300 | ok |
+| JS heap's peak, garbage included, MB (not budgeted) | S3 | 499 | | |
+exit 1 at 19:48:24

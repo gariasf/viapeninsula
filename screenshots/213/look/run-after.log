@@ -1,0 +1,11 @@
+15:56:12 bytes
+15:58:49 perf
+15:58:49 desktop1: npm run perf -- S2 S5bcn S8 --pitch 45 --v213 main,G,L,GL --at ../213/capture/0630.ndjson.gz --out ../213/measure/live
+exit 1 at 16:34:33
+16:34:34 phone1: npm run perf -- S2 S5bcn S8 --pitch 45 --v213 main,G,L,GL --phone --at ../213/capture/0630.ndjson.gz --out ../213/measure/live
+exit 1 at 17:10:30
+17:10:30 desktop2: npm run perf -- S3 S4 --pitch 45 --v213 main,G,GL --at ../213/capture/0630.ndjson.gz --out ../213/measure/live
+exit 1 at 17:28:39
+17:28:39 phone2: npm run perf -- S3 S4 --pitch 45 --v213 main,G,GL --phone --at ../213/capture/0630.ndjson.gz --out ../213/measure/live
+exit 1 at 17:54:44
+17:54:44 done
