@@ -1,13 +1,15 @@
 // The page harness every browser check goes through (#729): a short-lived Chromium on the Mac's GPU,
 // in a browser slot (slots.ts), a context per page, and the page built from a tree and served by
 // routes at the site's own address, so that the live bucket's CORS lets it read the live files.
-//   npm run page -- [<hash>] [--out [dir]] [--slow] [--wait <s>] [--tree <dir>]
+//   npm run page -- [<hash>] [--out [dir]] [--at <capture>] [--slow] [--wait <s>] [--tree <dir>]
 // shoots the map at 390×844 and 1280×800, light and dark, into .cache/page/shots/, prints the console's
-// errors, and exits 1 on a `pageerror`. Scripts of a ticket's own import launch() and openMap() from here.
+// errors, and exits 1 on a `pageerror`. `--at` replays a moment the fetcher captured (Open's `at`), with
+// `--out` a mirror of that day's live files. Scripts of a ticket's own import launch() and openMap() from here.
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { chromium, type Browser, type BrowserContext, type CDPSession, type Page } from 'playwright-core';
 import { LIVE_URL } from '../bundle.ts';
 import { withSlots } from './slots.ts';
@@ -68,6 +70,11 @@ export interface Open {
   clock?: number;
   /** Requests to abort, as the snapshot where the clock is faked: a real one pulls the map's clock back. */
   abort?: RegExp[];
+  /**
+   * A moment to replay, as a weekday's peak (#828): a fetcher's capture (`history/<date>/<hour>.ndjson.gz`), whose first
+   * snapshot is served for every poll, the page's clock 5 s after it was made, unless `clock` says.
+   */
+  at?: string;
   /** Slows the main thread as the device says (perf runs; shots leave it). */
   throttle?: boolean;
 }
@@ -85,7 +92,9 @@ export interface MapPage {
 export async function openMap(browser: Browser, o: Open): Promise<MapPage & { go(): Promise<void> }> {
   const { cpu, ...device } = DEVICES[o.device];
   const context = await browser.newContext({ ...device, colorScheme: o.scheme ?? 'light', locale: 'es-ES', timezoneId: 'Europe/Madrid' });
-  if (o.clock !== undefined) await context.addInitScript(SHIFT_CLOCK, o.clock);
+  const capture = o.at === undefined ? undefined : captured(o.at);
+  const clock = o.clock ?? capture?.clock;
+  if (clock !== undefined) await context.addInitScript(SHIFT_CLOCK, clock);
   await context.addInitScript(PROBE);
   const page = await context.newPage();
   const errors: string[] = [];
@@ -115,6 +124,8 @@ export async function openMap(browser: Browser, o: Open): Promise<MapPage & { go
       await route.fulfill({ body, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' } });
     });
   }
+  // Over the bundle's route and an abort, as Playwright tries the last route added first.
+  if (capture) await page.route(`${LIVE_URL}/snapshot.json`, (route) => route.fulfill({ body: capture.snapshot, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' } }));
   return {
     page,
     context,
@@ -123,6 +134,12 @@ export async function openMap(browser: Browser, o: Open): Promise<MapPage & { go
     go: async () => void (await page.goto(`${SITE}/${o.hash ?? ''}`, { waitUntil: 'commit', timeout: 60_000 })),
     close: () => context.close(),
   };
+}
+
+/** A fetcher's capture's first snapshot, as it was served, and the page's clock 5 s after it was made. */
+export function captured(file: string): { snapshot: string; clock: number } {
+  const [snapshot = ''] = zlib.gunzipSync(fs.readFileSync(file)).toString().split('\n', 1);
+  return { snapshot, clock: (JSON.parse(snapshot) as { generated: number }).generated + 5000 };
 }
 
 const TYPES: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.woff2': 'font/woff2', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png' };
@@ -220,7 +237,7 @@ if (import.meta.main) {
   const value = (name: string, otherwise: string) => (flag(name) >= 0 && args[flag(name) + 1] && !args[flag(name) + 1]!.startsWith('--') ? args[flag(name) + 1]! : otherwise);
   // A hash isn't the bundle's dir that `--out` may take.
   const isHash = (a: string) => /^#?map=/.test(a);
-  const hash = args.find((a, i) => !a.startsWith('--') && (isHash(a) || !['--out', '--wait', '--tree'].includes(args[i - 1] ?? '')));
+  const hash = args.find((a, i) => !a.startsWith('--') && (isHash(a) || !['--out', '--wait', '--tree', '--at'].includes(args[i - 1] ?? '')));
   const tree = path.resolve(value('--tree', '.'));
   const shots = path.resolve('.cache/page/shots');
   fs.mkdirSync(shots, { recursive: true });
@@ -231,7 +248,7 @@ if (import.meta.main) {
     try {
       for (const device of ['phone', 'laptop'] as const)
         for (const scheme of ['light', 'dark'] as const) {
-          const m = await openMap(browser, { device, scheme, dist, hash: hash && (hash.startsWith('#') ? hash : `#${hash}`), out: flag('--out') >= 0 ? (isHash(value('--out', 'out')) ? 'out' : value('--out', 'out')) : undefined, slow: flag('--slow') >= 0 });
+          const m = await openMap(browser, { device, scheme, dist, hash: hash && (hash.startsWith('#') ? hash : `#${hash}`), out: flag('--out') >= 0 ? (isHash(value('--out', 'out')) ? 'out' : value('--out', 'out')) : undefined, slow: flag('--slow') >= 0, at: flag('--at') >= 0 ? path.resolve(value('--at', '')) : undefined });
           await m.go();
           await ready(m.page, Number(value('--wait', '10')) * 1000);
           const { width, height } = DEVICES[device].viewport;

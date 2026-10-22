@@ -1,9 +1,11 @@
 // The map's perf against milestone 1's budget (budget.json), on the page harness (page.ts), from the 12 Oct
 // roadmap review's P-1:
-//   npm run perf -- <scenario>... [--phone] [--runs <n>] [--tree <dir>]... [--out [dir]] [--slow]
+//   npm run perf -- <scenario>... [--phone] [--runs <n>] [--tree <dir>]... [--out [dir]] [--at <capture>] [--slow]
 // Each round of a scenario's runs (3 by default), a run of each tree, a before's and an after's alternated,
 // is one batch in all the browser slots, so that it keeps under the batch's 10 min; each run has a cold context. It prints each check's median
-// against its limit, appends every run to .cache/page/perf/runs.jsonl, and exits 1 on a breach.
+// against its limit, appends every run to .cache/page/perf/runs.jsonl, and exits 1 on a breach. `--at` replays a moment the
+// fetcher captured, as a weekday's peak (page.ts's Open `at`), with `--out` a mirror of that day's live files, in every
+// scenario but S7's, which set their own clock.
 // Scenarios, at Barcelona z12 but S4's, each measured over its own window:
 // - S2: a cold load, its first 30 s, and long distance's join in it (S6).
 // - S3: zoom out to z4 a level at a time, a second apart, then into Madrid z12.
@@ -288,11 +290,11 @@ export async function heapAfterGC(cdp: Pick<CDPSession, 'send'>) {
   return Math.round((await cdp.send('Performance.getMetrics')).metrics.find((x) => x.name === 'JSHeapUsedSize')!.value / 1e6);
 }
 
-async function measure(browser: Browser, name: string, o: { device: Device; dist: string; tree: string; out?: string; slow: boolean; run: number }): Promise<Run> {
+async function measure(browser: Browser, name: string, o: { device: Device; dist: string; tree: string; out?: string; at?: string; slow: boolean; run: number }): Promise<Run> {
   const sc = SCENARIOS[name]!;
   const manifest = sc.clock && ((o.out ? JSON.parse(fs.readFileSync(path.join(o.out, 'manifest.json'), 'utf8')) : await (await fetch(`${LIVE_URL}/manifest.json`)).json()) as Manifest);
   const clock = manifest ? sc.clock!(manifest) : undefined;
-  const m = await openMap(browser, { device: o.device, dist: o.dist, hash: sc.view, out: o.out, slow: o.slow, clock, abort: clock ? [/\/snapshot\.json/] : [], throttle: true });
+  const m = await openMap(browser, { device: o.device, dist: o.dist, hash: sc.view, out: o.out, at: clock ? undefined : o.at, slow: o.slow, clock, abort: clock ? [/\/snapshot\.json/] : [], throttle: true });
   const run: Run = { scenario: name, device: o.device, tree: o.tree, run: o.run, clock, marks: [], frames: [], setData: [], renders: [], files: [], heapPeakMB: 0, errors: m.errors };
   const metric = async (key: string) => (await m.cdp.send('Performance.getMetrics')).metrics.find((x) => x.name === key)!.value;
   const mark = async (n: string) => void run.marks.push({ name: n, t: await m.page.evaluate((n) => (performance.mark(`perf:${n}`), performance.now()), n), task: await metric('TaskDuration') });
@@ -325,16 +327,17 @@ async function measure(browser: Browser, name: string, o: { device: Device; dist
 if (import.meta.main) {
   const args = process.argv.slice(2);
   const after = (flag: string) => args.flatMap((a, i) => (a === flag && args[i + 1] && !args[i + 1]!.startsWith('--') ? [args[i + 1]!] : []));
-  const scenarios = args.filter((a, i) => !a.startsWith('--') && (SCENARIOS[a] || !['--runs', '--tree', '--out'].includes(args[i - 1] ?? '')));
+  const scenarios = args.filter((a, i) => !a.startsWith('--') && (SCENARIOS[a] || !['--runs', '--tree', '--out', '--at'].includes(args[i - 1] ?? '')));
   const unknown = scenarios.filter((s) => !SCENARIOS[s]);
   if (!scenarios.length || unknown.length) {
-    console.error(`npm run perf -- <${Object.keys(SCENARIOS).join('|')}>... [--phone] [--runs <n>] [--tree <dir>]... [--out [dir]] [--slow]${unknown.length ? `\nNo scenario ${unknown.join(', ')}` : ''}`);
+    console.error(`npm run perf -- <${Object.keys(SCENARIOS).join('|')}>... [--phone] [--runs <n>] [--tree <dir>]... [--out [dir]] [--at <capture>] [--slow]${unknown.length ? `\nNo scenario ${unknown.join(', ')}` : ''}`);
     process.exit(2);
   }
   const device = args.includes('--phone') ? 'phone' : 'desktop';
   const runs = Number(after('--runs')[0] ?? 3);
   const trees = (after('--tree').length ? after('--tree') : ['.']).map((t) => path.resolve(t));
   const out = args.includes('--out') ? path.resolve(after('--out').find((d) => !SCENARIOS[d]) ?? 'out') : undefined;
+  const at = after('--at').map((f) => path.resolve(f))[0];
   const dists = trees.map(build);
   const log = path.resolve('.cache/page/perf/runs.jsonl');
   fs.mkdirSync(path.dirname(log), { recursive: true });
@@ -345,7 +348,7 @@ if (import.meta.main) {
         const browser = await launch();
         try {
           for (const [i, tree] of trees.entries()) {
-            const run = await measure(browser, name, { device, dist: dists[i]!, tree, out, slow: args.includes('--slow'), run: r });
+            const run = await measure(browser, name, { device, dist: dists[i]!, tree, out, at, slow: args.includes('--slow'), run: r });
             run.load = os.loadavg().map((l) => l.toFixed(1)).join(' ');
             fs.appendFileSync(log, JSON.stringify(run) + '\n');
             all.push(run);
