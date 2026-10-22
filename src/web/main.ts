@@ -14,6 +14,7 @@ import { getJson, lookAgainSoon, RETRY, STALL } from './files.ts';
 import { daysAsTheyCome, firstLook, forgetJoined, joinedFrom, regionLoader, regionsCame, regionsNeeded, trackFileOf } from './regions.ts';
 import { drawnFrom, LINE_PARTS } from './lines.ts';
 import type { lineWork, LinesAsk, LineSource } from './lineTiles.ts';
+import { deckPaint, GROUND, grounded, LEVELS, mouthIcon, spanning } from './v213.ts';
 import { linesAt, popupRoom } from './tap.ts';
 import { drawnAt as placeShownAt, FEW_ZOOM, fewer, interchangesOf, markedNetworks, onLines, RAILS, readOf, SIGN_ZOOM, type LineCall, type Drawn as PlaceDrawn, type Interchange } from './stations.ts';
 import { callsIn, fileShapes, hidesTowns, nameSort, rightOf, splitBy } from './names.ts';
@@ -646,6 +647,8 @@ const setBasemap = (basemapStyle: StyleSpecification) => map.setStyle(basemapSty
     // flattens. No sky besides, as MapLibre draws a style with none.
     style.projection = PROJECTION;
     style.sky = { 'sky-color': 'transparent', 'horizon-color': 'transparent', 'fog-color': 'transparent', 'atmosphere-blend': 1 };
+    // #213's G and GL: the ground.
+    if (GROUND) grounded(style, darkBasemap);
     // The dark basemap's woods are patterned with an image OpenFreeMap's sprite lacks, so they draw
     // nothing and only log a warning: they go. It names water under its buildings and roads under its
     // borders: its labels go over everything else, as positron's are, so that the Lines go under them all.
@@ -1177,7 +1180,7 @@ let tileAsks = 0;
 const askLines = (ask: LinesAsk, transfer: Transferable[] = []) => linesWorker.postMessage(ask, transfer);
 // ponytail: a tile MapLibre no longer wants is still cut, as its abort isn't passed on. Pass it on if the worker lags behind a pan.
 addProtocol(LINE_TILES, ({ url }) => {
-  const [, source, z, x, y] = /^[^:]+:\/\/(lines|rails)\/(\d+)\/(\d+)\/(\d+)/.exec(url) ?? [];
+  const [, source, z, x, y] = /^[^:]+:\/\/(lines|rails|decks)\/(\d+)\/(\d+)\/(\d+)/.exec(url) ?? [];
   if (!source) return Promise.reject(new Error(`Not a Lines' tile: ${url}`));
   const ask = ++tileAsks;
   askLines({ tile: { source: source as LineSource, z: Number(z), x: Number(x), y: Number(y), ask } });
@@ -1190,7 +1193,7 @@ linesWorker.onmessage = ({ data }: MessageEvent<ReturnType<ReturnType<typeof lin
     tilesDue.delete(data.ask);
   } else {
     linesIn = data.shown;
-    for (const source of ['lines', 'rails'] as const) map.getSource<VectorTileSource>(source)?.setTiles([lineTilesUrl(source, data.shown)]);
+    for (const source of ['lines', 'rails', 'decks'] as const) map.getSource<VectorTileSource>(source)?.setTiles([lineTilesUrl(source, data.shown)]);
   }
 };
 // ponytail: where the worker fails, the map goes without Lines, as the page did where making them threw. Make them on the page then if a worker ever fails where the page wouldn't.
@@ -1270,7 +1273,7 @@ let askedNames: { names: typeof names; pills: typeof pills; bearing: number; ask
 /** Where the names were last laid out, as asked (`of`): each one's anchor and offset at each of NAME_ZOOMS. */
 let laidOut: { of: NonNullable<typeof askedNames>; where: Where[] } | undefined;
 // Cut as MapLibre's GeoJSON sources were, 512 px tiles to zoom 18 (lineWork()).
-for (const source of ['lines', 'rails'] as const) map.addSource(source, { type: 'vector', tiles: [lineTilesUrl(source, 0)], maxzoom: 18 });
+for (const source of ['lines', 'rails', ...(LEVELS ? (['decks'] as const) : [])] as const) map.addSource(source, { type: 'vector', tiles: [lineTilesUrl(source, 0)], maxzoom: 18 });
 map.addSource('tracks', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 for (const id of ['stations', 'places', 'interchanges', 'station-links']) map.addSource(id, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 map.addSource('station-names', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
@@ -1336,6 +1339,8 @@ const layered = [
   // Under the first band's casing, the lowest of the stretches' layers.
   { source: 'rails', id: 'rails', prefix: 'rail', zooms: { minzoom: railsZoom - FADE, filter: true as ExpressionFilterSpecification }, nameZooms: { minzoom: railsZoom }, opacity: railsFade, throughOpacity: railsFade, below: 'line-casing' },
 ];
+// #213's GL: the Lines in tunnels go under the ground, which covers them.
+if (GROUND && LEVELS) for (const { zooms } of layered) zooms.filter = ['all', zooms.filter, ['!', ['has', 'under']]];
 /**
  * The suffix of a band's layers for a curve's pieces, drawn with butt ends: round ends overlapping at part opacity
  * showed a bead at every joint while the band faded out, from zoom 14.5 to 15.5 (#620, the maintainer's pick of
@@ -1443,6 +1448,13 @@ for (const { source, id, prefix, zooms, nameZooms, opacity, throughOpacity, belo
       'text-opacity': ['interpolate', ['linear'], ['zoom'], 14, 1, 14.1, 0, 14.9, 0, 15, 1],
     },
   });
+}
+// #213's L and GL: the bridges' decks and the tunnels' mouths, from z13, below which a deck is under a pixel wide.
+if (LEVELS) {
+  map.addLayer({ id: 'decks', type: 'fill-extrusion', source: 'decks', 'source-layer': 'decks', minzoom: 13, filter: ['==', ['geometry-type'], 'Polygon'], paint: deckPaint(lineColour, darkBasemap ? '#8a8f98' : '#7c8088') }, firstLabel);
+  map.addImage('mouth', mouthIcon(darkBasemap), { pixelRatio: 2 });
+  map.addLayer({ id: 'mouths', type: 'symbol', source: 'decks', 'source-layer': 'decks', minzoom: 13, filter: ['==', ['get', 'kind'], 'mouth'], layout: { 'icon-image': 'mouth', 'icon-anchor': 'bottom', 'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-pitch-alignment': 'viewport', 'icon-rotation-alignment': 'viewport' } }, firstLabel);
+  if (GROUND) spanning(map);
 }
 // The Closures (#341), over their Lines' strokes in each band, and zoomed right in over their rails,
 // in their coats (CLOSURE_COATS), faded as the Lines are. The rails' are simplified as theirs.
@@ -2118,7 +2130,7 @@ function show(days: Track | Bundle, tripsOnly = false) {
       // track. A manifest that reorders the regions under a track the map keeps leaves them in the old order; make them
       // again if it does. Long distance's and Media Distancia y Avant's by their IDs, not long distance's missing extent,
       // which no region has in a manifest from before #266 (#736, #787).
-      const how = { rank: Math.max(0, manifest?.regions?.findIndex((r) => r.id === id) ?? 0), under: id === 'long-distance' || id === 'media-distancia-avant', lettering: track.lines.map((l): [string, string | undefined] => [l.id, lettering(l.id)]), shownFrom: [...shownFrom] };
+      const how = { rank: Math.max(0, manifest?.regions?.findIndex((r) => r.id === id) ?? 0), under: id === 'long-distance' || id === 'media-distancia-avant', lettering: track.lines.map((l): [string, string | undefined] => [l.id, lettering(l.id)]), shownFrom: [...shownFrom], ...(LEVELS && { decks: true }) };
       if (handedLines.has(track)) return { key: keyOf(track), how };
       const file = linesFile(track);
       transfer.push(file.numbers.buffer, file.lengths.buffer);
