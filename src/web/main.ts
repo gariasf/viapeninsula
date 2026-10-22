@@ -19,7 +19,7 @@ import { drawnAt as placeShownAt, FEW_ZOOM, fewer, interchangesOf, markedNetwork
 import { callsIn, fileShapes, hidesTowns, nameSort, rightOf, splitBy } from './names.ts';
 import type { StoredTrack } from '../pieces.ts';
 import { namePlacer, packFile, type NamePlace, type NamesAsk, type Packed, type Sizes, type Where } from './placeNames.ts';
-import { covered, groupOf, spreading, toEdge, type Drawn, type Group, type Named } from './spread.ts';
+import { groupOf, held, piles, spreading, toEdge, type Drawn, type Group, type Named } from './spread.ts';
 import { atMostEvery, drifted, fitPadding, letsGo, outsideMiddle, pointersDown, tapZooms } from './centre.ts';
 import { fastestInView } from './pace.ts';
 import { keepView, lastView, markOf, openingView, tiltPressed, toggledPitch } from './view.ts';
@@ -978,8 +978,8 @@ let topSpeeds = new Map<string, number>();
  * in view Trains move every 81 ms, as Rodalies' 160 km/h asks, not every 43 ms, as AVE's 300 km/h (#666).
  */
 let fastest = 0;
-/** The Trains last drawn, with their Lines, where whereDrawn() had them, which paceInView() looks in. */
-let placedTrains: { train: { trip: Trip }; at: Point }[] = [];
+/** The Trains last drawn, with their Lines, where whereDrawn() had them, which paceInView() looks in, and as pills, which a tap spreads (groupOf()). */
+let placedTrains: { train: { trip: Trip }; at: Point; asPill?: Omit<Drawn, 'at'> }[] = [];
 /** The days shown whose places' names, and where Lines were drawn already their Lines, are still to be handed to MapLibre a frame on (show()). */
 let namesDue: Track | Bundle | undefined;
 /** The cards' colour, style.css's --card, which a Scheduled Train's pill letters its Line's colour against (pill()). */
@@ -1246,8 +1246,8 @@ const spread = spreading();
  * far, in px; and whether they're still easing.
  */
 let spreadState: { group?: Group; moved: Map<string, number>; easing: boolean } = { moved: new Map(), easing: false };
-/** The Trains last drawn as pills standing at a Station, where they're drawn before any moves aside, which a tap on one spreads (groupOf()). */
-let standingPills: { id: string; at: Point; heading: number; box: [number, number]; standsAt: string }[] = [];
+/** The piles last drawn (piles()), by their top pills' IDs: the Trains folded into each, which a tap on its count spreads (#828). */
+let shownPiles = new Map<string, string[]>();
 /**
  * Each place's name: its place's ID, whose board a tap on it opens (#618), its dot, broken into its lines, the zoom it
  * shows from, where its tier lists it, its Stations, and how it's lettered. Where it goes is worked out apart (namesWorker).
@@ -1632,7 +1632,7 @@ map.addLayer(
     id: 'train-halos',
     type: 'circle',
     source: 'trains',
-    filter: ['all', DRAWN, ['get', 'live'], darkBasemap || ['get', 'followed']],
+    filter: ['all', DRAWN, ['!', ['get', 'folded']], ['get', 'live'], darkBasemap || ['get', 'followed']],
     paint: { 'circle-radius': ['get', 'haloRadius'], 'circle-color': ['get', 'colour'], 'circle-blur': darkBasemap ? GLOW_BLUR : HALO_BLUR, 'circle-opacity': darkBasemap ? GLOW_OPACITY : HALO_OPACITY, 'circle-pitch-scale': 'viewport' },
   },
   'line-names',
@@ -1677,7 +1677,7 @@ for (const layer of cityLabels.values()) {
 // and the Trains' pills (#254).
 map.addSource('mark', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 map.addLayer({ id: 'mark', type: 'circle', source: 'mark', paint: { 'circle-radius': 20, 'circle-opacity': 0, 'circle-stroke-width': 3, 'circle-stroke-color': nameColour } }, 'station-names');
-// Zoomed in (pillOf()), each Train is a pill with its Line's name, over the Stations' names too,
+// Zoomed in (pillOf()), each Train is a pill with its Line's name, under the Stations' names (#828),
 // outlined by its Line's kind of service: a Live one's filled with its Line's colour and edged in
 // white, a Scheduled one's white, or the dark basemap's paper, ringed in a dash and lettered in its
 // Line's lettering (Pill's `lettering`, #519). Under it, so that no Train's arrow lies on another's
@@ -1687,7 +1687,9 @@ map.addLayer({ id: 'mark', type: 'circle', source: 'mark', paint: { 'circle-radi
 // distance field, which MapLibre fits to the name and edges: a Scheduled pill's has its dashes in it, as
 // a field's edge can't be dashed, and as many whole dashes along its sides as its name takes
 // (dashedOutline()), each made the first time the map asks for it. Each a handful of images for every
-// Line, as the map sends each image it draws to its worker each time it draws the Trains.
+// Line, as the map sends each image it draws to its worker each time it draws the Trains. Where pills
+// pile up, a pile is drawn as its top pill, with a count, and the pills, arrows and halos of those
+// folded into it aren't drawn (piles(), #828).
 for (const [id, outline] of Object.entries(OUTLINES)) addOutline(id, outline);
 map.setMissingStyleImageResolver((id) => {
   const [, outline, n] = /^train-(\w+)-dashed-(\d+)$/.exec(id) ?? [];
@@ -1696,7 +1698,7 @@ map.setMissingStyleImageResolver((id) => {
   map.addImage(id, { width, height, data }, { sdf: true, pixelRatio: 2, ...fit });
 });
 for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', true, FOLLOWED_TEXT]] as const) {
-  const filter: ExpressionSpecification = ['all', AS_PILL, ['==', ['get', 'followed'], followed]];
+  const filter: ExpressionSpecification = ['all', AS_PILL, ['!', ['get', 'folded']], ['==', ['get', 'followed'], followed]];
   if (followed) {
     // The target: two rings round the followed Train, dot or pill, in its Line's lettering, and its colour pulsing out from the outer one (pulse()).
     const ring = (id: string, radius: ExpressionSpecification, width: number, opacity: number | ExpressionSpecification): CircleLayerSpecification => ({
@@ -1737,7 +1739,7 @@ for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', tr
       'icon-text-fit-padding': [0, PILL_PADDING, 0, PILL_PADDING],
       'text-field': ['get', 'name'],
       'text-font': ['Noto Sans Bold'],
-      // Which pill is drawn over which is MapLibre's own, the one lower on screen, as covered() has it (#513). Not by a sort key,
+      // Which pill is drawn over which is MapLibre's own, the one lower on screen, as piles() has it (#513). Not by a sort key,
       // which MapLibre draws a key at a time: with a key for each pill, 17% more main thread at rest.
       // ponytail: ranked within a tile, so of two pills either side of a tile's edge, its tile decides. Fine while no name shows over one there.
       // Long distance's, Ouigo's and Media Distancia's smaller, as pillText() has them, but the followed Train's (#780).
@@ -1752,9 +1754,29 @@ for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', tr
       'icon-halo-color': byLive('#fff', ['get', 'lettering']),
       'icon-halo-width': byLive(PILL_HALO, DASHED_RING),
       'text-color': byLive(['case', ['get', 'dark'], INK, '#fff'], ['get', 'lettering']),
-      // A pill whose name another drawn over it meets shows none, which MapLibre would draw over that pill (#513): unseen, as an empty name would shrink the outline fitted to it.
-      'text-opacity': ['case', ['get', 'covered'], 0, 1],
     },
+  });
+  // A pile's top pill counts those folded into it (piles()) in a badge at its top right corner, "+n": round, in the
+  // places' names' ink, lettered in what edges them (#828).
+  map.addLayer({
+    id: `train-counts${suffix}`,
+    type: 'symbol',
+    source: 'trains',
+    filter: ['all', filter, ['>', ['coalesce', ['get', 'more'], 0], 0]],
+    layout: {
+      'icon-image': 'train-round',
+      'icon-text-fit': 'both',
+      'icon-text-fit-padding': [0, PILL_PADDING, 0, PILL_PADDING],
+      'text-field': ['concat', '+', ['to-string', ['get', 'more']]],
+      'text-font': ['Noto Sans Bold'],
+      'text-size': SMALL_TEXT,
+      'text-offset': ['array', 'number', 2, ['get', 'countAt']],
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+      'text-allow-overlap': true,
+      'text-ignore-placement': true,
+    },
+    paint: { 'icon-color': nameColour, 'icon-halo-color': halo, 'icon-halo-width': PILL_HALO, 'text-color': halo },
   });
 }
 
@@ -1775,9 +1797,9 @@ const strokeLayers = layered.flatMap(({ source, id }) => (source === 'lines' ? [
 const linesPopup = new Popup({ closeButton: false, closeOnClick: false, className: 'lines-at', maxWidth: 'none' });
 // From SIGN_ZOOM, each place's marks, over the Trains' dots, which are pills by then, and under the names, but where
 // its Stations' own go on their tracks, on the rails. An interchange's badge, from SIGN_ZOOM to the rails, with its name in
-// bold under it, over the places' names, so that MapLibre places it first, as an interchange's ranks with its highest
-// tier's (#119): under them, Plaça Catalunya's gave way to Universitat's at zoom 13 (#210's review). Its name only from
-// SIGN_ZOOM's tiles, where the badge is drawn whole: hidden, it would still push the places' names aside.
+// bold under it, in a layer of its own over the places' names, so that MapLibre places it first, as an interchange's ranks
+// with its highest tier's (#119): under them, Plaça Catalunya's gave way to Universitat's at zoom 13 (#210's review). Its
+// name only from SIGN_ZOOM's tiles, where the badge is drawn whole: hidden, it would still push the places' names aside.
 // Those whose Stations have their own marks on their tracks in a layer of their own, which ends at the rails, so that
 // neither layer's opacity is a feature's: one of the zoom alone is quicker for the map to draw with, each time it draws.
 for (const [id, railed] of [['station-marks', false], ['station-marks-railed', true]] as const) {
@@ -1809,26 +1831,41 @@ map.addLayer(
       'icon-ignore-placement': true,
       'icon-image': ['get', 'image'],
       'icon-size': byZoom(SIGN_SIZE, (px) => px),
+    },
+    paint: { 'icon-opacity': placeOpacity([signIn]) },
+  },
+  'train-pills',
+);
+// The places' names, the badges' over them, over the Trains' pills and their counts and under the followed Train's, so
+// that they read however Trains pile up (#828).
+map.moveLayer('station-names', 'train-pulse');
+map.addLayer(
+  {
+    id: 'station-badge-names',
+    type: 'symbol',
+    source: 'interchanges',
+    minzoom: SIGN_ZOOM - 1,
+    maxzoom: RAILS,
+    layout: {
       'text-field': ['step', ['zoom'], '', SIGN_ZOOM, ['get', 'name']],
       'text-font': ['Noto Sans Bold'],
       'text-size': BADGE_TEXT,
       'text-anchor': 'top',
       'text-offset': byZoom(SIGN_SIZE, (px) => ['literal', [0, (px * (MARK + 2 * BADGE_PAD)) / 2 / BADGE_TEXT + 0.15]]),
       'text-max-width': PLACE_WRAP,
-      'text-optional': true,
     },
-    paint: { 'icon-opacity': placeOpacity([signIn]), 'text-opacity': placeOpacity([signIn]), 'text-color': nameColour, 'text-halo-color': halo, 'text-halo-width': NAME_HALO },
+    paint: { 'text-opacity': placeOpacity([signIn]), 'text-color': nameColour, 'text-halo-color': halo, 'text-halo-width': NAME_HALO },
   },
-  'train-pills',
+  'train-pulse',
 );
 /** The layers that draw the places, which take a tap and the pointer where they're drawn (placeShownAt()): the badges first, over the rest. */
-const placeTaken = ['station-badges', 'station-marks', 'station-marks-railed', ...placeLayers.filter((id) => id.startsWith('stations'))];
+const placeTaken = ['station-badge-names', 'station-badges', 'station-marks', 'station-marks-railed', ...placeLayers.filter((id) => id.startsWith('stations'))];
 /** Of the places' drawings within a box, those drawn at the zoom, by their place's or interchange's ID, topmost first. */
 function placesDrawn(box: [[number, number], [number, number]] | [number, number]): string[] {
   const zoom = map.getZoom();
   return map.queryRenderedFeatures(box, { layers: placeTaken }).flatMap(({ properties: p, layer }) => {
     const drawn: PlaceDrawn =
-      layer.id === 'station-badges' ? { kind: 'badge' } : layer.id.startsWith('station-marks') ? { kind: 'mark', railed: layer.id === 'station-marks-railed' } : p.band === -1 ? { kind: 'rails' } : { kind: 'dot', band: Number(p.band), few: !!p.few };
+      layer.id.startsWith('station-badge') ? { kind: 'badge' } : layer.id.startsWith('station-marks') ? { kind: 'mark', railed: layer.id === 'station-marks-railed' } : p.band === -1 ? { kind: 'rails' } : { kind: 'dot', band: Number(p.band), few: !!p.few };
     return placeShownAt(drawn, zoom) && typeof p.id === 'string' ? [p.id] : [];
   });
 }
@@ -1846,14 +1883,16 @@ map.on('click', ({ point: { x, y }, lngLat }) => {
   }
   const within = (r: number, layers: string[]) => map.queryRenderedFeatures([[x - r, y - r], [x + r, y + r]], { layers });
   const near = (layer: string): unknown => within(10, [layer])[0]?.properties.id;
-  // Where pills overlap, the one under the tap, the topmost, before one near it.
-  const under: unknown = within(0, ['train-pills-followed', 'train-pills'])[0]?.properties.id;
-  // A place's dot near the tap, or failing that its name under it.
+  // Where pills overlap, the one under the tap, the topmost, before one near it; a pile's count is its top pill's.
+  const under: unknown = within(0, ['train-counts-followed', 'train-pills-followed', 'train-counts', 'train-pills'])[0]?.properties.id;
+  // A place's dot near the tap, or failing that its name under it. A Train's pill under the tap is still tapped before a
+  // place's name over it (#828).
   const [train, place] = [under ?? near('train-pills-followed') ?? near('train-pills') ?? near('trains'), placesDrawn([[x - 10, y - 10], [x + 10, y + 10]])[0] ?? within(0, ['station-names'])[0]?.properties.id];
-  // A tap on a pill standing over others spreads them, and while they're spread, any tap but on one of them folds them (#129).
+  // A tap on a pill standing over others spreads them, and one on a counted pill or its count its pile, moving too (#828);
+  // while they're spread, any tap but on one of them folds them (#129).
   const { group } = spreadState;
   const inGroup = typeof train === 'string' && group?.ids.has(train);
-  const spreads = typeof train === 'string' && !group ? groupOf(standingPills.map((p) => ({ ...p, at: projected(p.at) })), train) : undefined;
+  const spreads = typeof train === 'string' && !group ? groupOf(placedTrains.flatMap(({ asPill, at }) => (asPill ? [{ ...asPill, at: projected(at) }] : [])), train, shownPiles.get(train)) : undefined;
   if (spreads || (group && !inGroup)) {
     spreadState.group = spreads;
     trainSource?.setData(trains());
@@ -1892,7 +1931,7 @@ map.on('moveend', () => {
 // the layers were added, so a pointer moving onto a layer added before the one it left, as onto a
 // name from a stroke, had its pointer taken off again by the `mouseleave` that came after (#618).
 // The places' only where they're drawn (placesDrawn()), as their layers span whole zooms.
-const pointed = ['trains', 'train-pills', 'train-pills-followed', 'station-names', ...strokeLayers];
+const pointed = ['trains', 'train-pills', 'train-pills-followed', 'train-counts', 'train-counts-followed', 'station-names', ...strokeLayers];
 map.on('mousemove', ({ point }) => (map.getCanvas().style.cursor = map.queryRenderedFeatures(point, { layers: pointed }).length || placesDrawn([point.x, point.y]).length ? 'pointer' : ''));
 // Escape closes the About dialog on its own, if it's open.
 document.addEventListener('keydown', (e) => e.key === 'Escape' && !about.open && (following || boardPlace || lineShown || nearMe || searching || favouritesShown || nowShown || passportShown) && closePanel());
@@ -2424,7 +2463,8 @@ function whereDrawn({ trip, dist, lon, lat }: Pick<Train, 'trip' | 'dist' | 'lon
  * Every Train on the map now, in its Line's colour, Live or Scheduled, where whereDrawn() has it, but
  * for a Scheduled one within a closed Closure that hides Trains (trainsAt(), hiding(), #345). A tapped
  * group of Trains standing together at a Station goes side by side across their track (spreading()),
- * so that each can be seen and tapped (#129).
+ * so that each can be seen and tapped (#129). Where a pill would lie on another's name, it folds into
+ * the pill over it, which counts it (piles()), and a tap on the count spreads them (#828).
  */
 function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
   const zoom = map.getZoom();
@@ -2439,29 +2479,29 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
     return { train, pill, box, asPill, at: whereDrawn(train, zoom) };
   });
   placedTrains = placed;
-  standingPills = placed.flatMap(({ asPill, at }) => (asPill?.standsAt ? [{ ...asPill, standsAt: asPill.standsAt, at }] : []));
-  // A spread group folds once fewer than two of its Trains stand at its Station drawn as pills, as zoomed out.
-  const { group } = spreadState;
-  if (group && standingPills.filter((p) => group.ids.has(p.id) && p.standsAt === group.station).length < 2) spreadState.group = undefined;
   // Only the group's Trains, and those moved aside, easing back, are put on screen.
   const spreadable = placed.flatMap(({ asPill, at }): Drawn[] => (asPill && (spreadState.group?.ids.has(asPill.id) || spreadState.moved.has(asPill.id)) ? [{ ...asPill, at: projected(at) }] : []));
+  // A spread group folds once fewer than two of its Trains are held apart (held()), as once they leave or zoomed out from
+  // their pills; till then those are drawn, and named (piles()).
+  const holding = spreadState.group ? held(spreadable, spreadState.group) : [];
+  if (holding.length < 2) spreadState.group = undefined;
+  const kept = new Set(spreadState.group ? holding.map((t) => t.id) : []);
   const aside = spread(spreadable, performance.now(), spreadState.group);
   spreadState = { group: spreadState.group, moved: aside, easing: [...aside].some(([id, px]) => spreadState.moved.get(id) !== px) || aside.size !== spreadState.moved.size };
-  // Each pill in view where it's drawn, in trains()' order, for those whose names a pill over them covers (covered(), #513).
-  // ponytail: in view by its Train's point, so a pill reaching in from just off the map's edge covers nothing. Pad the bounds by a pill if a name shows on one there.
-  const [bounds, inView] = [map.getBounds(), [] as Named[]];
+  // Each pill in view where it's drawn, in trains()' order, for the piles where a pill would lie on another's name (piles(), #513).
+  // ponytail: in view by its Train's point, so a pill reaching in from just off the map's edge folds none. Pad the bounds by a pill if a name shows on one there.
+  const [bounds, inView] = [map.getBounds(), [] as (Named & { properties: NonNullable<GeoJSON.GeoJsonProperties> })[]];
   const features = placed.map(({ train: { trip, heading, live }, pill, box, asPill, at }): GeoJSON.Feature<GeoJSON.Point> => {
     const [out, onScreen] = [aside.get(trip.id), spreadable.find((d) => d.id === trip.id)?.at];
     const right = rightOf(heading, bearing);
     const coordinates: Point = out && onScreen ? (map.unproject([onScreen[0] + out * right[0], onScreen[1] + out * right[1]]).toArray() as Point) : at;
     if (following && trip.id === followed) [following.at, following.zoom] = [coordinates, zoom];
-    if (pill && asPill && bounds.contains(coordinates)) inView.push({ id: trip.id, at: projected(coordinates), box: asPill.box, name: pill.nameBox });
     const line = lines.get(trip.line);
     const isFollowed = trip.id === followed;
     // The followed Train's target, out from its pill's box or its dot (targetRings()), and where its pulse is now, which stands still where the viewer prefers less motion.
     const [innerRing, outerRing] = isFollowed ? targetRings(pill && box && zoom >= pill.zoom ? Math.hypot(...box) : dotAt(zoom, true)) : [];
     const [pulseRadius, pulseOpacity] = outerRing === undefined ? [] : lessMotion.matches ? [outerRing, 0] : pulse(outerRing, Date.now());
-    return {
+    const feature: GeoJSON.Feature<GeoJSON.Point> = {
       type: 'Feature',
       properties: {
         id: trip.id,
@@ -2486,13 +2526,21 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
         outerRing,
         pulseRadius,
         pulseOpacity,
-        covered: false,
+        folded: false,
       },
       geometry: { type: 'Point', coordinates },
     };
+    if (pill && asPill && bounds.contains(coordinates)) inView.push({ id: trip.id, at: projected(coordinates), box: asPill.box, name: pill.nameBox, properties: feature.properties! });
+    return feature;
   });
-  const under = covered(inView, followed);
-  for (const f of features) if (f.properties && under.has(f.properties.id)) f.properties.covered = true;
+  // Each pile drawn as its top pill, with its count at its top right corner, in ems of its lettering (#828).
+  shownPiles = piles(inView, followed, kept);
+  const folded = new Set([...shownPiles.values()].flat());
+  for (const { id, box, properties } of inView) {
+    const more = shownPiles.get(id)?.length;
+    if (folded.has(id)) properties.folded = true;
+    else if (more) Object.assign(properties, { more, countAt: [box[0] / SMALL_TEXT, -box[1] / SMALL_TEXT] });
+  }
   return { type: 'FeatureCollection', features };
 }
 
@@ -2587,7 +2635,7 @@ interface Pill {
   dotZoom: number;
   box: [number, number];
   followedBox: [number, number];
-  /** How far its name reaches either side of its Train and above and below it, in px, on a pill not followed (covered(), #513). */
+  /** How far its name reaches either side of its Train and above and below it, in px, on a pill not followed (piles(), #513). */
   nameBox: [number, number];
 }
 
