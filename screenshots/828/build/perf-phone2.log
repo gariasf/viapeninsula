@@ -1,0 +1,43 @@
+load before: 10:08  up 22 days, 13:36, 6 users, load averages: 2.99 5.01 6.05
+
+> perf
+> node src/page/perf.ts S5z13 S5bcn --tree /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/***/scratchpad/wt-828-main --tree /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/***/scratchpad/wt-828 --at /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/***/scratchpad/828/capture/0630.ndjson.gz --out /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/***/scratchpad/828/look/live --phone
+
+10:08:32 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+10:09:53 S5z13 phone wt-828-main run 1: load 6.1 5.4 6.1
+10:11:13 S5z13 phone wt-828 run 1: load 6.2 6.1 6.3
+10:11:13 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+10:12:34 S5z13 phone wt-828-main run 2: load 4.0 5.4 6.0
+10:13:54 S5z13 phone wt-828 run 2: load 3.7 5.1 5.9
+10:13:55 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+10:15:15 S5z13 phone wt-828-main run 3: load 4.5 5.1 5.8
+10:16:36 S5z13 phone wt-828 run 3: load 4.4 4.9 5.7
+10:16:36 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+10:17:57 S5bcn phone wt-828-main run 1: load 4.4 4.8 5.5
+10:19:17 S5bcn phone wt-828 run 1: load 4.4 4.7 5.5
+10:19:17 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+10:20:38 S5bcn phone wt-828-main run 2: load 4.6 4.7 5.4
+10:21:58 S5bcn phone wt-828 run 2: load 3.7 4.4 5.2
+10:21:58 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+10:23:19 S5bcn phone wt-828-main run 3: load 4.0 4.4 5.1
+10:24:39 S5bcn phone wt-828 run 3: load 7.8 5.7 5.6
+
+/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/8b203481-a840-44f8-91b7-4c40c87af3ce/scratchpad/wt-828-main, phone, median of 3:
+| check | scenario | median | limit | |
+|---|---|---|---|---|
+| At rest: main thread, ms/s | S5bcn | 485 | ≤ 400 | BREACH |
+| At rest: MapLibre's redraws beyond the Trains' draws, /s | S5bcn | 11.9 | ≤ 2 | BREACH |
+
+/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/8b203481-a840-44f8-91b7-4c40c87af3ce/scratchpad/wt-828, phone, median of 3:
+| check | scenario | median | limit | |
+|---|---|---|---|---|
+| At rest: main thread, ms/s | S5bcn | 492 | ≤ 400 | BREACH |
+| At rest: MapLibre's redraws beyond the Trains' draws, /s | S5bcn | 10.2 | ≤ 2 | BREACH |
+exit 1
+load after: 10:24  up 22 days, 13:52, 6 users, load averages: 7.83 5.72 5.58

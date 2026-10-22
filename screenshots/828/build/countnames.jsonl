@@ -1,0 +1,8 @@
+{"view":"bcn-z12","device":"laptop","late":117,"counts":56,"underAName":20,"examples":["R1+1 under Girona","R1+1 under Artigues | Sant Adrià","R2+2 under Plaça de Sants","R2+3 under Bon Pastor","S1+1 under Les Planes","S1+1 under Av. Tibidabo","S1+2 under Vallvidrera Inferior","T3+1 under Can Vidalet"]}
+{"view":"bcn-z12","device":"phone","late":190,"counts":33,"underAName":10,"examples":["R1+1 under Girona","R2+2 under Plaça de Sants","S1+1 under Av. Tibidabo","L3+1 under Sant Antoni","L5+2 under Passeig de Gràcia","L5+1 under Plaça de Sants","L5+1 under El Clot","L3+3 under Rocafort"]}
+{"view":"bcn-z13-pg","device":"phone","late":77,"counts":11,"underAName":4,"examples":["S2+1 under Passeig de Gràcia","L2+5 under Plaça Catalunya","L4+1 under Girona","L4+1 under Urquinaona"]}
+{"view":"bcn-z13-pg","device":"laptop","late":132,"counts":20,"underAName":7,"examples":["S2+1 under Passeig de Gràcia","S2+1 under Sarrià","L2+5 under Plaça Catalunya","L5+2 under Sants","L3+1 under Les Corts","L4+1 under Girona","L4+1 under Urquinaona"]}
+{"view":"bcn-z13-sants","device":"phone","late":78,"counts":5,"underAName":1,"examples":["L5+2 under Sants"]}
+{"view":"bcn-z13-sants","device":"laptop","late":34,"counts":23,"underAName":9,"examples":["R1+1 under Arc de Triomf","S1+1 under Diagonal","S2+2 under Plaça Catalunya","L2+2 under Plaça Catalunya","L5+2 under Collblanc","L5+2 under Sants","L3+1 under Maria Cristina","L4+1 under Estació de França"]}
+{"view":"mad-z12-sol","device":"phone","late":88,"counts":5,"underAName":0,"examples":[]}
+{"view":"mad-z12-sol","device":"laptop","late":182,"counts":5,"underAName":0,"examples":[]}
