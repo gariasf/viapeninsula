@@ -1,0 +1,33 @@
+load before: 13:01  up 22 days, 16:29, 6 users, load averages: 3.64 5.81 7.07
+runs.jsonl lines before:       90
+
+> perf
+> node src/page/perf.ts S8 --phone --tree /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/***/scratchpad/wt-828-main --tree /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/***/scratchpad/wt-828 --at /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/***/scratchpad/828/capture/0630.ndjson.gz --out /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/***/scratchpad/828/look/live
+
+13:01:54 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+13:03:00 S8 phone wt-828-main run 1: load 3.3 5.3 6.8
+13:04:07 S8 phone wt-828 run 1: load 4.3 5.3 6.7
+13:04:07 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+13:05:14 S8 phone wt-828-main run 2: load 4.3 5.2 6.5
+13:06:21 S8 phone wt-828 run 2: load 3.2 4.6 6.2
+13:06:21 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+13:07:29 S8 phone wt-828-main run 3: load 3.8 4.6 6.1
+13:08:35 S8 phone wt-828 run 3: load 3.5 4.3 5.9
+
+/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/8b203481-a840-44f8-91b7-4c40c87af3ce/scratchpad/wt-828-main, phone, median of 3:
+| check | scenario | median | limit | |
+|---|---|---|---|---|
+| Following a Train: main thread, ms/s | S8 | 996 | ≤ 700 | BREACH |
+| Following a Train: fps | S8 | 33.3 | ≥ 55 | BREACH |
+
+/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/8b203481-a840-44f8-91b7-4c40c87af3ce/scratchpad/wt-828, phone, median of 3:
+| check | scenario | median | limit | |
+|---|---|---|---|---|
+| Following a Train: main thread, ms/s | S8 | 996 | ≤ 700 | BREACH |
+| Following a Train: fps | S8 | 38 | ≥ 55 | BREACH |
+exit 1
+load after: 13:08  up 22 days, 16:36, 6 users, load averages: 3.45 4.33 5.86
+runs.jsonl lines after:       96

@@ -1,0 +1,25 @@
+start: 12:48  up 22 days, 16:16, 6 users, load averages: 5.76 7.65 8.28
+12:48:39 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+phone {"device":"phone","late":1593,"target":"L7+1","drawn":2,"of":2,"tookIn":[],"moved":[13,13],"followed":null,"train":false}
+laptop {"device":"laptop","late":1671,"target":"R1+2","drawn":3,"of":3,"tookIn":[],"moved":[16,21,38],"followed":null,"train":false}
+phone {"device":"phone","late":4608,"target":"R1+1","drawn":2,"of":2,"tookIn":[],"moved":[10,10],"followed":null,"train":false}
+laptop {"device":"laptop","late":4613,"target":"R2+2","drawn":3,"of":3,"tookIn":[],"moved":[16,42,16],"followed":null,"train":false}
+laptop {"device":"laptop","late":7541,"target":"L7+2","drawn":3,"of":3,"tookIn":[],"moved":[13,13,13],"followed":null,"train":false}
+phone {"device":"phone","late":7593,"target":"S1+1","drawn":2,"of":2,"tookIn":[],"moved":[3,2],"followed":null,"train":false}
+phone {"device":"phone","late":10576,"target":"S2+2","drawn":3,"of":3,"tookIn":["L3+1"],"moved":[9,40,24],"followed":null,"train":false,"extended":"L3+1","extendedDrawn":4,"extendedOf":4,"extendedFollowed":null,"extendedTrain":false}
+laptop {"device":"laptop","late":10738,"target":"S2+2","drawn":3,"of":3,"tookIn":["L3+1"],"moved":[9,40,24],"followed":null,"train":false,"extended":"L3+1","extendedDrawn":4,"extendedOf":4,"extendedFollowed":null,"extendedTrain":false}
+phone {"device":"phone","late":15218,"target":"T4+1","drawn":2,"of":2,"tookIn":[],"moved":[9,10],"followed":null,"train":false}
+laptop {"device":"laptop","late":15464,"target":"L5+2","drawn":3,"of":3,"tookIn":["L5+1"],"moved":[11,11,30],"followed":null,"train":false,"extended":"L5+1","extendedDrawn":4,"extendedOf":4,"extendedFollowed":null,"extendedTrain":false}
+phone {"device":"phone","late":18209,"target":"R1+1","drawn":2,"of":2,"tookIn":[],"moved":[10,13],"followed":null,"train":false}
+laptop {"device":"laptop","late":20179,"target":"R1+1","drawn":2,"of":2,"tookIn":[],"moved":[10,11],"followed":null,"train":false}
+phone {"device":"phone","late":21201,"target":"S1+1","drawn":2,"of":2,"tookIn":[],"moved":[13,15],"followed":null,"train":false}
+laptop {"device":"laptop","late":23382,"target":"R17+3","drawn":4,"of":4,"tookIn":[],"moved":[12,17,27,13],"followed":null,"train":false}
+phone {"device":"phone","late":24186,"target":"L5+1","drawn":2,"of":2,"tookIn":[],"moved":[13,31],"followed":null,"train":false}
+laptop {"device":"laptop","late":26597,"target":"S1+2","drawn":3,"of":3,"tookIn":["L7+1"],"moved":[13,20,13],"followed":null,"train":false,"extended":"L7+1","extendedDrawn":4,"extendedOf":4,"extendedFollowed":null,"extendedTrain":false}
+phone {"device":"phone","check":"followed","skipped0":"undefined+undefined standing","skipped1":"R13+0 standing","skipped2":"R13+1 standing","skipped3":"L1+0 standing","followed":"L1","followedCount":2,"tries":4,"moving":true,"draggedOff":109,"pillTap":{"stillFollowed":true,"countAfter":0,"back":97},"countTap":{"note":"no count on the followed Train after the pill tap (L1+0)"},"centreAt":[194.79876883862332,251.06086182933282],"draggedAt":[284.4059456758213,312.41691753988584]}
+phone errors: none
+laptop {"device":"laptop","check":"followed","skipped0":"undefined+undefined standing","skipped1":"S1+2 standing","skipped2":"S1+2 standing","skipped3":"S1+2 standing","followed":"R16","followedCount":1,"tries":4,"moving":true,"draggedOff":180,"pillTap":{"stillFollowed":true,"countAfter":1,"back":0},"countTap":{"count":"R16+1","hits":["train-counts-followed R16","train-pills-followed R16"],"stillFollowed":true,"countAfter":0,"pileDrawn":1,"of":1,"moved":[24]},"centreAt":[876.1684291060766,399.83815531233944],"draggedAt":[1037.3435200691224,479.57090570370354]}
+laptop errors: none
+exit 0
+end: 12:50  up 22 days, 16:18, 6 users, load averages: 8.69 7.97 8.31

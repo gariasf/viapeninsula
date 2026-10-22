@@ -1,0 +1,61 @@
+load before: 12:21  up 22 days, 15:49, 6 users, load averages: 2.96 5.18 5.96
+runs.jsonl lines before:       72
+
+> perf
+> node src/page/perf.ts S5bcn S5z13 S8 --tree /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/***/scratchpad/wt-828-main --tree /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/***/scratchpad/wt-828 --at /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/***/scratchpad/828/capture/0630.ndjson.gz --out /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/***/scratchpad/828/look/live
+
+12:21:41 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+12:23:02 S5bcn desktop wt-828-main run 1: load 4.7 5.2 5.9
+12:24:22 S5bcn desktop wt-828 run 1: load 2.7 4.6 5.6
+12:24:22 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+12:25:43 S5bcn desktop wt-828-main run 2: load 2.8 4.2 5.4
+12:27:03 S5bcn desktop wt-828 run 2: load 2.8 3.9 5.2
+12:27:03 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+12:28:24 S5bcn desktop wt-828-main run 3: load 2.4 3.6 4.9
+12:29:44 S5bcn desktop wt-828 run 3: load 26.2 9.3 6.9
+12:29:45 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+12:31:05 S5z13 desktop wt-828-main run 1: load 24.2 12.2 8.2
+12:32:26 S5z13 desktop wt-828 run 1: load 12.4 11.3 8.2
+12:32:26 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+12:33:47 S5z13 desktop wt-828-main run 2: load 6.1 9.7 7.9
+12:35:07 S5z13 desktop wt-828 run 2: load 2.9 7.8 7.3
+12:35:07 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+12:36:28 S5z13 desktop wt-828-main run 3: load 2.5 6.5 6.8
+12:37:48 S5z13 desktop wt-828 run 3: load 23.4 12.9 9.3
+12:37:48 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+12:38:54 S8 desktop wt-828-main run 1: load 13.8 12.3 9.4
+12:39:59 S8 desktop wt-828 run 1: load 7.6 10.8 9.0
+12:39:59 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+12:41:05 S8 desktop wt-828-main run 2: load 7.8 10.2 8.9
+12:42:10 S8 desktop wt-828 run 2: load 11.3 10.4 9.1
+12:42:10 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+12:43:16 S8 desktop wt-828-main run 3: load 11.0 11.0 9.4
+12:44:21 S8 desktop wt-828 run 3: load 7.3 9.9 9.1
+
+/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/8b203481-a840-44f8-91b7-4c40c87af3ce/scratchpad/wt-828-main, desktop, median of 3:
+| check | scenario | median | limit | |
+|---|---|---|---|---|
+| At rest: main thread, ms/s | S5bcn | 240 | ≤ 100 | BREACH |
+| At rest: MapLibre's redraws beyond the Trains' draws, /s | S5bcn | 18.8 | ≤ 2 | BREACH |
+| Following a Train: main thread, ms/s | S8 | 823 | ≤ 400 | BREACH |
+| Following a Train: fps | S8 | 119.8 | ≥ 110 | ok |
+
+/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/8b203481-a840-44f8-91b7-4c40c87af3ce/scratchpad/wt-828, desktop, median of 3:
+| check | scenario | median | limit | |
+|---|---|---|---|---|
+| At rest: main thread, ms/s | S5bcn | 264 | ≤ 100 | BREACH |
+| At rest: MapLibre's redraws beyond the Trains' draws, /s | S5bcn | 19.3 | ≤ 2 | BREACH |
+| Following a Train: main thread, ms/s | S8 | 827 | ≤ 400 | BREACH |
+| Following a Train: fps | S8 | 119.7 | ≥ 110 | ok |
+exit 1
+load after: 12:44  up 22 days, 16:12, 6 users, load averages: 7.27 9.92 9.11
+runs.jsonl lines after:       90

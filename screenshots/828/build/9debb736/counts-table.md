@@ -1,0 +1,27 @@
+| View | Device | Pills drawn | Blank (Live) | Trains folded | Counted pills (largest) | Counts TR · TL · BR · BL | Station names a pill overlaps | Drawn names a "+n" lies on | Counts a Station's name meets |
+|---|---|---|---|---|---|---|---|---|---|
+| Barcelona z12 | 1280×800 | 237 → 155 | 93 (85) → **0** | 0 → 82 | 0 → 62 (+4) | 44 · 10 · 7 · 1 | 55 of 110 → 51 of 110 | **0** | 24 of 62 |
+|  | 390×844 | 131 → 81 | 58 (51) → **0** | 0 → 50 | 0 → 37 (+4) | 25 · 7 · 4 · 1 | 31 of 59 → 30 of 59 | **0** | 15 of 37 |
+| Pg de Gràcia / Pl. Catalunya z13 | 1280×800 | 131 → 106 | 25 (21) → **0** | 0 → 25 | 0 → 22 (+2) | 18 · 4 · 0 · 0 | 19 of 62 → 17 of 62 | **0** | 9 of 22 |
+|  | 390×844 | 54 → 41 | 13 (11) → **0** | 0 → 13 | 0 → 13 (+1) | 10 · 3 · 0 · 0 | 10 of 26 → 10 of 26 | **0** | 6 of 13 |
+| Sants z13 | 1280×800 | 130 → 104 | 27 (23) → **0** | 0 → 26 | 0 → 23 (+2) | 22 · 1 · 0 · 0 | 24 of 61 → 22 of 61 | **0** | 9 of 23 |
+|  | 390×844 | 48 → 42 | 6 (5) → **0** | 0 → 6 | 0 → 5 (+2) | 5 · 0 · 0 · 0 | 9 of 31 → 9 of 31 | **0** | 1 of 5 |
+| Madrid z12, Sol | 1280×800 | 37 → 32 | 5 (3) → **0** | 0 → 5 | 0 → 5 (+1) | 5 · 0 · 0 · 0 | 7 of 22 → 6 of 22 | **0** | 0 of 5 |
+|  | 390×844 | 31 → 22 | 9 (6) → **0** | 0 → 9 | 0 → 5 (+5) | 5 · 0 · 0 · 0 | 6 of 11 → 5 of 11 | **0** | 0 of 5 |
+
+Checks: 16 of 16 folds as piles(), 16 corners as piles(), 16 orders as picked (train-pills < station-names < station-badge-names < train-counts < train-pills-followed < train-counts-followed)
+Light, all views and devices: counts {'TR': 134, 'TL': 25, 'BR': 11, 'BL': 2}, of them on a Station's name {'TR': 46, 'TL': 14, 'BR': 4, 'BL': 0}; names under a count 0; blank 0
+Dark against light: bcn-z12 phone: light → dark {'folded': (50, 51)} counts [4, 4, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1] → [4, 4, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1] corners {'TR': 25, 'TL': 7, 'BR': 4, 'BL': 1} → {'TR': 26, 'TL': 6, 'BR': 4, 'BL': 1}; bcn-z12 laptop: light → dark {'pills': (155, 156), 'namesOverlapped': (51, 52), 'countsOnAName': (24, 23)} counts [4, 4, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1] → [4, 4, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1] corners {'TR': 44, 'TL': 10, 'BR': 7, 'BL': 1} → {'TR': 45, 'TL': 9, 'BR': 6, 'BL': 1}; bcn-z13-pg laptop: light → dark {'namesOverlapped': (17, 18)}; bcn-z13-sants laptop: light → dark {'pills': (104, 102), 'folded': (26, 28), 'countsOnAName': (9, 8)} counts [2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1] → [3, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1] corners {'TR': 22, 'TL': 1, 'BR': 0, 'BL': 0} → {'TR': 22, 'TL': 2, 'BR': 0, 'BL': 0}
+Late (ms past the page-clock second): bcn-z12/p/l 229, bcn-z12/p/d 397, bcn-z13-pg/p/l 436, bcn-z13-pg/p/d 394, bcn-z13-sants/p/l 193, bcn-z13-sants/p/d 355, mad-z12-sol/p/l 235, mad-z12-sol/p/d 335, bcn-z12/l/l 323, bcn-z12/l/d 520, bcn-z13-pg/l/l 266, bcn-z13-pg/l/d 483, bcn-z13-sants/l/l 354, bcn-z13-sants/l/d 558, mad-z12-sol/l/d 242, mad-z12-sol/l/l 519
+On a name, bcn-z12 phone light: R2+1 TL under Plaça de Sants; R4+4 TR under Girona; S1+1 TR under Av. Tibidabo; T2+1 TL under Zona Universitària; L3+1 BR under Hostafrancs; L3+1 TR under Sant Antoni
+On a name, bcn-z12 phone dark: R4+4 TR under Girona; S1+1 TR under Av. Tibidabo; T2+1 TL under Zona Universitària; L3+1 BR under Hostafrancs; L3+1 TR under Sant Antoni; L5+1 TR under Plaça de Sants
+On a name, bcn-z13-pg phone light: S1+1 TR under Plaça Catalunya; S2+1 TR under Passeig de Gràcia; L2+1 TL under Universitat; L1+1 TL under Plaça Catalunya; L4+1 TR under Girona; L4+1 TR under Urquinaona
+On a name, bcn-z13-pg phone dark: S1+1 TR under Plaça Catalunya; S2+1 TR under Passeig de Gràcia; L2+1 TL under Universitat; L1+1 TL under Plaça Catalunya; L4+1 TR under Girona; L4+1 TR under Urquinaona
+On a name, bcn-z13-sants phone light: L5+2 TR under Sants
+On a name, bcn-z13-sants phone dark: L5+1 TR under Sants
+On a name, bcn-z12 laptop light: R1+1 TR under Artigues | Sant Adrià; R2+1 TL under Plaça de Sants; R2+2 TL under Sant Andreu; R4+1 TR under Onze de Setembre; R4+4 TR under Girona; S1+1 TR under Les Planes
+On a name, bcn-z12 laptop dark: R1+1 TR under Artigues | Sant Adrià; R2+2 TL under Sant Andreu; R4+1 TR under Onze de Setembre; R4+4 TR under Girona; S1+1 TR under Les Planes; S1+1 TR under Av. Tibidabo
+On a name, bcn-z13-pg laptop light: S1+1 TR under Plaça Catalunya; S2+1 TR under Passeig de Gràcia; S2+1 TR under Sarrià; L2+1 TL under Universitat; L5+2 TR under Sants; L1+1 TL under Plaça Catalunya
+On a name, bcn-z13-pg laptop dark: S1+1 TR under Plaça Catalunya; S2+1 TR under Passeig de Gràcia; S2+1 TR under Sarrià; L2+1 TL under Universitat; L5+2 TR under Sants; L1+1 TL under Plaça Catalunya
+On a name, bcn-z13-sants laptop light: R1+1 TR under Arc de Triomf; S1+1 TR under Diagonal; S2+2 TR under Plaça Catalunya; L2+1 TL under Universitat; L5+2 TR under Collblanc; L5+1 TR under Sants
+On a name, bcn-z13-sants laptop dark: R1+1 TR under Arc de Triomf; S1+1 TR under Diagonal; S2+2 TR under Plaça Catalunya; L2+1 TL under Universitat; L5+2 TR under Collblanc; L3+1 TR under Maria Cristina
