@@ -5,6 +5,8 @@
 // shoots the map at 390×844 and 1280×800, light and dark, into .cache/page/shots/, prints the console's
 // errors, and exits 1 on a `pageerror`. `--at` replays a moment the fetcher captured (Open's `at`), with
 // `--out` a mirror of that day's live files. Scripts of a ticket's own import launch() and openMap() from here.
+// #213's look (branch 213-variants): `--v213 <variant>` sets localStorage.v213 before the page's scripts run, and names
+// the shots by it; the hash takes a pitch as MapLibre's does, `#map=13/41.3874/2.1686/0/45`.
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -49,9 +51,12 @@ export async function launch(): Promise<Browser> {
   return browser;
 }
 
-/** Builds a tree's page into its .cache/page/dist, which openMap() serves. */
+/**
+ * Builds a tree's page into its .cache/page/dist-<tree's name>, which openMap() serves: a worktree's .cache is the main
+ * checkout's, linked, so one dist would be every tree's, each build emptying another's.
+ */
 export function build(tree: string): string {
-  const dist = path.join(tree, '.cache/page/dist');
+  const dist = path.join(tree, '.cache/page', `dist-${path.basename(path.resolve(tree))}`);
   execFileSync('npx', ['vite', 'build', '--outDir', dist, '--emptyOutDir', '--logLevel', 'error'], { cwd: tree, stdio: 'inherit' });
   return dist;
 }
@@ -77,6 +82,8 @@ export interface Open {
   at?: string;
   /** Slows the main thread as the device says (perf runs; shots leave it). */
   throttle?: boolean;
+  /** #213's variant, set as localStorage.v213 before the page's own scripts run; none is main. */
+  v213?: string;
 }
 
 export interface MapPage {
@@ -96,6 +103,7 @@ export async function openMap(browser: Browser, o: Open): Promise<MapPage & { go
   const clock = o.clock ?? capture?.clock;
   if (clock !== undefined) await context.addInitScript(SHIFT_CLOCK, clock);
   await context.addInitScript(PROBE);
+  if (o.v213) await context.addInitScript((v) => localStorage.setItem('v213', v), o.v213);
   const page = await context.newPage();
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(`pageerror ${String(e)}`));
@@ -237,7 +245,8 @@ if (import.meta.main) {
   const value = (name: string, otherwise: string) => (flag(name) >= 0 && args[flag(name) + 1] && !args[flag(name) + 1]!.startsWith('--') ? args[flag(name) + 1]! : otherwise);
   // A hash isn't the bundle's dir that `--out` may take.
   const isHash = (a: string) => /^#?map=/.test(a);
-  const hash = args.find((a, i) => !a.startsWith('--') && (isHash(a) || !['--out', '--wait', '--tree', '--at'].includes(args[i - 1] ?? '')));
+  const hash = args.find((a, i) => !a.startsWith('--') && (isHash(a) || !['--out', '--wait', '--tree', '--at', '--v213'].includes(args[i - 1] ?? '')));
+  const v213 = value('--v213', '') || undefined;
   const tree = path.resolve(value('--tree', '.'));
   const shots = path.resolve('.cache/page/shots');
   fs.mkdirSync(shots, { recursive: true });
@@ -248,11 +257,11 @@ if (import.meta.main) {
     try {
       for (const device of ['phone', 'laptop'] as const)
         for (const scheme of ['light', 'dark'] as const) {
-          const m = await openMap(browser, { device, scheme, dist, hash: hash && (hash.startsWith('#') ? hash : `#${hash}`), out: flag('--out') >= 0 ? (isHash(value('--out', 'out')) ? 'out' : value('--out', 'out')) : undefined, slow: flag('--slow') >= 0, at: flag('--at') >= 0 ? path.resolve(value('--at', '')) : undefined });
+          const m = await openMap(browser, { device, scheme, dist, hash: hash && (hash.startsWith('#') ? hash : `#${hash}`), out: flag('--out') >= 0 ? (isHash(value('--out', 'out')) ? 'out' : value('--out', 'out')) : undefined, slow: flag('--slow') >= 0, at: flag('--at') >= 0 ? path.resolve(value('--at', '')) : undefined, v213 });
           await m.go();
           await ready(m.page, Number(value('--wait', '10')) * 1000);
           const { width, height } = DEVICES[device].viewport;
-          const file = path.join(shots, `${device}-${width}x${height}-${scheme}.png`);
+          const file = path.join(shots, `${v213 ? `v213-${v213}-` : ''}${device}-${width}x${height}-${scheme}.png`);
           await m.page.screenshot({ path: file });
           console.log(`${file}${m.errors.length ? `\n  ${[...new Set(m.errors)].join('\n  ')}` : ''}`);
           failed ||= m.errors.some((e) => e.startsWith('pageerror'));

@@ -14,6 +14,9 @@
 // - S7: the next day's join, the clock set 20 s before the map needs it, and the snapshot blocked; S7all the same
 //   20 s before every region's earliest first Train is within the hour, where the map joined it before #659.
 // - S8: following a moving Train at z14 for 30 s.
+// #213's look (branch 213-variants): `--pitch <deg>` tilts every scenario's view, as MapLibre's hash takes it
+// (`#map=z/lat/lon/0/<pitch>`), and keeps it through S3's jump and S8's follow; `--v213 <a,b,...>` runs each scenario
+// once for each variant in turn, in one batch, as `--tree` does trees, `main` for none. Without them, a run is main's.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -27,6 +30,9 @@ export interface Run {
   scenario: string;
   device: Device;
   tree: string;
+  /** #213's variant, where a run has one (`--v213`), and its pitch (`--pitch`). */
+  v213?: string;
+  pitch?: number;
   run: number;
   /** The page's clock at navigation, where the scenario fakes it. */
   clock?: number;
@@ -48,7 +54,10 @@ export interface Run {
 }
 
 type Mark = (name: string) => Promise<void>;
-const at = (z: number, [lat, lon]: readonly number[]) => `#map=${z}/${lat}/${lon}`;
+/** #213: the scenarios' pitch (`--pitch`), 0 as main has them, and what a hash takes after its centre for it. */
+const PITCH = process.argv.includes('--pitch') ? Number(process.argv[process.argv.indexOf('--pitch') + 1]) : 0;
+const tilt = PITCH ? `/0/${PITCH}` : '';
+const at = (z: number, [lat, lon]: readonly number[]) => `#map=${z}/${lat}/${lon}${tilt}`;
 /** 60 s at rest at Barcelona at a zoom, after 20 s to load. */
 const rest = (zoom: number) => ({ view: at(zoom, BCN), window: ['idleStart', 'end'] as [string, string], act: async (_: Page, mark: Mark) => (await sleep(20_000), await mark('idleStart'), await sleep(60_000), mark('end')) });
 const [BCN, MAD, VLC] = [[41.3874, 2.1686], [40.4168, -3.7038], [39.4699, -0.3763]] as const;
@@ -83,7 +92,8 @@ const SCENARIOS: Record<string, Scenario> = {
       await sleep(15_000);
       await mark('zoomStart');
       await zoomSteps(page, device, 12, 4, mark);
-      await page.evaluate(([lat, lon]) => (location.hash = location.hash.replace(/map=([\d.]+)\/[^/]+\/[^&]+/, `map=$1/${lat}/${lon}`)), MAD);
+      // Its bearing and pitch kept (#213), which a flat map's hash hasn't.
+      await page.evaluate(([lat, lon]) => (location.hash = location.hash.replace(/map=([\d.]+)\/[^/&]+\/[^/&]+/, `map=$1/${lat}/${lon}`)), MAD);
       await sleep(1000);
       await mark('madrid');
       await zoomSteps(page, device, 4, 12, mark);
@@ -124,7 +134,7 @@ const SCENARIOS: Record<string, Scenario> = {
       const moved = Object.keys(after).filter((id) => before[id] && Math.hypot(before[id]![0]! - after[id]![0]!, before[id]![1]! - after[id]![1]!) > 2e-4 && Math.abs(after[id]![1]! - BCN[0]) < 0.4 && Math.abs(after[id]![0]! - BCN[1]) < 0.6);
       const id = moved.find((i) => i.startsWith('ave-larga-distancia:')) ?? moved[0];
       if (!id) throw new Error(`No Train moved near Barcelona, of ${Object.keys(after).length}`);
-      await page.evaluate(([id, [lon, lat]]) => (location.hash = `map=14/${lat}/${lon}&train=${id}`), [id, after[id]!] as const);
+      await page.evaluate(([id, [lon, lat], tilt]) => (location.hash = `map=14/${lat}/${lon}${tilt}&train=${id}`), [id, after[id]!, tilt] as const);
       await sleep(15_000);
       await mark('followStart');
       await sleep(30_000);
@@ -165,7 +175,8 @@ async function panTo(page: Page, device: Device, from: readonly number[], to: re
     return [((lon! + 180) / 360) * w, ((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * w];
   };
   const [a, b] = [px(from), px(to)];
-  const [dx, dy] = [a[0]! - b[0]!, a[1]! - b[1]!];
+  // Tilted (#213), a drag down the screen moves the map 1/cos(pitch) as far as a flat map's: about, at the screen's middle.
+  const [dx, dy] = [a[0]! - b[0]!, (a[1]! - b[1]!) * Math.cos((PITCH * Math.PI) / 180)];
   const n = Math.ceil(Math.hypot(dx, dy) / 600);
   for (let i = 0; i < n; i++) {
     const [cx, cy, sx, sy] = [width / 2 - dx / n / 2, height / 2 - dy / n / 2, dx / n / 30, dy / n / 30];
@@ -290,12 +301,12 @@ export async function heapAfterGC(cdp: Pick<CDPSession, 'send'>) {
   return Math.round((await cdp.send('Performance.getMetrics')).metrics.find((x) => x.name === 'JSHeapUsedSize')!.value / 1e6);
 }
 
-async function measure(browser: Browser, name: string, o: { device: Device; dist: string; tree: string; out?: string; at?: string; slow: boolean; run: number }): Promise<Run> {
+async function measure(browser: Browser, name: string, o: { device: Device; dist: string; tree: string; out?: string; at?: string; slow: boolean; run: number; v213?: string }): Promise<Run> {
   const sc = SCENARIOS[name]!;
   const manifest = sc.clock && ((o.out ? JSON.parse(fs.readFileSync(path.join(o.out, 'manifest.json'), 'utf8')) : await (await fetch(`${LIVE_URL}/manifest.json`)).json()) as Manifest);
   const clock = manifest ? sc.clock!(manifest) : undefined;
-  const m = await openMap(browser, { device: o.device, dist: o.dist, hash: sc.view, out: o.out, at: clock ? undefined : o.at, slow: o.slow, clock, abort: clock ? [/\/snapshot\.json/] : [], throttle: true });
-  const run: Run = { scenario: name, device: o.device, tree: o.tree, run: o.run, clock, marks: [], frames: [], setData: [], renders: [], files: [], heapPeakMB: 0, errors: m.errors };
+  const m = await openMap(browser, { device: o.device, dist: o.dist, hash: sc.view, out: o.out, at: clock ? undefined : o.at, slow: o.slow, clock, abort: clock ? [/\/snapshot\.json/] : [], throttle: true, v213: o.v213 });
+  const run: Run = { scenario: name, device: o.device, tree: o.tree, ...(o.v213 && { v213: o.v213 }), ...(PITCH && { pitch: PITCH }), run: o.run, clock, marks: [], frames: [], setData: [], renders: [], files: [], heapPeakMB: 0, errors: m.errors };
   const metric = async (key: string) => (await m.cdp.send('Performance.getMetrics')).metrics.find((x) => x.name === key)!.value;
   const mark = async (n: string) => void run.marks.push({ name: n, t: await m.page.evaluate((n) => (performance.mark(`perf:${n}`), performance.now()), n), task: await metric('TaskDuration') });
   const heap = setInterval(() => metric('JSHeapUsedSize').then((h) => (run.heapPeakMB = Math.max(run.heapPeakMB!, Math.round(h / 1e6))), () => {}), 1000);
@@ -327,7 +338,7 @@ async function measure(browser: Browser, name: string, o: { device: Device; dist
 if (import.meta.main) {
   const args = process.argv.slice(2);
   const after = (flag: string) => args.flatMap((a, i) => (a === flag && args[i + 1] && !args[i + 1]!.startsWith('--') ? [args[i + 1]!] : []));
-  const scenarios = args.filter((a, i) => !a.startsWith('--') && (SCENARIOS[a] || !['--runs', '--tree', '--out', '--at'].includes(args[i - 1] ?? '')));
+  const scenarios = args.filter((a, i) => !a.startsWith('--') && (SCENARIOS[a] || !['--runs', '--tree', '--out', '--at', '--pitch', '--v213'].includes(args[i - 1] ?? '')));
   const unknown = scenarios.filter((s) => !SCENARIOS[s]);
   if (!scenarios.length || unknown.length) {
     console.error(`npm run perf -- <${Object.keys(SCENARIOS).join('|')}>... [--phone] [--runs <n>] [--tree <dir>]... [--out [dir]] [--at <capture>] [--slow]${unknown.length ? `\nNo scenario ${unknown.join(', ')}` : ''}`);
@@ -339,6 +350,9 @@ if (import.meta.main) {
   const out = args.includes('--out') ? path.resolve(after('--out').find((d) => !SCENARIOS[d]) ?? 'out') : undefined;
   const at = after('--at').map((f) => path.resolve(f))[0];
   const dists = trees.map(build);
+  // Each tree with each variant, in turn: main's alone without `--v213`.
+  const variants = after('--v213').flatMap((v) => v.split(',')).map((v) => (v === 'main' ? undefined : v));
+  const runsOf = trees.flatMap((tree, i) => (variants.length ? variants : [undefined]).map((v213) => ({ tree, dist: dists[i]!, v213 })));
   const log = path.resolve('.cache/page/perf/runs.jsonl');
   fs.mkdirSync(path.dirname(log), { recursive: true });
   const all: Run[] = [];
@@ -347,26 +361,26 @@ if (import.meta.main) {
       await withSlots(SLOTS, async () => {
         const browser = await launch();
         try {
-          for (const [i, tree] of trees.entries()) {
-            const run = await measure(browser, name, { device, dist: dists[i]!, tree, out, at, slow: args.includes('--slow'), run: r });
+          for (const { tree, dist, v213 } of runsOf) {
+            const run = await measure(browser, name, { device, dist, tree, out, at, slow: args.includes('--slow'), run: r, v213 });
             run.load = os.loadavg().map((l) => l.toFixed(1)).join(' ');
             fs.appendFileSync(log, JSON.stringify(run) + '\n');
             all.push(run);
             const pageerrors = run.errors.filter((e) => e.startsWith('pageerror'));
-            console.log(`${new Date().toTimeString().slice(0, 8)} ${name} ${device} ${path.basename(tree)} run ${r}: load ${run.load}${pageerrors.length ? `, ${pageerrors.join('; ')}` : ''}`);
+            console.log(`${new Date().toTimeString().slice(0, 8)} ${name} ${device} ${path.basename(tree)}${v213 ? ` v213 ${v213}` : ''} run ${r}: load ${run.load}${pageerrors.length ? `, ${pageerrors.join('; ')}` : ''}`);
           }
         } finally {
           await browser.close();
         }
       });
   let breached = false;
-  for (const tree of trees) {
+  for (const { tree, v213 } of runsOf) {
     const medians: Record<string, Record<string, number | undefined>> = {};
     for (const name of scenarios) {
-      const ms = all.filter((r) => r.scenario === name && r.tree === tree).map(metrics);
+      const ms = all.filter((r) => r.scenario === name && r.tree === tree && r.v213 === v213).map(metrics);
       medians[name] = Object.fromEntries([...new Set(ms.flatMap(Object.keys))].map((k) => [k, median(ms.flatMap((m) => (m[k] === undefined ? [] : [m[k]!])))]));
     }
-    console.log(`\n${tree}, ${device}, median of ${runs}:\n| check | scenario | median | limit | |\n|---|---|---|---|---|`);
+    console.log(`\n${tree}${v213 ? `, v213 ${v213}` : ''}${PITCH ? `, pitch ${PITCH}` : ''}, ${device}, median of ${runs}:\n| check | scenario | median | limit | |\n|---|---|---|---|---|`);
     for (const c of compare(budget, device, medians)) {
       console.log(`| ${c.check} | ${c.scenario} | ${Math.round(c.value * 10) / 10} | ${c.atLeast ? '≥' : '≤'} ${c.limit} | ${c.breach ? 'BREACH' : 'ok'} |`);
       breached ||= c.breach;
