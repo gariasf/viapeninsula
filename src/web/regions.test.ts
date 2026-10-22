@@ -1,8 +1,8 @@
 import { expect, test } from 'vitest';
-import type { Bundle, DayFiles, DayTrips, ManifestRegion, Point, Shape, Track, Trip } from '../bundle.ts';
+import type { Bundle, DayFiles, DayTrips, DecksFile, ManifestRegion, Point, Shape, Track, Trip } from '../bundle.ts';
 import { metres } from '../build/track.ts';
 import { encodeTrack } from '../pieces.ts';
-import { daysAsTheyCome, firstLook, forgetJoined, regionLoader, regionsCame, regionsNeeded } from './regions.ts';
+import { daysAsTheyCome, decksOf, firstLook, forgetJoined, joinedFrom, regionLoader, regionsCame, regionsNeeded } from './regions.ts';
 
 /** A region's track of one Line and one Station, named for it. */
 const track = (id: string): Track => ({
@@ -46,6 +46,20 @@ test("joins a day's regions' tracks and Trips, in the manifest's order, and give
   // Its track is the one drawn already, so that nothing is drawn again.
   expect(bundle.stations).toBe(only.track.stations);
   expect(load.failed()).toBe(false);
+});
+
+test("on a desktop, reads each track's decks file beside it and keeps it with its track, one that doesn't come leaving its track as it is; a phone's loader asks for none (#213, ADR-0016)", async () => {
+  const phone = files();
+  const drawn = await regionLoader(phone.get, new Map(), () => {}).trackOf(day);
+  expect(phone.asked).toEqual(IDS.map((id) => `${id}.track`));
+  expect(joinedFrom(drawn.track)?.map(({ track: t }) => decksOf(t))).toEqual([undefined, undefined, undefined]);
+  const desktop = files();
+  const bridges: DecksFile = { bridges: { 'stretch:catalonia:0': [[100, 400]] } };
+  // As the map asks: Madrid's decks file fails to come, and is none.
+  const decks = (track: string) => (track.startsWith('cercanias-madrid') ? Promise.reject(new Error('HTTP 404')) : Promise.resolve(track.startsWith('catalonia') ? bridges : { bridges: {} })).catch(() => undefined);
+  const decked = await regionLoader(desktop.get, new Map(), () => {}, decks).trackOf(day);
+  expect(joinedFrom(decked.track)?.map(({ id, track: t }) => [id, decksOf(t)])).toEqual([['catalonia', bridges], ['cercanias-madrid', undefined], ['cercanias-leon', { bridges: {} }]]);
+  expect(decked.loaded.map((r) => r.id)).toEqual(IDS);
 });
 
 test("leaves out a region whose track doesn't come, with its Trips, draws the rest, and says some failed so that the map looks again", async () => {
