@@ -10,19 +10,15 @@ import { rightOf } from './names.ts';
  */
 const [EASE, STEP] = [100, 40];
 
-/** A Train's pill: where it's drawn, how far its pill reaches with its edge, and its name, either side of it and above and below it, in px. */
-export interface Named {
+/** A Train the map draws as a pill, where it's drawn before spreading() moves it aside. */
+export interface Drawn {
   id: string;
   /** Where it's drawn on screen, in px, x right and y down. */
   at: [x: number, y: number];
-  box: [number, number];
-  name: [number, number];
-}
-
-/** A Train the map draws as a pill, where it's drawn before spreading() moves it aside. */
-export interface Drawn extends Named {
   /** Which way it heads on screen, in degrees clockwise from up. */
   heading: number;
+  /** How far its pill reaches either side of it and above and below it, in px, with its edge. */
+  box: [number, number];
   /** The Station it stands at, while it stands at one. */
   standsAt?: string;
 }
@@ -56,9 +52,9 @@ export function groupOf(drawn: Drawn[], id: string, folded: string[] = []): Grou
 
 /**
  * What moves a tapped group of Trains apart: given the Trains drawn as pills that are in the group or
- * were moved, and those drawn near it, as often as the map draws them, the moment, in ms, and the group
- * spread, if any, how far further right of where it's drawn to draw each one it moves (apart()), in px,
- * easing. Those it moved that are no longer spread, as once the group's folded or they leave, ease back.
+ * were moved, as often as the map draws them, the moment, in ms, and the group spread, if any, how
+ * far further right of where it's drawn to draw each one it moves (apart()), in px, easing. Those it
+ * moved that are no longer spread, as once the group's folded or they leave, ease back.
  */
 export function spreading(): (drawn: Drawn[], now: number, group?: Group) => Map<string, number> {
   let [was, last] = [new Map<string, number>(), undefined as number | undefined];
@@ -79,14 +75,13 @@ export function spreading(): (drawn: Drawn[], now: number, group?: Group) => Map
 /**
  * How far further right of where it's drawn to draw each Train of a group held apart (held()), in
  * px: in the group's order, each as near its own track as it goes, its pill's edge there, clear of the
- * group's pills moved already and of the others drawn, where they're drawn. Those others, as one coming
- * in after the tap, aren't moved, but rather than land on one, as on its name, which would fold it into
- * the group's pill (piles()), the group's goes past it (#828).
+ * group's pills moved already. Others, as one coming in after the tap, aren't moved, nor moved round,
+ * so that nothing moves of itself (#129): one the group's pill lands on, as on its name, folds into it
+ * (piles()), and a tap on its count adds it to the group (joined(), #828).
  */
 function apart(drawn: Drawn[], group: Group): Map<string, number> {
-  const holding = held(drawn, group);
-  const [target, placed] = [new Map<string, number>(), drawn.filter((t) => !holding.includes(t))];
-  for (const t of holding) {
+  const [target, placed] = [new Map<string, number>(), [] as Drawn[]];
+  for (const t of held(drawn, group)) {
     const right = rightOf(t.heading, 0);
     let out = toEdge(t.box, t.heading + 90);
     for (let past = true; past; ) {
@@ -104,23 +99,16 @@ function apart(drawn: Drawn[], group: Group): Map<string, number> {
 
 /**
  * Of a spread group's Trains drawn as pills, in its order, those it holds apart: each standing at its
- * Station, and of a counted pile a tap spread (#828), each, moving or not, while it lasts (lasts()).
- * Others, as one that leaves a group with no count, ease back onto their tracks.
+ * Station, and of a counted pile a tap spread (#828), each whose pill touches another of the group's where
+ * they'd be drawn unspread, as Trains moving together do. Others, as one that leaves, ease back onto
+ * their tracks, and once fewer than two are held, the group ends (#129).
+ * ponytail: a pile's Train its count alone folded in, touching none of the pile, isn't held, so it's drawn where it is rather
+ * than beside the others; but at 21 Oct 2026's peak each of the 1,441 Trains in the 624 piles of 32 samples touched another
+ * of its pile (#828's second review). Hold it too if one's seen left behind after a tap.
  */
 export function held(drawn: Drawn[], { station, ids, pile }: Group): Drawn[] {
   const of = [...ids].flatMap((id) => drawn.find((t) => t.id === id) ?? []);
-  return pile ? of : of.filter((t) => station !== undefined && t.standsAt === station);
-}
-
-/**
- * Whether a spread group lasts: while two or more of its Trains are held apart (held()), drawn as pills, and of a counted
- * pile (#828), while two or more stand at its Station, as a tapped group does zoomed in (#129), or, where they'd be drawn
- * unspread, one of them would fold into another (piles()), as when its pile was drawn. Its count, which folds only into a pile
- * already, can't change that. So a moving pile ends once its Trains part, as one with no count once its Trains leave.
- */
-export function lasts(drawn: Drawn[], group: Group, followed?: string): boolean {
-  const of = held(drawn, group);
-  return of.length > 1 && (!group.pile || of.filter((t) => group.station !== undefined && t.standsAt === group.station).length > 1 || piles(of, followed).size > 0);
+  return of.filter((t) => (station !== undefined && t.standsAt === station) || (pile && of.some((o) => o !== t && touches(t, o))));
 }
 
 /** A spread group with a tapped pile of one of its Trains' added (#828): those spread already first, keeping their places. */
@@ -162,6 +150,11 @@ export function toEdge([halfWidth, halfHeight]: [number, number], angle: number)
   return Math.min(halfWidth / Math.abs(Math.sin(a)), halfHeight / Math.abs(Math.cos(a)));
 }
 
+/** A Train's pill as piles() takes it: where it's drawn, how far its pill reaches with its edge, and its name, either side of it and above and below it, in px. */
+export interface Named extends Pick<Drawn, 'id' | 'at' | 'box'> {
+  name: [number, number];
+}
+
 /** A pile of Trains' pills drawn as its top pill: the IDs of those folded into it, which aren't drawn and which its count counts, and the corner of its top pill's box its count is at, right (1) or left (-1) and down (1) or up (-1). */
 export interface Pile {
   folded: string[];
@@ -193,7 +186,7 @@ const CORNERS: [number, number][] = [
  * pill, and where it would at all four, at the top right, the pills whose names it lies on folding into its pile, each with
  * any pile of its own. At 21 Oct 2026's peak, a count at the top right lay on 9–18 drawn pills' names in Barcelona at zoom 12
  * (#828's review), and folding those all folded 2–12 Trains with nothing drawn on their names; at the first free corner,
- * counts fold 0–2 there, and 0–1 so.
+ * counts there fold 0–2 Trains, each with the count on its name.
  * ponytail: clear of the pills' names, but not of the Stations' names, which the counts are drawn over, as where those are is
  * laid out apart (namePlacer()) rather than on the page each frame, nor of other counts. Weigh them in if a count is seen to
  * hide one.
@@ -218,12 +211,12 @@ export function piles(drawn: Named[], followed?: string, kept?: ReadonlySet<stri
   const lie = (a: number, b: number) => {
     const [pill, other] = [walk[a]!, walk[b]!];
     const [width, height] = other.id === followed && pill.id !== followed ? other.box : other.name;
-    let at = 0;
+    let corners = 0;
     for (let c = 0; c < CORNERS.length; c++) {
       const [x, y] = CORNERS[c]!;
-      if (Math.abs(pill.at[0] + x * pill.box[0] - other.at[0]) < countWidth + width && Math.abs(pill.at[1] + y * pill.box[1] - other.at[1]) < countHeight + height) at |= 1 << c;
+      if (Math.abs(pill.at[0] + x * pill.box[0] - other.at[0]) < countWidth + width && Math.abs(pill.at[1] + y * pill.box[1] - other.at[1]) < countHeight + height) corners |= 1 << c;
     }
-    if (at) (lies[a] ??= []).push([b, at]);
+    if (corners) (lies[a] ??= []).push([b, corners]);
   };
   byLeft.forEach((one, i) => {
     const right = walk[one]!.at[0] + walk[one]!.box[0] + countWidth;
@@ -256,11 +249,12 @@ export function piles(drawn: Named[], followed?: string, kept?: ReadonlySet<stri
     const pile = out.get(pill.id);
     if (!pile || folded.has(rank)) return;
     const on = (lies[rank] ?? []).filter(([r]) => !folded.has(r));
-    const free = CORNERS.findIndex((_, c) => on.every(([, at]) => !(at & (1 << c))));
+    const free = CORNERS.findIndex((_, c) => on.every(([, corners]) => !(corners & (1 << c))));
     if (free >= 0) return void (pile.corner = CORNERS[free]!);
-    for (const [r, at] of on) {
+    for (const [r, corners] of on) {
       const { id } = walk[r]!;
-      if (!(at & 1) || id === followed || kept?.has(id)) continue;
+      // Those at the top right, CORNERS' first.
+      if (!(corners & 1) || id === followed || kept?.has(id)) continue;
       folded.add(r);
       pile.folded.push(id, ...(out.get(id)?.folded ?? []));
       out.delete(id);

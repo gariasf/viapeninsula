@@ -1,10 +1,10 @@
 import { expect, test } from 'vitest';
-import { groupOf, held, joined, lasts, piles, spreading, type Drawn, type Group, type Named, type Pile } from './spread.ts';
+import { groupOf, held, joined, piles, spreading, type Drawn, type Group, type Named, type Pile } from './spread.ts';
 
 // Made up, on screen, in px: x right and y down. Heading right, up the screen is a Train's left, and
 // down its right, where its pill reaches 5 px with its edge.
-/** A Train drawn as a pill 20×10 px with its edge, its name 12×6 px, heading so many degrees clockwise from up, standing at Station X unless it says. */
-const pill = (id: string, [x, y]: [number, number], heading: number, more: Partial<Drawn> = {}): Drawn => ({ id, at: [x, y], heading, box: [10, 5], name: [6, 3], standsAt: 'X', ...more });
+/** A Train drawn as a pill 20×10 px with its edge, heading so many degrees clockwise from up, standing at Station X unless it says. */
+const pill = (id: string, [x, y]: [number, number], heading: number, more: Partial<Drawn> = {}): Drawn => ({ id, at: [x, y], heading, box: [10, 5], standsAt: 'X', ...more });
 /** A Train passing, standing at no Station. */
 const moving = { standsAt: undefined };
 
@@ -63,13 +63,10 @@ test('a Train leaving a spread group eases back onto its track, and the others c
   expect(settled(spread, leaving, 10_000, group)).toEqual({ first: 5, third: 15 });
 });
 
-test("a Train drawn by a spread group, as one coming in, stays where it is drawn, and the group's pills keep clear of it", () => {
+test('a Train coming in to a spread group, or a counted pile, or passing it, stays where it is drawn, and moves no other, so that nothing moves of itself (#129)', () => {
   const both = [pill('first', [0, 0], 90), pill('second', [0, 0], 90)];
-  const group = groupOf(both, 'first');
-  // Each pill's edge just clear of the newcomer's, which reaches 5 px down from where it is, and of the one before.
-  expect(settled(spreading(), [...both, pill('newcomer', [0, 0], 90)], 0, group)).toEqual({ first: 10, second: 20 });
-  // One drawn clear of where they go moves none.
-  expect(settled(spreading(), [...both, pill('beside', [25, 0], 90)], 0, group)).toEqual({ first: 5, second: 15 });
+  expect(settled(spreading(), [...both, pill('newcomer', [0, 0], 90)], 0, groupOf(both, 'first'))).toEqual({ first: 5, second: 15 });
+  expect(settled(spreading(), [...both, pill('passing', [0, 8], 90, moving)], 0, groupOf(both, 'first', ['second']))).toEqual({ first: 5, second: 15 });
 });
 
 test('a Train eases aside rather than jumping, part of the way each time Trains are drawn, however long since they last were', () => {
@@ -193,23 +190,18 @@ test('a spread pile of moving Trains goes side by side, each across its own trac
   expect(settled(spreading(), pile, 0, groupOf(pile, 'top', ['folded', 'west']))).toEqual({ top: 5, folded: 15, west: 5 });
 });
 
-test('a spread pile holds each of its Trains apart while it lasts, one running on ahead and one folded in by its count alone, touching none, too', () => {
+test('a spread moving pile holds each of its Trains apart while, where it would be drawn unspread, its pill touches another of the pile, and ends once none does', () => {
   const spread = spreading();
-  // `by count` lies where `top`'s count did, at its top right corner, touching no pill of the pile.
-  const together = [pill('top', [0, 0], 90, moving), pill('folded', [2, 0], 90, moving), pill('third', [4, 0], 90, moving), pill('by count', [20, -9], 90, moving)];
-  const group = groupOf(together, 'top', ['folded', 'third', 'by count'])!;
-  expect(settled(spread, together, 0, group)).toEqual({ top: 5, folded: 15, third: 25, 'by count': 5 });
-  const ahead = [pill('top', [0, 0], 90, moving), pill('folded', [2, 0], 90, moving), pill('third', [30, 0], 90, moving), pill('by count', [20, -9], 90, moving)];
-  expect(held(ahead, group).map((t) => t.id)).toEqual(['top', 'folded', 'third', 'by count']);
-  expect(lasts(ahead, group)).toBe(true);
-});
-
-test("a spread moving pile lasts while, where they'd be drawn unspread, one of its Trains would fold into another, as it was folded, and ends once none would", () => {
-  const group = groupOf([pill('top', [0, 0], 90, moving), pill('folded', [2, 0], 90, moving), pill('by count', [20, -9], 90, moving)], 'top', ['folded', 'by count'])!;
-  // The folded one's name still under the top's pill, the one by its count wherever it is.
-  expect(lasts([pill('top', [0, 0], 90, moving), pill('folded', [2, 4], 90, moving), pill('by count', [60, 0], 90, moving)], group)).toBe(true);
-  // Parted, with no pile left for a count to fold into, though the one by its count lies where it did.
-  expect(lasts([pill('top', [0, 0], 90, moving), pill('folded', [0, 30], 90, moving), pill('by count', [20, -9], 90, moving)], group)).toBe(false);
+  const together = [pill('top', [0, 0], 90, moving), pill('folded', [2, 0], 90, moving), pill('third', [4, 0], 90, moving)];
+  const group = groupOf(together, 'top', ['folded', 'third'])!;
+  expect(settled(spread, together, 0, group)).toEqual({ top: 5, folded: 15, third: 25 });
+  // The third runs on ahead, clear of the others: it eases back onto its track, and they close up (#129).
+  const ahead = [pill('top', [0, 0], 90, moving), pill('folded', [2, 0], 90, moving), pill('third', [30, 0], 90, moving)];
+  expect(held(ahead, group).map((t) => t.id)).toEqual(['top', 'folded']);
+  expect(settled(spread, ahead, 10_000, group)).toEqual({ top: 5, folded: 15 });
+  // Then all part: none is held, and the group ends.
+  const parted = [pill('top', [0, 0], 90, moving), pill('folded', [0, 30], 90, moving), pill('third', [60, 0], 90, moving)];
+  expect(held(parted, group)).toEqual([]);
 });
 
 test('a tap on a counted pill of a spread group adds its pile to the group, after those spread already, which keep their places', () => {
@@ -220,10 +212,12 @@ test('a tap on a counted pill of a spread group adds its pile to the group, afte
   expect(settled(spreading(), drawn, 0, group)).toEqual({ first: 5, second: 15, passing: 23 });
 });
 
-test("a pile spread at a Station holds those standing there, touching or not, as a tapped group does, and one leaving while its pill still touches theirs; a tapped group with no count lets that one go at once, as before", () => {
+test("a pile spread at a Station holds those standing there, touching or not, as a tapped group does, and one leaving while its pill still touches theirs, but not once it's clear, though two still stand there; a tapped group with no count lets that one go at once, as before", () => {
   const three = [pill('first', [0, 0], 90), pill('second', [0, 0], 90), pill('third', [0, 0], 90)];
   const leaving = [pill('first', [0, -20], 90), pill('second', [0, 20], 90), pill('third', [2, 20], 90, { standsAt: undefined })];
   const pile = groupOf(three, 'first', ['second', 'third'])!;
   expect(held(leaving, pile).map((t) => t.id)).toEqual(['first', 'second', 'third']);
+  const gone = [pill('first', [0, -20], 90), pill('second', [0, 20], 90), pill('third', [40, 20], 90, moving)];
+  expect(held(gone, pile).map((t) => t.id)).toEqual(['first', 'second']);
   expect(held(leaving, groupOf(three, 'first')!).map((t) => t.id)).toEqual(['first', 'second']);
 });
