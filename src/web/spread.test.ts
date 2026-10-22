@@ -141,6 +141,26 @@ test('the followed Train, in a layer over every pill, never folds, and those who
   expect(piles([named('lower', [0, 6]), followed], 'followed')).toEqual(new Map([['followed', ['lower']]]));
 });
 
+test("a pill whose name a pile's count meets, drawn over every pill at its top pill's top right corner, folds into that top pill as into a pill over it; one the count only grazes is drawn", () => {
+  // `top`'s count, reaching 6×4 px from its corner (10, -5), meets `under count`'s name from x 14 and y -12 to -6, though `top` doesn't.
+  const pile = [named('top', [0, 0]), named('folded', [-1, -1])];
+  expect(piles([...pile, named('under count', [20, -9])], undefined, undefined, [6, 4])).toEqual(new Map([['top', ['folded', 'under count']]]));
+  expect(piles([...pile, named('grazing', [22, -9])], undefined, undefined, [6, 4])).toEqual(new Map([['top', ['folded']]]));
+});
+
+test("a pile's top pill whose name another's count meets folds into that one with its pile, and a count of a pile folded so lies on nothing", () => {
+  // `under count` tops a pile of its own, `its folded` whose name it meets, and whose count would meet `beyond`'s name.
+  const pile = [named('top', [0, 0]), named('folded', [-1, -1]), named('under count', [20, -9]), named('its folded', [24, -11]), named('beyond', [40, -20])];
+  expect(piles(pile, undefined, undefined, [6, 4])).toEqual(new Map([['top', ['folded', 'under count', 'its folded']]]));
+});
+
+test("a count folds neither the followed Train, in its layer over every count but its own, nor a spread pile's Trains; the followed Train's count folds those whose names it meets", () => {
+  const pile = [named('top', [0, 0]), named('folded', [-1, -1]), named('under count', [20, -9])];
+  expect(piles(pile, 'under count', undefined, [6, 4])).toEqual(new Map([['top', ['folded']]]));
+  expect(piles(pile, undefined, new Set(['under count']), [6, 4])).toEqual(new Map([['top', ['folded']]]));
+  expect(piles(pile, 'top', undefined, [6, 4])).toEqual(new Map([['top', ['folded', 'under count']]]));
+});
+
 test('the Trains a spread pile holds apart never fold: one under a pill that meets its name is drawn, its name over that pill, and a pill under one of them, whose name it meets, folds into it', () => {
   expect(piles([named('spread', [0, 0]), named('over it', [4, 1])], undefined, new Set(['spread']))).toEqual(new Map());
   expect(piles([named('spread', [4, 1]), named('under it', [0, 0])], undefined, new Set(['spread']))).toEqual(new Map([['spread', ['under it']]]));

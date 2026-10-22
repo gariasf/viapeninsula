@@ -1,5 +1,6 @@
 // Trains standing together at a Station drawn side by side across their track, as on platforms,
-// once the viewer taps their pills, which cover each other (#129).
+// once the viewer taps their pills, which cover each other (#129). Pills that would lie on each other's
+// names drawn as a pile, its top pill with a count, spread so by a tap on it, moving too (#828).
 import { rightOf } from './names.ts';
 
 /**
@@ -24,7 +25,7 @@ export interface Drawn {
 
 /**
  * Trains a tap spread: the Station they stood at, if the tapped one stood at one, and which, by their IDs, the tapped one
- * first; and whether it's the pile a tap on a count spread (#828), whose Trains may be moving.
+ * first; and whether it's the pile a tap on a counted pill spread (#828), whose Trains may be moving.
  */
 export interface Group {
   station?: string;
@@ -97,7 +98,7 @@ function apart(drawn: Drawn[], group: Group): Map<string, number> {
 
 /**
  * Of a spread group's Trains drawn as pills, in its order, those it holds apart: each standing at its
- * Station, and of a pile a count spread (#828), each whose pill touches another of the group's where
+ * Station, and of a counted pile a tap spread (#828), each whose pill touches another of the group's where
  * they'd be drawn unspread, as Trains moving together do. Others, as one that leaves, ease back onto
  * their tracks, and once fewer than two are held, the group ends.
  */
@@ -157,24 +158,39 @@ export interface Named extends Pick<Drawn, 'id' | 'at' | 'box'> {
  * name over that pill, rather than hide what it was spread to show, and a pill it's drawn over folds into it as into any.
  * ponytail: MapLibre ranks by y rounded to its tile's units (1/16 px at the tile's zoom), so two pills a hair off level may
  * be ranked the other way. Round `at` to those units if a name is seen over a pill there.
- * ponytail: a top pill's count lies past its box, at its top right corner, over the pills, so it can lie on the name of a
- * pill drawn just above and right of it. Fold by the count's box too if that shows.
+ * A top pill's count, reaching `countBox` px either side of its box's top right corner and above and below it, lies past its
+ * box over every pill but the followed Train's, so one drawn whose name a count meets folds into its pile too, with any pile
+ * of its own: at 21 Oct 2026's peak, 9–18 drawn pills' names in Barcelona at zoom 12 lay under a count (#828's review).
+ * ponytail: a pile folded so takes its own with it, though some of those may then lie clear of anything drawn: 2–12 at
+ * Barcelona's zoom 12 at that peak. Walk them again if that shows.
+ * ponytail: a count's reach as of one digit, so a "+10" a few px wider can lie on the edge of a name. Widen it by its digits
+ * if that shows.
  * Swept by x, so that only pills near each other across the screen are compared.
  */
-export function piles(drawn: Named[], followed?: string, kept?: ReadonlySet<string>): Map<string, string[]> {
+export function piles(drawn: Named[], followed?: string, kept?: ReadonlySet<string>, countBox?: [number, number]): Map<string, string[]> {
   // The followed Train's first, in a layer of its own over every pill.
   const first = (pill: Named) => (pill.id === followed ? 0 : 1);
   const walk = drawn
     .map((pill, order) => ({ pill, order }))
     .sort((a, b) => first(a.pill) - first(b.pill) || b.pill.at[1] - a.pill.at[1] || a.order - b.order)
     .map(({ pill }) => pill);
-  // For each pill, by its place in the walk, the places of those over it whose boxes meet its name.
-  const meets = walk.map(() => [] as number[]);
-  const byLeft = walk.map((pill, rank) => ({ pill, rank, left: pill.at[0] - pill.box[0] })).sort((a, b) => a.left - b.left);
+  // Each pill's name, and its count, were it counted: at its box's top right corner.
+  const names = walk.map(({ at, name }) => ({ at, box: name }));
+  const counts = countBox && walk.map(({ at: [x, y], box: [width, height] }) => ({ at: [x + width, y - height] as [number, number], box: countBox }));
+  // For each pill, by its place in the walk, the places of those over it whose boxes meet its name, and of those whose counts
+  // would meet it, comparing those whose boxes, or counts, are within reach across the screen.
+  const [meets, counted, reach] = [walk.map(() => [] as number[]), walk.map(() => [] as number[]), countBox?.[0] ?? 0];
+  const byLeft = walk
+    .map((pill, rank) => ({ pill, rank, left: pill.at[0] - Math.max(pill.box[0], reach - pill.box[0]), right: pill.at[0] + pill.box[0] + reach }))
+    .sort((a, b) => a.left - b.left);
   byLeft.forEach((one, i) => {
-    for (let j = i + 1; j < byLeft.length && byLeft[j]!.left < one.pill.at[0] + one.pill.box[0]; j++) {
-      const [top, bottom] = one.rank < byLeft[j]!.rank ? [one, byLeft[j]!] : [byLeft[j]!, one];
-      if (touches(top.pill, { at: bottom.pill.at, box: bottom.pill.name })) meets[bottom.rank]!.push(top.rank);
+    for (let j = i + 1; j < byLeft.length && byLeft[j]!.left < one.right; j++) {
+      const other = byLeft[j]!;
+      const [top, bottom] = one.rank < other.rank ? [one, other] : [other, one];
+      if (touches(top.pill, names[bottom.rank]!)) meets[bottom.rank]!.push(top.rank);
+      if (!counts) continue;
+      if (touches(counts[one.rank]!, names[other.rank]!)) counted[other.rank]!.push(one.rank);
+      if (touches(counts[other.rank]!, names[one.rank]!)) counted[one.rank]!.push(other.rank);
     }
   });
   // Each folds into the topmost of those still drawn, if any.
@@ -186,6 +202,16 @@ export function piles(drawn: Named[], followed?: string, kept?: ReadonlySet<stri
     folded.add(rank);
     const id = walk[top]!.id;
     out.set(id, [...(out.get(id) ?? []), pill.id]);
+  });
+  // A count is drawn over every pill but the followed Train's, so one drawn whose name a count meets folds into its pile too.
+  walk.forEach((pill, rank) => {
+    if (pill.id === followed || kept?.has(pill.id) || folded.has(rank)) return;
+    const top = Math.min(...counted[rank]!.filter((r) => out.has(walk[r]!.id)));
+    if (top === Infinity) return;
+    folded.add(rank);
+    const id = walk[top]!.id;
+    out.set(id, [...out.get(id)!, pill.id, ...(out.get(pill.id) ?? [])]);
+    out.delete(pill.id);
   });
   return out;
 }

@@ -1238,15 +1238,15 @@ function linesFile(track: Track): Packed {
   const { shapes, lines, strokes, rails } = track;
   return { rest: { shapes, lines, strokes, rails }, numbers: new Float64Array(), lengths: new Int32Array() };
 }
-/** What moves a tapped group of Trains standing together at a Station apart (#129). */
+/** What moves a tapped group of Trains standing together at a Station (#129), or a counted pile, moving too (#828), apart. */
 const spread = spreading();
 /**
  * The group of Trains a tap spread, until a tap elsewhere, a zoom out from their pills, or once fewer
- * than two of them stand at their Station; the Trains it moves aside, eased or easing, and by how
- * far, in px; and whether they're still easing.
+ * than two of them are held apart (held()), as once they leave their Station or, of a pile, part; the
+ * Trains it moves aside, eased or easing, and by how far, in px; and whether they're still easing.
  */
 let spreadState: { group?: Group; moved: Map<string, number>; easing: boolean } = { moved: new Map(), easing: false };
-/** The piles last drawn (piles()), by their top pills' IDs: the Trains folded into each, which a tap on its count spreads (#828). */
+/** The piles last drawn (piles()), by their top pills' IDs: the Trains folded into each, which a tap on its top pill or count spreads (#828). */
 let shownPiles = new Map<string, string[]>();
 /**
  * Each place's name: its place's ID, whose board a tap on it opens (#618), its dot, broken into its lines, the zoom it
@@ -1677,7 +1677,7 @@ for (const layer of cityLabels.values()) {
 // and the Trains' pills (#254).
 map.addSource('mark', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 map.addLayer({ id: 'mark', type: 'circle', source: 'mark', paint: { 'circle-radius': 20, 'circle-opacity': 0, 'circle-stroke-width': 3, 'circle-stroke-color': nameColour } }, 'station-names');
-// Zoomed in (pillOf()), each Train is a pill with its Line's name, under the Stations' names (#828),
+// Zoomed in (pillOf()), each Train is a pill with its Line's name, under the Stations' names but the followed Train's (#828),
 // outlined by its Line's kind of service: a Live one's filled with its Line's colour and edged in
 // white, a Scheduled one's white, or the dark basemap's paper, ringed in a dash and lettered in its
 // Line's lettering (Pill's `lettering`, #519). Under it, so that no Train's arrow lies on another's
@@ -1756,8 +1756,8 @@ for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', tr
       'text-color': byLive(['case', ['get', 'dark'], INK, '#fff'], ['get', 'lettering']),
     },
   });
-  // A pile's top pill counts those folded into it (piles()) in a badge at its top right corner, "+n": round, in the
-  // places' names' ink, lettered in what edges them (#828).
+  // A pile's top pill counts those folded into it (piles()) at its top right corner, "+n": round, in the places' names'
+  // ink, lettered in what edges them (#828).
   map.addLayer({
     id: `train-counts${suffix}`,
     type: 'symbol',
@@ -1796,10 +1796,11 @@ const strokeLayers = layered.flatMap(({ source, id }) => (source === 'lines' ? [
 /** Where a tap names the Lines drawn there, or what closes a Closure. Each tap closes the last one's. */
 const linesPopup = new Popup({ closeButton: false, closeOnClick: false, className: 'lines-at', maxWidth: 'none' });
 // From SIGN_ZOOM, each place's marks, over the Trains' dots, which are pills by then, and under the names, but where
-// its Stations' own go on their tracks, on the rails. An interchange's badge, from SIGN_ZOOM to the rails, with its name in
-// bold under it, in a layer of its own over the places' names, so that MapLibre places it first, as an interchange's ranks
-// with its highest tier's (#119): under them, Plaça Catalunya's gave way to Universitat's at zoom 13 (#210's review). Its
-// name only from SIGN_ZOOM's tiles, where the badge is drawn whole: hidden, it would still push the places' names aside.
+// its Stations' own go on their tracks, on the rails. An interchange's badge, from SIGN_ZOOM to the rails, under the Trains'
+// pills, with its name in bold under it, the name in a layer of its own over the places' names (#828), so that MapLibre
+// places it first, as an interchange's ranks with its highest tier's (#119): under them, Plaça Catalunya's gave way to
+// Universitat's at zoom 13 (#210's review). Its name only from SIGN_ZOOM's tiles, where the badge is drawn whole: hidden,
+// it would still push the places' names aside.
 // Those whose Stations have their own marks on their tracks in a layer of their own, which ends at the rails, so that
 // neither layer's opacity is a feature's: one of the zoom alone is quicker for the map to draw with, each time it draws.
 for (const [id, railed] of [['station-marks', false], ['station-marks-railed', true]] as const) {
@@ -1888,11 +1889,11 @@ map.on('click', ({ point: { x, y }, lngLat }) => {
   // A place's dot near the tap, or failing that its name under it. A Train's pill under the tap is still tapped before a
   // place's name over it (#828).
   const [train, place] = [under ?? near('train-pills-followed') ?? near('train-pills') ?? near('trains'), placesDrawn([[x - 10, y - 10], [x + 10, y + 10]])[0] ?? within(0, ['station-names'])[0]?.properties.id];
-  // A tap on a pill standing over others spreads them, and one on a counted pill or its count its pile, moving too (#828);
-  // while they're spread, any tap but on one of them folds them (#129).
+  // A tap on a pill standing over others spreads them, and one on a counted pill or its count its pile, moving too, even
+  // while another's spread (#828); while they're spread, any tap but on one of them folds them (#129).
   const { group } = spreadState;
   const inGroup = typeof train === 'string' && group?.ids.has(train);
-  const spreads = typeof train === 'string' && !group ? groupOf(placedTrains.flatMap(({ asPill, at }) => (asPill ? [{ ...asPill, at: projected(at) }] : [])), train, shownPiles.get(train)) : undefined;
+  const spreads = typeof train === 'string' && !inGroup && (!group || shownPiles.has(train)) ? groupOf(placedTrains.flatMap(({ asPill, at }) => (asPill ? [{ ...asPill, at: projected(at) }] : [])), train, shownPiles.get(train)) : undefined;
   if (spreads || (group && !inGroup)) {
     spreadState.group = spreads;
     trainSource?.setData(trains());
@@ -2464,7 +2465,7 @@ function whereDrawn({ trip, dist, lon, lat }: Pick<Train, 'trip' | 'dist' | 'lon
  * for a Scheduled one within a closed Closure that hides Trains (trainsAt(), hiding(), #345). A tapped
  * group of Trains standing together at a Station goes side by side across their track (spreading()),
  * so that each can be seen and tapped (#129). Where a pill would lie on another's name, it folds into
- * the pill over it, which counts it (piles()), and a tap on the count spreads them (#828).
+ * the pill over it, which counts it (piles()), and a tap on that pill or its count spreads them (#828).
  */
 function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
   const zoom = map.getZoom();
@@ -2533,8 +2534,10 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
     if (pill && asPill && bounds.contains(coordinates)) inView.push({ id: trip.id, at: projected(coordinates), box: asPill.box, name: pill.nameBox, properties: feature.properties! });
     return feature;
   });
-  // Each pile drawn as its top pill, with its count at its top right corner, in ems of its lettering (#828).
-  shownPiles = piles(inView, followed, kept);
+  // Each pile drawn as its top pill, with its count at its top right corner, in ems of its lettering (#828): a pill lettered
+  // "+n" at SMALL_TEXT, with its edge, which folds a pill whose name it lies on too.
+  const [countWidth, countHeight] = boxOf('round', textWidth('+8', `bold ${PILL_TEXT}px ${TYPEFACE}`), SMALL_TEXT);
+  shownPiles = piles(inView, followed, kept, [countWidth + PILL_HALO, countHeight + PILL_HALO]);
   const folded = new Set([...shownPiles.values()].flat());
   for (const { id, box, properties } of inView) {
     const more = shownPiles.get(id)?.length;
