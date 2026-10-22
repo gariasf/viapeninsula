@@ -49,9 +49,12 @@ export async function launch(): Promise<Browser> {
   return browser;
 }
 
-/** Builds a tree's page into its .cache/page/dist, which openMap() serves. */
+/**
+ * Builds a tree's page into its .cache/page/dist-<tree's name>, which openMap() serves: a worktree's .cache is the main
+ * checkout's, linked, so one dist would be every tree's, each build emptying another's, as a before's and an after's.
+ */
 export function build(tree: string): string {
-  const dist = path.join(tree, '.cache/page/dist');
+  const dist = path.join(tree, '.cache/page', `dist-${path.basename(path.resolve(tree))}`);
   execFileSync('npx', ['vite', 'build', '--outDir', dist, '--emptyOutDir', '--logLevel', 'error'], { cwd: tree, stdio: 'inherit' });
   return dist;
 }
