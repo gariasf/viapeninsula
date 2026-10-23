@@ -65,7 +65,7 @@ export function drawnLines(
         return s.covered ? coveredIn(there, band).map((part) => ({ ...part, band })) : [there];
       });
     })
-    .flatMap(({ line: id, shape: shapeId, from, to, side, band, shared, under, covered, crowded, curve }): GeoJSON.Feature[] => {
+    .flatMap(({ line: id, shape: shapeId, from, to, side, band, shared, under, covered, crowded, curve, deck }): GeoJSON.Feature[] => {
       const [line, shape] = [lines.get(id), band === undefined ? shapes.get(shapeId) : inBand(shapes, shapeId, band)];
       if (!line || !shape) return [];
       if (band !== undefined && (BANDS[band] ?? 0) < (shownFrom?.get(line.network) ?? 0)) return [];
@@ -91,6 +91,8 @@ export function drawnLines(
         ...(crowded && { crowded }),
         // A curve's pieces go in layers of their own, with butt ends (#620).
         ...(curve && { curve }),
+        // On a desktop, on a bridge: drawn as a deck from DECKS_FROM (ADR-0016).
+        ...(deck && { deck }),
       };
       const coordinates = along(shape, from, to);
       return [{ type: 'Feature', properties, geometry: { type: 'LineString', coordinates: round ? round(coordinates) : coordinates } }];

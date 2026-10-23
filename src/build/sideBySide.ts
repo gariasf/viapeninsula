@@ -1,6 +1,6 @@
 // How the map draws each Line: where Lines share track, side by side, as a transit map does.
 
-import { along, APART, atZoom, BANDS, beside, cutIn, DEGREE, GRAPH_BAND, inBand, LENGTH, LINK, pieces, pixelMetres, pointAt, smoothId, STRETCH, type Line, type Point, type Shape, type Slot, type Stroke } from '../bundle.ts';
+import { along, APART, atZoom, BANDS, beside, bridgeLayer, cutIn, cutStroke, DEGREE, depth, GRAPH_BAND, inBand, LENGTH, LINK, pieces, pixelMetres, pointAt, smoothId, STRETCH, type DecksFile, type Line, type Point, type Shape, type Slot, type Stroke } from '../bundle.ts';
 import { markCovered } from './covered.ts';
 import { order, type Node } from './order.ts';
 import { folded, simplify, TOLERANCE } from './offset.ts';
@@ -91,7 +91,7 @@ interface Neighbour {
  * each Network's track once, for below zoom 7 (#190). Of the Lines of one region, which has its own
  * graph: no Line is drawn beside another region's (ADR-0014), as sharedTrack() finds.
  */
-export async function sideBySide(lines: Line[], shapes: Shape[], region = ''): Promise<{ strokes: Stroke[]; centrelines: Shape[]; rails: Stroke[]; slots: Slot[]; tracks: Stroke[] }> {
+export async function sideBySide(lines: Line[], shapes: Shape[], region = ''): Promise<{ strokes: Stroke[]; centrelines: Shape[]; rails: Stroke[]; slots: Slot[]; tracks: Stroke[]; bridges: DecksFile['bridges'] }> {
   const walked = walk(lines, shapes);
   // The centrelines' and curves' IDs start with the region's, where it's given: regions' tracks are built
   // one by one and joined by the map, so each one's IDs are its own (ADR-0014).
@@ -107,7 +107,7 @@ export async function sideBySide(lines: Line[], shapes: Shape[], region = ''): P
   const centrelines = all.flatMap((g) => g.centrelines);
   // Last, as each band's line width judges which strokes of Lines in tunnels have a Line above them (#417).
   const strokes = markCovered(all.flatMap((g) => g.strokes), [...shapes, ...centrelines], KX, LATITUDE);
-  return { strokes, centrelines, rails: main.rails, slots: all.flatMap((g) => g.slots), tracks: networkTrack(lines, shapes) };
+  return { strokes, centrelines, rails: main.rails, slots: all.flatMap((g) => g.slots), tracks: networkTrack(lines, shapes), bridges: main.bridges };
 }
 
 /**
@@ -217,7 +217,7 @@ async function graphed(
   { pieces, runs, every }: ReturnType<typeof walk>,
   lines: Line[],
   { near, bands, own, prefix }: { near: number; bands: number[]; own?: number; prefix: string },
-): Promise<{ strokes: Stroke[]; centrelines: Shape[]; rails: Stroke[]; slots: Slot[] }> {
+): Promise<{ strokes: Stroke[]; centrelines: Shape[]; rails: Stroke[]; slots: Slot[]; bridges: DecksFile['bridges'] }> {
   const cells = grid(pieces, near);
   const nearby = pieces.map((_, i) => neighbours(i, pieces, cells, near));
   const { turned, same } = turn(lines.length, pieces, nearby.map((n) => byLine(cluster(n, near))));
@@ -345,7 +345,28 @@ async function graphed(
     return { ...c, coords: c.coords.filter((_, i) => left.has(flat[i] ?? [0, 0])), dist: c.dist.filter((_, i) => left.has(flat[i] ?? [0, 0])) };
   });
   // Not flatMap(draw): that would pass each run's index as its sides.
-  return { strokes: split([...drawn, ...linked.strokes]), centrelines: [...written, ...smooth, ...linked.shapes], rails: own === undefined ? split(runs.flatMap((run) => draw(run, sideOf, /* shares */ true))) : [], slots };
+  return { strokes: split([...drawn, ...linked.strokes]), centrelines: [...written, ...smooth, ...linked.shapes], rails: own === undefined ? split(runs.flatMap((run) => draw(run, sideOf, /* shares */ true))) : [], slots, bridges: own === undefined ? bridgesOn(found, pieces) : {} };
+}
+
+/**
+ * Where each centreline runs on a bridge (DecksFile's `bridges`, ADR-0016): by the levels of the pieces its Stretches
+ * are drawn along, as their strokes go `under` by them in tunnels (split()), each run of one bridge's layer from where it
+ * starts along the centreline to where it ends, in whole metres, as the centrelines' distances are. The trace has
+ * merged a bridge under BRIEF into the ground either side of it.
+ */
+function bridgesOn(found: Stretch[], pieces: Piece[]): DecksFile['bridges'] {
+  const bridges: DecksFile['bridges'] = {};
+  for (const { steps } of found) {
+    for (const { shape, piece, from, to } of steps) {
+      const layer = bridgeLayer(pieces[piece]?.level ?? '');
+      if (!layer) continue;
+      const runs = (bridges[shape] ??= []);
+      const last = runs.at(-1);
+      if (last?.[1] === from && (last[2] ?? 1) === layer) last[1] = to;
+      else runs.push(layer > 1 ? [from, to, layer] : [from, to]);
+    }
+  }
+  return bridges;
 }
 
 /**
@@ -1530,12 +1551,6 @@ function strokes(line: string, run: Step[], sideOf: (s: Step) => number, pieces:
  */
 const depths = new WeakMap<Stroke, [from: number, depth: number][]>();
 
-/** How far below the ground a level (Piece's `level`) is, in OpenStreetMap's layers: a tunnel at least 1; 0 on or above it. */
-function depth(level: string): number {
-  const layer = Number(level.split(' ')[1]) || 0;
-  return level.startsWith('tunnel') ? Math.max(1, -layer) : Math.max(0, -layer);
-}
-
 /** How deep a stroke is this far along its shape. */
 function depthAt(stroke: Stroke, d: number): number {
   return depths.get(stroke)?.findLast(([from]) => from <= d)?.[1] ?? 0;
@@ -1551,16 +1566,7 @@ function depthAt(stroke: Stroke, d: number): number {
 function split(strokes: Stroke[]): Stroke[] {
   return strokes.flatMap((s) => {
     const runs = depths.get(s);
-    if (!runs) return [s];
-    return runs.map(([began, below], i): Stroke => {
-      const [from, to] = [i ? began : s.from, runs[i + 1]?.[0] ?? s.to];
-      const length = to - from;
-      const cut = s.cut?.map(([start, end]): [number, number] => {
-        const a = Math.min(length, Math.max(0, s.from + start - from));
-        return [a, Math.min(length - a, Math.max(0, to - (s.to - end)))];
-      });
-      return { ...s, from, to, ...(cut && { cut }), ...(below && { under: below }) };
-    });
+    return runs ? cutStroke(s, runs.map(([began, below]) => [began, below ? { under: below } : {}])) : [s];
   });
 }
 

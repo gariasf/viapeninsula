@@ -30,7 +30,7 @@ import { appendFile, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { brotliCompressSync, constants } from 'node:zlib';
-import { addDays, LIVE_URL, madridDate, profiled, type Manifest, type Network } from '../bundle.ts';
+import { addDays, decksFileOf, LIVE_URL, madridDate, profiled, type Manifest, type Network } from '../bundle.ts';
 import { MEDIA_DISTANCIA_AVANT, NETWORKS, regionsOf, type NetworkConfig, type Timetable } from '../networks.ts';
 import { decodeTrack, type TrackFile } from '../pieces.ts';
 import { download, NAP_KEY, secret, type Source } from './gtfs.ts';
@@ -185,6 +185,9 @@ if (only) {
     // passes a file stored with brotli as it is to browsers that take it, which squeezes it about
     // twice as small as the CDN would on the fly.
     for (const key of new Set([...built.flatMap((r) => r.days.flatMap((d) => [d.track, d.trips])), below])) publish(key, 'public, max-age=31536000, immutable', 'br');
+    // A decks file is named after its track file, not its own content: for a day, as a later build of the same track
+    // may cut its bridges by another rule (ADR-0016).
+    for (const key of new Set(built.flatMap((r) => r.days.map((d) => decksFileOf(d.track))))) publish(key, 'public, max-age=86400', 'br');
     publish('manifest.json', 'public, max-age=60');
     publish('report.json', 'public, max-age=60');
     // Only once the report is up, as the next build diffs against it, so that it doesn't tell of the same spots again.
@@ -363,11 +366,12 @@ function address({ url, query }: Timetable): string {
 
 /**
  * Writes a file to out/, named by its content, so it can be cached for good and a rebuild never
- * serves a stale copy, and beside it a copy squeezed with brotli, `<key>.br`, and gives its key.
+ * serves a stale copy, or as `key` where it's given, and beside it a copy squeezed with brotli,
+ * `<key>.br`, and gives its key.
  */
-async function write(prefix: string, content: object, what: string): Promise<string> {
+async function write(prefix: string, content: object, what: string, named?: string): Promise<string> {
   const json = Buffer.from(JSON.stringify(content));
-  const key = `${prefix}-${createHash('sha256').update(json).digest('hex').slice(0, 12)}.json`;
+  const key = named ?? `${prefix}-${createHash('sha256').update(json).digest('hex').slice(0, 12)}.json`;
   const br = brotliCompressSync(json, { params: { [constants.BROTLI_PARAM_QUALITY]: 11, [constants.BROTLI_PARAM_SIZE_HINT]: json.length } });
   await Promise.all([writeFile(join('out', key), json), writeFile(join('out', `${key}.br`), br)]);
   console.log(`${key}: ${what}, ${Math.round(json.length / 1024)} KB, ${Math.round(br.length / 1024)} KB with brotli`);

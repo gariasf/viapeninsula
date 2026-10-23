@@ -501,6 +501,28 @@ export interface Stroke {
    * back, or not drawn, to make room for it (#176, ADR-0007).
    */
   across?: [shape: string, start: number, end: number][];
+  /**
+   * Only on a desktop, which cuts its strokes at their bridges' ends (ADR-0016): on a bridge of this layer
+   * (bridgeLayer()), where the map draws it as a deck from DECKS_FROM, not on the ground.
+   */
+  deck?: number;
+}
+
+/**
+ * A stroke cut where `runs` start, each run from its distance along the stroke's shape on to the next's, the first from
+ * the stroke's start, with properties of its own: each part cut back as far as the stroke is, for the curves there
+ * (`cut`), as the part of the stroke it is.
+ */
+export function cutStroke(s: Stroke, runs: [from: number, part: Partial<Stroke>][]): Stroke[] {
+  return runs.map(([began, part], i): Stroke => {
+    const [from, to] = [i ? began : s.from, runs[i + 1]?.[0] ?? s.to];
+    const length = to - from;
+    const cut = s.cut?.map(([start, end]): [number, number] => {
+      const a = Math.min(length, Math.max(0, s.from + start - from));
+      return [a, Math.min(length - a, Math.max(0, to - (s.to - end)))];
+    });
+    return { ...s, from, to, ...(cut && { cut }), ...part };
+  });
 }
 
 /**
@@ -643,10 +665,35 @@ export interface Shape {
   /**
    * A traced shape's level, where it isn't all on the ground: from each distance along it on, until
    * the next, as OpenStreetMap tags the track there, `tunnel <layer>`, `bridge <layer>` or
-   * `layer <layer>`, or '' on the ground (#165). The map doesn't use it: it's there so that
-   * measures.ts can draw a day's track again.
+   * `layer <layer>`, or '' on the ground (#165). measures.ts draws a day's track again by it, and on a
+   * desktop the map raises the rails' bridges as decks and marks the tunnels' mouths by it (ADR-0016).
    */
   levels?: [from: number, level: string][];
+}
+
+/** How far below the ground a level (Shape's `levels`) is, in OpenStreetMap's layers: a tunnel at least 1; 0 on or above it. */
+export function depth(level: string): number {
+  const layer = Number(level.split(' ')[1]) || 0;
+  return level.startsWith('tunnel') ? Math.max(1, -layer) : Math.max(0, -layer);
+}
+
+/** A bridge's layer, at least 1, which its deck stands as high as (ADR-0016); 0 off a bridge. */
+export function bridgeLayer(level: string): number {
+  return level.startsWith('bridge') ? Math.max(1, Number(level.split(' ')[1]) || 1) : 0;
+}
+
+/**
+ * A region's decks file, which only a desktop loads (ADR-0016): where each of its Lines' centrelines on the one line
+ * graph from zoom 10 up runs on a bridge, by the centreline's ID, from where to where along it in whole metres, and the
+ * bridge's layer where it's above 1, by the levels of the track the Lines are drawn along there, as `under` is.
+ */
+export interface DecksFile {
+  bridges: Record<string, [from: number, to: number, layer?: number][]>;
+}
+
+/** The decks file of a region's track file, named after it: `days/track-catalonia-<hash>.json`'s is `days/decks-catalonia-<hash>.json`. */
+export function decksFileOf(track: string): string {
+  return track.replace(/(^|\/)track-/, '$1decks-');
 }
 
 /** A line's points from one distance along it to another, where `dist` gives the distance at each point. */
@@ -879,6 +926,15 @@ export function pixelMetres(zoom: number, lat: number): number {
 
 /** A Line's width, in pixels at each zoom. */
 export const WIDTH: [zoom: number, px: number][] = [[7, 1.5], [14, 4]];
+/** The zoom a desktop draws the Lines on bridges as decks from, not on the ground (ADR-0016): at 13 a deck is about a pixel wide. */
+export const DECKS_FROM = 14;
+/**
+ * The zooms the decks along the Lines' Stretches are made for, each drawn from its own to the next's, the last to the
+ * zoom the Lines are back on their rails at (APART): over that zoom they move onto them, and a deck is fixed in
+ * metres, so it's made again every quarter zoom, at most 1.8 px off its stroke for each line width the stroke is off its
+ * centreline (`side`), where made once it would drift 8 px for each. From there, the rails' decks.
+ */
+export const DECK_STEPS = [DECKS_FROM, DECKS_FROM + 0.25, DECKS_FROM + 0.5, DECKS_FROM + 0.75];
 /**
  * How far apart Lines that share track are drawn, in pixels at each zoom: a line width apart zoomed
  * out, as on a transit map, and back on the rails zoomed right in, where people follow a Train.

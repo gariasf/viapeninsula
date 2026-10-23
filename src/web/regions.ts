@@ -1,7 +1,7 @@
 // How the map loads a service day from its regions' files (ADR-0014): the tracks of the regions that
 // come, joined as one, which it draws before the Trips, and then the Trips of those whose track came.
 
-import { BANDS, DEGREE, joinTracks, joinTrips, type Bundle, type DayFiles, type DayTrips, type ManifestRegion, type Point, type Stroke, type Track, type ZoomedOut } from '../bundle.ts';
+import { BANDS, DEGREE, joinTracks, joinTrips, type Bundle, type DayFiles, type DayTrips, type DecksFile, type ManifestRegion, type Point, type Stroke, type Track, type ZoomedOut } from '../bundle.ts';
 import { joinDays } from '../engine.ts';
 import { decodeTrack, type TrackFile } from '../pieces.ts';
 
@@ -96,6 +96,48 @@ export function trackFileOf(track: Track): TrackFile | undefined {
   return files.get(track);
 }
 
+/** On a desktop, each region's track's decks file, where it came (regionLoader()'s `decks`, ADR-0016). */
+const decksFiles = new WeakMap<Track, DecksFile>();
+
+/** A region's track's decks file, on a desktop, where it came. */
+export function decksOf(track: Track): DecksFile | undefined {
+  return decksFiles.get(track);
+}
+
+/**
+ * On a desktop, a decks file that comes after its track was read, as those of the tracks it has do once its map begins its
+ * decks (decksGate()): kept with the track read from `file`, as regionLoader()'s `decks` keeps one that comes beside it.
+ */
+export function keepDecks(file: TrackFile, decks: DecksFile) {
+  decksFiles.set(decodedTrack(file), decks);
+}
+
+/** The zoom a desktop's map is first to reach for it to begin its decks (decksGate()): the tunnels' mouths' (deckLayers.ts's MOUTHS_FROM). */
+export const DECKS_ON = 13;
+
+/**
+ * When a desktop begins its decks (ADR-0016): the first time its map reaches DECKS_ON, and on from then, zoomed out again
+ * or not; a phone never. Before, it asks for no decks file, its Lines' worker cuts no stroke at a bridge, and the decks'
+ * layers aren't added, as further out none is drawn: at S3's join at zoom 6, the frame the page laid out eight regions'
+ * Lines in was 41 ms longer with them (#213). `reached()` says whether the zoom it's given is the one that begins them.
+ */
+export function decksGate(desktop: boolean) {
+  let on = false;
+  return {
+    get on() {
+      return on;
+    },
+    reached: (zoom: number) => desktop && !on && zoom >= DECKS_ON && (on = true),
+  };
+}
+
+/**
+ * Whether the Lines' worker is to be handed a region's track with its file: where it doesn't hold it (`handed`), or on a
+ * desktop that has `begun` its decks (decksGate()) where the track has a decks file and the worker made its Lines without
+ * it (`decked`: those it was handed with theirs), as before the map began them.
+ */
+export const handAgain = (track: Track, handed: ReadonlySet<Track>, decked: ReadonlySet<Track>, begun: boolean) => !handed.has(track) || (begun && decksFiles.has(track) && !decked.has(track));
+
 /**
  * Loads days through `get`, which fetches a file by its name. A region whose file fails to come is left
  * out of its day, which is drawn from the rest, and `failed()` says some did, so that the map looks
@@ -103,7 +145,7 @@ export function trackFileOf(track: Track): TrackFile | undefined {
  * in `joined` by the files it's from, so that looking again where a region's file came again, or failed
  * again, gives the track it drew already, whose `stations` the map knows by their identity.
  */
-export function regionLoader(get: <T>(key: string) => Promise<T>, joined: Map<string, Track>, warn: (reason: unknown) => void = console.warn) {
+export function regionLoader(get: <T>(key: string) => Promise<T>, joined: Map<string, Track>, warn: (reason: unknown) => void = console.warn, decks?: (track: string) => Promise<DecksFile | undefined>) {
   let failed = false;
   const settle = async <T>(files: Promise<T>[]) => {
     const got = await Promise.allSettled(files);
@@ -119,7 +161,14 @@ export function regionLoader(get: <T>(key: string) => Promise<T>, joined: Map<st
   const trackOf = (day: DayFiles) => {
     const known = tracks.get(day);
     if (known) return known;
-    const found = settle(day.regions.map((r) => get<TrackFile>(r.track).then(decodedTrack))).then((got) => {
+    // On a desktop, each track's decks file beside it (`decks`), which leaves the track as it is where it doesn't come.
+    const read = (r: DayFiles['regions'][number]) =>
+      Promise.all([get<TrackFile>(r.track), decks?.(r.track)]).then(([file, decked]) => {
+        const track = decodedTrack(file);
+        if (decked) decksFiles.set(track, decked);
+        return track;
+      });
+    const found = settle(day.regions.map(read)).then((got) => {
       const [loaded, came] = [day.regions.filter((_, i) => got[i]), got.flatMap((t) => (t ? [t] : []))];
       if (!came.length) throw new Error(`No region's track came for ${day.date}`);
       const files = loaded.map((r) => r.track).join(JOINED);

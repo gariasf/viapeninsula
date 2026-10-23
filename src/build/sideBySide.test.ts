@@ -173,6 +173,21 @@ test('marks where a Line runs in a tunnel, and how deep, so that the map draws i
   }
 });
 
+test("says where each centreline runs on a bridge, and the bridge's layer, for a desktop's decks, by the track the Lines are drawn along there (#213, ADR-0016)", async () => {
+  // R2 and R11 share a track over a bridge 1 km long; then R2 goes on alone, over a bridge of layer 2 that crosses another.
+  const levels: [number, string][] = [[2000, 'bridge 1'], [3000, ''], [4000, 'bridge 2'], [4500, '']];
+  const shapes = [{ ...shape('R2', [0, 0], [5000, 0]), levels }, { ...shape('R11', [0, 0], [3500, 0]), levels: levels.slice(0, 2) }];
+  const { bridges, centrelines, strokes } = await sideBySide([line('R2', 'R2'), line('R11', 'R11')], shapes);
+  const byId = new Map(centrelines.map((c) => [c.id, c]));
+  const east = (id: string, d: number) => Math.round((pointAt(byId.get(id)!, d)[0] - LON) * M * COS);
+  const found = Object.entries(bridges).flatMap(([id, runs]) => runs.map(([from, to, layer = 1]) => [...[east(id, from), east(id, to)].sort((a, b) => a - b), layer]));
+  // From the piece each bridge starts in to the one it ends in, as a tunnel's `under` goes.
+  expect(found.sort((a, b) => a[0]! - b[0]!)).toEqual([[expect.closeTo(2000, -2), expect.closeTo(3000, -2), 1], [expect.closeTo(4000, -2), expect.closeTo(4500, -2), 2]]);
+  // Only on the centrelines the Lines' strokes are drawn along, which stay whole: a phone draws them as ever.
+  expect(Object.keys(bridges).every((id) => strokes.some((s) => s.shape === id))).toBe(true);
+  expect(strokes.some((s) => 'deck' in s)).toBe(false);
+});
+
 test('marks the parts of a Line in a tunnel that a Line above lies within a line width of, for each band that has it so (#417)', async () => {
   // R2 in a tunnel under T4 on the street, 10 m apart: within a line width at zoom 14 (14 m), and at 13 (26 m), but 20 m on from them, only at 13.
   const r2 = { ...shape('R2', [0, 0], [5000, 0]), levels: [[0, 'tunnel -1']] as [number, string][] };

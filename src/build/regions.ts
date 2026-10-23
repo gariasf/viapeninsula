@@ -3,7 +3,7 @@
 // whose build fails keeps the files its last build published while the others build and publish.
 
 import { isDeepStrictEqual } from 'node:util';
-import { BANDS, networkTracks, STRETCH, type Closure, type Line, type Manifest, type ManifestDay, type ManifestRegion, type Network, type Point, type Shape, type Station, type Track, type Trip, type ZoomedOut } from '../bundle.ts';
+import { BANDS, decksFileOf, networkTracks, STRETCH, type Closure, type DecksFile, type Line, type Manifest, type ManifestDay, type ManifestRegion, type Network, type Point, type Shape, type Station, type Track, type Trip, type ZoomedOut } from '../bundle.ts';
 import { EVERYWHERE, NETWORKS } from '../networks.ts';
 import { decodeTrack, encodeTrack, type StoredTrack } from '../pieces.ts';
 import { dayTrips, manifestDay } from './manifest.ts';
@@ -52,8 +52,8 @@ export async function buildRegion<N>(
     dates: string[];
     /** One of the region's Networks built from its timetables, or none where it's left out of the region (`optional`, #264). */
     network: (config: N) => Promise<BuiltNetwork | undefined>;
-    /** Writes a file under a name starting with `prefix`, and gives its key. */
-    write: (prefix: string, content: object, what: string) => Promise<string>;
+    /** Writes a file under a name starting with `prefix`, or under `key` where it's given, and gives its key. */
+    write: (prefix: string, content: object, what: string, key?: string) => Promise<string>;
     log?: (line: string) => void;
     report?: (found: Found) => void;
     /** The last build's report, whose counts of each Network's Trips the report carries on from. */
@@ -68,7 +68,7 @@ export async function buildRegion<N>(
   const stations = stationsOf(networks);
   const eachDay = dayTrips(dates, networks.map((n) => ({ ...n, trips: headedFor(n, stations) })), log, report, last);
   const [lines, traced] = [networks.flatMap((n) => n.lines), networks.flatMap((n) => n.shapes)];
-  const { strokes, centrelines, rails, slots, tracks } = await sideBySide(lines, traced, region.id);
+  const { strokes, centrelines, rails, slots, tracks, bridges } = await sideBySide(lines, traced, region.id);
   const track: Track = {
     networks: networks.map((n) => n.network),
     lines,
@@ -80,6 +80,9 @@ export async function buildRegion<N>(
     tracks,
   };
   const trackKey = await write(`days/track-${region.id}`, trackFile(track, region.id, log), `${track.lines.length} Lines, ${track.stations.length} Stations, ${track.shapes.length} shapes`);
+  // Only a desktop's: named after the track file, which the manifest names, so that a phone reads no more of it (ADR-0016).
+  const decks: DecksFile = { bridges };
+  await write(`days/decks-${region.id}`, decks, `${Object.values(bridges).flat().length} bridges on ${Object.keys(bridges).length} centrelines`, decksFileOf(trackKey));
   const days = await Promise.all(
     eachDay.map(async (trips) => {
       const key = await write(`days/${trips.serviceDay}-${region.id}`, trips, `${trips.trips.length} Trips, ${trips.closures?.length ?? 0} Closures`);

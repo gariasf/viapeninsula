@@ -10,12 +10,16 @@ import { LIVE_URL } from './src/bundle.ts';
 
 const lan = process.argv.some((arg) => arg === '--host' || arg.startsWith('--host='));
 
-export default defineConfig(
-  lan
-    ? {
-        server: { proxy: { '/live': { target: LIVE_URL, changeOrigin: true, rewrite: (path) => path.slice('/live'.length) } } },
-        // Before TypeScript's types are stripped, which writes the line in other quotes.
-        plugins: [{ name: 'live-files-through-the-dev-server', apply: 'serve', enforce: 'pre', transform: (code, id) => (id.endsWith('/src/bundle.ts') ? code.replace(`'${LIVE_URL}'`, "'/live'") : undefined) }],
-      }
-    : {},
-);
+export default defineConfig({
+  // The workers as modules, as main.ts makes them, so that one can load a module of its own only where it needs it: the
+  // Lines' worker loads the decks' (decks.ts) only on a desktop, and a phone never fetches it (ADR-0016).
+  worker: { format: 'es' },
+  // Nor does the page preload a module it imports where it needs it, as it does the decks' layers (deckLayers.ts), which
+  // import nothing to preload: which leaves the page a phone fetches as it was, but for a few lines of its own.
+  build: { modulePreload: false },
+  ...(lan && {
+    server: { proxy: { '/live': { target: LIVE_URL, changeOrigin: true, rewrite: (path) => path.slice('/live'.length) } } },
+    // Before TypeScript's types are stripped, which writes the line in other quotes.
+    plugins: [{ name: 'live-files-through-the-dev-server', apply: 'serve', enforce: 'pre', transform: (code, id) => (id.endsWith('/src/bundle.ts') ? code.replace(`'${LIVE_URL}'`, "'/live'") : undefined) }],
+  }),
+});

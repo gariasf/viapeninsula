@@ -6,18 +6,18 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import nunitoSans from '@fontsource/nunito-sans/files/nunito-sans-latin-400-normal.woff2?url';
 import nunitoSansBold from '@fontsource/nunito-sans/files/nunito-sans-latin-700-normal.woff2?url';
 import nunitoSansItalic from '@fontsource/nunito-sans/files/nunito-sans-latin-400-italic.woff2?url';
-import { along, APART, atZoom, BANDS, bandZooms, GRAPH_BAND, STRETCH, inBand, onStroke, pointAt, profiled, zones, type Zone, daysNeeded, daysOf, SOON, DEGREE, EARTH, joinTracks, LATE, LIVE_URL, madridDate, networkTracks, places, type Alerts, type Bundle, type Credit, type Call, type DayFiles, type Place, type Kind, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH, type ZoomedOut } from '../bundle.ts';
+import { along, APART, atZoom, BANDS, bandZooms, GRAPH_BAND, STRETCH, inBand, onStroke, pointAt, profiled, zones, type Zone, daysNeeded, daysOf, DECK_STEPS, decksFileOf, SOON, DEGREE, EARTH, joinTracks, LATE, LIVE_URL, madridDate, networkTracks, places, type Alerts, type Bundle, type Credit, type Call, type DayFiles, type DecksFile, type Place, type Kind, type Line, type Manifest, type Network, type Point, type Shape, type Slot, type Snapshot, type Stroke, type Track, type Trip, type Words, WIDTH, type ZoomedOut } from '../bundle.ts';
 import { boardAt, comingAt, KEEP, lastDays, mapTime, nearbyAt, seenWithin, trainAt, trainsAt, tripsAt, unavailable, type Coming, type Departure, type Followed, type Received, type Train, type TripNow } from '../engine.ts';
 import { searchFound, earnedOf, hoursMinutes, ridesCount, stampEarned, stationsCalled, alertCount, alertsChanged, firstLeaves, lastArrives, lateOf, moreAlerts, moreLines, networkCounts, unreportedCount, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, branchOff, busesReplace, cancelledCount, earlierStations, endsHere, followDeparture, goOn, starLabel, lateCount, standingAt, worstLate, trainsNow, turnsHere, language, LANGUAGES, leavesAt, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, placedBy, setLanguage, setNameLanguages, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { getJson, lookAgainSoon, RETRY, STALL } from './files.ts';
-import { daysAsTheyCome, firstLook, forgetJoined, joinedFrom, regionLoader, regionsCame, regionsNeeded, trackFileOf } from './regions.ts';
+import { daysAsTheyCome, decksGate, decksOf, firstLook, forgetJoined, handAgain, joinedFrom, keepDecks, regionLoader, regionsCame, regionsNeeded, trackFileOf } from './regions.ts';
 import { drawnFrom, LINE_PARTS } from './lines.ts';
 import type { lineWork, LinesAsk, LineSource } from './lineTiles.ts';
 import { linesAt, popupRoom } from './tap.ts';
 import { drawnAt as placeShownAt, FEW_ZOOM, fewer, interchangesOf, markedNetworks, onLines, RAILS, readOf, SIGN_ZOOM, type LineCall, type Drawn as PlaceDrawn, type Interchange } from './stations.ts';
 import { callsIn, fileShapes, hidesTowns, nameSort, rightOf, splitBy } from './names.ts';
-import type { StoredTrack } from '../pieces.ts';
+import type { StoredTrack, TrackFile } from '../pieces.ts';
 import { namePlacer, packFile, type NamePlace, type NamesAsk, type Packed, type Sizes, type Where } from './placeNames.ts';
 import { groupOf, held, joined, piles, spreading, toEdge, type Drawn, type Group, type Named, type Pile } from './spread.ts';
 import { atMostEvery, drifted, fitPadding, letsGo, outsideMiddle, pointersDown, tapZooms } from './centre.ts';
@@ -805,6 +805,14 @@ const aboutCredits = el('ul');
 const wide = matchMedia('(min-width: 640px)');
 /** Whether the tabs are a rail down the left edge: on a wide window tall enough for it, as style.css has it; a short one, as a phone turned sideways, keeps the bar (#332). */
 const rail = matchMedia('(min-width: 640px) and (min-height: 480px)');
+/**
+ * Whether the map draws bridges as decks and tunnels' mouths (#213, ADR-0016): on a desktop, which the page lays out
+ * with the tabs as a rail, read once. A phone, as it keeps the tabs' bar either way up, keeps the flat map and loads
+ * none of it: not `wide`, which a phone turned sideways is.
+ */
+const DECKS = rail.matches;
+/** Whether a desktop has begun its decks: from the first time its map reaches DECKS_ON (decksGate(), beginDecks()). */
+const deckGate = decksGate(DECKS);
 /** Whether the viewer prefers less motion, where a sheet changes state without moving. */
 const lessMotion = matchMedia('(prefers-reduced-motion: reduce)');
 /** The Train the viewer's hand took the map off, as followKey() names it, which the map pans with no more (#325). */
@@ -997,6 +1005,8 @@ let manifestFailed = false;
 showLanguage();
 /** Each file of the service days' bundles the map has fetched, or is fetching: their track and Trips. */
 const fetched = new Map<string, Promise<unknown>>();
+/** The tracks of the last look's days, whose decks files a desktop asks for once its map begins its decks (beginDecks()). */
+let lookedTracks: string[] = [];
 /** Each set of regions' tracks joined, by the files it's from, so that looking again where one came again or failed again draws nothing again. */
 const joinedTracks = new Map<string, Track>();
 /** The files of the days' bundles on the map, and whether the map is looking for the days it needs. */
@@ -1171,13 +1181,15 @@ const LINE_TILES = 'viapeninsula-lines';
 const lineTilesUrl = (source: LineSource, version: number) => `${LINE_TILES}://${source}/{z}/{x}/{y}?${version}`;
 /** The regions' tracks the worker holds, the regions joined at the last hand-over, the version of the last, and of the last in the tiles. */
 let [handedLines, linesVersion, linesIn] = [new Set<Track>(), 0, 0];
+/** On a desktop, the regions' tracks the worker made the Lines of with their decks; and the last join's hand-over (show()), which beginDecks() calls again. */
+let [deckedLines, handOverAgain] = [new Set<Track>(), () => {}];
 /** The tiles asked of the worker and not yet come, by their ask's number. */
 const tilesDue = new Map<number, { resolve: (data: ArrayBuffer) => void; reject: (error: unknown) => void }>();
 let tileAsks = 0;
 const askLines = (ask: LinesAsk, transfer: Transferable[] = []) => linesWorker.postMessage(ask, transfer);
 // ponytail: a tile MapLibre no longer wants is still cut, as its abort isn't passed on. Pass it on if the worker lags behind a pan.
 addProtocol(LINE_TILES, ({ url }) => {
-  const [, source, z, x, y] = /^[^:]+:\/\/(lines|rails)\/(\d+)\/(\d+)\/(\d+)/.exec(url) ?? [];
+  const [, source, z, x, y] = /^[^:]+:\/\/(lines|rails|decks)\/(\d+)\/(\d+)\/(\d+)/.exec(url) ?? [];
   if (!source) return Promise.reject(new Error(`Not a Lines' tile: ${url}`));
   const ask = ++tileAsks;
   askLines({ tile: { source: source as LineSource, z: Number(z), x: Number(x), y: Number(y), ask } });
@@ -1190,7 +1202,7 @@ linesWorker.onmessage = ({ data }: MessageEvent<ReturnType<ReturnType<typeof lin
     tilesDue.delete(data.ask);
   } else {
     linesIn = data.shown;
-    for (const source of ['lines', 'rails'] as const) map.getSource<VectorTileSource>(source)?.setTiles([lineTilesUrl(source, data.shown)]);
+    for (const source of ['lines', 'rails', 'decks'] as const) map.getSource<VectorTileSource>(source)?.setTiles([lineTilesUrl(source, data.shown)]);
   }
 };
 // ponytail: where the worker fails, the map goes without Lines, as the page did where making them threw. Make them on the page then if a worker ever fails where the page wouldn't.
@@ -1945,6 +1957,29 @@ map.on('moveend', () => {
 // The places' only where they're drawn (placesDrawn()), as their layers span whole zooms.
 const pointed = ['trains', 'train-pills', 'train-pills-followed', 'train-counts', 'train-counts-followed', 'station-names', ...strokeLayers];
 map.on('mousemove', ({ point }) => (map.getCanvas().style.cursor = map.queryRenderedFeatures(point, { layers: pointed }).length || placesDrawn([point.x, point.y]).length ? 'pointer' : ''));
+// On a desktop, the bridges' decks and the tunnels' mouths, from their module, which a phone never loads (ADR-0016): the
+// decks under the basemap's labels, as the Lines are, and taken by a tap and the pointer as the Lines' strokes are. They
+// begin in an idle callback (a task where Safari has none) after the map first reaches DECKS_ON (deckGate): their layers,
+// and the decks files of the tracks the map has, whose Lines the worker made without them, made again with them (handOver()).
+// A look after that asks for its tracks' decks files beside them (neededDays()).
+const beginDecks = () => {
+  void import('./deckLayers.ts').then(({ addDecks }) => {
+    const decks = addDecks(map, { tiles: lineTilesUrl('decks', linesIn), lineColour, structure: darkBasemap ? '#8a8f98' : '#7c8088', dark: darkBasemap, before: firstLabel, steps: DECK_STEPS, rails: railsZoom });
+    strokeLayers.push(...decks);
+    pointed.push(...decks);
+  });
+  void Promise.all(
+    lookedTracks.map(async (track) => {
+      const [file, decks] = await Promise.all([fetched.get(track)?.catch(() => undefined), getJson<DecksFile>(`${LIVE_URL}/${decksFileOf(track)}`, { stall: STALL }).catch(() => undefined)]);
+      if (file && decks) keepDecks(file as TrackFile, decks);
+    }),
+  ).then(() => handOverAgain());
+};
+if (DECKS) {
+  const reach = () => deckGate.reached(map.getZoom()) && (map.off('zoomend', reach), 'requestIdleCallback' in window ? requestIdleCallback(beginDecks) : setTimeout(beginDecks));
+  map.on('zoomend', reach);
+  reach();
+}
 // Escape closes the About dialog on its own, if it's open.
 document.addEventListener('keydown', (e) => e.key === 'Escape' && !about.open && (following || boardPlace || lineShown || nearMe || searching || favouritesShown || nowShown || passportShown) && closePanel());
 
@@ -2111,22 +2146,27 @@ function show(days: Track | Bundle, tripsOnly = false) {
   // onScreen() waits for. Only the regions new to the worker go, and those no longer joined come off, worked out as
   // they're handed over, as a frame on other days may have been shown.
   const handOver = () => {
-    if (regions.length === handedLines.size && regions.every((r) => handedLines.has(r.track))) return;
+    if (regions.length === handedLines.size && regions.every((r) => !handAgain(r.track, handedLines, deckedLines, deckGate.on))) return;
     const transfer: Transferable[] = [];
     const handed = regions.map(({ id, track }) => {
       // ponytail: the region's place in the manifest when its Lines are made, kept for as long as the worker holds its
       // track. A manifest that reorders the regions under a track the map keeps leaves them in the old order; make them
       // again if it does. Long distance's and Media Distancia y Avant's by their IDs, not long distance's missing extent,
       // which no region has in a manifest from before #266 (#736, #787).
-      const how = { rank: Math.max(0, manifest?.regions?.findIndex((r) => r.id === id) ?? 0), under: id === 'long-distance' || id === 'media-distancia-avant', lettering: track.lines.map((l): [string, string | undefined] => [l.id, lettering(l.id)]), shownFrom: [...shownFrom] };
-      if (handedLines.has(track)) return { key: keyOf(track), how };
+      // On a desktop, its decks file, and their tier: Media Distancia y Avant's under long distance's under the others', as their Lines.
+      const decks = decksOf(track);
+      const how = { rank: Math.max(0, manifest?.regions?.findIndex((r) => r.id === id) ?? 0), under: id === 'long-distance' || id === 'media-distancia-avant', lettering: track.lines.map((l): [string, string | undefined] => [l.id, lettering(l.id)]), shownFrom: [...shownFrom], ...(deckGate.on && decks && { decks, tier: id === 'media-distancia-avant' ? 0 : id === 'long-distance' ? 1 : 2 }) };
+      // One it holds, made without its decks before the map began them, is made again with them, handed its file again.
+      if (!handAgain(track, handedLines, deckedLines, deckGate.on)) return { key: keyOf(track), how };
       const file = linesFile(track);
       transfer.push(file.numbers.buffer, file.lengths.buffer);
       return { key: keyOf(track), file, how };
     });
     askLines({ show: { regions: handed, version: ++linesVersion } }, transfer);
     handedLines = new Set(regions.map((r) => r.track));
+    deckedLines = new Set(regions.flatMap((r) => (deckGate.on && decksOf(r.track) ? [r.track] : [])));
   };
+  handOverAgain = handOver;
   if (!again) handOver();
   showZoomedOut(zoomedOut ?? { networks: days.networks, tracks: networkTracks(days), lines: days.lines });
   // A place's marks are its own Networks', but long distance's and Media Distancia's where it has others (markedNetworks()).
@@ -5053,6 +5093,7 @@ async function neededDays(): Promise<{ track: Promise<Track | undefined>; arriva
   const days = needed.days.map((d): DayFiles => ({ ...d, regions: d.regions.filter((r) => loaded.has(r.id)) })).filter((d) => d.regions.length);
   const today = days.find((d) => d.date === serviceToday);
   const keys = days.flatMap((d) => d.regions.flatMap((r) => [r.track, r.trips]));
+  lookedTracks = [...new Set(days.flatMap((d) => d.regions.map((r) => r.track)))];
   if (!keys.length || keys.join() === shown) return undefined;
   for (const key of fetched.keys()) if (!keys.includes(key)) fetched.delete(key);
   forgetJoined(joinedTracks, keys);
@@ -5065,7 +5106,9 @@ async function neededDays(): Promise<{ track: Promise<Track | undefined>; arriva
     return file as Promise<T>;
   };
   // A region whose file fails to come is left out of its day, and fetched again next time.
-  const load = regionLoader(get, joinedTracks);
+  // On a desktop that has begun its decks (deckGate), each track's decks file beside it, named after it (ADR-0016). One that
+  // doesn't come, as a track's built before #213 has none, leaves its region's Lines on the ground.
+  const load = regionLoader(get, joinedTracks, console.warn, deckGate.on ? (track) => get<DecksFile>(decksFileOf(track)).catch(() => undefined) : undefined);
   const cameOf = (done: DayFiles[]) => regionsCame(loaded, days, done, (file) => fetched.has(file));
   // Every day's files are asked for at once, here, as they were, and not when the first step is read, which comes
   // after today's track has been drawn: the other days' would then be asked for a round trip later.

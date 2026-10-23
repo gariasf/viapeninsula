@@ -60,6 +60,10 @@ _Avoid_: Track width
 A length of track, or of tracks too close together to tell apart zoomed out, that one set of Lines on the same level runs along. The map draws them side by side along it, in one order, and a Line counts once on it whichever way and whichever of its tracks it runs (ADR-0006). Lines of one Network and one colour take one place on it, as C4a and C4b do up to their fork.
 _Avoid_: Bundle (that's the data the map loads), corridor, edge
 
+**Deck**:
+How a desktop draws a Line on a bridge of 150 m or more, from zoom 14: its stroke there raised over the ground, in its Line's colour, side by side as its stroke is, or grey on rails Lines share, on piers, and ramping down to the ground at the bridge's ends (ADR-0016). A phone draws the Line on the ground. Not the bridge, which is the track's, as OpenStreetMap maps it.
+_Avoid_: Viaduct
+
 **Shape**:
 The track a Trip's Train runs along: points in order, each with its distance along it, which is what a Call's distance is measured on. Many Trips share one. The daily build makes it from the shape its feed gives, traced along OpenStreetMap's rails (ADR-0004), or, where a Trip doesn't fit that or its timetable has none, as Renfe's long-distance one hasn't, from the Trip's own Stations, traced the same way (#280, #259). The track file stores it as Pieces (ADR-0015). Not a Stretch, which is track a set of Lines share on the map (ADR-0006).
 _Avoid_: Route, path
