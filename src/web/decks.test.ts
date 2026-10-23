@@ -1,7 +1,7 @@
 import { VectorTile } from '@mapbox/vector-tile';
 import { createPropertyExpression, latest } from '@maplibre/maplibre-gl-style-spec';
 import { PbfReader } from 'pbf';
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import { BANDS, bridgeLayer, DECK_STEPS as STEPS, DECKS_FROM, DEGREE, pixelMetres, type DecksFile, type Shape, type Stroke, type Track } from '../bundle.ts';
 import { encodeTrack } from '../pieces.ts';
 import * as decks from './decks.ts';
@@ -154,12 +154,16 @@ const track: Track = {
 const file = encodeTrack(track);
 const how: RegionHow = { rank: 0, under: false, lettering: [], shownFrom: [] };
 const bridges: DecksFile = { bridges: { 'stretch:catalonia:0': [[200, 500]] } };
-/** The tile at a zoom that holds a point x metres east, and its features of a source, as MapLibre reads them. */
+/** A tile's features of a source, as MapLibre reads them. */
+const read = (data: ArrayBuffer, source: LineSource) => {
+  const layer = new VectorTile(new PbfReader(data)).layers[source];
+  return Array.from({ length: layer?.length ?? 0 }, (_, i) => layer!.feature(i).properties);
+};
+/** The tile at a zoom that holds a point x metres east, and its features of a source. */
 const tile = (work: ReturnType<typeof lineWork>, source: LineSource, z: number, x: number) => {
   const answer = work({ tile: { source, z, ...tileAt(z, x), ask: 1 } });
   if (!('data' in answer)) throw new Error('no tile');
-  const layer = new VectorTile(new PbfReader(answer.data)).layers[source];
-  return Array.from({ length: layer?.length ?? 0 }, (_, i) => layer!.feature(i).properties);
+  return read(answer.data, source);
 };
 
 test("on a desktop, draws a Line on a bridge as its deck from zoom 14, not on the ground, and marks the tunnels' mouths from 13; a phone, which gets no decks file nor loads the decks' module, draws its Lines as ever (#213)", () => {
@@ -185,4 +189,26 @@ test("on a desktop, draws a Line on a bridge as its deck from zoom 14, not on th
   expect(kinds(13)).toEqual(['mouth ']);
   expect(kinds(14)).toEqual(['deck 0', 'deck 1', 'deck 2', 'deck 3', 'mouth ', 'pier 0', 'pier 1', 'pier 2', 'pier 3']);
   expect(kinds(15)).toEqual(['deck 4', 'mouth ', 'pier 4']);
+});
+
+test("draws a desktop's Lines on the ground, as a phone's, where its worker can't load the decks' module, rather than none (#213)", async () => {
+  vi.resetModules();
+  vi.doMock('./decks.ts', () => {
+    throw new Error('No chunk');
+  });
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const posted: { shown?: number; data?: ArrayBuffer }[] = [];
+  vi.stubGlobal('self', { name: 'lines-decks', postMessage: (answer: (typeof posted)[number]) => posted.push(answer) });
+  try {
+    await import('./linesWorker.ts');
+    const ask = (data: LinesAsk) => (self.onmessage as unknown as (e: { data: LinesAsk }) => Promise<void>)({ data });
+    await ask({ show: { regions: [{ key: 1, file: packFile(file, LINE_PARTS), how: { ...how, decks: bridges } }], version: 1 } });
+    await ask({ tile: { source: 'lines', z: 14, ...tileAt(14, 350), ask: 2 } });
+    expect(posted[0]).toEqual({ shown: 1 });
+    expect(read(posted[1]?.data ?? new ArrayBuffer(0), 'lines').map((p) => [p.from, p.to, p.deck])).toEqual([[0, 1200, undefined]]);
+  } finally {
+    vi.doUnmock('./decks.ts');
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  }
 });
