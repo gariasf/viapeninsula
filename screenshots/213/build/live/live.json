@@ -1,0 +1,35 @@
+[
+ {
+  "device": "laptop",
+  "at": "2026-10-23T12:17:53.979Z",
+  "zoom": 14,
+  "pitch": 45,
+  "decksSource": true,
+  "decksDrawn": 576,
+  "mouthsDrawn": 1,
+  "decksAsked": [
+   "decks-cercanias-madrid-2e266d73fc37.json 200",
+   "deckLayers-CzhBZ7qi.js 200",
+   "decks-D2QnBcW2.js 200",
+   "decks-cercanias-madrid-2e266d73fc37.json 200",
+   "decks-long-distance-740f9546b245.json 200",
+   "decks-media-distancia-avant-1352e8175c1c.json 200"
+  ],
+  "errors": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ {
+  "device": "phone",
+  "at": "2026-10-23T12:17:58.413Z",
+  "zoom": 14,
+  "pitch": 45,
+  "decksSource": false,
+  "decksDrawn": 0,
+  "mouthsDrawn": 0,
+  "decksAsked": [],
+  "errors": [
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ }
+]

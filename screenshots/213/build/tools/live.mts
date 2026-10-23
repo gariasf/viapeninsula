@@ -39,6 +39,11 @@ await withSlots(1, async () => {
       await page.goto(`${SITE}/${HASH}`, { waitUntil: 'commit', timeout: 60_000 });
       await page.waitForFunction(() => typeof window.map?.getSource === 'function' && window.map.getSource('trains'), null, { timeout: 60_000 });
       await page.waitForFunction(() => window.map.areTilesLoaded() && !window.map.isMoving() && window.map.loaded(), null, { timeout: 60_000, polling: 250 }).catch(() => errors.push('never settled'));
+      // A desktop begins its decks once the map is idle after it first reaches zoom 13 (#213's gate): its decks files, then their Lines made again.
+      if (device === 'laptop')
+        await page
+          .waitForFunction(() => window.map.getStyle().layers.some((l) => /decks/.test(l.id)) && window.map.queryRenderedFeatures({ layers: window.map.getStyle().layers.filter((l) => /decks/.test(l.id)).map((l) => l.id) }).length > 0, null, { timeout: 30_000, polling: 500 })
+          .catch(() => errors.push('no decks drawn in 30 s'));
       await page.waitForTimeout(3000);
       const state = await page.evaluate(() => {
         const map = window.map;
