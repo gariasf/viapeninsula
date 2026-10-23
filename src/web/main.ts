@@ -11,13 +11,13 @@ import { boardAt, comingAt, KEEP, lastDays, mapTime, nearbyAt, seenWithin, train
 import { searchFound, earnedOf, hoursMinutes, ridesCount, stampEarned, stationsCalled, alertCount, alertsChanged, firstLeaves, lastArrives, lateOf, moreAlerts, moreLines, networkCounts, unreportedCount, arrivingAt, backTo, backToTrain, basemapLabel, betweenStations, branchOff, busesReplace, cancelledCount, earlierStations, endsHere, followDeparture, goOn, starLabel, lateCount, standingAt, worstLate, trainsNow, turnsHere, language, LANGUAGES, leavesAt, leavingStation, liveUnavailable, locale, MACHINE_TRANSLATED, moreDepartures, moreNumbers, moreStations, nextAt, notRunning, passingStation, placedBy, setLanguage, setNameLanguages, t, toGo, trainCounts, trainsRunHere, trainTo, unlocated, type Language, type Unlocated } from './i18n.ts';
 import { rounded } from './curve.ts';
 import { getJson, lookAgainSoon, RETRY, STALL } from './files.ts';
-import { daysAsTheyCome, decksGate, decksOf, firstLook, forgetJoined, handAgain, joinedFrom, regionLoader, regionsCame, regionsNeeded, trackFileOf } from './regions.ts';
+import { daysAsTheyCome, decksGate, decksOf, firstLook, forgetJoined, handAgain, joinedFrom, keepDecks, regionLoader, regionsCame, regionsNeeded, trackFileOf } from './regions.ts';
 import { drawnFrom, LINE_PARTS } from './lines.ts';
 import type { lineWork, LinesAsk, LineSource } from './lineTiles.ts';
 import { linesAt, popupRoom } from './tap.ts';
 import { drawnAt as placeShownAt, FEW_ZOOM, fewer, interchangesOf, markedNetworks, onLines, RAILS, readOf, SIGN_ZOOM, type LineCall, type Drawn as PlaceDrawn, type Interchange } from './stations.ts';
 import { callsIn, fileShapes, hidesTowns, nameSort, rightOf, splitBy } from './names.ts';
-import type { StoredTrack } from '../pieces.ts';
+import type { StoredTrack, TrackFile } from '../pieces.ts';
 import { namePlacer, packFile, type NamePlace, type NamesAsk, type Packed, type Sizes, type Where } from './placeNames.ts';
 import { groupOf, held, joined, piles, spreading, toEdge, type Drawn, type Group, type Named, type Pile } from './spread.ts';
 import { atMostEvery, drifted, fitPadding, letsGo, outsideMiddle, pointersDown, tapZooms } from './centre.ts';
@@ -1005,6 +1005,8 @@ let manifestFailed = false;
 showLanguage();
 /** Each file of the service days' bundles the map has fetched, or is fetching: their track and Trips. */
 const fetched = new Map<string, Promise<unknown>>();
+/** The tracks of the last look's days, whose decks files a desktop asks for once its map begins its decks (beginDecks()). */
+let lookedTracks: string[] = [];
 /** Each set of regions' tracks joined, by the files it's from, so that looking again where one came again or failed again draws nothing again. */
 const joinedTracks = new Map<string, Track>();
 /** The files of the days' bundles on the map, and whether the map is looking for the days it needs. */
@@ -1959,14 +1961,20 @@ map.on('mousemove', ({ point }) => (map.getCanvas().style.cursor = map.queryRend
 // On a desktop, the bridges' decks and the tunnels' mouths, from their module, which a phone never loads (ADR-0016): the
 // decks under the basemap's labels, as the Lines are, and taken by a tap and the pointer as the Lines' strokes are. They
 // begin in an idle callback (a task where Safari has none) after the map first reaches DECKS_ON (deckGate): their layers,
-// and the Lines of the regions whose decks files have come made again with them, which the worker was handed without (handOver()).
+// and the decks files of the tracks the map has, whose Lines the worker made without them, made again with them (handOver()).
+// A look after that asks for its tracks' decks files beside them (neededDays()).
 const beginDecks = () => {
   void import('./deckLayers.ts').then(({ addDecks }) => {
     const decks = addDecks(map, { tiles: lineTilesUrl('decks', linesIn), lineColour, structure: darkBasemap ? '#8a8f98' : '#7c8088', dark: darkBasemap, before: firstLabel, steps: DECK_STEPS, rails: railsZoom });
     strokeLayers.push(...decks);
     pointed.push(...decks);
   });
-  handOverAgain();
+  void Promise.all(
+    lookedTracks.map(async (track) => {
+      const [file, decks] = await Promise.all([fetched.get(track)?.catch(() => undefined), getJson<DecksFile>(`${LIVE_URL}/${decksFileOf(track)}`, { stall: STALL }).catch(() => undefined)]);
+      if (file && decks) keepDecks(file as TrackFile, decks);
+    }),
+  ).then(() => handOverAgain());
 };
 if (DECKS) {
   const reach = () => deckGate.reached(map.getZoom()) && (map.off('zoomend', reach), 'requestIdleCallback' in window ? requestIdleCallback(beginDecks) : setTimeout(beginDecks));
@@ -5085,8 +5093,8 @@ async function neededDays(): Promise<{ track: Promise<Track | undefined>; arriva
   noTripsIds = every.find((d) => d.date === serviceToday)?.noTrips ?? [];
   const days = needed.days.map((d): DayFiles => ({ ...d, regions: d.regions.filter((r) => loaded.has(r.id)) })).filter((d) => d.regions.length);
   const today = days.find((d) => d.date === serviceToday);
-  // On a desktop, each track's decks file too, named after it (ADR-0016).
-  const keys = days.flatMap((d) => d.regions.flatMap((r) => [r.track, ...(DECKS ? [decksFileOf(r.track)] : []), r.trips]));
+  const keys = days.flatMap((d) => d.regions.flatMap((r) => [r.track, r.trips]));
+  lookedTracks = [...new Set(days.flatMap((d) => d.regions.map((r) => r.track)))];
   if (!keys.length || keys.join() === shown) return undefined;
   for (const key of fetched.keys()) if (!keys.includes(key)) fetched.delete(key);
   forgetJoined(joinedTracks, keys);
@@ -5099,8 +5107,9 @@ async function neededDays(): Promise<{ track: Promise<Track | undefined>; arriva
     return file as Promise<T>;
   };
   // A region whose file fails to come is left out of its day, and fetched again next time.
-  // A decks file that doesn't come, as a track's built before #213 has none, leaves its region's Lines on the ground.
-  const load = regionLoader(get, joinedTracks, console.warn, DECKS ? (track) => get<DecksFile>(decksFileOf(track)).catch(() => undefined) : undefined);
+  // On a desktop that has begun its decks (deckGate), each track's decks file beside it, named after it (ADR-0016). One that
+  // doesn't come, as a track's built before #213 has none, leaves its region's Lines on the ground.
+  const load = regionLoader(get, joinedTracks, console.warn, deckGate.on ? (track) => get<DecksFile>(decksFileOf(track)).catch(() => undefined) : undefined);
   const cameOf = (done: DayFiles[]) => regionsCame(loaded, days, done, (file) => fetched.has(file));
   // Every day's files are asked for at once, here, as they were, and not when the first step is read, which comes
   // after today's track has been drawn: the other days' would then be asked for a round trip later.

@@ -104,14 +104,22 @@ export function decksOf(track: Track): DecksFile | undefined {
   return decksFiles.get(track);
 }
 
+/**
+ * On a desktop, a decks file that comes after its track was read, as those of the tracks it has do once its map begins its
+ * decks (decksGate()): kept with the track read from `file`, as regionLoader()'s `decks` keeps one that comes beside it.
+ */
+export function keepDecks(file: TrackFile, decks: DecksFile) {
+  decksFiles.set(decodedTrack(file), decks);
+}
+
 /** The zoom a desktop's map is first to reach for it to begin its decks (decksGate()): the tunnels' mouths' (deckLayers.ts's MOUTHS_FROM). */
 export const DECKS_ON = 13;
 
 /**
  * When a desktop begins its decks (ADR-0016): the first time its map reaches DECKS_ON, and on from then, zoomed out again
- * or not; a phone never. Before, the Lines' worker is handed no decks file, and so cuts no stroke at a bridge, and the
- * decks' layers aren't added, as further out none is drawn: at S3's join at zoom 6, the frame the page laid out eight
- * regions' Lines in was 41 ms longer with them (#213). `reached()` says whether the zoom it's given is the one that begins them.
+ * or not; a phone never. Before, it asks for no decks file, its Lines' worker cuts no stroke at a bridge, and the decks'
+ * layers aren't added, as further out none is drawn: at S3's join at zoom 6, the frame the page laid out eight regions'
+ * Lines in was 41 ms longer with them (#213). `reached()` says whether the zoom it's given is the one that begins them.
  */
 export function decksGate(desktop: boolean) {
   let on = false;

@@ -1,8 +1,8 @@
 import { expect, test } from 'vitest';
 import type { Bundle, DayFiles, DayTrips, DecksFile, ManifestRegion, Point, Shape, Track, Trip } from '../bundle.ts';
 import { metres } from '../build/track.ts';
-import { encodeTrack } from '../pieces.ts';
-import { daysAsTheyCome, DECKS_ON, decksGate, decksOf, firstLook, forgetJoined, handAgain, joinedFrom, regionLoader, regionsCame, regionsNeeded } from './regions.ts';
+import { encodeTrack, type TrackFile } from '../pieces.ts';
+import { daysAsTheyCome, DECKS_ON, decksGate, decksOf, firstLook, forgetJoined, handAgain, joinedFrom, keepDecks, regionLoader, regionsCame, regionsNeeded } from './regions.ts';
 
 /** A region's track of one Line and one Station, named for it. */
 const track = (id: string): Track => ({
@@ -70,6 +70,20 @@ test("a desktop begins its decks the first time its map reaches DECKS_ON, the zo
   expect([DECKS_ON, 15, 6].map((z) => desktop.reached(z))).toEqual([true, false, false]);
   expect(desktop.on).toBe(true);
   expect([phone.reached(16), phone.on]).toEqual([false, false]);
+});
+
+test("a decks file that comes after its track was read, as a desktop's tracks' do once its map has begun its decks, is kept with the track drawn already, whose Lines the worker is then handed again (#213)", async () => {
+  // As the page's get(), which fetches each file once and keeps it.
+  const { get } = files();
+  const kept = new Map<string, Promise<unknown>>();
+  const once = <T>(key: string) => (kept.get(key) ?? kept.set(key, get(key)).get(key)) as Promise<T>;
+  const read = await regionLoader(once, new Map(), () => {}).trackOf(day);
+  const tracks = joinedFrom(read.track)!.map((r) => r.track);
+  expect(tracks.map((t) => decksOf(t))).toEqual([undefined, undefined, undefined]);
+  const bridges: DecksFile = { bridges: { 'stretch:catalonia:0': [[100, 400]] } };
+  keepDecks(await once<TrackFile>('catalonia.track'), bridges);
+  expect(tracks.map((t) => decksOf(t))).toEqual([bridges, undefined, undefined]);
+  expect(tracks.map((t) => handAgain(t, new Set(tracks), new Set(), true))).toEqual([true, false, false]);
 });
 
 test("a desktop's Lines' worker, handed a region's track without its decks file before the map began its decks, is handed it again once it has, and once only; one with no decks file isn't, and one it doesn't hold always is (#213)", async () => {
