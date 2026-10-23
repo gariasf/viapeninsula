@@ -42,8 +42,9 @@ export const TOLERANCE = { lines: 0.375, rails: 0.1 };
 type Drawing = { lines: GeoJSON.Feature[]; rails: GeoJSON.Feature[]; decks?: import('./decks.ts').RegionDecks };
 
 /**
- * What the worker does with what the page asks (LinesAsk): makes each region's Lines once, for as long as the next join
- * names it, keeps the tiles' index of the regions joined, as MapLibre's GeoJSON source did, and cuts and encodes a tile.
+ * What the worker does with what the page asks (LinesAsk): makes each region's Lines once each time it's handed its file,
+ * for as long as the next join names it, keeps the tiles' index of the regions joined, as MapLibre's GeoJSON source did,
+ * and cuts and encodes a tile.
  * On a desktop, `decks` gives the decks' module (decks.ts) once it's loaded, which a region that comes with its decks
  * file waits for (linesWorker.ts): its strokes and rails are cut at their bridges, and their parts there drawn as decks
  * from DECKS_FROM, not on the ground.
@@ -74,7 +75,8 @@ export function lineWork(decks: () => typeof import('./decks.ts') | undefined = 
     }
     const now = new Map(
       ask.show.regions.map(({ key, file, how }): [number, Drawing] => {
-        const drawing = held.get(key) ?? (file && make(file, how));
+        // Handed its file again, as a desktop's region is with its decks once the map has begun them (main.ts), it's made again.
+        const drawing = (file && make(file, how)) ?? held.get(key);
         if (!drawing) throw new Error(`No region's track by key ${key}`);
         return [key, drawing];
       }),

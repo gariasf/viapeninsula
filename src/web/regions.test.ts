@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import type { Bundle, DayFiles, DayTrips, DecksFile, ManifestRegion, Point, Shape, Track, Trip } from '../bundle.ts';
 import { metres } from '../build/track.ts';
 import { encodeTrack } from '../pieces.ts';
-import { daysAsTheyCome, decksOf, firstLook, forgetJoined, joinedFrom, regionLoader, regionsCame, regionsNeeded } from './regions.ts';
+import { daysAsTheyCome, DECKS_ON, decksGate, decksOf, firstLook, forgetJoined, handAgain, joinedFrom, regionLoader, regionsCame, regionsNeeded } from './regions.ts';
 
 /** A region's track of one Line and one Station, named for it. */
 const track = (id: string): Track => ({
@@ -60,6 +60,31 @@ test("on a desktop, reads each track's decks file beside it and keeps it with it
   const decked = await regionLoader(desktop.get, new Map(), () => {}, decks).trackOf(day);
   expect(joinedFrom(decked.track)?.map(({ id, track: t }) => [id, decksOf(t)])).toEqual([['catalonia', bridges], ['cercanias-madrid', undefined], ['cercanias-leon', { bridges: {} }]]);
   expect(decked.loaded.map((r) => r.id)).toEqual(IDS);
+});
+
+test("a desktop begins its decks the first time its map reaches DECKS_ON, the zoom the tunnels' mouths are marked from, and keeps them zoomed out again; a phone never does (#213's gate)", () => {
+  const [desktop, phone] = [decksGate(true), decksGate(false)];
+  expect([6, 12, DECKS_ON - 0.01].map((z) => desktop.reached(z))).toEqual([false, false, false]);
+  expect(desktop.on).toBe(false);
+  // Only the zoom that begins them says so.
+  expect([DECKS_ON, 15, 6].map((z) => desktop.reached(z))).toEqual([true, false, false]);
+  expect(desktop.on).toBe(true);
+  expect([phone.reached(16), phone.on]).toEqual([false, false]);
+});
+
+test("a desktop's Lines' worker, handed a region's track without its decks file before the map began its decks, is handed it again once it has, and once only; one with no decks file isn't, and one it doesn't hold always is (#213)", async () => {
+  const bridges: DecksFile = { bridges: { 'stretch:catalonia:0': [[100, 400]] } };
+  const { get } = files();
+  const loaded = await regionLoader(get, new Map(), () => {}, (t) => Promise.resolve(t.startsWith('catalonia') ? bridges : undefined)).trackOf(day);
+  const tracks = joinedFrom(loaded.track)!.map((r) => r.track);
+  const handed = new Set(tracks);
+  // Before the map began its decks, the worker was handed none, and is handed nothing again.
+  expect(tracks.map((t) => handAgain(t, handed, new Set(), false))).toEqual([false, false, false]);
+  // Once it has: Catalonia's, whose decks file came.
+  expect(tracks.map((t) => handAgain(t, handed, new Set(), true))).toEqual([true, false, false]);
+  // Handed it with them, it isn't again.
+  expect(tracks.map((t) => handAgain(t, handed, new Set([tracks[0]!]), true))).toEqual([false, false, false]);
+  expect([false, true].map((begun) => handAgain(tracks[1]!, new Set([tracks[0]!]), new Set(), begun))).toEqual([true, true]);
 });
 
 test("leaves out a region whose track doesn't come, with its Trips, draws the rest, and says some failed so that the map looks again", async () => {

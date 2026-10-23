@@ -191,6 +191,20 @@ test("on a desktop, draws a Line on a bridge as its deck from zoom 14, not on th
   expect(kinds(15)).toEqual(['deck 4', 'mouth ', 'pier 4']);
 });
 
+test("makes a region's Lines again where it's handed its file again under its key, as a desktop's are with their decks once the map has begun them: its Line on a bridge, on the ground until then, becomes its deck's from 14 (#213)", () => {
+  const desktop = lineWork(() => decks);
+  const ask = (h: RegionHow, version: number): LinesAsk => ({ show: { regions: [{ key: 1, file: packFile(file, LINE_PARTS), how: h }], version } });
+  expect(desktop(ask(how, 1))).toEqual({ shown: 1 });
+  expect(tile(desktop, 'lines', 14, 350).map((p) => [p.from, p.to, p.deck])).toEqual([[0, 1200, undefined]]);
+  expect(tile(desktop, 'decks', 14, 350).filter((p) => p.kind === 'deck')).toEqual([]);
+  expect(desktop(ask({ ...how, decks: bridges }, 2))).toEqual({ shown: 2 });
+  expect(tile(desktop, 'lines', 14, 350).map((p) => p.deck)).not.toContain(1);
+  expect(tile(desktop, 'decks', 14, 350).filter((p) => p.kind === 'deck').length).toBeGreaterThan(0);
+  // Named by its key alone, it's the one made last.
+  expect(desktop({ show: { regions: [{ key: 1, how }], version: 3 } })).toEqual({ shown: 3 });
+  expect(tile(desktop, 'decks', 14, 350).filter((p) => p.kind === 'deck').length).toBeGreaterThan(0);
+});
+
 test("draws a desktop's Lines on the ground, as a phone's, where its worker can't load the decks' module, rather than none (#213)", async () => {
   vi.resetModules();
   vi.doMock('./decks.ts', () => {
