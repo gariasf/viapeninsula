@@ -6,7 +6,7 @@ One Cloudflare Durable Object wakes about every 20 seconds, fetches each live fe
 
 - **A Worker that runs on every viewer request, with an edge cache.** Rejected: every poll is billed, cache hits included, the free plan covers only about 23 viewers polling all day, and it would need rate limiting.
 - **A fetcher on a home server (Umbrel) or a Hetzner machine.** Kept only as the fallback for any feed that can't be fetched within Cloudflare's limits, for example if Cloudflare's shared outgoing IPs trip FGC's quota of 5,000 requests a day per IP.
-- **The EU jurisdiction for the fetcher's Durable Object** (#803). Rejected: Cloudflare keeps an object made with it in the EU, where it takes a location hint only as a preference, but workerd doesn't implement jurisdictions, so the fetcher couldn't be run locally (README).
+- **The EU jurisdiction for the fetcher's Durable Object** (#803). Rejected: Cloudflare keeps an object made with it in the EU, where it takes a location hint only as a preference, but workerd doesn't implement jurisdictions, so the fetcher couldn't be run locally (docs/development.md).
 - **The fetcher working out each Call's Delay itself, for history, by loading the day's Trips and shapes and running the engine on each run's reports** (#329, #806). Rejected: it puts the engine and a 12.8 MB parse in the path of every viewer's snapshot, needs the engine's state kept between runs to fit the plan's CPU, can hold long distance's shapes in a 128 MB isolate only as rows, and keeps nothing to work a day out again when a Delay rule changes (`docs/research/punctuality.md`, section 2).
 
 ## Consequences
