@@ -22,7 +22,7 @@
   </picture>
 </a>
 
-Every pill and dot on the map is a Train. Where its operator publishes live data, the Train is drawn where that data puts it, and is Live; where none does, or the data has gone quiet, it runs to its timetable, shifted by its last known Delay, and is drawn dashed as Scheduled. Between reports, Trains keep moving along their track, traced on OpenStreetMap's rails, so they run where they really run rather than in straight lines from Station to Station. Their positions are estimates, built from the operators' timetables and live data.
+Each Train on the map is a pill with its Line's name, or zoomed out a dot. Where its operator publishes live data, the Train is drawn where that data puts it, and is Live; where none does, or the data has gone quiet, it runs to its timetable, shifted by its last known Delay, and is drawn dashed as Scheduled. Between reports, Trains keep moving along their track, traced on OpenStreetMap's rails, so they run where they really run rather than in straight lines from Station to Station. Their positions are estimates, built from the operators' timetables and live data.
 
 ## What it shows
 
@@ -41,7 +41,7 @@ Every pill and dot on the map is a Train. Where its operator publishes live data
   </tr>
 </table>
 
-- **On the track, side by side.** Each Line is traced along the rails it runs on, and where Lines share track the map draws them beside each other, in one order, as a metro map would.
+- **On the track, side by side.** Each Line is traced along the rails it runs on, and where a region's Lines share track, as Rodalies' do through Barcelona, the map draws them side by side, in one order, as a metro map would.
 - **Follow a Train.** Tap one and the map keeps it in view, with a card counting down to its next Station and the rest of its calls.
 - **Boards, Lines and Search.** A Station's next departures, those of every Network that meets there on one board; a Line's Trains along its Stations; and Search for a Station, a Line or a Train number.
 - **Now and Nearby.** What's wrong at this moment, Network by Network: the Lines with Trains late or cancelled. A Train to follow at random, and the Trains near you.
@@ -91,7 +91,7 @@ flowchart LR
   r2 --> site["The map · MapLibre GL"]
 ```
 
-- **The daily build** reads each Network's timetable, traces each of its Lines along OpenStreetMap's rails ([ADR-0004](docs/adr/0004-track-follows-openstreetmap.md)), places every Trip on its track, and publishes the next three service days to R2, in a track file and a Trips file for each region ([ADR-0014](docs/adr/0014-the-bundle-is-built-by-region-a-track-file-and-a-trips-file-for-each.md)).
+- **The daily build** reads each Network's timetable, traces each of its Lines along OpenStreetMap's rails ([ADR-0004](docs/adr/0004-track-follows-openstreetmap.md)), places every Trip on its track, and publishes the next three service days to R2, in a track file for each region and a Trips file for each region and day ([ADR-0014](docs/adr/0014-the-bundle-is-built-by-region-a-track-file-and-a-trips-file-for-each.md)).
 - **The fetcher** reads the operators' live feeds, from every 20 seconds to every 2 minutes as each allows, and writes what they report to one snapshot on R2, with their Alerts beside it ([ADR-0003](docs/adr/0003-live-data-snapshot-on-r2.md)).
 - **The map** loads each region's files as it comes into view, and moves every Train along its Trip by its timetable, frame by frame, corrected by each live report as it comes ([ADR-0002](docs/adr/0002-timetable-drives-motion.md)).
 
@@ -108,7 +108,7 @@ npm test
 npm run check   # typecheck
 ```
 
-[docs/development.md](docs/development.md) has the rest: the daily build and how to check a change to it, the page harness for browser checks, the fetcher, the Cloudflare setup and the Actions workflows. The domain language is in [CONTEXT.md](CONTEXT.md), the decisions in [docs/adr](docs/adr), and the work is planned in [issues](https://github.com/gariasf/viapeninsula/issues) and [milestones](https://github.com/gariasf/viapeninsula/milestones).
+[docs/development.md](docs/development.md) has the rest: the daily build and how to check a change to it, the page harness for browser checks, the fetcher, the Cloudflare setup and the Actions workflows. The domain language is in [CONTEXT.md](CONTEXT.md), the decisions in [docs/adr](docs/adr), the v1 spec in [issue #1](https://github.com/gariasf/viapeninsula/issues/1), and the work is planned in [issues](https://github.com/gariasf/viapeninsula/issues) and [milestones](https://github.com/gariasf/viapeninsula/milestones).
 
 ## Licence and credits
 
