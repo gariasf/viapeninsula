@@ -212,7 +212,7 @@ test("draws a desktop's Lines on the ground, as a phone's, where its worker can'
   });
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   const posted: { shown?: number; data?: ArrayBuffer }[] = [];
-  vi.stubGlobal('self', { name: 'lines-decks', postMessage: (answer: (typeof posted)[number]) => posted.push(answer) });
+  vi.stubGlobal('self', { postMessage: (answer: (typeof posted)[number]) => posted.push(answer) });
   try {
     await import('./linesWorker.ts');
     const ask = (data: LinesAsk) => (self.onmessage as unknown as (e: { data: LinesAsk }) => Promise<void>)({ data });
