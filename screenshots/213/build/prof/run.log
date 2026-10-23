@@ -1,0 +1,22 @@
+11:54:53 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+11:56:10 S3 desktop wt-main run 1: load 25.8 11.5 7.4
+11:57:26 S3 desktop wt-213b run 1: load 12.7 11.0 7.6
+
+/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/wt-main, pitch 45, desktop, median of 1:
+| check | scenario | median | limit | |
+|---|---|---|---|---|
+| A join: longest gap, ms (S2's is long distance's, S6) | S3 | 333.3 | ≤ 100 | BREACH |
+| A join: frozen ms (gaps over 50 ms, summed) | S3 | 733.3 | ≤ 150 | BREACH |
+| A zoom or pan step with no join: longest gap, ms | S3 | 383.1 | ≤ 34 | BREACH |
+| JS heap after a forced GC, every region loaded, MB | S3 | 222 | ≤ 500 | ok |
+| JS heap's peak, garbage included, MB (not budgeted) | S3 | 622 | | |
+
+/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/wt-213b, pitch 45, desktop, median of 1:
+| check | scenario | median | limit | |
+|---|---|---|---|---|
+| A join: longest gap, ms (S2's is long distance's, S6) | S3 | 282.7 | ≤ 100 | BREACH |
+| A join: frozen ms (gaps over 50 ms, summed) | S3 | 617.7 | ≤ 150 | BREACH |
+| A zoom or pan step with no join: longest gap, ms | S3 | 400 | ≤ 34 | BREACH |
+| JS heap after a forced GC, every region loaded, MB | S3 | 223 | ≤ 500 | ok |
+| JS heap's peak, garbage included, MB (not budgeted) | S3 | 700 | | |

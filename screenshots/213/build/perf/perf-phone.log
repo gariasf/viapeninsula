@@ -1,0 +1,90 @@
+11:14:16 phone: npm run perf -- S2 S3 S5bcn S8 --phone --tree /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/wt-main --tree /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/wt-213b --at /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/213/capture/0630.ndjson.gz --out /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/wt-213b/out (load { 5.09 4.98 4.73 })
+
+> perf
+> node src/page/perf.ts S2 S3 S5bcn S8 --phone --tree /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/***/scratchpad/wt-main --tree /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/***/scratchpad/wt-213b --at /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/***/scratchpad/213/capture/0630.ndjson.gz --out /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/***/scratchpad/wt-213b/out
+
+11:14:18 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+11:14:50 S2 phone wt-main run 1: load 4.7 4.9 4.7
+11:15:21 S2 phone wt-213b run 1: load 3.9 4.7 4.6
+11:15:21 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+11:15:53 S2 phone wt-main run 2: load 4.6 4.8 4.7
+11:16:24 S2 phone wt-213b run 2: load 4.2 4.7 4.6
+11:16:24 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+11:16:57 S2 phone wt-main run 3: load 10.0 5.9 5.1
+11:17:28 S2 phone wt-213b run 3: load 9.5 6.2 5.2
+11:17:29 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+11:19:31 S3 phone wt-main run 1: load 5.6 5.7 5.1
+11:21:34 S3 phone wt-213b run 1: load 3.5 4.9 4.9
+11:21:34 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+11:23:40 S3 phone wt-main run 2: load 4.3 4.7 4.8
+11:25:46 S3 phone wt-213b run 2: load 4.4 4.5 4.7
+11:25:46 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+11:27:54 S3 phone wt-main run 3: load 3.3 4.2 4.5
+11:29:55 S3 phone wt-213b run 3: load 3.7 3.9 4.4
+11:29:55 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+11:31:16 S5bcn phone wt-main run 1: load 5.7 4.5 4.5
+11:32:36 S5bcn phone wt-213b run 1: load 7.5 5.3 4.9
+11:32:36 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+11:33:57 S5bcn phone wt-main run 2: load 6.6 6.1 5.2
+11:35:17 S5bcn phone wt-213b run 2: load 5.0 5.7 5.1
+11:35:17 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+11:36:38 S5bcn phone wt-main run 3: load 3.0 4.9 4.9
+11:37:58 S5bcn phone wt-213b run 3: load 4.4 5.0 5.0
+11:37:58 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+11:39:05 S8 phone wt-main run 1: load 3.1 4.5 4.8
+11:40:12 S8 phone wt-213b run 1: load 2.9 4.2 4.6
+11:40:12 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+11:41:19 S8 phone wt-main run 2: load 3.5 4.1 4.6
+11:42:25 S8 phone wt-213b run 2: load 6.5 4.9 4.8
+11:42:26 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+11:43:33 S8 phone wt-main run 3: load 4.7 4.6 4.7
+11:44:39 S8 phone wt-213b run 3: load 4.8 4.7 4.7
+
+/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/wt-main, phone, median of 3:
+| check | scenario | median | limit | |
+|---|---|---|---|---|
+| A join: longest gap, ms (S2's is long distance's, S6) | S2 | 967.2 | ≤ 300 | BREACH |
+| A join: longest gap, ms (S2's is long distance's, S6) | S3 | 1007.5 | ≤ 300 | BREACH |
+| A join: frozen ms (gaps over 50 ms, summed) | S2 | 2442.4 | ≤ 600 | BREACH |
+| A join: frozen ms (gaps over 50 ms, summed) | S3 | 1999.9 | ≤ 600 | BREACH |
+| A zoom or pan step with no join: longest gap, ms | S3 | 142.6 | ≤ 100 | BREACH |
+| Cold load: the first Lines, ms | S2 | 2439 | ≤ 1500 | BREACH |
+| Cold load: the first Trains, ms | S2 | 2197 | ≤ 2500 | ok |
+| Cold load: longest gap after the first Lines, ms | S2 | 967.2 | ≤ 300 | BREACH |
+| At rest: main thread, ms/s | S5bcn | 470 | ≤ 400 | BREACH |
+| At rest: MapLibre's redraws beyond the Trains' draws, /s | S5bcn | 11.9 | ≤ 2 | BREACH |
+| Following a Train: main thread, ms/s | S8 | 995 | ≤ 700 | BREACH |
+| Following a Train: fps | S8 | 37.9 | ≥ 55 | BREACH |
+| JS heap after a forced GC, every region loaded, MB | S3 | 207 | ≤ 300 | ok |
+| JS heap's peak, garbage included, MB (not budgeted) | S3 | 510 | | |
+
+/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/wt-213b, phone, median of 3:
+| check | scenario | median | limit | |
+|---|---|---|---|---|
+| A join: longest gap, ms (S2's is long distance's, S6) | S2 | 1008.2 | ≤ 300 | BREACH |
+| A join: longest gap, ms (S2's is long distance's, S6) | S3 | 967.5 | ≤ 300 | BREACH |
+| A join: frozen ms (gaps over 50 ms, summed) | S2 | 2516.8 | ≤ 600 | BREACH |
+| A join: frozen ms (gaps over 50 ms, summed) | S3 | 2133.1 | ≤ 600 | BREACH |
+| A zoom or pan step with no join: longest gap, ms | S3 | 100.9 | ≤ 100 | BREACH |
+| Cold load: the first Lines, ms | S2 | 2401 | ≤ 1500 | BREACH |
+| Cold load: the first Trains, ms | S2 | 2172 | ≤ 2500 | ok |
+| Cold load: longest gap after the first Lines, ms | S2 | 1008.2 | ≤ 300 | BREACH |
+| At rest: main thread, ms/s | S5bcn | 478 | ≤ 400 | BREACH |
+| At rest: MapLibre's redraws beyond the Trains' draws, /s | S5bcn | 11.2 | ≤ 2 | BREACH |
+| Following a Train: main thread, ms/s | S8 | 995 | ≤ 700 | BREACH |
+| Following a Train: fps | S8 | 38.6 | ≥ 55 | BREACH |
+| JS heap after a forced GC, every region loaded, MB | S3 | 207 | ≤ 300 | ok |
+| JS heap's peak, garbage included, MB (not budgeted) | S3 | 541 | | |
+exit 1 at 11:44:40 (load { 4.84 4.71 4.75 })

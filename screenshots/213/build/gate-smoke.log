@@ -1,0 +1,7 @@
+12:38:05 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+gate: z12.0 decks source false, decks -, asked decks-catalonia-0db9820b83c8.json decks-CNUhCSFg.js decks-media-distancia-avant-0c95efa5c4f5.json decks-long-distance-fedbfcc23c97.json -> z14.0 decks source true, decks 2636, mouths 6, asked decks-catalonia-0db9820b83c8.json decks-CNUhCSFg.js decks-media-distancia-avant-0c95efa5c4f5.json decks-long-distance-fedbfcc23c97.json deckLayers-CzhBZ7qi.js; errors none
+12:38:35 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+hospitalet-gate branch laptop dark: late 466 ms, 21 Trains, decks 2636, mouths 6, decks asked 5
+hospitalet-gate branch laptop light: late 266 ms, 21 Trains, decks 2636, mouths 6, decks asked 5

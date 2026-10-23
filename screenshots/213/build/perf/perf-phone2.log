@@ -1,0 +1,58 @@
+13:08:55 phone2: npm run perf -- S2 S3 --phone --tree /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/wt-main --tree /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/wt-213b --at /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/213/capture/0630.ndjson.gz --out /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/wt-213b/out (load { 3.76 4.02 4.19 })
+
+> perf
+> node src/page/perf.ts S2 S3 --phone --tree /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/***/scratchpad/wt-main --tree /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/***/scratchpad/wt-213b --at /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/***/scratchpad/213/capture/0630.ndjson.gz --out /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/***/scratchpad/wt-213b/out
+
+13:08:57 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+13:09:28 S2 phone wt-main run 1: load 3.2 3.8 4.1
+13:10:00 S2 phone wt-213b run 1: load 5.2 4.2 4.2
+13:10:00 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+13:10:32 S2 phone wt-main run 2: load 5.5 4.3 4.3
+13:11:03 S2 phone wt-213b run 2: load 4.0 4.1 4.2
+13:11:03 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+13:11:35 S2 phone wt-main run 3: load 3.1 3.9 4.1
+13:12:07 S2 phone wt-213b run 3: load 2.7 3.7 4.0
+13:12:07 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+13:14:02 S3 phone wt-main run 1: load 2.5 3.3 3.8
+13:15:56 S3 phone wt-213b run 1: load 1.9 2.8 3.6
+13:15:56 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+13:17:51 S3 phone wt-main run 2: load 1.6 2.4 3.3
+13:19:45 S3 phone wt-213b run 2: load 2.2 2.4 3.2
+13:19:45 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+13:21:50 S3 phone wt-main run 3: load 4.6 3.4 3.5
+13:23:52 S3 phone wt-213b run 3: load 3.5 3.3 3.4
+
+/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/wt-main, phone, median of 3:
+| check | scenario | median | limit | |
+|---|---|---|---|---|
+| A join: longest gap, ms (S2's is long distance's, S6) | S2 | 924.2 | ≤ 300 | BREACH |
+| A join: longest gap, ms (S2's is long distance's, S6) | S3 | 975.5 | ≤ 300 | BREACH |
+| A join: frozen ms (gaps over 50 ms, summed) | S2 | 2266.6 | ≤ 600 | BREACH |
+| A join: frozen ms (gaps over 50 ms, summed) | S3 | 1917.3 | ≤ 600 | BREACH |
+| A zoom or pan step with no join: longest gap, ms | S3 | 108.9 | ≤ 100 | BREACH |
+| Cold load: the first Lines, ms | S2 | 2327 | ≤ 1500 | BREACH |
+| Cold load: the first Trains, ms | S2 | 2076 | ≤ 2500 | ok |
+| Cold load: longest gap after the first Lines, ms | S2 | 924.2 | ≤ 300 | BREACH |
+| JS heap after a forced GC, every region loaded, MB | S3 | 207 | ≤ 300 | ok |
+| JS heap's peak, garbage included, MB (not budgeted) | S3 | 484 | | |
+
+/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/wt-213b, phone, median of 3:
+| check | scenario | median | limit | |
+|---|---|---|---|---|
+| A join: longest gap, ms (S2's is long distance's, S6) | S2 | 949.1 | ≤ 300 | BREACH |
+| A join: longest gap, ms (S2's is long distance's, S6) | S3 | 951.7 | ≤ 300 | BREACH |
+| A join: frozen ms (gaps over 50 ms, summed) | S2 | 2274.4 | ≤ 600 | BREACH |
+| A join: frozen ms (gaps over 50 ms, summed) | S3 | 1835.2 | ≤ 600 | BREACH |
+| A zoom or pan step with no join: longest gap, ms | S3 | 91.7 | ≤ 100 | ok |
+| Cold load: the first Lines, ms | S2 | 2300 | ≤ 1500 | BREACH |
+| Cold load: the first Trains, ms | S2 | 2099 | ≤ 2500 | ok |
+| Cold load: longest gap after the first Lines, ms | S2 | 949.1 | ≤ 300 | BREACH |
+| JS heap after a forced GC, every region loaded, MB | S3 | 207 | ≤ 300 | ok |
+| JS heap's peak, garbage included, MB (not budgeted) | S3 | 550 | | |
+exit 1 at 13:23:52 (load { 3.47 3.32 3.43 })

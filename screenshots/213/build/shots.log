@@ -1,0 +1,33 @@
+10:33:14 start
+10:33  up 23 days, 14 hrs, 11 users, load averages: 4.90 3.53 3.25
+10:33:17 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+viaduct main laptop light: late 120 ms, 0 Trains, decks -, mouths -, decks asked 0
+viaduct main laptop dark: late 171 ms, 0 Trains, decks -, mouths -, decks asked 0
+garraf main laptop light: late 96 ms, 0 Trains, decks -, mouths -, decks asked 0
+garraf main laptop dark: late 136 ms, 0 Trains, decks -, mouths -, decks asked 0
+hospitalet main laptop light: late 304 ms, 21 Trains, decks -, mouths -, decks asked 0
+hospitalet main laptop dark: late 467 ms, 21 Trains, decks -, mouths -, decks asked 0
+bcn main laptop light: late 596 ms, 139 Trains, decks -, mouths -, decks asked 0
+bcn main laptop dark: late 565 ms, 139 Trains, decks -, mouths -, decks asked 0
+mad main laptop light: late 333 ms, 25 Trains, decks -, mouths -, decks asked 0
+mad main laptop dark: late 569 ms, 25 Trains, decks -, mouths -, decks asked 0
+10:36:41 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+viaduct branch laptop light: late 127 ms, 0 Trains, decks 576, mouths 1, decks asked 5
+viaduct branch laptop dark: late 180 ms, 0 Trains, decks 576, mouths 1, decks asked 5
+garraf branch laptop light: late 91 ms, 0 Trains, decks 0, mouths 3, decks asked 5
+garraf branch laptop dark: late 137 ms, 0 Trains, decks 0, mouths 3, decks asked 5
+hospitalet branch laptop dark: late 452 ms, 21 Trains, decks 2636, mouths 6, decks asked 5
+hospitalet branch laptop light: late 507 ms, 21 Trains, decks 2636, mouths 6, decks asked 5
+bcn branch laptop light: late 316 ms, 139 Trains, decks 0, mouths 17, decks asked 5
+bcn branch laptop dark: late 564 ms, 139 Trains, decks 0, mouths 17, decks asked 5
+mad branch laptop light: late 267 ms, 25 Trains, decks 0, mouths 21, decks asked 5
+mad branch laptop dark: late 495 ms, 25 Trains, decks 0, mouths 21, decks asked 5
+10:40:07 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+probe: no Train on a deck
+phone-bcn main phone light: late 181 ms, 48 Trains, decks -, mouths -, decks asked 0
+phone-bcn branch phone light: late 305 ms, 48 Trains, decks -, mouths -, decks asked 0
+exit 0 at 10:41:41
+10:41  up 23 days, 14:09, 11 users, load averages: 4.09 4.30 3.98

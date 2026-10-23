@@ -1,0 +1,30 @@
+
+> perf
+> node src/page/perf.ts S3 --runs 2 --pitch 45 --tree /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/***/scratchpad/wt-main --tree /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/***/scratchpad/wt-213b --at /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/***/scratchpad/213/capture/0630.ndjson.gz --out /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/***/scratchpad/wt-213b/out
+
+12:01:50 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+12:03:06 S3 desktop wt-main run 1: load 26.0 22.9 14.4
+12:04:22 S3 desktop wt-213b run 1: load 13.9 20.3 14.2
+12:04:22 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+12:05:38 S3 desktop wt-main run 2: load 11.3 17.9 13.7
+12:06:53 S3 desktop wt-213b run 2: load 6.3 15.0 13.0
+
+/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/wt-main, pitch 45, desktop, median of 2:
+| check | scenario | median | limit | |
+|---|---|---|---|---|
+| A join: longest gap, ms (S2's is long distance's, S6) | S3 | 279 | ≤ 100 | BREACH |
+| A join: frozen ms (gaps over 50 ms, summed) | S3 | 625.1 | ≤ 150 | BREACH |
+| A zoom or pan step with no join: longest gap, ms | S3 | 54.3 | ≤ 34 | BREACH |
+| JS heap after a forced GC, every region loaded, MB | S3 | 222.5 | ≤ 500 | ok |
+| JS heap's peak, garbage included, MB (not budgeted) | S3 | 730 | | |
+
+/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/wt-213b, pitch 45, desktop, median of 2:
+| check | scenario | median | limit | |
+|---|---|---|---|---|
+| A join: longest gap, ms (S2's is long distance's, S6) | S3 | 245.8 | ≤ 100 | BREACH |
+| A join: frozen ms (gaps over 50 ms, summed) | S3 | 617.1 | ≤ 150 | BREACH |
+| A zoom or pan step with no join: longest gap, ms | S3 | 37.5 | ≤ 34 | BREACH |
+| JS heap after a forced GC, every region loaded, MB | S3 | 222.5 | ≤ 500 | ok |
+| JS heap's peak, garbage included, MB (not budgeted) | S3 | 577 | | |

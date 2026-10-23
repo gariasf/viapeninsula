@@ -1,0 +1,180 @@
+=== wt-main (S3, profiled from mark madrid to end; the frame after the eight Cercanías tracks came)
+the z6 join's longest frame gap: 275.9 ms at +9780 ms after madrid, 1060 samples, 0.3 ms of them idle
+longest busy stretches (ms): 275.5 at +9780.2, 257.2 at +9771.5, 122.6 at +25694.8, 90.3 at +16875.9, 68.2 at +10030.4
+
+self time in the longest stretch (275.5 ms):
+   46.9  parse maplibre-gl/dist/maplibre-gl-shared.mjs:5
+   34.5  xc maplibre-gl/dist/maplibre-gl-shared.mjs:5
+   21.0   maplibre-gl/dist/maplibre-gl-shared.mjs:5
+   18.4  (garbage collector) 
+   17.8  _parse maplibre-gl/dist/maplibre-gl-shared.mjs:5
+   13.9  YJ wt-main/src/web/main.ts:2060
+   13.7  XJ wt-main/src/web/main.ts:2230
+   10.0   wt-main/src/web/stations.ts:150
+    7.2  GF wt-main/src/engine.ts:740
+    7.1  Cz wt-main/src/web/stations.ts:149
+    6.6   wt-main/src/web/stations.ts:151
+    5.4  (program) 
+    4.1  UP wt-main/src/bundle.ts:673
+    3.9  At maplibre-gl/dist/maplibre-gl-shared.mjs:5
+    3.3   wt-main/src/web/main.ts:2252
+    3.3  n wt-main/src/web/closures.ts:17
+    2.6  qZ wt-main/src/web/main.ts:5104
+    2.5  jR wt-main/src/web/curve.ts:38
+    2.3  bz wt-main/src/web/stations.ts:74
+    2.0   wt-main/src/web/closures.ts:28
+    1.3  kH wt-main/src/web/closures.ts:301
+    1.3  tF wt-main/src/bundle.ts:777
+    1.3  DJ wt-main/src/web/main.ts:1489
+    1.2  wH wt-main/src/web/closures.ts:220
+    1.0  FH wt-main/src/web/closures.ts:359
+    1.0  ZB wt-main/src/web/colour.ts:10
+    1.0   wt-main/src/web/stations.ts:94
+    1.0  getImageData 
+    1.0   wt-main/src/web/main.ts:2277
+    1.0  XP wt-main/src/bundle.ts:723
+
+self time by source file:
+  129.4  maplibre-gl/dist/maplibre-gl-shared.mjs
+   43.8  src/web/main.ts
+   29.8  src/web/stations.ts
+   18.4  (garbage collector) 
+   15.0  src/web/closures.ts
+    9.2  src/bundle.ts
+    8.4  src/engine.ts
+    5.4  (program) 
+    4.8  maplibre-gl/dist/maplibre-gl.mjs
+    4.3  src/web/curve.ts
+    2.3  src/web/colour.ts
+    1.0  getImageData 
+    0.8  deleteBuffer 
+    0.8  src/web/names.ts
+    0.5  src/web/i18n.ts
+    0.3  fetch 
+    0.3  deleteVertexArray 
+    0.3  (idle) 
+    0.3  postMessage 
+    0.3  texImage2D 
+    0.2  src/web/cards.ts
+    0.2  src/web/newTab.ts
+
+total time (the function and what it calls):
+  275.8  (root) 
+  187.8  qZ wt-main/src/web/main.ts:5104
+  185.1  YJ wt-main/src/web/main.ts:2060
+   72.4   wt-main/src/web/names.ts:867
+   71.7  setFilter maplibre-gl/dist/maplibre-gl.mjs:816
+   71.7  setFilter maplibre-gl/dist/maplibre-gl.mjs:818
+   71.7   wt-main/src/web/main.ts:633
+   67.8  _parse maplibre-gl/dist/maplibre-gl-shared.mjs:5
+   67.8  parse maplibre-gl/dist/maplibre-gl-shared.mjs:5
+   67.8  Mo maplibre-gl/dist/maplibre-gl-shared.mjs:5
+   67.8  es maplibre-gl/dist/maplibre-gl-shared.mjs:5
+   67.8  setFilter maplibre-gl/dist/maplibre-gl-shared.mjs:5
+   56.1  XJ wt-main/src/web/main.ts:2230
+   55.7   maplibre-gl/dist/maplibre-gl-shared.mjs:5
+   54.1  sendAsync maplibre-gl/dist/maplibre-gl-shared.mjs:5
+   34.5  xc maplibre-gl/dist/maplibre-gl-shared.mjs:5
+   33.4   maplibre-gl/dist/maplibre-gl.mjs:5
+   33.2   wt-main/src/web/main.ts:2252
+   29.5  aY wt-main/src/web/main.ts:2410
+   27.5  _dispatchWorkerUpdate maplibre-gl/dist/maplibre-gl.mjs:5
+   27.5   wt-main/src/web/main.ts:2255
+   26.7  Cz wt-main/src/web/stations.ts:149
+   26.3  broadcast maplibre-gl/dist/maplibre-gl.mjs:5
+   18.4  (garbage collector) 
+   17.3   wt-main/src/web/stations.ts:150
+   13.2  sY wt-main/src/web/main.ts:2439
+   13.2   wt-main/src/web/main.ts:2413
+    8.9  oY wt-main/src/web/main.ts:2428
+    8.6  XF wt-main/src/engine.ts:822
+    7.6  GF wt-main/src/engine.ts:740
+=== wt-213b (S3, profiled from mark madrid to end; the frame after the eight Cercanías tracks came)
+the z6 join's longest frame gap: 282.7 ms at +10044 ms after madrid, 1063 samples, 0.0 ms of them idle
+longest busy stretches (ms): 282.6 at +10044.1, 204.1 at +10187.5, 125.7 at +18371.6, 112.8 at +10392.6, 74.5 at +27368.5
+
+self time in the longest stretch (282.6 ms):
+   35.7  xc maplibre-gl/dist/maplibre-gl-shared.mjs:5
+   21.8  e maplibre-gl/dist/maplibre-gl-shared.mjs:5
+   21.2  parse maplibre-gl/dist/maplibre-gl-shared.mjs:5
+   21.1  (garbage collector) 
+   18.5   maplibre-gl/dist/maplibre-gl-shared.mjs:5
+   17.9  concat maplibre-gl/dist/maplibre-gl-shared.mjs:5
+   15.2  aY wt-213b/src/web/main.ts:2247
+   14.2  _parse maplibre-gl/dist/maplibre-gl-shared.mjs:5
+   12.6  iY wt-213b/src/web/main.ts:2075
+    8.8   wt-213b/src/web/stations.ts:150
+    8.5  Dz wt-213b/src/web/stations.ts:149
+    6.5  qF wt-213b/src/engine.ts:740
+    5.8  (program) 
+    5.4   wt-213b/src/web/stations.ts:151
+    4.2  WP wt-213b/src/bundle.ts:720
+    4.1  n wt-213b/src/web/closures.ts:17
+    2.8   wt-213b/src/web/stations.ts:94
+    2.8  NR wt-213b/src/web/curve.ts:38
+    2.6  ao maplibre-gl/dist/maplibre-gl-shared.mjs:5
+    2.3  At maplibre-gl/dist/maplibre-gl-shared.mjs:5
+    2.2  OH wt-213b/src/web/closures.ts:220
+    2.1  ZP wt-213b/src/bundle.ts:770
+    1.8   wt-213b/src/web/main.ts:2269
+    1.8  IJ wt-213b/src/web/main.ts:1496
+    1.8  qn maplibre-gl/dist/maplibre-gl-shared.mjs:5
+    1.8  QF wt-213b/src/engine.ts:822
+    1.8  nF wt-213b/src/bundle.ts:824
+    1.6   wt-213b/src/web/main.ts:2272
+    1.4  NH wt-213b/src/web/closures.ts:301
+    1.3  getImageData 
+
+self time by source file:
+  141.4  maplibre-gl/dist/maplibre-gl-shared.mjs
+   39.7  src/web/main.ts
+   28.3  src/web/stations.ts
+   21.1  (garbage collector) 
+   14.1  src/web/closures.ts
+   10.6  src/bundle.ts
+    8.5  src/engine.ts
+    5.8  (program) 
+    3.6  src/web/curve.ts
+    3.1  maplibre-gl/dist/maplibre-gl.mjs
+    1.8  src/web/colour.ts
+    1.3  getImageData 
+    1.0  deleteVertexArray 
+    1.0  src/web/names.ts
+    0.5  postMessage 
+    0.3  src/web/newTab.ts
+    0.3  RegExp: [\p{L}\p{N}]+|(?<!\S)[-–](?!\S) 
+    0.3  measureText 
+
+total time (the function and what it calls):
+  282.8  (root) 
+  197.5  nQ wt-213b/src/web/main.ts:5123
+  197.3  iY wt-213b/src/web/main.ts:2075
+   89.1   wt-213b/src/web/names.ts:867
+   88.1  setFilter maplibre-gl/dist/maplibre-gl.mjs:816
+   88.1  setFilter maplibre-gl/dist/maplibre-gl.mjs:818
+   88.1   wt-213b/src/web/main.ts:633
+   85.0  _parse maplibre-gl/dist/maplibre-gl-shared.mjs:5
+   84.7  parse maplibre-gl/dist/maplibre-gl-shared.mjs:5
+   84.7  Mo maplibre-gl/dist/maplibre-gl-shared.mjs:5
+   84.7  es maplibre-gl/dist/maplibre-gl-shared.mjs:5
+   84.7  setFilter maplibre-gl/dist/maplibre-gl-shared.mjs:5
+   55.7  aY wt-213b/src/web/main.ts:2247
+   53.9   maplibre-gl/dist/maplibre-gl-shared.mjs:5
+   51.8  sendAsync maplibre-gl/dist/maplibre-gl-shared.mjs:5
+   37.0  concat maplibre-gl/dist/maplibre-gl-shared.mjs:5
+   35.7  xc maplibre-gl/dist/maplibre-gl-shared.mjs:5
+   33.7   wt-213b/src/web/main.ts:2269
+   29.3   wt-213b/src/web/main.ts:2272
+   28.8  mY wt-213b/src/web/main.ts:2427
+   28.7   maplibre-gl/dist/maplibre-gl.mjs:5
+   28.2  _dispatchWorkerUpdate maplibre-gl/dist/maplibre-gl.mjs:5
+   27.6  Dz wt-213b/src/web/stations.ts:149
+   23.3  broadcast maplibre-gl/dist/maplibre-gl.mjs:5
+   23.1  e maplibre-gl/dist/maplibre-gl-shared.mjs:5
+   21.1  (garbage collector) 
+   16.8   wt-213b/src/web/stations.ts:150
+   12.9  gY wt-213b/src/web/main.ts:2456
+   12.9   wt-213b/src/web/main.ts:2430
+    8.8  QF wt-213b/src/engine.ts:822
+
+=== the S3 runs' sources set around the longest frame (perf-desktop.jsonl, off/runs.jsonl)

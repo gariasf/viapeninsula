@@ -1,0 +1,38 @@
+13:44:27 desktop4: S2 (load { 8.18 5.68 5.82 })
+
+> perf
+> node src/page/perf.ts S2 --pitch 45 --tree /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/***/scratchpad/wt-main --tree /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/***/scratchpad/wt-213b --at /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/***/scratchpad/213/capture/0630.ndjson.gz --out /private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/***/scratchpad/wt-213b/out
+
+13:44:29 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+13:45:01 S2 desktop wt-main run 1: load 6.5 5.5 5.8
+13:45:33 S2 desktop wt-213b run 1: load 5.8 5.5 5.7
+13:45:33 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+13:46:05 S2 desktop wt-main run 2: load 7.4 6.0 5.9
+13:46:37 S2 desktop wt-213b run 2: load 6.4 5.9 5.9
+13:46:37 1 browser slot taken after 0 s
+WebGL: ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)
+13:47:10 S2 desktop wt-main run 3: load 6.5 6.0 5.9
+13:47:42 S2 desktop wt-213b run 3: load 5.0 5.6 5.8
+
+/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/wt-main, pitch 45, desktop, median of 3:
+| check | scenario | median | limit | |
+|---|---|---|---|---|
+| A join: longest gap, ms (S2's is long distance's, S6) | S2 | 266.7 | ≤ 100 | BREACH |
+| A join: frozen ms (gaps over 50 ms, summed) | S2 | 524.8 | ≤ 150 | BREACH |
+| Cold load: the first Lines, ms | S2 | 1159 | ≤ 600 | BREACH |
+| Cold load: the first Trains, ms | S2 | 998 | ≤ 1000 | ok |
+| Cold load: longest gap after the first Lines, ms | S2 | 266.7 | ≤ 100 | BREACH |
+| Workers busy in a cold load's first 15 s, ms | S2 | 6102 | ≤ 1500 | BREACH |
+
+/private/tmp/claude-502/-Users-guillem-arias-Documents-gariasf-viapeninsula/e8ede10f-745b-4089-abf9-db453be3822d/scratchpad/wt-213b, pitch 45, desktop, median of 3:
+| check | scenario | median | limit | |
+|---|---|---|---|---|
+| A join: longest gap, ms (S2's is long distance's, S6) | S2 | 241.8 | ≤ 100 | BREACH |
+| A join: frozen ms (gaps over 50 ms, summed) | S2 | 508.8 | ≤ 150 | BREACH |
+| Cold load: the first Lines, ms | S2 | 1074 | ≤ 600 | BREACH |
+| Cold load: the first Trains, ms | S2 | 930 | ≤ 1000 | ok |
+| Cold load: longest gap after the first Lines, ms | S2 | 241.8 | ≤ 100 | BREACH |
+| Workers busy in a cold load's first 15 s, ms | S2 | 5665 | ≤ 1500 | BREACH |
+exit 1 at 13:47:42 (load { 4.96 5.63 5.79 })
