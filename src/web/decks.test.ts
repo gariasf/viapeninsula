@@ -2,7 +2,7 @@ import { VectorTile } from '@mapbox/vector-tile';
 import { createPropertyExpression, latest } from '@maplibre/maplibre-gl-style-spec';
 import { PbfReader } from 'pbf';
 import { expect, test } from 'vitest';
-import { bridgeLayer, DECK_STEPS as STEPS, DECKS_FROM, DEGREE, pixelMetres, type DecksFile, type Shape, type Stroke, type Track } from '../bundle.ts';
+import { BANDS, bridgeLayer, DECK_STEPS as STEPS, DECKS_FROM, DEGREE, pixelMetres, type DecksFile, type Shape, type Stroke, type Track } from '../bundle.ts';
 import { encodeTrack } from '../pieces.ts';
 import * as decks from './decks.ts';
 import { deckPaint } from './deckLayers.ts';
@@ -88,7 +88,8 @@ test("lifts decks that overlap a hair apart, as a double track's two on their ra
   const rails = (line: string, from: number, to: number, y: number) => ({ ...onBridge(line, from, to), geometry: { type: 'LineString' as const, coordinates: straight('', from, to, y).coords } });
   const decks = regionDecks([], [rails('R2', 0, 600, 0), rails('R2', 600, 0, 4.5), rails('R3', 0, 600, 30)], []).decks.flatMap(deckFeatures);
   const base = (line: string, y: number) => decks.find((f) => f.properties?.line === line && f.properties.kind === 'deck' && Math.abs(Math.min(...(f.geometry as GeoJSON.Polygon).coordinates[0]!.map(([, lat]) => (lat! - LAT) * DEGREE)) - (y - 3.6)) < 1)?.properties?.base;
-  expect(base('R2', 0)).not.toBe(base('R2', 4.5));
+  // A lift apart at least, not the millionths of a metre their latitudes' scales differ by.
+  expect(Math.abs(Number(base('R2', 0)) - Number(base('R2', 4.5)))).toBeGreaterThan(0.05);
   // A hair: under a twentieth of the deck's height.
   expect(Math.abs(Number(base('R2', 0)) - Number(base('R2', 4.5)))).toBeLessThan(deckHeight(1, LAT) / 20);
   // Two regions' decks on the track they share stack as their Lines' strokes do: Media Distancia y Avant's (tier 0) under
@@ -98,6 +99,14 @@ test("lifts decks that overlap a hair apart, as a double track's two on their ra
     expect(tiers).toEqual([...tiers].sort((a, b) => a - b));
     expect(new Set(tiers).size).toBe(3);
   }
+  // Rails Lines share, grey, are decked once, as they're drawn over each other.
+  const shared = (line: string) => ({ ...rails(line, 0, 600, 0), properties: { ...rails(line, 0, 600, 0).properties, shared: true } });
+  expect(regionDecks([], [shared('R2'), shared('R11')], []).decks.map((d) => d.properties)).toEqual([expect.objectContaining({ line: 'R2', shared: true })]);
+});
+
+test("makes a Stretch's decks of the band zoom 14 is drawn in, or of a stroke drawn alike in every band, not of another band's (#213)", () => {
+  const band = (n?: number) => ({ ...onBridge('R2', 0, 1000), properties: { ...onBridge('R2', 0, 1000).properties, ...(n !== undefined && { band: n }) } });
+  expect([band(BANDS.indexOf(10)), band(BANDS.indexOf(DECKS_FROM)), band()].map((f) => regionDecks([f], [], []).decks.length)).toEqual([0, 1, 1]);
 });
 
 test("marks each tunnel's mouth once, a double track's with one arch, and none where a Line starts or ends in its tunnel, goes deeper in it, or onto a bridge (#213)", () => {
