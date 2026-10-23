@@ -6,7 +6,7 @@ import { BANDS, bridgeLayer, DECK_STEPS as STEPS, DECKS_FROM, DEGREE, pixelMetre
 import { encodeTrack } from '../pieces.ts';
 import * as decks from './decks.ts';
 import { deckPaint } from './deckLayers.ts';
-import { cutAtBridges, decked, deckFeatures, deckHeight, mouthsOf, regionDecks } from './decks.ts';
+import { cutAtBridges, decked, deckFeatures, deckHeight, decksTile, mouthsOf, regionDecks } from './decks.ts';
 import { lineWork, type LinesAsk, type LineSource, type RegionHow } from './lineTiles.ts';
 import { LINE_PARTS } from './lines.ts';
 import { packFile } from './placeNames.ts';
@@ -15,6 +15,12 @@ import { packFile } from './placeNames.ts';
 const [LON, LAT] = [2.1, 41.35];
 const KX = DEGREE * Math.cos((LAT * Math.PI) / 180);
 const point = (x: number, y = 0): [number, number] => [LON + x / KX, LAT + y / DEGREE];
+/** The tile at a zoom that holds a point x metres east. */
+const tileAt = (z: number, x: number) => {
+  const [lon, lat] = point(x);
+  const n = 2 ** z;
+  return { x: Math.floor(((lon + 180) / 360) * n), y: Math.floor(((1 - Math.log(Math.tan((lat * Math.PI) / 180) + 1 / Math.cos((lat * Math.PI) / 180)) / Math.PI) / 2) * n) };
+};
 /** A shape due east, or west where `to` is less than `from`, at y metres north, with a point every 10 m. */
 const straight = (id: string, from: number, to: number, y = 0, levels?: Shape['levels']): Shape => {
   const n = Math.abs(to - from) / 10;
@@ -125,6 +131,15 @@ test("marks each tunnel's mouth once, a double track's with one arch, and none w
   expect(mouthsOf(shapes).map(([lon]) => Math.round((lon - LON) * KX))).toEqual([994, 2003, 5500, 8100, 8600]);
 });
 
+test("marks a mouth once where two regions' tracks go into one tunnel, as long distance's and Catalonia's do, the first region's (#213)", () => {
+  // Long distance's at 1,000 m and 1,600 m; Catalonia's 3 m and 20 m off them, and one of its own at 1,300 m.
+  const regions = [{ decks: [], mouths: [point(1000), point(1600)] }, { decks: [], mouths: [point(1003), point(1300), point(1600, 20)] }];
+  const { x, y } = tileAt(13, 1000);
+  const marked = decksTile(regions, 13, x, y)?.features ?? [];
+  const east = (tx: number) => Math.round(((((x + tx / 8192) / 2 ** 13) * 360 - 180 - LON) * KX) / 10) * 10;
+  expect(marked.map((f) => east((f.geometry as number[][])[0]![0]!)).sort((a, b) => a - b)).toEqual([1000, 1300, 1600]);
+});
+
 /** A region's track of one Line, R2, 1.2 km due east: on a bridge from 200 m to 500 m, and in a tunnel from 700 m to 1 km. */
 const track: Track = {
   networks: [{ id: 'rodalies', name: 'Rodalies', profile: { acceleration: 1, braking: 1, topSpeed: 40, dwell: 30 }, runningSide: 'right', colour: '#000', pillZoom: 10, credit: { text: '', url: '' } }],
@@ -141,10 +156,7 @@ const how: RegionHow = { rank: 0, under: false, lettering: [], shownFrom: [] };
 const bridges: DecksFile = { bridges: { 'stretch:catalonia:0': [[200, 500]] } };
 /** The tile at a zoom that holds a point x metres east, and its features of a source, as MapLibre reads them. */
 const tile = (work: ReturnType<typeof lineWork>, source: LineSource, z: number, x: number) => {
-  const [lon, lat] = point(x);
-  const n = 2 ** z;
-  const y = Math.floor(((1 - Math.log(Math.tan((lat * Math.PI) / 180) + 1 / Math.cos((lat * Math.PI) / 180)) / Math.PI) / 2) * n);
-  const answer = work({ tile: { source, z, x: Math.floor(((lon + 180) / 360) * n), y, ask: 1 } });
+  const answer = work({ tile: { source, z, ...tileAt(z, x), ask: 1 } });
   if (!('data' in answer)) throw new Error('no tile');
   const layer = new VectorTile(new PbfReader(answer.data)).layers[source];
   return Array.from({ length: layer?.length ?? 0 }, (_, i) => layer!.feature(i).properties);

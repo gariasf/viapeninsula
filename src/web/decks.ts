@@ -250,14 +250,22 @@ function tileBox(z: number, x: number, y: number, buffer: number): [number, numb
 
 /**
  * A tile of the decks' source, cut as the Lines' tiles are (lineTiles.ts's OPTIONS): the mouths in it, from where the
- * source starts, and from DECKS_FROM the decks in it, made for its zoom: each of STEPS along the Stretches below the
- * zoom the Lines are back on their rails at, and from there the rails' decks. Undefined where it has none.
+ * source starts, each once, where regions' tracks go into one tunnel too, as long distance's and Catalonia's do, the
+ * first region's within MOUTH_NEAR; and from DECKS_FROM the decks in it, made for its zoom: each of STEPS along the
+ * Stretches below the zoom the Lines are back on their rails at, and from there the rails' decks. Undefined where it has none.
  */
 export function decksTile(regions: RegionDecks[], z: number, x: number, y: number): ReturnType<GeoJSONVT['getTile']> | undefined {
   const [west, south, east, north] = tileBox(z, x, y, OPTIONS.buffer / OPTIONS.extent);
   const features: GeoJSON.Feature[] = [];
+  const marked: Point[] = [];
+  // ponytail: each mouth against every one marked in the tile, at most 25 on 22 Oct 2026's dry run. A grid, as mouthsOf()'s, if a tile has hundreds.
+  const near = ([lon, lat]: Point) => marked.some(([e, n]) => Math.hypot((e - lon) * perMetre(lat)[0], (n - lat) * DEGREE) <= MOUTH_NEAR);
   for (const { decks, mouths } of regions) {
-    for (const [lon, lat] of mouths) if (lon >= west && lon <= east && lat >= south && lat <= north) features.push({ type: 'Feature', properties: { kind: 'mouth' }, geometry: { type: 'Point', coordinates: [lon, lat] } });
+    for (const [lon, lat] of mouths) {
+      if (lon < west || lon > east || lat < south || lat > north || near([lon, lat])) continue;
+      marked.push([lon, lat]);
+      features.push({ type: 'Feature', properties: { kind: 'mouth' }, geometry: { type: 'Point', coordinates: [lon, lat] } });
+    }
     if (z < DECKS_FROM) continue;
     for (const d of decks) if (d.rails === z >= RAILS_ZOOM && d.bbox[0] <= east && d.bbox[2] >= west && d.bbox[1] <= north && d.bbox[3] >= south) features.push(...deckFeatures(d));
   }
