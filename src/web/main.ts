@@ -813,6 +813,10 @@ const rail = matchMedia('(min-width: 640px) and (min-height: 480px)');
 const DECKS = rail.matches;
 /** Whether a desktop has begun its decks: from the first time its map reaches DECKS_ON (decksGate(), beginDecks()). */
 const deckGate = decksGate(DECKS);
+// A desktop's Trains on bridges' decks, from the module a phone never loads (trainDecks.ts, #856): set as
+// beginDecks() loads it. Its glows are baked as the style asks for them (the resolver below).
+let trainDecks: typeof import('./trainDecks.ts') | undefined;
+let bakeGlow: ((hex: string) => { width: number; height: number; data: Uint8ClampedArray } | undefined) | undefined;
 /** Whether the viewer prefers less motion, where a sheet changes state without moving. */
 const lessMotion = matchMedia('(prefers-reduced-motion: reduce)');
 /** The Train the viewer's hand took the map off, as followKey() names it, which the map pans with no more (#325). */
@@ -987,7 +991,7 @@ let topSpeeds = new Map<string, number>();
  */
 let fastest = 0;
 /** The Trains last drawn, with their Lines, where whereDrawn() had them, which paceInView() looks in, and as pills, which a tap spreads (groupOf()). */
-let placedTrains: { train: { trip: Trip }; at: Point; asPill?: Omit<Drawn, 'at'> }[] = [];
+let placedTrains: { train: { trip: Trip }; at: Point; height?: number; asPill?: Omit<Drawn, 'at'> }[] = [];
 /** The days shown whose places' names, and where Lines were drawn already their Lines, are still to be handed to MapLibre a frame on (show()). */
 let namesDue: Track | Bundle | undefined;
 /** The cards' colour, style.css's --card, which a Scheduled Train's pill letters its Line's colour against (pill()). */
@@ -1647,7 +1651,7 @@ map.addLayer(
     id: 'train-halos',
     type: 'circle',
     source: 'trains',
-    filter: ['all', DRAWN, ['!', ['get', 'folded']], ['get', 'live'], darkBasemap || ['get', 'followed']],
+    filter: ['all', DRAWN, ['!', ['get', 'folded']], ['get', 'live'], darkBasemap || ['get', 'followed'], ['!', ['>', ['get', 'height'], 0]]],
     paint: { 'circle-radius': ['get', 'haloRadius'], 'circle-color': ['get', 'colour'], 'circle-blur': darkBasemap ? GLOW_BLUR : HALO_BLUR, 'circle-opacity': darkBasemap ? GLOW_OPACITY : HALO_OPACITY, 'circle-pitch-scale': 'viewport' },
   },
   'line-names',
@@ -1708,9 +1712,15 @@ map.addLayer({ id: 'mark', type: 'circle', source: 'mark', paint: { 'circle-radi
 for (const [id, outline] of Object.entries(OUTLINES)) addOutline(id, outline);
 map.setMissingStyleImageResolver((id) => {
   const [, outline, n] = /^train-(\w+)-dashed-(\d+)$/.exec(id) ?? [];
-  if (!outline || !n || !(outline in OUTLINE_SIZES)) return;
-  const { width, height, data, ...fit } = dashedOutline(outline as Outline, Number(n));
-  map.addImage(id, { width, height, data }, { sdf: true, pixelRatio: 2, ...fit });
+  if (outline && n && outline in OUTLINE_SIZES) {
+    const { width, height, data, ...fit } = dashedOutline(outline as Outline, Number(n));
+    map.addImage(id, { width, height, data }, { sdf: true, pixelRatio: 2, ...fit });
+    return;
+  }
+  // A raised Live Train's halo in its Line's colour, baked by the decks chunk (trainDecks.ts, #856).
+  const hex = /^train-glow-([0-9a-f]{6})$/.exec(id)?.[1];
+  const glow = hex && bakeGlow?.(hex);
+  if (glow) map.addImage(id, glow, { pixelRatio: 2 });
 });
 for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', true, FOLLOWED_TEXT]] as const) {
   const filter: ExpressionSpecification = ['all', AS_PILL, ['!', ['get', 'folded']], ['==', ['get', 'followed'], followed]];
@@ -1720,7 +1730,7 @@ for (const [suffix, followed, size] of [['', false, PILL_TEXT], ['-followed', tr
       id,
       type: 'circle',
       source: 'trains',
-      filter: ['all', DRAWN, ['get', 'followed']],
+      filter: ['all', DRAWN, ['get', 'followed'], ['!', ['>', ['get', 'height'], 0]]],
       paint: { 'circle-radius': radius, 'circle-opacity': 0, 'circle-stroke-width': width, 'circle-stroke-color': ['get', 'lettering'], 'circle-stroke-opacity': opacity, 'circle-pitch-scale': 'viewport' },
     });
     map.addLayer(ring('train-pulse', ['get', 'pulseRadius'], TARGET.outer.width, ['get', 'pulseOpacity']));
@@ -1915,7 +1925,7 @@ map.on('click', ({ point: { x, y }, lngLat }) => {
   const { group } = spreadState;
   const inGroup = typeof train === 'string' && group?.ids.has(train);
   const folded = typeof train === 'string' && (train !== followedId() || !letGo()) ? shownPiles.get(train)?.folded : undefined;
-  const tapped = typeof train === 'string' && (folded || !group) ? groupOf(placedTrains.flatMap(({ asPill, at }) => (asPill ? [{ ...asPill, at: projected(at) }] : [])), train, folded) : undefined;
+  const tapped = typeof train === 'string' && (folded || !group) ? groupOf(placedTrains.flatMap(({ asPill, at, height }) => (asPill ? [{ ...asPill, at: raisedScreen(at, height ?? 0) }] : [])), train, folded) : undefined;
   const spreads = tapped && group && inGroup ? joined(group, tapped) : tapped;
   if (spreads || (group && !inGroup)) {
     spreadState.group = spreads;
@@ -1963,6 +1973,10 @@ map.on('mousemove', ({ point }) => (map.getCanvas().style.cursor = map.queryRend
 // and the decks files of the tracks the map has, whose Lines the worker made without them, made again with them (handOver()).
 // A look after that asks for its tracks' decks files beside them (neededDays()).
 const beginDecks = () => {
+  void import('./trainDecks.ts').then((m) => {
+    [trainDecks, bakeGlow] = [m, m.bakeGlow];
+    m.raiseTrains(map, { dark: darkBasemap, haloOpacity: [HALO_OPACITY, GLOW_OPACITY], before: 'line-names' });
+  });
   void import('./deckLayers.ts').then(({ addDecks }) => {
     const decks = addDecks(map, { tiles: lineTilesUrl('decks', linesIn), lineColour, structure: darkBasemap ? '#8a8f98' : '#7c8088', dark: darkBasemap, before: firstLabel, steps: DECK_STEPS, rails: railsZoom });
     strokeLayers.push(...decks);
@@ -2155,6 +2169,7 @@ function show(days: Track | Bundle, tripsOnly = false) {
       // which no region has in a manifest from before #266 (#736, #787).
       // On a desktop, its decks file, and their tier: Media Distancia y Avant's under long distance's under the others', as their Lines.
       const decks = decksOf(track);
+      trainDecks?.noteDecks(decks);
       const how = { rank: Math.max(0, manifest?.regions?.findIndex((r) => r.id === id) ?? 0), under: id === 'long-distance' || id === 'media-distancia-avant', lettering: track.lines.map((l): [string, string | undefined] => [l.id, lettering(l.id)]), shownFrom: [...shownFrom], ...(deckGate.on && decks && { decks, tier: id === 'media-distancia-avant' ? 0 : id === 'long-distance' ? 1 : 2 }) };
       // One it holds, made without its decks before the map began them, is made again with them, handed its file again.
       if (!handAgain(track, handedLines, deckedLines, deckGate.on)) return { key: keyOf(track), how };
@@ -2529,11 +2544,14 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
     const box = pill && (trip.id === followed ? pill.followedBox : pill.box);
     // As a pill, with its edge, on screen.
     const asPill = pill && box && zoom >= pill.zoom ? { id: trip.id, heading: heading - bearing, box: [box[0] + PILL_HALO, box[1] + PILL_HALO] as [number, number], standsAt } : undefined;
-    return { train, pill, box, asPill, at: whereDrawn(train, zoom) };
+    // Where it's drawn, and how high: a desktop raises a Train on a bridge onto its deck (trainDecks.ts, #856).
+    const at = whereDrawn(train, zoom);
+    const height = trainDecks && deckGate.on ? trainDecks.heightOf(train, zoom, railsZoom, placing, at[1]) : 0;
+    return { train, pill, box, asPill, at, height };
   });
   placedTrains = placed;
   // Only the group's Trains, and those moved aside, easing back, are put on screen.
-  const spreadable = placed.flatMap(({ asPill, at }): Drawn[] => (asPill && (spreadState.group?.ids.has(asPill.id) || spreadState.moved.has(asPill.id)) ? [{ ...asPill, at: projected(at) }] : []));
+  const spreadable = placed.flatMap(({ asPill, at, height }): Drawn[] => (asPill && (spreadState.group?.ids.has(asPill.id) || spreadState.moved.has(asPill.id)) ? [{ ...asPill, at: raisedScreen(at, height) }] : []));
   // A spread group folds once fewer than two of its Trains are held apart (held()), as once they leave or part, or zoomed out
   // from their pills; till then those are drawn, and named (piles()).
   const holding = spreadState.group ? held(spreadable, spreadState.group) : [];
@@ -2545,7 +2563,7 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
   // Each pill in view where it's drawn, in trains()' order, for the piles where a pill would lie on another's name (piles(), #513).
   // ponytail: in view by its Train's point, so a pill reaching in from just off the map's edge folds none. Pad the bounds by a pill if a name shows on one there.
   const [bounds, inView] = [map.getBounds(), [] as (Named & { properties: NonNullable<GeoJSON.GeoJsonProperties> })[]];
-  const features = placed.map(({ train: { trip, heading, live }, pill, box, asPill, at }): GeoJSON.Feature<GeoJSON.Point> => {
+  const features = placed.map(({ train: { trip, heading, live }, pill, box, asPill, at, height }): GeoJSON.Feature<GeoJSON.Point> => {
     const [out, onScreen] = [aside.get(trip.id), unspread.get(trip.id)];
     const right = rightOf(heading, bearing);
     const coordinates: Point = out && onScreen ? (map.unproject([onScreen[0] + out * right[0], onScreen[1] + out * right[1]]).toArray() as Point) : at;
@@ -2581,10 +2599,12 @@ function trains(): GeoJSON.FeatureCollection<GeoJSON.Point> {
         pulseRadius,
         pulseOpacity,
         folded: false,
+        // How high it stands on its deck, in metres: 0 on the ground (trainDecks.ts, #856).
+        height,
       },
       geometry: { type: 'Point', coordinates },
     };
-    if (pill && asPill && bounds.contains(coordinates)) inView.push({ id: trip.id, at: projected(coordinates), box: asPill.box, name: pill.nameBox, properties: feature.properties! });
+    if (pill && asPill && bounds.contains(coordinates)) inView.push({ id: trip.id, at: raisedScreen(coordinates, height), box: asPill.box, name: pill.nameBox, properties: feature.properties! });
     return feature;
   });
   // Each pile drawn as its top pill, with its count at a corner, in ems of its lettering (#828): a pill lettered "+n" at
@@ -2736,6 +2756,13 @@ function reach(box: [number, number], angle: number): number {
 function projected(point: Point): [number, number] {
   const { x, y } = map.project(point);
   return [x, y];
+}
+
+/** Where a Train drawn `height` metres up is on screen, in px: its point, raised by the metres a pixel is at its latitude, up the tilted plane, as symbol-height-offset draws it (#856). */
+function raisedScreen(at: Point, height: number): [number, number] {
+  const [x, y] = projected(at);
+  if (!height) return [x, y];
+  return [x, y - (height * Math.cos((map.getPitch() * Math.PI) / 180)) / (pixelMetres(map.getZoom()) * Math.cos((at[1] * Math.PI) / 180))];
 }
 
 /** How far outside a square `half` px either side of its middle, with its corners rounded `r` px, a point is, in px. */
