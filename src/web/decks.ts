@@ -33,6 +33,18 @@ export function deckHeight(layer: number, lat: number): number {
   return ((RISE + MORE * (Math.max(1, layer) - 1)) * pixelMetres(DECKS_FROM, lat)) / Math.SQRT1_2;
 }
 
+/** How high a deck that runs from `from` to `to` metres along its line is at `d`, of its full height: its ramp's steps at each ramped end, 1 over the rest. */
+export function riseOn(from: number, to: number, ramped: [boolean, boolean], d: number): number {
+  const ramp = Math.min(RAMP, (to - from) / 3);
+  if (ramp <= 0) return 1;
+  return Math.min(ramped[0] ? Math.ceil((RAMP_STEPS * (d - from)) / ramp) / RAMP_STEPS : 1, ramped[1] ? Math.ceil((RAMP_STEPS * (to - d)) / ramp) / RAMP_STEPS : 1, 1);
+}
+
+/** How high the top of a bridge's deck stands over the ground, in metres at a latitude, `up` of its rise up (riseOn()): the rise and the slab, as deck() draws them. */
+export function deckTop(layer: number, lat: number, up: number): number {
+  return deckHeight(layer, lat) * up + (SLAB * pixelMetres(DECKS_FROM, lat)) / Math.SQRT1_2;
+}
+
 /**
  * A stroke cut at its bridges' ends, each part on a bridge marked `deck` with the bridge's layer: by `runs`, from where
  * to where along its shape each bridge is, and its layer, 1 where none is given.
@@ -44,7 +56,7 @@ export function cutAtBridges(s: Stroke, runs: [from: number, to: number, layer?:
 }
 
 /** A traced shape's bridges, from its levels: from where to where along it, and each one's layer. */
-function bridgesOf({ levels = [], dist }: Pick<Shape, 'levels' | 'dist'>): [from: number, to: number, layer: number][] {
+export function bridgesOf({ levels = [], dist }: Pick<Shape, 'levels' | 'dist'>): [from: number, to: number, layer: number][] {
   return levels.flatMap(([from, level], i) => {
     const layer = bridgeLayer(level);
     return layer ? [[from, levels[i + 1]?.[0] ?? dist.at(-1) ?? from, layer] as [number, number, number]] : [];
@@ -149,7 +161,7 @@ function deck(line: Point[], { side, step, layer, ramped, tier }: { side: number
   const ramp = Math.min(RAMP, length / 3);
   const [rise, slab] = [deckHeight(layer, lat), (SLAB * pixelMetres(DECKS_FROM, lat)) / Math.SQRT1_2];
   /** How high the deck is a distance along it, of its full height. */
-  const up = (d: number) => Math.min(ramped[0] ? Math.ceil((RAMP_STEPS * d) / ramp) / RAMP_STEPS : 1, ramped[1] ? Math.ceil((RAMP_STEPS * (length - d)) / ramp) / RAMP_STEPS : 1, 1);
+  const up = (d: number) => riseOn(0, length, ramped, d);
   // Its parts: a ramp's steps at each end ramped, and the rest whole.
   const cuts = [...new Set([0, ...(ramped[0] ? Array.from({ length: RAMP_STEPS }, (_, k) => (ramp * (k + 1)) / RAMP_STEPS) : []), ...(ramped[1] ? Array.from({ length: RAMP_STEPS }, (_, k) => length - (ramp * (RAMP_STEPS - k)) / RAMP_STEPS) : []), length])].sort((a, b) => a - b);
   const parts = cuts.slice(1).flatMap((to, i) => {
